@@ -240,6 +240,107 @@
   .card.member:hover .card-cta { color: #c9a962; }
   .card.applicant:hover .card-cta { color: #22d3ee; }
 
+  /* Test Accounts Section */
+  .accounts {
+    margin-bottom: 3rem;
+    animation: fadeSlideUp 0.7s ease 0.7s forwards;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  .accounts-title {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.3);
+    margin-bottom: 1rem;
+  }
+
+  .accounts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  @media (max-width: 768px) {
+    .accounts-grid { grid-template-columns: 1fr; }
+  }
+
+  .account-box {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 14px;
+    padding: 1.25rem;
+    text-align: left;
+    backdrop-filter: blur(8px);
+  }
+
+  .account-box h4 {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .account-box.admin-box h4 { color: #a78bfa; }
+  .account-box.user-box h4 { color: #c9a962; }
+
+  .cred {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    font-size: 0.78rem;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+
+  .cred:last-child { border-bottom: none; }
+
+  .cred-email {
+    color: rgba(255,255,255,0.6);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.72rem;
+  }
+
+  .cred-pass {
+    color: rgba(255,255,255,0.35);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.72rem;
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.04);
+    transition: all 0.2s;
+  }
+
+  .cred-pass:hover {
+    background: rgba(201, 169, 98, 0.15);
+    color: #c9a962;
+  }
+
+  .copy-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(201, 169, 98, 0.9);
+    color: #0a0a0f;
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 10;
+  }
+
+  .copy-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
   /* Footer */
   .footer {
     color: rgba(255, 255, 255, 0.15);
@@ -315,33 +416,54 @@
 
   </div>
 
+  <div class="accounts">
+    <div class="accounts-title">Test Accounts — click password to copy</div>
+    <div class="accounts-grid">
+      <div class="account-box admin-box">
+        <h4><i class="fas fa-shield-halved"></i> Admin Portal</h4>
+        <div class="cred"><span class="cred-email">juginovic.alen@gmail.com</span><span class="cred-pass" onclick="copyPass(this)">admin123</span></div>
+        <div class="cred"><span class="cred-email">vp@medx.hr</span><span class="cred-pass" onclick="copyPass(this)">admin123</span></div>
+        <div class="cred"><span class="cred-email">laura.rodman@medx.hr</span><span class="cred-pass" onclick="copyPass(this)">MedX2026!</span></div>
+      </div>
+      <div class="account-box user-box">
+        <h4><i class="fas fa-user-circle"></i> User Portal (Members)</h4>
+        <div class="cred"><span class="cred-email">ivan.horvat@test.medx.hr</span><span class="cred-pass" onclick="copyPass(this)">Test2026!</span></div>
+        <div class="cred"><span class="cred-email">maria.kovac@test.medx.hr</span><span class="cred-pass" onclick="copyPass(this)">Test2026!</span></div>
+        <div class="cred"><span class="cred-email">petra.babic@test.medx.hr</span><span class="cred-pass" onclick="copyPass(this)">Test2026!</span></div>
+      </div>
+    </div>
+  </div>
+
   <div class="footer">
     <div class="footer-divider"></div>
     Bridging Medicine, Science & Technology
   </div>
 </div>
 
-<script>
-  // Support both local (port-based) and deployed (URL-based) modes
-  const params = new URLSearchParams(window.location.search);
-  const adminUrl = params.get('adminUrl');
-  const userUrl = params.get('userUrl');
+<div class="copy-toast" id="copyToast">Copied!</div>
 
-  if (adminUrl || userUrl) {
-    // Deployed mode: explicit URLs provided
-    const admin = adminUrl || '#';
-    const user = userUrl || '#';
-    document.getElementById('card-admin').href = admin;
-    document.getElementById('card-member').href = user;
-    document.getElementById('card-applicant').href = user + (user.includes('#') ? '' : '#accelerator');
-  } else {
-    // Local mode: port-based routing
-    const adminPort = params.get('admin') || '3001';
-    const userPort = params.get('user') || '3000';
-    const host = window.location.hostname || 'localhost';
-    document.getElementById('card-admin').href = `http://${host}:${adminPort}`;
-    document.getElementById('card-member').href = `http://${host}:${userPort}`;
-    document.getElementById('card-applicant').href = `http://${host}:${userPort}/#accelerator`;
+<script>
+  // Portal URLs — Render.com deployment
+  const ADMIN_URL = 'https://medx-admin-portal.onrender.com';
+  const USER_URL = 'https://medx-user-portal.onrender.com';
+
+  // Allow override via query params (for Render.com deployment)
+  const params = new URLSearchParams(window.location.search);
+  const adminUrl = params.get('adminUrl') || ADMIN_URL;
+  const userUrl = params.get('userUrl') || USER_URL;
+
+  document.getElementById('card-admin').href = adminUrl;
+  document.getElementById('card-member').href = userUrl;
+  document.getElementById('card-applicant').href = userUrl + '/#accelerator';
+
+  // Copy password to clipboard
+  function copyPass(el) {
+    navigator.clipboard.writeText(el.textContent).then(() => {
+      const toast = document.getElementById('copyToast');
+      toast.textContent = 'Copied: ' + el.textContent;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 1500);
+    });
   }
 </script>
 
