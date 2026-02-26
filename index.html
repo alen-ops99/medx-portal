@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Med&X Portal — Team Testing Hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0a0a0f;
+            color: #e2e8f0;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated background */
+        .bg-gradient {
+            position: fixed; inset: 0; z-index: 0;
+            background:
+                radial-gradient(ellipse 80% 60% at 50% -20%, rgba(201, 169, 98, 0.08) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 50% at 80% 80%, rgba(34, 211, 238, 0.05) 0%, transparent 50%),
+                radial-gradient(ellipse 40% 40% at 10% 60%, rgba(168, 85, 247, 0.04) 0%, transparent 50%);
+        }
+
+        .container {
+            position: relative; z-index: 1;
+            max-width: 1100px; margin: 0 auto; padding: 40px 24px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center; margin-bottom: 56px;
+        }
+        .logo-mark {
+            display: inline-flex; align-items: center; gap: 12px;
+            margin-bottom: 16px;
+        }
+        .logo-mark .icon {
+            width: 52px; height: 52px; border-radius: 14px;
+            background: linear-gradient(135deg, #C9A962, #b8963e);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; color: #0a0a0f; font-weight: 800;
+        }
+        .logo-mark h1 {
+            font-size: 32px; font-weight: 800; letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #C9A962, #e8d5a0);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .header .subtitle {
+            font-size: 16px; color: #94a3b8; font-weight: 400;
+            margin-top: 4px;
+        }
+        .header .badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            margin-top: 16px; padding: 6px 16px;
+            background: rgba(201, 169, 98, 0.1); border: 1px solid rgba(201, 169, 98, 0.2);
+            border-radius: 20px; font-size: 12px; font-weight: 600; color: #C9A962;
+        }
+        .header .badge i { font-size: 10px; }
+
+        /* Portal Cards Grid */
+        .portals {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 32px;
+            margin-bottom: 48px;
+        }
+        @media (max-width: 768px) { .portals { grid-template-columns: 1fr; } }
+
+        .portal-card {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 20px; padding: 0;
+            overflow: hidden; transition: all 0.3s ease;
+            backdrop-filter: blur(20px);
+        }
+        .portal-card:hover {
+            border-color: rgba(201, 169, 98, 0.3);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+
+        .portal-card .card-header {
+            padding: 32px 32px 24px;
+        }
+        .portal-card .card-icon {
+            width: 56px; height: 56px; border-radius: 16px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; margin-bottom: 20px;
+        }
+        .portal-card.user .card-icon {
+            background: linear-gradient(135deg, rgba(34, 211, 238, 0.15), rgba(34, 211, 238, 0.05));
+            color: #22d3ee;
+        }
+        .portal-card.admin .card-icon {
+            background: linear-gradient(135deg, rgba(201, 169, 98, 0.15), rgba(201, 169, 98, 0.05));
+            color: #C9A962;
+        }
+
+        .portal-card h2 {
+            font-size: 22px; font-weight: 700; color: #f1f5f9;
+            margin-bottom: 8px;
+        }
+        .portal-card .card-desc {
+            font-size: 14px; color: #94a3b8; line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        .portal-card .launch-btn {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            width: 100%; padding: 14px 24px; border: none; border-radius: 12px;
+            font-size: 15px; font-weight: 600; cursor: pointer;
+            text-decoration: none; transition: all 0.2s ease;
+        }
+        .portal-card.user .launch-btn {
+            background: linear-gradient(135deg, #22d3ee, #06b6d4);
+            color: #0a0a0f;
+        }
+        .portal-card.user .launch-btn:hover {
+            background: linear-gradient(135deg, #67e8f9, #22d3ee);
+            box-shadow: 0 8px 24px rgba(34, 211, 238, 0.3);
+        }
+        .portal-card.admin .launch-btn {
+            background: linear-gradient(135deg, #C9A962, #b8963e);
+            color: #0a0a0f;
+        }
+        .portal-card.admin .launch-btn:hover {
+            background: linear-gradient(135deg, #e8d5a0, #C9A962);
+            box-shadow: 0 8px 24px rgba(201, 169, 98, 0.3);
+        }
+
+        /* Accounts Section */
+        .portal-card .accounts {
+            background: rgba(0,0,0,0.2); padding: 24px 32px;
+            border-top: 1px solid rgba(255,255,255,0.04);
+        }
+        .portal-card .accounts h4 {
+            font-size: 11px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 1px; color: #64748b; margin-bottom: 16px;
+        }
+
+        .account-row {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 14px; margin-bottom: 8px;
+            background: rgba(255,255,255,0.03); border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.04);
+            transition: background 0.2s;
+        }
+        .account-row:last-child { margin-bottom: 0; }
+        .account-row:hover { background: rgba(255,255,255,0.06); }
+
+        .account-row .avatar {
+            width: 36px; height: 36px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 700; flex-shrink: 0;
+        }
+        .portal-card.user .account-row .avatar {
+            background: rgba(34, 211, 238, 0.1); color: #22d3ee;
+        }
+        .portal-card.admin .account-row .avatar {
+            background: rgba(201, 169, 98, 0.1); color: #C9A962;
+        }
+        .account-row .info { flex: 1; min-width: 0; }
+        .account-row .name {
+            font-size: 13px; font-weight: 600; color: #e2e8f0;
+        }
+        .account-row .email {
+            font-size: 11px; color: #64748b; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis;
+        }
+        .account-row .pw {
+            font-family: 'SF Mono', SFMono-Regular, Consolas, monospace;
+            font-size: 11px; color: #94a3b8;
+            background: rgba(255,255,255,0.05); padding: 4px 10px;
+            border-radius: 6px; white-space: nowrap; cursor: pointer;
+            position: relative;
+        }
+        .account-row .pw:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
+        .account-row .pw .tooltip {
+            position: absolute; bottom: calc(100% + 6px); left: 50%;
+            transform: translateX(-50%); background: #22c55e; color: white;
+            padding: 4px 10px; border-radius: 6px; font-size: 10px;
+            font-family: 'Inter', sans-serif; white-space: nowrap;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        .account-row .pw .tooltip.show { opacity: 1; }
+        .account-row .role-badge {
+            font-size: 10px; font-weight: 600; padding: 3px 8px;
+            border-radius: 6px; white-space: nowrap;
+        }
+        .role-admin { background: rgba(201, 169, 98, 0.15); color: #C9A962; }
+        .role-user { background: rgba(34, 211, 238, 0.15); color: #22d3ee; }
+
+        /* Features list */
+        .features {
+            display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px;
+        }
+        .feature-tag {
+            font-size: 11px; padding: 5px 10px; border-radius: 6px;
+            background: rgba(255,255,255,0.04); color: #94a3b8;
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center; padding: 32px 0;
+            border-top: 1px solid rgba(255,255,255,0.04);
+        }
+        .footer p { font-size: 13px; color: #475569; }
+        .footer .hint {
+            display: inline-flex; align-items: center; gap: 8px;
+            margin-top: 12px; padding: 8px 16px;
+            background: rgba(201, 169, 98, 0.06); border: 1px solid rgba(201, 169, 98, 0.1);
+            border-radius: 8px; font-size: 12px; color: #94a3b8;
+        }
+        .footer .hint code {
+            background: rgba(255,255,255,0.06); padding: 2px 6px;
+            border-radius: 4px; font-family: monospace; color: #C9A962;
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-gradient"></div>
+    <div class="container">
+
+        <!-- Header -->
+        <div class="header">
+            <div class="logo-mark">
+                <div class="icon">M&X</div>
+                <h1>Med&X Portal</h1>
+            </div>
+            <p class="subtitle">Team Testing Hub</p>
+            <div class="badge"><i class="fas fa-flask"></i> Internal Testing — February 2026</div>
+        </div>
+
+        <!-- Portal Cards -->
+        <div class="portals">
+
+            <!-- User Portal -->
+            <div class="portal-card user">
+                <div class="card-header">
+                    <div class="card-icon"><i class="fas fa-user-circle"></i></div>
+                    <h2>User Portal</h2>
+                    <p class="card-desc">The member-facing application — Plexus registration, Accelerator applications, Biomedical Forum, networking, and more.</p>
+                    <div class="features">
+                        <span class="feature-tag">Plexus Conference</span>
+                        <span class="feature-tag">Accelerator</span>
+                        <span class="feature-tag">Forum</span>
+                        <span class="feature-tag">My Med&X</span>
+                        <span class="feature-tag">Settings</span>
+                    </div>
+                    <a href="http://localhost:3000" target="_blank" class="launch-btn">
+                        <i class="fas fa-external-link-alt"></i> Open User Portal
+                    </a>
+                </div>
+                <div class="accounts">
+                    <h4><i class="fas fa-key" style="margin-right: 6px;"></i>Test Accounts</h4>
+                    <div class="account-row">
+                        <div class="avatar">AJ</div>
+                        <div class="info">
+                            <div class="name">Alen Juginovic</div>
+                            <div class="email">juginovic.alen@gmail.com</div>
+                        </div>
+                        <span class="role-badge role-admin">Admin</span>
+                        <div class="pw" onclick="copyPw(this, 'admin123')">admin123 <span class="tooltip">Copied!</span></div>
+                    </div>
+                    <div class="account-row">
+                        <div class="avatar">MV</div>
+                        <div class="info">
+                            <div class="name">Miro Vukovic</div>
+                            <div class="email">vp@medx.hr</div>
+                        </div>
+                        <span class="role-badge role-admin">Admin</span>
+                        <div class="pw" onclick="copyPw(this, 'admin123')">admin123 <span class="tooltip">Copied!</span></div>
+                    </div>
+                    <div class="account-row">
+                        <div class="avatar">LR</div>
+                        <div class="info">
+                            <div class="name">Laura Rodman</div>
+                            <div class="email">laura.rodman@medx.hr</div>
+                        </div>
+                        <span class="role-badge role-admin">Admin</span>
+                        <div class="pw" onclick="copyPw(this, 'MedX2026!')">MedX2026! <span class="tooltip">Copied!</span></div>
+                    </div>
+                    <div class="account-row">
+                        <div class="avatar">IH</div>
+                        <div class="info">
+                            <div class="name">Ivan Horvat</div>
+                            <div class="email">ivan.horvat@test.medx.hr</div>
+                        </div>
+                        <span class="role-badge role-user">User</span>
+                        <div class="pw" onclick="copyPw(this, 'Test2026!')">Test2026! <span class="tooltip">Copied!</span></div>
+                    </div>
+                    <div class="account-row">
+                        <div class="avatar">MK</div>
+                        <div class="info">
+                            <div class="name">Maria Kovac</div>
+                            <div class="email">maria.kovac@test.medx.hr</div>
+                        </div>
+                        <span class="role-badge role-user">User</span>
+                        <div class="pw" onclick="copyPw(this, 'Test2026!')">Test2026! <span class="tooltip">Copied!</span></div>
+                    </div>
+                    <div class="account-row">
+                        <div class="avatar">PB</div>
+                        <div class="info">
+                            <div class="name">Petra Babic</div>
+                            <div class="email">petra.babic@test.medx.hr</div>
+                        </div>
+                        <span class="role-badge role-user">User</span>
+                        <div class="pw" onclick="copyPw(this, 'Test2026!')">Test2026! <span class="tooltip">Copied!</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin Portal -->
+            <div class="portal-card admin">
+                <div class="card-header">
+                    <div class="card-icon"><i class="fas fa-shield-alt"></i></div>
+                    <h2>Admin Portal</h2>
+                    <p class="card-desc">The management dashboard — team coordination, program administration, content management, finance, and analytics.</p>
+                    <div class="features">
+                        <span class="feature-tag">Dashboard</span>
+                        <span class="feature-tag">Team Management</span>
+                        <span class="feature-tag">Accelerator Admin</span>
+                        <span class="feature-tag">Forum Admin</span>
+                        <span class="feature-tag">Finance</span>
+                    </div>
+                    <a href="http://localhost:3001" target="_blank" class="launch-btn">
+                        <i class="fas fa-external-link-alt"></i> Open Admin Portal
+                    </a>
+                </div>
+                <div class="accounts">
+                    <h4><i class="fas fa-key" style="margin-right: 6px;"></i>Admin Accounts</h4>
+                    <div class="account-row">
+                        <div class="avatar">AJ</div>
+                        <div class="info">
+                            <div class="name">Alen Juginovic</div>
+                            <div class="email">juginovic.alen@gmail.com</div>
+                        </div>
+                        <span class="role-badge role-admin">Super Admin</span>
+                        <div class="pw" onclick="copyPw(this, 'admin123')">admin123 <span class="tooltip">Copied!</span></div>
+                    </div>
+                    <div class="account-row">
+                        <div class="avatar">MV</div>
+                        <div class="info">
+                            <div class="name">Miro Vukovic</div>
+                            <div class="email">vp@medx.hr</div>
+                        </div>
+                        <span class="role-badge role-admin">VP</span>
+                        <div class="pw" onclick="copyPw(this, 'admin123')">admin123 <span class="tooltip">Copied!</span></div>
+                    </div>
+                    <div class="account-row">
+                        <div class="avatar">LR</div>
+                        <div class="info">
+                            <div class="name">Laura Rodman</div>
+                            <div class="email">laura.rodman@medx.hr</div>
+                        </div>
+                        <span class="role-badge role-admin">Admin</span>
+                        <div class="pw" onclick="copyPw(this, 'MedX2026!')">MedX2026! <span class="tooltip">Copied!</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Med&X Portal v2.0 — Built for the Med&X Team</p>
+            <div class="hint">
+                <i class="fas fa-terminal"></i>
+                Start servers: <code>cd user-portal/backend && node server.js</code> &amp; <code>cd admin-portal/backend && node server.js</code>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function copyPw(el, pw) {
+            navigator.clipboard.writeText(pw).then(() => {
+                const tooltip = el.querySelector('.tooltip');
+                tooltip.classList.add('show');
+                setTimeout(() => tooltip.classList.remove('show'), 1200);
+            });
+        }
+    </script>
+</body>
+</html>
