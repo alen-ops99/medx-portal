@@ -1,0 +1,55 @@
+{
+  "name": "MedX Check-in Scanner",
+  "short_name": "MedX Scanner",
+  "description": "Event check-in scanner for Med&X events",
+  "start_url": "/?mode=scanner",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#C9A962",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Open Scanner",
+      "short_name": "Scanner",
+      "description": "Launch mobile check-in scanner",
+      "url": "/?mode=scanner",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Plexus Day 1",
+      "short_name": "Day 1",
+      "description": "Scanner for Plexus Day 1",
+      "url": "/?mode=scanner&event=PLEXUS26-DAY1"
+    },
+    {
+      "name": "Plexus Day 2",
+      "short_name": "Day 2",
+      "description": "Scanner for Plexus Day 2",
+      "url": "/?mode=scanner&event=PLEXUS26-DAY2"
+    },
+    {
+      "name": "Gala Evening",
+      "short_name": "Gala",
+      "description": "Scanner for Gala Evening",
+      "url": "/?mode=scanner&event=PLEXUS26-GALA"
+    }
+  ],
+  "categories": ["medical", "education", "productivity"],
+  "lang": "en-US",
+  "scope": "/",
+  "id": "medx-checkin-scanner"
+}

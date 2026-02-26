@@ -1,0 +1,2467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Med&X Portal - Project Management</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #1a365d;
+            --primary-light: #2c5282;
+            --accent: #c9a962;
+            --accent-hover: #b8963a;
+            --bg-light: #f7fafc;
+            --bg-white: #ffffff;
+            --text-dark: #1a202c;
+            --text-muted: #718096;
+            --border: #e2e8f0;
+            --success: #48bb78;
+            --warning: #ed8936;
+            --danger: #f56565;
+            --info: #4299e1;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-light);
+            color: var(--text-dark);
+            min-height: 100vh;
+        }
+
+        /* Layout */
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: var(--primary);
+            color: white;
+            padding: 0;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 100;
+        }
+
+        .sidebar-header {
+            padding: 24px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 45px;
+            height: 45px;
+            background: var(--accent);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+            color: var(--primary);
+        }
+
+        .logo-text {
+            font-family: 'Playfair Display', serif;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .logo-subtitle {
+            font-size: 11px;
+            opacity: 0.7;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Role Switcher */
+        .role-switcher {
+            padding: 16px 24px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .role-switcher label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.7;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .role-toggle {
+            display: flex;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 4px;
+        }
+
+        .role-btn {
+            flex: 1;
+            padding: 10px 16px;
+            border: none;
+            background: transparent;
+            color: white;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .role-btn.active {
+            background: var(--accent);
+            color: var(--primary);
+        }
+
+        .role-btn:hover:not(.active) {
+            background: rgba(255,255,255,0.1);
+        }
+
+        /* Navigation */
+        .nav-section {
+            padding: 20px 0;
+        }
+
+        .nav-title {
+            padding: 0 24px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.5;
+            margin-bottom: 12px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 24px;
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+        }
+
+        .nav-item:hover {
+            background: rgba(255,255,255,0.05);
+            color: white;
+        }
+
+        .nav-item.active {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border-left-color: var(--accent);
+        }
+
+        .nav-item i {
+            width: 20px;
+            text-align: center;
+            font-size: 16px;
+        }
+
+        .nav-item span {
+            font-size: 14px;
+        }
+
+        .nav-badge {
+            margin-left: auto;
+            background: var(--accent);
+            color: var(--primary);
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 0;
+        }
+
+        /* Top Bar */
+        .top-bar {
+            background: var(--bg-white);
+            padding: 16px 32px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .page-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 24px;
+            color: var(--primary);
+        }
+
+        .top-bar-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .search-box {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-light);
+            padding: 10px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .search-box input {
+            border: none;
+            background: transparent;
+            outline: none;
+            font-size: 14px;
+            width: 200px;
+        }
+
+        .search-box i {
+            color: var(--text-muted);
+        }
+
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        .user-info {
+            text-align: right;
+        }
+
+        .user-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .user-role {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* Content Area */
+        .content-area {
+            padding: 32px;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-white);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-light);
+        }
+
+        .btn-accent {
+            background: var(--accent);
+            color: var(--primary);
+        }
+
+        .btn-accent:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-dark);
+        }
+
+        .btn-outline:hover {
+            background: var(--bg-light);
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: var(--bg-white);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            margin-bottom: 16px;
+        }
+
+        .stat-icon.blue {
+            background: rgba(66, 153, 225, 0.1);
+            color: var(--info);
+        }
+
+        .stat-icon.green {
+            background: rgba(72, 187, 120, 0.1);
+            color: var(--success);
+        }
+
+        .stat-icon.orange {
+            background: rgba(237, 137, 54, 0.1);
+            color: var(--warning);
+        }
+
+        .stat-icon.gold {
+            background: rgba(201, 169, 98, 0.1);
+            color: var(--accent);
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        /* Projects Grid */
+        .projects-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .project-card {
+            background: var(--bg-white);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .project-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .project-banner {
+            height: 140px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .project-banner.plexus {
+            background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
+        }
+
+        .project-banner.accelerator {
+            background: linear-gradient(135deg, #22543d 0%, #276749 100%);
+        }
+
+        .project-banner.forum {
+            background: linear-gradient(135deg, #744210 0%, #975a16 100%);
+        }
+
+        .project-banner-icon {
+            font-size: 48px;
+            color: rgba(255,255,255,0.9);
+        }
+
+        .project-status {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .project-status.active {
+            background: var(--success);
+            color: white;
+        }
+
+        .project-status.planning {
+            background: var(--warning);
+            color: white;
+        }
+
+        .project-status.upcoming {
+            background: var(--info);
+            color: white;
+        }
+
+        .project-content {
+            padding: 24px;
+        }
+
+        .project-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 20px;
+            color: var(--primary);
+            margin-bottom: 8px;
+        }
+
+        .project-description {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+
+        .project-meta {
+            display: flex;
+            gap: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+        }
+
+        .project-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .project-meta-item i {
+            color: var(--accent);
+        }
+
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            background: var(--bg-light);
+        }
+
+        td {
+            font-size: 14px;
+        }
+
+        tr:hover {
+            background: var(--bg-light);
+        }
+
+        /* Status Badges */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-badge.pending {
+            background: rgba(237, 137, 54, 0.1);
+            color: var(--warning);
+        }
+
+        .status-badge.approved {
+            background: rgba(72, 187, 120, 0.1);
+            color: var(--success);
+        }
+
+        .status-badge.rejected {
+            background: rgba(245, 101, 101, 0.1);
+            color: var(--danger);
+        }
+
+        .status-badge.review {
+            background: rgba(66, 153, 225, 0.1);
+            color: var(--info);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 24px;
+        }
+
+        .tab {
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: var(--primary);
+        }
+
+        .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--accent);
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--text-dark);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(26, 54, 93, 0.1);
+        }
+
+        textarea.form-input {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        /* File Upload */
+        .file-upload {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .file-upload:hover {
+            border-color: var(--primary);
+            background: var(--bg-light);
+        }
+
+        .file-upload-icon {
+            font-size: 40px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .file-upload-text {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .file-upload-text span {
+            color: var(--primary);
+            font-weight: 500;
+        }
+
+        /* Progress Bar */
+        .progress-bar {
+            height: 8px;
+            background: var(--bg-light);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+
+        /* Timeline */
+        .timeline {
+            position: relative;
+            padding-left: 32px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 8px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--border);
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-bottom: 24px;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -28px;
+            top: 4px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 2px solid var(--bg-white);
+        }
+
+        .timeline-date {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .timeline-content {
+            font-size: 14px;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--bg-white);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            transform: translateY(20px);
+            transition: all 0.3s;
+        }
+
+        .modal-overlay.active .modal {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 20px;
+            color: var(--primary);
+        }
+
+        .modal-close {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: var(--bg-light);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 18px;
+            color: var(--text-muted);
+        }
+
+        .modal-close:hover {
+            background: var(--border);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        /* User Portal Specific */
+        .user-portal .sidebar {
+            background: linear-gradient(180deg, var(--primary) 0%, var(--primary-light) 100%);
+        }
+
+        .program-card {
+            background: var(--bg-white);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+
+        .program-header {
+            padding: 32px;
+            color: white;
+            position: relative;
+        }
+
+        .program-header.plexus {
+            background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
+        }
+
+        .program-header.accelerator {
+            background: linear-gradient(135deg, #22543d 0%, #276749 100%);
+        }
+
+        .program-header.forum {
+            background: linear-gradient(135deg, #744210 0%, #975a16 100%);
+        }
+
+        .program-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .program-tagline {
+            opacity: 0.9;
+            font-size: 15px;
+        }
+
+        .program-body {
+            padding: 32px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .info-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-light);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+        }
+
+        .info-value {
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        /* Application Steps */
+        .steps {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+        }
+
+        .step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            top: 20px;
+            right: -8px;
+            width: calc(100% - 40px);
+            height: 2px;
+            background: var(--border);
+            transform: translateX(50%);
+        }
+
+        .step.completed:not(:last-child)::after {
+            background: var(--success);
+        }
+
+        .step-number {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--bg-light);
+            border: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            position: relative;
+            z-index: 1;
+        }
+
+        .step.active .step-number {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .step.completed .step-number {
+            background: var(--success);
+            border-color: var(--success);
+            color: white;
+        }
+
+        .step-label {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .step.active .step-label,
+        .step.completed .step-label {
+            color: var(--text-dark);
+            font-weight: 500;
+        }
+
+        /* Hide sections by default */
+        .page-section {
+            display: none;
+        }
+
+        .page-section.active {
+            display: block;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .projects-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            .main-content {
+                margin-left: 0;
+            }
+            .stats-grid,
+            .projects-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 40px;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            color: var(--border);
+            margin-bottom: 24px;
+        }
+
+        .empty-state-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .empty-state-text {
+            color: var(--text-muted);
+            margin-bottom: 24px;
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .quick-action {
+            background: var(--bg-white);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: var(--shadow);
+        }
+
+        .quick-action:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .quick-action-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 12px;
+            font-size: 20px;
+        }
+
+        .quick-action-icon.blue {
+            background: rgba(66, 153, 225, 0.1);
+            color: var(--info);
+        }
+
+        .quick-action-icon.green {
+            background: rgba(72, 187, 120, 0.1);
+            color: var(--success);
+        }
+
+        .quick-action-icon.orange {
+            background: rgba(237, 137, 54, 0.1);
+            color: var(--warning);
+        }
+
+        .quick-action-icon.purple {
+            background: rgba(128, 90, 213, 0.1);
+            color: #805ad5;
+        }
+
+        .quick-action-label {
+            font-size: 13px;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container" id="app">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">M&X</div>
+                    <div>
+                        <div class="logo-text">Med&X</div>
+                        <div class="logo-subtitle">Portal</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="role-switcher">
+                <label>View Mode</label>
+                <div class="role-toggle">
+                    <button class="role-btn active" onclick="switchRole('admin')">
+                        <i class="fas fa-shield-alt"></i> Admin
+                    </button>
+                    <button class="role-btn" onclick="switchRole('user')">
+                        <i class="fas fa-user"></i> User
+                    </button>
+                </div>
+            </div>
+
+            <!-- Admin Navigation -->
+            <nav class="nav-section" id="adminNav">
+                <div class="nav-title">Overview</div>
+                <a class="nav-item active" onclick="showSection('dashboard')">
+                    <i class="fas fa-th-large"></i>
+                    <span>Dashboard</span>
+                </a>
+
+                <div class="nav-title" style="margin-top: 20px;">Projects</div>
+                <a class="nav-item" onclick="showSection('plexus')">
+                    <i class="fas fa-users"></i>
+                    <span>Plexus Conference</span>
+                    <span class="nav-badge">Active</span>
+                </a>
+                <a class="nav-item" onclick="showSection('accelerator')">
+                    <i class="fas fa-rocket"></i>
+                    <span>Accelerator</span>
+                    <span class="nav-badge">12</span>
+                </a>
+                <a class="nav-item" onclick="showSection('forum')">
+                    <i class="fas fa-landmark"></i>
+                    <span>Biomedical Forum</span>
+                </a>
+
+                <div class="nav-title" style="margin-top: 20px;">Management</div>
+                <a class="nav-item" onclick="showSection('applications')">
+                    <i class="fas fa-file-alt"></i>
+                    <span>All Applications</span>
+                    <span class="nav-badge">24</span>
+                </a>
+                <a class="nav-item" onclick="showSection('participants')">
+                    <i class="fas fa-user-friends"></i>
+                    <span>Participants</span>
+                </a>
+                <a class="nav-item" onclick="showSection('settings')">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
+                </a>
+            </nav>
+
+            <!-- User Navigation -->
+            <nav class="nav-section" id="userNav" style="display: none;">
+                <div class="nav-title">Programs</div>
+                <a class="nav-item active" onclick="showSection('user-dashboard')">
+                    <i class="fas fa-th-large"></i>
+                    <span>Overview</span>
+                </a>
+                <a class="nav-item" onclick="showSection('user-plexus')">
+                    <i class="fas fa-users"></i>
+                    <span>Plexus Conference</span>
+                </a>
+                <a class="nav-item" onclick="showSection('user-accelerator')">
+                    <i class="fas fa-rocket"></i>
+                    <span>Accelerator</span>
+                </a>
+                <a class="nav-item" onclick="showSection('user-forum')">
+                    <i class="fas fa-landmark"></i>
+                    <span>Biomedical Forum</span>
+                </a>
+
+                <div class="nav-title" style="margin-top: 20px;">My Account</div>
+                <a class="nav-item" onclick="showSection('user-applications')">
+                    <i class="fas fa-file-alt"></i>
+                    <span>My Applications</span>
+                </a>
+                <a class="nav-item" onclick="showSection('user-documents')">
+                    <i class="fas fa-folder"></i>
+                    <span>My Documents</span>
+                </a>
+                <a class="nav-item" onclick="showSection('user-profile')">
+                    <i class="fas fa-user-circle"></i>
+                    <span>Profile</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Bar -->
+            <header class="top-bar">
+                <h1 class="page-title" id="pageTitle">Dashboard</h1>
+                <div class="top-bar-actions">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Search...">
+                    </div>
+                    <div class="user-menu">
+                        <div class="user-info">
+                            <div class="user-name">Alen Juginovic</div>
+                            <div class="user-role" id="userRoleDisplay">Administrator</div>
+                        </div>
+                        <div class="user-avatar">AJ</div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- ==================== ADMIN SECTIONS ==================== -->
+
+                <!-- Dashboard Section -->
+                <section class="page-section active" id="section-dashboard">
+                    <!-- Stats -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon blue">
+                                <i class="fas fa-project-diagram"></i>
+                            </div>
+                            <div class="stat-value">3</div>
+                            <div class="stat-label">Active Projects</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon green">
+                                <i class="fas fa-user-check"></i>
+                            </div>
+                            <div class="stat-value">156</div>
+                            <div class="stat-label">Total Participants</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon orange">
+                                <i class="fas fa-file-signature"></i>
+                            </div>
+                            <div class="stat-value">24</div>
+                            <div class="stat-label">Pending Applications</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon gold">
+                                <i class="fas fa-globe"></i>
+                            </div>
+                            <div class="stat-value">30+</div>
+                            <div class="stat-label">Countries</div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <h3 style="margin-bottom: 16px; color: var(--primary);">Quick Actions</h3>
+                    <div class="quick-actions">
+                        <div class="quick-action" onclick="showSection('applications')">
+                            <div class="quick-action-icon blue">
+                                <i class="fas fa-inbox"></i>
+                            </div>
+                            <div class="quick-action-label">Review Applications</div>
+                        </div>
+                        <div class="quick-action" onclick="openModal('newParticipant')">
+                            <div class="quick-action-icon green">
+                                <i class="fas fa-user-plus"></i>
+                            </div>
+                            <div class="quick-action-label">Add Participant</div>
+                        </div>
+                        <div class="quick-action" onclick="openModal('sendEmail')">
+                            <div class="quick-action-icon orange">
+                                <i class="fas fa-envelope"></i>
+                            </div>
+                            <div class="quick-action-label">Send Email</div>
+                        </div>
+                        <div class="quick-action" onclick="openModal('export')">
+                            <div class="quick-action-icon purple">
+                                <i class="fas fa-download"></i>
+                            </div>
+                            <div class="quick-action-label">Export Data</div>
+                        </div>
+                    </div>
+
+                    <!-- Projects Overview -->
+                    <h3 style="margin-bottom: 16px; color: var(--primary);">Projects</h3>
+                    <div class="projects-grid">
+                        <div class="project-card" onclick="showSection('plexus')">
+                            <div class="project-banner plexus">
+                                <i class="fas fa-users project-banner-icon"></i>
+                                <span class="project-status active">Active</span>
+                            </div>
+                            <div class="project-content">
+                                <h3 class="project-title">Plexus Conference 2026</h3>
+                                <p class="project-description">Annual conference bringing together young professionals in biomedicine. Dec 4-5, 2026 in Zagreb.</p>
+                                <div class="project-meta">
+                                    <div class="project-meta-item">
+                                        <i class="fas fa-calendar"></i>
+                                        Dec 4-5, 2026
+                                    </div>
+                                    <div class="project-meta-item">
+                                        <i class="fas fa-users"></i>
+                                        86 Registered
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="project-card" onclick="showSection('accelerator')">
+                            <div class="project-banner accelerator">
+                                <i class="fas fa-rocket project-banner-icon"></i>
+                                <span class="project-status active">Active</span>
+                            </div>
+                            <div class="project-content">
+                                <h3 class="project-title">Med&X Accelerator</h3>
+                                <p class="project-description">Research internship program placing students at Harvard, Yale, MIT, Mayo Clinic, and more.</p>
+                                <div class="project-meta">
+                                    <div class="project-meta-item">
+                                        <i class="fas fa-file-alt"></i>
+                                        12 Applications
+                                    </div>
+                                    <div class="project-meta-item">
+                                        <i class="fas fa-university"></i>
+                                        8 Institutions
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="project-card" onclick="showSection('forum')">
+                            <div class="project-banner forum">
+                                <i class="fas fa-landmark project-banner-icon"></i>
+                                <span class="project-status planning">Planning</span>
+                            </div>
+                            <div class="project-content">
+                                <h3 class="project-title">Biomedical Forum</h3>
+                                <p class="project-description">Invite-only community of senior leaders in medicine, science, industry, and policy.</p>
+                                <div class="project-meta">
+                                    <div class="project-meta-item">
+                                        <i class="fas fa-user-tie"></i>
+                                        58 Members
+                                    </div>
+                                    <div class="project-meta-item">
+                                        <i class="fas fa-globe"></i>
+                                        12 Countries
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Recent Activity</h3>
+                            <button class="btn btn-outline btn-sm">View All</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="timeline">
+                                <div class="timeline-item">
+                                    <div class="timeline-date">Today, 2:30 PM</div>
+                                    <div class="timeline-content">
+                                        <strong>Maria Santos</strong> submitted application for Accelerator program
+                                    </div>
+                                </div>
+                                <div class="timeline-item">
+                                    <div class="timeline-date">Today, 11:15 AM</div>
+                                    <div class="timeline-content">
+                                        <strong>Dr. James Wilson</strong> confirmed as Plexus keynote speaker
+                                    </div>
+                                </div>
+                                <div class="timeline-item">
+                                    <div class="timeline-date">Yesterday, 4:45 PM</div>
+                                    <div class="timeline-content">
+                                        <strong>5 new registrations</strong> for Plexus Conference
+                                    </div>
+                                </div>
+                                <div class="timeline-item">
+                                    <div class="timeline-date">Yesterday, 9:00 AM</div>
+                                    <div class="timeline-content">
+                                        <strong>Biomedical Forum</strong> venue contract signed
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Plexus Conference Section -->
+                <section class="page-section" id="section-plexus">
+                    <div class="tabs">
+                        <div class="tab active" data-tab="plexus-overview">Overview</div>
+                        <div class="tab" data-tab="plexus-applications">Applications</div>
+                        <div class="tab" data-tab="plexus-speakers">Speakers</div>
+                        <div class="tab" data-tab="plexus-schedule">Schedule</div>
+                        <div class="tab" data-tab="plexus-settings">Settings</div>
+                    </div>
+
+                    <!-- Overview Tab -->
+                    <div id="plexus-overview">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-icon blue">
+                                    <i class="fas fa-user-check"></i>
+                                </div>
+                                <div class="stat-value">86</div>
+                                <div class="stat-label">Registered</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon orange">
+                                    <i class="fas fa-hourglass-half"></i>
+                                </div>
+                                <div class="stat-value">14</div>
+                                <div class="stat-label">Pending Review</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon green">
+                                    <i class="fas fa-microphone"></i>
+                                </div>
+                                <div class="stat-value">8</div>
+                                <div class="stat-label">Speakers Confirmed</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon gold">
+                                    <i class="fas fa-calendar-day"></i>
+                                </div>
+                                <div class="stat-value">318</div>
+                                <div class="stat-label">Days Until Event</div>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Recent Applications</h3>
+                                    <button class="btn btn-primary btn-sm">
+                                        <i class="fas fa-eye"></i> View All
+                                    </button>
+                                </div>
+                                <div class="card-body" style="padding: 0;">
+                                    <div class="table-container">
+                                        <table>
+                                            <thead>
+                                                <tr>
+                                                    <th>Name</th>
+                                                    <th>Institution</th>
+                                                    <th>Date</th>
+                                                    <th>Status</th>
+                                                    <th>Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td>Ana Kovac</td>
+                                                    <td>University of Zagreb</td>
+                                                    <td>Jan 19, 2026</td>
+                                                    <td><span class="status-badge pending">Pending</span></td>
+                                                    <td><button class="btn btn-outline btn-sm">Review</button></td>
+                                                </tr>
+                                                <tr>
+                                                    <td>Marco Rossi</td>
+                                                    <td>Sapienza University</td>
+                                                    <td>Jan 18, 2026</td>
+                                                    <td><span class="status-badge review">In Review</span></td>
+                                                    <td><button class="btn btn-outline btn-sm">Review</button></td>
+                                                </tr>
+                                                <tr>
+                                                    <td>Sophie Mueller</td>
+                                                    <td>LMU Munich</td>
+                                                    <td>Jan 17, 2026</td>
+                                                    <td><span class="status-badge approved">Approved</span></td>
+                                                    <td><button class="btn btn-outline btn-sm">View</button></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Registration Progress</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div style="text-align: center; margin-bottom: 20px;">
+                                        <div style="font-size: 48px; font-weight: 700; color: var(--primary);">86%</div>
+                                        <div style="color: var(--text-muted);">of target capacity</div>
+                                    </div>
+                                    <div class="progress-bar" style="margin-bottom: 16px;">
+                                        <div class="progress-fill" style="width: 86%;"></div>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--text-muted);">
+                                        <span>86 registered</span>
+                                        <span>Target: 100</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Accelerator Section -->
+                <section class="page-section" id="section-accelerator">
+                    <div class="tabs">
+                        <div class="tab active">Overview</div>
+                        <div class="tab">Applications</div>
+                        <div class="tab">Placements</div>
+                        <div class="tab">Institutions</div>
+                        <div class="tab">Settings</div>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon blue">
+                                <i class="fas fa-file-alt"></i>
+                            </div>
+                            <div class="stat-value">12</div>
+                            <div class="stat-label">Applications</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon green">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div class="stat-value">4</div>
+                            <div class="stat-label">Accepted</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon orange">
+                                <i class="fas fa-university"></i>
+                            </div>
+                            <div class="stat-value">8</div>
+                            <div class="stat-label">Partner Institutions</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon gold">
+                                <i class="fas fa-globe-americas"></i>
+                            </div>
+                            <div class="stat-value">15+</div>
+                            <div class="stat-label">Applicant Countries</div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Current Applications</h3>
+                            <div style="display: flex; gap: 12px;">
+                                <button class="btn btn-outline btn-sm">
+                                    <i class="fas fa-filter"></i> Filter
+                                </button>
+                                <button class="btn btn-primary btn-sm">
+                                    <i class="fas fa-download"></i> Export
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <div class="table-container">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Applicant</th>
+                                            <th>University</th>
+                                            <th>Preferred Institution</th>
+                                            <th>Documents</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>
+                                                <div style="display: flex; align-items: center; gap: 10px;">
+                                                    <div style="width: 36px; height: 36px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600;">MS</div>
+                                                    <div>
+                                                        <div style="font-weight: 500;">Maria Santos</div>
+                                                        <div style="font-size: 12px; color: var(--text-muted);">maria.santos@gmail.com</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>University of Lisbon</td>
+                                            <td>Harvard Medical School</td>
+                                            <td>
+                                                <span style="color: var(--success);"><i class="fas fa-check-circle"></i> Complete</span>
+                                            </td>
+                                            <td><span class="status-badge pending">Pending Review</span></td>
+                                            <td>
+                                                <button class="btn btn-outline btn-sm">Review</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>
+                                                <div style="display: flex; align-items: center; gap: 10px;">
+                                                    <div style="width: 36px; height: 36px; background: var(--info); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600;">JK</div>
+                                                    <div>
+                                                        <div style="font-weight: 500;">Jan Kowalski</div>
+                                                        <div style="font-size: 12px; color: var(--text-muted);">j.kowalski@uw.edu.pl</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>University of Warsaw</td>
+                                            <td>Mayo Clinic</td>
+                                            <td>
+                                                <span style="color: var(--warning);"><i class="fas fa-exclamation-circle"></i> Missing CV</span>
+                                            </td>
+                                            <td><span class="status-badge review">Incomplete</span></td>
+                                            <td>
+                                                <button class="btn btn-outline btn-sm">Contact</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>
+                                                <div style="display: flex; align-items: center; gap: 10px;">
+                                                    <div style="width: 36px; height: 36px; background: var(--success); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600;">EV</div>
+                                                    <div>
+                                                        <div style="font-weight: 500;">Elena Volkov</div>
+                                                        <div style="font-size: 12px; color: var(--text-muted);">elena.v@msu.ru</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>Moscow State University</td>
+                                            <td>MIT</td>
+                                            <td>
+                                                <span style="color: var(--success);"><i class="fas fa-check-circle"></i> Complete</span>
+                                            </td>
+                                            <td><span class="status-badge approved">Accepted</span></td>
+                                            <td>
+                                                <button class="btn btn-outline btn-sm">View</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Forum Section -->
+                <section class="page-section" id="section-forum">
+                    <div class="tabs">
+                        <div class="tab active">Overview</div>
+                        <div class="tab">Members</div>
+                        <div class="tab">Events</div>
+                        <div class="tab">Invitations</div>
+                        <div class="tab">Settings</div>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon blue">
+                                <i class="fas fa-user-tie"></i>
+                            </div>
+                            <div class="stat-value">58</div>
+                            <div class="stat-label">Members</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon green">
+                                <i class="fas fa-envelope-open"></i>
+                            </div>
+                            <div class="stat-value">12</div>
+                            <div class="stat-label">Pending Invites</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon orange">
+                                <i class="fas fa-calendar-check"></i>
+                            </div>
+                            <div class="stat-value">3</div>
+                            <div class="stat-label">Upcoming Events</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon gold">
+                                <i class="fas fa-globe"></i>
+                            </div>
+                            <div class="stat-value">12</div>
+                            <div class="stat-label">Countries</div>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Recent Members</h3>
+                                <button class="btn btn-primary btn-sm">
+                                    <i class="fas fa-plus"></i> Invite
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div style="display: flex; flex-direction: column; gap: 16px;">
+                                    <div style="display: flex; align-items: center; gap: 12px;">
+                                        <div style="width: 48px; height: 48px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600;">DR</div>
+                                        <div style="flex: 1;">
+                                            <div style="font-weight: 600;">Dr. Robert Chen</div>
+                                            <div style="font-size: 13px; color: var(--text-muted);">Chief Medical Officer, Novartis</div>
+                                        </div>
+                                        <span style="font-size: 12px; color: var(--text-muted);">Joined Jan 15</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 12px;">
+                                        <div style="width: 48px; height: 48px; background: var(--accent); color: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600;">SM</div>
+                                        <div style="flex: 1;">
+                                            <div style="font-weight: 600;">Prof. Sarah Mitchell</div>
+                                            <div style="font-size: 13px; color: var(--text-muted);">Dean of Medicine, Oxford</div>
+                                        </div>
+                                        <span style="font-size: 12px; color: var(--text-muted);">Joined Jan 10</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 12px;">
+                                        <div style="width: 48px; height: 48px; background: var(--info); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600;">HT</div>
+                                        <div style="flex: 1;">
+                                            <div style="font-weight: 600;">Dr. Hans Tanaka</div>
+                                            <div style="font-size: 13px; color: var(--text-muted);">VP Research, Roche</div>
+                                        </div>
+                                        <span style="font-size: 12px; color: var(--text-muted);">Joined Jan 5</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Upcoming Events</h3>
+                                <button class="btn btn-outline btn-sm">
+                                    <i class="fas fa-plus"></i> Add
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div style="display: flex; flex-direction: column; gap: 16px;">
+                                    <div style="padding: 16px; background: var(--bg-light); border-radius: 8px; border-left: 4px solid var(--accent);">
+                                        <div style="font-weight: 600; margin-bottom: 4px;">Annual Summit 2026</div>
+                                        <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">
+                                            <i class="fas fa-calendar"></i> March 15-16, 2026
+                                        </div>
+                                        <div style="font-size: 13px; color: var(--text-muted);">
+                                            <i class="fas fa-map-marker-alt"></i> Vienna, Austria
+                                        </div>
+                                    </div>
+                                    <div style="padding: 16px; background: var(--bg-light); border-radius: 8px; border-left: 4px solid var(--info);">
+                                        <div style="font-weight: 600; margin-bottom: 4px;">Virtual Roundtable</div>
+                                        <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">
+                                            <i class="fas fa-calendar"></i> Feb 20, 2026
+                                        </div>
+                                        <div style="font-size: 13px; color: var(--text-muted);">
+                                            <i class="fas fa-video"></i> Online
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Applications Section -->
+                <section class="page-section" id="section-applications">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">All Applications</h3>
+                            <div style="display: flex; gap: 12px;">
+                                <select class="form-input" style="width: auto; padding: 8px 16px;">
+                                    <option>All Programs</option>
+                                    <option>Plexus Conference</option>
+                                    <option>Accelerator</option>
+                                    <option>Biomedical Forum</option>
+                                </select>
+                                <select class="form-input" style="width: auto; padding: 8px 16px;">
+                                    <option>All Status</option>
+                                    <option>Pending</option>
+                                    <option>In Review</option>
+                                    <option>Approved</option>
+                                    <option>Rejected</option>
+                                </select>
+                                <button class="btn btn-primary btn-sm">
+                                    <i class="fas fa-download"></i> Export
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <div class="table-container">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Applicant</th>
+                                            <th>Program</th>
+                                            <th>Applied</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Maria Santos</td>
+                                            <td>Accelerator</td>
+                                            <td>Jan 19, 2026</td>
+                                            <td><span class="status-badge pending">Pending</span></td>
+                                            <td><button class="btn btn-outline btn-sm">Review</button></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Ana Kovac</td>
+                                            <td>Plexus Conference</td>
+                                            <td>Jan 19, 2026</td>
+                                            <td><span class="status-badge pending">Pending</span></td>
+                                            <td><button class="btn btn-outline btn-sm">Review</button></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Marco Rossi</td>
+                                            <td>Plexus Conference</td>
+                                            <td>Jan 18, 2026</td>
+                                            <td><span class="status-badge review">In Review</span></td>
+                                            <td><button class="btn btn-outline btn-sm">Review</button></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Jan Kowalski</td>
+                                            <td>Accelerator</td>
+                                            <td>Jan 17, 2026</td>
+                                            <td><span class="status-badge review">Incomplete</span></td>
+                                            <td><button class="btn btn-outline btn-sm">Contact</button></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Sophie Mueller</td>
+                                            <td>Plexus Conference</td>
+                                            <td>Jan 17, 2026</td>
+                                            <td><span class="status-badge approved">Approved</span></td>
+                                            <td><button class="btn btn-outline btn-sm">View</button></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Elena Volkov</td>
+                                            <td>Accelerator</td>
+                                            <td>Jan 15, 2026</td>
+                                            <td><span class="status-badge approved">Accepted</span></td>
+                                            <td><button class="btn btn-outline btn-sm">View</button></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Participants Section -->
+                <section class="page-section" id="section-participants">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">All Participants</h3>
+                            <button class="btn btn-primary btn-sm" onclick="openModal('newParticipant')">
+                                <i class="fas fa-plus"></i> Add Participant
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="empty-state">
+                                <div class="empty-state-icon">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <h3 class="empty-state-title">Participant Management</h3>
+                                <p class="empty-state-text">View and manage all participants across all Med&X programs.</p>
+                                <button class="btn btn-primary" onclick="openModal('newParticipant')">
+                                    <i class="fas fa-plus"></i> Add First Participant
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Settings Section -->
+                <section class="page-section" id="section-settings">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Portal Settings</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label class="form-label">Organization Name</label>
+                                <input type="text" class="form-input" value="Med&X">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Contact Email</label>
+                                <input type="email" class="form-input" value="president@medx.hr">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Default Timezone</label>
+                                <select class="form-input">
+                                    <option>Europe/Zagreb (CET)</option>
+                                    <option>America/New_York (EST)</option>
+                                    <option>Europe/London (GMT)</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary">
+                                <i class="fas fa-save"></i> Save Settings
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ==================== USER SECTIONS ==================== -->
+
+                <!-- User Dashboard -->
+                <section class="page-section" id="section-user-dashboard">
+                    <div style="margin-bottom: 32px;">
+                        <h2 style="font-family: 'Playfair Display', serif; font-size: 28px; color: var(--primary); margin-bottom: 8px;">Welcome to Med&X</h2>
+                        <p style="color: var(--text-muted); font-size: 16px;">Explore our programs and advance your biomedical career.</p>
+                    </div>
+
+                    <div class="projects-grid">
+                        <div class="program-card">
+                            <div class="program-header plexus">
+                                <div class="program-name">Plexus Conference</div>
+                                <div class="program-tagline">Where young biomedical minds connect</div>
+                            </div>
+                            <div class="program-body">
+                                <div class="info-grid">
+                                    <div class="info-item">
+                                        <div class="info-icon"><i class="fas fa-calendar"></i></div>
+                                        <div>
+                                            <div class="info-label">Date</div>
+                                            <div class="info-value">Dec 4-5, 2026</div>
+                                        </div>
+                                    </div>
+                                    <div class="info-item">
+                                        <div class="info-icon"><i class="fas fa-map-marker-alt"></i></div>
+                                        <div>
+                                            <div class="info-label">Location</div>
+                                            <div class="info-value">Zagreb, Croatia</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button class="btn btn-primary" style="width: 100%;" onclick="showSection('user-plexus')">
+                                    Learn More & Apply
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="program-card">
+                            <div class="program-header accelerator">
+                                <div class="program-name">Med&X Accelerator</div>
+                                <div class="program-tagline">Research internships at world's top institutions</div>
+                            </div>
+                            <div class="program-body">
+                                <div class="info-grid">
+                                    <div class="info-item">
+                                        <div class="info-icon"><i class="fas fa-university"></i></div>
+                                        <div>
+                                            <div class="info-label">Institutions</div>
+                                            <div class="info-value">Harvard, Yale, MIT...</div>
+                                        </div>
+                                    </div>
+                                    <div class="info-item">
+                                        <div class="info-icon"><i class="fas fa-clock"></i></div>
+                                        <div>
+                                            <div class="info-label">Duration</div>
+                                            <div class="info-value">2-3 months</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button class="btn btn-primary" style="width: 100%;" onclick="showSection('user-accelerator')">
+                                    Learn More & Apply
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="program-card">
+                            <div class="program-header forum">
+                                <div class="program-name">Biomedical Forum</div>
+                                <div class="program-tagline">Exclusive community for senior leaders</div>
+                            </div>
+                            <div class="program-body">
+                                <div class="info-grid">
+                                    <div class="info-item">
+                                        <div class="info-icon"><i class="fas fa-users"></i></div>
+                                        <div>
+                                            <div class="info-label">Members</div>
+                                            <div class="info-value">58 Leaders</div>
+                                        </div>
+                                    </div>
+                                    <div class="info-item">
+                                        <div class="info-icon"><i class="fas fa-star"></i></div>
+                                        <div>
+                                            <div class="info-label">Type</div>
+                                            <div class="info-value">Invite Only</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button class="btn btn-outline" style="width: 100%;" onclick="showSection('user-forum')">
+                                    Learn More
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- User Plexus -->
+                <section class="page-section" id="section-user-plexus">
+                    <div class="program-card" style="margin-bottom: 32px;">
+                        <div class="program-header plexus" style="padding: 48px;">
+                            <div style="font-size: 14px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.8; margin-bottom: 8px;">December 4-5, 2026 | Zagreb</div>
+                            <div class="program-name" style="font-size: 36px;">Plexus Conference 2026</div>
+                            <div class="program-tagline" style="font-size: 18px;">Join 100+ young biomedical professionals from 30+ countries</div>
+                        </div>
+                        <div class="program-body">
+                            <h3 style="margin-bottom: 16px; color: var(--primary);">About the Conference</h3>
+                            <p style="color: var(--text-muted); line-height: 1.7; margin-bottom: 24px;">
+                                Plexus Conference brings together the brightest young minds in biomedicine for two days of inspiring talks, workshops, and networking. Past speakers include Nobel laureates and leaders from top research institutions worldwide.
+                            </p>
+
+                            <div class="info-grid" style="margin-bottom: 24px;">
+                                <div class="info-item">
+                                    <div class="info-icon"><i class="fas fa-microphone"></i></div>
+                                    <div>
+                                        <div class="info-label">Speakers</div>
+                                        <div class="info-value">10+ Nobel Laureates (past)</div>
+                                    </div>
+                                </div>
+                                <div class="info-item">
+                                    <div class="info-icon"><i class="fas fa-users"></i></div>
+                                    <div>
+                                        <div class="info-label">Participants</div>
+                                        <div class="info-value">2,500+ since inception</div>
+                                    </div>
+                                </div>
+                                <div class="info-item">
+                                    <div class="info-icon"><i class="fas fa-globe"></i></div>
+                                    <div>
+                                        <div class="info-label">Countries</div>
+                                        <div class="info-value">30+ represented</div>
+                                    </div>
+                                </div>
+                                <div class="info-item">
+                                    <div class="info-icon"><i class="fas fa-calendar-alt"></i></div>
+                                    <div>
+                                        <div class="info-label">Events</div>
+                                        <div class="info-value">Conference + Gala Evening</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button class="btn btn-accent" style="width: 100%; padding: 16px;" onclick="openModal('applyPlexus')">
+                                <i class="fas fa-paper-plane"></i> Apply Now
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- User Accelerator -->
+                <section class="page-section" id="section-user-accelerator">
+                    <div class="program-card" style="margin-bottom: 32px;">
+                        <div class="program-header accelerator" style="padding: 48px;">
+                            <div style="font-size: 14px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.8; margin-bottom: 8px;">Research Internship Program</div>
+                            <div class="program-name" style="font-size: 36px;">Med&X Accelerator</div>
+                            <div class="program-tagline" style="font-size: 18px;">Launch your research career at world-leading institutions</div>
+                        </div>
+                        <div class="program-body">
+                            <h3 style="margin-bottom: 16px; color: var(--primary);">Program Overview</h3>
+                            <p style="color: var(--text-muted); line-height: 1.7; margin-bottom: 24px;">
+                                The Med&X Accelerator places exceptional students and early-career researchers at prestigious institutions including Harvard, Yale, MIT, Mayo Clinic, Cleveland Clinic, and MGH. Gain hands-on research experience and mentorship from world-leading scientists.
+                            </p>
+
+                            <h3 style="margin-bottom: 16px; color: var(--primary);">Application Requirements</h3>
+                            <div style="display: grid; gap: 12px; margin-bottom: 24px;">
+                                <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--bg-light); border-radius: 8px;">
+                                    <i class="fas fa-file-pdf" style="color: var(--primary);"></i>
+                                    <span>Curriculum Vitae (CV)</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--bg-light); border-radius: 8px;">
+                                    <i class="fas fa-file-alt" style="color: var(--primary);"></i>
+                                    <span>Statement of Purpose</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--bg-light); border-radius: 8px;">
+                                    <i class="fas fa-envelope" style="color: var(--primary);"></i>
+                                    <span>Two Letters of Recommendation</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--bg-light); border-radius: 8px;">
+                                    <i class="fas fa-graduation-cap" style="color: var(--primary);"></i>
+                                    <span>Academic Transcripts</span>
+                                </div>
+                            </div>
+
+                            <button class="btn btn-accent" style="width: 100%; padding: 16px;" onclick="openModal('applyAccelerator')">
+                                <i class="fas fa-paper-plane"></i> Start Application
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- User Forum -->
+                <section class="page-section" id="section-user-forum">
+                    <div class="program-card">
+                        <div class="program-header forum" style="padding: 48px;">
+                            <div style="font-size: 14px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.8; margin-bottom: 8px;">Invite-Only Community</div>
+                            <div class="program-name" style="font-size: 36px;">Biomedical Forum</div>
+                            <div class="program-tagline" style="font-size: 18px;">An exclusive network of senior leaders shaping the future of medicine</div>
+                        </div>
+                        <div class="program-body">
+                            <h3 style="margin-bottom: 16px; color: var(--primary);">About the Forum</h3>
+                            <p style="color: var(--text-muted); line-height: 1.7; margin-bottom: 24px;">
+                                The Biomedical Forum brings together accomplished leaders from academia, industry, and policy to advance global health through collaboration. Membership is by invitation only.
+                            </p>
+
+                            <div class="info-grid" style="margin-bottom: 24px;">
+                                <div class="info-item">
+                                    <div class="info-icon"><i class="fas fa-user-tie"></i></div>
+                                    <div>
+                                        <div class="info-label">Members</div>
+                                        <div class="info-value">58 Leaders</div>
+                                    </div>
+                                </div>
+                                <div class="info-item">
+                                    <div class="info-icon"><i class="fas fa-globe"></i></div>
+                                    <div>
+                                        <div class="info-label">Countries</div>
+                                        <div class="info-value">12 Represented</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style="padding: 24px; background: var(--bg-light); border-radius: 12px; text-align: center;">
+                                <i class="fas fa-lock" style="font-size: 32px; color: var(--text-muted); margin-bottom: 12px;"></i>
+                                <p style="color: var(--text-muted);">This program is invite-only. If you believe you qualify, please contact us.</p>
+                                <button class="btn btn-outline" style="margin-top: 16px;">
+                                    <i class="fas fa-envelope"></i> Request Information
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- User Applications -->
+                <section class="page-section" id="section-user-applications">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">My Applications</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="empty-state">
+                                <div class="empty-state-icon">
+                                    <i class="fas fa-file-alt"></i>
+                                </div>
+                                <h3 class="empty-state-title">No Applications Yet</h3>
+                                <p class="empty-state-text">You haven't submitted any applications. Explore our programs and apply today!</p>
+                                <button class="btn btn-primary" onclick="showSection('user-dashboard')">
+                                    <i class="fas fa-search"></i> Explore Programs
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- User Documents -->
+                <section class="page-section" id="section-user-documents">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">My Documents</h3>
+                            <button class="btn btn-primary btn-sm" onclick="openModal('uploadDocument')">
+                                <i class="fas fa-upload"></i> Upload
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="file-upload" onclick="openModal('uploadDocument')">
+                                <div class="file-upload-icon">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                </div>
+                                <div class="file-upload-text">
+                                    <span>Click to upload</span> or drag and drop<br>
+                                    PDF, DOC, DOCX up to 10MB
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- User Profile -->
+                <section class="page-section" id="section-user-profile">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">My Profile</h3>
+                        </div>
+                        <div class="card-body">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                                <div class="form-group">
+                                    <label class="form-label">First Name</label>
+                                    <input type="text" class="form-input" placeholder="Enter your first name">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Last Name</label>
+                                    <input type="text" class="form-input" placeholder="Enter your last name">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Email</label>
+                                    <input type="email" class="form-input" placeholder="Enter your email">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Phone</label>
+                                    <input type="tel" class="form-input" placeholder="Enter your phone number">
+                                </div>
+                                <div class="form-group" style="grid-column: span 2;">
+                                    <label class="form-label">Institution/Organization</label>
+                                    <input type="text" class="form-input" placeholder="Enter your institution">
+                                </div>
+                                <div class="form-group" style="grid-column: span 2;">
+                                    <label class="form-label">Bio</label>
+                                    <textarea class="form-input" placeholder="Tell us about yourself"></textarea>
+                                </div>
+                            </div>
+                            <button class="btn btn-primary">
+                                <i class="fas fa-save"></i> Save Profile
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal-overlay" id="modal-applyPlexus">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Apply to Plexus Conference</h3>
+                <button class="modal-close" onclick="closeModal('applyPlexus')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="steps">
+                    <div class="step active">
+                        <div class="step-number">1</div>
+                        <div class="step-label">Personal Info</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <div class="step-label">Background</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <div class="step-label">Submit</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Full Name *</label>
+                    <input type="text" class="form-input" placeholder="Enter your full name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email *</label>
+                    <input type="email" class="form-input" placeholder="Enter your email">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Institution *</label>
+                    <input type="text" class="form-input" placeholder="University or organization">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Country *</label>
+                    <input type="text" class="form-input" placeholder="Your country">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('applyPlexus')">Cancel</button>
+                <button class="btn btn-primary">Next Step</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-applyAccelerator">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Apply to Accelerator</h3>
+                <button class="modal-close" onclick="closeModal('applyAccelerator')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="steps">
+                    <div class="step active">
+                        <div class="step-number">1</div>
+                        <div class="step-label">Info</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <div class="step-label">Documents</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <div class="step-label">Preferences</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">4</div>
+                        <div class="step-label">Submit</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Full Name *</label>
+                    <input type="text" class="form-input" placeholder="Enter your full name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email *</label>
+                    <input type="email" class="form-input" placeholder="Enter your email">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Current Institution *</label>
+                    <input type="text" class="form-input" placeholder="Your university or organization">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Preferred Institution *</label>
+                    <select class="form-input">
+                        <option>Select preferred institution</option>
+                        <option>Harvard Medical School</option>
+                        <option>Yale University</option>
+                        <option>MIT</option>
+                        <option>Mayo Clinic</option>
+                        <option>Cleveland Clinic</option>
+                        <option>Massachusetts General Hospital</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('applyAccelerator')">Cancel</button>
+                <button class="btn btn-primary">Next Step</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-uploadDocument">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Upload Document</h3>
+                <button class="modal-close" onclick="closeModal('uploadDocument')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Document Type</label>
+                    <select class="form-input">
+                        <option>Select document type</option>
+                        <option>CV / Resume</option>
+                        <option>Statement of Purpose</option>
+                        <option>Letter of Recommendation</option>
+                        <option>Academic Transcript</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">File</label>
+                    <div class="file-upload">
+                        <div class="file-upload-icon">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                        </div>
+                        <div class="file-upload-text">
+                            <span>Click to upload</span> or drag and drop<br>
+                            PDF, DOC, DOCX up to 10MB
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('uploadDocument')">Cancel</button>
+                <button class="btn btn-primary">Upload</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-newParticipant">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Add New Participant</h3>
+                <button class="modal-close" onclick="closeModal('newParticipant')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Full Name *</label>
+                    <input type="text" class="form-input" placeholder="Enter full name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email *</label>
+                    <input type="email" class="form-input" placeholder="Enter email">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Program *</label>
+                    <select class="form-input">
+                        <option>Select program</option>
+                        <option>Plexus Conference</option>
+                        <option>Accelerator</option>
+                        <option>Biomedical Forum</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Institution</label>
+                    <input type="text" class="form-input" placeholder="Enter institution">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('newParticipant')">Cancel</button>
+                <button class="btn btn-primary">Add Participant</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Current state
+        let currentRole = 'admin';
+        let currentSection = 'dashboard';
+
+        // Switch between admin and user roles
+        function switchRole(role) {
+            currentRole = role;
+
+            // Update role buttons
+            document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update navigation visibility
+            document.getElementById('adminNav').style.display = role === 'admin' ? 'block' : 'none';
+            document.getElementById('userNav').style.display = role === 'user' ? 'block' : 'none';
+
+            // Update user role display
+            document.getElementById('userRoleDisplay').textContent = role === 'admin' ? 'Administrator' : 'Participant';
+
+            // Show appropriate default section
+            if (role === 'admin') {
+                showSection('dashboard');
+            } else {
+                showSection('user-dashboard');
+            }
+        }
+
+        // Show section
+        function showSection(sectionId) {
+            currentSection = sectionId;
+
+            // Hide all sections
+            document.querySelectorAll('.page-section').forEach(section => {
+                section.classList.remove('active');
+            });
+
+            // Show selected section
+            const section = document.getElementById('section-' + sectionId);
+            if (section) {
+                section.classList.add('active');
+            }
+
+            // Update nav active state
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            event?.target?.closest('.nav-item')?.classList.add('active');
+
+            // Update page title
+            const titles = {
+                'dashboard': 'Dashboard',
+                'plexus': 'Plexus Conference 2026',
+                'accelerator': 'Med&X Accelerator',
+                'forum': 'Biomedical Forum',
+                'applications': 'All Applications',
+                'participants': 'Participants',
+                'settings': 'Settings',
+                'user-dashboard': 'Welcome',
+                'user-plexus': 'Plexus Conference',
+                'user-accelerator': 'Med&X Accelerator',
+                'user-forum': 'Biomedical Forum',
+                'user-applications': 'My Applications',
+                'user-documents': 'My Documents',
+                'user-profile': 'My Profile'
+            };
+            document.getElementById('pageTitle').textContent = titles[sectionId] || 'Dashboard';
+        }
+
+        // Modal functions
+        function openModal(modalId) {
+            document.getElementById('modal-' + modalId).classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById('modal-' + modalId).classList.remove('active');
+        }
+
+        // Close modal on overlay click
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.remove('active');
+                }
+            });
+        });
+
+        // Tab functionality
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                const parent = this.closest('.tabs');
+                parent.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>

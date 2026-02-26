@@ -1,0 +1,26 @@
+plugins = []
+headers = []
+redirects = []
+
+[functions]
+
+[functions."*"]
+
+[build]
+publish = "/Users/alen/Documents/Claude_Code_Projects/MedX/user-portal/frontend"
+publishOrigin = "default"
+base = "/Users/alen/Documents/Claude_Code_Projects/MedX/user-portal/frontend"
+
+[build.environment]
+
+[build.processing]
+
+[build.processing.css]
+
+[build.processing.html]
+
+[build.processing.images]
+
+[build.processing.js]
+
+[build.services]
