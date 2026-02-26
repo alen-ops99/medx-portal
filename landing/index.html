@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Med&X Portal</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚕️</text></svg>">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #0f172a 100%);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Animated mesh background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 30%, rgba(201, 169, 98, 0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 60%, rgba(167, 139, 250, 0.04) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 90%, rgba(34, 211, 238, 0.03) 0%, transparent 50%);
+    animation: meshDrift 25s ease-in-out infinite;
+    z-index: 0;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(255,255,255,0.015) 1px, transparent 0);
+    background-size: 40px 40px;
+    z-index: 0;
+  }
+
+  @keyframes meshDrift {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(1%, -1%) scale(1.01); }
+    66% { transform: translate(-1%, 0.5%) scale(0.99); }
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 2rem;
+    max-width: 960px;
+    width: 100%;
+  }
+
+  /* Logo */
+  .logo {
+    margin-bottom: 0.75rem;
+    animation: fadeSlideDown 0.8s ease forwards;
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+
+  .logo-img {
+    height: 56px;
+    margin-bottom: 8px;
+    filter: drop-shadow(0 4px 12px rgba(201, 169, 98, 0.3));
+  }
+
+  .logo-text {
+    font-size: 2.4rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #ffffff 0%, #c9a962 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 1rem;
+    font-weight: 400;
+    margin-bottom: 3.5rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    animation: fadeSlideDown 0.8s ease 0.15s forwards;
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  /* Portal Cards */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 3.5rem;
+  }
+
+  .card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 20px;
+    padding: 2.5rem 1.75rem 2rem;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(8px);
+    animation: fadeSlideUp 0.7s ease forwards;
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  .card:nth-child(1) { animation-delay: 0.3s; }
+  .card:nth-child(2) { animation-delay: 0.45s; }
+  .card:nth-child(3) { animation-delay: 0.6s; }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 20px;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  .card:hover {
+    border-color: rgba(201, 169, 98, 0.25);
+    transform: translateY(-6px);
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(201, 169, 98, 0.1);
+  }
+
+  .card:hover::before { opacity: 1; }
+
+  .card.admin::before {
+    background: linear-gradient(180deg, rgba(167, 139, 250, 0.08) 0%, rgba(201, 169, 98, 0.03) 100%);
+  }
+  .card.member::before {
+    background: linear-gradient(180deg, rgba(201, 169, 98, 0.08) 0%, rgba(34, 211, 238, 0.03) 100%);
+  }
+  .card.applicant::before {
+    background: linear-gradient(180deg, rgba(34, 211, 238, 0.08) 0%, rgba(244, 114, 182, 0.03) 100%);
+  }
+
+  /* Icon */
+  .card-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: #fff;
+    position: relative;
+    z-index: 1;
+  }
+
+  .card.admin .card-icon {
+    background: linear-gradient(135deg, #a78bfa, #7c3aed);
+    box-shadow: 0 8px 24px rgba(167, 139, 250, 0.3);
+  }
+  .card.member .card-icon {
+    background: linear-gradient(135deg, #c9a962, #b8943d);
+    box-shadow: 0 8px 24px rgba(201, 169, 98, 0.3);
+  }
+  .card.applicant .card-icon {
+    background: linear-gradient(135deg, #22d3ee, #0ea5e9);
+    box-shadow: 0 8px 24px rgba(34, 211, 238, 0.3);
+  }
+
+  .card-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 6px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .card.admin .card-label { color: #a78bfa; background: rgba(167, 139, 250, 0.1); }
+  .card.member .card-label { color: #c9a962; background: rgba(201, 169, 98, 0.1); }
+  .card.applicant .card-label { color: #22d3ee; background: rgba(34, 211, 238, 0.1); }
+
+  .card-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    position: relative;
+    z-index: 1;
+  }
+
+  .card-desc {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.4);
+    line-height: 1.6;
+    position: relative;
+    z-index: 1;
+  }
+
+  .card-cta {
+    margin-top: auto;
+    padding-top: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    position: relative;
+    z-index: 1;
+  }
+
+  .card.admin .card-cta { color: rgba(167, 139, 250, 0.6); }
+  .card.member .card-cta { color: rgba(201, 169, 98, 0.6); }
+  .card.applicant .card-cta { color: rgba(34, 211, 238, 0.6); }
+
+  .card:hover .card-cta {
+    gap: 12px;
+  }
+  .card.admin:hover .card-cta { color: #a78bfa; }
+  .card.member:hover .card-cta { color: #c9a962; }
+  .card.applicant:hover .card-cta { color: #22d3ee; }
+
+  /* Footer */
+  .footer {
+    color: rgba(255, 255, 255, 0.15);
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    animation: fadeSlideUp 0.7s ease 0.8s forwards;
+    opacity: 0;
+  }
+
+  .footer-divider {
+    width: 40px;
+    height: 1px;
+    background: rgba(201, 169, 98, 0.2);
+    margin: 0 auto 1rem;
+  }
+
+  /* Animations */
+  @keyframes fadeSlideDown {
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeSlideUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .cards { grid-template-columns: 1fr; gap: 1rem; max-width: 400px; margin-left: auto; margin-right: auto; }
+    .card { padding: 2rem 1.5rem 1.5rem; }
+    .logo-text { font-size: 2rem; }
+    .logo-img { height: 44px; }
+  }
+
+  @media (min-width: 769px) and (max-width: 1024px) {
+    .cards { gap: 1rem; }
+    .card { padding: 2rem 1.25rem 1.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="logo">
+    <div class="logo-text">Med&X</div>
+  </div>
+  <p class="subtitle">Select your portal to continue</p>
+
+  <div class="cards">
+
+    <a class="card admin" href="#" id="card-admin">
+      <div class="card-icon"><i class="fas fa-shield-halved"></i></div>
+      <div class="card-label">Administration</div>
+      <div class="card-title">Admin Portal</div>
+      <div class="card-desc">Manage conferences, accelerator programs, team operations, finances & PR campaigns.</div>
+      <div class="card-cta">Open Dashboard <i class="fas fa-arrow-right"></i></div>
+    </a>
+
+    <a class="card member" href="#" id="card-member">
+      <div class="card-icon"><i class="fas fa-user-circle"></i></div>
+      <div class="card-label">Members</div>
+      <div class="card-title">Member Portal</div>
+      <div class="card-desc">Access events, networking, community features, and your personal Med&X dashboard.</div>
+      <div class="card-cta">Enter Portal <i class="fas fa-arrow-right"></i></div>
+    </a>
+
+    <a class="card applicant" href="#" id="card-applicant">
+      <div class="card-icon"><i class="fas fa-rocket"></i></div>
+      <div class="card-label">Accelerator</div>
+      <div class="card-title">Apply Now</div>
+      <div class="card-desc">Apply to the Med&X Accelerator program at Harvard, Yale, MIT & leading institutions.</div>
+      <div class="card-cta">Start Application <i class="fas fa-arrow-right"></i></div>
+    </a>
+
+  </div>
+
+  <div class="footer">
+    <div class="footer-divider"></div>
+    Bridging Medicine, Science & Technology
+  </div>
+</div>
+
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const adminPort = params.get('admin') || '3001';
+  const userPort = params.get('user') || '3000';
+  const host = window.location.hostname || 'localhost';
+
+  document.getElementById('card-admin').href = `http://${host}:${adminPort}`;
+  document.getElementById('card-member').href = `http://${host}:${userPort}`;
+  document.getElementById('card-applicant').href = `http://${host}:${userPort}/#accelerator`;
+</script>
+
+</body>
+</html>

@@ -1,0 +1,16 @@
+node_modules/
+.env
+*.db
+!shared/medx_portal.db
+uploads/
+.DS_Store
+medx-portal-backups/
+medx-app/
+MedX_Davos_2026/
+MedX-2026-Partner-Presentation/
+medx-files/
+medx promo designer/
+*.zip
+*.xlsx
+*.docx
+*.docx.md
