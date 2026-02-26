@@ -322,14 +322,27 @@
 </div>
 
 <script>
+  // Support both local (port-based) and deployed (URL-based) modes
   const params = new URLSearchParams(window.location.search);
-  const adminPort = params.get('admin') || '3001';
-  const userPort = params.get('user') || '3000';
-  const host = window.location.hostname || 'localhost';
+  const adminUrl = params.get('adminUrl');
+  const userUrl = params.get('userUrl');
 
-  document.getElementById('card-admin').href = `http://${host}:${adminPort}`;
-  document.getElementById('card-member').href = `http://${host}:${userPort}`;
-  document.getElementById('card-applicant').href = `http://${host}:${userPort}/#accelerator`;
+  if (adminUrl || userUrl) {
+    // Deployed mode: explicit URLs provided
+    const admin = adminUrl || '#';
+    const user = userUrl || '#';
+    document.getElementById('card-admin').href = admin;
+    document.getElementById('card-member').href = user;
+    document.getElementById('card-applicant').href = user + (user.includes('#') ? '' : '#accelerator');
+  } else {
+    // Local mode: port-based routing
+    const adminPort = params.get('admin') || '3001';
+    const userPort = params.get('user') || '3000';
+    const host = window.location.hostname || 'localhost';
+    document.getElementById('card-admin').href = `http://${host}:${adminPort}`;
+    document.getElementById('card-member').href = `http://${host}:${userPort}`;
+    document.getElementById('card-applicant').href = `http://${host}:${userPort}/#accelerator`;
+  }
 </script>
 
 </body>
