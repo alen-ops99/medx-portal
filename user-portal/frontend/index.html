@@ -13,7 +13,7 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Med&amp;X Portal">
     <meta name="twitter:description" content="Advancing biomedicine through international collaboration.">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; img-src 'self' data: blob: https:; connect-src 'self' https:; worker-src 'self'; frame-ancestors 'none';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; img-src 'self' data: blob: https:; connect-src 'self' https:; frame-src https://js.stripe.com https://hooks.stripe.com; worker-src 'self'; frame-ancestors 'none';">
     <meta http-equiv="X-Frame-Options" content="DENY">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧬</text></svg>">
     <!-- PWA Meta Tags -->
@@ -27,6 +27,7 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js" integrity="sha384-Izc791esqyEy3BEIC42q7jbE0AaOkACziN+dyyXgYeDmpeMCLz0xA+xYN3aCd5zz" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" integrity="sha384-9Q0jWoineiIq95JeIyBsNV90KKLfDsbkj29k/YFxf76a2JwkHDYkMuSbNGN6XJfV" crossorigin="anonymous"></script>
+    <script src="https://js.stripe.com/v3/"></script>
     <style>
         :root {
             --bg-primary: #0f172a;
@@ -58695,7 +58696,81 @@ textarea:focus:not(:focus-visible),
                                 <!-- Step 3: Payment -->
                                 <div class="px-wizard-panel" id="px-wizard-step-3">
                                     <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px; color: var(--up-text);">Billing & Payment</h3>
-                                    <p style="font-size: 14px; color: var(--up-text-muted); margin-bottom: 24px;">Enter billing details for your fiscal invoice. Payment is via bank transfer.</p>
+                                    <p style="font-size: 14px; color: var(--up-text-muted); margin-bottom: 24px;">Choose your payment method and enter billing details for your fiscal invoice.</p>
+
+                                    <!-- Payment Method Choice (hidden for free tickets) -->
+                                    <div id="pxPaymentMethodChoice" style="margin-bottom: 24px;">
+                                        <label style="font-size: 13px; font-weight: 600; color: var(--up-text-secondary); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 10px;">Payment Method</label>
+                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                            <div id="pxPayMethodCard" onclick="PlexusPortal.selectPaymentMethod('card')" style="cursor: pointer; padding: 16px; border: 2px solid var(--up-success, #22c55e); border-radius: 12px; background: rgba(34,197,94,0.05); transition: all 0.2s;">
+                                                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                                                    <i class="fas fa-credit-card" style="font-size: 20px; color: var(--up-success, #22c55e);"></i>
+                                                    <span style="font-weight: 700; font-size: 15px; color: var(--up-text);">Credit/Debit Card</span>
+                                                    <span style="font-size: 10px; font-weight: 600; background: var(--up-success, #22c55e); color: white; padding: 2px 8px; border-radius: 10px;">RECOMMENDED</span>
+                                                </div>
+                                                <p style="font-size: 12px; color: var(--up-text-muted); margin: 0;">Secure payment via Stripe. Instant confirmation.</p>
+                                            </div>
+                                            <div id="pxPayMethodBank" onclick="PlexusPortal.selectPaymentMethod('bank_transfer')" style="cursor: pointer; padding: 16px; border: 2px solid var(--up-border, #e5e7eb); border-radius: 12px; background: var(--up-bg); transition: all 0.2s;">
+                                                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                                                    <i class="fas fa-university" style="font-size: 20px; color: var(--up-gold, #C9A962);"></i>
+                                                    <span style="font-weight: 700; font-size: 15px; color: var(--up-text);">Bank Transfer</span>
+                                                </div>
+                                                <p style="font-size: 12px; color: var(--up-text-muted); margin: 0;">Wire transfer with IBAN. Takes 1-3 business days.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Stripe Payment Processing (shown during card redirect) -->
+                                    <div id="pxStripeProcessing" style="display: none;">
+                                        <div class="up-card" style="border: 2px solid var(--up-accent, #c9a962); margin-bottom: 24px;">
+                                            <div class="up-card-body" style="text-align: center; padding: 48px;">
+                                                <div style="font-size: 48px; color: var(--up-accent, #c9a962); margin-bottom: 16px;"><i class="fas fa-spinner fa-spin"></i></div>
+                                                <h3 style="font-size: 20px; font-weight: 700; color: var(--up-text); margin-bottom: 8px;">Redirecting to Secure Payment...</h3>
+                                                <p style="font-size: 14px; color: var(--up-text-muted);">You'll be redirected to Stripe's secure checkout page. Do not close this window.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Stripe Payment Success (shown on return from Stripe) -->
+                                    <div id="pxStripeSuccess" style="display: none;">
+                                        <div class="up-card" style="border: 2px solid var(--up-success, #22c55e); margin-bottom: 24px;">
+                                            <div class="up-card-body" style="text-align: center; padding: 32px;">
+                                                <div style="font-size: 48px; color: var(--up-success, #22c55e); margin-bottom: 16px;"><i class="fas fa-check-circle"></i></div>
+                                                <h3 style="font-size: 20px; font-weight: 700; color: var(--up-text); margin-bottom: 8px;">Payment Successful!</h3>
+                                                <p style="font-size: 14px; color: var(--up-text-muted); margin-bottom: 16px;">Your card has been charged. A fiscal invoice will be emailed to you shortly.</p>
+                                                <div id="pxStripeInvoiceSummary" style="background: var(--up-bg-secondary, #f8f9fa); border-radius: 12px; padding: 16px; text-align: left; margin-bottom: 16px;">
+                                                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
+                                                        <span style="color: var(--up-text-muted);">Invoice:</span>
+                                                        <span style="font-family: monospace; font-weight: 600; color: var(--up-text);" id="pxStripeInvoiceNum">—</span>
+                                                    </div>
+                                                    <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; color: var(--up-text); border-top: 1px solid var(--up-border); padding-top: 8px; margin-top: 8px;">
+                                                        <span>Amount Paid:</span>
+                                                        <span id="pxStripeAmountPaid">—</span>
+                                                    </div>
+                                                </div>
+                                                <p style="font-size: 12px; color: var(--up-text-muted);"><i class="fas fa-info-circle" style="margin-right: 4px;"></i> Your registration is now fully confirmed. Points have been awarded to your account.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Stripe Payment Cancelled (shown when user cancels Stripe checkout) -->
+                                    <div id="pxStripeCancelled" style="display: none;">
+                                        <div class="up-card" style="border: 2px solid var(--up-warning, #f59e0b); margin-bottom: 24px;">
+                                            <div class="up-card-body" style="text-align: center; padding: 32px;">
+                                                <div style="font-size: 48px; color: var(--up-warning, #f59e0b); margin-bottom: 16px;"><i class="fas fa-exclamation-circle"></i></div>
+                                                <h3 style="font-size: 20px; font-weight: 700; color: var(--up-text); margin-bottom: 8px;">Payment Not Completed</h3>
+                                                <p style="font-size: 14px; color: var(--up-text-muted); margin-bottom: 20px;">Your registration is saved but payment wasn't completed. You can retry or switch to bank transfer.</p>
+                                                <div style="display: flex; gap: 12px; justify-content: center;">
+                                                    <button onclick="PlexusPortal.retryStripePayment()" class="px-hero-btn px-hero-btn-primary" style="background: var(--up-success);">
+                                                        <i class="fas fa-redo"></i> Retry Card Payment
+                                                    </button>
+                                                    <button onclick="PlexusPortal.switchToBankTransfer()" class="px-hero-btn px-hero-btn-secondary">
+                                                        <i class="fas fa-university"></i> Use Bank Transfer
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
 
                                     <!-- Bank Transfer Instructions (shown after successful registration) -->
                                     <div id="pxBankTransferInstructions" style="display: none;">
@@ -58818,10 +58893,10 @@ textarea:focus:not(:focus-visible),
                                                 </div>
                                             </div>
 
-                                            <div style="display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: var(--up-bg-secondary, #f8f9fa); border-radius: 10px; margin-bottom: 16px;">
-                                                <i class="fas fa-university" style="color: var(--up-gold, #C9A962); font-size: 16px;"></i>
-                                                <p style="font-size: 13px; color: var(--up-text-muted); margin: 0;">
-                                                    Payment is via <strong>bank transfer</strong>. After registration, you'll receive an invoice with transfer details. A fiscal invoice (fiskalni račun) will be issued automatically.
+                                            <div id="pxPaymentNote" style="display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: var(--up-bg-secondary, #f8f9fa); border-radius: 10px; margin-bottom: 16px;">
+                                                <i class="fas fa-shield-alt" style="color: var(--up-gold, #C9A962); font-size: 16px;"></i>
+                                                <p style="font-size: 13px; color: var(--up-text-muted); margin: 0;" id="pxPaymentNoteText">
+                                                    Secure card payment powered by Stripe. A fiscal invoice (fiskalni račun) will be issued upon payment confirmation.
                                                 </p>
                                             </div>
                                         </div>
@@ -79741,6 +79816,22 @@ You can use variables like {first_name} that will be personalized for each recip
                 this.initLiveDateGating();
                 this.initCheckinButtons();
 
+                // Handle return from Stripe Checkout (URL params: ?payment=success/cancelled&reg=xxx)
+                this.handleStripeReturn();
+
+                // Pre-init Stripe client (non-blocking, for faster checkout)
+                this.initStripe().then(client => {
+                    if (!client) {
+                        // Stripe not available — hide card option, default to bank transfer
+                        const cardEl = document.getElementById('pxPayMethodCard');
+                        if (cardEl) cardEl.style.display = 'none';
+                        this.paymentMethod = 'bank_transfer';
+                        this.selectPaymentMethod('bank_transfer');
+                        const choiceEl = document.getElementById('pxPaymentMethodChoice');
+                        if (choiceEl) choiceEl.style.display = 'none';
+                    }
+                });
+
                 // Initialize dynamic rendering from ConferenceData
                 if (typeof ConferenceData !== 'undefined') {
                     this.renderScheduleFromData();
@@ -80702,7 +80793,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (companyField && !companyField.value) companyField.value = institution;
             },
 
-            // Submit registration with billing info + FIRA fiscal invoice
+            // Submit registration with billing info + payment method
             async submitRegistration() {
                 // Collect billing info from the form
                 const billingName = document.getElementById('pxBillingName')?.value?.trim();
@@ -80729,7 +80820,7 @@ You can use variables like {first_name} that will be personalized for each recip
                     country: document.getElementById('pxRegCountry')?.value || '',
                     pricing: this.selectedPricing,
                     package_items: this.selectedPackageItems,
-                    payment_method: 'bank_transfer',
+                    payment_method: this.paymentMethod || 'card',
                     dietary: document.getElementById('pxRegDiet')?.value || '',
                     accessibility: document.getElementById('pxRegAccessibility')?.value || '',
                     coupon: this.appliedCoupon?.code || null,
@@ -80752,7 +80843,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 let originalHTML;
                 if (btn) {
                     originalHTML = btn.innerHTML;
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating invoice...';
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
                     btn.disabled = true;
                 }
 
@@ -80763,7 +80854,15 @@ You can use variables like {first_name} that will be personalized for each recip
                     });
 
                     if (res.success) {
-                        // Show bank transfer instructions if payment is required
+                        // Card payment: redirect to Stripe Checkout
+                        if (res.payment_method === 'card' && res.amount > 0) {
+                            this._pendingRegistrationId = res.registration_id;
+                            await this.redirectToStripeCheckout(res.registration_id);
+                            // completeRegistration will be called when user returns from Stripe
+                            return;
+                        }
+
+                        // Bank transfer: show instructions as before
                         if (res.bank_transfer) {
                             this.showBankTransferInstructions(res);
                         }
@@ -80783,6 +80882,152 @@ You can use variables like {first_name} that will be personalized for each recip
                         btn.innerHTML = originalHTML;
                         btn.disabled = false;
                     }
+                }
+            },
+
+            // Redirect to Stripe Checkout
+            async redirectToStripeCheckout(registrationId) {
+                try {
+                    // Show processing UI
+                    const formEl = document.getElementById('pxBillingFormSection');
+                    const choiceEl = document.getElementById('pxPaymentMethodChoice');
+                    const processingEl = document.getElementById('pxStripeProcessing');
+                    if (formEl) formEl.style.display = 'none';
+                    if (choiceEl) choiceEl.style.display = 'none';
+                    if (processingEl) processingEl.style.display = 'block';
+
+                    const session = await UserPortal.api('/api/plexus/checkout-session', {
+                        method: 'POST',
+                        body: JSON.stringify({ registration_id: registrationId })
+                    });
+
+                    if (session?.url) {
+                        // Redirect to Stripe hosted checkout
+                        window.location.href = session.url;
+                    } else if (session?.sessionId) {
+                        // Fallback: use Stripe.js redirect
+                        const stripeClient = await this.initStripe();
+                        if (stripeClient) {
+                            const { error } = await stripeClient.redirectToCheckout({ sessionId: session.sessionId });
+                            if (error) throw new Error(error.message);
+                        }
+                    } else {
+                        throw new Error('Failed to create checkout session');
+                    }
+                } catch (err) {
+                    console.error('Stripe redirect error:', err);
+                    Toast.error('Failed to start card payment. Please try again or use bank transfer.');
+                    // Restore form
+                    const formEl = document.getElementById('pxBillingFormSection');
+                    const choiceEl = document.getElementById('pxPaymentMethodChoice');
+                    const processingEl = document.getElementById('pxStripeProcessing');
+                    if (formEl) formEl.style.display = 'grid';
+                    if (choiceEl) choiceEl.style.display = 'block';
+                    if (processingEl) processingEl.style.display = 'none';
+                    const btn = document.getElementById('pxSubmitRegBtn');
+                    if (btn) {
+                        btn.innerHTML = '<i class="fas fa-check-circle"></i> Complete Registration';
+                        btn.disabled = false;
+                    }
+                }
+            },
+
+            // Retry Stripe payment (from cancelled state)
+            async retryStripePayment() {
+                const regId = this._pendingRegistrationId || new URLSearchParams(window.location.search).get('reg');
+                if (regId) {
+                    document.getElementById('pxStripeCancelled').style.display = 'none';
+                    document.getElementById('pxStripeProcessing').style.display = 'block';
+                    await this.redirectToStripeCheckout(regId);
+                }
+            },
+
+            // Switch from card to bank transfer after cancellation
+            async switchToBankTransfer() {
+                const regId = this._pendingRegistrationId || new URLSearchParams(window.location.search).get('reg');
+                if (!regId) return;
+
+                try {
+                    const invoiceData = await UserPortal.api(`/api/plexus/registration/${regId}/invoice`);
+                    if (invoiceData?.bank_transfer) {
+                        document.getElementById('pxStripeCancelled').style.display = 'none';
+                        this.showBankTransferInstructions({
+                            bank_transfer: invoiceData.bank_transfer,
+                            invoice_number: invoiceData.registration?.invoice_number,
+                            invoice: invoiceData.invoice,
+                            amount: invoiceData.registration?.amount,
+                            fira_invoice: invoiceData.fira
+                        });
+                    } else {
+                        Toast.info('Bank transfer details will be emailed to you.');
+                    }
+                } catch (err) {
+                    console.error('Switch to bank transfer error:', err);
+                    Toast.error('Failed to load bank transfer details');
+                }
+            },
+
+            // Handle return from Stripe (called on page load if URL has payment params)
+            async handleStripeReturn() {
+                const params = new URLSearchParams(window.location.search);
+                const paymentStatus = params.get('payment');
+                const regId = params.get('reg');
+
+                if (!paymentStatus || !regId) return;
+
+                // Clean URL
+                window.history.replaceState({}, '', window.location.pathname);
+
+                if (paymentStatus === 'success') {
+                    // Navigate to Plexus section
+                    if (typeof UserPortal !== 'undefined' && UserPortal.showSection) {
+                        UserPortal.showSection('plexus');
+                    }
+
+                    // Poll for payment confirmation (webhook may take a moment)
+                    const successEl = document.getElementById('pxStripeSuccess');
+                    const formEl = document.getElementById('pxBillingFormSection');
+                    const choiceEl = document.getElementById('pxPaymentMethodChoice');
+                    if (formEl) formEl.style.display = 'none';
+                    if (choiceEl) choiceEl.style.display = 'none';
+                    if (successEl) successEl.style.display = 'block';
+
+                    let attempts = 0;
+                    const pollPayment = async () => {
+                        try {
+                            const data = await UserPortal.api(`/api/plexus/registration/${regId}/invoice`);
+                            if (data?.registration?.payment_status === 'paid') {
+                                // Update success UI with details
+                                const invoiceNum = document.getElementById('pxStripeInvoiceNum');
+                                const amountPaid = document.getElementById('pxStripeAmountPaid');
+                                if (invoiceNum) invoiceNum.textContent = data.registration.invoice_number || '—';
+                                if (amountPaid) amountPaid.textContent = data.registration.amount ? `€${data.registration.amount.toFixed(2)}` : '—';
+                                this.completeRegistration(data.registration);
+                                return;
+                            }
+                        } catch (e) { /* retry */ }
+
+                        if (++attempts < 15) {
+                            setTimeout(pollPayment, 2000);
+                        } else {
+                            // After 30s, show success anyway (webhook might be delayed)
+                            Toast.success('Payment is being processed. You\'ll receive a confirmation email shortly.');
+                            this.completeRegistration(null);
+                        }
+                    };
+                    pollPayment();
+
+                } else if (paymentStatus === 'cancelled') {
+                    if (typeof UserPortal !== 'undefined' && UserPortal.showSection) {
+                        UserPortal.showSection('plexus');
+                    }
+                    this._pendingRegistrationId = regId;
+                    const cancelledEl = document.getElementById('pxStripeCancelled');
+                    const formEl = document.getElementById('pxBillingFormSection');
+                    const choiceEl = document.getElementById('pxPaymentMethodChoice');
+                    if (formEl) formEl.style.display = 'none';
+                    if (choiceEl) choiceEl.style.display = 'none';
+                    if (cancelledEl) cancelledEl.style.display = 'block';
                 }
             },
 
@@ -81152,12 +81397,39 @@ You can use variables like {first_name} that will be personalized for each recip
             },
 
             // Select payment method
-            selectPaymentMethod(element, method) {
-                document.querySelectorAll('#px-wizard-step-3 .px-package-option').forEach(opt => {
-                    opt.classList.remove('selected');
-                });
-                element.classList.add('selected');
+            // Stripe client instance (initialized on demand)
+            _stripeClient: null,
+            _pendingRegistrationId: null,
+
+            async initStripe() {
+                if (this._stripeClient) return this._stripeClient;
+                try {
+                    const config = await UserPortal.api('/api/plexus/stripe-config');
+                    if (config?.enabled && config?.publishableKey && typeof Stripe !== 'undefined') {
+                        this._stripeClient = Stripe(config.publishableKey);
+                        return this._stripeClient;
+                    }
+                } catch (e) {
+                    console.warn('[Stripe] Failed to init:', e.message);
+                }
+                return null;
+            },
+
+            selectPaymentMethod(method) {
                 this.paymentMethod = method;
+                const cardEl = document.getElementById('pxPayMethodCard');
+                const bankEl = document.getElementById('pxPayMethodBank');
+                const noteText = document.getElementById('pxPaymentNoteText');
+
+                if (method === 'card') {
+                    if (cardEl) { cardEl.style.borderColor = 'var(--up-success, #22c55e)'; cardEl.style.background = 'rgba(34,197,94,0.05)'; }
+                    if (bankEl) { bankEl.style.borderColor = 'var(--up-border, #e5e7eb)'; bankEl.style.background = 'var(--up-bg)'; }
+                    if (noteText) noteText.textContent = 'Secure card payment powered by Stripe. A fiscal invoice (fiskalni račun) will be issued upon payment confirmation.';
+                } else {
+                    if (bankEl) { bankEl.style.borderColor = 'var(--up-gold, #C9A962)'; bankEl.style.background = 'rgba(201,169,98,0.05)'; }
+                    if (cardEl) { cardEl.style.borderColor = 'var(--up-border, #e5e7eb)'; cardEl.style.background = 'var(--up-bg)'; }
+                    if (noteText) noteText.textContent = 'Payment is via bank transfer. After registration, you\'ll receive an invoice with transfer details. A fiscal invoice (fiskalni račun) will be issued automatically.';
+                }
             },
 
             // ===== COUPON CODE =====

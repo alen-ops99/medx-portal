@@ -82,6 +82,7 @@ function buildLineItems(ticketName, ticketPrice, addons) {
  * @param {Array}  orderData.addons - [{name, price}] optional add-ons
  * @param {Object} orderData.billing - {name, company, address, city, zip, country, oib, vatNumber, email}
  * @param {string} orderData.invoiceType - 'FISKALNI_RAČUN' (fiscal) or 'RAČUN' (regular)
+ * @param {string} orderData.paymentType - 'TRANSAKCIJSKI' (bank transfer) or 'KARTICA' (card). Default: 'TRANSAKCIJSKI'
  */
 function buildFiraOrder(orderData) {
     const lineItems = buildLineItems(orderData.ticketName, orderData.ticketPrice, orderData.addons);
@@ -101,7 +102,7 @@ function buildFiraOrder(orderData) {
     return {
         externalId: orderData.invoiceNumber,
         invoiceType: orderData.invoiceType || 'FISKALNI_RAČUN',
-        paymentType: 'TRANSAKCIJSKI', // Bank transfer
+        paymentType: orderData.paymentType || 'TRANSAKCIJSKI', // TRANSAKCIJSKI = bank, KARTICA = card
         currency: 'EUR',
         lineItems: lineItems.map(item => ({
             description: item.description,
