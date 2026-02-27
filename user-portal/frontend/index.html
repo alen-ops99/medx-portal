@@ -75918,15 +75918,35 @@ You can use variables like {first_name} that will be personalized for each recip
                     return; // Skip the normal init flow
                 }
 
-                // Always start fresh — clear previous session so visitors
-                // experience the full flow: landing → sign-in → welcome tour
-                localStorage.removeItem('medx_user_token');
-                localStorage.removeItem('medx_user_data');
-                localStorage.removeItem('medx_onboarding_complete');
-                localStorage.removeItem('medx_onboarding_completed');
-                localStorage.removeItem('medx_hidden_cards');
-                localStorage.removeItem('medx_biometric_enabled');
-                localStorage.removeItem('medx_biometric_email');
+                // Preserve session when returning from Stripe payment redirect
+                const isStripeReturn = urlParams.get('payment') === 'success' || urlParams.get('payment') === 'cancelled';
+
+                if (!isStripeReturn) {
+                    // Start fresh — clear previous session so visitors
+                    // experience the full flow: landing → sign-in → welcome tour
+                    localStorage.removeItem('medx_user_token');
+                    localStorage.removeItem('medx_user_data');
+                    localStorage.removeItem('medx_onboarding_complete');
+                    localStorage.removeItem('medx_onboarding_completed');
+                    localStorage.removeItem('medx_hidden_cards');
+                    localStorage.removeItem('medx_biometric_enabled');
+                    localStorage.removeItem('medx_biometric_email');
+                }
+
+                // Returning from Stripe payment — auto-login and show Plexus
+                if (isStripeReturn) {
+                    const savedToken = localStorage.getItem('medx_user_token');
+                    const savedUser = localStorage.getItem('medx_user_data');
+                    if (savedToken && savedUser) {
+                        this.token = savedToken;
+                        this.user = JSON.parse(savedUser);
+                        document.getElementById('landingPage').style.display = 'none';
+                        document.getElementById('mainApp').style.display = 'block';
+                        this.showUserPortal();
+                        this.showSection('plexus');
+                        return;
+                    }
+                }
 
                 // Check if arriving from shared landing page with ?login=true
                 if (urlParams.get('login') === 'true') {
@@ -80803,8 +80823,13 @@ You can use variables like {first_name} that will be personalized for each recip
                 const billingCountry = document.getElementById('pxBillingCountry')?.value?.trim();
                 const billingEmail = document.getElementById('pxBillingEmail')?.value?.trim();
 
+                // Calculate final price after ALL discounts (points + coupons)
+                const subtotal = this.calculateTotal(); // ticket + add-ons
+                const pointsDiscount = this.redeemEnabled ? (this.pointsToRedeem / 100) : 0; // 100 pts = €1
+                const couponDiscount = this.appliedCoupon?.value || 0;
+                const total = Math.max(0, subtotal - pointsDiscount - couponDiscount);
+
                 // Validate required billing fields (only if ticket is not free)
-                const total = this.calculateTotal();
                 if (total > 0) {
                     if (!billingName || !billingAddress || !billingCity || !billingZip || !billingCountry || !billingEmail) {
                         Toast.error('Please fill in all required billing fields (marked with *).');
@@ -80821,6 +80846,11 @@ You can use variables like {first_name} that will be personalized for each recip
                     pricing: this.selectedPricing,
                     package_items: this.selectedPackageItems,
                     payment_method: this.paymentMethod || 'card',
+                    total: total,
+                    subtotal: subtotal,
+                    points_redeemed: this.redeemEnabled ? this.pointsToRedeem : 0,
+                    points_discount: pointsDiscount,
+                    coupon_discount: couponDiscount,
                     dietary: document.getElementById('pxRegDiet')?.value || '',
                     accessibility: document.getElementById('pxRegAccessibility')?.value || '',
                     coupon: this.appliedCoupon?.code || null,
@@ -80848,17 +80878,22 @@ You can use variables like {first_name} that will be personalized for each recip
                 }
 
                 try {
-                    const res = await UserPortal.api('/api/plexus/register', {
+                    // Use fetch directly (not UserPortal.api) so we can read JSON from error responses
+                    const rawRes = await fetch('/api/plexus/register', {
                         method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${UserPortal.token}`
+                        },
                         body: JSON.stringify(data)
                     });
+                    const res = await rawRes.json();
 
                     if (res.success) {
                         // Card payment: redirect to Stripe Checkout
                         if (res.payment_method === 'card' && res.amount > 0) {
                             this._pendingRegistrationId = res.registration_id;
                             await this.redirectToStripeCheckout(res.registration_id);
-                            // completeRegistration will be called when user returns from Stripe
                             return;
                         }
 
@@ -80867,6 +80902,29 @@ You can use variables like {first_name} that will be personalized for each recip
                             this.showBankTransferInstructions(res);
                         }
                         this.completeRegistration(res);
+                    } else if (res.error === 'Already registered' && res.registration_id) {
+                        // Already registered but maybe unpaid — try card payment for existing registration
+                        if (this.paymentMethod === 'card') {
+                            this._pendingRegistrationId = res.registration_id;
+                            await this.redirectToStripeCheckout(res.registration_id);
+                            return;
+                        } else {
+                            // Bank transfer: fetch and show existing invoice details
+                            try {
+                                const invoiceData = await UserPortal.api(`/api/plexus/registration/${res.registration_id}/invoice`);
+                                if (invoiceData?.bank_transfer) {
+                                    this.showBankTransferInstructions({
+                                        bank_transfer: invoiceData.bank_transfer,
+                                        invoice_number: invoiceData.registration?.invoice_number,
+                                        invoice: invoiceData.invoice,
+                                        amount: invoiceData.registration?.amount,
+                                        fira_invoice: invoiceData.fira
+                                    });
+                                }
+                            } catch (e) { /* ignore */ }
+                            Toast.info('You are already registered. Complete your payment below.');
+                        }
+                        if (btn) { btn.innerHTML = originalHTML; btn.disabled = false; }
                     } else {
                         Toast.error(res.error || 'Registration failed. Please try again.');
                         if (btn) {
@@ -81393,7 +81451,11 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (itemsStep2) itemsStep2.innerHTML = html;
                 if (totalStep2) totalStep2.textContent = '€' + total;
                 if (itemsStep3) itemsStep3.innerHTML = html;
-                if (totalStep3) totalStep3.textContent = '€' + total;
+                // Apply existing discounts (points + coupon) to Step 3 total
+                const pointsDiscount = this.redeemEnabled ? (this.pointsToRedeem / 100) : 0;
+                const couponDiscount = this.appliedCoupon?.value || 0;
+                const discountedTotal = Math.max(0, total - pointsDiscount - couponDiscount);
+                if (totalStep3) totalStep3.textContent = '€' + discountedTotal;
             },
 
             // Select payment method
@@ -81478,6 +81540,8 @@ You can use variables like {first_name} that will be personalized for each recip
                         if (discountAmount) discountAmount.textContent = `-€${discountValue}`;
                     }
 
+                    // Update displayed total to reflect coupon discount
+                    this.updateRedeemSlider();
                     Toast.success('Coupon applied successfully!');
                 } else if (isValidFormat) {
                     // Demo mode: accept any valid-format coupon for €5 discount
@@ -81495,6 +81559,8 @@ You can use variables like {first_name} that will be personalized for each recip
                         if (discountAmount) discountAmount.textContent = '-€5';
                     }
 
+                    // Update displayed total to reflect coupon discount
+                    this.updateRedeemSlider();
                     Toast.success('Coupon applied successfully!');
                 } else {
                     msgEl.style.display = 'block';
@@ -81503,6 +81569,8 @@ You can use variables like {first_name} that will be personalized for each recip
                     msgEl.textContent = 'Invalid coupon code. Please check and try again.';
                     this.appliedCoupon = null;
                     if (discountRow) discountRow.style.display = 'none';
+                    // Reset total without coupon
+                    this.updateRedeemSlider();
                 }
             },
 
@@ -81590,14 +81658,15 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (!slider) return;
 
                 this.pointsToRedeem = parseInt(slider.value) || 0;
-                const discount = this.pointsToRedeem / 100; // 100 pts = €1
+                const pointsDiscount = this.pointsToRedeem / 100; // 100 pts = €1
+                const couponDiscount = this.appliedCoupon?.value || 0;
 
                 if (valueEl) valueEl.textContent = `${this.pointsToRedeem.toLocaleString()} pts`;
-                if (discountEl) discountEl.textContent = `-€${discount.toFixed(2)}`;
+                if (discountEl) discountEl.textContent = `-€${pointsDiscount.toFixed(2)}`;
 
-                // Update total
+                // Update total: subtract both points and coupon discounts
                 const baseTotal = this.calculateTotal();
-                const finalTotal = Math.max(0, baseTotal - discount);
+                const finalTotal = Math.max(0, baseTotal - pointsDiscount - couponDiscount);
                 if (totalEl) totalEl.textContent = `€${finalTotal.toFixed(0)}`;
             },
 
