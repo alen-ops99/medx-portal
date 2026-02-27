@@ -13084,7 +13084,8 @@ By applying to this program, I provide the following consents:
             let sql = `SELECT r.id, r.invoice_number, r.payment_status, r.amount_paid, r.status as reg_status,
                 r.created_at, u.first_name, u.last_name, u.email, u.institution,
                 t.name as ticket_name,
-                pt.provider_transaction_id as fira_id, pt.metadata as tx_metadata,
+                pt.provider_transaction_id as provider_tx_id, pt.payment_method as pay_method,
+                pt.payment_provider as pay_provider, pt.metadata as tx_metadata,
                 i.status as invoice_status, i.due_date as invoice_due_date
                 FROM registrations r
                 JOIN users u ON r.user_id = u.id
@@ -13111,17 +13112,24 @@ By applying to this program, I provide the following consents:
 
             const enriched = payments.map(p => {
                 let firaInvoiceNumber = null;
+                let stripePaymentId = null;
                 if (p.tx_metadata) {
                     try {
                         const meta = JSON.parse(p.tx_metadata);
                         firaInvoiceNumber = meta.fira_invoice_number;
                     } catch (e) { /* ignore */ }
                 }
+                if (p.pay_provider === 'stripe' && p.provider_tx_id) {
+                    stripePaymentId = p.provider_tx_id;
+                }
                 return {
                     id: p.id,
                     invoice_number: p.invoice_number,
                     fira_invoice_number: firaInvoiceNumber,
                     payment_status: p.payment_status,
+                    payment_method: p.pay_method || 'bank_transfer',
+                    payment_provider: p.pay_provider || 'manual',
+                    stripe_payment_id: stripePaymentId,
                     amount: p.amount_paid,
                     registration_status: p.reg_status,
                     attendee: `${p.first_name} ${p.last_name}`,
@@ -13150,10 +13158,14 @@ By applying to this program, I provide the following consents:
         }
     });
 
-    // Confirm bank transfer received (mark as paid)
+    // Confirm bank transfer received (mark as paid) — also creates Finance income record
     app.post('/api/finance/conference-payments/:id/confirm', auth, (req, res) => {
         try {
-            const reg = query.get('SELECT * FROM registrations WHERE id = ?', [req.params.id]);
+            const reg = query.get(`SELECT r.*, t.name as ticket_name, u.first_name, u.last_name
+                FROM registrations r
+                JOIN ticket_types t ON r.ticket_type_id = t.id
+                JOIN users u ON r.user_id = u.id
+                WHERE r.id = ?`, [req.params.id]);
             if (!reg) return res.status(404).json({ error: 'Registration not found' });
             if (reg.payment_status === 'paid') return res.json({ success: true, message: 'Already paid' });
 
@@ -13161,6 +13173,23 @@ By applying to this program, I provide the following consents:
             db.run('UPDATE payment_transactions SET status = ? WHERE registration_id = ?', ['completed', reg.id]);
             db.run("UPDATE invoices SET status = 'paid', paid_at = ? WHERE registration_id = ?",
                 [new Date().toISOString(), reg.id]);
+
+            // Determine payment method from transaction record
+            const tx = query.get('SELECT payment_method FROM payment_transactions WHERE registration_id = ?', [reg.id]);
+            const paymentMethod = tx?.payment_method || 'bank_transfer';
+
+            // Create Finance income record so it shows in Finance dashboard
+            const year = new Date().getFullYear();
+            const transactionNumber = getNextSequenceNumber('income', year);
+            const attendeeName = (reg.first_name && reg.last_name) ? `${reg.first_name} ${reg.last_name}` : 'Attendee';
+            const description = `Plexus 2026 — ${attendeeName} — ${reg.ticket_name || 'Conference Ticket'}`;
+
+            db.run(`INSERT INTO finance_transactions (id, transaction_number, transaction_type, amount, date, description, project, category, payment_method, reference, fiscal_year, status, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [uuidv4(), transactionNumber, 'income', reg.amount_paid, new Date().toISOString().split('T')[0],
+                 description, 'plexus-2026', 'conference-registration',
+                 paymentMethod, reg.invoice_number, year, 'completed', req.user.id]);
+
             saveDb();
 
             res.json({ success: true, message: 'Payment confirmed', invoice_number: reg.invoice_number });

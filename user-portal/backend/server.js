@@ -11,6 +11,9 @@ const initSqlJs = require('sql.js');
 const nodemailer = require('nodemailer');
 const firaService = require('./fira-service');
 
+// Stripe — conditionally loaded based on env config (loaded after .env parsing below)
+let stripe = null;
+
 // Load .env file if present (minimal loader — no dotenv dependency needed)
 const envPath = path.join(__dirname, '.env');
 if (fs.existsSync(envPath)) {
@@ -23,6 +26,14 @@ if (fs.existsSync(envPath)) {
         const val = trimmed.slice(eqIndex + 1).trim();
         if (!process.env[key]) process.env[key] = val;
     });
+}
+
+// Initialize Stripe after env is loaded
+if (process.env.STRIPE_SECRET_KEY) {
+    stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+    console.log('[Stripe] Card payments ACTIVE — Stripe API key configured');
+} else {
+    console.log('[Stripe] Not configured — card payments disabled. Set STRIPE_SECRET_KEY in .env');
 }
 
 // Log FIRA configuration status
@@ -69,6 +80,9 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'medx-portal-secret-key-2026';
 
 app.use(cors());
+
+// Stripe webhook needs raw body for signature verification — must be before express.json()
+app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -7654,7 +7668,7 @@ By applying to this program, I provide the following consents:
     // Single-step registration (used by frontend PlexusPortal.submitRegistration)
     app.post('/api/plexus/register', auth, async (req, res) => {
         try {
-            const { first_name, last_name, email, institution, country, pricing, dietary, accessibility, billing, package_items } = req.body;
+            const { first_name, last_name, email, institution, country, pricing, dietary, accessibility, billing, package_items, payment_method } = req.body;
             const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
             if (!conf) return res.status(400).json({ error: 'Conference not found' });
 
@@ -7680,8 +7694,9 @@ By applying to this program, I provide the following consents:
 
             // Determine payment status: free tickets are auto-paid, others start as pending
             const paymentStatus = price === 0 ? 'paid' : 'pending';
+            const chosenPaymentMethod = payment_method === 'card' && stripe ? 'card' : 'bank_transfer';
 
-            // Create registration (status: confirmed so they can attend, payment_status: pending until bank transfer)
+            // Create registration (status: confirmed so they can attend, payment_status: pending until payment)
             db.run(`INSERT INTO registrations (id, conference_id, user_id, ticket_type_id, registration_type, status, payment_status, amount_paid, invoice_number, dietary_requirements, accessibility_needs)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [regId, conf.id, req.user.id, ticket.id, 'general', 'confirmed', paymentStatus, price, invoiceNumber, dietary || null, accessibility || null]);
@@ -7694,7 +7709,7 @@ By applying to this program, I provide the following consents:
 
             db.run('UPDATE ticket_types SET sold_count = sold_count + 1 WHERE id = ?', [ticket.id]);
 
-            // --- FIRA Fiscal Invoice Integration ---
+            // --- Invoice + Payment Transaction ---
             let firaInvoice = null;
             let invoiceRecord = null;
             const vatBreakdown = firaService.calculateVAT(price);
@@ -7728,37 +7743,39 @@ By applying to this program, I provide the following consents:
                     due_date: dueDate
                 };
 
-                // Attempt FIRA fiscal invoice creation
-                try {
-                    firaInvoice = await firaService.createFiscalInvoice({
-                        invoiceNumber,
-                        ticketName: ticket.name,
-                        ticketPrice: price,
-                        addons: [], // Future: map package_items to addon prices
-                        billing: {
-                            name: `${first_name || ''} ${last_name || ''}`.trim(),
-                            company: billing.company || '',
-                            address: billing.address || '',
-                            city: billing.city || '',
-                            zip: billing.zip || '',
-                            country: billing.country || 'HR',
-                            oib: billing.oib || '',
-                            vatNumber: billing.vatNumber || '',
-                            email: billing.email || email
-                        },
-                        invoiceType: 'FISKALNI_RAČUN'
-                    });
-                } catch (firaErr) {
-                    // FIRA failure is non-blocking — registration still succeeds
-                    console.error('[FIRA] Invoice creation failed (non-blocking):', firaErr.message);
+                // For bank transfer: create FIRA fiscal invoice immediately (payment expected later)
+                // For card: FIRA fiscal invoice is deferred until Stripe webhook confirms payment
+                if (chosenPaymentMethod === 'bank_transfer') {
+                    try {
+                        firaInvoice = await firaService.createFiscalInvoice({
+                            invoiceNumber,
+                            ticketName: ticket.name,
+                            ticketPrice: price,
+                            addons: [],
+                            billing: {
+                                name: `${first_name || ''} ${last_name || ''}`.trim(),
+                                company: billing.company || '',
+                                address: billing.address || '',
+                                city: billing.city || '',
+                                zip: billing.zip || '',
+                                country: billing.country || 'HR',
+                                oib: billing.oib || '',
+                                vatNumber: billing.vatNumber || '',
+                                email: billing.email || email
+                            },
+                            invoiceType: 'FISKALNI_RAČUN'
+                        });
+                    } catch (firaErr) {
+                        console.error('[FIRA] Invoice creation failed (non-blocking):', firaErr.message);
+                    }
                 }
 
                 // Store payment transaction
                 const txId = uuidv4();
                 db.run(`INSERT INTO payment_transactions (id, registration_id, amount, currency, payment_method, payment_provider, provider_transaction_id, status, metadata)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [txId, regId, price, 'EUR', 'bank_transfer',
-                     firaInvoice ? 'fira' : 'manual',
+                    [txId, regId, price, 'EUR', chosenPaymentMethod,
+                     chosenPaymentMethod === 'card' ? 'stripe' : (firaInvoice ? 'fira' : 'manual'),
                      firaInvoice ? firaInvoice.firaId : null,
                      'pending',
                      JSON.stringify({
@@ -7791,16 +7808,19 @@ By applying to this program, I provide the following consents:
                 amount: price,
                 ticket_name: ticket.name,
                 payment_status: paymentStatus,
-                // FIRA fiscal invoice details (null if demo mode or free ticket)
+                payment_method: chosenPaymentMethod,
+                // FIRA fiscal invoice details (null if demo mode, free ticket, or card payment — card gets it after webhook)
                 fira_invoice: firaInvoice ? {
                     fira_id: firaInvoice.firaId,
                     fira_invoice_number: firaInvoice.invoiceNumber,
                     pdf_url: firaInvoice.pdfUrl
                 } : null,
-                // Bank transfer instructions (null if free ticket)
-                bank_transfer: bankDetails,
+                // Bank transfer instructions (null if free ticket or card payment)
+                bank_transfer: chosenPaymentMethod === 'bank_transfer' ? bankDetails : null,
                 // Invoice breakdown
                 invoice: invoiceRecord,
+                // Available payment methods
+                payment_methods: { card: stripe !== null, bank_transfer: true },
                 // Whether FIRA is active
                 fira_active: firaService.isConfigured()
             });
@@ -7878,7 +7898,11 @@ By applying to this program, I provide the following consents:
             // Verify admin access
             if (!req.user.is_admin) return res.status(403).json({ error: 'Admin access required' });
 
-            const reg = query.get('SELECT * FROM registrations WHERE id = ?', [req.params.id]);
+            const reg = query.get(`SELECT r.*, t.name as ticket_name, u.first_name, u.last_name
+                FROM registrations r
+                JOIN ticket_types t ON r.ticket_type_id = t.id
+                JOIN users u ON r.user_id = u.id
+                WHERE r.id = ?`, [req.params.id]);
             if (!reg) return res.status(404).json({ error: 'Registration not found' });
             if (reg.payment_status === 'paid') return res.json({ success: true, message: 'Already marked as paid' });
 
@@ -7891,6 +7915,9 @@ By applying to this program, I provide the following consents:
             // Update invoice status
             db.run("UPDATE invoices SET status = 'paid', paid_at = ? WHERE registration_id = ?",
                 [new Date().toISOString(), reg.id]);
+
+            // Create finance income record (same as Stripe webhook path)
+            createFinanceIncomeRecord(reg, reg.amount_paid, 'bank_transfer', reg.invoice_number);
 
             saveDb();
 
@@ -7905,6 +7932,239 @@ By applying to this program, I provide the following consents:
             res.status(500).json({ error: 'Failed to confirm payment' });
         }
     });
+
+    // ========== STRIPE PAYMENT ENDPOINTS ==========
+
+    // Stripe config (public — frontend needs publishable key)
+    app.get('/api/plexus/stripe-config', (req, res) => {
+        res.json({
+            publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || null,
+            enabled: stripe !== null
+        });
+    });
+
+    // Create Stripe Checkout Session
+    app.post('/api/plexus/checkout-session', auth, async (req, res) => {
+        try {
+            if (!stripe) return res.status(400).json({ error: 'Stripe is not configured' });
+
+            const { registration_id } = req.body;
+            if (!registration_id) return res.status(400).json({ error: 'registration_id is required' });
+
+            const reg = query.get(`SELECT r.*, t.name as ticket_name, u.email as user_email
+                FROM registrations r
+                JOIN ticket_types t ON r.ticket_type_id = t.id
+                JOIN users u ON r.user_id = u.id
+                WHERE r.id = ? AND r.user_id = ?`, [registration_id, req.user.id]);
+            if (!reg) return res.status(404).json({ error: 'Registration not found' });
+            if (reg.payment_status === 'paid') return res.status(400).json({ error: 'Already paid' });
+
+            const invoice = query.get('SELECT * FROM invoices WHERE registration_id = ?', [reg.id]);
+            const tx = query.get('SELECT * FROM payment_transactions WHERE registration_id = ?', [reg.id]);
+
+            // Get billing email from metadata
+            let billingEmail = reg.user_email;
+            if (tx?.metadata) {
+                try {
+                    const meta = JSON.parse(tx.metadata);
+                    if (meta.billing?.email) billingEmail = meta.billing.email;
+                } catch (e) { /* ignore */ }
+            }
+
+            const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+            const session = await stripe.checkout.sessions.create({
+                mode: 'payment',
+                payment_method_types: ['card'],
+                line_items: [{
+                    price_data: {
+                        currency: 'eur',
+                        product_data: {
+                            name: `Plexus 2026 — ${reg.ticket_name}`,
+                            description: `Conference registration (Invoice: ${reg.invoice_number})`
+                        },
+                        unit_amount: Math.round(reg.amount_paid * 100) // Stripe needs cents
+                    },
+                    quantity: 1
+                }],
+                metadata: {
+                    registration_id: reg.id,
+                    invoice_number: reg.invoice_number
+                },
+                customer_email: billingEmail,
+                success_url: `${baseUrl}/?payment=success&reg=${reg.id}`,
+                cancel_url: `${baseUrl}/?payment=cancelled&reg=${reg.id}`
+            });
+
+            // Store Stripe session ID in payment transaction
+            if (tx) {
+                db.run('UPDATE payment_transactions SET provider_transaction_id = ?, payment_provider = ? WHERE id = ?',
+                    [session.id, 'stripe', tx.id]);
+                saveDb();
+            }
+
+            res.json({ sessionId: session.id, url: session.url });
+        } catch (err) {
+            console.error('Stripe checkout error:', err.message);
+            res.status(500).json({ error: 'Failed to create checkout session' });
+        }
+    });
+
+    // Stripe Webhook — payment confirmation (NO auth — Stripe signs it)
+    app.post('/api/stripe/webhook', async (req, res) => {
+        const sig = req.headers['stripe-signature'];
+
+        // In demo mode (no Stripe), reject
+        if (!stripe) return res.status(400).send('Stripe not configured');
+
+        let event;
+        try {
+            if (process.env.STRIPE_WEBHOOK_SECRET) {
+                event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+            } else {
+                // No webhook secret — parse body directly (dev only, not secure for production)
+                console.warn('[Stripe] No STRIPE_WEBHOOK_SECRET set — skipping signature verification (dev mode)');
+                event = JSON.parse(req.body.toString());
+            }
+        } catch (err) {
+            console.error('[Stripe] Webhook signature verification failed:', err.message);
+            return res.status(400).send(`Webhook Error: ${err.message}`);
+        }
+
+        if (event.type === 'checkout.session.completed') {
+            const session = event.data.object;
+            const registrationId = session.metadata?.registration_id;
+            const invoiceNumber = session.metadata?.invoice_number;
+
+            if (!registrationId) {
+                console.error('[Stripe] Webhook missing registration_id in metadata');
+                return res.status(400).send('Missing registration_id');
+            }
+
+            console.log(`[Stripe] Payment confirmed for registration ${registrationId} (${invoiceNumber})`);
+
+            try {
+                const reg = query.get(`SELECT r.*, t.name as ticket_name, u.first_name, u.last_name, u.email
+                    FROM registrations r
+                    JOIN ticket_types t ON r.ticket_type_id = t.id
+                    JOIN users u ON r.user_id = u.id
+                    WHERE r.id = ?`, [registrationId]);
+
+                if (!reg) {
+                    console.error(`[Stripe] Registration ${registrationId} not found`);
+                    return res.status(404).send('Registration not found');
+                }
+
+                // 1. Update registration payment status
+                db.run('UPDATE registrations SET payment_status = ? WHERE id = ?', ['paid', reg.id]);
+
+                // 2. Update payment transaction
+                db.run(`UPDATE payment_transactions SET status = 'completed', provider_transaction_id = ? WHERE registration_id = ?`,
+                    [session.payment_intent || session.id, reg.id]);
+
+                // 3. Update invoice
+                db.run("UPDATE invoices SET status = 'paid', paid_at = ? WHERE registration_id = ?",
+                    [new Date().toISOString(), reg.id]);
+
+                // 4. Create FIRA fiscal invoice (now with paymentType: 'KARTICA' for card)
+                const tx = query.get('SELECT * FROM payment_transactions WHERE registration_id = ?', [reg.id]);
+                let billingData = null;
+                if (tx?.metadata) {
+                    try { billingData = JSON.parse(tx.metadata)?.billing; } catch (e) { /* ignore */ }
+                }
+
+                if (billingData) {
+                    try {
+                        const firaResult = await firaService.createFiscalInvoice({
+                            invoiceNumber: reg.invoice_number,
+                            ticketName: reg.ticket_name,
+                            ticketPrice: reg.amount_paid,
+                            addons: [],
+                            billing: {
+                                name: billingData.name || `${reg.first_name} ${reg.last_name}`,
+                                company: billingData.company || '',
+                                address: billingData.address || '',
+                                city: billingData.city || '',
+                                zip: billingData.zip || '',
+                                country: billingData.country || 'HR',
+                                oib: billingData.oib || '',
+                                vatNumber: billingData.vatNumber || '',
+                                email: billingData.email || reg.email
+                            },
+                            invoiceType: 'FISKALNI_RAČUN',
+                            paymentType: 'KARTICA'
+                        });
+
+                        // Store FIRA details in payment transaction metadata
+                        if (firaResult && tx) {
+                            const meta = tx.metadata ? JSON.parse(tx.metadata) : {};
+                            meta.fira_invoice_number = firaResult.invoiceNumber;
+                            meta.fira_pdf_url = firaResult.pdfUrl;
+                            meta.fira_id = firaResult.firaId;
+                            db.run('UPDATE payment_transactions SET metadata = ? WHERE id = ?',
+                                [JSON.stringify(meta), tx.id]);
+                        }
+                    } catch (firaErr) {
+                        console.error('[Stripe→FIRA] Fiscal invoice creation failed (non-blocking):', firaErr.message);
+                    }
+                }
+
+                // 5. Create finance income record (bridge to Finance dashboard)
+                createFinanceIncomeRecord(reg, reg.amount_paid, 'card', reg.invoice_number);
+
+                saveDb();
+                console.log(`[Stripe] Registration ${registrationId} marked as paid, finance record created`);
+            } catch (dbErr) {
+                console.error('[Stripe] Failed to process webhook:', dbErr.message);
+                return res.status(500).send('Internal error');
+            }
+        }
+
+        res.json({ received: true });
+    });
+
+    // ========== FINANCE BRIDGE ==========
+    // Creates income record in finance_transactions when payment is confirmed (Stripe or manual)
+    function createFinanceIncomeRecord(registration, amount, paymentMethod, invoiceNumber) {
+        try {
+            // Replicate getNextSequenceNumber logic from admin portal
+            const year = new Date().getFullYear();
+            let seq = query.get('SELECT * FROM finance_sequences WHERE sequence_type = ? AND fiscal_year = ?', ['income', year]);
+            let transactionNumber;
+
+            if (!seq) {
+                // Create the sequence if it doesn't exist
+                db.run('INSERT OR IGNORE INTO finance_sequences (id, sequence_type, fiscal_year, current_value, prefix) VALUES (?, ?, ?, 0, ?)',
+                    [uuidv4(), 'income', year, 'P']);
+                seq = { current_value: 0, prefix: 'P' };
+            }
+
+            const newValue = (seq.current_value || 0) + 1;
+            db.run('UPDATE finance_sequences SET current_value = ? WHERE sequence_type = ? AND fiscal_year = ?',
+                [newValue, 'income', year]);
+            transactionNumber = `${seq.prefix || 'P'}-${year}-${String(newValue).padStart(3, '0')}`;
+
+            // Build description
+            const attendeeName = registration.first_name && registration.last_name
+                ? `${registration.first_name} ${registration.last_name}`
+                : 'Attendee';
+            const ticketName = registration.ticket_name || 'Conference Ticket';
+            const description = `Plexus 2026 — ${attendeeName} — ${ticketName}`;
+
+            const txId = uuidv4();
+            db.run(`INSERT INTO finance_transactions (id, transaction_number, transaction_type, amount, date, description, project, category, payment_method, reference, fiscal_year, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [txId, transactionNumber, 'income', amount, new Date().toISOString().split('T')[0],
+                 description, 'plexus-2026', 'conference-registration',
+                 paymentMethod, invoiceNumber, year, 'completed']);
+
+            console.log(`[Finance] Income record created: ${transactionNumber} — €${amount} (${paymentMethod})`);
+            return transactionNumber;
+        } catch (err) {
+            console.error('[Finance] Failed to create income record:', err.message);
+            return null;
+        }
+    }
 
     // Admin: List all conference payments (for admin dashboard)
     app.get('/api/plexus/conference-payments', auth, (req, res) => {

@@ -22610,7 +22610,15 @@ By applying to this program, I give the following consents:
                     return;
                 }
 
-                tbody.innerHTML = data.payments.map(p => `
+                tbody.innerHTML = data.payments.map(p => {
+                    const isCard = p.payment_method === 'card';
+                    const methodIcon = isCard
+                        ? '<i class="fas fa-credit-card" style="color: #6366f1;" title="Card (Stripe)"></i>'
+                        : '<i class="fas fa-university" style="color: #C9A962;" title="Bank Transfer"></i>';
+                    const stripeRef = p.stripe_payment_id
+                        ? `<div style="font-size: 10px; color: var(--text-muted); font-family: monospace;" title="${this.escapeHtml(p.stripe_payment_id)}">Stripe: ${this.escapeHtml(p.stripe_payment_id.substring(0, 16))}...</div>`
+                        : '';
+                    return `
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 12px 16px;">
                             <div style="font-weight: 600; color: var(--text-primary);">${this.escapeHtml(p.attendee)}</div>
@@ -22620,16 +22628,20 @@ By applying to this program, I give the following consents:
                         <td style="padding: 12px 16px;">
                             <div style="font-family: monospace; font-size: 13px; font-weight: 600;">${this.escapeHtml(p.invoice_number)}</div>
                             ${p.fira_invoice_number ? `<div style="font-size: 11px; color: var(--text-muted);">FIRA: ${this.escapeHtml(p.fira_invoice_number)}</div>` : ''}
+                            ${stripeRef}
                         </td>
                         <td style="padding: 12px 16px; font-size: 13px;">${this.escapeHtml(p.ticket)}</td>
                         <td style="padding: 12px 16px; text-align: right; font-weight: 600; font-size: 14px;">${p.amount > 0 ? '€' + p.amount.toFixed(2) : 'Free'}</td>
                         <td style="padding: 12px 16px; text-align: center;">
-                            <span style="padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
-                                background: ${p.payment_status === 'paid' ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)'};
-                                color: ${p.payment_status === 'paid' ? '#16a34a' : '#d97706'};">
-                                ${p.payment_status === 'paid' ? '<i class="fas fa-check-circle"></i>' : '<i class="fas fa-clock"></i>'}
-                                ${p.payment_status.charAt(0).toUpperCase() + p.payment_status.slice(1)}
-                            </span>
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                ${methodIcon}
+                                <span style="padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
+                                    background: ${p.payment_status === 'paid' ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)'};
+                                    color: ${p.payment_status === 'paid' ? '#16a34a' : '#d97706'};">
+                                    ${p.payment_status === 'paid' ? '<i class="fas fa-check-circle"></i>' : '<i class="fas fa-clock"></i>'}
+                                    ${p.payment_status.charAt(0).toUpperCase() + p.payment_status.slice(1)}
+                                </span>
+                            </div>
                         </td>
                         <td style="padding: 12px 16px; font-size: 13px; color: var(--text-muted);">
                             ${p.created_at ? new Date(p.created_at).toLocaleDateString() : '—'}
@@ -22643,8 +22655,8 @@ By applying to this program, I give the following consents:
                                 p.payment_status === 'paid' ? '<span style="color: var(--text-muted); font-size: 12px;"><i class="fas fa-check-double"></i></span>' : '—'
                             }
                         </td>
-                    </tr>
-                `).join('');
+                    </tr>`;
+                }).join('');
             },
 
             async confirmConferencePayment(regId, attendeeName) {
