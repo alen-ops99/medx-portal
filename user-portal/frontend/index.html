@@ -11461,9 +11461,9 @@
             background-size: cover;
             background-position: center;
             z-index: 0;
-            opacity: 0.35;
-            -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.3) 30%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0.8) 100%);
-            mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.3) 30%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0.8) 100%);
+            opacity: 0.55;
+            -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.4) 25%, rgba(0,0,0,0.8) 60%, rgba(0,0,0,1) 100%);
+            mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.4) 25%, rgba(0,0,0,0.8) 60%, rgba(0,0,0,1) 100%);
         }
         .featured-slide-hero.plexus {
             background-image: url('https://images.squarespace-cdn.com/content/v1/65982200bf95c64c8e823ecc/3d2949c3-41fa-48e2-9c50-df3116cb6800/Plexus+conference+-+Day+1-23.jpg');
@@ -19244,11 +19244,10 @@
 
         /* Conference Hero */
         .px-hero {
-            background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,41,59,0.9)),
-                        repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(201,169,98,0.03) 35px, rgba(201,169,98,0.03) 70px),
-                        radial-gradient(ellipse at 20% 80%, rgba(201,169,98,0.08) 0%, transparent 50%),
-                        radial-gradient(ellipse at 80% 20%, rgba(100,100,200,0.06) 0%, transparent 50%),
-                        linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            background: linear-gradient(135deg, rgba(15,23,42,0.82), rgba(30,41,59,0.75)),
+                        url('https://images.squarespace-cdn.com/content/v1/65982200bf95c64c8e823ecc/3d2949c3-41fa-48e2-9c50-df3116cb6800/Plexus+conference+-+Day+1-23.jpg');
+            background-size: cover;
+            background-position: center;
             border-radius: 24px;
             padding: 32px 32px 36px;
             margin-bottom: 32px;
@@ -19381,7 +19380,10 @@
 
         /* Plexus Hero Light Mode */
         [data-theme="light"] .px-hero {
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            background: linear-gradient(135deg, rgba(248,250,252,0.85), rgba(226,232,240,0.8)),
+                        url('https://images.squarespace-cdn.com/content/v1/65982200bf95c64c8e823ecc/3d2949c3-41fa-48e2-9c50-df3116cb6800/Plexus+conference+-+Day+1-23.jpg');
+            background-size: cover;
+            background-position: center;
         }
         [data-theme="light"] .px-hero::before {
             background: radial-gradient(circle at 70% 30%, rgba(201, 169, 98, 0.1) 0%, transparent 60%);
@@ -23416,7 +23418,10 @@
 
         /* Accelerator Hero */
         .ax-hero {
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            background: linear-gradient(135deg, rgba(15,23,42,0.82), rgba(30,41,59,0.75)),
+                        url('https://images.squarespace-cdn.com/content/v1/65982200bf95c64c8e823ecc/43fce86e-5811-4cab-a952-f13ef45e630b/375A5023.jpg');
+            background-size: cover;
+            background-position: center;
             border-radius: 24px;
             padding: 32px 32px 36px;
             margin-bottom: 32px;
@@ -23503,7 +23508,10 @@
 
         /* Accelerator Hero - Light Mode Overrides */
         [data-theme="light"] .ax-hero {
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            background: linear-gradient(135deg, rgba(248,250,252,0.85), rgba(226,232,240,0.8)),
+                        url('https://images.squarespace-cdn.com/content/v1/65982200bf95c64c8e823ecc/43fce86e-5811-4cab-a952-f13ef45e630b/375A5023.jpg');
+            background-size: cover;
+            background-position: center;
         }
         [data-theme="light"] .ax-hero::before {
             background: radial-gradient(circle at 70% 30%, rgba(201, 169, 98, 0.1) 0%, transparent 60%);
@@ -24993,7 +25001,10 @@
 
         /* Forum Hero */
         .fm-hero {
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            background: linear-gradient(135deg, rgba(15,23,42,0.82), rgba(30,41,59,0.75)),
+                        url('https://images.squarespace-cdn.com/content/v1/65982200bf95c64c8e823ecc/0595d4e3-e9c6-4d84-98c4-f1be67f2a547/375A4748.jpg');
+            background-size: cover;
+            background-position: center;
             border-radius: 24px;
             padding: 32px 32px 36px;
             margin-bottom: 32px;
@@ -75407,6 +75418,11 @@ You can use variables like {first_name} that will be personalized for each recip
 
                 // Show landing page for all visitors
                 document.getElementById('landingPage').style.display = 'block';
+
+                // Auto-open login modal if linked from gateway/landing page
+                if (urlParams.get('login') === 'true') {
+                    setTimeout(() => this.openLoginModal(), 300);
+                }
             },
 
             // Swipe gestures for mobile back navigation
@@ -80334,6 +80350,27 @@ You can use variables like {first_name} that will be personalized for each recip
                     // Award early bird bonus if applicable
                     if (this.selectedPricing?.includes('early')) {
                         RewardsPortal.awardActivityPoints('earlyBirdBonus');
+                    }
+
+                    // Deduct redeemed points from balance
+                    if (this.pointsToRedeem > 0 && this.redeemEnabled) {
+                        RewardsPortal.userRewards.pointsBalance -= this.pointsToRedeem;
+                        RewardsPortal.userRewards.pointsRedeemed = (RewardsPortal.userRewards.pointsRedeemed || 0) + this.pointsToRedeem;
+                        RewardsPortal.userRewards.history.unshift({
+                            date: new Date().toISOString(),
+                            points: -this.pointsToRedeem,
+                            type: 'redeemed',
+                            reason: 'Plexus Conference discount',
+                            icon: 'fa-ticket-alt'
+                        });
+                        RewardsPortal.saveUserRewards();
+                    }
+
+                    // Mark coupon as used
+                    if (this.appliedCoupon && this.appliedCoupon.code && RewardsPortal.userRewards?.coupons) {
+                        const coupon = RewardsPortal.userRewards.coupons.find(c => c.code === this.appliedCoupon.code);
+                        if (coupon) coupon.used = true;
+                        RewardsPortal.saveUserRewards();
                     }
                 }
 
