@@ -8091,7 +8091,23 @@ By applying to this program, I provide the following consents:
                     try { billingData = JSON.parse(tx.metadata)?.billing; } catch (e) { /* ignore */ }
                 }
 
+                // Fallback: build billing from invoice + registration if metadata missing
+                if (!billingData) {
+                    const inv = query.get('SELECT * FROM invoices WHERE registration_id = ?', [reg.id]);
+                    if (inv) {
+                        billingData = {
+                            name: inv.recipient_name || `${reg.first_name} ${reg.last_name}`,
+                            address: inv.recipient_address || '',
+                            oib: inv.recipient_vat || '',
+                            email: inv.recipient_email || reg.email,
+                            company: '', city: '', zip: '', country: 'HR', vatNumber: inv.recipient_vat || ''
+                        };
+                        console.log(`[FIRA] Using fallback billing data from invoice ${inv.invoice_number}`);
+                    }
+                }
+
                 if (billingData) {
+                    console.log(`[FIRA] Attempting fiscal invoice for ${reg.invoice_number}...`);
                     try {
                         const firaResult = await firaService.createFiscalInvoice({
                             invoiceNumber: reg.invoice_number,
@@ -8125,6 +8141,8 @@ By applying to this program, I provide the following consents:
                     } catch (firaErr) {
                         console.error('[Stripe→FIRA] Fiscal invoice creation failed (non-blocking):', firaErr.message);
                     }
+                } else {
+                    console.warn(`[FIRA] Skipped — no billing data found in payment transaction metadata`);
                 }
 
                 // 5. Create finance income record (bridge to Finance dashboard)
