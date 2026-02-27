@@ -58694,46 +58694,136 @@ textarea:focus:not(:focus-visible),
 
                                 <!-- Step 3: Payment -->
                                 <div class="px-wizard-panel" id="px-wizard-step-3">
-                                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px; color: var(--up-text);">Complete Payment</h3>
-                                    <p style="font-size: 14px; color: var(--up-text-muted); margin-bottom: 24px;">Review your order and complete payment</p>
+                                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px; color: var(--up-text);">Billing & Payment</h3>
+                                    <p style="font-size: 14px; color: var(--up-text-muted); margin-bottom: 24px;">Enter billing details for your fiscal invoice. Payment is via bank transfer.</p>
 
-                                    <div style="display: grid; grid-template-columns: 1fr 300px; gap: 24px;">
+                                    <!-- Bank Transfer Instructions (shown after successful registration) -->
+                                    <div id="pxBankTransferInstructions" style="display: none;">
+                                        <div class="up-card" style="border: 2px solid var(--up-success, #22c55e); margin-bottom: 24px;">
+                                            <div class="up-card-body" style="text-align: center; padding: 32px;">
+                                                <div style="font-size: 48px; color: var(--up-success, #22c55e); margin-bottom: 16px;"><i class="fas fa-check-circle"></i></div>
+                                                <h3 style="font-size: 20px; font-weight: 700; color: var(--up-text); margin-bottom: 8px;">Registration Confirmed!</h3>
+                                                <p style="font-size: 14px; color: var(--up-text-muted); margin-bottom: 24px;">Please complete the bank transfer within 7 days to finalize your payment.</p>
+
+                                                <div style="background: var(--up-bg-secondary, #f8f9fa); border-radius: 12px; padding: 20px; text-align: left; margin-bottom: 20px;">
+                                                    <h4 style="font-size: 14px; font-weight: 700; color: var(--up-text); margin-bottom: 16px;"><i class="fas fa-university" style="margin-right: 8px; color: var(--up-gold, #C9A962);"></i> Bank Transfer Details</h4>
+                                                    <div style="display: grid; grid-template-columns: 130px 1fr; gap: 8px; font-size: 13px;">
+                                                        <span style="color: var(--up-text-muted); font-weight: 600;">Recipient:</span>
+                                                        <span style="color: var(--up-text);" id="pxBankRecipient">Med&X</span>
+                                                        <span style="color: var(--up-text-muted); font-weight: 600;">IBAN:</span>
+                                                        <span style="color: var(--up-text); font-family: monospace; font-weight: 600;" id="pxBankIBAN">—</span>
+                                                        <span style="color: var(--up-text-muted); font-weight: 600;">SWIFT/BIC:</span>
+                                                        <span style="color: var(--up-text); font-family: monospace;" id="pxBankSWIFT">—</span>
+                                                        <span style="color: var(--up-text-muted); font-weight: 600;">Bank:</span>
+                                                        <span style="color: var(--up-text);" id="pxBankName">—</span>
+                                                        <span style="color: var(--up-text-muted); font-weight: 600;">Amount:</span>
+                                                        <span style="color: var(--up-text); font-weight: 700; font-size: 16px;" id="pxBankAmount">—</span>
+                                                        <span style="color: var(--up-text-muted); font-weight: 600;">Reference:</span>
+                                                        <span style="color: var(--up-text); font-family: monospace; font-weight: 600;" id="pxBankReference">—</span>
+                                                        <span style="color: var(--up-text-muted); font-weight: 600;">Due Date:</span>
+                                                        <span style="color: var(--up-text);" id="pxBankDueDate">—</span>
+                                                    </div>
+                                                </div>
+
+                                                <div style="background: var(--up-bg-secondary, #f8f9fa); border-radius: 12px; padding: 16px; text-align: left; margin-bottom: 20px;">
+                                                    <h4 style="font-size: 13px; font-weight: 700; color: var(--up-text); margin-bottom: 8px;"><i class="fas fa-receipt" style="margin-right: 6px;"></i> Invoice Summary</h4>
+                                                    <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--up-text-muted); margin-bottom: 4px;">
+                                                        <span>Invoice Number:</span>
+                                                        <span style="font-family: monospace; font-weight: 600; color: var(--up-text);" id="pxInvoiceNumber">—</span>
+                                                    </div>
+                                                    <div id="pxFiraInvoiceRow" style="display: none; justify-content: space-between; font-size: 13px; color: var(--up-text-muted); margin-bottom: 4px;">
+                                                        <span>Fiscal Invoice:</span>
+                                                        <span style="font-family: monospace; font-weight: 600; color: var(--up-text);" id="pxFiraInvoiceNumber">—</span>
+                                                    </div>
+                                                    <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--up-text-muted); margin-bottom: 4px;">
+                                                        <span>Subtotal (excl. VAT):</span>
+                                                        <span id="pxInvoiceSubtotal">—</span>
+                                                    </div>
+                                                    <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--up-text-muted); margin-bottom: 4px;">
+                                                        <span>VAT (25%):</span>
+                                                        <span id="pxInvoiceVAT">—</span>
+                                                    </div>
+                                                    <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; color: var(--up-text); border-top: 1px solid var(--up-border, #e5e7eb); padding-top: 8px; margin-top: 8px;">
+                                                        <span>Total:</span>
+                                                        <span id="pxInvoiceTotal">—</span>
+                                                    </div>
+                                                </div>
+
+                                                <div id="pxFiraDownloadBtn" style="display: none; margin-bottom: 12px;">
+                                                    <button onclick="PlexusPortal.downloadFiraInvoice()" class="px-hero-btn px-hero-btn-secondary" style="width: 100%; justify-content: center;">
+                                                        <i class="fas fa-file-pdf"></i> Download Fiscal Invoice (PDF)
+                                                    </button>
+                                                </div>
+
+                                                <p style="font-size: 12px; color: var(--up-text-muted); line-height: 1.5;">
+                                                    <i class="fas fa-info-circle" style="margin-right: 4px;"></i>
+                                                    Your registration is confirmed and your spot is reserved. Points have been awarded to your account.
+                                                    Please use the invoice number as the payment reference when making the bank transfer.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div id="pxBillingFormSection" style="display: grid; grid-template-columns: 1fr 300px; gap: 24px;">
                                         <div>
                                             <div class="up-card" style="margin-bottom: 24px;">
                                                 <div class="up-card-header">
-                                                    <h3 class="up-card-title">Payment Method</h3>
+                                                    <h3 class="up-card-title"><i class="fas fa-file-invoice" style="margin-right: 8px;"></i> Billing Information</h3>
                                                 </div>
                                                 <div class="up-card-body">
-                                                    <div style="display: flex; flex-direction: column; gap: 12px;">
-                                                        <div class="px-package-option selected" onclick="PlexusPortal.selectPaymentMethod(this, 'card')" data-method="card">
-                                                            <div class="px-package-checkbox"><i class="fas fa-check"></i></div>
-                                                            <div class="px-package-info">
-                                                                <h4><i class="fas fa-credit-card" style="margin-right: 8px;"></i> Credit/Debit Card</h4>
-                                                                <p>Visa, Mastercard, AMEX</p>
+                                                    <div style="display: flex; flex-direction: column; gap: 16px;">
+                                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                                            <div>
+                                                                <label style="font-size: 12px; font-weight: 600; color: var(--up-text-secondary); display: block; margin-bottom: 4px;">Full Name *</label>
+                                                                <input type="text" id="pxBillingName" class="auth-form-input" placeholder="John Doe" style="width: 100%;">
+                                                            </div>
+                                                            <div>
+                                                                <label style="font-size: 12px; font-weight: 600; color: var(--up-text-secondary); display: block; margin-bottom: 4px;">Company / Institution</label>
+                                                                <input type="text" id="pxBillingCompany" class="auth-form-input" placeholder="Optional" style="width: 100%;">
                                                             </div>
                                                         </div>
-                                                        <div class="px-package-option" onclick="PlexusPortal.selectPaymentMethod(this, 'paypal')" data-method="paypal">
-                                                            <div class="px-package-checkbox"><i class="fas fa-check"></i></div>
-                                                            <div class="px-package-info">
-                                                                <h4><i class="fab fa-paypal" style="margin-right: 8px;"></i> PayPal</h4>
-                                                                <p>Pay with your PayPal account</p>
+                                                        <div>
+                                                            <label style="font-size: 12px; font-weight: 600; color: var(--up-text-secondary); display: block; margin-bottom: 4px;">Street Address *</label>
+                                                            <input type="text" id="pxBillingAddress" class="auth-form-input" placeholder="Street and number" style="width: 100%;">
+                                                        </div>
+                                                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                                                            <div>
+                                                                <label style="font-size: 12px; font-weight: 600; color: var(--up-text-secondary); display: block; margin-bottom: 4px;">City *</label>
+                                                                <input type="text" id="pxBillingCity" class="auth-form-input" placeholder="City" style="width: 100%;">
+                                                            </div>
+                                                            <div>
+                                                                <label style="font-size: 12px; font-weight: 600; color: var(--up-text-secondary); display: block; margin-bottom: 4px;">ZIP Code *</label>
+                                                                <input type="text" id="pxBillingZip" class="auth-form-input" placeholder="10000" style="width: 100%;">
+                                                            </div>
+                                                            <div>
+                                                                <label style="font-size: 12px; font-weight: 600; color: var(--up-text-secondary); display: block; margin-bottom: 4px;">Country *</label>
+                                                                <input type="text" id="pxBillingCountry" class="auth-form-input" placeholder="Croatia" style="width: 100%;">
                                                             </div>
                                                         </div>
-                                                        <div class="px-package-option" onclick="PlexusPortal.selectPaymentMethod(this, 'bank')" data-method="bank">
-                                                            <div class="px-package-checkbox"><i class="fas fa-check"></i></div>
-                                                            <div class="px-package-info">
-                                                                <h4><i class="fas fa-university" style="margin-right: 8px;"></i> Bank Transfer</h4>
-                                                                <p>Invoice sent via email</p>
+                                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                                            <div>
+                                                                <label style="font-size: 12px; font-weight: 600; color: var(--up-text-secondary); display: block; margin-bottom: 4px;">OIB (Croatian Tax ID)</label>
+                                                                <input type="text" id="pxBillingOIB" class="auth-form-input" placeholder="Optional for individuals" maxlength="11" style="width: 100%;">
                                                             </div>
+                                                            <div>
+                                                                <label style="font-size: 12px; font-weight: 600; color: var(--up-text-secondary); display: block; margin-bottom: 4px;">VAT Number</label>
+                                                                <input type="text" id="pxBillingVAT" class="auth-form-input" placeholder="HR + OIB (for EU companies)" style="width: 100%;">
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label style="font-size: 12px; font-weight: 600; color: var(--up-text-secondary); display: block; margin-bottom: 4px;">Email for Invoice *</label>
+                                                            <input type="email" id="pxBillingEmail" class="auth-form-input" placeholder="invoices@company.com" style="width: 100%;">
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            <p style="font-size: 13px; color: var(--up-text-muted);">
-                                                <i class="fas fa-lock" style="margin-right: 8px; color: var(--up-success);"></i>
-                                                Your payment is secured with 256-bit SSL encryption. By completing this purchase, you agree to our terms of service and cancellation policy.
-                                            </p>
+                                            <div style="display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: var(--up-bg-secondary, #f8f9fa); border-radius: 10px; margin-bottom: 16px;">
+                                                <i class="fas fa-university" style="color: var(--up-gold, #C9A962); font-size: 16px;"></i>
+                                                <p style="font-size: 13px; color: var(--up-text-muted); margin: 0;">
+                                                    Payment is via <strong>bank transfer</strong>. After registration, you'll receive an invoice with transfer details. A fiscal invoice (fiskalni račun) will be issued automatically.
+                                                </p>
+                                            </div>
                                         </div>
 
                                         <!-- Final Summary -->
@@ -58802,8 +58892,8 @@ textarea:focus:not(:focus-visible),
                                                 <span class="amount" id="packageTotalStep3">€0</span>
                                             </div>
                                             <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">
-                                                <button class="px-hero-btn px-hero-btn-primary" onclick="PlexusPortal.submitRegistration()" style="width: 100%; justify-content: center; background: var(--up-success);">
-                                                    <i class="fas fa-lock"></i> Pay Now
+                                                <button class="px-hero-btn px-hero-btn-primary" id="pxSubmitRegBtn" onclick="PlexusPortal.submitRegistration()" style="width: 100%; justify-content: center; background: var(--up-success);">
+                                                    <i class="fas fa-check-circle"></i> Complete Registration
                                                 </button>
                                                 <button class="px-hero-btn px-hero-btn-secondary" onclick="PlexusPortal.prevStep()" style="width: 100%; justify-content: center;">
                                                     <i class="fas fa-arrow-left"></i> Back
@@ -80523,9 +80613,10 @@ You can use variables like {first_name} that will be personalized for each recip
                     // Update summary on step 2 and 3
                     this.updatePackageSummary();
 
-                    // Initialize redemption section on step 3
+                    // Initialize redemption section and prefill billing on step 3
                     if (this.currentStep === 3) {
                         this.initRedeemSection();
+                        this.prefillBillingData();
                     }
                 }
             },
@@ -80592,8 +80683,44 @@ You can use variables like {first_name} that will be personalized for each recip
                 }
             },
 
-            // Submit registration
+            // Prefill billing form from registration data
+            prefillBillingData() {
+                const firstName = document.getElementById('pxRegFirstName')?.value || '';
+                const lastName = document.getElementById('pxRegLastName')?.value || '';
+                const email = document.getElementById('pxRegEmail')?.value || '';
+                const country = document.getElementById('pxRegCountry')?.value || '';
+                const institution = document.getElementById('pxRegInstitution')?.value || '';
+
+                const nameField = document.getElementById('pxBillingName');
+                const emailField = document.getElementById('pxBillingEmail');
+                const countryField = document.getElementById('pxBillingCountry');
+                const companyField = document.getElementById('pxBillingCompany');
+
+                if (nameField && !nameField.value) nameField.value = `${firstName} ${lastName}`.trim();
+                if (emailField && !emailField.value) emailField.value = email;
+                if (countryField && !countryField.value) countryField.value = country;
+                if (companyField && !companyField.value) companyField.value = institution;
+            },
+
+            // Submit registration with billing info + FIRA fiscal invoice
             async submitRegistration() {
+                // Collect billing info from the form
+                const billingName = document.getElementById('pxBillingName')?.value?.trim();
+                const billingAddress = document.getElementById('pxBillingAddress')?.value?.trim();
+                const billingCity = document.getElementById('pxBillingCity')?.value?.trim();
+                const billingZip = document.getElementById('pxBillingZip')?.value?.trim();
+                const billingCountry = document.getElementById('pxBillingCountry')?.value?.trim();
+                const billingEmail = document.getElementById('pxBillingEmail')?.value?.trim();
+
+                // Validate required billing fields (only if ticket is not free)
+                const total = this.calculateTotal();
+                if (total > 0) {
+                    if (!billingName || !billingAddress || !billingCity || !billingZip || !billingCountry || !billingEmail) {
+                        Toast.error('Please fill in all required billing fields (marked with *).');
+                        return;
+                    }
+                }
+
                 const data = {
                     first_name: document.getElementById('pxRegFirstName')?.value || '',
                     last_name: document.getElementById('pxRegLastName')?.value || '',
@@ -80602,49 +80729,32 @@ You can use variables like {first_name} that will be personalized for each recip
                     country: document.getElementById('pxRegCountry')?.value || '',
                     pricing: this.selectedPricing,
                     package_items: this.selectedPackageItems,
-                    payment_method: this.paymentMethod,
+                    payment_method: 'bank_transfer',
                     dietary: document.getElementById('pxRegDiet')?.value || '',
                     accessibility: document.getElementById('pxRegAccessibility')?.value || '',
                     coupon: this.appliedCoupon?.code || null,
-                    event: 'plexus-2026'
+                    event: 'plexus-2026',
+                    billing: total > 0 ? {
+                        name: billingName,
+                        company: document.getElementById('pxBillingCompany')?.value?.trim() || '',
+                        address: billingAddress,
+                        city: billingCity,
+                        zip: billingZip,
+                        country: billingCountry,
+                        oib: document.getElementById('pxBillingOIB')?.value?.trim() || '',
+                        vatNumber: document.getElementById('pxBillingVAT')?.value?.trim() || '',
+                        email: billingEmail
+                    } : null
                 };
 
-                // Show redirect simulation overlay
-                const btn = document.querySelector('button[onclick="PlexusPortal.submitRegistration()"]');
+                // Show processing state
+                const btn = document.getElementById('pxSubmitRegBtn');
                 let originalHTML;
                 if (btn) {
                     originalHTML = btn.innerHTML;
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Redirecting to payment...';
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating invoice...';
                     btn.disabled = true;
                 }
-
-                // Show payment redirect message in the wizard panel
-                const wizardPanel = document.getElementById('px-wizard-step-3');
-                const redirectOverlay = document.createElement('div');
-                redirectOverlay.id = 'pxPaymentRedirectOverlay';
-                redirectOverlay.style.cssText = 'position: absolute; inset: 0; background: rgba(255,255,255,0.95); z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 16px; text-align: center; padding: 40px;';
-                redirectOverlay.innerHTML = '<div style="font-size: 48px; margin-bottom: 20px; color: var(--up-gold, #C9A962);"><i class="fas fa-lock"></i></div>' +
-                    '<h3 style="font-size: 20px; font-weight: 700; color: var(--up-text, #1d1d1f); margin-bottom: 12px;">Secure Payment Processing</h3>' +
-                    '<p style="font-size: 14px; color: var(--up-text-muted, #6e6e73); margin-bottom: 20px; max-width: 360px;">You will be redirected to our secure payment provider. Please do not close this window...</p>' +
-                    '<div style="width: 200px; height: 4px; background: var(--up-border, #e5e7eb); border-radius: 4px; overflow: hidden;">' +
-                    '<div style="width: 0%; height: 100%; background: var(--up-gold, #C9A962); border-radius: 4px; transition: width 2.5s ease;" id="pxPaymentProgressBar"></div></div>' +
-                    '<p style="font-size: 12px; color: var(--up-text-muted, #6e6e73); margin-top: 12px;"><i class="fas fa-shield-alt" style="margin-right: 4px;"></i> 256-bit SSL encrypted</p>';
-                if (wizardPanel) {
-                    wizardPanel.style.position = 'relative';
-                    wizardPanel.appendChild(redirectOverlay);
-                    // Animate progress bar
-                    requestAnimationFrame(() => {
-                        const bar = document.getElementById('pxPaymentProgressBar');
-                        if (bar) bar.style.width = '100%';
-                    });
-                }
-
-                // Wait for the redirect simulation to play out
-                await new Promise(resolve => setTimeout(resolve, 2800));
-
-                // Remove overlay
-                const overlay = document.getElementById('pxPaymentRedirectOverlay');
-                if (overlay) overlay.remove();
 
                 try {
                     const res = await UserPortal.api('/api/plexus/register', {
@@ -80653,15 +80763,22 @@ You can use variables like {first_name} that will be personalized for each recip
                     });
 
                     if (res.success) {
-                        this.completeRegistration();
+                        // Show bank transfer instructions if payment is required
+                        if (res.bank_transfer) {
+                            this.showBankTransferInstructions(res);
+                        }
+                        this.completeRegistration(res);
                     } else {
                         Toast.error(res.error || 'Registration failed. Please try again.');
+                        if (btn) {
+                            btn.innerHTML = originalHTML;
+                            btn.disabled = false;
+                        }
                     }
                 } catch (err) {
                     console.error('Registration error:', err);
                     // Demo mode - simulate successful registration
-                    this.completeRegistration();
-                } finally {
+                    this.completeRegistration(null);
                     if (btn) {
                         btn.innerHTML = originalHTML;
                         btn.disabled = false;
@@ -80669,8 +80786,72 @@ You can use variables like {first_name} that will be personalized for each recip
                 }
             },
 
+            // Store FIRA PDF URL for download
+            _firaPdfUrl: null,
+
+            // Show bank transfer instructions after registration
+            showBankTransferInstructions(res) {
+                const instructionsEl = document.getElementById('pxBankTransferInstructions');
+                const formEl = document.getElementById('pxBillingFormSection');
+
+                if (!instructionsEl) return;
+
+                // Populate bank transfer details
+                const bt = res.bank_transfer;
+                if (bt) {
+                    document.getElementById('pxBankRecipient').textContent = bt.recipient || 'Med&X';
+                    document.getElementById('pxBankIBAN').textContent = bt.iban || '—';
+                    document.getElementById('pxBankSWIFT').textContent = bt.swift || '—';
+                    document.getElementById('pxBankName').textContent = bt.bank_name || '—';
+                    document.getElementById('pxBankAmount').textContent = `€${(bt.amount || 0).toFixed(2)}`;
+                    document.getElementById('pxBankReference').textContent = bt.reference || '—';
+                    document.getElementById('pxBankDueDate').textContent = bt.due_date || '—';
+                }
+
+                // Populate invoice summary
+                document.getElementById('pxInvoiceNumber').textContent = res.invoice_number || '—';
+                if (res.invoice) {
+                    document.getElementById('pxInvoiceSubtotal').textContent = `€${(res.invoice.subtotal || 0).toFixed(2)}`;
+                    document.getElementById('pxInvoiceVAT').textContent = `€${(res.invoice.vat_amount || 0).toFixed(2)}`;
+                    document.getElementById('pxInvoiceTotal').textContent = `€${(res.invoice.total || res.amount || 0).toFixed(2)}`;
+                } else if (bt?.vat_breakdown) {
+                    document.getElementById('pxInvoiceSubtotal').textContent = `€${bt.vat_breakdown.netto.toFixed(2)}`;
+                    document.getElementById('pxInvoiceVAT').textContent = `€${bt.vat_breakdown.taxValue.toFixed(2)}`;
+                    document.getElementById('pxInvoiceTotal').textContent = `€${(res.amount || 0).toFixed(2)}`;
+                }
+
+                // Show FIRA fiscal invoice details if available
+                if (res.fira_invoice) {
+                    const firaRow = document.getElementById('pxFiraInvoiceRow');
+                    if (firaRow) {
+                        firaRow.style.display = 'flex';
+                        document.getElementById('pxFiraInvoiceNumber').textContent = res.fira_invoice.fira_invoice_number || '—';
+                    }
+                    if (res.fira_invoice.pdf_url) {
+                        this._firaPdfUrl = res.fira_invoice.pdf_url;
+                        const downloadBtn = document.getElementById('pxFiraDownloadBtn');
+                        if (downloadBtn) downloadBtn.style.display = 'block';
+                    }
+                }
+
+                // Hide billing form, show bank transfer instructions
+                if (formEl) formEl.style.display = 'none';
+                instructionsEl.style.display = 'block';
+
+                // Hide summary sidebar and navigation buttons
+                const summaryEl = instructionsEl.parentElement?.querySelector('.px-package-summary');
+                if (summaryEl) summaryEl.style.display = 'none';
+            },
+
+            // Download FIRA fiscal invoice PDF
+            downloadFiraInvoice() {
+                if (this._firaPdfUrl) {
+                    window.open(this._firaPdfUrl, '_blank');
+                }
+            },
+
             // Complete registration and update states
-            async completeRegistration() {
+            async completeRegistration(apiResponse) {
                 // Set registered flag
                 localStorage.setItem('plexus_registered', 'true');
                 localStorage.setItem('plexus_interested', 'true');
