@@ -453,8 +453,8 @@
   const userUrl = params.get('userUrl') || USER_URL;
 
   document.getElementById('card-admin').href = adminUrl;
-  document.getElementById('card-member').href = userUrl;
-  document.getElementById('card-applicant').href = userUrl + '/#accelerator';
+  document.getElementById('card-member').href = userUrl + '?login=true';
+  document.getElementById('card-applicant').href = userUrl + '?login=true#accelerator';
 
   // Copy password to clipboard
   function copyPass(el) {
