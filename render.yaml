@@ -12,6 +12,29 @@ services:
         value: production
       - key: JWT_SECRET
         generateValue: true
+      # Stripe — set actual values in Render dashboard
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      # FIRA fiscal invoicing (optional)
+      - key: FIRA_API_KEY
+        sync: false
+      - key: FIRA_API_URL
+        value: https://app.fira.finance
+      # Bank transfer details
+      - key: MEDX_IBAN
+        value: HR1234567890123456789
+      - key: MEDX_BANK_NAME
+        value: "Zagrebačka banka d.d."
+      - key: MEDX_SWIFT
+        value: ZABAHR2X
+      - key: MEDX_COMPANY_NAME
+        value: "Med&X"
+      - key: MEDX_VAT_ID
+        value: HR12345678901
     plan: free
 
   - type: web
