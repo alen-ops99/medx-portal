@@ -7679,8 +7679,48 @@ By applying to this program, I provide the following consents:
             if (!conf) return res.status(400).json({ error: 'Conference not found' });
 
             // Check if already registered
-            const existing = query.get('SELECT id FROM registrations WHERE conference_id = ? AND user_id = ? AND status != ?', [conf.id, req.user.id, 'cancelled']);
-            if (existing) return res.status(400).json({ error: 'Already registered', registration_id: existing.id });
+            const existing = query.get('SELECT * FROM registrations WHERE conference_id = ? AND user_id = ? AND status != ?', [conf.id, req.user.id, 'cancelled']);
+            if (existing) {
+                // Ensure billing data + payment transaction exist for FIRA (may be missing from earlier attempt)
+                if (billing && existing.payment_status !== 'paid') {
+                    const existingTx = query.get('SELECT * FROM payment_transactions WHERE registration_id = ?', [existing.id]);
+                    if (existingTx) {
+                        // Update billing in existing transaction metadata
+                        const meta = existingTx.metadata ? JSON.parse(existingTx.metadata) : {};
+                        meta.billing = billing;
+                        db.run('UPDATE payment_transactions SET metadata = ? WHERE id = ?', [JSON.stringify(meta), existingTx.id]);
+                    } else {
+                        // Create missing payment transaction + invoice
+                        const invoiceNumber = existing.invoice_number || `PLX26-${String(Date.now()).slice(-6)}`;
+                        const vatBreakdown = firaService.calculateVAT(existing.amount_paid);
+
+                        const existingInv = query.get('SELECT id FROM invoices WHERE registration_id = ?', [existing.id]);
+                        if (!existingInv) {
+                            const invoiceId = uuidv4();
+                            const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                            db.run(`INSERT INTO invoices (id, invoice_number, registration_id, recipient_name, recipient_address, recipient_vat, recipient_email, items, subtotal, vat_rate, vat_amount, total, currency, status, issued_at, due_date)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                                [invoiceId, invoiceNumber, existing.id,
+                                 billing.company || billing.name || `${first_name} ${last_name}`,
+                                 [billing.address, billing.city, billing.zip, billing.country].filter(Boolean).join(', '),
+                                 billing.oib || billing.vatNumber || null, billing.email || email,
+                                 JSON.stringify([{ description: `Plexus 2026`, quantity: 1, price: existing.amount_paid }]),
+                                 vatBreakdown.netto, 25, vatBreakdown.taxValue, existing.amount_paid, 'EUR',
+                                 'issued', new Date().toISOString(), dueDate]);
+                        }
+
+                        const txId = uuidv4();
+                        db.run(`INSERT INTO payment_transactions (id, registration_id, amount, currency, payment_method, payment_provider, status, metadata)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [txId, existing.id, existing.amount_paid, 'EUR',
+                             payment_method === 'card' ? 'card' : 'bank_transfer',
+                             payment_method === 'card' ? 'stripe' : 'manual', 'pending',
+                             JSON.stringify({ invoice_number: invoiceNumber, billing: billing })]);
+                    }
+                    saveDb();
+                }
+                return res.status(400).json({ error: 'Already registered', registration_id: existing.id });
+            }
 
             // Find a matching ticket type based on pricing selection (e.g. 'professional-early', 'student-early')
             const tickets = query.all('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order', [conf.id]);
@@ -7776,7 +7816,7 @@ By applying to this program, I provide the following consents:
                                 vatNumber: billing.vatNumber || '',
                                 email: billing.email || email
                             },
-                            invoiceType: 'FISKALNI_RAČUN'
+                            invoiceType: 'RAČUN'  // Regular invoice (switch to FISKALNI_RAČUN once fiskalizacija is enabled)
                         });
                     } catch (firaErr) {
                         console.error('[FIRA] Invoice creation failed (non-blocking):', firaErr.message);
@@ -8125,7 +8165,7 @@ By applying to this program, I provide the following consents:
                                 vatNumber: billingData.vatNumber || '',
                                 email: billingData.email || reg.email
                             },
-                            invoiceType: 'FISKALNI_RAČUN',
+                            invoiceType: 'RAČUN',  // Regular invoice (switch to FISKALNI_RAČUN once fiskalizacija is enabled)
                             paymentType: 'KARTICA'
                         });
 
