@@ -2,8 +2,11 @@
  * FIRA Finance API Service
  * Thin wrapper around FIRA's Custom Webshop API for Croatian fiscal invoicing (fiskalizacija).
  *
- * API Docs: https://app.fira.finance — Settings → Webshop → Custom webshop
+ * API Docs: https://app.swaggerhub.com/apis-docs/FIRAFinance/Custom_webshop/v1.0.0
  * Endpoint: POST /api/v1/webshop/order/custom
+ *
+ * Payment types: GOTOVINA (cash), TRANSAKCIJSKI (wire), KARTICA (card)
+ * Invoice types: PONUDA (offer/test), RAČUN (invoice), FISKALNI_RAČUN (fiscalized)
  */
 
 const FIRA_API_URL = process.env.FIRA_API_URL || 'https://app.fira.finance';
@@ -32,7 +35,7 @@ function calculateVAT(bruttoAmount) {
 
 /**
  * Build line items for the FIRA order from registration data.
- * Each line item needs: description, quantity, unitPrice (netto), taxRate, netto, taxValue, brutto
+ * FIRA API fields: name, price (netto unit price), quantity, taxRate, unit
  */
 function buildLineItems(ticketName, ticketPrice, addons) {
     const items = [];
@@ -41,13 +44,15 @@ function buildLineItems(ticketName, ticketPrice, addons) {
     if (ticketPrice > 0) {
         const vat = calculateVAT(ticketPrice);
         items.push({
-            description: `Plexus 2026 Conference — ${ticketName}`,
+            name: `Plexus 2026 Conference — ${ticketName}`,
             quantity: 1,
-            unitPrice: vat.netto,
-            taxRate: VAT_RATE,
-            netto: vat.netto,
-            taxValue: vat.taxValue,
-            brutto: vat.brutto
+            price: vat.netto,
+            taxRate: VAT_RATE * 100, // FIRA expects percentage (25), not decimal (0.25)
+            unit: 'kom',
+            // Internal tracking (not sent to FIRA)
+            _netto: vat.netto,
+            _taxValue: vat.taxValue,
+            _brutto: vat.brutto
         });
     }
 
@@ -57,13 +62,14 @@ function buildLineItems(ticketName, ticketPrice, addons) {
             if (addon.price > 0) {
                 const vat = calculateVAT(addon.price);
                 items.push({
-                    description: `Plexus 2026 — ${addon.name}`,
+                    name: `Plexus 2026 — ${addon.name}`,
                     quantity: 1,
-                    unitPrice: vat.netto,
-                    taxRate: VAT_RATE,
-                    netto: vat.netto,
-                    taxValue: vat.taxValue,
-                    brutto: vat.brutto
+                    price: vat.netto,
+                    taxRate: VAT_RATE * 100,
+                    unit: 'kom',
+                    _netto: vat.netto,
+                    _taxValue: vat.taxValue,
+                    _brutto: vat.brutto
                 });
             }
         }
@@ -89,9 +95,9 @@ function buildFiraOrder(orderData) {
 
     // Sum up totals from all line items
     const totals = lineItems.reduce((acc, item) => ({
-        netto: acc.netto + item.netto,
-        taxValue: acc.taxValue + item.taxValue,
-        brutto: acc.brutto + item.brutto
+        netto: acc.netto + item._netto,
+        taxValue: acc.taxValue + item._taxValue,
+        brutto: acc.brutto + item._brutto
     }), { netto: 0, taxValue: 0, brutto: 0 });
 
     // Round totals
@@ -100,33 +106,32 @@ function buildFiraOrder(orderData) {
     totals.brutto = Math.round(totals.brutto * 100) / 100;
 
     return {
-        externalId: orderData.invoiceNumber,
+        webshopType: 'CUSTOM',
+        webshopOrderNumber: orderData.invoiceNumber,
         invoiceType: orderData.invoiceType || 'FISKALNI_RAČUN',
-        paymentType: orderData.paymentType || 'TRANSAKCIJSKI', // TRANSAKCIJSKI = bank, KARTICA = card
+        paymentType: orderData.paymentType || 'TRANSAKCIJSKI',
         currency: 'EUR',
         lineItems: lineItems.map(item => ({
-            description: item.description,
+            name: item.name,
+            price: item.price,
             quantity: item.quantity,
-            unitPrice: item.unitPrice,
             taxRate: item.taxRate,
-            netto: item.netto,
-            taxValue: item.taxValue,
-            brutto: item.brutto
+            unit: item.unit
         })),
         netto: totals.netto,
         taxValue: totals.taxValue,
         brutto: totals.brutto,
         billingAddress: {
             name: orderData.billing.company || orderData.billing.name,
-            street: orderData.billing.address || '',
+            address1: orderData.billing.address || '',
             city: orderData.billing.city || '',
-            zip: orderData.billing.zip || '',
+            zipCode: orderData.billing.zip || '',
             country: orderData.billing.country || 'HR',
             oib: orderData.billing.oib || '',
-            vatNumber: orderData.billing.vatNumber || ''
+            vatNumber: orderData.billing.vatNumber || '',
+            email: orderData.billing.email || ''
         },
-        customerEmail: orderData.billing.email || '',
-        note: `Plexus 2026 Conference Registration — ${orderData.invoiceNumber}`
+        internalNote: `Plexus 2026 Conference Registration — ${orderData.invoiceNumber}`
     };
 }
 

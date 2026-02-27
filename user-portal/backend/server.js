@@ -81,9 +81,15 @@ const JWT_SECRET = process.env.JWT_SECRET || 'medx-portal-secret-key-2026';
 
 app.use(cors());
 
-// Stripe webhook needs raw body for signature verification — must be before express.json()
-app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
-app.use(express.json());
+// Stripe webhook needs raw body for signature verification
+// express.json() must be SKIPPED for the webhook route or it corrupts the signature
+app.use((req, res, next) => {
+    if (req.originalUrl === '/api/stripe/webhook') {
+        express.raw({ type: 'application/json' })(req, res, next);
+    } else {
+        express.json()(req, res, next);
+    }
+});
 app.use(express.static(path.join(__dirname, '../frontend')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -7685,9 +7691,16 @@ By applying to this program, I provide the following consents:
                 if (match) ticket = match;
             }
 
-            // Calculate price
+            // Calculate price: use frontend-calculated total (after all discounts) if provided
             const today = new Date().toISOString().split('T')[0];
-            let price = today <= conf.early_bird_deadline ? ticket.price_early_bird : today <= conf.regular_deadline ? ticket.price_regular : ticket.price_late;
+            const baseTicketPrice = today <= conf.early_bird_deadline ? ticket.price_early_bird : today <= conf.regular_deadline ? ticket.price_regular : ticket.price_late;
+            let price = baseTicketPrice;
+
+            // Frontend sends final total after discounts (points redemption + coupons)
+            // Accept any non-negative total — discounts can reduce price below base ticket price
+            if (req.body.total != null && req.body.total >= 0) {
+                price = req.body.total;
+            }
 
             const regId = uuidv4();
             const invoiceNumber = `PLX26-${String(Date.now()).slice(-6)}`;
@@ -7782,7 +7795,12 @@ By applying to this program, I provide the following consents:
                          invoice_number: invoiceNumber,
                          fira_invoice_number: firaInvoice?.invoiceNumber || null,
                          fira_pdf_url: firaInvoice?.pdfUrl || null,
-                         billing: billing
+                         billing: billing,
+                         subtotal: req.body.subtotal || price,
+                         points_redeemed: req.body.points_redeemed || 0,
+                         points_discount: req.body.points_discount || 0,
+                         coupon_code: req.body.coupon || null,
+                         coupon_discount: req.body.coupon_discount || 0
                      })]);
             }
 
@@ -7996,10 +8014,10 @@ By applying to this program, I provide the following consents:
                 cancel_url: `${baseUrl}/?payment=cancelled&reg=${reg.id}`
             });
 
-            // Store Stripe session ID in payment transaction
+            // Store Stripe session ID and update payment method in transaction
             if (tx) {
-                db.run('UPDATE payment_transactions SET provider_transaction_id = ?, payment_provider = ? WHERE id = ?',
-                    [session.id, 'stripe', tx.id]);
+                db.run('UPDATE payment_transactions SET provider_transaction_id = ?, payment_provider = ?, payment_method = ? WHERE id = ?',
+                    [session.id, 'stripe', 'card', tx.id]);
                 saveDb();
             }
 
