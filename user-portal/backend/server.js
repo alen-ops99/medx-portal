@@ -9,6 +9,28 @@ const QRCode = require('qrcode');
 const fs = require('fs');
 const initSqlJs = require('sql.js');
 const nodemailer = require('nodemailer');
+const firaService = require('./fira-service');
+
+// Load .env file if present (minimal loader — no dotenv dependency needed)
+const envPath = path.join(__dirname, '.env');
+if (fs.existsSync(envPath)) {
+    fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) return;
+        const eqIndex = trimmed.indexOf('=');
+        if (eqIndex === -1) return;
+        const key = trimmed.slice(0, eqIndex).trim();
+        const val = trimmed.slice(eqIndex + 1).trim();
+        if (!process.env[key]) process.env[key] = val;
+    });
+}
+
+// Log FIRA configuration status
+if (firaService.isConfigured()) {
+    console.log('[FIRA] Fiscal invoicing is ACTIVE — FIRA API key configured');
+} else {
+    console.log('[FIRA] Running in DEMO mode — set FIRA_API_KEY in .env for fiscal invoicing');
+}
 
 const app = express();
 
@@ -7632,7 +7654,7 @@ By applying to this program, I provide the following consents:
     // Single-step registration (used by frontend PlexusPortal.submitRegistration)
     app.post('/api/plexus/register', auth, async (req, res) => {
         try {
-            const { first_name, last_name, email, institution, country, pricing, dietary, accessibility } = req.body;
+            const { first_name, last_name, email, institution, country, pricing, dietary, accessibility, billing, package_items } = req.body;
             const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
             if (!conf) return res.status(400).json({ error: 'Conference not found' });
 
@@ -7656,10 +7678,13 @@ By applying to this program, I provide the following consents:
             const regId = uuidv4();
             const invoiceNumber = `PLX26-${String(Date.now()).slice(-6)}`;
 
-            // Create registration
+            // Determine payment status: free tickets are auto-paid, others start as pending
+            const paymentStatus = price === 0 ? 'paid' : 'pending';
+
+            // Create registration (status: confirmed so they can attend, payment_status: pending until bank transfer)
             db.run(`INSERT INTO registrations (id, conference_id, user_id, ticket_type_id, registration_type, status, payment_status, amount_paid, invoice_number, dietary_requirements, accessibility_needs)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [regId, conf.id, req.user.id, ticket.id, 'general', 'confirmed', price === 0 ? 'paid' : 'pending', price, invoiceNumber, dietary || null, accessibility || null]);
+                [regId, conf.id, req.user.id, ticket.id, 'general', 'confirmed', paymentStatus, price, invoiceNumber, dietary || null, accessibility || null]);
 
             // Update user profile if needed
             if (first_name || last_name || institution || country) {
@@ -7668,18 +7693,291 @@ By applying to this program, I provide the following consents:
             }
 
             db.run('UPDATE ticket_types SET sold_count = sold_count + 1 WHERE id = ?', [ticket.id]);
+
+            // --- FIRA Fiscal Invoice Integration ---
+            let firaInvoice = null;
+            let invoiceRecord = null;
+            const vatBreakdown = firaService.calculateVAT(price);
+
+            if (price > 0 && billing) {
+                // Store invoice record regardless of FIRA availability
+                const invoiceId = uuidv4();
+                const items = JSON.stringify([{
+                    description: `Plexus 2026 — ${ticket.name}`,
+                    quantity: 1,
+                    price: price
+                }]);
+                const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // 7 days from now
+
+                db.run(`INSERT INTO invoices (id, invoice_number, registration_id, recipient_name, recipient_address, recipient_vat, recipient_email, items, subtotal, vat_rate, vat_amount, total, currency, status, issued_at, due_date)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [invoiceId, invoiceNumber, regId,
+                     billing.company || billing.name || `${first_name} ${last_name}`,
+                     [billing.address, billing.city, billing.zip, billing.country].filter(Boolean).join(', '),
+                     billing.oib || billing.vatNumber || null,
+                     billing.email || email,
+                     items, vatBreakdown.netto, 25, vatBreakdown.taxValue, price, 'EUR',
+                     'issued', new Date().toISOString(), dueDate]);
+
+                invoiceRecord = {
+                    id: invoiceId,
+                    invoice_number: invoiceNumber,
+                    subtotal: vatBreakdown.netto,
+                    vat_amount: vatBreakdown.taxValue,
+                    total: price,
+                    due_date: dueDate
+                };
+
+                // Attempt FIRA fiscal invoice creation
+                try {
+                    firaInvoice = await firaService.createFiscalInvoice({
+                        invoiceNumber,
+                        ticketName: ticket.name,
+                        ticketPrice: price,
+                        addons: [], // Future: map package_items to addon prices
+                        billing: {
+                            name: `${first_name || ''} ${last_name || ''}`.trim(),
+                            company: billing.company || '',
+                            address: billing.address || '',
+                            city: billing.city || '',
+                            zip: billing.zip || '',
+                            country: billing.country || 'HR',
+                            oib: billing.oib || '',
+                            vatNumber: billing.vatNumber || '',
+                            email: billing.email || email
+                        },
+                        invoiceType: 'FISKALNI_RAČUN'
+                    });
+                } catch (firaErr) {
+                    // FIRA failure is non-blocking — registration still succeeds
+                    console.error('[FIRA] Invoice creation failed (non-blocking):', firaErr.message);
+                }
+
+                // Store payment transaction
+                const txId = uuidv4();
+                db.run(`INSERT INTO payment_transactions (id, registration_id, amount, currency, payment_method, payment_provider, provider_transaction_id, status, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [txId, regId, price, 'EUR', 'bank_transfer',
+                     firaInvoice ? 'fira' : 'manual',
+                     firaInvoice ? firaInvoice.firaId : null,
+                     'pending',
+                     JSON.stringify({
+                         invoice_number: invoiceNumber,
+                         fira_invoice_number: firaInvoice?.invoiceNumber || null,
+                         fira_pdf_url: firaInvoice?.pdfUrl || null,
+                         billing: billing
+                     })]);
+            }
+
             saveDb();
+
+            // Build bank transfer details from environment
+            const bankDetails = price > 0 ? {
+                iban: process.env.MEDX_IBAN || 'HR1234567890123456789',
+                bank_name: process.env.MEDX_BANK_NAME || 'Zagrebačka banka d.d.',
+                swift: process.env.MEDX_SWIFT || 'ZABAHR2X',
+                recipient: process.env.MEDX_COMPANY_NAME || 'Med&X',
+                reference: invoiceNumber,
+                amount: price,
+                currency: 'EUR',
+                vat_breakdown: vatBreakdown,
+                due_date: invoiceRecord?.due_date || null
+            } : null;
 
             res.json({
                 success: true,
                 registration_id: regId,
                 invoice_number: invoiceNumber,
                 amount: price,
-                ticket_name: ticket.name
+                ticket_name: ticket.name,
+                payment_status: paymentStatus,
+                // FIRA fiscal invoice details (null if demo mode or free ticket)
+                fira_invoice: firaInvoice ? {
+                    fira_id: firaInvoice.firaId,
+                    fira_invoice_number: firaInvoice.invoiceNumber,
+                    pdf_url: firaInvoice.pdfUrl
+                } : null,
+                // Bank transfer instructions (null if free ticket)
+                bank_transfer: bankDetails,
+                // Invoice breakdown
+                invoice: invoiceRecord,
+                // Whether FIRA is active
+                fira_active: firaService.isConfigured()
             });
         } catch (err) {
             console.error('Registration error:', err.message);
             res.status(500).json({ error: 'Registration failed' });
+        }
+    });
+
+    // Get invoice details for a registration
+    app.get('/api/plexus/registration/:id/invoice', auth, (req, res) => {
+        try {
+            const reg = query.get(`SELECT r.*, t.name as ticket_name, u.first_name, u.last_name, u.email
+                FROM registrations r
+                JOIN ticket_types t ON r.ticket_type_id = t.id
+                JOIN users u ON r.user_id = u.id
+                WHERE r.id = ? AND r.user_id = ?`, [req.params.id, req.user.id]);
+
+            if (!reg) return res.status(404).json({ error: 'Registration not found' });
+
+            const invoice = query.get('SELECT * FROM invoices WHERE registration_id = ?', [reg.id]);
+            const transaction = query.get('SELECT * FROM payment_transactions WHERE registration_id = ?', [reg.id]);
+
+            // Parse metadata for FIRA details
+            let firaDetails = null;
+            if (transaction?.metadata) {
+                try {
+                    const meta = JSON.parse(transaction.metadata);
+                    firaDetails = {
+                        fira_invoice_number: meta.fira_invoice_number,
+                        pdf_url: meta.fira_pdf_url
+                    };
+                } catch (e) { /* ignore parse errors */ }
+            }
+
+            const bankDetails = reg.amount_paid > 0 ? {
+                iban: process.env.MEDX_IBAN || 'HR1234567890123456789',
+                bank_name: process.env.MEDX_BANK_NAME || 'Zagrebačka banka d.d.',
+                swift: process.env.MEDX_SWIFT || 'ZABAHR2X',
+                recipient: process.env.MEDX_COMPANY_NAME || 'Med&X',
+                reference: reg.invoice_number,
+                amount: reg.amount_paid,
+                currency: 'EUR'
+            } : null;
+
+            res.json({
+                registration: {
+                    id: reg.id,
+                    status: reg.status,
+                    payment_status: reg.payment_status,
+                    amount: reg.amount_paid,
+                    invoice_number: reg.invoice_number,
+                    ticket_name: reg.ticket_name,
+                    attendee: `${reg.first_name} ${reg.last_name}`
+                },
+                invoice: invoice || null,
+                fira: firaDetails,
+                bank_transfer: bankDetails,
+                transaction: transaction ? {
+                    id: transaction.id,
+                    status: transaction.status,
+                    provider: transaction.payment_provider,
+                    created_at: transaction.created_at
+                } : null
+            });
+        } catch (err) {
+            console.error('Invoice fetch error:', err.message);
+            res.status(500).json({ error: 'Failed to fetch invoice details' });
+        }
+    });
+
+    // Admin: Confirm bank transfer payment received
+    app.post('/api/plexus/registration/:id/confirm-payment', auth, (req, res) => {
+        try {
+            // Verify admin access
+            if (!req.user.is_admin) return res.status(403).json({ error: 'Admin access required' });
+
+            const reg = query.get('SELECT * FROM registrations WHERE id = ?', [req.params.id]);
+            if (!reg) return res.status(404).json({ error: 'Registration not found' });
+            if (reg.payment_status === 'paid') return res.json({ success: true, message: 'Already marked as paid' });
+
+            // Update registration payment status
+            db.run('UPDATE registrations SET payment_status = ? WHERE id = ?', ['paid', reg.id]);
+
+            // Update payment transaction status
+            db.run('UPDATE payment_transactions SET status = ? WHERE registration_id = ?', ['completed', reg.id]);
+
+            // Update invoice status
+            db.run("UPDATE invoices SET status = 'paid', paid_at = ? WHERE registration_id = ?",
+                [new Date().toISOString(), reg.id]);
+
+            saveDb();
+
+            res.json({
+                success: true,
+                message: 'Payment confirmed',
+                registration_id: reg.id,
+                invoice_number: reg.invoice_number
+            });
+        } catch (err) {
+            console.error('Payment confirmation error:', err.message);
+            res.status(500).json({ error: 'Failed to confirm payment' });
+        }
+    });
+
+    // Admin: List all conference payments (for admin dashboard)
+    app.get('/api/plexus/conference-payments', auth, (req, res) => {
+        try {
+            if (!req.user.is_admin) return res.status(403).json({ error: 'Admin access required' });
+
+            const { status, search } = req.query;
+
+            let sql = `SELECT r.id, r.invoice_number, r.payment_status, r.amount_paid, r.status as reg_status,
+                r.created_at, u.first_name, u.last_name, u.email, u.institution,
+                t.name as ticket_name,
+                pt.provider_transaction_id as fira_id, pt.metadata as tx_metadata
+                FROM registrations r
+                JOIN users u ON r.user_id = u.id
+                JOIN ticket_types t ON r.ticket_type_id = t.id
+                LEFT JOIN payment_transactions pt ON pt.registration_id = r.id
+                JOIN conferences c ON r.conference_id = c.id
+                WHERE c.slug = 'plexus-2026' AND r.status != 'cancelled'`;
+            const params = [];
+
+            if (status && status !== 'all') {
+                sql += ' AND r.payment_status = ?';
+                params.push(status);
+            }
+            if (search) {
+                sql += ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ? OR r.invoice_number LIKE ?)';
+                const term = `%${search}%`;
+                params.push(term, term, term, term);
+            }
+
+            sql += ' ORDER BY r.created_at DESC';
+
+            const payments = query.all(sql, params);
+
+            // Parse metadata for FIRA invoice numbers
+            const enriched = payments.map(p => {
+                let firaInvoiceNumber = null;
+                if (p.tx_metadata) {
+                    try {
+                        const meta = JSON.parse(p.tx_metadata);
+                        firaInvoiceNumber = meta.fira_invoice_number;
+                    } catch (e) { /* ignore */ }
+                }
+                return {
+                    id: p.id,
+                    invoice_number: p.invoice_number,
+                    fira_invoice_number: firaInvoiceNumber,
+                    payment_status: p.payment_status,
+                    amount: p.amount_paid,
+                    registration_status: p.reg_status,
+                    attendee: `${p.first_name} ${p.last_name}`,
+                    email: p.email,
+                    institution: p.institution,
+                    ticket: p.ticket_name,
+                    created_at: p.created_at
+                };
+            });
+
+            // Summary stats
+            const total = enriched.length;
+            const pending = enriched.filter(p => p.payment_status === 'pending').length;
+            const paid = enriched.filter(p => p.payment_status === 'paid').length;
+            const totalRevenue = enriched.filter(p => p.payment_status === 'paid').reduce((sum, p) => sum + (p.amount || 0), 0);
+            const pendingRevenue = enriched.filter(p => p.payment_status === 'pending').reduce((sum, p) => sum + (p.amount || 0), 0);
+
+            res.json({
+                payments: enriched,
+                summary: { total, pending, paid, totalRevenue, pendingRevenue },
+                fira_active: firaService.isConfigured()
+            });
+        } catch (err) {
+            console.error('Conference payments error:', err.message);
+            res.status(500).json({ error: 'Failed to fetch conference payments' });
         }
     });
 
