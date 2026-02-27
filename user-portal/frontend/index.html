@@ -4617,6 +4617,277 @@
             overflow-x: hidden;
         }
 
+        /* ===== REDESIGNED SPLASH / ENTRY SCREEN ===== */
+        .splash-entry {
+            position: relative;
+            width: 100%;
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: linear-gradient(135deg, #0a0a12 0%, #111827 40%, #1a1a2e 70%, #0f172a 100%);
+        }
+
+        /* Animated gradient mesh background */
+        .splash-entry::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 50% at 20% 40%, rgba(201, 169, 98, 0.08) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 80% at 80% 20%, rgba(99, 102, 241, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse 50% 50% at 50% 80%, rgba(201, 169, 98, 0.05) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        /* Subtle grid pattern overlay */
+        .splash-entry::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(201, 169, 98, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(201, 169, 98, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 20%, transparent 70%);
+            -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 20%, transparent 70%);
+        }
+
+        /* Floating orbs */
+        .splash-entry-orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(100px);
+            pointer-events: none;
+            animation: splashOrbDrift 12s ease-in-out infinite alternate;
+        }
+
+        .splash-entry-orb-1 {
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(201, 169, 98, 0.15), transparent 70%);
+            top: -150px;
+            right: -100px;
+            animation-delay: 0s;
+        }
+
+        .splash-entry-orb-2 {
+            width: 350px;
+            height: 350px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.10), transparent 70%);
+            bottom: -100px;
+            left: -80px;
+            animation-delay: -4s;
+            animation-duration: 15s;
+        }
+
+        .splash-entry-orb-3 {
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(201, 169, 98, 0.10), transparent 70%);
+            top: 60%;
+            right: 20%;
+            animation-delay: -8s;
+            animation-duration: 10s;
+        }
+
+        @keyframes splashOrbDrift {
+            0% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(30px, -20px) scale(1.1); }
+            100% { transform: translate(-20px, 15px) scale(0.95); }
+        }
+
+        /* Content container */
+        .splash-entry-content {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 40px 24px;
+            max-width: 520px;
+        }
+
+        /* Logo */
+        .splash-entry-logo {
+            font-size: 56px;
+            font-weight: 800;
+            color: #ffffff;
+            margin: 0 0 8px 0;
+            letter-spacing: -2px;
+            animation: splashFadeUp 0.7s ease forwards;
+            opacity: 0;
+            transform: translateY(16px);
+        }
+
+        .splash-entry-logo .splash-amp {
+            color: #c41e3a;
+        }
+
+        .splash-entry-logo .splash-x {
+            color: #C9A962;
+        }
+
+        /* Tagline */
+        .splash-entry-tagline {
+            font-size: 15px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin: 0 0 12px 0;
+            animation: splashFadeUp 0.7s ease 0.1s forwards;
+            opacity: 0;
+            transform: translateY(16px);
+        }
+
+        .splash-entry-subtitle {
+            font-size: 20px;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.6);
+            margin: 0 0 8px 0;
+            line-height: 1.5;
+            animation: splashFadeUp 0.7s ease 0.2s forwards;
+            opacity: 0;
+            transform: translateY(16px);
+        }
+
+        .splash-entry-description {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.35);
+            margin: 0 0 48px 0;
+            line-height: 1.6;
+            animation: splashFadeUp 0.7s ease 0.3s forwards;
+            opacity: 0;
+            transform: translateY(16px);
+        }
+
+        /* Divider line */
+        .splash-entry-divider {
+            width: 48px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(201, 169, 98, 0.5), transparent);
+            margin: 0 auto 48px;
+            animation: splashFadeUp 0.7s ease 0.25s forwards;
+            opacity: 0;
+        }
+
+        /* Buttons */
+        .splash-entry-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 300px;
+            margin: 0 auto;
+            animation: splashFadeUp 0.7s ease 0.4s forwards;
+            opacity: 0;
+            transform: translateY(16px);
+        }
+
+        .splash-btn-primary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 16px 32px;
+            background: linear-gradient(135deg, #C9A962 0%, #A38A4F 100%);
+            color: #0a0a12;
+            font-size: 16px;
+            font-weight: 700;
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+            letter-spacing: 0.2px;
+        }
+
+        .splash-btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px rgba(201, 169, 98, 0.3);
+            background: linear-gradient(135deg, #d4b56e 0%, #b8943d 100%);
+        }
+
+        .splash-btn-primary:active {
+            transform: translateY(0) scale(0.98);
+            box-shadow: none;
+        }
+
+        .splash-btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 15px 32px;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 15px;
+            font-weight: 600;
+            border: 1.5px solid rgba(255, 255, 255, 0.15);
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        .splash-btn-secondary:hover {
+            border-color: rgba(201, 169, 98, 0.5);
+            color: #C9A962;
+            background: rgba(201, 169, 98, 0.05);
+        }
+
+        .splash-btn-secondary:active {
+            transform: scale(0.98);
+        }
+
+        /* Footer badge */
+        .splash-entry-footer {
+            position: absolute;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: rgba(255, 255, 255, 0.2);
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            animation: splashFadeUp 0.7s ease 0.6s forwards;
+            opacity: 0;
+        }
+
+        .splash-entry-footer i {
+            color: rgba(201, 169, 98, 0.3);
+            font-size: 10px;
+        }
+
+        @keyframes splashFadeUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Splash responsive */
+        @media (max-width: 480px) {
+            .splash-entry-logo {
+                font-size: 42px;
+            }
+            .splash-entry-subtitle {
+                font-size: 17px;
+            }
+            .splash-entry-actions {
+                width: 100%;
+                max-width: 280px;
+            }
+            .splash-entry-footer {
+                bottom: 20px;
+            }
+        }
+
         /* Landing Navigation */
         .landing-nav {
             position: fixed;
@@ -10140,7 +10411,6 @@
             grid-template-columns: repeat(3, 1fr);
             gap: 8px;
             padding: 16px;
-            justify-items: center;
         }
 
         .hub-quick-grid-item {
@@ -10176,6 +10446,11 @@
             justify-content: center;
             font-size: 20px;
             transition: transform 0.2s;
+        }
+
+        .hub-quick-grid-icon i {
+            width: 1em;
+            text-align: center;
         }
 
         .hub-quick-grid-item:hover .hub-quick-grid-icon {
@@ -23066,6 +23341,8 @@
         .px-quick-link i {
             color: var(--up-gold);
             font-size: 16px;
+            width: 1em;
+            text-align: center;
         }
 
         .px-quick-link span {
@@ -55057,25 +55334,38 @@ textarea:focus:not(:focus-visible),
         </div>
 
     <!-- ===== LANDING PAGE ===== -->
-    <div class="landing-page" id="landingPage" style="display: flex; align-items: center; justify-content: center; min-height: 100vh; min-height: 100dvh; flex-direction: column;">
+    <div class="landing-page" id="landingPage" style="display: none;">
         <!-- Hidden nav (preserves scroll listeners etc.) -->
         <nav class="landing-nav" id="landingNav" style="display: none;">
             <a href="#" class="landing-logo">Med<span>&</span>X</a>
         </nav>
 
-        <!-- Centered entry -->
-        <div style="text-align: center; padding: 40px 24px;">
-            <div style="margin-bottom: 32px;">
-                <h1 style="font-size: 42px; font-weight: 800; color: var(--up-text, #1d1d1f); margin: 0; letter-spacing: -1px;">med<span style="color: #c41e3a;">&amp;</span><span style="color: #d4a843;">X</span></h1>
-                <p style="font-size: 15px; color: var(--up-text-secondary, #6e6e73); margin: 8px 0 0;">Member Portal</p>
+        <!-- Redesigned splash / entry screen -->
+        <div class="splash-entry" id="splashEntry">
+            <!-- Animated orbs -->
+            <div class="splash-entry-orb splash-entry-orb-1"></div>
+            <div class="splash-entry-orb splash-entry-orb-2"></div>
+            <div class="splash-entry-orb splash-entry-orb-3"></div>
+
+            <div class="splash-entry-content">
+                <p class="splash-entry-tagline">Member Portal</p>
+                <h1 class="splash-entry-logo">med<span class="splash-amp">&amp;</span><span class="splash-x">X</span></h1>
+                <p class="splash-entry-subtitle">Where Medicine Meets Innovation</p>
+                <div class="splash-entry-divider"></div>
+                <p class="splash-entry-description">Access conferences, applications, networking, and your personalized Med&amp;X experience</p>
+                <div class="splash-entry-actions">
+                    <button class="splash-btn-primary" onclick="UserPortal.openPortalModal()">
+                        Get Started <i class="fas fa-arrow-right"></i>
+                    </button>
+                    <button class="splash-btn-secondary" onclick="UserPortal.openLoginModal()">
+                        <i class="fas fa-sign-in-alt"></i> Sign In
+                    </button>
+                </div>
             </div>
-            <div style="display: flex; flex-direction: column; gap: 12px; width: 260px; margin: 0 auto;">
-                <button class="btn-landing btn-landing-primary" onclick="UserPortal.openPortalModal()" style="padding: 14px 24px; border-radius: 12px; font-size: 15px; font-weight: 600; width: 100%;">
-                    Get Started <i class="fas fa-arrow-right" style="margin-left: 6px;"></i>
-                </button>
-                <button class="btn-landing btn-landing-ghost" onclick="UserPortal.openLoginModal()" style="padding: 14px 24px; border: 1.5px solid var(--up-border, #d2d2d7); border-radius: 12px; font-size: 15px; font-weight: 600; width: 100%;">
-                    Sign In
-                </button>
+
+            <div class="splash-entry-footer">
+                <i class="fas fa-shield-alt"></i>
+                <span>Secure portal by Med&amp;X</span>
             </div>
         </div>
 
@@ -74081,6 +74371,15 @@ You can use variables like {first_name} that will be personalized for each recip
                 // Sync ALL displays across the app
                 this.updateAllDisplays();
 
+                // Push notification for points earned
+                if (typeof NotificationCenter !== 'undefined' && NotificationCenter.add) {
+                    NotificationCenter.add({
+                        type: 'achievement',
+                        title: `+${amount} Points Earned!`,
+                        body: reason || 'Keep going to unlock new rewards'
+                    });
+                }
+
                 return amount;
             },
 
@@ -74311,6 +74610,16 @@ You can use variables like {first_name} that will be personalized for each recip
                 setTimeout(() => {
                     Toast.success(`Congratulations! You've been upgraded to ${newTier.charAt(0).toUpperCase() + newTier.slice(1)} Member!`);
                 }, 300);
+
+                // Push tier upgrade notification
+                if (typeof NotificationCenter !== 'undefined' && NotificationCenter.add) {
+                    const tierName = newTier.charAt(0).toUpperCase() + newTier.slice(1);
+                    NotificationCenter.add({
+                        type: 'achievement',
+                        title: `Tier Upgrade: ${tierName} Member!`,
+                        body: `Congratulations! You've been promoted from ${oldTier} to ${tierName}. Enjoy your new benefits!`
+                    });
+                }
             },
 
             // Render tier hero card
@@ -75056,6 +75365,12 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (typeof MyMedXPortal !== 'undefined' && MyMedXPortal.renderTierCard) {
                     MyMedXPortal.renderTierCard();
                 }
+
+                // 8. Dashboard status bar & card picker tier/points displays
+                if (typeof Dashboard !== 'undefined') {
+                    if (Dashboard.updateAllTierDisplays) Dashboard.updateAllTierDisplays();
+                    if (Dashboard.updateAccountBadge) Dashboard.updateAccountBadge();
+                }
             },
 
             // Get user's current tier badge HTML
@@ -75448,12 +75763,20 @@ You can use variables like {first_name} that will be personalized for each recip
                 localStorage.removeItem('medx_biometric_enabled');
                 localStorage.removeItem('medx_biometric_email');
 
-                // Show landing page for all visitors
-                document.getElementById('landingPage').style.display = 'block';
-
-                // Auto-open login modal if linked from gateway/landing page
+                // Check if arriving from shared landing page with ?login=true
                 if (urlParams.get('login') === 'true') {
-                    setTimeout(() => this.openLoginModal(), 300);
+                    // BYPASS splash screen entirely — go straight to login modal
+                    // Show landing page container (needed for modal backdrop) but hide the splash entry
+                    document.getElementById('landingPage').style.display = 'block';
+                    const splashEntry = document.getElementById('splashEntry');
+                    if (splashEntry) splashEntry.style.display = 'none';
+                    // Open login modal immediately — no delay, no flash of splash
+                    this.openLoginModal();
+                    // Clean the URL so refreshing doesn't re-trigger
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                } else {
+                    // Show landing page with the redesigned splash for direct visitors
+                    document.getElementById('landingPage').style.display = 'block';
                 }
             },
 
@@ -75606,6 +75929,11 @@ You can use variables like {first_name} that will be personalized for each recip
             closeLoginModal() {
                 document.getElementById('loginModal').classList.remove('active');
                 document.getElementById('userLoginError').classList.remove('show');
+                // Restore splash screen if it was hidden (e.g., ?login=true bypass)
+                const splashEntry = document.getElementById('splashEntry');
+                if (splashEntry && splashEntry.style.display === 'none') {
+                    splashEntry.style.display = '';
+                }
             },
 
             // Register Modal
@@ -75961,6 +76289,9 @@ You can use variables like {first_name} that will be personalized for each recip
                 this.user = null;
                 document.getElementById('userPortal').classList.remove('active');
                 document.getElementById('landingPage').style.display = 'block';
+                // Ensure splash entry is visible after logout
+                const splashEntry = document.getElementById('splashEntry');
+                if (splashEntry) splashEntry.style.display = '';
             },
 
             // Show User Portal (with optional welcome animation)
@@ -80408,6 +80739,25 @@ You can use variables like {first_name} that will be personalized for each recip
 
                 // Update dashboard event card
                 this.updateDashboardEvents();
+
+                // Update MyMedX Programs section (shows "Registered" status for Plexus)
+                if (typeof MyMedXPortal !== 'undefined' && MyMedXPortal.renderPrograms) {
+                    MyMedXPortal.renderPrograms();
+                }
+
+                // Push registration confirmation notification
+                if (typeof NotificationCenter !== 'undefined' && NotificationCenter.add) {
+                    NotificationCenter.add({
+                        type: 'event',
+                        title: 'Plexus 2026 Registration Confirmed',
+                        body: `Your registration (${registrationId}) is confirmed. Check your email for your digital pass.`
+                    });
+                }
+
+                // Refresh all rewards displays (points may have changed from awards + redemptions)
+                if (typeof RewardsPortal !== 'undefined' && RewardsPortal.updateAllDisplays) {
+                    RewardsPortal.updateAllDisplays();
+                }
             },
 
             // Abstract submission
@@ -83575,6 +83925,20 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (modal) modal.remove();
 
                 this.showToast('Successfully registered! Confirmation email sent.');
+
+                // Update MyMedX Programs section (shows forum event count)
+                if (typeof MyMedXPortal !== 'undefined' && MyMedXPortal.renderPrograms) {
+                    MyMedXPortal.renderPrograms();
+                }
+
+                // Push notification for forum registration
+                if (typeof NotificationCenter !== 'undefined' && NotificationCenter.add) {
+                    NotificationCenter.add({
+                        type: 'event',
+                        title: 'Forum Event Registration Confirmed',
+                        body: `You're registered for ${eventId}. See you there!`
+                    });
+                }
             },
 
             // Update timeline buttons based on registration and interest status
