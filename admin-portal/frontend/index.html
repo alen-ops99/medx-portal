@@ -8351,6 +8351,9 @@ President, Med&amp;X</textarea>
                         <button class="tab-btn" onclick="FinanceApp.showTab('travel-orders', this)">
                             <i class="fas fa-plane-departure"></i> Travel Orders
                         </button>
+                        <button class="tab-btn" onclick="FinanceApp.showTab('conference-payments', this)">
+                            <i class="fas fa-ticket-alt"></i> Conference Payments
+                        </button>
                         <button class="tab-btn" onclick="FinanceApp.showTab('reports', this)">
                             <i class="fas fa-chart-pie"></i> Reports
                         </button>
@@ -8623,6 +8626,72 @@ President, Med&amp;X</textarea>
                                     <tbody id="finTravelOrdersTable"></tbody>
                                 </table>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Conference Payments Tab -->
+                    <div class="finance-tab" id="finance-tab-conference-payments">
+                        <!-- Summary Cards -->
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px;">
+                            <div class="stat-card" style="background: linear-gradient(135deg, #3b82f6, #2563eb); padding: 20px; border-radius: 12px;">
+                                <div style="font-size: 13px; color: rgba(255,255,255,0.8);">Total Registrations</div>
+                                <div style="font-size: 28px; font-weight: 700; color: white;" id="confPayTotal">0</div>
+                            </div>
+                            <div class="stat-card" style="background: linear-gradient(135deg, #f59e0b, #d97706); padding: 20px; border-radius: 12px;">
+                                <div style="font-size: 13px; color: rgba(255,255,255,0.8);">Pending Payment</div>
+                                <div style="font-size: 28px; font-weight: 700; color: white;" id="confPayPending">0</div>
+                            </div>
+                            <div class="stat-card" style="background: linear-gradient(135deg, #22c55e, #16a34a); padding: 20px; border-radius: 12px;">
+                                <div style="font-size: 13px; color: rgba(255,255,255,0.8);">Paid</div>
+                                <div style="font-size: 28px; font-weight: 700; color: white;" id="confPayPaid">0</div>
+                            </div>
+                            <div class="stat-card" style="background: linear-gradient(135deg, var(--finances), #059669); padding: 20px; border-radius: 12px;">
+                                <div style="font-size: 13px; color: rgba(255,255,255,0.8);">Revenue Collected</div>
+                                <div style="font-size: 28px; font-weight: 700; color: white;" id="confPayRevenue">0.00 EUR</div>
+                            </div>
+                        </div>
+
+                        <!-- Filters -->
+                        <div class="card" style="margin-bottom: 20px;">
+                            <div class="card-body" style="padding: 16px;">
+                                <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                                    <select id="confPayStatusFilter" onchange="FinanceApp.loadConferencePayments()" style="padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); font-size: 14px;">
+                                        <option value="all">All Statuses</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="paid">Paid</option>
+                                    </select>
+                                    <input type="text" id="confPaySearch" placeholder="Search name, email, invoice..." oninput="FinanceApp.debounceConfPaySearch()" style="flex: 1; min-width: 200px; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); font-size: 14px;">
+                                    <button onclick="FinanceApp.loadConferencePayments()" style="padding: 8px 16px; background: var(--finances); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                                        <i class="fas fa-sync-alt"></i> Refresh
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Payments Table -->
+                        <div class="card">
+                            <div class="card-body" style="padding: 0;">
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead>
+                                        <tr style="border-bottom: 2px solid var(--border);">
+                                            <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: var(--text-muted);">Attendee</th>
+                                            <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: var(--text-muted);">Invoice #</th>
+                                            <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: var(--text-muted);">Ticket</th>
+                                            <th style="padding: 12px 16px; text-align: right; font-size: 13px; color: var(--text-muted);">Amount</th>
+                                            <th style="padding: 12px 16px; text-align: center; font-size: 13px; color: var(--text-muted);">Status</th>
+                                            <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: var(--text-muted);">Date</th>
+                                            <th style="padding: 12px 16px; text-align: center; font-size: 13px; color: var(--text-muted);">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="confPayTable">
+                                        <tr><td colspan="7" style="padding: 40px; text-align: center; color: var(--text-muted);">Loading...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 12px; font-size: 12px; color: var(--text-muted);">
+                            <i class="fas fa-info-circle"></i> Pending revenue: <strong id="confPayPendingRevenue">€0.00</strong> awaiting bank transfer confirmation.
                         </div>
                     </div>
 
@@ -21692,6 +21761,7 @@ By applying to this program, I give the following consents:
                         else if (tabId === 'invoices') this.loadInvoices();
                         else if (tabId === 'payment-orders') this.loadPaymentOrders();
                         else if (tabId === 'travel-orders') this.loadTravelOrders();
+                        else if (tabId === 'conference-payments') this.loadConferencePayments();
                         else if (tabId === 'reports') this.loadReports();
                     }
                 }
@@ -21726,6 +21796,7 @@ By applying to this program, I give the following consents:
                     else if (tabId === 'invoices') this.loadInvoices();
                     else if (tabId === 'payment-orders') this.loadPaymentOrders();
                     else if (tabId === 'travel-orders') this.loadTravelOrders();
+                    else if (tabId === 'conference-payments') this.loadConferencePayments();
                     else if (tabId === 'reports') this.loadReports();
                     else if (tabId === 'settings') this.loadSettings();
                 }
@@ -21758,6 +21829,7 @@ By applying to this program, I give the following consents:
                 else if (tabId === 'invoices') this.loadInvoices();
                 else if (tabId === 'payment-orders') this.loadPaymentOrders();
                 else if (tabId === 'travel-orders') this.loadTravelOrders();
+                else if (tabId === 'conference-payments') this.loadConferencePayments();
                 else if (tabId === 'reports') this.loadReports();
                 else if (tabId === 'settings') this.loadSettings();
             },
@@ -22501,6 +22573,98 @@ By applying to this program, I give the following consents:
                 this.loadDashboard();
                 // Paying creates an expense transaction, so refresh transactions list
                 this.loadTransactions();
+            },
+
+            // Conference Payments
+            _confPaySearchTimeout: null,
+
+            debounceConfPaySearch() {
+                clearTimeout(this._confPaySearchTimeout);
+                this._confPaySearchTimeout = setTimeout(() => this.loadConferencePayments(), 300);
+            },
+
+            async loadConferencePayments() {
+                const status = document.getElementById('confPayStatusFilter')?.value || 'all';
+                const search = document.getElementById('confPaySearch')?.value || '';
+
+                let url = `/api/finance/conference-payments?status=${status}`;
+                if (search) url += `&search=${encodeURIComponent(search)}`;
+
+                const data = await this.api(url);
+
+                // Update summary cards
+                if (data.summary) {
+                    document.getElementById('confPayTotal').textContent = data.summary.total;
+                    document.getElementById('confPayPending').textContent = data.summary.pending;
+                    document.getElementById('confPayPaid').textContent = data.summary.paid;
+                    document.getElementById('confPayRevenue').textContent = this.formatCurrency(data.summary.totalRevenue);
+                    document.getElementById('confPayPendingRevenue').textContent = '€' + (data.summary.pendingRevenue || 0).toFixed(2);
+                }
+
+                // Render table
+                const tbody = document.getElementById('confPayTable');
+                if (!tbody) return;
+
+                if (!data.payments || data.payments.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="padding: 40px; text-align: center; color: var(--text-muted);"><i class="fas fa-inbox" style="font-size: 24px; display: block; margin-bottom: 8px;"></i>No conference payments found</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = data.payments.map(p => `
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 12px 16px;">
+                            <div style="font-weight: 600; color: var(--text-primary);">${this.escapeHtml(p.attendee)}</div>
+                            <div style="font-size: 12px; color: var(--text-muted);">${this.escapeHtml(p.email)}</div>
+                            ${p.institution ? `<div style="font-size: 11px; color: var(--text-muted);">${this.escapeHtml(p.institution)}</div>` : ''}
+                        </td>
+                        <td style="padding: 12px 16px;">
+                            <div style="font-family: monospace; font-size: 13px; font-weight: 600;">${this.escapeHtml(p.invoice_number)}</div>
+                            ${p.fira_invoice_number ? `<div style="font-size: 11px; color: var(--text-muted);">FIRA: ${this.escapeHtml(p.fira_invoice_number)}</div>` : ''}
+                        </td>
+                        <td style="padding: 12px 16px; font-size: 13px;">${this.escapeHtml(p.ticket)}</td>
+                        <td style="padding: 12px 16px; text-align: right; font-weight: 600; font-size: 14px;">${p.amount > 0 ? '€' + p.amount.toFixed(2) : 'Free'}</td>
+                        <td style="padding: 12px 16px; text-align: center;">
+                            <span style="padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
+                                background: ${p.payment_status === 'paid' ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)'};
+                                color: ${p.payment_status === 'paid' ? '#16a34a' : '#d97706'};">
+                                ${p.payment_status === 'paid' ? '<i class="fas fa-check-circle"></i>' : '<i class="fas fa-clock"></i>'}
+                                ${p.payment_status.charAt(0).toUpperCase() + p.payment_status.slice(1)}
+                            </span>
+                        </td>
+                        <td style="padding: 12px 16px; font-size: 13px; color: var(--text-muted);">
+                            ${p.created_at ? new Date(p.created_at).toLocaleDateString() : '—'}
+                            ${p.due_date ? `<div style="font-size: 11px;">Due: ${p.due_date}</div>` : ''}
+                        </td>
+                        <td style="padding: 12px 16px; text-align: center;">
+                            ${p.payment_status === 'pending' && p.amount > 0 ?
+                                `<button onclick="FinanceApp.confirmConferencePayment('${p.id}', '${this.escapeHtml(p.attendee)}')" style="padding: 6px 14px; background: var(--success); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                                    <i class="fas fa-check"></i> Mark Paid
+                                </button>` :
+                                p.payment_status === 'paid' ? '<span style="color: var(--text-muted); font-size: 12px;"><i class="fas fa-check-double"></i></span>' : '—'
+                            }
+                        </td>
+                    </tr>
+                `).join('');
+            },
+
+            async confirmConferencePayment(regId, attendeeName) {
+                if (!confirm(`Confirm bank transfer received from ${attendeeName}?`)) return;
+
+                const res = await this.api(`/api/finance/conference-payments/${regId}/confirm`, {
+                    method: 'POST'
+                });
+
+                if (res.success) {
+                    App.showToast(`Payment confirmed for ${attendeeName}`, 'success');
+                    this.loadConferencePayments();
+                } else {
+                    App.showToast(res.error || 'Failed to confirm payment', 'error');
+                }
+            },
+
+            escapeHtml(str) {
+                if (!str) return '';
+                return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             },
 
             // Reports

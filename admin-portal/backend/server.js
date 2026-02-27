@@ -13074,6 +13074,102 @@ By applying to this program, I provide the following consents:
         res.json(report);
     });
 
+    // ===== CONFERENCE PAYMENTS (Plexus + FIRA Integration) =====
+
+    // List all conference registrations with payment status
+    app.get('/api/finance/conference-payments', auth, (req, res) => {
+        try {
+            const { status, search } = req.query;
+
+            let sql = `SELECT r.id, r.invoice_number, r.payment_status, r.amount_paid, r.status as reg_status,
+                r.created_at, u.first_name, u.last_name, u.email, u.institution,
+                t.name as ticket_name,
+                pt.provider_transaction_id as fira_id, pt.metadata as tx_metadata,
+                i.status as invoice_status, i.due_date as invoice_due_date
+                FROM registrations r
+                JOIN users u ON r.user_id = u.id
+                JOIN ticket_types t ON r.ticket_type_id = t.id
+                LEFT JOIN payment_transactions pt ON pt.registration_id = r.id
+                LEFT JOIN invoices i ON i.registration_id = r.id
+                JOIN conferences c ON r.conference_id = c.id
+                WHERE c.slug = 'plexus-2026' AND r.status != 'cancelled'`;
+            const params = [];
+
+            if (status && status !== 'all') {
+                sql += ' AND r.payment_status = ?';
+                params.push(status);
+            }
+            if (search) {
+                sql += ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ? OR r.invoice_number LIKE ?)';
+                const term = `%${search}%`;
+                params.push(term, term, term, term);
+            }
+
+            sql += ' ORDER BY r.created_at DESC';
+
+            const payments = query.all(sql, params);
+
+            const enriched = payments.map(p => {
+                let firaInvoiceNumber = null;
+                if (p.tx_metadata) {
+                    try {
+                        const meta = JSON.parse(p.tx_metadata);
+                        firaInvoiceNumber = meta.fira_invoice_number;
+                    } catch (e) { /* ignore */ }
+                }
+                return {
+                    id: p.id,
+                    invoice_number: p.invoice_number,
+                    fira_invoice_number: firaInvoiceNumber,
+                    payment_status: p.payment_status,
+                    amount: p.amount_paid,
+                    registration_status: p.reg_status,
+                    attendee: `${p.first_name} ${p.last_name}`,
+                    email: p.email,
+                    institution: p.institution,
+                    ticket: p.ticket_name,
+                    invoice_status: p.invoice_status,
+                    due_date: p.invoice_due_date,
+                    created_at: p.created_at
+                };
+            });
+
+            const total = enriched.length;
+            const pending = enriched.filter(p => p.payment_status === 'pending').length;
+            const paid = enriched.filter(p => p.payment_status === 'paid').length;
+            const totalRevenue = enriched.filter(p => p.payment_status === 'paid').reduce((sum, p) => sum + (p.amount || 0), 0);
+            const pendingRevenue = enriched.filter(p => p.payment_status === 'pending').reduce((sum, p) => sum + (p.amount || 0), 0);
+
+            res.json({
+                payments: enriched,
+                summary: { total, pending, paid, totalRevenue, pendingRevenue }
+            });
+        } catch (err) {
+            console.error('Conference payments error:', err.message);
+            res.status(500).json({ error: 'Failed to fetch conference payments' });
+        }
+    });
+
+    // Confirm bank transfer received (mark as paid)
+    app.post('/api/finance/conference-payments/:id/confirm', auth, (req, res) => {
+        try {
+            const reg = query.get('SELECT * FROM registrations WHERE id = ?', [req.params.id]);
+            if (!reg) return res.status(404).json({ error: 'Registration not found' });
+            if (reg.payment_status === 'paid') return res.json({ success: true, message: 'Already paid' });
+
+            db.run('UPDATE registrations SET payment_status = ? WHERE id = ?', ['paid', reg.id]);
+            db.run('UPDATE payment_transactions SET status = ? WHERE registration_id = ?', ['completed', reg.id]);
+            db.run("UPDATE invoices SET status = 'paid', paid_at = ? WHERE registration_id = ?",
+                [new Date().toISOString(), reg.id]);
+            saveDb();
+
+            res.json({ success: true, message: 'Payment confirmed', invoice_number: reg.invoice_number });
+        } catch (err) {
+            console.error('Payment confirmation error:', err.message);
+            res.status(500).json({ error: 'Failed to confirm payment' });
+        }
+    });
+
     // ===== PR & MEDIA API ENDPOINTS =====
 
     // PR Dashboard
