@@ -53,6 +53,16 @@
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
+        *:focus-visible {
+            outline: 2px solid var(--up-gold, var(--accent-gold, #C9A962));
+            outline-offset: 2px;
+        }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.3); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.5); }
+
         body {
             font-family: 'Inter', -apple-system, sans-serif;
             background: var(--bg-primary);
@@ -115,7 +125,7 @@
 
         .login-form .form-input {
             width: 100%;
-            padding: 12px 14px;
+            padding: 10px 14px;
             background: var(--bg-tertiary);
             border: 1px solid var(--border);
             border-radius: 8px;
@@ -144,12 +154,13 @@
             font-size: 14px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.15s;
+            transition: all 0.2s ease;
             font-family: inherit;
         }
 
         .login-btn:hover {
             background: var(--accent-gold-dim);
+            transform: translateY(-1px);
         }
 
         .login-btn:active {
@@ -513,7 +524,8 @@
         .page-header h1 {
             font-size: 24px;
             font-weight: 600;
-            margin-bottom: 4px;
+            margin-bottom: 8px;
+            line-height: 1.3;
         }
 
         .page-header p {
@@ -1146,7 +1158,7 @@
             font-weight: 500;
             cursor: pointer;
             border: none;
-            transition: all 0.15s;
+            transition: all 0.2s ease;
             font-family: inherit;
         }
 
@@ -1157,10 +1169,11 @@
 
         .btn-primary:hover {
             background: var(--accent-gold-dim);
+            transform: translateY(-1px);
         }
 
         .btn-primary:active {
-            transform: scale(0.97);
+            transform: translateY(0) scale(0.97);
             box-shadow: none;
         }
 
@@ -2510,6 +2523,8 @@
             font-size: 12px;
             color: var(--text-muted);
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         /* DM indicator in header */
@@ -2904,20 +2919,27 @@
         .modal-header h2 {
             font-size: 18px;
             font-weight: 600;
+            margin: 0;
         }
 
         .modal-close {
-            width: 36px;
-            height: 36px;
+            width: 32px;
+            height: 32px;
             border: none;
             background: var(--bg-tertiary);
-            border-radius: 9px;
+            border-radius: 8px;
             cursor: pointer;
             color: var(--text-muted);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.15s;
         }
 
         .modal-close:hover {
             background: var(--bg-hover);
+            color: var(--text-primary);
         }
 
         .modal-body {
@@ -3037,6 +3059,8 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: var(--text-muted);
+            margin-bottom: 8px;
+            line-height: 1.3;
         }
 
         /* ===== MOBILE MENU ===== */
@@ -4933,7 +4957,8 @@
             font-size: 36px;
             font-weight: 700;
             color: var(--up-text);
-            margin-bottom: 16px;
+            margin-bottom: 8px;
+            line-height: 1.3;
         }
 
         .landing-section-subtitle {
@@ -5651,10 +5676,10 @@
 
         .auth-form-input {
             width: 100%;
-            padding: 12px 16px;
+            padding: 10px 14px;
             background: var(--up-bg);
             border: 1px solid var(--up-border);
-            border-radius: var(--up-radius-sm);
+            border-radius: 8px;
             color: var(--up-text);
             font-size: 14px;
             font-family: inherit;
@@ -5673,10 +5698,10 @@
 
         .auth-form-select {
             width: 100%;
-            padding: 12px 16px;
+            padding: 10px 14px;
             background: var(--up-bg);
             border: 1px solid var(--up-border);
-            border-radius: var(--up-radius-sm);
+            border-radius: 8px;
             color: var(--up-text);
             font-size: 14px;
             font-family: inherit;
@@ -5700,6 +5725,7 @@
 
         .auth-btn:hover {
             background: var(--up-gold-dark);
+            transform: translateY(-1px);
         }
 
         .auth-btn:active {
@@ -12829,6 +12855,8 @@
             font-size: 11px;
             color: var(--up-text-muted, #94a3b8);
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         /* Programs Dropdown Cards */
@@ -14095,7 +14123,7 @@
 
         .card-picker-item:hover {
             transform: translateY(-4px);
-            box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
             border-color: #475569;
         }
 
@@ -18642,6 +18670,8 @@
             font-size: 10px;
             color: rgba(255, 255, 255, 0.4);
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         /* ===== BADGES CARD ADDITIONAL STYLES ===== */
@@ -28703,10 +28733,10 @@
         .af-form-group select,
         .af-form-group textarea {
             width: 100%;
-            padding: 12px 16px;
+            padding: 10px 14px;
             background: var(--up-bg-subtle);
             border: 1px solid var(--up-border);
-            border-radius: var(--up-radius-sm);
+            border-radius: 8px;
             color: var(--up-text);
             font-size: 14px;
         }
@@ -30204,9 +30234,9 @@
         .networking-form-group input,
         .networking-form-group select,
         .networking-form-group textarea {
-            padding: 12px 16px;
+            padding: 10px 14px;
             border: 1px solid var(--up-border, #e2e8f0);
-            border-radius: 10px;
+            border-radius: 8px;
             background: var(--up-bg-subtle, #f8fafc);
             color: var(--up-text, #0f172a);
             font-size: 14px;
@@ -39661,7 +39691,7 @@
         .sp-form-group textarea,
         .sp-form-group select {
             width: 100%;
-            padding: 0.75rem 1rem;
+            padding: 10px 14px;
             border: 1px solid var(--up-border, #e2e8f0);
             border-radius: 8px;
             font-size: 0.9rem;
@@ -43126,7 +43156,7 @@
 
         .card-lift:hover {
             transform: translateY(-4px);
-            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
         }
 
         /* Icon Bounce on Hover */
@@ -51385,8 +51415,10 @@ textarea:focus:not(:focus-visible),
     align-items: flex-start;
     gap: 12px;
     padding: 14px 16px;
-    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-    border: 1px solid var(--border);
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.9) 100%);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05);
     pointer-events: auto;
