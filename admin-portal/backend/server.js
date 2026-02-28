@@ -4404,94 +4404,89 @@ async function initializeApp() {
     if (!bridgesDataExists) {
         const bridgesEvents = [
             {
-                name: 'Croatian Biomedical Symposium - Zagreb',
-                city: 'Zagreb',
-                venue_name: 'Croatian Academy of Sciences and Arts',
-                venue_address: 'Trg Nikole Subica Zrinskog 11, 10000 Zagreb',
+                name: 'Building Bridges: Zurich Symposium',
+                city: 'Zurich',
+                venue_name: 'ETH Zentrum',
+                venue_address: 'Rämistrasse 101, 8092 Zürich, Switzerland',
+                event_date: '2026-03-15',
+                event_time: '09:00',
+                end_time: '17:00',
+                description: 'An intimate symposium at ETH Zurich bringing together Croatian diaspora scientists in Switzerland with leading European researchers. Focus on neuroscience, bioengineering, and translational medicine.',
+                capacity: 80,
+                registration_deadline: '2026-03-08',
+                contact_email: 'bridges@medx.hr',
+                status: 'upcoming',
+                is_published: 1
+            },
+            {
+                name: 'Building Bridges: Washington DC',
+                city: 'Washington DC',
+                venue_name: 'NIH Campus',
+                venue_address: '9000 Rockville Pike, Bethesda, MD 20892, USA',
                 event_date: '2026-04-18',
                 event_time: '09:00',
                 end_time: '17:00',
-                description: 'Annual symposium bringing together Croatian biomedical professionals and diaspora researchers. Focus on collaborative research opportunities and knowledge transfer.',
-                capacity: 60,
+                description: 'A flagship event on the NIH campus connecting Croatian-American biomedical researchers with NIH leadership and policy makers. Sessions on global health collaboration and funding opportunities.',
+                capacity: 100,
                 registration_deadline: '2026-04-10',
-                contact_email: 'zagreb@medx.hr',
-                status: 'upcoming'
+                contact_email: 'bridges@medx.hr',
+                status: 'upcoming',
+                is_published: 1
             },
             {
-                name: 'Adriatic Medical Innovation Forum - Split',
-                city: 'Split',
-                venue_name: 'Hotel Atrium',
-                venue_address: 'Domovinskog rata 49a, 21000 Split',
-                event_date: '2026-05-15',
-                event_time: '10:00',
-                end_time: '18:00',
-                description: 'Regional forum connecting Adriatic healthcare professionals with international experts. Featuring panel discussions on Mediterranean health challenges.',
-                capacity: 50,
-                registration_deadline: '2026-05-08',
-                contact_email: 'split@medx.hr',
-                status: 'upcoming'
-            },
-            {
-                name: 'Rijeka Healthcare Summit',
-                city: 'Rijeka',
-                venue_name: 'Grand Hotel Bonavia',
-                venue_address: 'Dolac 4, 51000 Rijeka',
-                event_date: '2026-06-20',
-                event_time: '09:30',
-                end_time: '16:30',
-                description: 'One-day summit focused on healthcare innovation in the Kvarner region. Sessions on digital health, hospital management, and cross-border collaboration.',
-                capacity: 45,
-                registration_deadline: '2026-06-12',
-                contact_email: 'rijeka@medx.hr',
-                status: 'upcoming'
-            },
-            {
-                name: 'Eastern Croatia Medical Network Meeting',
-                city: 'Osijek',
-                venue_name: 'Hotel Osijek',
-                venue_address: 'Samacka 4, 31000 Osijek',
-                event_date: '2026-09-12',
-                event_time: '10:00',
+                name: 'Building Bridges: Boston Symposium',
+                city: 'Boston',
+                venue_name: 'Harvard Faculty Club',
+                venue_address: '20 Quincy St, Cambridge, MA 02138, USA',
+                event_date: '2026-09-20',
+                event_time: '09:00',
                 end_time: '17:00',
-                description: 'Networking event for medical professionals from Slavonia and Baranja. Focus on rural healthcare challenges and telemedicine solutions.',
-                capacity: 40,
-                registration_deadline: '2026-09-05',
-                contact_email: 'osijek@medx.hr',
-                status: 'upcoming'
+                description: 'A symposium at Harvard bringing together Croatian researchers in the Boston/Cambridge biomedical ecosystem. Topics include sleep science, oncology, and AI in medicine.',
+                capacity: 80,
+                registration_deadline: '2026-09-12',
+                contact_email: 'bridges@medx.hr',
+                status: 'upcoming',
+                is_published: 1
             }
         ];
 
-        const eventIds = {};
         bridgesEvents.forEach(e => {
             const id = uuidv4();
-            eventIds[e.city] = id;
-            db.run(`INSERT INTO bridges_events (id, name, city, venue_name, venue_address, event_date, event_time, end_time, description, capacity, registration_deadline, contact_email, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [id, e.name, e.city, e.venue_name, e.venue_address, e.event_date, e.event_time, e.end_time, e.description, e.capacity, e.registration_deadline, e.contact_email, e.status]);
-        });
-
-        // Sample registrations for Zagreb event (upcoming, so some registrations)
-        const zagrebRegistrations = [
-            { first_name: 'Ivan', last_name: 'Horvat', email: 'ivan.horvat@kbc-zagreb.hr', phone: '+385 91 234 5678', institution: 'KBC Zagreb', position: 'Cardiologist', dietary: null, status: 'confirmed' },
-            { first_name: 'Ana', last_name: 'Kovacevic', email: 'ana.kovacevic@mef.hr', phone: '+385 98 765 4321', institution: 'University of Zagreb Medical School', position: 'Associate Professor', dietary: 'Vegetarian', status: 'confirmed' },
-            { first_name: 'Marko', last_name: 'Babic', email: 'marko.babic@pharma.hr', phone: '+385 91 111 2222', institution: 'Pliva d.d.', position: 'Research Director', dietary: null, status: 'confirmed' },
-            { first_name: 'Petra', last_name: 'Novak', email: 'petra.novak@hiim.hr', phone: '+385 99 333 4444', institution: 'Croatian Institute for Brain Research', position: 'Senior Researcher', dietary: 'Gluten-free', status: 'registered' },
-            { first_name: 'Luka', last_name: 'Juric', email: 'luka.juric@gmail.com', phone: '+385 92 555 6666', institution: 'Private Practice', position: 'General Practitioner', dietary: null, status: 'registered' },
-            { first_name: 'Marina', last_name: 'Simic', email: 'marina.simic@hzzo.hr', phone: '+385 91 777 8888', institution: 'Croatian Health Insurance Fund', position: 'Policy Analyst', dietary: null, status: 'registered' },
-            { first_name: 'Tomislav', last_name: 'Radic', email: 'tomislav.radic@unizg.hr', phone: '+385 98 999 0000', institution: 'University of Zagreb', position: 'PhD Candidate', dietary: 'Vegan', status: 'registered' },
-            { first_name: 'Ivana', last_name: 'Matic', email: 'ivana.matic@who.int', phone: '+385 91 222 3333', institution: 'WHO Croatia', position: 'Health Officer', dietary: null, status: 'confirmed' },
-            { first_name: 'Josip', last_name: 'Vlahovic', email: 'josip.vlahovic@medri.uniri.hr', phone: '+385 99 444 5555', institution: 'University of Rijeka Medical School', position: 'Professor', dietary: null, status: 'registered' },
-            { first_name: 'Katarina', last_name: 'Petrovic', email: 'katarina.petrovic@halmed.hr', phone: '+385 92 666 7777', institution: 'HALMED', position: 'Drug Safety Officer', dietary: 'Lactose-free', status: 'registered' },
-            { first_name: 'Davor', last_name: 'Zupan', email: 'davor.zupan@kbc-split.hr', phone: '+385 91 888 9999', institution: 'KBC Split', position: 'Neurologist', dietary: null, status: 'confirmed' },
-            { first_name: 'Maja', last_name: 'Tomic', email: 'maja.tomic@gmail.com', phone: '+385 98 123 4567', institution: 'Freelance Consultant', position: 'Healthcare Consultant', dietary: null, status: 'cancelled' }
-        ];
-
-        zagrebRegistrations.forEach(r => {
-            db.run(`INSERT INTO bridges_registrations (id, event_id, first_name, last_name, email, phone, institution, position, dietary_requirements, status, confirmation_sent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [uuidv4(), eventIds['Zagreb'], r.first_name, r.last_name, r.email, r.phone, r.institution, r.position, r.dietary, r.status, r.status === 'confirmed' ? 1 : 0]);
+            db.run(`INSERT INTO bridges_events (id, name, city, venue_name, venue_address, event_date, event_time, end_time, description, capacity, registration_deadline, contact_email, status, is_published) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [id, e.name, e.city, e.venue_name, e.venue_address, e.event_date, e.event_time, e.end_time, e.description, e.capacity, e.registration_deadline, e.contact_email, e.status, e.is_published]);
         });
 
         saveDb();
         console.log('Building Bridges events seeded');
+    }
+
+    // ========================================
+    // MIGRATE: Replace Croatian placeholder Bridges events with real events
+    // ========================================
+    const placeholderCities = ['Zagreb', 'Split', 'Rijeka', 'Osijek'];
+    const hasPlaceholders = query.get(
+        `SELECT id FROM bridges_events WHERE city IN (${placeholderCities.map(() => '?').join(',')})`,
+        placeholderCities
+    );
+    if (hasPlaceholders) {
+        // Remove fake registrations tied to placeholder events
+        db.run(`DELETE FROM bridges_registrations WHERE event_id IN (SELECT id FROM bridges_events WHERE city IN (${placeholderCities.map(() => '?').join(',')}))`, placeholderCities);
+        // Remove the placeholder events
+        db.run(`DELETE FROM bridges_events WHERE city IN (${placeholderCities.map(() => '?').join(',')})`, placeholderCities);
+
+        // Insert the correct events
+        const realEvents = [
+            { name: 'Building Bridges: Zurich Symposium', city: 'Zurich', venue_name: 'ETH Zentrum', venue_address: 'Rämistrasse 101, 8092 Zürich, Switzerland', event_date: '2026-03-15', event_time: '09:00', end_time: '17:00', description: 'An intimate symposium at ETH Zurich bringing together Croatian diaspora scientists in Switzerland with leading European researchers. Focus on neuroscience, bioengineering, and translational medicine.', capacity: 80, registration_deadline: '2026-03-08', contact_email: 'bridges@medx.hr', status: 'upcoming', is_published: 1 },
+            { name: 'Building Bridges: Washington DC', city: 'Washington DC', venue_name: 'NIH Campus', venue_address: '9000 Rockville Pike, Bethesda, MD 20892, USA', event_date: '2026-04-18', event_time: '09:00', end_time: '17:00', description: 'A flagship event on the NIH campus connecting Croatian-American biomedical researchers with NIH leadership and policy makers. Sessions on global health collaboration and funding opportunities.', capacity: 100, registration_deadline: '2026-04-10', contact_email: 'bridges@medx.hr', status: 'upcoming', is_published: 1 },
+            { name: 'Building Bridges: Boston Symposium', city: 'Boston', venue_name: 'Harvard Faculty Club', venue_address: '20 Quincy St, Cambridge, MA 02138, USA', event_date: '2026-09-20', event_time: '09:00', end_time: '17:00', description: 'A symposium at Harvard bringing together Croatian researchers in the Boston/Cambridge biomedical ecosystem. Topics include sleep science, oncology, and AI in medicine.', capacity: 80, registration_deadline: '2026-09-12', contact_email: 'bridges@medx.hr', status: 'upcoming', is_published: 1 }
+        ];
+        realEvents.forEach(e => {
+            db.run(`INSERT INTO bridges_events (id, name, city, venue_name, venue_address, event_date, event_time, end_time, description, capacity, registration_deadline, contact_email, status, is_published) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [uuidv4(), e.name, e.city, e.venue_name, e.venue_address, e.event_date, e.event_time, e.end_time, e.description, e.capacity, e.registration_deadline, e.contact_email, e.status, e.is_published]);
+        });
+
+        saveDb();
+        console.log('Migrated: Replaced Croatian placeholder Bridges events with real events (Zurich, Washington DC, Boston)');
     }
 
     // ========================================
