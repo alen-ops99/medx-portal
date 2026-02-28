@@ -11148,7 +11148,7 @@ President, Med&amp;X</textarea>
     <div id="networkOverlay" onclick="NetworkApp.closePanel()" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: none;"></div>
 
     <!-- Network Contact Modal -->
-    <div class="modal-overlay" id="networkContactModal">
+    <div class="modal-overlay" id="networkContactModal" style="z-index: 1100;">
         <div class="modal" style="max-width: 550px;">
             <div class="modal-header">
                 <h3 id="networkContactModalTitle">Add Contact</h3>
@@ -11158,60 +11158,60 @@ President, Med&amp;X</textarea>
                 <input type="hidden" id="networkContactId">
                 <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                     <div class="form-group">
-                        <label>First Name *</label>
-                        <input type="text" id="networkFirstName" required>
+                        <label class="form-label">First Name *</label>
+                        <input type="text" class="form-input" id="networkFirstName" required>
                     </div>
                     <div class="form-group">
-                        <label>Last Name *</label>
-                        <input type="text" id="networkLastName" required>
-                    </div>
-                </div>
-                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div class="form-group">
-                        <label>Organization</label>
-                        <input type="text" id="networkOrg">
-                    </div>
-                    <div class="form-group">
-                        <label>Position</label>
-                        <input type="text" id="networkPosition">
+                        <label class="form-label">Last Name *</label>
+                        <input type="text" class="form-input" id="networkLastName" required>
                     </div>
                 </div>
                 <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                     <div class="form-group">
-                        <label>Email</label>
-                        <input type="email" id="networkEmail">
+                        <label class="form-label">Organization</label>
+                        <input type="text" class="form-input" id="networkOrg">
                     </div>
                     <div class="form-group">
-                        <label>Phone</label>
-                        <input type="tel" id="networkPhone">
+                        <label class="form-label">Position</label>
+                        <input type="text" class="form-input" id="networkPosition">
                     </div>
                 </div>
                 <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                     <div class="form-group">
-                        <label>City</label>
-                        <input type="text" id="networkCity">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-input" id="networkEmail">
                     </div>
                     <div class="form-group">
-                        <label>Country</label>
-                        <input type="text" id="networkCountry">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" class="form-input" id="networkPhone">
+                    </div>
+                </div>
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">City</label>
+                        <input type="text" class="form-input" id="networkCity">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Country</label>
+                        <input type="text" class="form-input" id="networkCountry">
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Projects (for which projects is this contact relevant?)</label>
+                    <label class="form-label">Projects (for which projects is this contact relevant?)</label>
                     <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
-                        <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;"><input type="checkbox" id="networkProjPlexus" value="plexus"> Plexus</label>
-                        <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;"><input type="checkbox" id="networkProjAccelerator" value="accelerator"> Accelerator</label>
-                        <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;"><input type="checkbox" id="networkProjForum" value="forum"> Forum</label>
-                        <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;"><input type="checkbox" id="networkProjBridges" value="bridges"> Bridges</label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 14px; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 20px; font-size: 13px; color: var(--text-secondary); transition: all 0.2s ease;" onmouseover="this.style.borderColor='var(--accent-gold)';this.style.color='var(--text-primary)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'"><input type="checkbox" id="networkProjPlexus" value="plexus"> Plexus</label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 14px; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 20px; font-size: 13px; color: var(--text-secondary); transition: all 0.2s ease;" onmouseover="this.style.borderColor='var(--accent-gold)';this.style.color='var(--text-primary)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'"><input type="checkbox" id="networkProjAccelerator" value="accelerator"> Accelerator</label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 14px; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 20px; font-size: 13px; color: var(--text-secondary); transition: all 0.2s ease;" onmouseover="this.style.borderColor='var(--accent-gold)';this.style.color='var(--text-primary)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'"><input type="checkbox" id="networkProjForum" value="forum"> Forum</label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 14px; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 20px; font-size: 13px; color: var(--text-secondary); transition: all 0.2s ease;" onmouseover="this.style.borderColor='var(--accent-gold)';this.style.color='var(--text-primary)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'"><input type="checkbox" id="networkProjBridges" value="bridges"> Bridges</label>
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Tags (comma separated)</label>
-                    <input type="text" id="networkTags" placeholder="e.g., speaker, sponsor, mentor">
+                    <label class="form-label">Tags (comma separated)</label>
+                    <input type="text" class="form-input" id="networkTags" placeholder="e.g., speaker, sponsor, mentor">
                 </div>
                 <div class="form-group">
-                    <label>Notes / Action Items</label>
-                    <textarea id="networkNotes" rows="3" placeholder="What do you need to contact them about?"></textarea>
+                    <label class="form-label">Notes / Action Items</label>
+                    <textarea class="form-input" id="networkNotes" rows="3" placeholder="What do you need to contact them about?"></textarea>
                 </div>
             </div>
             <div class="modal-footer">
@@ -11604,18 +11604,27 @@ President, Med&amp;X</textarea>
                     this.token = savedToken;
                     this.user = JSON.parse(savedUser);
 
-                    // Validate token against server before showing app
-                    fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${savedToken}` } })
-                        .then(res => {
-                            if (!res.ok) {
-                                localStorage.removeItem('medx_token');
-                                localStorage.removeItem('medx_user');
-                                App.token = null;
-                                App.user = null;
-                                App.showLogin();
-                            }
-                        })
-                        .catch(() => { /* network error - don't clear token, might be offline */ });
+                    // Validate token and admin status against server before showing app
+                    try {
+                        const meRes = await fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${savedToken}` } });
+                        if (!meRes.ok) {
+                            throw new Error('Token invalid');
+                        }
+                        const meData = await meRes.json();
+                        if (!meData.is_admin) {
+                            throw new Error('Not admin');
+                        }
+                    } catch (e) {
+                        localStorage.removeItem('medx_token');
+                        localStorage.removeItem('medx_user');
+                        this.token = null;
+                        this.user = null;
+                        if (e.message === 'Not admin') {
+                            alert('Access denied. Admin privileges required.');
+                        }
+                        this.showLogin();
+                        return;
+                    }
 
                     await this.showApp();
                 } else {
@@ -11744,13 +11753,21 @@ President, Med&amp;X</textarea>
                     const data = await res.json();
 
                     if (data.success) {
+                        if (!data.user || !data.user.is_admin) {
+                            const errEl = document.getElementById('loginError');
+                            errEl.textContent = 'Access denied. Admin privileges required.';
+                            errEl.classList.add('show');
+                            return;
+                        }
                         this.token = data.token;
                         this.user = data.user;
                         localStorage.setItem('medx_token', data.token);
                         localStorage.setItem('medx_user', JSON.stringify(data.user));
                         await this.showApp();
                     } else {
-                        document.getElementById('loginError').classList.add('show');
+                        const errEl = document.getElementById('loginError');
+                        errEl.textContent = data.error || 'Invalid credentials';
+                        errEl.classList.add('show');
                     }
                 } catch (err) {
                     console.error('Login error:', err);
@@ -19597,7 +19614,47 @@ President, Med&amp;X</textarea>
             },
 
             openMediaUpload() {
-                alert('Media upload coming soon. For now, contact an admin to upload photos.');
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.onchange = async () => {
+                    const file = input.files[0];
+                    if (!file) return;
+
+                    const title = prompt('Photo title (optional):') || '';
+
+                    try {
+                        Toast.info('Uploading photo...');
+                        const formData = new FormData();
+                        formData.append('file', file);
+
+                        const uploadRes = await fetch('/api/upload/photos', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${this.token}` },
+                            body: formData
+                        });
+                        const uploadData = await uploadRes.json();
+                        if (!uploadData.success) throw new Error(uploadData.error || 'Upload failed');
+
+                        // Save media record to forum_media
+                        await this.api('/api/forum/media', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                file_url: uploadData.file_url,
+                                title: title,
+                                media_type: 'image',
+                                folder_id: this.fmCurrentFolder || null
+                            })
+                        });
+
+                        Toast.success('Photo uploaded successfully');
+                        await this.loadForumMedia();
+                    } catch (err) {
+                        console.error('Media upload error:', err);
+                        Toast.error(err.message || 'Failed to upload photo');
+                    }
+                };
+                input.click();
             },
 
             fmMembGroupBy: 'none',
