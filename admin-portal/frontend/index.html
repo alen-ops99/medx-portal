@@ -1285,6 +1285,21 @@
             display: block;
         }
 
+        /* Fix: sections that escaped <main> due to HTML nesting issues
+           need proper flex behavior when shown as direct .app children */
+        .app > .section.active {
+            flex: 1;
+            min-width: 0;
+            padding: 32px;
+            overflow-y: auto;
+            height: 100vh;
+        }
+
+        /* Hide main-wrapper when an external section is active */
+        .main-wrapper.hidden-for-section {
+            display: none !important;
+        }
+
         /* PR Tab panels */
         .pr-tab {
             display: none;
@@ -13663,7 +13678,19 @@ President, Med&amp;X</textarea>
                 document.title = `Med&X Admin — ${sectionNames[sectionId] || sectionId}`;
 
                 document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-                document.getElementById('section-' + sectionId).classList.add('active');
+                const sectionEl = document.getElementById('section-' + sectionId);
+                sectionEl.classList.add('active');
+
+                // Fix: hide main-wrapper when showing a section that escaped <main>
+                const mainWrapper = document.querySelector('.main-wrapper');
+                const mainEl = document.querySelector('main.main');
+                if (mainWrapper) {
+                    if (sectionEl.parentElement !== mainEl) {
+                        mainWrapper.classList.add('hidden-for-section');
+                    } else {
+                        mainWrapper.classList.remove('hidden-for-section');
+                    }
+                }
 
                 document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
                 if (navItem) navItem.classList.add('active');
@@ -13721,7 +13748,19 @@ President, Med&amp;X</textarea>
 
             showProject(projectId, navItem, skipHistory = false) {
                 document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-                document.getElementById('section-' + projectId).classList.add('active');
+                const sectionEl = document.getElementById('section-' + projectId);
+                sectionEl.classList.add('active');
+
+                // Fix: hide/show main-wrapper based on section DOM position
+                const mainWrapper = document.querySelector('.main-wrapper');
+                const mainEl = document.querySelector('main.main');
+                if (mainWrapper) {
+                    if (sectionEl.parentElement !== mainEl) {
+                        mainWrapper.classList.add('hidden-for-section');
+                    } else {
+                        mainWrapper.classList.remove('hidden-for-section');
+                    }
+                }
 
                 document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
                 document.querySelectorAll('.sidebar-project').forEach(n => n.classList.remove('active'));
