@@ -4719,35 +4719,16 @@
 
         /* Logo */
         .splash-entry-logo {
-            font-size: 56px;
-            font-weight: 800;
-            color: #ffffff;
             margin: 0 0 8px 0;
-            letter-spacing: -2px;
             animation: splashFadeUp 0.7s ease forwards;
             opacity: 0;
             transform: translateY(16px);
         }
 
-        .splash-entry-logo .splash-amp {
-            color: #c41e3a;
-        }
-
-        .splash-entry-logo .splash-x {
-            color: #C9A962;
-        }
-
-        /* Tagline */
-        .splash-entry-tagline {
-            font-size: 15px;
-            font-weight: 500;
-            color: rgba(255, 255, 255, 0.4);
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            margin: 0 0 12px 0;
-            animation: splashFadeUp 0.7s ease 0.1s forwards;
-            opacity: 0;
-            transform: translateY(16px);
+        .splash-entry-logo img {
+            height: 64px;
+            width: auto;
+            filter: brightness(0) invert(1);
         }
 
         .splash-entry-subtitle {
@@ -4853,11 +4834,12 @@
         .splash-entry-footer {
             position: absolute;
             bottom: 32px;
-            left: 50%;
-            transform: translateX(-50%);
+            left: 0;
+            right: 0;
             z-index: 1;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
             color: rgba(255, 255, 255, 0.2);
             font-size: 12px;
@@ -4881,8 +4863,8 @@
 
         /* Splash responsive */
         @media (max-width: 480px) {
-            .splash-entry-logo {
-                font-size: 42px;
+            .splash-entry-logo img {
+                height: 48px;
             }
             .splash-entry-subtitle {
                 font-size: 17px;
@@ -55548,17 +55530,16 @@ textarea:focus:not(:focus-visible),
             <div class="splash-entry-orb splash-entry-orb-3"></div>
 
             <div class="splash-entry-content">
-                <p class="splash-entry-tagline">Member Portal</p>
-                <h1 class="splash-entry-logo">med<span class="splash-amp">&amp;</span><span class="splash-x">X</span></h1>
+                <div class="splash-entry-logo"><img src="assets/images/medx-logo.png" alt="Med&amp;X"></div>
                 <p class="splash-entry-subtitle">Where Medicine Meets Innovation</p>
                 <div class="splash-entry-divider"></div>
                 <p class="splash-entry-description">Access conferences, applications, networking, and your personalized Med&amp;X experience</p>
                 <div class="splash-entry-actions">
-                    <button class="splash-btn-primary" onclick="UserPortal.openPortalModal()">
+                    <button class="splash-btn-primary" onclick="UserPortal.openLoginModal()">
                         Get Started <i class="fas fa-arrow-right"></i>
                     </button>
-                    <button class="splash-btn-secondary" onclick="UserPortal.openLoginModal()">
-                        <i class="fas fa-sign-in-alt"></i> Sign In
+                    <button class="splash-btn-secondary" onclick="UserPortal.openRegisterModal()">
+                        <i class="fas fa-user-plus"></i> Create Account
                     </button>
                 </div>
             </div>
