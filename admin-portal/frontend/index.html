@@ -6207,6 +6207,14 @@
                     <span>Gala Evening</span>
                     <span id="galaPendingCount" style="background: #f59e0b; color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
                 </a>
+
+                <div class="nav-divider"></div>
+                <div class="nav-label">System</div>
+
+                <a class="nav-item" data-section="tech" onclick="App.showSection('tech', this)">
+                    <i class="fas fa-server" style="color: #8b5cf6;"></i>
+                    <span>Tech</span>
+                </a>
             </nav>
 
             <!-- My Network Button -->
@@ -9840,6 +9848,99 @@ President, Med&amp;X</textarea>
                     </div>
                 </div>
 
+                <!-- TECH DASHBOARD -->
+                <div class="section" id="section-tech">
+                    <div class="back-link" onclick="App.showSection('dashboard')">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </div>
+
+                    <!-- Password Gate Modal -->
+                    <div id="techPasswordGate" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; align-items: center; justify-content: center;">
+                        <div style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 16px; padding: 40px; width: 380px; text-align: center;">
+                            <i class="fas fa-lock" style="font-size: 36px; color: #8b5cf6; margin-bottom: 16px;"></i>
+                            <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 8px; color: var(--text-primary);">Tech Dashboard</h2>
+                            <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 24px;">Enter the tech password to continue</p>
+                            <input type="password" id="techPasswordInput" class="form-input" placeholder="Password" style="text-align: center; font-size: 16px; margin-bottom: 16px;" onkeydown="if(event.key==='Enter') TechApp.verifyPassword()">
+                            <div id="techPasswordError" style="color: #ef4444; font-size: 13px; margin-bottom: 12px; display: none;">Incorrect password</div>
+                            <button class="btn btn-primary" onclick="TechApp.verifyPassword()" style="width: 100%; padding: 12px;">
+                                <i class="fas fa-unlock"></i> Unlock
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Dashboard Content (hidden until authenticated) -->
+                    <div id="techContent" style="display: none;">
+                        <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h1 style="font-size: 28px; font-weight: 700; margin-bottom: 4px;">
+                                    <i class="fas fa-server" style="color: #8b5cf6; margin-right: 12px;"></i>
+                                    Tech Dashboard
+                                </h1>
+                                <p style="color: var(--text-muted);">System overview, database browser, and quick actions</p>
+                            </div>
+                        </div>
+
+                        <!-- Tabs -->
+                        <div style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+                            <button class="btn btn-primary" id="techTabOverview" onclick="TechApp.showTab('overview')" style="font-size: 13px;">
+                                <i class="fas fa-chart-bar"></i> System Overview
+                            </button>
+                            <button class="btn btn-secondary" id="techTabDatabase" onclick="TechApp.showTab('database')" style="font-size: 13px;">
+                                <i class="fas fa-database"></i> Database Browser
+                            </button>
+                            <button class="btn btn-secondary" id="techTabFilemap" onclick="TechApp.showTab('filemap')" style="font-size: 13px;">
+                                <i class="fas fa-sitemap"></i> Project File Map
+                            </button>
+                            <button class="btn btn-secondary" id="techTabActions" onclick="TechApp.showTab('actions')" style="font-size: 13px;">
+                                <i class="fas fa-bolt"></i> Quick Actions
+                            </button>
+                        </div>
+
+                        <!-- Tab: System Overview -->
+                        <div class="tech-tab active" id="tech-tab-overview">
+                            <div id="techSystemInfo" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px;">
+                                <div style="text-align: center; padding: 40px; color: var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading system info...</div>
+                            </div>
+                        </div>
+
+                        <!-- Tab: Database Browser -->
+                        <div class="tech-tab" id="tech-tab-database" style="display: none;">
+                            <div style="display: flex; gap: 16px; min-height: 500px;">
+                                <!-- Table list sidebar -->
+                                <div style="width: 240px; flex-shrink: 0;">
+                                    <div class="card" style="position: sticky; top: 20px;">
+                                        <div class="card-header" style="padding: 12px 16px; border-bottom: 1px solid var(--border);">
+                                            <span style="font-weight: 600; font-size: 13px;">Tables</span>
+                                        </div>
+                                        <div id="techTableList" style="max-height: 500px; overflow-y: auto;">
+                                            <div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;"><i class="fas fa-spinner fa-spin"></i></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Table data area -->
+                                <div style="flex: 1; min-width: 0;">
+                                    <div id="techTableData" class="card" style="padding: 20px;">
+                                        <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+                                            <i class="fas fa-table" style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;"></i>
+                                            <p>Select a table from the sidebar to browse its data</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tab: Project File Map -->
+                        <div class="tech-tab" id="tech-tab-filemap" style="display: none;">
+                            <div id="techFilemap"></div>
+                        </div>
+
+                        <!-- Tab: Quick Actions -->
+                        <div class="tech-tab" id="tech-tab-actions" style="display: none;">
+                            <div id="techActions"></div>
+                        </div>
+                    </div>
+                </div>
+
             </main>
 
             <!-- Chat Panel -->
@@ -11370,6 +11471,11 @@ President, Med&amp;X</textarea>
     </div>
 
     <script>
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+
         const Toast = {
             show(message, type = 'info', duration = 3500) {
                 const container = document.getElementById('toastContainer');
@@ -11377,7 +11483,7 @@ President, Med&amp;X</textarea>
                 const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
                 const toast = document.createElement('div');
                 toast.className = `toast ${type}`;
-                toast.innerHTML = `<i class="fas ${icons[type] || icons.info}"></i><span>${message}</span><button class="toast-close" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>`;
+                toast.innerHTML = `<i class="fas ${icons[type] || icons.info}"></i><span>${escapeHtml(message)}</span><button class="toast-close" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>`;
                 container.appendChild(toast);
                 setTimeout(() => {
                     toast.classList.add('removing');
@@ -11497,6 +11603,20 @@ President, Med&amp;X</textarea>
                 if (savedToken && savedUser) {
                     this.token = savedToken;
                     this.user = JSON.parse(savedUser);
+
+                    // Validate token against server before showing app
+                    fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${savedToken}` } })
+                        .then(res => {
+                            if (!res.ok) {
+                                localStorage.removeItem('medx_token');
+                                localStorage.removeItem('medx_user');
+                                App.token = null;
+                                App.user = null;
+                                App.showLogin();
+                            }
+                        })
+                        .catch(() => { /* network error - don't clear token, might be offline */ });
+
                     await this.showApp();
                 } else {
                     document.getElementById('loginPage').style.display = 'flex';
@@ -11737,7 +11857,18 @@ President, Med&amp;X</textarea>
             },
 
             initDashboardCharts() {
-                // Project Activity Bar Chart
+                // Use live data from loadDashboardSummary() if available, fall back to zeros
+                const s = this.summary || {};
+                const plexusReg = s.plexus?.registrations || 0;
+                const accReg = s.accelerator?.applications || 0;
+                const forumReg = s.forum?.members || 0;
+                const bridgesReg = s.bridges?.registrations || s.bridges?.cities || 0;
+                const plexusTasks = s.plexus?.pending_tasks || 0;
+                const accTasks = s.accelerator?.to_review || 0;
+                const forumTasks = s.forum?.pending_tasks || 0;
+                const bridgesTasks = s.bridges?.pending_tasks || 0;
+
+                // Project Activity Bar Chart — wired to live dashboard summary data
                 const projectCtx = document.getElementById('dashProjectChart');
                 if (projectCtx && typeof Chart !== 'undefined') {
                     if (window._dashProjectChart) window._dashProjectChart.destroy();
@@ -11747,13 +11878,13 @@ President, Med&amp;X</textarea>
                             labels: ['Plexus', 'Accelerator', 'Forum', 'Bridges'],
                             datasets: [{
                                 label: 'Registrations',
-                                data: [147, 38, 89, 24],
+                                data: [plexusReg, accReg, forumReg, bridgesReg],
                                 backgroundColor: ['#a78bfa', '#22d3ee', '#fb923c', '#f472b6'],
                                 borderRadius: 8,
                                 borderSkipped: false
                             }, {
                                 label: 'Active Tasks',
-                                data: [23, 15, 8, 6],
+                                data: [plexusTasks, accTasks, forumTasks, bridgesTasks],
                                 backgroundColor: ['rgba(167,139,250,0.3)', 'rgba(34,211,238,0.3)', 'rgba(251,146,60,0.3)', 'rgba(244,114,182,0.3)'],
                                 borderRadius: 8,
                                 borderSkipped: false
@@ -11782,6 +11913,10 @@ President, Med&amp;X</textarea>
                 }
 
                 // Registration Trends Line Chart
+                // TODO: Wire to a /api/dashboard/trends endpoint that returns monthly registration
+                // data per project. Currently only the final month uses live totals from the summary
+                // endpoint; earlier months show 0. Once a trends API exists, replace the data arrays
+                // with the response (e.g. summary.plexus.monthly_registrations).
                 const trendCtx = document.getElementById('dashTrendChart');
                 if (trendCtx && typeof Chart !== 'undefined') {
                     if (window._dashTrendChart) window._dashTrendChart.destroy();
@@ -11791,7 +11926,7 @@ President, Med&amp;X</textarea>
                             labels: ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb'],
                             datasets: [{
                                 label: 'Plexus Registrations',
-                                data: [12, 28, 56, 89, 124, 147],
+                                data: [0, 0, 0, 0, 0, plexusReg],
                                 borderColor: '#a78bfa',
                                 backgroundColor: 'rgba(167,139,250,0.1)',
                                 fill: true,
@@ -11800,7 +11935,7 @@ President, Med&amp;X</textarea>
                                 pointBackgroundColor: '#a78bfa'
                             }, {
                                 label: 'Accelerator Applications',
-                                data: [0, 0, 5, 12, 28, 38],
+                                data: [0, 0, 0, 0, 0, accReg],
                                 borderColor: '#22d3ee',
                                 backgroundColor: 'rgba(34,211,238,0.1)',
                                 fill: true,
@@ -12054,7 +12189,7 @@ President, Med&amp;X</textarea>
                     await this.api('/api/auth/profile', { method: 'PUT', body: JSON.stringify(data) });
                     // Update local user object & sidebar
                     Object.assign(this.user, data);
-                    localStorage.setItem('user', JSON.stringify(this.user));
+                    localStorage.setItem('medx_user', JSON.stringify(this.user));
                     const initials = (data.first_name?.[0] || '') + (data.last_name?.[0] || '');
                     document.getElementById('userAvatar').textContent = initials || 'U';
                     document.getElementById('userName').textContent = `${data.first_name} ${data.last_name}`.trim() || this.user.email;
@@ -12343,14 +12478,14 @@ President, Med&amp;X</textarea>
                     const initials = msg.sender_name ? msg.sender_name.split(' ').map(n => n[0]).join('') : '?';
                     const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                     const msgText = this.escapeHtml(msg.message);
-                    const senderName = msg.sender_name || 'Unknown';
+                    const senderName = escapeHtml(msg.sender_name || 'Unknown');
 
                     // Reply reference
                     let replyHtml = '';
                     if (msg.reply_to && msg.reply_message) {
                         replyHtml = `
                             <div class="chat-message-reply-ref">
-                                <strong>${msg.reply_sender_name || 'Someone'}</strong>: ${this.escapeHtml(msg.reply_message).substring(0, 40)}${msg.reply_message.length > 40 ? '...' : ''}
+                                <strong>${escapeHtml(msg.reply_sender_name || 'Someone')}</strong>: ${this.escapeHtml(msg.reply_message).substring(0, 40)}${msg.reply_message.length > 40 ? '...' : ''}
                             </div>
                         `;
                     }
@@ -12358,34 +12493,36 @@ President, Med&amp;X</textarea>
                     // File attachment
                     let fileHtml = '';
                     if (msg.file_url) {
+                        const safeFileUrl = (msg.file_url && (msg.file_url.startsWith('/') || msg.file_url.startsWith('http'))) ? escapeHtml(msg.file_url) : '';
+                        const safeFileName = escapeHtml(msg.file_name || 'file');
                         if (msg.file_type === 'image') {
-                            fileHtml = `
+                            fileHtml = safeFileUrl ? `
                                 <div class="chat-file">
-                                    <img src="${msg.file_url}" alt="${msg.file_name || 'Image'}" class="chat-file-image" onclick="window.open('${msg.file_url}', '_blank')">
+                                    <img src="${safeFileUrl}" alt="${safeFileName || 'Image'}" class="chat-file-image" onclick="window.open('${safeFileUrl}', '_blank')">
                                 </div>
-                            `;
+                            ` : '';
                         } else {
-                            fileHtml = `
+                            fileHtml = safeFileUrl ? `
                                 <div class="chat-file">
-                                    <a href="${msg.file_url}" target="_blank" class="chat-file-attachment" download="${msg.file_name || 'file'}">
+                                    <a href="${safeFileUrl}" target="_blank" class="chat-file-attachment" download="${safeFileName}">
                                         <i class="fas fa-file"></i>
-                                        <span>${msg.file_name || 'Download file'}</span>
+                                        <span>${safeFileName || 'Download file'}</span>
                                     </a>
                                 </div>
-                            `;
+                            ` : '';
                         }
                     }
 
                     return `
-                        <div class="chat-message" id="msg-${msg.id}">
+                        <div class="chat-message" id="msg-${escapeHtml(msg.id)}">
                             <div class="chat-message-actions">
-                                <button class="chat-reply-btn" onclick="App.setReplyTo('${msg.id}', '${senderName}', '${msgText.replace(/'/g, "\\'")}')">
+                                <button class="chat-reply-btn" onclick="App.setReplyTo('${escapeHtml(msg.id)}', '${senderName.replace(/'/g, "\\'")}', '${msgText.replace(/'/g, "\\'")}')">
                                     <i class="fas fa-reply"></i> Reply
                                 </button>
                             </div>
                             <div class="chat-message-header">
-                                <div class="chat-avatar" style="background: ${msg.avatar_color || 'var(--accent-gold)'}; color: var(--bg-primary);">
-                                    ${initials}
+                                <div class="chat-avatar" style="background: ${escapeHtml(msg.avatar_color || 'var(--accent-gold)')}; color: var(--bg-primary);">
+                                    ${escapeHtml(initials)}
                                 </div>
                                 <span class="chat-sender">${senderName}</span>
                                 <span class="chat-time">${time}</span>
@@ -13441,9 +13578,9 @@ President, Med&amp;X</textarea>
                         return `
                             <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 8px;">
                                 <div>
-                                    <strong>${o.order_number}</strong> - ${o.destination}
-                                    <div style="font-size: 12px; color: var(--text-muted);">${o.planned_departure || 'TBD'} - ${o.planned_return || 'TBD'}</div>
-                                    ${o.rejection_reason ? `<div style="font-size: 12px; color: var(--danger);"><i class="fas fa-exclamation-circle"></i> ${o.rejection_reason}</div>` : ''}
+                                    <strong>${escapeHtml(o.order_number)}</strong> - ${escapeHtml(o.destination)}
+                                    <div style="font-size: 12px; color: var(--text-muted);">${escapeHtml(o.planned_departure || 'TBD')} - ${escapeHtml(o.planned_return || 'TBD')}</div>
+                                    ${o.rejection_reason ? `<div style="font-size: 12px; color: var(--danger);"><i class="fas fa-exclamation-circle"></i> ${escapeHtml(o.rejection_reason)}</div>` : ''}
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 12px;">
                                     <span style="background: ${statusClass}; color: ${statusColor}; padding: 2px 8px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">${o.status}</span>
@@ -13683,6 +13820,7 @@ President, Med&amp;X</textarea>
                     'portal-content': 'Portal Content',
                     'messages': 'Messages',
                     'gala': 'Gala Evening',
+                    'tech': 'Tech Dashboard',
                     'settings': 'Settings'
                 };
                 document.title = `Med&X Admin — ${sectionNames[sectionId] || sectionId}`;
@@ -13744,6 +13882,10 @@ President, Med&amp;X</textarea>
                     this.currentView = 'gala';
                     this.switchChatPanel('team');
                     GalaAdmin.init();
+                } else if (sectionId === 'tech') {
+                    this.currentView = 'tech';
+                    this.switchChatPanel('team');
+                    TechApp.init();
                 } else {
                     // Switch chat panel to team chat mode
                     this.currentView = 'dashboard';
@@ -15708,10 +15850,10 @@ President, Med&amp;X</textarea>
                     return `
                         <div class="chat-message">
                             <div class="chat-message-header">
-                                <div class="chat-avatar" style="background: ${msg.avatar_color || 'var(--accent-gold)'}; color: var(--bg-primary); width: 24px; height: 24px; font-size: 10px;">
-                                    ${initials}
+                                <div class="chat-avatar" style="background: ${escapeHtml(msg.avatar_color || 'var(--accent-gold)')}; color: var(--bg-primary); width: 24px; height: 24px; font-size: 10px;">
+                                    ${escapeHtml(initials)}
                                 </div>
-                                <span class="chat-sender" style="font-size: 12px;">${msg.sender_name || 'Unknown'}</span>
+                                <span class="chat-sender" style="font-size: 12px;">${escapeHtml(msg.sender_name || 'Unknown')}</span>
                                 <span class="chat-time" style="font-size: 10px;">${time}</span>
                             </div>
                             <div class="chat-text" style="font-size: 13px;">${this.escapeHtml(msg.message)}</div>
@@ -17215,7 +17357,7 @@ President, Med&amp;X</textarea>
                 formData.append('file', file);
                 formData.append('year', year);
                 try {
-                    const token = localStorage.getItem('token');
+                    const token = App.token;
                     const res = await fetch('/api/admin/plexus/speakers/import', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
                     const result = await res.json();
                     if (!res.ok) throw new Error(result.error || 'Import failed');
@@ -17883,7 +18025,7 @@ President, Med&amp;X</textarea>
                         const qi = result.qr_info; // Rich QR data (v2)
                         const name = a.first_name ? `${a.first_name} ${a.last_name || ''}`.trim() : (qi?.name || a.name || a.email || 'Unknown');
                         const ticketType = a.ticket_name || qi?.ticket_type || '';
-                        const eventLabel = result.event ? ` (${result.event.charAt(0).toUpperCase() + result.event.slice(1)})` : (qi?.event ? ` (${qi.event})` : '');
+                        const eventLabel = result.event ? ` (${escapeHtml(result.event.charAt(0).toUpperCase() + result.event.slice(1))})` : (qi?.event ? ` (${escapeHtml(qi.event)})` : '');
                         const detailParts = [a.email || '', ticketType].filter(Boolean);
 
                         if (result.already_checked_in) {
@@ -17907,7 +18049,7 @@ President, Med&amp;X</textarea>
                         if (eventType === 'plexus') this.loadPlexusCheckinStats();
                     } else {
                         resultDiv.className = 'checkin-result error';
-                        resultDiv.innerHTML = `<i class="fas fa-times-circle"></i> ${result.error || 'Not found'}`;
+                        resultDiv.innerHTML = `<i class="fas fa-times-circle"></i> ${escapeHtml(result.error || 'Not found')}`;
                     }
                 } catch (err) {
                     if (resultDiv) {
@@ -18316,7 +18458,7 @@ President, Med&amp;X</textarea>
                         }, 4000);
                     } else {
                         resultDiv.className = 'checkin-result error';
-                        resultDiv.innerHTML = `<i class="fas fa-times-circle"></i> ${result.error || 'Not found'}`;
+                        resultDiv.innerHTML = `<i class="fas fa-times-circle"></i> ${escapeHtml(result.error || 'Not found')}`;
                     }
                 } catch (err) {
                     // Network error — queue for offline retry
@@ -18652,12 +18794,12 @@ President, Med&amp;X</textarea>
                 document.getElementById('fmMemberModalBody').innerHTML = `
                     <div style="display: flex; flex-direction: column; gap: 12px;">
                         <div style="display: grid; grid-template-columns: 100px 1fr; gap: 8px; font-size: 14px;">
-                            <span style="color: var(--text-secondary);">Email</span><span>${member.email || 'N/A'}</span>
-                            <span style="color: var(--text-secondary);">Specialty</span><span>${member.specialty || 'N/A'}</span>
-                            <span style="color: var(--text-secondary);">Institution</span><span>${member.institution || 'N/A'}</span>
-                            <span style="color: var(--text-secondary);">Country</span><span>${member.country || 'N/A'}</span>
+                            <span style="color: var(--text-secondary);">Email</span><span>${escapeHtml(member.email || 'N/A')}</span>
+                            <span style="color: var(--text-secondary);">Specialty</span><span>${escapeHtml(member.specialty || 'N/A')}</span>
+                            <span style="color: var(--text-secondary);">Institution</span><span>${escapeHtml(member.institution || 'N/A')}</span>
+                            <span style="color: var(--text-secondary);">Country</span><span>${escapeHtml(member.country || 'N/A')}</span>
                         </div>
-                        ${member.bio ? `<div style="padding: 12px; background: var(--bg-tertiary); border-radius: 8px; font-size: 13px; color: var(--text-secondary); line-height: 1.6;">${member.bio}</div>` : ''}
+                        ${member.bio ? `<div style="padding: 12px; background: var(--bg-tertiary); border-radius: 8px; font-size: 13px; color: var(--text-secondary); line-height: 1.6;">${escapeHtml(member.bio)}</div>` : ''}
                     </div>
                 `;
                 document.getElementById('fmMemberModalFooter').innerHTML = `
@@ -18683,9 +18825,8 @@ President, Med&amp;X</textarea>
                     this.forumMembers = this.forumMembers.filter(m => m.id !== id);
                     this.filterForumMembers();
                 } catch (err) {
-                    // If API fails, still remove from local state for demo
-                    this.forumMembers = this.forumMembers.filter(m => m.id !== id);
-                    this.filterForumMembers();
+                    console.error('Failed to remove forum member:', err);
+                    App.showToast('Failed to remove member. Please try again.', 'error');
                 }
             },
 
@@ -18716,7 +18857,7 @@ President, Med&amp;X</textarea>
                             </div>
                             <div>
                                 <div style="font-weight: 600;">${this.escapeHtml(p.first_name || '')} ${this.escapeHtml(p.last_name || '')}</div>
-                                <div style="font-size: 11px; color: var(--text-muted);">${p.specialty || ''} ${p.institution ? '· ' + p.institution : ''}</div>
+                                <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(p.specialty || '')} ${p.institution ? '· ' + escapeHtml(p.institution) : ''}</div>
                             </div>
                             <div style="margin-left: auto; font-size: 11px; color: var(--text-muted);">
                                 ${new Date(p.created_at).toLocaleDateString()}
@@ -20219,22 +20360,22 @@ President, Med&amp;X</textarea>
                         ${inst.program_type}
                     </span>` : '';
 
-                document.getElementById('accInstModalTitle').innerHTML = `${inst.name} ${programBadge}`;
+                document.getElementById('accInstModalTitle').innerHTML = `${escapeHtml(inst.name)} ${programBadge}`;
                 document.getElementById('accInstModalBody').innerHTML = `
                     <div style="display: flex; flex-direction: column; gap: 20px;">
                         <!-- Basic Info -->
                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
                             <div style="text-align: center;">
-                                <div style="font-size: 24px; font-weight: 700; color: var(--accent-primary);">${inst.available_spots || '-'}</div>
+                                <div style="font-size: 24px; font-weight: 700; color: var(--accent-primary);">${escapeHtml(inst.available_spots || '-')}</div>
                                 <div style="font-size: 12px; color: var(--text-muted);">Student Spots</div>
                             </div>
                             <div style="text-align: center;">
-                                <div style="font-size: 24px; font-weight: 700; color: var(--accent-gold);">${inst.internship_duration || '-'}</div>
+                                <div style="font-size: 24px; font-weight: 700; color: var(--accent-gold);">${escapeHtml(inst.internship_duration || '-')}</div>
                                 <div style="font-size: 12px; color: var(--text-muted);">Program Duration</div>
                             </div>
                             <div style="text-align: center;">
-                                <div style="font-size: 14px; font-weight: 600;">${inst.city || '-'}</div>
-                                <div style="font-size: 12px; color: var(--text-muted);">${inst.country || '-'}</div>
+                                <div style="font-size: 14px; font-weight: 600;">${escapeHtml(inst.city || '-')}</div>
+                                <div style="font-size: 12px; color: var(--text-muted);">${escapeHtml(inst.country || '-')}</div>
                             </div>
                         </div>
 
@@ -20243,7 +20384,7 @@ President, Med&amp;X</textarea>
                             <h4 style="margin: 0 0 8px 0; font-size: 14px; display: flex; align-items: center; gap: 8px;">
                                 <i class="fas fa-user-tie" style="color: var(--accent-primary);"></i> Mentors
                             </h4>
-                            <p style="margin: 0; font-size: 13px; line-height: 1.6; white-space: pre-line;">${inst.mentors || 'Mentor information not yet available.'}</p>
+                            <p style="margin: 0; font-size: 13px; line-height: 1.6; white-space: pre-line;">${escapeHtml(inst.mentors || 'Mentor information not yet available.')}</p>
                         </div>
 
                         <!-- Visa Requirements -->
@@ -20251,7 +20392,7 @@ President, Med&amp;X</textarea>
                             <h4 style="margin: 0 0 8px 0; font-size: 14px; display: flex; align-items: center; gap: 8px;">
                                 <i class="fas fa-passport" style="color: #f59e0b;"></i> Visa Requirements
                             </h4>
-                            <p style="margin: 0; font-size: 13px; line-height: 1.6; white-space: pre-line;">${inst.visa_requirements || 'Visa requirements information not yet available.'}</p>
+                            <p style="margin: 0; font-size: 13px; line-height: 1.6; white-space: pre-line;">${escapeHtml(inst.visa_requirements || 'Visa requirements information not yet available.')}</p>
                         </div>
 
                         <!-- Accommodation & Stipend -->
@@ -20260,13 +20401,13 @@ President, Med&amp;X</textarea>
                                 <h4 style="margin: 0 0 8px 0; font-size: 14px; display: flex; align-items: center; gap: 8px;">
                                     <i class="fas fa-home" style="color: #22c55e;"></i> Accommodation
                                 </h4>
-                                <p style="margin: 0; font-size: 13px; line-height: 1.6; white-space: pre-line;">${inst.accommodation_info || 'Not specified'}</p>
+                                <p style="margin: 0; font-size: 13px; line-height: 1.6; white-space: pre-line;">${escapeHtml(inst.accommodation_info || 'Not specified')}</p>
                             </div>
                             <div style="padding: 16px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px;">
                                 <h4 style="margin: 0 0 8px 0; font-size: 14px; display: flex; align-items: center; gap: 8px;">
                                     <i class="fas fa-euro-sign" style="color: #6366f1;"></i> Stipend
                                 </h4>
-                                <p style="margin: 0; font-size: 13px; line-height: 1.6; white-space: pre-line;">${inst.stipend_info || 'Not specified'}</p>
+                                <p style="margin: 0; font-size: 13px; line-height: 1.6; white-space: pre-line;">${escapeHtml(inst.stipend_info || 'Not specified')}</p>
                             </div>
                         </div>
 
@@ -20276,9 +20417,9 @@ President, Med&amp;X</textarea>
                                 <i class="fas fa-address-card" style="color: var(--accent-primary);"></i> Kontakt
                             </h4>
                             <div style="font-size: 13px;">
-                                ${inst.contact_person ? `<div><strong>Osoba:</strong> ${inst.contact_person}</div>` : ''}
-                                ${inst.contact_email ? `<div><strong>Email:</strong> <a href="mailto:${inst.contact_email}">${inst.contact_email}</a></div>` : ''}
-                                ${inst.website_url ? `<div style="margin-top: 8px;"><a href="${inst.website_url}" target="_blank" class="btn btn-secondary" style="font-size: 12px;"><i class="fas fa-external-link-alt"></i> Posjeti web stranicu</a></div>` : ''}
+                                ${inst.contact_person ? `<div><strong>Osoba:</strong> ${escapeHtml(inst.contact_person)}</div>` : ''}
+                                ${inst.contact_email ? `<div><strong>Email:</strong> <a href="mailto:${escapeHtml(inst.contact_email)}">${escapeHtml(inst.contact_email)}</a></div>` : ''}
+                                ${inst.website_url && (inst.website_url.startsWith('http') || inst.website_url.startsWith('/')) ? `<div style="margin-top: 8px;"><a href="${escapeHtml(inst.website_url)}" target="_blank" class="btn btn-secondary" style="font-size: 12px;"><i class="fas fa-external-link-alt"></i> Posjeti web stranicu</a></div>` : ''}
                             </div>
                         </div>
 
@@ -20577,7 +20718,7 @@ President, Med&amp;X</textarea>
                         <button class="btn btn-secondary" style="padding: 4px 8px; margin: 2px;" onclick="AcceleratorApp.viewApplication('${app.id}')" title="View"><i class="fas fa-eye"></i></button>
                         <button class="btn btn-secondary" style="padding: 4px 8px; margin: 2px;" onclick="AcceleratorApp.messageCandidate('${app.id}')" title="Message"><i class="fas fa-envelope"></i></button>
                         <button class="btn btn-secondary" style="padding: 4px 8px; margin: 2px;" onclick="AcceleratorApp.setValidity('${app.id}')" title="Validity"><i class="fas fa-check-circle"></i></button>
-                        <button class="btn btn-secondary" style="padding: 4px 8px; margin: 2px;" onclick="AcceleratorApp.downloadDocs('${app.id}')" title="Download"><i class="fas fa-download"></i></button>
+                        <button class="btn btn-secondary" style="padding: 4px 8px; margin: 2px;" onclick="AcceleratorApp.downloadDocs('${escapeHtml(app.id)}')" title="Download"><i class="fas fa-download"></i></button>
                     </td>
                 </tr>`;
             },
@@ -20678,44 +20819,44 @@ President, Med&amp;X</textarea>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
                         <div>
                             <span style="color: var(--text-muted); font-size: 12px;">Candidate ID</span>
-                            <div style="font-size: 20px; font-weight: bold; color: var(--accent-color);">${app.candidate_id || '-'}</div>
+                            <div style="font-size: 20px; font-weight: bold; color: var(--accent-color);">${escapeHtml(app.candidate_id || '-')}</div>
                         </div>
                         <div style="text-align: right;">
                             <div>${validityBadge}</div>
-                            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Application: ${app.created_at?.split('T')[0] || '-'}</div>
+                            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Application: ${escapeHtml(app.created_at?.split('T')[0] || '-')}</div>
                         </div>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                         <div>
                             <h4 style="margin: 0 0 12px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Personal Information</h4>
-                            <p><strong>Full Name:</strong> ${app.first_name} ${app.last_name}</p>
-                            <p><strong>Email:</strong> ${app.email}</p>
-                            <p><strong>Phone:</strong> ${app.phone || '-'}</p>
-                            <p><strong>Date of Birth:</strong> ${app.date_of_birth || '-'}</p>
-                            <p><strong>Address:</strong> ${app.address || '-'}</p>
+                            <p><strong>Full Name:</strong> ${escapeHtml(app.first_name)} ${escapeHtml(app.last_name)}</p>
+                            <p><strong>Email:</strong> ${escapeHtml(app.email)}</p>
+                            <p><strong>Phone:</strong> ${escapeHtml(app.phone || '-')}</p>
+                            <p><strong>Date of Birth:</strong> ${escapeHtml(app.date_of_birth || '-')}</p>
+                            <p><strong>Address:</strong> ${escapeHtml(app.address || '-')}</p>
                         </div>
                         <div>
                             <h4 style="margin: 0 0 12px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Education</h4>
-                            <p><strong>Institution:</strong> ${app.current_institution || '-'}</p>
-                            <p><strong>Program:</strong> ${app.degree_program || '-'}</p>
-                            <p><strong>Year of Study:</strong> ${app.year_of_study || '-'}</p>
-                            <p><strong>GPA (GPA):</strong> ${app.gpa || '-'}</p>
+                            <p><strong>Institution:</strong> ${escapeHtml(app.current_institution || '-')}</p>
+                            <p><strong>Program:</strong> ${escapeHtml(app.degree_program || '-')}</p>
+                            <p><strong>Year of Study:</strong> ${escapeHtml(app.year_of_study || '-')}</p>
+                            <p><strong>GPA (GPA):</strong> ${escapeHtml(app.gpa || '-')}</p>
                         </div>
                     </div>
                     <div style="margin-top: 20px;">
                         <h4 style="margin: 0 0 12px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Program</h4>
                         <p><strong>Type:</strong> ${app.program_type === 'clinical' ? 'Clinical' : 'Scientific'}</p>
-                        <p><strong>Institution:</strong> ${instName}</p>
+                        <p><strong>Institution:</strong> ${escapeHtml(instName)}</p>
                     </div>
                     <div style="margin-top: 20px;">
                         <h4 style="margin: 0 0 12px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Additional Information</h4>
-                        <p><strong>Previous Experience:</strong><br>${app.previous_experience || '-'}</p>
-                        <p><strong>Special Requirements:</strong> ${app.special_arrangements || '-'}</p>
+                        <p><strong>Previous Experience:</strong><br>${escapeHtml(app.previous_experience || '-')}</p>
+                        <p><strong>Special Requirements:</strong> ${escapeHtml(app.special_arrangements || '-')}</p>
                     </div>
                     <div style="margin-top: 20px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
                             <h4 style="margin: 0;">Documents (${app.documents?.length || 0})</h4>
-                            <button class="btn btn-primary" style="padding: 6px 12px;" onclick="AcceleratorApp.downloadDocs('${app.id}')">
+                            <button class="btn btn-primary" style="padding: 6px 12px;" onclick="AcceleratorApp.downloadDocs('${escapeHtml(app.id)}')">
                                 <i class="fas fa-file-pdf"></i> Download All (PDF)
                             </button>
                         </div>
@@ -20726,10 +20867,10 @@ President, Med&amp;X</textarea>
                             <div style="display: flex; align-items: center; gap: 10px; padding: 8px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 4px;">
                                 <i class="fas ${icon}" style="color: ${color};"></i>
                                 <div style="flex: 1;">
-                                    <div style="font-size: 13px;">${d.document_type}</div>
-                                    <div style="font-size: 11px; color: var(--text-muted);">${d.original_filename} ${d.file_size ? '(' + (d.file_size / 1024).toFixed(1) + ' KB)' : ''}</div>
+                                    <div style="font-size: 13px;">${escapeHtml(d.document_type)}</div>
+                                    <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(d.original_filename)} ${d.file_size ? '(' + (d.file_size / 1024).toFixed(1) + ' KB)' : ''}</div>
                                 </div>
-                                <a href="/api/accelerator/documents/${d.id}/download" class="btn btn-secondary" style="padding: 4px 8px;" title="Download"><i class="fas fa-download"></i></a>
+                                <a href="/api/accelerator/documents/${escapeHtml(d.id)}/download" class="btn btn-secondary" style="padding: 4px 8px;" title="Download"><i class="fas fa-download"></i></a>
                             </div>`;
                         }).join('') : '<p style="color: var(--text-muted);">No documents loaded</p>'}
                     </div>
@@ -20737,7 +20878,7 @@ President, Med&amp;X</textarea>
                         <h4 style="margin: 0 0 12px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Evaluation</h4>
                         ${app.evaluations?.length ? `
                             <table style="width: 100%; font-size: 13px;">
-                                ${app.evaluations.map(e => `<tr><td>${e.name_hr || e.name}</td><td style="text-align: right;"><strong>${e.score}</strong> / ${e.max_points}</td></tr>`).join('')}
+                                ${app.evaluations.map(e => `<tr><td>${escapeHtml(e.name_hr || e.name)}</td><td style="text-align: right;"><strong>${escapeHtml(e.score)}</strong> / ${escapeHtml(e.max_points)}</td></tr>`).join('')}
                             </table>
                             <p style="margin-top: 10px;"><strong>Total:</strong> ${app.total_score?.toFixed(2) || '-'}</p>
                         ` : '<p style="color: var(--text-muted);">Nije evaluirano</p>'}
@@ -20746,8 +20887,8 @@ President, Med&amp;X</textarea>
                         <h4 style="margin: 0 0 12px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Poruke</h4>
                         ${app.messages?.length ? app.messages.map(m => `
                             <div style="padding: 8px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 4px;">
-                                <small style="color: var(--text-muted);">${m.sent_at} - ${m.sent_by}</small>
-                                <p style="margin: 4px 0 0 0;">${m.content}</p>
+                                <small style="color: var(--text-muted);">${escapeHtml(m.sent_at)} - ${escapeHtml(m.sent_by)}</small>
+                                <p style="margin: 4px 0 0 0;">${escapeHtml(m.content)}</p>
                             </div>
                         `).join('') : '<p style="color: var(--text-muted);">No messagea</p>'}
                     </div>
@@ -20763,8 +20904,8 @@ President, Med&amp;X</textarea>
                 const app = this.applications.find(a => a.id === appId);
                 document.getElementById('accMessageAppId').value = appId;
                 document.getElementById('accMessageRecipient').innerHTML = `
-                    <strong>${app.first_name} ${app.last_name}</strong><br>
-                    <span style="font-size: 13px;">${app.email}</span>
+                    <strong>${escapeHtml(app.first_name)} ${escapeHtml(app.last_name)}</strong><br>
+                    <span style="font-size: 13px;">${escapeHtml(app.email)}</span>
                 `;
                 document.getElementById('accMessageSubject').value = '';
                 document.getElementById('accMessageContent').value = '';
@@ -22064,6 +22205,10 @@ By applying to this program, I give the following consents:
                         ...options.headers
                     }
                 });
+                if (!res.ok) {
+                    const error = await res.text().catch(() => 'Unknown error');
+                    throw new Error(`API error ${res.status}: ${error}`);
+                }
                 return res.json();
             },
 
@@ -22684,10 +22829,10 @@ By applying to this program, I give the following consents:
                     const sc = statusColors[to.status] || statusColors.assigned;
                     return `
                         <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 12px; font-weight: 600;">${to.order_number}</td>
-                            <td style="padding: 12px;">${to.traveler_name}</td>
-                            <td style="padding: 12px;">${to.destination}</td>
-                            <td style="padding: 12px;">${to.planned_departure || '-'} - ${to.planned_return || '-'}</td>
+                            <td style="padding: 12px; font-weight: 600;">${escapeHtml(to.order_number)}</td>
+                            <td style="padding: 12px;">${escapeHtml(to.traveler_name)}</td>
+                            <td style="padding: 12px;">${escapeHtml(to.destination)}</td>
+                            <td style="padding: 12px;">${escapeHtml(to.planned_departure || '-')} - ${escapeHtml(to.planned_return || '-')}</td>
                             <td style="padding: 12px; text-align: right; font-weight: 600;">${this.formatCurrency(to.cost_total || 0)}</td>
                             <td style="padding: 12px; text-align: center;">
                                 <span style="background: ${sc.bg}; color: ${sc.color}; padding: 2px 8px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">
@@ -22756,12 +22901,12 @@ By applying to this program, I give the following consents:
 
                 body.innerHTML = `
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                        <div><strong>Traveler:</strong> ${order.traveler_name}</div>
-                        <div><strong>Status:</strong> ${order.status.toUpperCase()}</div>
-                        <div><strong>Destination:</strong> ${order.destination}</div>
-                        <div><strong>Purpose:</strong> ${order.purpose || '-'}</div>
-                        <div><strong>Planned:</strong> ${order.planned_departure || '-'} to ${order.planned_return || '-'}</div>
-                        <div><strong>Actual:</strong> ${order.actual_departure || '-'} to ${order.actual_return || '-'}</div>
+                        <div><strong>Traveler:</strong> ${escapeHtml(order.traveler_name)}</div>
+                        <div><strong>Status:</strong> ${escapeHtml(order.status.toUpperCase())}</div>
+                        <div><strong>Destination:</strong> ${escapeHtml(order.destination)}</div>
+                        <div><strong>Purpose:</strong> ${escapeHtml(order.purpose || '-')}</div>
+                        <div><strong>Planned:</strong> ${escapeHtml(order.planned_departure || '-')} to ${escapeHtml(order.planned_return || '-')}</div>
+                        <div><strong>Actual:</strong> ${escapeHtml(order.actual_departure || '-')} to ${escapeHtml(order.actual_return || '-')}</div>
                     </div>
                     <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
                         <h4 style="margin-bottom: 12px;">Costs</h4>
@@ -22775,12 +22920,15 @@ By applying to this program, I give the following consents:
                         ${order.advance_amount > 0 ? `<div>Advance: ${this.formatCurrency(order.advance_amount)}</div>` : ''}
                         ${order.reimbursement_amount ? `<div>To Reimburse: ${this.formatCurrency(order.reimbursement_amount)}</div>` : ''}
                     </div>
-                    ${order.traveler_notes ? `<div style="margin-bottom: 16px;"><strong>Traveler Notes:</strong> ${order.traveler_notes}</div>` : ''}
-                    ${order.rejection_reason ? `<div style="color: var(--danger); margin-bottom: 16px;"><strong>Rejection Reason:</strong> ${order.rejection_reason}</div>` : ''}
+                    ${order.traveler_notes ? `<div style="margin-bottom: 16px;"><strong>Traveler Notes:</strong> ${escapeHtml(order.traveler_notes)}</div>` : ''}
+                    ${order.rejection_reason ? `<div style="color: var(--danger); margin-bottom: 16px;"><strong>Rejection Reason:</strong> ${escapeHtml(order.rejection_reason)}</div>` : ''}
                     ${order.evidence && order.evidence.length > 0 ? `
                         <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
                             <h4 style="margin-bottom: 12px;">Evidence Files</h4>
-                            ${order.evidence.map(e => `<div style="margin-bottom: 4px;"><a href="${e.file_path}" target="_blank">${e.file_name}</a></div>`).join('')}
+                            ${order.evidence.map(e => {
+                                const safePath = (e.file_path && (e.file_path.startsWith('/') || e.file_path.startsWith('http'))) ? escapeHtml(e.file_path) : '#';
+                                return `<div style="margin-bottom: 4px;"><a href="${safePath}" target="_blank">${escapeHtml(e.file_name)}</a></div>`;
+                            }).join('')}
                         </div>
                     ` : ''}
                 `;
@@ -23084,6 +23232,10 @@ By applying to this program, I give the following consents:
                     ...options,
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}`, ...options.headers }
                 });
+                if (!res.ok) {
+                    const error = await res.text().catch(() => 'Unknown error');
+                    throw new Error(`API error ${res.status}: ${error}`);
+                }
                 return res.json();
             },
 
@@ -23271,6 +23423,10 @@ By applying to this program, I give the following consents:
                     ...options,
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}`, ...options.headers }
                 });
+                if (!res.ok) {
+                    const error = await res.text().catch(() => 'Unknown error');
+                    throw new Error(`API error ${res.status}: ${error}`);
+                }
                 return res.json();
             },
 
@@ -23322,8 +23478,8 @@ By applying to this program, I give the following consents:
                                     <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase;">${month}</div>
                                 </div>
                                 <div style="flex: 1;">
-                                    <div style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">${event.city}</div>
-                                    <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">${event.venue_name || 'Venue TBD'}</div>
+                                    <div style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">${escapeHtml(event.city)}</div>
+                                    <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">${escapeHtml(event.venue_name || 'Venue TBD')}</div>
                                     <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                                         <span style="background: ${statusStyle.bg}; color: ${statusStyle.color}; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 500; text-transform: capitalize;">${event.status}</span>
                                         ${event.is_published
@@ -23396,11 +23552,11 @@ By applying to this program, I give the following consents:
 
                 // Details
                 document.getElementById('bridgesEventDetails').innerHTML = `
-                    <div><i class="fas fa-map-marker-alt" style="width: 20px; color: var(--bridges);"></i> ${event.venue_name || 'TBD'}</div>
-                    <div><i class="fas fa-building" style="width: 20px; color: var(--text-muted);"></i> ${event.venue_address || 'Address TBD'}</div>
-                    <div><i class="fas fa-clock" style="width: 20px; color: var(--text-muted);"></i> ${event.event_time || 'Time TBD'} - ${event.end_time || ''}</div>
-                    <div><i class="fas fa-envelope" style="width: 20px; color: var(--text-muted);"></i> ${event.contact_email || 'N/A'}</div>
-                    <div><i class="fas fa-calendar-times" style="width: 20px; color: var(--text-muted);"></i> Registration deadline: ${event.registration_deadline || 'N/A'}</div>
+                    <div><i class="fas fa-map-marker-alt" style="width: 20px; color: var(--bridges);"></i> ${escapeHtml(event.venue_name || 'TBD')}</div>
+                    <div><i class="fas fa-building" style="width: 20px; color: var(--text-muted);"></i> ${escapeHtml(event.venue_address || 'Address TBD')}</div>
+                    <div><i class="fas fa-clock" style="width: 20px; color: var(--text-muted);"></i> ${escapeHtml(event.event_time || 'Time TBD')} - ${escapeHtml(event.end_time || '')}</div>
+                    <div><i class="fas fa-envelope" style="width: 20px; color: var(--text-muted);"></i> ${escapeHtml(event.contact_email || 'N/A')}</div>
+                    <div><i class="fas fa-calendar-times" style="width: 20px; color: var(--text-muted);"></i> Registration deadline: ${escapeHtml(event.registration_deadline || 'N/A')}</div>
                     <div><i class="fas fa-globe" style="width: 20px; color: ${event.is_published ? '#22c55e' : 'var(--text-muted)'};"></i> ${event.is_published ? 'Published to user portal' : 'Not published (draft)'}</div>
                 `;
 
@@ -23442,11 +23598,11 @@ By applying to this program, I give the following consents:
                 tbody.innerHTML = filtered.map(r => `
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 12px 16px;">
-                            <div style="font-weight: 500;">${r.first_name} ${r.last_name}</div>
-                            ${r.position ? `<div style="font-size: 12px; color: var(--text-muted);">${r.position}</div>` : ''}
+                            <div style="font-weight: 500;">${escapeHtml(r.first_name)} ${escapeHtml(r.last_name)}</div>
+                            ${r.position ? `<div style="font-size: 12px; color: var(--text-muted);">${escapeHtml(r.position)}</div>` : ''}
                         </td>
-                        <td style="padding: 12px 16px; font-size: 13px;">${r.email}</td>
-                        <td style="padding: 12px 16px; font-size: 13px; color: var(--text-muted);">${r.institution || '-'}</td>
+                        <td style="padding: 12px 16px; font-size: 13px;">${escapeHtml(r.email)}</td>
+                        <td style="padding: 12px 16px; font-size: 13px; color: var(--text-muted);">${escapeHtml(r.institution || '-')}</td>
                         <td style="padding: 12px 16px;">
                             <span style="background: rgba(34, 197, 94, 0.2); color: #22c55e; padding: 2px 8px; border-radius: 10px; font-size: 11px;">${r.status}</span>
                         </td>
@@ -23870,7 +24026,9 @@ By applying to this program, I give the following consents:
 
             async updateNotificationBadge() {
                 try {
-                    const resp = await fetch('/api/admin/notifications/user-notifications?limit=100');
+                    const resp = await fetch('/api/admin/notifications/user-notifications?limit=100', {
+                        headers: { 'Authorization': `Bearer ${App.token}` }
+                    });
                     const data = await resp.json();
                     const badge = document.getElementById('userNotifCount');
                     if (badge && data.notifications) {
@@ -23945,7 +24103,7 @@ By applying to this program, I give the following consents:
                 try {
                     const resp = await fetch('/api/admin/notifications/send', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
                         body: JSON.stringify({ title, message, category, user_group, project: project || undefined, icon, icon_class: category, link: link || undefined, notification_type, target_tier, expires_at, placement })
                     });
                     const data = await resp.json();
@@ -23971,7 +24129,9 @@ By applying to this program, I give the following consents:
                     if (category) url += `&category=${category}`;
                     if (project) url += `&project=${project}`;
 
-                    const resp = await fetch(url);
+                    const resp = await fetch(url, {
+                        headers: { 'Authorization': `Bearer ${App.token}` }
+                    });
                     const data = await resp.json();
                     let notifications = data.notifications || [];
 
@@ -23994,7 +24154,7 @@ By applying to this program, I give the following consents:
             async deleteNotif(id) {
                 if (!confirm('Delete this notification?')) return;
                 try {
-                    await fetch(`/api/admin/notifications/user-notifications/${id}`, { method: 'DELETE' });
+                    await fetch(`/api/admin/notifications/user-notifications/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${App.token}` } });
                     this.load();
                 } catch (err) {
                     Toast.error('Failed to delete: ' + err.message);
@@ -24110,7 +24270,7 @@ By applying to this program, I give the following consents:
                     Toast.info('Generating newsletter draft...');
                     const resp = await fetch('/api/admin/newsletters/auto-generate', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' }
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }
                     });
                     const data = await resp.json();
                     if (data.success) {
@@ -24138,13 +24298,13 @@ By applying to this program, I give the following consents:
                     if (editId) {
                         resp = await fetch(`/api/admin/newsletters/${editId}`, {
                             method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
                             body: JSON.stringify({ title, body, target_audience })
                         });
                     } else {
                         resp = await fetch('/api/admin/newsletters', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
                             body: JSON.stringify({ title, body, target_audience })
                         });
                     }
@@ -24178,7 +24338,7 @@ By applying to this program, I give the following consents:
                     if (!nlId) {
                         const saveResp = await fetch('/api/admin/newsletters', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
                             body: JSON.stringify({ title, body, target_audience })
                         });
                         const saveData = await saveResp.json();
@@ -24188,12 +24348,12 @@ By applying to this program, I give the following consents:
                         // Update first
                         await fetch(`/api/admin/newsletters/${nlId}`, {
                             method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
                             body: JSON.stringify({ title, body, target_audience })
                         });
                     }
 
-                    const resp = await fetch(`/api/admin/newsletters/${nlId}/send`, { method: 'POST' });
+                    const resp = await fetch(`/api/admin/newsletters/${nlId}/send`, { method: 'POST', headers: { 'Authorization': `Bearer ${App.token}` } });
                     const data = await resp.json();
                     if (data.success) {
                         Toast.success('Newsletter sent!');
@@ -24209,7 +24369,9 @@ By applying to this program, I give the following consents:
 
             async load() {
                 try {
-                    const resp = await fetch('/api/admin/newsletters');
+                    const resp = await fetch('/api/admin/newsletters', {
+                        headers: { 'Authorization': `Bearer ${App.token}` }
+                    });
                     const data = await resp.json();
                     let newsletters = data.newsletters || [];
 
@@ -24229,7 +24391,7 @@ By applying to this program, I give the following consents:
             async deleteNewsletter(id) {
                 if (!confirm('Delete this newsletter?')) return;
                 try {
-                    await fetch(`/api/admin/newsletters/${id}`, { method: 'DELETE' });
+                    await fetch(`/api/admin/newsletters/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${App.token}` } });
                     Toast.success('Newsletter deleted');
                     this.load();
                 } catch (err) {
@@ -24250,7 +24412,7 @@ By applying to this program, I give the following consents:
                 const audienceLabels = { all: 'All Members', bronze: 'Bronze', silver: 'Silver', gold: 'Gold', platinum: 'Platinum', plexus: 'Plexus Registrants' };
                 if (!confirm(`Send "${nl.title}" to ${audienceLabels[nl.target_audience] || nl.target_audience}?`)) return;
                 try {
-                    const resp = await fetch(`/api/admin/newsletters/${id}/send`, { method: 'POST' });
+                    const resp = await fetch(`/api/admin/newsletters/${id}/send`, { method: 'POST', headers: { 'Authorization': `Bearer ${App.token}` } });
                     const data = await resp.json();
                     if (data.success) { Toast.success('Newsletter sent!'); this.load(); }
                     else Toast.error('Send failed: ' + (data.error || ''));
@@ -24646,6 +24808,10 @@ By applying to this program, I give the following consents:
                     ...options,
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}`, ...options.headers }
                 });
+                if (!res.ok) {
+                    const error = await res.text().catch(() => 'Unknown error');
+                    throw new Error(`API error ${res.status}: ${error}`);
+                }
                 return res.json();
             },
 
@@ -24702,10 +24868,10 @@ By applying to this program, I give the following consents:
                         <div style="display: flex; align-items: center; gap: 12px; padding: 10px; border-bottom: 1px solid var(--border);">
                             <i class="${this.platformIcons[c.platform]}" style="font-size: 20px; color: ${this.platformColors[c.platform]};"></i>
                             <div style="flex: 1;">
-                                <div style="font-weight: 500;">${c.title || c.content_text?.substring(0, 50) || 'Untitled'}</div>
-                                <div style="font-size: 12px; color: var(--text-muted);">${c.scheduled_date} ${c.scheduled_time || ''}</div>
+                                <div style="font-weight: 500;">${escapeHtml(c.title || c.content_text?.substring(0, 50) || 'Untitled')}</div>
+                                <div style="font-size: 12px; color: var(--text-muted);">${escapeHtml(c.scheduled_date)} ${escapeHtml(c.scheduled_time || '')}</div>
                             </div>
-                            <span style="background: rgba(var(--pr-media-rgb), 0.2); color: var(--pr-media); padding: 2px 8px; border-radius: 4px; font-size: 11px;">${c.status}</span>
+                            <span style="background: rgba(var(--pr-media-rgb), 0.2); color: var(--pr-media); padding: 2px 8px; border-radius: 4px; font-size: 11px;">${escapeHtml(c.status)}</span>
                         </div>
                     `).join('');
                 } else {
@@ -24719,7 +24885,7 @@ By applying to this program, I give the following consents:
                         <div style="display: flex; align-items: center; gap: 12px; padding: 10px; border-bottom: 1px solid var(--border);">
                             <i class="${this.platformIcons[p.platform]}" style="font-size: 20px; color: ${this.platformColors[p.platform]};"></i>
                             <div style="flex: 1;">
-                                <div style="font-size: 13px;">${p.content_text?.substring(0, 60) || 'No caption'}...</div>
+                                <div style="font-size: 13px;">${escapeHtml(p.content_text?.substring(0, 60) || 'No caption')}...</div>
                                 <div style="font-size: 12px; color: var(--text-muted);">${p.published_at?.split('T')[0] || ''}</div>
                             </div>
                             <div style="text-align: right; font-size: 12px;">
@@ -24738,8 +24904,8 @@ By applying to this program, I give the following consents:
                     newsletters.innerHTML = data.draftNewsletters.map(n => `
                         <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border);">
                             <div>
-                                <div style="font-weight: 500;">${n.name}</div>
-                                <div style="font-size: 12px; color: var(--text-muted);">${n.subject}</div>
+                                <div style="font-weight: 500;">${escapeHtml(n.name)}</div>
+                                <div style="font-size: 12px; color: var(--text-muted);">${escapeHtml(n.subject)}</div>
                             </div>
                             <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="PRApp.editNewsletter('${n.id}')">Edit</button>
                         </div>
@@ -24754,8 +24920,8 @@ By applying to this program, I give the following consents:
                     campaigns.innerHTML = data.campaigns.map(c => `
                         <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border);">
                             <div>
-                                <div style="font-weight: 500;">${c.name}</div>
-                                <div style="font-size: 12px; color: var(--text-muted);">${c.start_date} - ${c.end_date}</div>
+                                <div style="font-weight: 500;">${escapeHtml(c.name)}</div>
+                                <div style="font-size: 12px; color: var(--text-muted);">${escapeHtml(c.start_date)} - ${escapeHtml(c.end_date)}</div>
                             </div>
                             <span style="color: var(--success); font-size: 12px;"><i class="fas fa-circle"></i> Active</span>
                         </div>
@@ -25843,9 +26009,9 @@ By applying to this program, I give the following consents:
                         : '<span style="background: rgba(107, 114, 128, 0.15); color: #6b7280; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;">Unpaid</span>';
 
                     html += `<tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 12px 16px; font-weight: 500;">${r.first_name} ${r.last_name}</td>
-                        <td style="padding: 12px 16px; font-size: 13px; color: var(--text-secondary);">${r.email}</td>
-                        <td style="padding: 12px 16px; font-size: 13px; color: var(--text-secondary);">${r.institution || '-'}</td>
+                        <td style="padding: 12px 16px; font-weight: 500;">${escapeHtml(r.first_name)} ${escapeHtml(r.last_name)}</td>
+                        <td style="padding: 12px 16px; font-size: 13px; color: var(--text-secondary);">${escapeHtml(r.email)}</td>
+                        <td style="padding: 12px 16px; font-size: 13px; color: var(--text-secondary);">${escapeHtml(r.institution || '-')}</td>
                         <td style="padding: 12px 16px; font-size: 13px;">${pricing}</td>
                         <td style="padding: 12px 16px;">
                             <span style="background: ${statusColor}22; color: ${statusColor}; padding: 2px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; text-transform: capitalize;">${effectiveStatus}</span>
@@ -25898,6 +26064,437 @@ By applying to this program, I give the following consents:
             }
         };
 
+        // ==================== TECH DASHBOARD ====================
+        const TechApp = {
+            _authenticated: false,
+            _currentTable: null,
+            _currentOffset: 0,
+
+            async init() {
+                if (!this._authenticated) {
+                    document.getElementById('techPasswordGate').style.display = 'flex';
+                    document.getElementById('techContent').style.display = 'none';
+                    document.getElementById('techPasswordInput').value = '';
+                    document.getElementById('techPasswordError').style.display = 'none';
+                    setTimeout(() => document.getElementById('techPasswordInput')?.focus(), 100);
+                } else {
+                    document.getElementById('techPasswordGate').style.display = 'none';
+                    document.getElementById('techContent').style.display = 'block';
+                    this.showTab('overview');
+                }
+            },
+
+            async verifyPassword() {
+                const pwd = document.getElementById('techPasswordInput').value;
+                try {
+                    const res = await fetch('/api/admin/tech/verify-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+                        body: JSON.stringify({ password: pwd })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        this._authenticated = true;
+                        this._techPassword = pwd;
+                        document.getElementById('techPasswordGate').style.display = 'none';
+                        document.getElementById('techContent').style.display = 'block';
+                        this.showTab('overview');
+                    } else {
+                        document.getElementById('techPasswordError').style.display = 'block';
+                        document.getElementById('techPasswordInput').select();
+                    }
+                } catch (err) {
+                    document.getElementById('techPasswordError').textContent = 'Connection error';
+                    document.getElementById('techPasswordError').style.display = 'block';
+                }
+            },
+
+            _headers() {
+                return {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${App.token}`,
+                    'X-Tech-Password': this._techPassword || ''
+                };
+            },
+
+            showTab(tabId) {
+                document.querySelectorAll('.tech-tab').forEach(t => t.style.display = 'none');
+                const el = document.getElementById('tech-tab-' + tabId);
+                if (el) el.style.display = 'block';
+
+                ['overview', 'database', 'filemap', 'actions'].forEach(id => {
+                    const btn = document.getElementById('techTab' + id.charAt(0).toUpperCase() + id.slice(1));
+                    if (btn) {
+                        btn.className = id === tabId ? 'btn btn-primary' : 'btn btn-secondary';
+                    }
+                });
+
+                if (tabId === 'overview') this.loadSystemInfo();
+                else if (tabId === 'database') this.loadTables();
+                else if (tabId === 'filemap') this.renderFilemap();
+                else if (tabId === 'actions') this.renderActions();
+            },
+
+            async loadSystemInfo() {
+                const container = document.getElementById('techSystemInfo');
+                container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);grid-column:1/-1;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+                try {
+                    const res = await fetch('/api/admin/tech/system-info', { headers: this._headers() });
+                    const data = await res.json();
+                    if (!data.success) throw new Error(data.error);
+                    const s = data.system;
+                    const d = data.database;
+                    const dep = data.deployment;
+                    const env = data.env;
+
+                    const formatBytes = (b) => b < 1024 ? b + ' B' : b < 1048576 ? (b/1024).toFixed(1) + ' KB' : (b/1048576).toFixed(1) + ' MB';
+                    const formatUptime = (sec) => { const h = Math.floor(sec/3600); const m = Math.floor((sec%3600)/60); return h > 0 ? `${h}h ${m}m` : `${m}m`; };
+
+                    container.innerHTML = `
+                        <!-- Server Info -->
+                        <div class="card" style="padding: 20px;">
+                            <h3 style="font-size: 14px; font-weight: 600; color: var(--text-muted); margin-bottom: 16px;"><i class="fas fa-microchip" style="color: #8b5cf6; margin-right: 8px;"></i>Server</h3>
+                            <div style="display: grid; gap: 12px;">
+                                <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted);font-size:13px;">Node.js</span><span style="font-weight:600;font-size:13px;">${escapeHtml(s.nodeVersion)}</span></div>
+                                <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted);font-size:13px;">Platform</span><span style="font-weight:600;font-size:13px;">${escapeHtml(s.platform)} (${escapeHtml(s.arch)})</span></div>
+                                <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted);font-size:13px;">Uptime</span><span style="font-weight:600;font-size:13px;">${formatUptime(s.uptime)}</span></div>
+                                <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted);font-size:13px;">Memory (RSS)</span><span style="font-weight:600;font-size:13px;">${formatBytes(s.memoryUsage.rss)}</span></div>
+                                <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted);font-size:13px;">Heap Used</span><span style="font-weight:600;font-size:13px;">${formatBytes(s.memoryUsage.heapUsed)} / ${formatBytes(s.memoryUsage.heapTotal)}</span></div>
+                                <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted);font-size:13px;">PID</span><span style="font-weight:600;font-size:13px;">${s.pid}</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Database Info -->
+                        <div class="card" style="padding: 20px;">
+                            <h3 style="font-size: 14px; font-weight: 600; color: var(--text-muted); margin-bottom: 16px;"><i class="fas fa-database" style="color: #10b981; margin-right: 8px;"></i>Database</h3>
+                            <div style="display: grid; gap: 12px;">
+                                <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted);font-size:13px;">Path</span><span style="font-weight:600;font-size:13px;word-break:break-all;text-align:right;max-width:200px;">${escapeHtml(d.path)}</span></div>
+                                <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted);font-size:13px;">File Size</span><span style="font-weight:600;font-size:13px;">${formatBytes(d.size)}</span></div>
+                                <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted);font-size:13px;">Last Modified</span><span style="font-weight:600;font-size:13px;">${d.lastModified ? new Date(d.lastModified).toLocaleString() : 'N/A'}</span></div>
+                                <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted);font-size:13px;">Tables</span><span style="font-weight:600;font-size:13px;">${d.tableCount}</span></div>
+                                <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted);font-size:13px;">Total Rows</span><span style="font-weight:600;font-size:13px;">${d.totalRows.toLocaleString()}</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Deployment -->
+                        <div class="card" style="padding: 20px;">
+                            <h3 style="font-size: 14px; font-weight: 600; color: var(--text-muted); margin-bottom: 16px;"><i class="fas fa-cloud" style="color: #3b82f6; margin-right: 8px;"></i>Deployment</h3>
+                            <div style="display: grid; gap: 12px;">
+                                <div><span style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:2px;">Admin Portal</span><a href="${escapeHtml(dep.adminUrl)}" target="_blank" style="font-size:13px;color:#8b5cf6;word-break:break-all;">${escapeHtml(dep.adminUrl)}</a></div>
+                                <div><span style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:2px;">User Portal</span><a href="${escapeHtml(dep.userPortalUrl)}" target="_blank" style="font-size:13px;color:#8b5cf6;word-break:break-all;">${escapeHtml(dep.userPortalUrl)}</a></div>
+                                <div><span style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:2px;">GitHub</span><a href="${escapeHtml(dep.githubRepo)}" target="_blank" style="font-size:13px;color:#8b5cf6;">${escapeHtml(dep.githubRepo)}</a></div>
+                            </div>
+                        </div>
+
+                        <!-- Environment Variables -->
+                        <div class="card" style="padding: 20px;">
+                            <h3 style="font-size: 14px; font-weight: 600; color: var(--text-muted); margin-bottom: 16px;"><i class="fas fa-key" style="color: #f59e0b; margin-right: 8px;"></i>Environment</h3>
+                            <div style="display: grid; gap: 8px;">
+                                ${Object.entries(env).map(([k,v]) => `<div style="display:flex;justify-content:space-between;gap:8px;"><span style="color:var(--text-muted);font-size:12px;font-family:monospace;">${escapeHtml(k)}</span><span style="font-size:12px;font-family:monospace;color:${v === '(not set)' ? '#ef4444' : '#10b981'};">${escapeHtml(v)}</span></div>`).join('')}
+                            </div>
+                        </div>
+
+                        <!-- Important Links -->
+                        <div class="card" style="padding: 20px; grid-column: 1 / -1;">
+                            <h3 style="font-size: 14px; font-weight: 600; color: var(--text-muted); margin-bottom: 16px;"><i class="fas fa-link" style="color: #c9a962; margin-right: 8px;"></i>Important Links</h3>
+                            <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                                <a href="https://dashboard.stripe.com" target="_blank" class="btn btn-secondary" style="font-size: 12px;"><i class="fab fa-stripe-s"></i> Stripe Dashboard</a>
+                                <a href="https://app.fira.finance" target="_blank" class="btn btn-secondary" style="font-size: 12px;"><i class="fas fa-receipt"></i> FIRA Dashboard</a>
+                                <a href="https://dashboard.render.com" target="_blank" class="btn btn-secondary" style="font-size: 12px;"><i class="fas fa-server"></i> Render Dashboard</a>
+                                <a href="https://github.com/alen-ops99/medx-portal" target="_blank" class="btn btn-secondary" style="font-size: 12px;"><i class="fab fa-github"></i> GitHub Repo</a>
+                                <a href="https://drive.google.com" target="_blank" class="btn btn-secondary" style="font-size: 12px;"><i class="fab fa-google-drive"></i> Google Drive</a>
+                            </div>
+                        </div>
+                    `;
+                } catch (err) {
+                    container.innerHTML = `<div class="card" style="padding:20px;color:#ef4444;grid-column:1/-1;"><i class="fas fa-exclamation-triangle"></i> Failed to load: ${escapeHtml(err.message)}</div>`;
+                }
+            },
+
+            async loadTables() {
+                const list = document.getElementById('techTableList');
+                list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i></div>';
+                try {
+                    const res = await fetch('/api/admin/tech/tables', { headers: this._headers() });
+                    const data = await res.json();
+                    if (!data.success) throw new Error(data.error);
+                    list.innerHTML = data.tables.map(t => `
+                        <div onclick="TechApp.loadTableData('${t.name}')" style="padding: 10px 16px; cursor: pointer; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; transition: background 0.15s; ${this._currentTable === t.name ? 'background: rgba(139,92,246,0.15);' : ''}" onmouseover="this.style.background='rgba(139,92,246,0.1)'" onmouseout="this.style.background='${this._currentTable === t.name ? 'rgba(139,92,246,0.15)' : ''}'">
+                            <span style="font-size: 13px; font-weight: 500;">${escapeHtml(t.name)}</span>
+                            <span style="font-size: 11px; color: var(--text-muted); background: var(--bg-primary); padding: 2px 8px; border-radius: 10px;">${t.rowCount}</span>
+                        </div>
+                    `).join('');
+                } catch (err) {
+                    list.innerHTML = `<div style="padding:16px;color:#ef4444;font-size:13px;">${escapeHtml(err.message)}</div>`;
+                }
+            },
+
+            async loadTableData(name, offset = 0) {
+                this._currentTable = name;
+                this._currentOffset = offset;
+                this.loadTables(); // refresh sidebar highlight
+                const container = document.getElementById('techTableData');
+                container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+                try {
+                    const search = document.getElementById('techTableSearch')?.value || '';
+                    const res = await fetch(`/api/admin/tech/tables/${encodeURIComponent(name)}?limit=50&offset=${offset}&search=${encodeURIComponent(search)}`, { headers: this._headers() });
+                    const data = await res.json();
+                    if (!data.success) throw new Error(data.error);
+
+                    const totalPages = Math.ceil(data.total / 50);
+                    const currentPage = Math.floor(offset / 50) + 1;
+
+                    container.innerHTML = `
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+                            <div>
+                                <h3 style="font-size:16px;font-weight:600;margin-bottom:2px;">${escapeHtml(name)}</h3>
+                                <span style="font-size:12px;color:var(--text-muted);">${data.total} rows, ${data.columns.length} columns</span>
+                            </div>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <input type="text" id="techTableSearch" class="form-input" placeholder="Search..." value="${search}" onkeydown="if(event.key==='Enter') TechApp.loadTableData('${name}')" style="width:180px;font-size:12px;padding:6px 12px;">
+                                <button class="btn btn-secondary" onclick="TechApp.exportTableCsv('${name}')" style="font-size:12px;white-space:nowrap;"><i class="fas fa-download"></i> CSV</button>
+                            </div>
+                        </div>
+                        <div style="overflow-x:auto;max-height:500px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+                            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                                <thead style="position:sticky;top:0;z-index:1;">
+                                    <tr style="background:var(--bg-primary);">
+                                        ${data.columns.map(c => `<th style="padding:8px 12px;text-align:left;border-bottom:2px solid var(--border);font-weight:600;white-space:nowrap;color:var(--text-muted);font-size:11px;text-transform:uppercase;">${escapeHtml(c.name)}<span style="color:var(--text-muted);opacity:0.5;font-size:10px;margin-left:4px;">${escapeHtml(c.type || '')}</span></th>`).join('')}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.rows.length === 0 ? `<tr><td colspan="${data.columns.length}" style="padding:30px;text-align:center;color:var(--text-muted);">No data</td></tr>` :
+                                    data.rows.map(row => `<tr style="border-bottom:1px solid var(--border);">${data.columns.map(c => {
+                                        let val = row[c.name];
+                                        if (val === null || val === undefined) val = '<span style="color:var(--text-muted);opacity:0.4;">NULL</span>';
+                                        else {
+                                            val = String(val);
+                                            if (val.length > 80) val = val.slice(0, 80) + '...';
+                                            val = escapeHtml(val);
+                                        }
+                                        return `<td style="padding:6px 12px;white-space:nowrap;max-width:250px;overflow:hidden;text-overflow:ellipsis;">${val}</td>`;
+                                    }).join('')}</tr>`).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        ${totalPages > 1 ? `
+                        <div style="display:flex;justify-content:center;gap:8px;margin-top:12px;align-items:center;">
+                            <button class="btn btn-secondary" ${currentPage <= 1 ? 'disabled' : ''} onclick="TechApp.loadTableData('${name}', ${(currentPage-2)*50})" style="font-size:12px;padding:4px 12px;"><i class="fas fa-chevron-left"></i></button>
+                            <span style="font-size:12px;color:var(--text-muted);">Page ${currentPage} of ${totalPages}</span>
+                            <button class="btn btn-secondary" ${currentPage >= totalPages ? 'disabled' : ''} onclick="TechApp.loadTableData('${name}', ${currentPage*50})" style="font-size:12px;padding:4px 12px;"><i class="fas fa-chevron-right"></i></button>
+                        </div>` : ''}
+                    `;
+                } catch (err) {
+                    container.innerHTML = `<div style="padding:20px;color:#ef4444;"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml(err.message)}</div>`;
+                }
+            },
+
+            async exportTableCsv(name) {
+                try {
+                    const res = await fetch(`/api/admin/tech/tables/${encodeURIComponent(name)}?limit=99999&offset=0`, { headers: this._headers() });
+                    const data = await res.json();
+                    if (!data.success) throw new Error(data.error);
+                    const cols = data.columns.map(c => c.name);
+                    const csvRows = [cols.join(',')];
+                    data.rows.forEach(row => {
+                        csvRows.push(cols.map(c => {
+                            let v = row[c];
+                            if (v === null || v === undefined) return '';
+                            v = String(v).replace(/"/g, '""');
+                            return v.includes(',') || v.includes('"') || v.includes('\n') ? `"${v}"` : v;
+                        }).join(','));
+                    });
+                    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = `${name}.csv`; a.click();
+                    URL.revokeObjectURL(url);
+                    Toast.success(`Exported ${name}.csv`);
+                } catch (err) {
+                    Toast.error('Export failed: ' + err.message);
+                }
+            },
+
+            renderFilemap() {
+                document.getElementById('techFilemap').innerHTML = `
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px;">
+                        <!-- Admin Portal -->
+                        <div class="card" style="padding: 20px;">
+                            <h3 style="font-size: 15px; font-weight: 700; color: #8b5cf6; margin-bottom: 16px;"><i class="fas fa-shield-alt" style="margin-right: 8px;"></i>Admin Portal</h3>
+                            <pre style="font-size: 12px; line-height: 1.8; color: var(--text-primary); margin: 0; white-space: pre-wrap; font-family: 'SF Mono', Monaco, monospace;">admin-portal/
+├── backend/
+│   ├── <b>server.js</b>          <span style="color:var(--text-muted);">— Express API (all endpoints)</span>
+│   ├── package.json        <span style="color:var(--text-muted);">— Dependencies</span>
+│   ├── medx_portal.db      <span style="color:var(--text-muted);">— SQLite database (local copy)</span>
+│   └── uploads/            <span style="color:var(--text-muted);">— User-uploaded files</span>
+├── frontend/
+│   ├── <b>index.html</b>         <span style="color:var(--text-muted);">— Single-page app (HTML+CSS+JS)</span>
+│   └── assets/images/      <span style="color:var(--text-muted);">— Static images</span>
+└── index.html              <span style="color:var(--text-muted);">— Redirect to frontend</span></pre>
+                        </div>
+
+                        <!-- User Portal -->
+                        <div class="card" style="padding: 20px;">
+                            <h3 style="font-size: 15px; font-weight: 700; color: #10b981; margin-bottom: 16px;"><i class="fas fa-users" style="margin-right: 8px;"></i>User Portal</h3>
+                            <pre style="font-size: 12px; line-height: 1.8; color: var(--text-primary); margin: 0; white-space: pre-wrap; font-family: 'SF Mono', Monaco, monospace;">user-portal/
+├── backend/
+│   ├── <b>server.js</b>          <span style="color:var(--text-muted);">— Express API + Stripe webhooks</span>
+│   ├── <b>fira-service.js</b>    <span style="color:var(--text-muted);">— FIRA fiscal invoicing service</span>
+│   ├── package.json        <span style="color:var(--text-muted);">— Dependencies</span>
+│   ├── .env                <span style="color:var(--text-muted);">— Secrets (Stripe, SMTP, FIRA)</span>
+│   └── uploads/            <span style="color:var(--text-muted);">— User-uploaded files</span>
+├── frontend/
+│   ├── <b>index.html</b>         <span style="color:var(--text-muted);">— Public-facing SPA</span>
+│   ├── manifest.json       <span style="color:var(--text-muted);">— PWA manifest</span>
+│   ├── sw.js               <span style="color:var(--text-muted);">— Service worker</span>
+│   └── assets/             <span style="color:var(--text-muted);">— Images, icons</span>
+└── README.md</pre>
+                        </div>
+
+                        <!-- Shared -->
+                        <div class="card" style="padding: 20px;">
+                            <h3 style="font-size: 15px; font-weight: 700; color: #f59e0b; margin-bottom: 16px;"><i class="fas fa-share-alt" style="margin-right: 8px;"></i>Shared Resources</h3>
+                            <pre style="font-size: 12px; line-height: 1.8; color: var(--text-primary); margin: 0; white-space: pre-wrap; font-family: 'SF Mono', Monaco, monospace;">shared/
+└── <b>medx_portal.db</b>        <span style="color:var(--text-muted);">— Shared SQLite DB (dev mode)</span>
+                                <span style="color:var(--text-muted);">  Both portals read/write this</span>
+                                <span style="color:var(--text-muted);">  Auto-synced via fs.watch()</span></pre>
+                        </div>
+
+                        <!-- Key Config -->
+                        <div class="card" style="padding: 20px;">
+                            <h3 style="font-size: 15px; font-weight: 700; color: #ef4444; margin-bottom: 16px;"><i class="fas fa-cog" style="margin-right: 8px;"></i>Key Config Files</h3>
+                            <pre style="font-size: 12px; line-height: 1.8; color: var(--text-primary); margin: 0; white-space: pre-wrap; font-family: 'SF Mono', Monaco, monospace;"><b>.env</b> (user-portal/backend/)
+├── STRIPE_SECRET_KEY       <span style="color:var(--text-muted);">— Stripe payments</span>
+├── STRIPE_WEBHOOK_SECRET   <span style="color:var(--text-muted);">— Webhook verification</span>
+├── SMTP_HOST/USER/PASS     <span style="color:var(--text-muted);">— Email sending</span>
+├── FIRA_API_KEY            <span style="color:var(--text-muted);">— Fiscal invoicing</span>
+├── JWT_SECRET              <span style="color:var(--text-muted);">— Auth tokens</span>
+└── DATABASE_PATH           <span style="color:var(--text-muted);">— DB location override</span>
+
+<b>Render Services</b>
+├── medx-admin-portal       <span style="color:var(--text-muted);">— Admin dashboard</span>
+└── medx-user-portal        <span style="color:var(--text-muted);">— Public registration</span></pre>
+                        </div>
+                    </div>
+                `;
+            },
+
+            renderActions() {
+                document.getElementById('techActions').innerHTML = `
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
+                        <!-- Download DB -->
+                        <div class="card" style="padding: 24px;">
+                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                                <div style="width:40px;height:40px;border-radius:10px;background:rgba(139,92,246,0.15);display:flex;align-items:center;justify-content:center;"><i class="fas fa-download" style="color:#8b5cf6;"></i></div>
+                                <div><h4 style="font-weight:600;font-size:14px;">Download Database</h4><p style="font-size:12px;color:var(--text-muted);">Download the .db file directly</p></div>
+                            </div>
+                            <button class="btn btn-primary" onclick="TechApp.downloadDb()" style="width:100%;"><i class="fas fa-database"></i> Download .db</button>
+                        </div>
+
+                        <!-- Export JSON -->
+                        <div class="card" style="padding: 24px;">
+                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                                <div style="width:40px;height:40px;border-radius:10px;background:rgba(16,185,129,0.15);display:flex;align-items:center;justify-content:center;"><i class="fas fa-file-export" style="color:#10b981;"></i></div>
+                                <div><h4 style="font-weight:600;font-size:14px;">Export All Data</h4><p style="font-size:12px;color:var(--text-muted);">JSON dump of all tables</p></div>
+                            </div>
+                            <button class="btn btn-primary" onclick="TechApp.exportAll()" style="width:100%;background:#10b981;border-color:#10b981;"><i class="fas fa-file-code"></i> Export JSON</button>
+                        </div>
+
+                        <!-- Test Stripe -->
+                        <div class="card" style="padding: 24px;">
+                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                                <div style="width:40px;height:40px;border-radius:10px;background:rgba(99,102,241,0.15);display:flex;align-items:center;justify-content:center;"><i class="fab fa-stripe-s" style="color:#6366f1;"></i></div>
+                                <div><h4 style="font-weight:600;font-size:14px;">Test Stripe</h4><p style="font-size:12px;color:var(--text-muted);">Verify Stripe API connection</p></div>
+                            </div>
+                            <button class="btn btn-secondary" onclick="TechApp.testConnection('stripe', this)" style="width:100%;"><i class="fab fa-stripe-s"></i> Test Connection</button>
+                            <div id="techStripeResult" style="margin-top:8px;font-size:12px;"></div>
+                        </div>
+
+                        <!-- Test FIRA -->
+                        <div class="card" style="padding: 24px;">
+                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                                <div style="width:40px;height:40px;border-radius:10px;background:rgba(245,158,11,0.15);display:flex;align-items:center;justify-content:center;"><i class="fas fa-receipt" style="color:#f59e0b;"></i></div>
+                                <div><h4 style="font-weight:600;font-size:14px;">Test FIRA</h4><p style="font-size:12px;color:var(--text-muted);">Verify FIRA fiscal invoicing</p></div>
+                            </div>
+                            <button class="btn btn-secondary" onclick="TechApp.testConnection('fira', this)" style="width:100%;"><i class="fas fa-receipt"></i> Test Connection</button>
+                            <div id="techFiraResult" style="margin-top:8px;font-size:12px;"></div>
+                        </div>
+
+                        <!-- Test Email -->
+                        <div class="card" style="padding: 24px;">
+                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                                <div style="width:40px;height:40px;border-radius:10px;background:rgba(236,72,153,0.15);display:flex;align-items:center;justify-content:center;"><i class="fas fa-envelope" style="color:#ec4899;"></i></div>
+                                <div><h4 style="font-weight:600;font-size:14px;">Test Email</h4><p style="font-size:12px;color:var(--text-muted);">Send a test email via SMTP</p></div>
+                            </div>
+                            <button class="btn btn-secondary" onclick="TechApp.testConnection('email', this)" style="width:100%;"><i class="fas fa-paper-plane"></i> Send Test Email</button>
+                            <div id="techEmailResult" style="margin-top:8px;font-size:12px;"></div>
+                        </div>
+                    </div>
+                `;
+            },
+
+            downloadDb() {
+                const a = document.createElement('a');
+                a.href = '/api/admin/tech/db-download';
+                // We need to add auth headers, so use fetch instead
+                fetch('/api/admin/tech/db-download', { headers: this._headers() })
+                    .then(res => {
+                        if (!res.ok) throw new Error('Download failed');
+                        return res.blob();
+                    })
+                    .then(blob => {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'medx_portal.db';
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        Toast.success('Database downloaded');
+                    })
+                    .catch(err => Toast.error('Download failed: ' + err.message));
+            },
+
+            exportAll() {
+                fetch('/api/admin/tech/export-all', { headers: this._headers() })
+                    .then(res => {
+                        if (!res.ok) throw new Error('Export failed');
+                        return res.blob();
+                    })
+                    .then(blob => {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'medx_export_' + new Date().toISOString().slice(0,10) + '.json';
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        Toast.success('Data exported');
+                    })
+                    .catch(err => Toast.error('Export failed: ' + err.message));
+            },
+
+            async testConnection(type, btn) {
+                const resultEl = document.getElementById('tech' + type.charAt(0).toUpperCase() + type.slice(1) + 'Result');
+                const origText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+                btn.disabled = true;
+                try {
+                    const endpoint = type === 'stripe' ? 'test-stripe' : type === 'fira' ? 'test-fira' : 'test-email';
+                    const res = await fetch('/api/admin/tech/' + endpoint, {
+                        method: 'POST',
+                        headers: this._headers()
+                    });
+                    const data = await res.json();
+                    resultEl.innerHTML = data.success
+                        ? '<span style="color:#10b981;"><i class="fas fa-check-circle"></i> ' + data.message + '</span>'
+                        : '<span style="color:#ef4444;"><i class="fas fa-times-circle"></i> ' + data.message + '</span>';
+                } catch (err) {
+                    resultEl.innerHTML = '<span style="color:#ef4444;"><i class="fas fa-times-circle"></i> ' + err.message + '</span>';
+                }
+                btn.innerHTML = origText;
+                btn.disabled = false;
+            }
+        };
+
         // Initialize FinanceApp when Finances section is shown
         const originalShowSection = App.showSection;
         App.showSection = function(sectionId, navItem, skipHistory) {
@@ -25911,6 +26508,9 @@ By applying to this program, I give the following consents:
                 PRApp.init();
                 // Load PR-specific chat channels
                 this.loadProjectChannels('pr-media');
+            }
+            if (sectionId === 'tech') {
+                TechApp.init();
             }
         };
 

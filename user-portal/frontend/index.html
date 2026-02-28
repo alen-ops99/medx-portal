@@ -74154,6 +74154,14 @@ You can use variables like {first_name} that will be personalized for each recip
 
     <script>
         // =========================================
+        // XSS PROTECTION UTILITY
+        // =========================================
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+
+        // =========================================
         // SAFE JSON/LOCALSTORAGE UTILITIES
         // =========================================
         function safeJsonParse(str, fallback) {
@@ -74893,7 +74901,7 @@ You can use variables like {first_name} that will be personalized for each recip
                         </div>
                         <div class="rewards-redeem-body" style="text-align: center; padding: 32px 24px;">
                             <div style="font-size: 48px; margin-bottom: 16px;"><i class="fas ${item.icon}" style="color: var(--up-accent, #c9a962);"></i></div>
-                            <h3 style="font-size: 20px; font-weight: 700; color: var(--up-text, #1d1d1f); margin-bottom: 8px;">${item.name}</h3>
+                            <h3 style="font-size: 20px; font-weight: 700; color: var(--up-text, #1d1d1f); margin-bottom: 8px;">${escapeHtml(item.name)}</h3>
                             <p style="font-size: 14px; color: var(--up-text-muted, #94a3b8); margin-bottom: 24px;">${typeof item.value === 'number' ? '€' + item.value + ' value' : item.value}</p>
                             <div style="background: var(--up-bg-secondary, #f8f9fa); border: 2px dashed var(--up-accent, #c9a962); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
                                 <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--up-text-muted, #94a3b8); margin-bottom: 8px;">Your Coupon Code</div>
@@ -79299,9 +79307,9 @@ You can use variables like {first_name} that will be personalized for each recip
                             </div>
                         </div>
                         <div class="hub-event-card-body">
-                            <h4>${event.title}</h4>
-                            <p><i class="fas fa-map-marker-alt"></i> ${event.location}</p>
-                            <p><i class="fas fa-calendar"></i> ${event.date}</p>
+                            <h4>${escapeHtml(event.title)}</h4>
+                            <p><i class="fas fa-map-marker-alt"></i> ${escapeHtml(event.location)}</p>
+                            <p><i class="fas fa-calendar"></i> ${escapeHtml(event.date)}</p>
                         </div>
                         <div class="hub-event-card-footer">
                             <div class="bb-event-type-badge" style="background: rgba(13, 148, 136, 0.1); color: #0d9488; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">
@@ -80412,12 +80420,12 @@ You can use variables like {first_name} that will be personalized for each recip
                         const isAddon = s.price > 0;
                         html += `<div class="px-schedule-item selectable${isAddon ? ' addon' : ''}" data-event="${s.id}" data-day="${day}"${isAddon ? ` data-price="${s.price}"` : ''} onclick="PlexusPortal.toggleEventSelection(this)">
                             <div class="px-schedule-item-checkbox"><i class="fas fa-check"></i></div>
-                            <div class="px-schedule-item-time">${s.time}</div>
+                            <div class="px-schedule-item-time">${escapeHtml(s.time)}</div>
                             <div class="px-schedule-item-content">
-                                <div class="px-schedule-item-title">${s.title}</div>
-                                ${s.speaker ? `<div class="px-schedule-item-speaker">${s.speaker}</div>` : ''}
+                                <div class="px-schedule-item-title">${escapeHtml(s.title)}</div>
+                                ${s.speaker ? `<div class="px-schedule-item-speaker">${escapeHtml(s.speaker)}</div>` : ''}
                                 <div class="px-schedule-item-meta">
-                                    <span><i class="fas fa-map-marker-alt"></i> ${s.room}</span>
+                                    <span><i class="fas fa-map-marker-alt"></i> ${escapeHtml(s.room)}</span>
                                     ${s.endTime ? `<span><i class="fas fa-clock"></i> ${this._durationStr(s.time, s.endTime)}</span>` : ''}
                                     ${isAddon ? `<span class="px-item-addon"><i class="fas fa-plus-circle"></i> +€${s.price}</span>` : `<span class="px-item-included"><i class="fas fa-ticket-alt"></i> Included</span>`}
                                 </div>
@@ -80462,15 +80470,15 @@ You can use variables like {first_name} that will be personalized for each recip
                     if (s.socials?.twitter) socialLinks.push(`<a href="${s.socials.twitter}" class="px-speaker-social-link" title="Twitter" onclick="event.stopPropagation()"><i class="fab fa-twitter"></i></a>`);
                     if (s.socials?.linkedin) socialLinks.push(`<a href="${s.socials.linkedin}" class="px-speaker-social-link" title="LinkedIn" onclick="event.stopPropagation()"><i class="fab fa-linkedin-in"></i></a>`);
 
-                    html += `<div class="px-speaker-card-enhanced" data-speaker="${s.slug}" data-day="${s.day}" data-type="${s.type}" data-name="${s.name}" onclick="PlexusPortal.showSpeakerModal('${s.slug}')">
+                    html += `<div class="px-speaker-card-enhanced" data-speaker="${escapeHtml(s.slug)}" data-day="${escapeHtml(s.day)}" data-type="${escapeHtml(s.type)}" data-name="${escapeHtml(s.name)}" onclick="PlexusPortal.showSpeakerModal('${escapeHtml(s.slug)}')">
                         <div class="px-speaker-avatar">
-                            ${s.avatar ? `<img src="${s.avatar}" alt="${s.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div style="display:none;width:100%;height:100%;border-radius:50%;background:linear-gradient(135deg,var(--up-gold),var(--up-gold-dark,#A38A4F));color:#0f172a;font-size:28px;font-weight:700;align-items:center;justify-content:center;">${s.name.split(' ').map(n=>n[0]).join('').substring(0,2)}</div>` : `<div style="width:100%;height:100%;border-radius:50%;background:linear-gradient(135deg,var(--up-gold),var(--up-gold-dark,#A38A4F));display:flex;color:#0f172a;font-size:28px;font-weight:700;align-items:center;justify-content:center;">${s.name.split(' ').map(n=>n[0]).join('').substring(0,2)}</div>`}
+                            ${s.avatar ? `<img src="${escapeHtml(s.avatar)}" alt="${escapeHtml(s.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div style="display:none;width:100%;height:100%;border-radius:50%;background:linear-gradient(135deg,var(--up-gold),var(--up-gold-dark,#A38A4F));color:#0f172a;font-size:28px;font-weight:700;align-items:center;justify-content:center;">${escapeHtml(s.name.split(' ').map(n=>n[0]).join('').substring(0,2))}</div>` : `<div style="width:100%;height:100%;border-radius:50%;background:linear-gradient(135deg,var(--up-gold),var(--up-gold-dark,#A38A4F));display:flex;color:#0f172a;font-size:28px;font-weight:700;align-items:center;justify-content:center;">${escapeHtml(s.name.split(' ').map(n=>n[0]).join('').substring(0,2))}</div>`}
                             ${s.isNobel ? '<span class="px-nobel-badge" title="Nobel Laureate"><i class="fas fa-medal"></i></span>' : ''}
                         </div>
-                        <div class="px-speaker-name">${s.name}</div>
-                        <div class="px-speaker-title">${s.title}</div>
-                        <div class="px-speaker-institution">${s.institution}</div>
-                        <div class="px-speaker-tags">${(s.tags || []).map(t => `<span class="px-speaker-tag">${t}</span>`).join('')}</div>
+                        <div class="px-speaker-name">${escapeHtml(s.name)}</div>
+                        <div class="px-speaker-title">${escapeHtml(s.title)}</div>
+                        <div class="px-speaker-institution">${escapeHtml(s.institution)}</div>
+                        <div class="px-speaker-tags">${(s.tags || []).map(t => `<span class="px-speaker-tag">${escapeHtml(t)}</span>`).join('')}</div>
                         <div class="px-speaker-session-badge"><i class="fas fa-calendar"></i> ${s.sessionTime ? s.sessionTime.split(' - ')[0] : ''}</div>
                         ${socialLinks.length ? `<div class="px-speaker-socials">${socialLinks.join('')}</div>` : ''}
                     </div>`;
@@ -80657,8 +80665,8 @@ You can use variables like {first_name} that will be personalized for each recip
                         <div class="px-session-content">
                             <div class="px-session-status ${status === 'current' ? 'live' : status === 'past' ? 'completed' : ''}"><i class="${statusIcon}"></i></div>
                             <div class="px-session-info">
-                                <h4>${s.title}</h4>
-                                <p>${s.room}${s.speaker ? ' &bull; ' + s.speaker : ''}</p>
+                                <h4>${escapeHtml(s.title)}</h4>
+                                <p>${escapeHtml(s.room)}${s.speaker ? ' &bull; ' + escapeHtml(s.speaker) : ''}</p>
                                 ${status === 'current' ? `<div class="px-session-actions"><button onclick="PlexusPortal.openLiveStream('${s.id}')"><i class="fas fa-play"></i> Watch Live</button></div>` : ''}
                             </div>
                         </div>
@@ -83192,7 +83200,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (heroDetails && s.date && s.venue) {
                     const dateObj = new Date(s.date + 'T00:00:00');
                     const dateStr = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-                    heroDetails.innerHTML = `<i class="fas fa-calendar"></i> ${dateStr} &nbsp;|&nbsp; <i class="fas fa-map-marker-alt"></i> ${s.venue}`;
+                    heroDetails.innerHTML = `<i class="fas fa-calendar"></i> ${escapeHtml(dateStr)} &nbsp;|&nbsp; <i class="fas fa-map-marker-alt"></i> ${escapeHtml(s.venue)}`;
                 }
 
                 // Update pricing
@@ -83217,7 +83225,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (s.dress_code) {
                     const dressEl = document.querySelector('#gala-panel-overview .up-card-body p:last-child');
                     if (dressEl && dressEl.textContent.includes('Dress Code')) {
-                        dressEl.innerHTML = `<strong>Dress Code:</strong> ${s.dress_code}`;
+                        dressEl.innerHTML = `<strong>Dress Code:</strong> ${escapeHtml(s.dress_code)}`;
                     }
                 }
 
@@ -83250,15 +83258,15 @@ You can use variables like {first_name} that will be personalized for each recip
                             const key = sp.key || sp.name.toLowerCase().replace(/[^a-z]/g, '');
                             const badgeHtml = sp.badge ? `<div class="gala-speaker-badge">${sp.badge}</div>` : '';
                             const featuredClass = sp.featured ? ' featured' : '';
-                            return `<div class="gala-speaker-card${featuredClass}" onclick="GalaPortal.showSpeakerModal('${key}')">
+                            return `<div class="gala-speaker-card${featuredClass}" onclick="GalaPortal.showSpeakerModal('${escapeHtml(key)}')">
                                 ${badgeHtml}
                                 <div class="gala-speaker-image">
-                                    <img src="${sp.image}" alt="${sp.name}">
+                                    <img src="${escapeHtml(sp.image)}" alt="${escapeHtml(sp.name)}">
                                 </div>
                                 <div class="gala-speaker-info">
-                                    <h4>${sp.name}</h4>
-                                    <p class="gala-speaker-title">${sp.title}</p>
-                                    <p class="gala-speaker-topic">${sp.topic}</p>
+                                    <h4>${escapeHtml(sp.name)}</h4>
+                                    <p class="gala-speaker-title">${escapeHtml(sp.title)}</p>
+                                    <p class="gala-speaker-topic">${escapeHtml(sp.topic)}</p>
                                 </div>
                             </div>`;
                         }).join('');
@@ -83271,12 +83279,12 @@ You can use variables like {first_name} that will be personalized for each recip
                     if (timeline) {
                         timeline.innerHTML = s.schedule.map(item => `
                             <div class="gala-timeline-item">
-                                <div class="gala-timeline-time">${item.time}</div>
+                                <div class="gala-timeline-time">${escapeHtml(item.time)}</div>
                                 <div class="gala-timeline-content">
-                                    <div class="gala-timeline-icon"><i class="${item.icon || 'fas fa-star'}"></i></div>
+                                    <div class="gala-timeline-icon"><i class="${escapeHtml(item.icon || 'fas fa-star')}"></i></div>
                                     <div class="gala-timeline-details">
-                                        <h4>${item.title}</h4>
-                                        <p>${item.description}</p>
+                                        <h4>${escapeHtml(item.title)}</h4>
+                                        <p>${escapeHtml(item.description)}</p>
                                     </div>
                                 </div>
                             </div>
@@ -83546,7 +83554,7 @@ You can use variables like {first_name} that will be personalized for each recip
                             </div>
                             <h3 style="font-size: 22px; font-weight: 700; color: var(--up-text); margin-bottom: 12px;">Registration Pending Approval</h3>
                             <p style="font-size: 15px; color: var(--up-text-muted); line-height: 1.7; max-width: 500px; margin: 0 auto 20px;">
-                                Thank you, <strong style="color: var(--up-text);">${data.first_name}</strong>! Your request to attend the Gala Evening has been submitted.
+                                Thank you, <strong style="color: var(--up-text);">${escapeHtml(data.first_name)}</strong>! Your request to attend the Gala Evening has been submitted.
                             </p>
                             <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 12px; padding: 20px; margin-bottom: 24px; text-align: left; max-width: 500px; margin-left: auto; margin-right: auto;">
                                 <div style="font-size: 14px; font-weight: 600; color: #f59e0b; margin-bottom: 8px;">
@@ -83555,7 +83563,7 @@ You can use variables like {first_name} that will be personalized for each recip
                                 <ul style="font-size: 13px; color: var(--up-text-muted); line-height: 1.8; padding-left: 20px; margin: 0;">
                                     <li>Our team will review your registration</li>
                                     <li>The Gala Evening has <strong>limited capacity</strong> and is by invitation</li>
-                                    <li>You'll receive a confirmation email at <strong>${data.email}</strong> once approved</li>
+                                    <li>You'll receive a confirmation email at <strong>${escapeHtml(data.email)}</strong> once approved</li>
                                     <li>Payment details will be sent with your approval confirmation</li>
                                 </ul>
                             </div>
@@ -83773,11 +83781,11 @@ You can use variables like {first_name} that will be personalized for each recip
 
                     grid.innerHTML = institutions.map(inst => {
                         const imgHtml = inst.logo_url
-                            ? `<img src="${inst.logo_url}" alt="${inst.name}" class="ax-institution-image">`
-                            : `<div class="ax-institution-image" style="height: 160px; background: linear-gradient(135deg, #0ea5e9, #06b6d4); display: flex; align-items: center; justify-content: center; color: white; font-size: 32px; font-weight: 700; letter-spacing: 2px;">${(inst.short_name || inst.name || '').substring(0, 4).toUpperCase()}</div>`;
+                            ? `<img src="${escapeHtml(inst.logo_url)}" alt="${escapeHtml(inst.name)}" class="ax-institution-image">`
+                            : `<div class="ax-institution-image" style="height: 160px; background: linear-gradient(135deg, #0ea5e9, #06b6d4); display: flex; align-items: center; justify-content: center; color: white; font-size: 32px; font-weight: 700; letter-spacing: 2px;">${escapeHtml((inst.short_name || inst.name || '').substring(0, 4).toUpperCase())}</div>`;
 
                         return `
-                            <div class="ax-institution-card" onclick="AcceleratorPortal.showDynamicInstitutionDetails('${inst.id}')">
+                            <div class="ax-institution-card" onclick="AcceleratorPortal.showDynamicInstitutionDetails('${escapeHtml(inst.id)}')">
                                 <div class="ax-institution-image-wrapper">
                                     ${imgHtml}
                                     <div class="ax-institution-image-overlay"></div>
@@ -83785,9 +83793,9 @@ You can use variables like {first_name} that will be personalized for each recip
                                 </div>
                                 <div class="ax-institution-content">
                                     <div class="ax-institution-logo"><i class="fas fa-university"></i></div>
-                                    <div class="ax-institution-name">${inst.name}</div>
-                                    <div class="ax-institution-location"><i class="fas fa-map-marker-alt"></i> ${inst.city || ''}${inst.city && inst.country ? ', ' : ''}${inst.country || ''}</div>
-                                    <div class="ax-institution-description">${inst.description || ''}</div>
+                                    <div class="ax-institution-name">${escapeHtml(inst.name)}</div>
+                                    <div class="ax-institution-location"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(inst.city || '')}${inst.city && inst.country ? ', ' : ''}${escapeHtml(inst.country || '')}</div>
+                                    <div class="ax-institution-description">${escapeHtml(inst.description || '')}</div>
                                     <div class="ax-institution-meta">
                                         <div class="ax-institution-positions"><i class="fas fa-user-graduate"></i> ${inst.available_spots || '?'} positions</div>
                                     </div>
@@ -83807,8 +83815,8 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (!inst) return;
 
                 const imgHtml = inst.logo_url
-                    ? `<img src="${inst.logo_url}" alt="${inst.name}" style="width: 100%; height: 180px; object-fit: cover;">`
-                    : `<div style="width: 100%; height: 180px; background: linear-gradient(135deg, #0ea5e9, #06b6d4); display: flex; align-items: center; justify-content: center; color: white; font-size: 48px; font-weight: 700;">${(inst.short_name || inst.name || '').substring(0, 4).toUpperCase()}</div>`;
+                    ? `<img src="${escapeHtml(inst.logo_url)}" alt="${escapeHtml(inst.name)}" style="width: 100%; height: 180px; object-fit: cover;">`
+                    : `<div style="width: 100%; height: 180px; background: linear-gradient(135deg, #0ea5e9, #06b6d4); display: flex; align-items: center; justify-content: center; color: white; font-size: 48px; font-weight: 700;">${escapeHtml((inst.short_name || inst.name || '').substring(0, 4).toUpperCase())}</div>`;
 
                 const modalContent = `
                     <div style="max-width: 650px;">
@@ -83820,19 +83828,19 @@ You can use variables like {first_name} that will be personalized for each recip
                                     <i class="fas fa-university"></i>
                                 </div>
                                 <div>
-                                    <h2 style="font-size: 22px; font-weight: 700; color: white; margin: 0; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">${inst.name}</h2>
-                                    <p style="color: rgba(255,255,255,0.8); margin: 4px 0 0; font-size: 13px;"><i class="fas fa-map-marker-alt"></i> ${inst.city || ''}${inst.city && inst.country ? ', ' : ''}${inst.country || ''}</p>
+                                    <h2 style="font-size: 22px; font-weight: 700; color: white; margin: 0; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">${escapeHtml(inst.name)}</h2>
+                                    <p style="color: rgba(255,255,255,0.8); margin: 4px 0 0; font-size: 13px;"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(inst.city || '')}${inst.city && inst.country ? ', ' : ''}${escapeHtml(inst.country || '')}</p>
                                 </div>
                             </div>
                             <div style="position: absolute; top: 16px; right: 16px; background: rgba(34, 211, 238, 0.9); color: white; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;">
-                                <i class="fas fa-user-graduate"></i> ${inst.available_spots || '?'} positions
+                                <i class="fas fa-user-graduate"></i> ${escapeHtml(inst.available_spots || '?')} positions
                             </div>
                         </div>
 
-                        <p style="color: var(--up-text-secondary); line-height: 1.7; margin-bottom: 24px;">${inst.description || 'Details coming soon.'}</p>
+                        <p style="color: var(--up-text-secondary); line-height: 1.7; margin-bottom: 24px;">${escapeHtml(inst.description || 'Details coming soon.')}</p>
 
                         <div style="display: flex; gap: 12px;">
-                            ${inst.website_url ? `<a href="${inst.website_url}" target="_blank" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; background: linear-gradient(135deg, #22d3ee, #06b6d4); color: white; border-radius: 12px; text-decoration: none; font-weight: 600;">
+                            ${inst.website_url ? `<a href="${escapeHtml(inst.website_url)}" target="_blank" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; background: linear-gradient(135deg, #22d3ee, #06b6d4); color: white; border-radius: 12px; text-decoration: none; font-weight: 600;">
                                 <i class="fas fa-external-link-alt"></i> Visit Website
                             </a>` : ''}
                             <button onclick="AcceleratorPortal.showTab('apply'); UserPortal.closeModal();" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; background: var(--up-gold); color: #0f172a; border-radius: 12px; border: none; font-weight: 600; cursor: pointer;">
@@ -84705,8 +84713,8 @@ You can use variables like {first_name} that will be personalized for each recip
                                     <span style="font-size: 11px; color: var(--up-text-muted); background: var(--up-card-bg); padding: 4px 8px; border-radius: 6px;">${app.id}</span>
                                     <span style="font-size: 13px; color: #22d3ee; font-weight: 600;">Summer ${app.year}</span>
                                 </div>
-                                <h4 style="font-size: 18px; font-weight: 600; color: var(--up-text); margin: 0;">${app.firstName} ${app.lastName}</h4>
-                                <p style="font-size: 14px; color: var(--up-text-muted); margin: 4px 0 0;">${app.institution || 'Institution not specified'}</p>
+                                <h4 style="font-size: 18px; font-weight: 600; color: var(--up-text); margin: 0;">${escapeHtml(app.firstName)} ${escapeHtml(app.lastName)}</h4>
+                                <p style="font-size: 14px; color: var(--up-text-muted); margin: 4px 0 0;">${escapeHtml(app.institution || 'Institution not specified')}</p>
                             </div>
                             <div style="text-align: right;">
                                 <span style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; background: ${this.getStatusColor(app.status)}; color: white;">
@@ -84728,9 +84736,9 @@ You can use variables like {first_name} that will be personalized for each recip
 
                         <!-- Institution Choices -->
                         <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;">
-                            ${app.choice1 ? `<span style="display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: rgba(34, 211, 238, 0.1); border-radius: 8px; font-size: 13px; color: var(--up-text);"><span style="font-size: 10px; color: #22d3ee; font-weight: 600;">1st</span> ${this.institutions[app.choice1] || app.choice1}</span>` : ''}
-                            ${app.choice2 ? `<span style="display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: rgba(34, 211, 238, 0.05); border-radius: 8px; font-size: 13px; color: var(--up-text-muted);"><span style="font-size: 10px; color: var(--up-text-muted); font-weight: 600;">2nd</span> ${this.institutions[app.choice2] || app.choice2}</span>` : ''}
-                            ${app.choice3 ? `<span style="display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: rgba(34, 211, 238, 0.05); border-radius: 8px; font-size: 13px; color: var(--up-text-muted);"><span style="font-size: 10px; color: var(--up-text-muted); font-weight: 600;">3rd</span> ${this.institutions[app.choice3] || app.choice3}</span>` : ''}
+                            ${app.choice1 ? `<span style="display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: rgba(34, 211, 238, 0.1); border-radius: 8px; font-size: 13px; color: var(--up-text);"><span style="font-size: 10px; color: #22d3ee; font-weight: 600;">1st</span> ${escapeHtml(this.institutions[app.choice1] || app.choice1)}</span>` : ''}
+                            ${app.choice2 ? `<span style="display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: rgba(34, 211, 238, 0.05); border-radius: 8px; font-size: 13px; color: var(--up-text-muted);"><span style="font-size: 10px; color: var(--up-text-muted); font-weight: 600;">2nd</span> ${escapeHtml(this.institutions[app.choice2] || app.choice2)}</span>` : ''}
+                            ${app.choice3 ? `<span style="display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: rgba(34, 211, 238, 0.05); border-radius: 8px; font-size: 13px; color: var(--up-text-muted);"><span style="font-size: 10px; color: var(--up-text-muted); font-weight: 600;">3rd</span> ${escapeHtml(this.institutions[app.choice3] || app.choice3)}</span>` : ''}
                         </div>
 
                         ${app.status === 'submitted' && app.paymentStatus !== 'paid' ? `
@@ -84882,7 +84890,7 @@ You can use variables like {first_name} that will be personalized for each recip
                     ${sections.map(s => `
                         <div class="section">
                             <h2>${s.title}</h2>
-                            ${s.fields.map(f => `<div class="field"><div class="field-label">${f[0]}</div><div class="field-value">${f[1] || '<em style="color:#999;">Not provided</em>'}</div></div>`).join('')}
+                            ${s.fields.map(f => `<div class="field"><div class="field-label">${escapeHtml(f[0])}</div><div class="field-value">${f[1] ? escapeHtml(f[1]) : '<em style="color:#999;">Not provided</em>'}</div></div>`).join('')}
                         </div>
                     `).join('')}
                     <div class="footer">
@@ -86500,10 +86508,10 @@ You can use variables like {first_name} that will be personalized for each recip
                                 <div style="font-size: 12px; color: var(--up-text-muted); text-transform: uppercase;">${event.month}</div>
                             </div>
                             <div style="flex: 1;">
-                                <div style="font-size: 16px; font-weight: 600; color: var(--up-text); margin-bottom: 4px;">${event.title}</div>
-                                <div style="font-size: 13px; color: var(--up-text-muted);"><i class="fas fa-map-marker-alt"></i> ${event.location}</div>
+                                <div style="font-size: 16px; font-weight: 600; color: var(--up-text); margin-bottom: 4px;">${escapeHtml(event.title)}</div>
+                                <div style="font-size: 13px; color: var(--up-text-muted);"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(event.location)}</div>
                             </div>
-                            <button class="fm-rsvp-btn ${isRegistered ? 'rsvped' : ''}" onclick="ForumPortal.rsvpEvent(this, '${event.title}')">${isRegistered ? 'Going' : 'RSVP'}</button>
+                            <button class="fm-rsvp-btn ${isRegistered ? 'rsvped' : ''}" onclick="ForumPortal.rsvpEvent(this, '${escapeHtml(event.title)}')">${isRegistered ? 'Going' : 'RSVP'}</button>
                         </div>
                     `;
                 }).join('');
@@ -88365,10 +88373,10 @@ You can use variables like {first_name} that will be personalized for each recip
                                 </div>
                             </div>
                             <div class="bb-event-content">
-                                <div class="bb-event-location">${event.city}, ${event.country}</div>
-                                <div class="bb-event-title">${event.title}</div>
-                                <div class="bb-event-date"><i class="fas fa-calendar"></i> ${event.date} | ${event.venue}</div>
-                                <div class="bb-event-desc">${event.description}</div>
+                                <div class="bb-event-location">${escapeHtml(event.city)}, ${escapeHtml(event.country)}</div>
+                                <div class="bb-event-title">${escapeHtml(event.title)}</div>
+                                <div class="bb-event-date"><i class="fas fa-calendar"></i> ${escapeHtml(event.date)} | ${escapeHtml(event.venue)}</div>
+                                <div class="bb-event-desc">${escapeHtml(event.description)}</div>
                                 <div class="bb-event-meta">
                                     <div class="bb-event-actions">
                                         <button class="bb-event-expand-btn" onclick="BuildingBridgesPortal.toggleEventExpand('${event.id}')">
@@ -88400,10 +88408,10 @@ You can use variables like {first_name} that will be personalized for each recip
                                 <div class="bb-speakers-grid">
                                     ${event.speakers.map(speaker => `
                                         <div class="bb-speaker-card">
-                                            <div class="bb-speaker-avatar">${speaker.initials}</div>
-                                            <div class="bb-speaker-name">${speaker.name}</div>
-                                            <div class="bb-speaker-title">${speaker.title}, ${speaker.institution}</div>
-                                            <div class="bb-speaker-topic">${speaker.topic}</div>
+                                            <div class="bb-speaker-avatar">${escapeHtml(speaker.initials)}</div>
+                                            <div class="bb-speaker-name">${escapeHtml(speaker.name)}</div>
+                                            <div class="bb-speaker-title">${escapeHtml(speaker.title)}, ${escapeHtml(speaker.institution)}</div>
+                                            <div class="bb-speaker-topic">${escapeHtml(speaker.topic)}</div>
                                         </div>
                                     `).join('')}
                                 </div>
@@ -88432,10 +88440,10 @@ You can use variables like {first_name} that will be personalized for each recip
                                 <div class="bb-event-schedule">
                                     ${event.schedule.map(item => `
                                         <div class="bb-schedule-item">
-                                            <div class="bb-schedule-time">${item.time}</div>
+                                            <div class="bb-schedule-time">${escapeHtml(item.time)}</div>
                                             <div class="bb-schedule-content">
-                                                <div class="bb-schedule-title">${item.title}</div>
-                                                ${item.desc ? `<div class="bb-schedule-desc">${item.desc}</div>` : ''}
+                                                <div class="bb-schedule-title">${escapeHtml(item.title)}</div>
+                                                ${item.desc ? `<div class="bb-schedule-desc">${escapeHtml(item.desc)}</div>` : ''}
                                             </div>
                                         </div>
                                     `).join('')}
@@ -88464,8 +88472,8 @@ You can use variables like {first_name} that will be personalized for each recip
                             <div class="bb-event-section">
                                 <div class="bb-event-section-title"><i class="fas fa-map-marker-alt"></i> Venue</div>
                                 <p style="font-size: 14px; color: var(--up-text-secondary, #64748b); margin: 0;">
-                                    <strong>${event.venue}</strong><br>
-                                    ${event.venueAddress || ''}
+                                    <strong>${escapeHtml(event.venue)}</strong><br>
+                                    ${escapeHtml(event.venueAddress || '')}
                                     ${event.venueAddress ? `<a href="https://maps.google.com/?q=${encodeURIComponent(event.venueAddress)}" target="_blank" style="color: #0d9488; margin-left: 8px;">
                                         <i class="fas fa-external-link-alt"></i> View Map
                                     </a>` : ''}
@@ -88524,11 +88532,11 @@ You can use variables like {first_name} that will be personalized for each recip
                                 </div>
                             </div>
                             <div class="bb-event-content">
-                                <div class="bb-event-location">${event.city}, ${event.country}</div>
-                                <div class="bb-event-title">${event.title}</div>
-                                <div class="bb-event-date"><i class="fas fa-calendar"></i> ${event.date} | ${event.venue}</div>
+                                <div class="bb-event-location">${escapeHtml(event.city)}, ${escapeHtml(event.country)}</div>
+                                <div class="bb-event-title">${escapeHtml(event.title)}</div>
+                                <div class="bb-event-date"><i class="fas fa-calendar"></i> ${escapeHtml(event.date)} | ${escapeHtml(event.venue)}</div>
                                 <div class="bb-recap-highlights">
-                                    ${event.highlights.slice(0, 3).map(h => `<span class="bb-recap-highlight"><i class="fas fa-star"></i> ${h}</span>`).join('')}
+                                    ${event.highlights.slice(0, 3).map(h => `<span class="bb-recap-highlight"><i class="fas fa-star"></i> ${escapeHtml(h)}</span>`).join('')}
                                 </div>
                                 <div class="bb-recap-gallery">
                                     <div class="bb-recap-photo" onclick="BuildingBridgesPortal.viewEventRecap('${event.id}')" style="background: ${event.gradient};">
@@ -88628,8 +88636,8 @@ You can use variables like {first_name} that will be personalized for each recip
                         <h4>What Attendees Said</h4>
                         ${event.testimonials.map(t => `
                             <div style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--up-border, #e2e8f0);">
-                                <p style="font-style: italic; margin: 0 0 8px 0; color: var(--up-text-secondary, #64748b);">"${t.quote}"</p>
-                                <p style="margin: 0; font-size: 13px; font-weight: 500; color: var(--up-text, #0f172a);">${t.author}, ${t.institution}</p>
+                                <p style="font-style: italic; margin: 0 0 8px 0; color: var(--up-text-secondary, #64748b);">"${escapeHtml(t.quote)}"</p>
+                                <p style="margin: 0; font-size: 13px; font-weight: 500; color: var(--up-text, #0f172a);">${escapeHtml(t.author)}, ${escapeHtml(t.institution)}</p>
                             </div>
                         `).join('')}
                     </div>
@@ -89002,13 +89010,13 @@ END:VCALENDAR`;
                                     : `<div style="width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg, rgba(13, 148, 136, 0.2), rgba(13, 148, 136, 0.1)); color: #0d9488; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px;">${initials}</div>`
                                 }
                                 <div style="flex: 1; min-width: 0;">
-                                    <div style="font-weight: 600; font-size: 16px; color: var(--up-text-primary, #1e293b);">${s.name}</div>
-                                    <div style="font-size: 13px; color: var(--up-text-secondary, #64748b);">${s.title || ''}</div>
+                                    <div style="font-weight: 600; font-size: 16px; color: var(--up-text-primary, #1e293b);">${escapeHtml(s.name)}</div>
+                                    <div style="font-size: 13px; color: var(--up-text-secondary, #64748b);">${escapeHtml(s.title || '')}</div>
                                 </div>
                             </div>
-                            ${s.institution ? `<div style="font-size: 13px; color: var(--up-text-secondary, #64748b); margin-bottom: 6px;"><i class="fas fa-building" style="width: 18px; color: #0d9488;"></i> ${s.institution}</div>` : ''}
-                            ${s.talk_title ? `<div style="font-size: 13px; color: #0d9488; font-weight: 500; margin-bottom: 8px;"><i class="fas fa-chalkboard-teacher" style="width: 18px;"></i> ${s.talk_title}</div>` : ''}
-                            ${s.bio ? `<div style="font-size: 13px; color: var(--up-text-secondary, #64748b); line-height: 1.5; margin-top: 8px;">${s.bio.length > 150 ? s.bio.substring(0, 150) + '...' : s.bio}</div>` : ''}
+                            ${s.institution ? `<div style="font-size: 13px; color: var(--up-text-secondary, #64748b); margin-bottom: 6px;"><i class="fas fa-building" style="width: 18px; color: #0d9488;"></i> ${escapeHtml(s.institution)}</div>` : ''}
+                            ${s.talk_title ? `<div style="font-size: 13px; color: #0d9488; font-weight: 500; margin-bottom: 8px;"><i class="fas fa-chalkboard-teacher" style="width: 18px;"></i> ${escapeHtml(s.talk_title)}</div>` : ''}
+                            ${s.bio ? `<div style="font-size: 13px; color: var(--up-text-secondary, #64748b); line-height: 1.5; margin-top: 8px;">${escapeHtml(s.bio.length > 150 ? s.bio.substring(0, 150) + '...' : s.bio)}</div>` : ''}
                         </div>
                     `;
                 }).join('');
@@ -89051,9 +89059,9 @@ END:VCALENDAR`;
                                         ${item.end_time ? `<div style="font-size: 12px; color: var(--up-text-secondary, #64748b);">- ${item.end_time}</div>` : ''}
                                     </div>
                                     <div style="flex: 1;">
-                                        <div style="font-weight: 600; font-size: 15px; color: var(--up-text-primary, #1e293b); margin-bottom: 4px;">${item.title}</div>
-                                        ${item.speaker_name ? `<div style="font-size: 13px; color: #0d9488; margin-bottom: 4px;"><i class="fas fa-user" style="margin-right: 4px;"></i>${item.speaker_name}${item.speaker_institution ? ' - ' + item.speaker_institution : ''}</div>` : ''}
-                                        ${item.description ? `<div style="font-size: 13px; color: var(--up-text-secondary, #64748b); line-height: 1.5;">${item.description}</div>` : ''}
+                                        <div style="font-weight: 600; font-size: 15px; color: var(--up-text-primary, #1e293b); margin-bottom: 4px;">${escapeHtml(item.title)}</div>
+                                        ${item.speaker_name ? `<div style="font-size: 13px; color: #0d9488; margin-bottom: 4px;"><i class="fas fa-user" style="margin-right: 4px;"></i>${escapeHtml(item.speaker_name)}${item.speaker_institution ? ' - ' + escapeHtml(item.speaker_institution) : ''}</div>` : ''}
+                                        ${item.description ? `<div style="font-size: 13px; color: var(--up-text-secondary, #64748b); line-height: 1.5;">${escapeHtml(item.description)}</div>` : ''}
                                     </div>
                                 </div>
                             </div>
@@ -90105,14 +90113,14 @@ END:VCALENDAR`;
                     html += `
                         <div class="sp-networking-card">
                             <div class="sp-networking-header">
-                                <h4>${event.name}</h4>
-                                <span class="sp-networking-event-badge">${event.eventName}</span>
+                                <h4>${escapeHtml(event.name)}</h4>
+                                <span class="sp-networking-event-badge">${escapeHtml(event.eventName)}</span>
                             </div>
                             <div class="sp-networking-details">
-                                <p><i class="fas fa-calendar"></i> ${event.date}</p>
-                                <p><i class="fas fa-clock"></i> ${event.time}</p>
-                                <p><i class="fas fa-map-marker-alt"></i> ${event.venue}</p>
-                                <p style="margin-top: 8px; font-style: italic;">${event.description}</p>
+                                <p><i class="fas fa-calendar"></i> ${escapeHtml(event.date)}</p>
+                                <p><i class="fas fa-clock"></i> ${escapeHtml(event.time)}</p>
+                                <p><i class="fas fa-map-marker-alt"></i> ${escapeHtml(event.venue)}</p>
+                                <p style="margin-top: 8px; font-style: italic;">${escapeHtml(event.description)}</p>
                             </div>
                             <button class="sp-rsvp-btn ${btnClass}" onclick="SpeakerPortal.rsvpNetworking('${event.id}')">
                                 ${btnText}
@@ -90473,10 +90481,10 @@ END:VCALENDAR`;
                             <div class="sp-speaker-avatar">${initials}</div>
                             <div class="sp-speaker-info">
                                 <div class="sp-speaker-name">
-                                    ${speaker.name}
+                                    ${escapeHtml(speaker.name)}
                                     ${isMe ? '<span class="sp-speaker-me-badge">You</span>' : ''}
                                 </div>
-                                <div class="sp-speaker-title">${speaker.title}, ${speaker.institution}</div>
+                                <div class="sp-speaker-title">${escapeHtml(speaker.title)}, ${escapeHtml(speaker.institution)}</div>
                                 <div class="sp-speaker-session">
                                     <i class="fas fa-microphone"></i>
                                     <span>${speaker.session}</span>
@@ -91960,15 +91968,15 @@ ${'='.repeat(70)}
                     html += `
                         <div class="sp-networking-card ${isAttending ? 'attending' : ''}">
                             <div class="sp-networking-card-header">
-                                <h4>${event.name}</h4>
+                                <h4>${escapeHtml(event.name)}</h4>
                                 ${isAttending ? '<span class="sp-attending-badge"><i class="fas fa-check"></i> Attending</span>' : ''}
                             </div>
                             <div class="sp-networking-details">
-                                <p><i class="fas fa-calendar"></i> ${event.date}</p>
-                                <p><i class="fas fa-clock"></i> ${event.time}</p>
-                                <p><i class="fas fa-map-marker-alt"></i> ${event.venue}</p>
+                                <p><i class="fas fa-calendar"></i> ${escapeHtml(event.date)}</p>
+                                <p><i class="fas fa-clock"></i> ${escapeHtml(event.time)}</p>
+                                <p><i class="fas fa-map-marker-alt"></i> ${escapeHtml(event.venue)}</p>
                             </div>
-                            <p class="sp-networking-desc">${event.description}</p>
+                            <p class="sp-networking-desc">${escapeHtml(event.description)}</p>
                             <button class="sp-rsvp-btn ${isAttending ? 'cancel' : ''}"
                                 onclick="SpeakerPortal.rsvpNetworkingV2('${event.id}')">
                                 <i class="fas fa-${isAttending ? 'times' : 'check'}"></i>
@@ -92016,10 +92024,10 @@ ${'='.repeat(70)}
                         <div class="sp-speaker-card ${isMe ? 'is-me' : ''}">
                             <div class="sp-speaker-avatar">${initials}</div>
                             <div class="sp-speaker-info">
-                                <h4>${speaker.name} ${isMe ? '(You)' : ''}</h4>
-                                <p class="sp-speaker-title">${speaker.title}</p>
-                                <p class="sp-speaker-inst">${speaker.institution}</p>
-                                <p class="sp-speaker-session"><i class="fas fa-microphone"></i> ${speaker.session}</p>
+                                <h4>${escapeHtml(speaker.name)} ${isMe ? '(You)' : ''}</h4>
+                                <p class="sp-speaker-title">${escapeHtml(speaker.title)}</p>
+                                <p class="sp-speaker-inst">${escapeHtml(speaker.institution)}</p>
+                                <p class="sp-speaker-session"><i class="fas fa-microphone"></i> ${escapeHtml(speaker.session)}</p>
                             </div>
                         </div>
                     `;
@@ -92779,8 +92787,8 @@ ${'='.repeat(70)}
                                         ${initials}
                                     </div>
                                     <div>
-                                        <div style="font-weight: 600; color: var(--text-primary);">${speaker.name}</div>
-                                        <div style="font-size: 12px; color: var(--text-muted);">${speaker.email}</div>
+                                        <div style="font-weight: 600; color: var(--text-primary);">${escapeHtml(speaker.name)}</div>
+                                        <div style="font-size: 12px; color: var(--text-muted);">${escapeHtml(speaker.email)}</div>
                                     </div>
                                 </div>
                             </td>
@@ -92812,7 +92820,7 @@ ${'='.repeat(70)}
                                 </span>
                             </td>
                             <td style="padding: 16px; text-align: center;">
-                                <button onclick="SpeakerAdmin.emailSpeaker('${speaker.email}')" style="padding: 6px 10px; background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); cursor: pointer; margin-right: 4px;" title="Send Email">
+                                <button onclick="SpeakerAdmin.emailSpeaker('${escapeHtml(speaker.email)}')" style="padding: 6px 10px; background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); cursor: pointer; margin-right: 4px;" title="Send Email">
                                     <i class="fas fa-envelope"></i>
                                 </button>
                                 <button onclick="SpeakerAdmin.sendReminder('${speaker.id}')" style="padding: 6px 10px; background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); cursor: pointer;" title="Send Reminder">
@@ -92975,8 +92983,8 @@ ${'='.repeat(70)}
                                 <div class="event-icon" style="background: ${event.color}20; color: ${event.color};">
                                     <i class="fas ${event.icon}"></i>
                                 </div>
-                                <h3>${event.name}</h3>
-                                <div class="event-date"><i class="fas fa-calendar-alt" style="margin-right: 6px;"></i>${event.date}</div>
+                                <h3>${escapeHtml(event.name)}</h3>
+                                <div class="event-date"><i class="fas fa-calendar-alt" style="margin-right: 6px;"></i>${escapeHtml(event.date)}</div>
                             </div>
                             <div class="spk-event-card-body">
                                 <div class="spk-event-card-stats">
@@ -92995,7 +93003,7 @@ ${'='.repeat(70)}
                                 </div>
                             </div>
                             <div class="spk-event-card-footer">
-                                <span style="font-size: 12px; color: var(--text-muted);"><i class="fas fa-map-marker-alt" style="margin-right: 4px;"></i>${event.location}</span>
+                                <span style="font-size: 12px; color: var(--text-muted);"><i class="fas fa-map-marker-alt" style="margin-right: 4px;"></i>${escapeHtml(event.location)}</span>
                                 <i class="fas fa-chevron-right" style="color: var(--text-muted);"></i>
                             </div>
                         </div>
@@ -93069,9 +93077,9 @@ ${'='.repeat(70)}
                         <div class="spk-speaker-row" onclick="SpeakerAdmin.openSpeakerDetail('${speaker.id}')">
                             <div class="spk-speaker-avatar">${initials}</div>
                             <div class="spk-speaker-info">
-                                <div class="name">${speaker.name}</div>
-                                <div class="role">${speaker.institution} | ${speaker.role}</div>
-                                <div class="session"><i class="fas fa-microphone-alt" style="margin-right: 4px;"></i>${speaker.session}</div>
+                                <div class="name">${escapeHtml(speaker.name)}</div>
+                                <div class="role">${escapeHtml(speaker.institution)} | ${escapeHtml(speaker.role)}</div>
+                                <div class="session"><i class="fas fa-microphone-alt" style="margin-right: 4px;"></i>${escapeHtml(speaker.session)}</div>
                             </div>
                             <div class="spk-speaker-docs">
                                 <span class="spk-doc-badge ${presClass}">
@@ -93082,7 +93090,7 @@ ${'='.repeat(70)}
                                 </span>
                             </div>
                             <div class="spk-speaker-actions" onclick="event.stopPropagation()">
-                                <button onclick="SpeakerAdmin.emailSpeaker('${speaker.email}')" title="Email"><i class="fas fa-envelope"></i></button>
+                                <button onclick="SpeakerAdmin.emailSpeaker('${escapeHtml(speaker.email)}')" title="Email"><i class="fas fa-envelope"></i></button>
                                 <button onclick="SpeakerAdmin.sendReminder('${speaker.id}')" title="Reminder"><i class="fas fa-bell"></i></button>
                             </div>
                         </div>
@@ -93117,12 +93125,12 @@ ${'='.repeat(70)}
                                     ${initials}
                                 </div>
                                 <div style="flex: 1;">
-                                    <h2 style="font-size: 20px; font-weight: 600; margin-bottom: 4px;">${speaker.name}</h2>
-                                    <p style="color: var(--text-muted); margin-bottom: 4px;">${speaker.institution}</p>
-                                    <p style="font-size: 13px; color: var(--accent-gold);">${speaker.session}</p>
+                                    <h2 style="font-size: 20px; font-weight: 600; margin-bottom: 4px;">${escapeHtml(speaker.name)}</h2>
+                                    <p style="color: var(--text-muted); margin-bottom: 4px;">${escapeHtml(speaker.institution)}</p>
+                                    <p style="font-size: 13px; color: var(--accent-gold);">${escapeHtml(speaker.session)}</p>
                                 </div>
                                 <div style="text-align: right;">
-                                    <span style="display: inline-block; padding: 4px 12px; background: var(--bg-tertiary); border-radius: 12px; font-size: 12px; text-transform: capitalize;">${speaker.role}</span>
+                                    <span style="display: inline-block; padding: 4px 12px; background: var(--bg-tertiary); border-radius: 12px; font-size: 12px; text-transform: capitalize;">${escapeHtml(speaker.role)}</span>
                                 </div>
                             </div>
 
@@ -93130,7 +93138,7 @@ ${'='.repeat(70)}
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;">
                                 <div style="padding: 16px; background: var(--bg-tertiary); border-radius: 8px;">
                                     <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">EMAIL</div>
-                                    <div style="font-size: 14px;"><a href="mailto:${speaker.email}" style="color: var(--accent-gold);">${speaker.email}</a></div>
+                                    <div style="font-size: 14px;"><a href="mailto:${escapeHtml(speaker.email)}" style="color: var(--accent-gold);">${escapeHtml(speaker.email)}</a></div>
                                 </div>
                                 <div style="padding: 16px; background: var(--bg-tertiary); border-radius: 8px;">
                                     <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">DEADLINE</div>
@@ -93179,7 +93187,7 @@ ${'='.repeat(70)}
 
                             <!-- Actions -->
                             <div style="display: flex; gap: 12px; justify-content: flex-end; padding-top: 16px; border-top: 1px solid var(--border);">
-                                <button class="btn btn-secondary" onclick="SpeakerAdmin.emailSpeaker('${speaker.email}'); document.getElementById('speakerDetailModal').remove();">
+                                <button class="btn btn-secondary" onclick="SpeakerAdmin.emailSpeaker('${escapeHtml(speaker.email)}'); document.getElementById('speakerDetailModal').remove();">
                                     <i class="fas fa-envelope"></i> Email Speaker
                                 </button>
                                 <button class="btn btn-primary" onclick="SpeakerAdmin.sendReminder('${speaker.id}'); document.getElementById('speakerDetailModal').remove();">
@@ -93242,7 +93250,7 @@ ${'='.repeat(70)}
                                             <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 500;">Event *</label>
                                             <select id="addSpkEvent" required style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-tertiary); color: var(--text-primary);">
                                                 <option value="">Select event...</option>
-                                                ${this.events.map(e => `<option value="${e.id}">${e.name}</option>`).join('')}
+                                                ${this.events.map(e => `<option value="${escapeHtml(e.id)}">${escapeHtml(e.name)}</option>`).join('')}
                                             </select>
                                         </div>
                                         <div>
@@ -94902,7 +94910,7 @@ ${'='.repeat(70)}
                     if (msg.reply_to && msg.reply_message) {
                         replyHtml = `
                             <div class="chat-message-reply-ref">
-                                <strong>${msg.reply_sender_name || 'Someone'}</strong>: ${this.escapeHtml(msg.reply_message).substring(0, 40)}${msg.reply_message.length > 40 ? '...' : ''}
+                                <strong>${this.escapeHtml(msg.reply_sender_name || 'Someone')}</strong>: ${this.escapeHtml(msg.reply_message).substring(0, 40)}${msg.reply_message.length > 40 ? '...' : ''}
                             </div>
                         `;
                     }
@@ -95062,10 +95070,10 @@ ${'='.repeat(70)}
 
                         return `
                             <div class="team-member-bubble ${isActive ? 'active' : ''}" onclick="App.startDM('${member.id}')">
-                                <img src="${photoUrl}" alt="${member.name}" class="team-member-photo" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=${member.avatar_color?.replace('#', '') || 'C9A962'}&color=0f172a&size=72'">
+                                <img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(member.name)}" class="team-member-photo" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=${member.avatar_color?.replace('#', '') || 'C9A962'}&color=0f172a&size=72'">
                                 <div class="team-member-tooltip">
-                                    <div class="team-member-tooltip-name">${member.name}</div>
-                                    <div class="team-member-tooltip-role">${member.role || 'Team Member'}</div>
+                                    <div class="team-member-tooltip-name">${escapeHtml(member.name)}</div>
+                                    <div class="team-member-tooltip-role">${escapeHtml(member.role || 'Team Member')}</div>
                                 </div>
                             </div>
                         `;
@@ -95112,8 +95120,8 @@ ${'='.repeat(70)}
                     const config = sectionConfig[projectId] || this.projects[projectId];
                     if (config) {
                         chatHeader.innerHTML = `
-                            <i class="fas ${config.icon}" style="color: ${config.color}; margin-right: 6px;"></i>
-                            <h3 id="adminChatChannelTitle">${config.name}</h3>
+                            <i class="fas ${escapeHtml(config.icon)}" style="color: ${escapeHtml(config.color)}; margin-right: 6px;"></i>
+                            <h3 id="adminChatChannelTitle">${escapeHtml(config.name)}</h3>
                         `;
                         chatInput.placeholder = `Message ${config.name}...`;
                     }
@@ -95143,14 +95151,14 @@ ${'='.repeat(70)}
                     html += `<div class="project-channel-item ${parent.id === activeId ? 'active' : ''}"
                          onclick="App.selectPanelChannel('${projectId}', '${parent.id}')">
                         <span class="channel-hash">#</span>
-                        <span class="channel-name">${parent.name}</span>
+                        <span class="channel-name">${escapeHtml(parent.name)}</span>
                     </div>`;
                     if (parent.children && parent.children.length > 0) {
                         parent.children.forEach(child => {
                             html += `<div class="project-channel-item sub-channel ${child.id === activeId ? 'active' : ''}"
                                  onclick="App.selectPanelChannel('${projectId}', '${child.id}')">
                                 <span class="channel-hash">#</span>
-                                <span class="channel-name">${child.name}</span>
+                                <span class="channel-name">${escapeHtml(child.name)}</span>
                             </div>`;
                         });
                     }
@@ -95196,7 +95204,7 @@ ${'='.repeat(70)}
                                 <i class="fas fa-arrow-left"></i>
                             </button>
                             <i class="fas fa-user" style="color: var(--accent-gold); margin-right: 6px;"></i>
-                            <h3>${result.other_member.name}</h3>
+                            <h3>${escapeHtml(result.other_member.name)}</h3>
                         </div>
                     `;
 
@@ -96479,7 +96487,7 @@ ${'='.repeat(70)}
                         <div class="task-content" onclick="App.openTaskModal('${project}', '${task.id}')" style="cursor: pointer;">
                             <div class="task-title" style="${isSubtask ? 'font-size: 13px;' : ''}">${this.escapeHtml(task.title)}</div>
                             <div class="task-meta">
-                                ${assignee ? `<span title="${assignee.first_name} ${assignee.last_name}" style="display: inline-flex; align-items: center; justify-content: center; width: ${isSubtask ? '16' : '20'}px; height: ${isSubtask ? '16' : '20'}px; border-radius: 50%; background: var(--accent-gold); color: var(--bg-primary); font-size: ${isSubtask ? '8' : '9'}px; font-weight: 600;">${assigneeInitials}</span>` : ''}
+                                ${assignee ? `<span title="${escapeHtml(assignee.first_name)} ${escapeHtml(assignee.last_name)}" style="display: inline-flex; align-items: center; justify-content: center; width: ${isSubtask ? '16' : '20'}px; height: ${isSubtask ? '16' : '20'}px; border-radius: 50%; background: var(--accent-gold); color: var(--bg-primary); font-size: ${isSubtask ? '8' : '9'}px; font-weight: 600;">${escapeHtml(assigneeInitials)}</span>` : ''}
                                 ${hasFiles ? `<span title="${task.files.length} file(s)"><i class="fas fa-paperclip" style="color: var(--text-muted);"></i></span>` : ''}
                                 ${hasSubtasks && !isSubtask ? `<span style="font-size: 11px; color: var(--text-muted);"><i class="fas fa-tasks"></i> ${completedSubtasks}/${task.subtasks.length}</span>` : ''}
                                 ${dueText ? `<span>Due ${dueText}</span>` : ''}
@@ -96798,9 +96806,9 @@ ${'='.repeat(70)}
                 files.forEach(file => {
                     this.taskPendingFiles.push(file);
                     container.innerHTML += `
-                        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 4px;" data-pending="${file.name}">
+                        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 4px;" data-pending="${escapeHtml(file.name)}">
                             <i class="fas fa-file" style="color: var(--accent-gold);"></i>
-                            <span style="flex: 1; font-size: 13px;">${file.name}</span>
+                            <span style="flex: 1; font-size: 13px;">${escapeHtml(file.name)}</span>
                             <span style="font-size: 11px; color: var(--text-muted);">(pending)</span>
                         </div>
                     `;
@@ -97194,7 +97202,7 @@ ${'='.repeat(70)}
                 const assigneeSelect = document.getElementById('seqStepAssignee');
                 if (assigneeSelect && this.users) {
                     assigneeSelect.innerHTML = '<option value="">Unassigned</option>' +
-                        this.users.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
+                        this.users.map(u => `<option value="${escapeHtml(u.id)}">${escapeHtml(u.name)}</option>`).join('');
                 }
 
                 this.renderSequenceSteps();
@@ -99994,10 +100002,10 @@ ${'='.repeat(70)}
                     return `<div class="card" style="margin: 0;"><div style="padding: 20px;">
                         <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px;">
                             ${s.photo_url ? `<img src="${s.photo_url}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">` : `<div style="width: 50px; height: 50px; border-radius: 50%; background: rgba(13,148,136,0.15); color: #0d9488; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px;">${initials}</div>`}
-                            <div style="flex: 1; min-width: 0;"><div style="font-weight: 600; font-size: 15px;">${s.name}</div><div style="font-size: 12px; color: var(--text-muted);">${s.title || ''}</div></div>
+                            <div style="flex: 1; min-width: 0;"><div style="font-weight: 600; font-size: 15px;">${escapeHtml(s.name)}</div><div style="font-size: 12px; color: var(--text-muted);">${escapeHtml(s.title || '')}</div></div>
                         </div>
-                        ${s.institution ? `<div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;"><i class="fas fa-building" style="width: 16px;"></i> ${s.institution}</div>` : ''}
-                        ${s.talk_title ? `<div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;"><i class="fas fa-chalkboard-teacher" style="width: 16px;"></i> ${s.talk_title}</div>` : ''}
+                        ${s.institution ? `<div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;"><i class="fas fa-building" style="width: 16px;"></i> ${escapeHtml(s.institution)}</div>` : ''}
+                        ${s.talk_title ? `<div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;"><i class="fas fa-chalkboard-teacher" style="width: 16px;"></i> ${escapeHtml(s.talk_title)}</div>` : ''}
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px;">
                             <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: ${s.is_published ? 'rgba(34,197,94,0.2)' : 'rgba(251,146,60,0.2)'}; color: ${s.is_published ? '#22c55e' : '#fb923c'};">${s.is_published ? 'Published' : 'Draft'}</span>
                             <div style="display: flex; gap: 4px;">
@@ -100017,7 +100025,7 @@ ${'='.repeat(70)}
                     if (!el) return;
                     const cv = el.value; const isF = id.includes('Filter');
                     el.innerHTML = `<option value="">${isF ? 'All Events' : '-- No specific event --'}</option>`;
-                    events.forEach(e => { el.innerHTML += `<option value="${e.id}">${e.label}</option>`; });
+                    events.forEach(e => { el.innerHTML += `<option value="${escapeHtml(e.id)}">${escapeHtml(e.label)}</option>`; });
                     el.value = cv;
                 });
             },
@@ -100085,7 +100093,7 @@ ${'='.repeat(70)}
                 list.innerHTML = this.bridgesProgramItems.map(item => `
                     <div style="display: flex; align-items: center; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--border);">
                         <div style="min-width: 80px; text-align: center;">${item.start_time ? `<div style="font-weight: 600; color: #0d9488; font-size: 14px;">${item.start_time}</div>` : ''}${item.end_time ? `<div style="font-size: 11px; color: var(--text-muted);">- ${item.end_time}</div>` : ''}</div>
-                        <div style="flex: 1; min-width: 0;"><div style="font-weight: 600; font-size: 14px; margin-bottom: 2px;">${item.title}</div>${item.speaker_name ? `<div style="font-size: 12px; color: var(--text-secondary);"><i class="fas fa-user" style="margin-right: 4px;"></i>${item.speaker_name}</div>` : ''}${item.description ? `<div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">${item.description}</div>` : ''}</div>
+                        <div style="flex: 1; min-width: 0;"><div style="font-weight: 600; font-size: 14px; margin-bottom: 2px;">${escapeHtml(item.title)}</div>${item.speaker_name ? `<div style="font-size: 12px; color: var(--text-secondary);"><i class="fas fa-user" style="margin-right: 4px;"></i>${escapeHtml(item.speaker_name)}</div>` : ''}${item.description ? `<div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">${escapeHtml(item.description)}</div>` : ''}</div>
                         <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
                             <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: ${item.is_published ? 'rgba(34,197,94,0.2)' : 'rgba(251,146,60,0.2)'}; color: ${item.is_published ? '#22c55e' : '#fb923c'};">${item.is_published ? 'Published' : 'Draft'}</span>
                             <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="App.toggleBridgesProgramPublish('${item.id}')"><i class="fas fa-${item.is_published ? 'eye-slash' : 'eye'}"></i></button>
@@ -100105,7 +100113,7 @@ ${'='.repeat(70)}
                     document.body.appendChild(modal); this.populateBridgesEventDropdowns();
                 }
                 const speakerSelect = document.getElementById('adminBridgesProgramSpeaker');
-                if (speakerSelect) { speakerSelect.innerHTML = '<option value="">-- No speaker --</option>'; (this.bridgesSpeakers || []).forEach(s => { speakerSelect.innerHTML += `<option value="${s.id}">${s.name}${s.institution ? ' (' + s.institution + ')' : ''}</option>`; }); }
+                if (speakerSelect) { speakerSelect.innerHTML = '<option value="">-- No speaker --</option>'; (this.bridgesSpeakers || []).forEach(s => { speakerSelect.innerHTML += `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}${s.institution ? ' (' + escapeHtml(s.institution) + ')' : ''}</option>`; }); }
                 document.getElementById('adminBridgesProgramModalTitle').textContent = item ? 'Edit Program Item' : 'Add Program Item';
                 document.getElementById('adminBridgesProgramId').value = item?.id || '';
                 document.getElementById('adminBridgesProgramEvent').value = item?.event_id || '';
@@ -100265,22 +100273,22 @@ ${'='.repeat(70)}
                         <div class="modal-body">
                             <div style="display: flex; gap: 20px; margin-bottom: 20px;">
                                 <div style="width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #fb923c, #f97316); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; color: white;">
-                                    ${member.first_name[0]}${member.last_name[0]}
+                                    ${escapeHtml(member.first_name[0])}${escapeHtml(member.last_name[0])}
                                 </div>
                                 <div>
-                                    <h2 style="font-size: 22px; margin-bottom: 4px;">${member.first_name} ${member.last_name}</h2>
-                                    <div style="color: var(--text-muted);">${member.specialty || 'Member'}</div>
-                                    <div style="color: var(--text-muted); font-size: 13px;">${member.institution || ''}</div>
+                                    <h2 style="font-size: 22px; margin-bottom: 4px;">${escapeHtml(member.first_name)} ${escapeHtml(member.last_name)}</h2>
+                                    <div style="color: var(--text-muted);">${escapeHtml(member.specialty || 'Member')}</div>
+                                    <div style="color: var(--text-muted); font-size: 13px;">${escapeHtml(member.institution || '')}</div>
                                 </div>
                             </div>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 16px;">
                                 <div>
                                     <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Email</div>
-                                    <div style="font-weight: 500;">${member.email || 'N/A'}</div>
+                                    <div style="font-weight: 500;">${escapeHtml(member.email || 'N/A')}</div>
                                 </div>
                                 <div>
                                     <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Country</div>
-                                    <div style="font-weight: 500;">${member.country || 'N/A'}</div>
+                                    <div style="font-weight: 500;">${escapeHtml(member.country || 'N/A')}</div>
                                 </div>
                                 <div>
                                     <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Member Since</div>
@@ -100291,7 +100299,7 @@ ${'='.repeat(70)}
                                     <div style="font-weight: 500; color: #22c55e;">Active</div>
                                 </div>
                             </div>
-                            ${member.bio ? `<div style="margin-bottom: 16px;"><div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px;">Bio</div><p style="line-height: 1.6;">${member.bio}</p></div>` : ''}
+                            ${member.bio ? `<div style="margin-bottom: 16px;"><div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px;">Bio</div><p style="line-height: 1.6;">${escapeHtml(member.bio)}</p></div>` : ''}
                             <div style="display: flex; gap: 12px; justify-content: flex-end; padding-top: 16px; border-top: 1px solid var(--border);">
                                 <button class="btn btn-secondary" onclick="document.getElementById('memberProfileModal').remove()">Close</button>
                                 <button class="btn btn-primary" onclick="App.showSection('communications'); document.getElementById('memberProfileModal').remove();">
@@ -100348,7 +100356,7 @@ ${'='.repeat(70)}
                                     <span style="font-weight: 600;">${this.escapeHtml(p.first_name || '')} ${this.escapeHtml(p.last_name || '')}</span>
                                     ${this.getPostCategoryBadge(p.post_type)}
                                 </div>
-                                <div style="font-size: 11px; color: var(--text-muted);">${p.specialty || ''} ${p.institution ? '· ' + p.institution : ''}</div>
+                                <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(p.specialty || '')} ${p.institution ? '· ' + escapeHtml(p.institution) : ''}</div>
                             </div>
                             <div style="font-size: 11px; color: var(--text-muted);">
                                 ${new Date(p.created_at).toLocaleDateString()}
@@ -100373,8 +100381,8 @@ ${'='.repeat(70)}
                         ${p.attachments ? `
                             <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
                                 ${JSON.parse(p.attachments || '[]').map(att => `
-                                    <a href="${att.url}" target="_blank" class="btn btn-secondary" style="padding: 6px 12px;">
-                                        <i class="fas fa-file"></i> ${att.name || 'Attachment'}
+                                    <a href="${escapeHtml(att.url)}" target="_blank" class="btn btn-secondary" style="padding: 6px 12px;">
+                                        <i class="fas fa-file"></i> ${escapeHtml(att.name || 'Attachment')}
                                     </a>
                                 `).join('')}
                             </div>
