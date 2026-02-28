@@ -154,7 +154,7 @@ async function createFiscalInvoice(orderData) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-API-Key': FIRA_API_KEY
+                'FIRA-Api-Key': FIRA_API_KEY
             },
             body: JSON.stringify(firaOrder)
         });
@@ -190,7 +190,7 @@ async function getInvoiceStatus(firaId) {
     try {
         const response = await fetch(`${FIRA_API_URL}/api/v1/webshop/order/${firaId}`, {
             headers: {
-                'X-API-Key': FIRA_API_KEY
+                'FIRA-Api-Key': FIRA_API_KEY
             }
         });
 
