@@ -2631,6 +2631,30 @@ async function initializeApp() {
     // Gala + Forum check-in columns
     try { db.run(`ALTER TABLE gala_registrations ADD COLUMN checked_in INTEGER DEFAULT 0`); } catch(e) {}
     try { db.run(`ALTER TABLE gala_registrations ADD COLUMN checked_in_at TEXT`); } catch(e) {}
+    // Phase 8: Gala payment & tracking columns
+    try { db.run("ALTER TABLE gala_registrations ADD COLUMN payment_status TEXT DEFAULT 'unpaid'"); } catch(e) {}
+    try { db.run('ALTER TABLE gala_registrations ADD COLUMN amount_paid REAL'); } catch(e) {}
+    try { db.run('ALTER TABLE gala_registrations ADD COLUMN user_id TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE gala_registrations ADD COLUMN stripe_session_id TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE gala_registrations ADD COLUMN invoice_number TEXT'); } catch(e) {}
+    // Phase 8: Gala settings table
+    db.run(`CREATE TABLE IF NOT EXISTS gala_settings (
+        id TEXT PRIMARY KEY DEFAULT 'default',
+        title TEXT DEFAULT 'Gala Evening 2026',
+        tagline TEXT DEFAULT 'The Pinnacle of Biomedical Excellence',
+        date TEXT DEFAULT '2026-12-05',
+        time TEXT DEFAULT '18:00',
+        venue TEXT DEFAULT 'Grand Ballroom, Zagreb',
+        dress_code TEXT DEFAULT 'Black Tie / Formal Evening Attire',
+        description TEXT DEFAULT 'The Gala Evening is the crown jewel of Plexus 2026.',
+        capacity INTEGER DEFAULT 150,
+        price_gala_only REAL DEFAULT 95,
+        price_bundle REAL DEFAULT 174,
+        price_bundle_original REAL DEFAULT 194,
+        is_registration_open INTEGER DEFAULT 1,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    try { db.run("INSERT OR IGNORE INTO gala_settings (id) VALUES ('default')"); } catch(e) {}
     try { db.run(`ALTER TABLE forum_members ADD COLUMN checked_in INTEGER DEFAULT 0`); } catch(e) {}
     try { db.run(`ALTER TABLE forum_members ADD COLUMN checked_in_at TEXT`); } catch(e) {}
 
@@ -14286,6 +14310,108 @@ By applying to this program, I provide the following consents:
         if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found on disk' });
 
         res.download(filePath, doc.original_name);
+    });
+
+    // --- GALA SETTINGS ENDPOINTS ---
+
+    // Get gala settings (admin)
+    app.get('/api/admin/gala/settings', auth, adminOnly, (req, res) => {
+        let settings = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
+        if (!settings) {
+            // Create default settings if table/row missing
+            try {
+                db.run(`CREATE TABLE IF NOT EXISTS gala_settings (
+                    id TEXT PRIMARY KEY DEFAULT 'default',
+                    title TEXT DEFAULT 'Gala Evening 2026',
+                    tagline TEXT DEFAULT 'The Pinnacle of Biomedical Excellence',
+                    date TEXT DEFAULT '2026-12-05',
+                    time TEXT DEFAULT '18:00',
+                    venue TEXT DEFAULT 'Grand Ballroom, Zagreb',
+                    dress_code TEXT DEFAULT 'Black Tie / Formal Evening Attire',
+                    description TEXT,
+                    capacity INTEGER DEFAULT 150,
+                    price_gala_only REAL DEFAULT 95,
+                    price_bundle REAL DEFAULT 174,
+                    price_bundle_original REAL DEFAULT 194,
+                    is_registration_open INTEGER DEFAULT 1,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )`);
+                db.run("INSERT OR IGNORE INTO gala_settings (id) VALUES ('default')");
+                saveDb();
+                settings = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
+            } catch(e) {
+                console.error('Gala settings table creation failed:', e.message);
+            }
+        }
+        res.json(settings || {
+            title: 'Gala Evening 2026', tagline: 'The Pinnacle of Biomedical Excellence',
+            date: '2026-12-05', time: '18:00', venue: 'Grand Ballroom, Zagreb',
+            dress_code: 'Black Tie / Formal Evening Attire', capacity: 150,
+            price_gala_only: 95, price_bundle: 174, price_bundle_original: 194,
+            is_registration_open: 1
+        });
+    });
+
+    // Update gala settings (admin)
+    app.put('/api/admin/gala/settings', auth, adminOnly, (req, res) => {
+        // Ensure table and default row exist
+        db.run(`CREATE TABLE IF NOT EXISTS gala_settings (
+            id TEXT PRIMARY KEY DEFAULT 'default',
+            title TEXT, tagline TEXT, date TEXT, time TEXT, venue TEXT,
+            dress_code TEXT, description TEXT, capacity INTEGER DEFAULT 150,
+            price_gala_only REAL DEFAULT 95, price_bundle REAL DEFAULT 174,
+            price_bundle_original REAL DEFAULT 194, is_registration_open INTEGER DEFAULT 1,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run("INSERT OR IGNORE INTO gala_settings (id) VALUES ('default')");
+
+        const { title, tagline, date, time, venue, dress_code, description, capacity,
+                price_gala_only, price_bundle, price_bundle_original, is_registration_open } = req.body;
+        const fields = [];
+        const values = [];
+        if (title !== undefined) { fields.push('title = ?'); values.push(title); }
+        if (tagline !== undefined) { fields.push('tagline = ?'); values.push(tagline); }
+        if (date !== undefined) { fields.push('date = ?'); values.push(date); }
+        if (time !== undefined) { fields.push('time = ?'); values.push(time); }
+        if (venue !== undefined) { fields.push('venue = ?'); values.push(venue); }
+        if (dress_code !== undefined) { fields.push('dress_code = ?'); values.push(dress_code); }
+        if (description !== undefined) { fields.push('description = ?'); values.push(description); }
+        if (capacity !== undefined) { fields.push('capacity = ?'); values.push(capacity); }
+        if (price_gala_only !== undefined) { fields.push('price_gala_only = ?'); values.push(price_gala_only); }
+        if (price_bundle !== undefined) { fields.push('price_bundle = ?'); values.push(price_bundle); }
+        if (price_bundle_original !== undefined) { fields.push('price_bundle_original = ?'); values.push(price_bundle_original); }
+        if (is_registration_open !== undefined) { fields.push('is_registration_open = ?'); values.push(is_registration_open ? 1 : 0); }
+        if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+        fields.push("updated_at = ?"); values.push(new Date().toISOString());
+        db.run(`UPDATE gala_settings SET ${fields.join(', ')} WHERE id = 'default'`, values);
+        saveDb();
+        const updated = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
+        res.json({ success: true, settings: updated });
+    });
+
+    // Gala registrations list (admin)
+    app.get('/api/admin/gala/registrations', auth, adminOnly, (req, res) => {
+        const rows = query.all('SELECT * FROM gala_registrations ORDER BY created_at DESC');
+        res.json(rows);
+    });
+
+    // Also serve at /api/gala/registrations for shared frontend compatibility
+    app.get('/api/gala/registrations', auth, adminOnly, (req, res) => {
+        const rows = query.all('SELECT * FROM gala_registrations ORDER BY created_at DESC');
+        res.json(rows);
+    });
+
+    // Approve/reject gala registration (admin)
+    app.put('/api/gala/registrations/:id', auth, adminOnly, (req, res) => {
+        const { status, admin_notes } = req.body;
+        if (!['approved', 'rejected', 'pending'].includes(status)) {
+            return res.status(400).json({ error: 'Invalid status' });
+        }
+        db.run(`UPDATE gala_registrations SET status = ?, admin_notes = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ?`,
+            [status, admin_notes || '', req.user.email, new Date().toISOString(), req.params.id]);
+        saveDb();
+        const updated = query.get(`SELECT * FROM gala_registrations WHERE id = ?`, [req.params.id]);
+        res.json({ success: true, registration: updated });
     });
 
     // --- EVENT CHECK-IN ENDPOINTS ---

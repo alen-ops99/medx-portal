@@ -76,6 +76,52 @@ async function sendEmail(to, subject, htmlContent) {
         return { success: false, error: err.message };
     }
 }
+
+// Branded email template builder — wraps content in Med&X styled HTML
+function buildEmailTemplate(title, bodyHtml) {
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; background: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background: #f4f4f5; padding: 32px 16px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%;">
+    <!-- Header -->
+    <tr><td style="background: #0f172a; padding: 28px 32px; border-radius: 12px 12px 0 0; text-align: center;">
+        <div style="font-size: 28px; font-weight: 700; letter-spacing: 1px;">
+            <span style="color: #C9A962;">Med</span><span style="color: #ffffff;">&amp;</span><span style="color: #C9A962;">X</span>
+        </div>
+        <div style="color: #94a3b8; font-size: 12px; margin-top: 4px; letter-spacing: 2px; text-transform: uppercase;">Building Bridges in Biomedicine</div>
+    </td></tr>
+    <!-- Title bar -->
+    <tr><td style="background: #1e293b; padding: 16px 32px; text-align: center;">
+        <h1 style="margin: 0; color: #C9A962; font-size: 20px; font-weight: 600;">${title}</h1>
+    </td></tr>
+    <!-- Body -->
+    <tr><td style="background: #ffffff; padding: 32px; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;">
+        <div style="color: #334155; font-size: 15px; line-height: 1.7;">
+            ${bodyHtml}
+        </div>
+    </td></tr>
+    <!-- Footer -->
+    <tr><td style="background: #0f172a; padding: 24px 32px; border-radius: 0 0 12px 12px; text-align: center;">
+        <div style="color: #C9A962; font-size: 14px; font-weight: 600; margin-bottom: 8px;">Med&amp;X</div>
+        <div style="color: #94a3b8; font-size: 12px; margin-bottom: 12px;">Building Bridges in Biomedicine</div>
+        <div style="margin-bottom: 8px;">
+            <a href="https://medx.hr" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 8px;">Website</a>
+            <a href="https://www.linkedin.com/company/med-x-croatia/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 8px;">LinkedIn</a>
+            <a href="https://www.instagram.com/medx.hr/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 8px;">Instagram</a>
+        </div>
+        <div style="color: #64748b; font-size: 11px;">&copy; ${new Date().getFullYear()} Med&amp;X. All rights reserved.</div>
+    </td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'medx-portal-secret-key-2026';
 
@@ -2461,6 +2507,30 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    // Gala settings (admin-editable)
+    db.run(`CREATE TABLE IF NOT EXISTS gala_settings (
+        id TEXT PRIMARY KEY DEFAULT 'default',
+        title TEXT DEFAULT 'Gala Evening 2026',
+        tagline TEXT DEFAULT 'The Pinnacle of Biomedical Excellence',
+        date TEXT DEFAULT '2026-12-05',
+        time TEXT DEFAULT '18:00',
+        venue TEXT DEFAULT 'Grand Ballroom, Zagreb',
+        dress_code TEXT DEFAULT 'Black Tie / Formal Evening Attire',
+        description TEXT DEFAULT 'The Gala Evening is the crown jewel of Plexus 2026 – an exclusive evening that brings together 150+ of the most influential figures in biomedicine for an unforgettable celebration of excellence and innovation.',
+        capacity INTEGER DEFAULT 150,
+        price_gala_only REAL DEFAULT 95,
+        price_bundle REAL DEFAULT 174,
+        price_bundle_original REAL DEFAULT 194,
+        is_registration_open INTEGER DEFAULT 1,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // Seed default gala settings if none exist
+    const existingGalaSettings = query.get("SELECT id FROM gala_settings WHERE id = 'default'");
+    if (!existingGalaSettings) {
+        db.run("INSERT INTO gala_settings (id) VALUES ('default')");
+    }
+
     // ========== TABLES FROM ADMIN PORTAL (shared schema) ==========
 
     db.run(`CREATE TABLE IF NOT EXISTS admin_section_preferences (
@@ -2626,6 +2696,14 @@ async function initializeApp() {
     try { db.run('ALTER TABLE registrations ADD COLUMN institution TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE registrations ADD COLUMN country TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE registrations ADD COLUMN includes_gala INTEGER DEFAULT 0'); } catch(e) {}
+    // Gala registration payment & user tracking columns
+    try { db.run('ALTER TABLE gala_registrations ADD COLUMN payment_status TEXT DEFAULT \'unpaid\''); } catch(e) {}
+    try { db.run('ALTER TABLE gala_registrations ADD COLUMN amount_paid REAL'); } catch(e) {}
+    try { db.run('ALTER TABLE gala_registrations ADD COLUMN user_id TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE gala_registrations ADD COLUMN stripe_session_id TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE gala_registrations ADD COLUMN invoice_number TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE gala_registrations ADD COLUMN checked_in INTEGER DEFAULT 0'); } catch(e) {}
+    try { db.run('ALTER TABLE gala_registrations ADD COLUMN checked_in_at TEXT'); } catch(e) {}
     // Abstract detail columns from admin portal
     try { db.run('ALTER TABLE abstracts ADD COLUMN submitter_name TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE abstracts ADD COLUMN submitter_email TEXT'); } catch(e) {}
@@ -3300,7 +3378,30 @@ async function initializeApp() {
     });
 
     app.get('/api/connections/my', auth, (req, res) => {
-        res.json(query.all(`SELECT * FROM connections WHERE requester_id = ? OR requestee_id = ?`, [req.user.id, req.user.id]));
+        res.json(query.all(`SELECT c.*,
+            u1.first_name AS requester_first_name, u1.last_name AS requester_last_name,
+            u1.institution AS requester_institution, u1.bio AS requester_bio, u1.country AS requester_country,
+            u2.first_name AS requestee_first_name, u2.last_name AS requestee_last_name,
+            u2.institution AS requestee_institution, u2.bio AS requestee_bio, u2.country AS requestee_country
+            FROM connections c
+            LEFT JOIN users u1 ON c.requester_id = u1.id
+            LEFT JOIN users u2 ON c.requestee_id = u2.id
+            WHERE c.requester_id = ? OR c.requestee_id = ?`, [req.user.id, req.user.id]));
+    });
+
+    // Accept or decline a connection request
+    app.post('/api/connections/:id/respond', auth, (req, res) => {
+        const { action } = req.body ?? {};
+        if (!action || !['accept', 'decline'].includes(action)) {
+            return res.status(400).json({ error: 'action must be "accept" or "decline"' });
+        }
+        const connId = req.params.id;
+        const conn = query.get('SELECT * FROM connections WHERE id = ? AND requestee_id = ?', [connId, req.user.id]);
+        if (!conn) return res.status(404).json({ error: 'Connection request not found' });
+        const newStatus = action === 'accept' ? 'accepted' : 'declined';
+        db.run('UPDATE connections SET status = ? WHERE id = ?', [newStatus, connId]);
+        saveDb();
+        res.json({ success: true, status: newStatus });
     });
 
     // ========== ANNOUNCEMENTS ==========
@@ -3600,6 +3701,30 @@ By applying to this program, I provide the following consents:
 
         db.run(`UPDATE accelerator_applications SET status = 'submitted', submitted_at = datetime('now') WHERE id = ?`, [req.params.id]);
         saveDb();
+
+        // Send accelerator application confirmation email
+        try {
+            if (app.email) {
+                sendEmail(app.email, 'Med&X Accelerator — Application Received', buildEmailTemplate('Application Received', `
+                    <p>Dear ${app.first_name || 'Applicant'},</p>
+                    <p>Your application for the <strong>Med&amp;X Accelerator</strong> program has been successfully submitted.</p>
+                    <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                        <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 160px;">Application Number</td>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${app.application_number || 'N/A'}</td></tr>
+                        <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Candidate ID</td>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${app.candidate_id || 'N/A'}</td></tr>
+                        <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Submitted</td>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</td></tr>
+                    </table>
+                    <p>Our review committee will evaluate your application and notify you of the next steps. This process typically takes 2-4 weeks.</p>
+                    <p>If you have any questions in the meantime, contact us at <a href="mailto:accelerator@medx.hr" style="color: #C9A962;">accelerator@medx.hr</a>.</p>
+                    <p>Best regards,<br><strong>Med&amp;X Accelerator Team</strong></p>
+                `));
+            }
+        } catch (emailErr) {
+            console.warn('Accelerator submit email failed:', emailErr.message);
+        }
+
         res.json({ success: true });
     });
 
@@ -3835,6 +3960,59 @@ By applying to this program, I provide the following consents:
         db.run('DELETE FROM accelerator_key_dates WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
+    });
+
+    // ========== ACCELERATOR PROCESSING FEE (STRIPE + FIRA) ==========
+
+    // Create Stripe Checkout Session for Accelerator processing fee (75 EUR)
+    app.post('/api/accelerator/checkout-session', auth, async (req, res) => {
+        try {
+            if (!stripe) return res.status(400).json({ error: 'Stripe is not configured' });
+
+            const { applicationId } = req.body;
+            if (!applicationId) return res.status(400).json({ error: 'applicationId is required' });
+
+            // Validate application exists and belongs to user
+            const application = query.get(
+                'SELECT * FROM accelerator_applications WHERE id = ? AND user_id = ?',
+                [applicationId, req.user.id]
+            );
+            if (!application) return res.status(404).json({ error: 'Application not found' });
+            if (application.status === 'paid') return res.status(400).json({ error: 'Processing fee already paid' });
+
+            const user = query.get('SELECT * FROM users WHERE id = ?', [req.user.id]);
+            const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+            const session = await stripe.checkout.sessions.create({
+                mode: 'payment',
+                payment_method_types: ['card'],
+                line_items: [{
+                    price_data: {
+                        currency: 'eur',
+                        product_data: {
+                            name: 'Med&X Accelerator 2026 - Processing Fee',
+                            description: `Application ${application.application_number || applicationId}`
+                        },
+                        unit_amount: 7500 // 75 EUR in cents
+                    },
+                    quantity: 1
+                }],
+                metadata: {
+                    applicationId: applicationId,
+                    userId: req.user.id,
+                    type: 'accelerator-fee',
+                    applicationNumber: application.application_number || ''
+                },
+                customer_email: user?.email || application.email,
+                success_url: `${baseUrl}/?payment=success&type=accelerator&app=${applicationId}`,
+                cancel_url: `${baseUrl}/?payment=cancelled&type=accelerator&app=${applicationId}`
+            });
+
+            res.json({ sessionId: session.id, url: session.url });
+        } catch (err) {
+            console.error('Accelerator checkout error:', err.message);
+            res.status(500).json({ error: 'Failed to create checkout session' });
+        }
     });
 
     // ========== ACCELERATOR INSTITUTIONS WITH DETAILS ==========
@@ -7862,6 +8040,38 @@ By applying to this program, I provide the following consents:
 
             saveDb();
 
+            // Send Plexus registration confirmation email
+            try {
+                const userName = first_name || req.user.first_name || '';
+                const userEmail = email || req.user.email;
+                const paymentInfo = paymentStatus === 'paid'
+                    ? '<p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 12px 16px; border-radius: 8px; color: #065f46; font-weight: 600;">Your registration is confirmed — no payment required!</p>'
+                    : chosenPaymentMethod === 'card'
+                        ? '<p style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 12px 16px; border-radius: 8px; color: #1e40af;">Please complete your card payment to secure your spot.</p>'
+                        : `<p style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 12px 16px; border-radius: 8px; color: #1e40af;">Please transfer <strong>&euro;${price.toFixed(2)}</strong> to our bank account using reference <strong>${invoiceNumber}</strong> to secure your spot.</p>`;
+
+                sendEmail(userEmail, 'Welcome to Plexus 2026!', buildEmailTemplate('Welcome to Plexus 2026!', `
+                    <p>Dear ${userName},</p>
+                    <p>Thank you for registering for <strong>Plexus 2026</strong>! We are thrilled to have you join us.</p>
+                    <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                        <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 140px;">Ticket</td>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${ticket.name}</td></tr>
+                        <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Invoice Number</td>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${invoiceNumber}</td></tr>
+                        <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Amount</td>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">&euro;${price.toFixed(2)}</td></tr>
+                        <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Payment Status</td>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${paymentStatus === 'paid' ? 'Paid' : 'Pending'}</td></tr>
+                    </table>
+                    ${paymentInfo}
+                    <p style="margin-top: 20px;">If you have any questions, feel free to reach out to us at <a href="mailto:info@medx.hr" style="color: #C9A962;">info@medx.hr</a>.</p>
+                    <p>We look forward to seeing you at Plexus 2026!</p>
+                    <p>Warm regards,<br><strong>The Med&amp;X Team</strong></p>
+                `));
+            } catch (emailErr) {
+                console.warn('Plexus registration email failed:', emailErr.message);
+            }
+
             // Build bank transfer details from environment
             const bankDetails = price > 0 ? {
                 iban: process.env.MEDX_IBAN || 'HR1234567890123456789',
@@ -8107,8 +8317,176 @@ By applying to this program, I provide the following consents:
 
         if (event.type === 'checkout.session.completed') {
             const session = event.data.object;
-            const registrationId = session.metadata?.registration_id;
-            const invoiceNumber = session.metadata?.invoice_number;
+            const metadata = session.metadata || {};
+
+            // ===== ACCELERATOR FEE PAYMENT =====
+            if (metadata.type === 'accelerator-fee') {
+                const applicationId = metadata.applicationId;
+                const userId = metadata.userId;
+                console.log(`[Stripe] Accelerator fee payment confirmed for application ${applicationId}`);
+
+                try {
+                    const application = query.get(
+                        'SELECT a.*, u.first_name, u.last_name, u.email FROM accelerator_applications a JOIN users u ON a.user_id = u.id WHERE a.id = ?',
+                        [applicationId]
+                    );
+
+                    if (!application) {
+                        console.error(`[Stripe] Accelerator application ${applicationId} not found`);
+                        return res.status(404).send('Application not found');
+                    }
+
+                    // 1. Update application status to 'paid'
+                    db.run(`UPDATE accelerator_applications SET status = 'paid', payment_status = 'paid', payment_amount = 75, payment_date = datetime('now'), stripe_session_id = ? WHERE id = ?`,
+                        [session.id, applicationId]);
+
+                    // 2. Create FIRA fiscal invoice for processing fee
+                    if (firaService.isConfigured()) {
+                        try {
+                            const firaInvoiceNumber = `AX-${application.application_number || applicationId.substring(0, 8)}`;
+                            const firaResult = await firaService.createFiscalInvoice({
+                                invoiceNumber: firaInvoiceNumber,
+                                ticketName: 'Med&X Accelerator 2026 - Processing Fee',
+                                ticketPrice: 75,
+                                addons: [],
+                                billing: {
+                                    name: `${application.first_name || ''} ${application.last_name || ''}`.trim() || 'Applicant',
+                                    company: '',
+                                    address: application.address || '',
+                                    city: '',
+                                    zip: '',
+                                    country: application.country_of_residence || 'HR',
+                                    oib: application.oib || '',
+                                    vatNumber: '',
+                                    email: application.email
+                                },
+                                invoiceType: 'RAČUN',
+                                paymentType: 'KARTICA'
+                            });
+                            console.log(`[Stripe→FIRA] Accelerator fiscal invoice created: ${firaResult?.invoiceNumber || 'N/A'}`);
+                        } catch (firaErr) {
+                            console.error('[Stripe→FIRA] Accelerator fiscal invoice creation failed (non-blocking):', firaErr.message);
+                        }
+                    }
+
+                    // 3. Create finance income record
+                    const year = new Date().getFullYear();
+                    let seq = query.get('SELECT * FROM finance_sequences WHERE sequence_type = ? AND fiscal_year = ?', ['income', year]);
+                    if (!seq) {
+                        db.run('INSERT OR IGNORE INTO finance_sequences (id, sequence_type, fiscal_year, current_value, prefix) VALUES (?, ?, ?, 0, ?)',
+                            [uuidv4(), 'income', year, 'P']);
+                        seq = { current_value: 0, prefix: 'P' };
+                    }
+                    const newValue = (seq.current_value || 0) + 1;
+                    db.run('UPDATE finance_sequences SET current_value = ? WHERE sequence_type = ? AND fiscal_year = ?',
+                        [newValue, 'income', year]);
+                    const transactionNumber = `${seq.prefix || 'P'}-${year}-${String(newValue).padStart(3, '0')}`;
+
+                    const applicantName = `${application.first_name || ''} ${application.last_name || ''}`.trim() || 'Applicant';
+                    db.run(`INSERT INTO finance_transactions (id, transaction_number, transaction_type, amount, date, description, project, category, payment_method, reference, fiscal_year, status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [uuidv4(), transactionNumber, 'income', 75, new Date().toISOString().split('T')[0],
+                         `Accelerator 2026 — ${applicantName} — Processing Fee`,
+                         'accelerator-2026', 'processing-fee',
+                         'card', application.application_number || applicationId, year, 'completed']);
+
+                    saveDb();
+                    console.log(`[Stripe] Accelerator application ${applicationId} marked as paid, finance record ${transactionNumber} created`);
+                } catch (dbErr) {
+                    console.error('[Stripe] Failed to process accelerator webhook:', dbErr.message);
+                    return res.status(500).send('Internal error');
+                }
+
+                return res.json({ received: true });
+            }
+
+            // ===== GALA EVENING PAYMENT =====
+            if (metadata.type === 'gala-ticket' && metadata.gala_registration_id) {
+                const galaRegId = metadata.gala_registration_id;
+                const galaInvoice = metadata.invoice_number;
+                console.log(`[Stripe] Gala payment confirmed for ${galaRegId} (${galaInvoice})`);
+
+                try {
+                    const galaReg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [galaRegId]);
+                    if (!galaReg) {
+                        console.error(`[Stripe] Gala registration ${galaRegId} not found`);
+                        return res.status(404).send('Gala registration not found');
+                    }
+
+                    // 1. Update gala registration payment status
+                    db.run("UPDATE gala_registrations SET payment_status = 'paid', status = 'confirmed' WHERE id = ?", [galaRegId]);
+
+                    // 2. Create FIRA fiscal invoice
+                    const ticketLabel = galaReg.pricing === 'bundle' ? 'Plexus + Gala Bundle' : 'Gala Evening Only';
+                    const amount = galaReg.amount_paid || (galaReg.pricing === 'bundle' ? 174 : 95);
+
+                    try {
+                        const firaResult = await firaService.createFiscalInvoice({
+                            invoiceNumber: galaInvoice,
+                            ticketName: ticketLabel,
+                            ticketPrice: amount,
+                            addons: [],
+                            billing: {
+                                name: `${galaReg.first_name} ${galaReg.last_name}`,
+                                company: galaReg.institution || '',
+                                address: '',
+                                city: '',
+                                zip: '',
+                                country: 'HR',
+                                oib: '',
+                                vatNumber: '',
+                                email: galaReg.email
+                            },
+                            invoiceType: 'RAČUN',
+                            paymentType: 'KARTICA'
+                        });
+                        console.log(`[Stripe→FIRA] Gala fiscal invoice created: ${firaResult?.invoiceNumber || 'N/A'}`);
+                    } catch (firaErr) {
+                        console.error('[Stripe→FIRA] Gala fiscal invoice creation failed (non-blocking):', firaErr.message);
+                    }
+
+                    // 3. Create finance income record
+                    createFinanceIncomeRecord(
+                        { first_name: galaReg.first_name, last_name: galaReg.last_name, ticket_name: ticketLabel },
+                        amount, 'card', galaInvoice,
+                        { project: 'gala-2026', category: 'gala-ticket', descPrefix: 'Gala 2026' }
+                    );
+
+                    saveDb();
+                    console.log(`[Stripe] Gala registration ${galaRegId} marked as paid`);
+
+                    // Send gala payment confirmation email
+                    try {
+                        sendEmail(galaReg.email, 'Payment Confirmed — Plexus 2026 Gala Evening', buildEmailTemplate('Payment Confirmed', `
+                            <p>Dear ${galaReg.first_name},</p>
+                            <p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 14px 18px; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 16px; text-align: center;">
+                                Your Gala Evening payment has been received — your spot is secured!
+                            </p>
+                            <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                                <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 140px;">Amount Paid</td>
+                                    <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">&euro;${Number(amount).toFixed(2)}</td></tr>
+                                <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Invoice Number</td>
+                                    <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${galaInvoice}</td></tr>
+                                <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Ticket</td>
+                                    <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${ticketLabel}</td></tr>
+                            </table>
+                            <p>We look forward to welcoming you at the Gala Evening. If you have any questions, contact us at <a href="mailto:info@medx.hr" style="color: #C9A962;">info@medx.hr</a>.</p>
+                            <p>Warm regards,<br><strong>The Med&amp;X Team</strong></p>
+                        `));
+                    } catch (emailErr) {
+                        console.warn('Gala payment confirmation email failed:', emailErr.message);
+                    }
+                } catch (dbErr) {
+                    console.error('[Stripe] Failed to process gala webhook:', dbErr.message);
+                    return res.status(500).send('Internal error');
+                }
+
+                return res.json({ received: true });
+            }
+
+            // ===== PLEXUS CONFERENCE PAYMENT =====
+            const registrationId = metadata.registration_id;
+            const invoiceNumber = metadata.invoice_number;
 
             if (!registrationId) {
                 console.error('[Stripe] Webhook missing registration_id in metadata');
@@ -8206,6 +8584,33 @@ By applying to this program, I provide the following consents:
 
                 saveDb();
                 console.log(`[Stripe] Registration ${registrationId} marked as paid, finance record created`);
+
+                // Send payment confirmation email
+                try {
+                    const firaRef = tx?.metadata ? (() => { try { const m = JSON.parse(tx.metadata); return m.fira_invoice_number || null; } catch(e) { return null; } })() : null;
+
+                    sendEmail(reg.email, 'Payment Confirmed — Plexus 2026', buildEmailTemplate('Payment Confirmed', `
+                        <p>Dear ${reg.first_name},</p>
+                        <p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 14px 18px; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 16px; text-align: center;">
+                            Your payment has been received — your spot is secured!
+                        </p>
+                        <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                            <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 140px;">Amount Paid</td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">&euro;${Number(reg.amount_paid).toFixed(2)}</td></tr>
+                            <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Invoice Number</td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${reg.invoice_number}</td></tr>
+                            <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Ticket</td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${reg.ticket_name}</td></tr>
+                            ${firaRef ? `<tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Fiscal Invoice</td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${firaRef}</td></tr>` : ''}
+                        </table>
+                        <p>You will receive your ticket and QR code closer to the event date. If you have any questions, contact us at <a href="mailto:info@medx.hr" style="color: #C9A962;">info@medx.hr</a>.</p>
+                        <p>See you at Plexus 2026!</p>
+                        <p>Warm regards,<br><strong>The Med&amp;X Team</strong></p>
+                    `));
+                } catch (emailErr) {
+                    console.warn('Stripe payment confirmation email failed:', emailErr.message);
+                }
             } catch (dbErr) {
                 console.error('[Stripe] Failed to process webhook:', dbErr.message);
                 return res.status(500).send('Internal error');
@@ -8217,7 +8622,7 @@ By applying to this program, I provide the following consents:
 
     // ========== FINANCE BRIDGE ==========
     // Creates income record in finance_transactions when payment is confirmed (Stripe or manual)
-    function createFinanceIncomeRecord(registration, amount, paymentMethod, invoiceNumber) {
+    function createFinanceIncomeRecord(registration, amount, paymentMethod, invoiceNumber, opts = {}) {
         try {
             // Replicate getNextSequenceNumber logic from admin portal
             const year = new Date().getFullYear();
@@ -8241,13 +8646,16 @@ By applying to this program, I provide the following consents:
                 ? `${registration.first_name} ${registration.last_name}`
                 : 'Attendee';
             const ticketName = registration.ticket_name || 'Conference Ticket';
-            const description = `Plexus 2026 — ${attendeeName} — ${ticketName}`;
+            const project = opts.project || 'plexus-2026';
+            const category = opts.category || 'conference-registration';
+            const descPrefix = opts.descPrefix || 'Plexus 2026';
+            const description = `${descPrefix} — ${attendeeName} — ${ticketName}`;
 
             const txId = uuidv4();
             db.run(`INSERT INTO finance_transactions (id, transaction_number, transaction_type, amount, date, description, project, category, payment_method, reference, fiscal_year, status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [txId, transactionNumber, 'income', amount, new Date().toISOString().split('T')[0],
-                 description, 'plexus-2026', 'conference-registration',
+                 description, project, category,
                  paymentMethod, invoiceNumber, year, 'completed']);
 
             console.log(`[Finance] Income record created: ${transactionNumber} — €${amount} (${paymentMethod})`);
@@ -10102,22 +10510,26 @@ By applying to this program, I provide the following consents:
             [req.params.id]);
         saveDb();
 
-        // Send confirmation email
-        sendEmail(app.email, 'Med&X Accelerator - Application Submitted', `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <div style="background: #22c55e; color: white; padding: 20px; text-align: center;">
-                    <h2 style="margin: 0;">Application Submitted!</h2>
-                </div>
-                <div style="padding: 20px; background: #ffffff; border: 1px solid #ddd;">
-                    <p>Dear ${app.first_name},</p>
-                    <p>Your application for the Med&X Accelerator program has been successfully submitted.</p>
-                    <p><strong>Application Number:</strong> ${app.application_number}</p>
-                    <p><strong>Candidate ID:</strong> ${app.candidate_id}</p>
-                    <p>We will review your application and notify you of the next steps.</p>
-                    <p>Best regards,<br>Med&X Accelerator Team</p>
-                </div>
-            </div>
-        `);
+        // Send confirmation email (branded template)
+        try {
+            sendEmail(app.email, 'Med&X Accelerator — Application Received', buildEmailTemplate('Application Received', `
+                <p>Dear ${app.first_name},</p>
+                <p>Your application for the <strong>Med&amp;X Accelerator</strong> program has been successfully submitted.</p>
+                <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                    <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 160px;">Application Number</td>
+                        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${app.application_number}</td></tr>
+                    <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Candidate ID</td>
+                        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${app.candidate_id}</td></tr>
+                    <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Submitted</td>
+                        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</td></tr>
+                </table>
+                <p>Our review committee will evaluate your application and notify you of the next steps. This process typically takes 2-4 weeks.</p>
+                <p>If you have any questions in the meantime, contact us at <a href="mailto:accelerator@medx.hr" style="color: #C9A962;">accelerator@medx.hr</a>.</p>
+                <p>Best regards,<br><strong>Med&amp;X Accelerator Team</strong></p>
+            `));
+        } catch (emailErr) {
+            console.warn('Accelerator applicant submit email failed:', emailErr.message);
+        }
 
         res.json({ success: true, message: 'Application submitted successfully' });
     });
@@ -12915,6 +13327,28 @@ By applying to this program, I provide the following consents:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
             [id, first_name, last_name, email, institution || '', title || '', dietary || '', requests || '', pricing || '']);
         saveDb();
+
+        // Send gala invitation request confirmation email
+        try {
+            sendEmail(email, 'Gala Evening — Invitation Request Received', buildEmailTemplate('Invitation Request Received', `
+                <p>Dear ${first_name},</p>
+                <p>Thank you for your interest in the <strong>Plexus 2026 Gala Evening</strong>. We have received your invitation request.</p>
+                <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                    <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 140px;">Name</td>
+                        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${first_name} ${last_name}</td></tr>
+                    ${institution ? `<tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Institution</td>
+                        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${institution}</td></tr>` : ''}
+                    <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Status</td>
+                        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #d97706;">Pending Review</td></tr>
+                </table>
+                <p>Our team will review your request and get back to you within <strong>5-7 business days</strong>. You will receive a separate email once a decision has been made.</p>
+                <p>If you have any questions, contact us at <a href="mailto:info@medx.hr" style="color: #C9A962;">info@medx.hr</a>.</p>
+                <p>Warm regards,<br><strong>The Med&amp;X Team</strong></p>
+            `));
+        } catch (emailErr) {
+            console.warn('Gala registration email failed:', emailErr.message);
+        }
+
         res.json({ success: true, id, status: 'pending' });
     });
 
@@ -12934,7 +13368,148 @@ By applying to this program, I provide the following consents:
             [status, admin_notes || '', req.user.email, new Date().toISOString(), req.params.id]);
         saveDb();
         const updated = query.get(`SELECT * FROM gala_registrations WHERE id = ?`, [req.params.id]);
+
+        // Send email when gala invitation is approved
+        if (status === 'approved' && updated && updated.email) {
+            try {
+                const portalUrl = process.env.PORTAL_URL || 'https://medx-user-portal.onrender.com';
+                sendEmail(updated.email, 'Your Gala Evening Invitation Has Been Approved!', buildEmailTemplate('Invitation Approved', `
+                    <p>Dear ${updated.first_name},</p>
+                    <p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 14px 18px; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 16px; text-align: center;">
+                        Your invitation to the Plexus 2026 Gala Evening has been approved!
+                    </p>
+                    <p>We are delighted to welcome you to an exclusive evening of networking, fine dining, and celebration with leading minds in biomedicine.</p>
+                    ${updated.pricing ? `<p><strong>Ticket Category:</strong> ${updated.pricing}</p>` : ''}
+                    <p style="margin-top: 20px;">To secure your spot, please complete your payment at your earliest convenience:</p>
+                    <div style="text-align: center; margin: 24px 0;">
+                        <a href="${portalUrl}" style="display: inline-block; background: #C9A962; color: #0f172a; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 15px;">Complete Payment</a>
+                    </div>
+                    <p>If you have any questions or need assistance with payment, contact us at <a href="mailto:info@medx.hr" style="color: #C9A962;">info@medx.hr</a>.</p>
+                    <p>We look forward to seeing you there!</p>
+                    <p>Warm regards,<br><strong>The Med&amp;X Team</strong></p>
+                `));
+            } catch (emailErr) {
+                console.warn('Gala approval email failed:', emailErr.message);
+            }
+        }
+
         res.json({ success: true, registration: updated });
+    });
+
+    // ========== GALA SETTINGS (public read, admin write) ==========
+
+    // Get gala settings (public)
+    app.get('/api/gala/settings', (req, res) => {
+        const settings = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
+        res.json(settings || {});
+    });
+
+    // Update gala settings (admin only)
+    app.put('/api/gala/settings', auth, adminOnly, (req, res) => {
+        const { title, tagline, date, time, venue, dress_code, description, capacity,
+                price_gala_only, price_bundle, price_bundle_original, is_registration_open } = req.body;
+        const fields = [];
+        const values = [];
+        if (title !== undefined) { fields.push('title = ?'); values.push(title); }
+        if (tagline !== undefined) { fields.push('tagline = ?'); values.push(tagline); }
+        if (date !== undefined) { fields.push('date = ?'); values.push(date); }
+        if (time !== undefined) { fields.push('time = ?'); values.push(time); }
+        if (venue !== undefined) { fields.push('venue = ?'); values.push(venue); }
+        if (dress_code !== undefined) { fields.push('dress_code = ?'); values.push(dress_code); }
+        if (description !== undefined) { fields.push('description = ?'); values.push(description); }
+        if (capacity !== undefined) { fields.push('capacity = ?'); values.push(capacity); }
+        if (price_gala_only !== undefined) { fields.push('price_gala_only = ?'); values.push(price_gala_only); }
+        if (price_bundle !== undefined) { fields.push('price_bundle = ?'); values.push(price_bundle); }
+        if (price_bundle_original !== undefined) { fields.push('price_bundle_original = ?'); values.push(price_bundle_original); }
+        if (is_registration_open !== undefined) { fields.push('is_registration_open = ?'); values.push(is_registration_open ? 1 : 0); }
+        if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+        fields.push("updated_at = ?"); values.push(new Date().toISOString());
+        db.run(`UPDATE gala_settings SET ${fields.join(', ')} WHERE id = 'default'`, values);
+        saveDb();
+        const updated = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
+        res.json({ success: true, settings: updated });
+    });
+
+    // Get current user's gala registration status
+    app.get('/api/gala/my-status', auth, (req, res) => {
+        const reg = query.get(
+            `SELECT * FROM gala_registrations WHERE email = ? ORDER BY created_at DESC LIMIT 1`,
+            [req.user.email]
+        );
+        if (!reg) return res.json({ registered: false });
+        res.json({ registered: true, registration: reg });
+    });
+
+    // ========== GALA STRIPE CHECKOUT ==========
+
+    // Create Stripe checkout session for gala ticket
+    app.post('/api/gala/checkout-session', auth, async (req, res) => {
+        try {
+            if (!stripe) return res.status(400).json({ error: 'Stripe is not configured' });
+
+            const { registration_id } = req.body;
+            if (!registration_id) return res.status(400).json({ error: 'registration_id is required' });
+
+            const reg = query.get(
+                `SELECT * FROM gala_registrations WHERE id = ? AND email = ?`,
+                [registration_id, req.user.email]
+            );
+            if (!reg) return res.status(404).json({ error: 'Gala registration not found' });
+            if (reg.status !== 'approved') return res.status(400).json({ error: 'Registration must be approved before payment' });
+            if (reg.payment_status === 'paid') return res.status(400).json({ error: 'Already paid' });
+
+            // Get pricing from settings
+            const settings = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
+            const price = reg.pricing === 'bundle'
+                ? (settings?.price_bundle || 174)
+                : (settings?.price_gala_only || 95);
+
+            // Generate invoice number
+            const year = new Date().getFullYear();
+            const count = query.get("SELECT COUNT(*) as c FROM gala_registrations WHERE invoice_number IS NOT NULL")?.c || 0;
+            const invoiceNumber = `GALA26-${String(count + 1).padStart(4, '0')}`;
+
+            // Store invoice number
+            db.run('UPDATE gala_registrations SET invoice_number = ?, amount_paid = ?, user_id = ? WHERE id = ?',
+                [invoiceNumber, price, req.user.id, reg.id]);
+            saveDb();
+
+            const baseUrl = `${req.protocol}://${req.get('host')}`;
+            const ticketLabel = reg.pricing === 'bundle' ? 'Plexus + Gala Bundle' : 'Gala Evening Only';
+
+            const session = await stripe.checkout.sessions.create({
+                mode: 'payment',
+                payment_method_types: ['card'],
+                line_items: [{
+                    price_data: {
+                        currency: 'eur',
+                        product_data: {
+                            name: `Plexus 2026 — ${ticketLabel}`,
+                            description: `Gala Evening Ticket (Invoice: ${invoiceNumber})`
+                        },
+                        unit_amount: Math.round(price * 100)
+                    },
+                    quantity: 1
+                }],
+                metadata: {
+                    gala_registration_id: reg.id,
+                    invoice_number: invoiceNumber,
+                    type: 'gala-ticket'
+                },
+                customer_email: reg.email,
+                success_url: `${baseUrl}/?payment=success&gala=${reg.id}`,
+                cancel_url: `${baseUrl}/?payment=cancelled&gala=${reg.id}`
+            });
+
+            // Store Stripe session ID
+            db.run('UPDATE gala_registrations SET stripe_session_id = ? WHERE id = ?', [session.id, reg.id]);
+            saveDb();
+
+            res.json({ sessionId: session.id, url: session.url });
+        } catch (err) {
+            console.error('Gala Stripe checkout error:', err.message);
+            res.status(500).json({ error: 'Failed to create checkout session' });
+        }
     });
 
     // --- SPEAKER PORTAL: AUTH & DOCUMENTS ---
