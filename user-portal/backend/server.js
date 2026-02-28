@@ -1106,6 +1106,10 @@ async function initializeApp() {
     try { db.run(`ALTER TABLE forum_event_registrations ADD COLUMN dietary_notes TEXT`); } catch(e) {}
     try { db.run(`ALTER TABLE forum_event_registrations ADD COLUMN accommodation TEXT`); } catch(e) {}
     try { db.run(`ALTER TABLE forum_event_registrations ADD COLUMN special_requests TEXT`); } catch(e) {}
+    // Forum payment tracking columns
+    try { db.run(`ALTER TABLE forum_event_registrations ADD COLUMN stripe_session_id TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE forum_event_registrations ADD COLUMN payment_date TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE forum_event_registrations ADD COLUMN invoice_number TEXT`); } catch(e) {}
 
     // Add folder_id and caption to forum_media if not exists
     try { db.run(`ALTER TABLE forum_media ADD COLUMN folder_id TEXT`); } catch(e) {}
@@ -5784,7 +5788,7 @@ By applying to this program, I provide the following consents:
         res.json(enriched);
     });
 
-    // Register for event (enhanced with name/email/institution)
+    // Register for event (enhanced with name/email/institution + payment support)
     app.post('/api/forum/events/:id/register', auth, (req, res) => {
         const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
         if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
@@ -5803,12 +5807,97 @@ By applying to this program, I provide the following consents:
         const id = uuidv4();
         const qrCode = `FORUM-${id.substring(0, 8).toUpperCase()}`;
 
-        db.run(`INSERT INTO forum_event_registrations (id, event_id, member_id, name, email, institution, qr_code) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [id, req.params.id, currentMember.id, name || null, email || null, institution || null, qrCode]);
+        // Determine if this is a paid event and compute price
+        const isPaid = event.is_paid && event.price > 0;
+        let price = 0;
+        let paymentStatus = 'free';
+        if (isPaid) {
+            const now = new Date();
+            if (event.early_bird_price && event.early_bird_deadline && now < new Date(event.early_bird_deadline)) {
+                price = event.early_bird_price;
+            } else {
+                price = event.price;
+            }
+            paymentStatus = 'unpaid';
+        }
+
+        db.run(`INSERT INTO forum_event_registrations (id, event_id, member_id, name, email, institution, qr_code, payment_status, payment_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, req.params.id, currentMember.id, name || null, email || null, institution || null, qrCode, paymentStatus, isPaid ? price : null]);
         db.run(`UPDATE forum_events SET registrations_count = registrations_count + 1 WHERE id = ?`, [req.params.id]);
         saveDb();
 
-        res.json({ success: true, id, qr_code: qrCode, checkin_enabled: !!event.checkin_enabled });
+        res.json({ success: true, id, qr_code: qrCode, checkin_enabled: !!event.checkin_enabled, requires_payment: isPaid, price });
+    });
+
+    // Create Stripe checkout session for paid forum event
+    app.post('/api/forum/events/:id/checkout-session', auth, async (req, res) => {
+        try {
+            if (!stripe) return res.status(400).json({ error: 'Stripe is not configured' });
+
+            const { registration_id } = req.body;
+            if (!registration_id) return res.status(400).json({ error: 'registration_id is required' });
+
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
+            if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
+
+            // Validate registration exists and belongs to this member
+            const registration = query.get(
+                'SELECT r.*, e.title as event_title, e.price, e.early_bird_price, e.early_bird_deadline FROM forum_event_registrations r JOIN forum_events e ON r.event_id = e.id WHERE r.id = ? AND r.member_id = ?',
+                [registration_id, currentMember.id]
+            );
+            if (!registration) return res.status(404).json({ error: 'Registration not found' });
+            if (registration.payment_status === 'paid') return res.status(400).json({ error: 'Already paid' });
+
+            // Compute price (early bird vs regular)
+            const now = new Date();
+            let price = registration.price;
+            if (registration.early_bird_price && registration.early_bird_deadline && now < new Date(registration.early_bird_deadline)) {
+                price = registration.early_bird_price;
+            }
+
+            const user = query.get('SELECT * FROM users WHERE id = ?', [req.user.id]);
+            const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+            // Generate invoice number: FM26-XXXX
+            const seqRow = query.get("SELECT COUNT(*) as cnt FROM forum_event_registrations WHERE invoice_number IS NOT NULL");
+            const invoiceSeq = (seqRow?.cnt || 0) + 1;
+            const invoiceNumber = `FM26-${String(invoiceSeq).padStart(4, '0')}`;
+
+            const session = await stripe.checkout.sessions.create({
+                mode: 'payment',
+                payment_method_types: ['card'],
+                line_items: [{
+                    price_data: {
+                        currency: 'eur',
+                        product_data: {
+                            name: `Med&X Forum — ${registration.event_title || 'Event'}`,
+                            description: `Registration ${registration.qr_code || registration_id}`
+                        },
+                        unit_amount: Math.round(price * 100)
+                    },
+                    quantity: 1
+                }],
+                metadata: {
+                    type: 'forum-event',
+                    forum_registration_id: registration_id,
+                    event_id: registration.event_id,
+                    userId: req.user.id,
+                    invoice_number: invoiceNumber
+                },
+                customer_email: user?.email || registration.email,
+                success_url: `${baseUrl}/?payment=success&type=forum&reg=${registration_id}`,
+                cancel_url: `${baseUrl}/?payment=cancelled&type=forum&reg=${registration_id}`
+            });
+
+            // Store invoice number on the registration
+            db.run('UPDATE forum_event_registrations SET invoice_number = ? WHERE id = ?', [invoiceNumber, registration_id]);
+            saveDb();
+
+            res.json({ sessionId: session.id, url: session.url });
+        } catch (err) {
+            console.error('Forum checkout error:', err.message);
+            res.status(500).json({ error: 'Failed to create checkout session' });
+        }
     });
 
     // Get user's registration for an event (+ QR code)
@@ -8451,6 +8540,31 @@ By applying to this program, I provide the following consents:
 
                     saveDb();
                     console.log(`[Stripe] Accelerator application ${applicationId} marked as paid, finance record ${transactionNumber} created`);
+
+                    // Send accelerator payment confirmation email
+                    try {
+                        const applicantEmail = application.email;
+                        if (applicantEmail) {
+                            sendEmail(applicantEmail, 'Payment Confirmed — Med&X Accelerator 2026', buildEmailTemplate('Payment Confirmed', `
+                                <p>Dear ${application.first_name || 'Applicant'},</p>
+                                <p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 14px 18px; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 16px; text-align: center;">
+                                    Your Accelerator processing fee has been received — your application is confirmed!
+                                </p>
+                                <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                                    <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 140px;">Amount Paid</td>
+                                        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">&euro;75.00</td></tr>
+                                    <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Application</td>
+                                        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${application.application_number || applicationId}</td></tr>
+                                    <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Status</td>
+                                        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">Paid &amp; Confirmed</td></tr>
+                                </table>
+                                <p>Our team will review your application and get back to you soon. If you have any questions, contact us at <a href="mailto:accelerator@medx.hr" style="color: #C9A962;">accelerator@medx.hr</a>.</p>
+                                <p>Warm regards,<br><strong>The Med&amp;X Team</strong></p>
+                            `));
+                        }
+                    } catch (emailErr) {
+                        console.warn('Accelerator payment confirmation email failed:', emailErr.message);
+                    }
                 } catch (dbErr) {
                     console.error('[Stripe] Failed to process accelerator webhook:', dbErr.message);
                     return res.status(500).send('Internal error');
@@ -8537,6 +8651,102 @@ By applying to this program, I provide the following consents:
                     }
                 } catch (dbErr) {
                     console.error('[Stripe] Failed to process gala webhook:', dbErr.message);
+                    return res.status(500).send('Internal error');
+                }
+
+                return res.json({ received: true });
+            }
+
+            // ===== FORUM EVENT PAYMENT =====
+            if (metadata.type === 'forum-event' && metadata.forum_registration_id) {
+                const forumRegId = metadata.forum_registration_id;
+                const forumInvoice = metadata.invoice_number;
+                const forumEventId = metadata.event_id;
+                console.log(`[Stripe] Forum event payment confirmed for ${forumRegId} (${forumInvoice})`);
+
+                try {
+                    const forumReg = query.get(
+                        'SELECT r.*, e.title as event_title, e.price FROM forum_event_registrations r JOIN forum_events e ON r.event_id = e.id WHERE r.id = ?',
+                        [forumRegId]
+                    );
+                    if (!forumReg) {
+                        console.error(`[Stripe] Forum registration ${forumRegId} not found`);
+                        return res.status(404).send('Forum registration not found');
+                    }
+
+                    const amount = session.amount_total ? session.amount_total / 100 : (forumReg.payment_amount || forumReg.price || 0);
+
+                    // 1. Update forum registration payment status
+                    db.run(`UPDATE forum_event_registrations SET payment_status = 'paid', payment_date = datetime('now'), payment_amount = ?, stripe_session_id = ? WHERE id = ?`,
+                        [amount, session.id, forumRegId]);
+
+                    // 2. Create FIRA fiscal invoice (non-blocking)
+                    if (firaService.isConfigured()) {
+                        try {
+                            const firaResult = await firaService.createFiscalInvoice({
+                                invoiceNumber: forumInvoice,
+                                ticketName: `Med&X Forum — ${forumReg.event_title || 'Event'}`,
+                                ticketPrice: amount,
+                                addons: [],
+                                billing: {
+                                    name: forumReg.name || `${forumReg.first_name || ''} ${forumReg.last_name || ''}`.trim() || 'Attendee',
+                                    company: forumReg.institution || '',
+                                    address: '',
+                                    city: '',
+                                    zip: '',
+                                    country: 'HR',
+                                    oib: '',
+                                    vatNumber: '',
+                                    email: forumReg.email || ''
+                                },
+                                invoiceType: 'RAČUN',
+                                paymentType: 'KARTICA'
+                            });
+                            console.log(`[Stripe→FIRA] Forum fiscal invoice created: ${firaResult?.invoiceNumber || 'N/A'}`);
+                        } catch (firaErr) {
+                            console.error('[Stripe→FIRA] Forum fiscal invoice creation failed (non-blocking):', firaErr.message);
+                        }
+                    }
+
+                    // 3. Create finance income record
+                    const attendeeName = forumReg.name || `${forumReg.first_name || ''} ${forumReg.last_name || ''}`.trim() || 'Attendee';
+                    createFinanceIncomeRecord(
+                        { first_name: forumReg.first_name || attendeeName.split(' ')[0], last_name: forumReg.last_name || attendeeName.split(' ').slice(1).join(' '), ticket_name: forumReg.event_title || 'Forum Event' },
+                        amount, 'card', forumInvoice,
+                        { project: 'forum-2026', category: 'forum-event', descPrefix: 'Forum 2026' }
+                    );
+
+                    saveDb();
+                    console.log(`[Stripe] Forum registration ${forumRegId} marked as paid, invoice ${forumInvoice}`);
+
+                    // 4. Send confirmation email
+                    try {
+                        const recipientEmail = forumReg.email;
+                        if (recipientEmail) {
+                            sendEmail(recipientEmail, `Payment Confirmed — Med&X Forum: ${forumReg.event_title || 'Event'}`, buildEmailTemplate('Payment Confirmed', `
+                                <p>Dear ${forumReg.name || forumReg.first_name || 'Forum Member'},</p>
+                                <p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 14px 18px; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 16px; text-align: center;">
+                                    Your Forum event payment has been received — your spot is secured!
+                                </p>
+                                <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                                    <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 140px;">Event</td>
+                                        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${forumReg.event_title || 'Forum Event'}</td></tr>
+                                    <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Amount Paid</td>
+                                        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">&euro;${Number(amount).toFixed(2)}</td></tr>
+                                    <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Invoice Number</td>
+                                        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${forumInvoice}</td></tr>
+                                    <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">QR Code</td>
+                                        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600; font-family: monospace;">${forumReg.qr_code || '—'}</td></tr>
+                                </table>
+                                <p>If you have any questions, contact us at <a href="mailto:info@medx.hr" style="color: #C9A962;">info@medx.hr</a>.</p>
+                                <p>Warm regards,<br><strong>The Med&amp;X Team</strong></p>
+                            `));
+                        }
+                    } catch (emailErr) {
+                        console.warn('Forum payment confirmation email failed:', emailErr.message);
+                    }
+                } catch (dbErr) {
+                    console.error('[Stripe] Failed to process forum webhook:', dbErr.message);
                     return res.status(500).send('Internal error');
                 }
 

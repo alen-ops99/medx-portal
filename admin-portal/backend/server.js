@@ -2622,6 +2622,15 @@ async function initializeApp() {
     try { db.run(`ALTER TABLE forum_event_registrations ADD COLUMN rsvp_status TEXT DEFAULT 'pending'`); } catch(e) {}
     try { db.run(`ALTER TABLE forum_event_registrations ADD COLUMN dietary_requirements TEXT`); } catch(e) {}
     try { db.run(`ALTER TABLE forum_event_registrations ADD COLUMN accommodation_needed INTEGER DEFAULT 0`); } catch(e) {}
+    // Forum payment tracking columns
+    try { db.run(`ALTER TABLE forum_event_registrations ADD COLUMN stripe_session_id TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE forum_event_registrations ADD COLUMN payment_date TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE forum_event_registrations ADD COLUMN invoice_number TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE forum_event_registrations ADD COLUMN name TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE forum_event_registrations ADD COLUMN email TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE forum_event_registrations ADD COLUMN institution TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE forum_event_registrations ADD COLUMN first_name TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE forum_event_registrations ADD COLUMN last_name TEXT`); } catch(e) {}
     try { db.run(`ALTER TABLE forum_media ADD COLUMN folder_id TEXT`); } catch(e) {}
     try { db.run(`ALTER TABLE forum_media ADD COLUMN caption TEXT`); } catch(e) {}
     try { db.run(`ALTER TABLE project_timeline_events ADD COLUMN completed INTEGER DEFAULT 0`); } catch(e) {}
@@ -13160,80 +13169,144 @@ By applying to this program, I provide the following consents:
 
     // ===== CONFERENCE PAYMENTS (Plexus + FIRA Integration) =====
 
-    // List all conference registrations with payment status
+    // List all payment registrations across all sources (Plexus, Gala, Accelerator, Forum)
     app.get('/api/finance/conference-payments', auth, (req, res) => {
         try {
-            const { status, search } = req.query;
+            const { status, search, source } = req.query;
+            const sourceFilter = source || 'all';
+            let allPayments = [];
 
-            let sql = `SELECT r.id, r.invoice_number, r.payment_status, r.amount_paid, r.status as reg_status,
-                r.created_at, u.first_name, u.last_name, u.email, u.institution,
-                t.name as ticket_name,
-                pt.provider_transaction_id as provider_tx_id, pt.payment_method as pay_method,
-                pt.payment_provider as pay_provider, pt.metadata as tx_metadata,
-                i.status as invoice_status, i.due_date as invoice_due_date
-                FROM registrations r
-                JOIN users u ON r.user_id = u.id
-                JOIN ticket_types t ON r.ticket_type_id = t.id
-                LEFT JOIN payment_transactions pt ON pt.registration_id = r.id
-                LEFT JOIN invoices i ON i.registration_id = r.id
-                JOIN conferences c ON r.conference_id = c.id
-                WHERE c.slug = 'plexus-2026' AND r.status != 'cancelled'`;
-            const params = [];
-
-            if (status && status !== 'all') {
-                sql += ' AND r.payment_status = ?';
-                params.push(status);
-            }
-            if (search) {
-                sql += ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ? OR r.invoice_number LIKE ?)';
-                const term = `%${search}%`;
-                params.push(term, term, term, term);
-            }
-
-            sql += ' ORDER BY r.created_at DESC';
-
-            const payments = query.all(sql, params);
-
-            const enriched = payments.map(p => {
-                let firaInvoiceNumber = null;
-                let stripePaymentId = null;
-                if (p.tx_metadata) {
-                    try {
-                        const meta = JSON.parse(p.tx_metadata);
-                        firaInvoiceNumber = meta.fira_invoice_number;
-                    } catch (e) { /* ignore */ }
+            // ----- PLEXUS -----
+            if (sourceFilter === 'all' || sourceFilter === 'plexus') {
+                let sql = `SELECT r.id, r.invoice_number, r.payment_status, r.amount_paid, r.status as reg_status,
+                    r.created_at, u.first_name, u.last_name, u.email, u.institution,
+                    t.name as ticket_name,
+                    pt.provider_transaction_id as provider_tx_id, pt.payment_method as pay_method,
+                    pt.payment_provider as pay_provider, pt.metadata as tx_metadata,
+                    i.status as invoice_status, i.due_date as invoice_due_date
+                    FROM registrations r
+                    JOIN users u ON r.user_id = u.id
+                    JOIN ticket_types t ON r.ticket_type_id = t.id
+                    LEFT JOIN payment_transactions pt ON pt.registration_id = r.id
+                    LEFT JOIN invoices i ON i.registration_id = r.id
+                    JOIN conferences c ON r.conference_id = c.id
+                    WHERE c.slug = 'plexus-2026' AND r.status != 'cancelled'`;
+                const params = [];
+                if (status && status !== 'all') { sql += ' AND r.payment_status = ?'; params.push(status); }
+                if (search) {
+                    sql += ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ? OR r.invoice_number LIKE ?)';
+                    const term = `%${search}%`;
+                    params.push(term, term, term, term);
                 }
-                if (p.pay_provider === 'stripe' && p.provider_tx_id) {
-                    stripePaymentId = p.provider_tx_id;
-                }
-                return {
-                    id: p.id,
-                    invoice_number: p.invoice_number,
-                    fira_invoice_number: firaInvoiceNumber,
-                    payment_status: p.payment_status,
-                    payment_method: p.pay_method || 'bank_transfer',
-                    payment_provider: p.pay_provider || 'manual',
-                    stripe_payment_id: stripePaymentId,
-                    amount: p.amount_paid,
-                    registration_status: p.reg_status,
-                    attendee: `${p.first_name} ${p.last_name}`,
-                    email: p.email,
-                    institution: p.institution,
-                    ticket: p.ticket_name,
-                    invoice_status: p.invoice_status,
-                    due_date: p.invoice_due_date,
-                    created_at: p.created_at
-                };
-            });
+                sql += ' ORDER BY r.created_at DESC';
+                const rows = query.all(sql, params);
+                rows.forEach(p => {
+                    let firaInvoiceNumber = null, stripePaymentId = null;
+                    if (p.tx_metadata) { try { firaInvoiceNumber = JSON.parse(p.tx_metadata).fira_invoice_number; } catch(e) {} }
+                    if (p.pay_provider === 'stripe' && p.provider_tx_id) stripePaymentId = p.provider_tx_id;
+                    allPayments.push({
+                        id: p.id, source: 'plexus', invoice_number: p.invoice_number, fira_invoice_number: firaInvoiceNumber,
+                        payment_status: p.payment_status, payment_method: p.pay_method || 'bank_transfer',
+                        payment_provider: p.pay_provider || 'manual', stripe_payment_id: stripePaymentId,
+                        amount: p.amount_paid, registration_status: p.reg_status,
+                        attendee: `${p.first_name} ${p.last_name}`, email: p.email, institution: p.institution,
+                        ticket: p.ticket_name, invoice_status: p.invoice_status, due_date: p.invoice_due_date, created_at: p.created_at
+                    });
+                });
+            }
 
-            const total = enriched.length;
-            const pending = enriched.filter(p => p.payment_status === 'pending').length;
-            const paid = enriched.filter(p => p.payment_status === 'paid').length;
-            const totalRevenue = enriched.filter(p => p.payment_status === 'paid').reduce((sum, p) => sum + (p.amount || 0), 0);
-            const pendingRevenue = enriched.filter(p => p.payment_status === 'pending').reduce((sum, p) => sum + (p.amount || 0), 0);
+            // ----- GALA -----
+            if (sourceFilter === 'all' || sourceFilter === 'gala') {
+                let sql = `SELECT id, first_name, last_name, email, institution, pricing, status, payment_status, amount_paid, invoice_number, stripe_session_id, created_at FROM gala_registrations WHERE 1=1`;
+                const params = [];
+                if (status && status !== 'all') { sql += ' AND payment_status = ?'; params.push(status); }
+                if (search) {
+                    sql += ' AND (first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR invoice_number LIKE ?)';
+                    const term = `%${search}%`;
+                    params.push(term, term, term, term);
+                }
+                sql += ' ORDER BY created_at DESC';
+                query.all(sql, params).forEach(g => {
+                    const ticketLabel = g.pricing === 'bundle' ? 'Plexus + Gala Bundle' : 'Gala Evening Only';
+                    allPayments.push({
+                        id: g.id, source: 'gala', invoice_number: g.invoice_number, fira_invoice_number: null,
+                        payment_status: g.payment_status || 'unpaid', payment_method: g.stripe_session_id ? 'card' : 'bank_transfer',
+                        payment_provider: g.stripe_session_id ? 'stripe' : 'manual', stripe_payment_id: null,
+                        amount: g.amount_paid || (g.pricing === 'bundle' ? 174 : 95), registration_status: g.status,
+                        attendee: `${g.first_name} ${g.last_name}`, email: g.email, institution: g.institution,
+                        ticket: ticketLabel, invoice_status: null, due_date: null, created_at: g.created_at
+                    });
+                });
+            }
+
+            // ----- ACCELERATOR -----
+            if (sourceFilter === 'all' || sourceFilter === 'accelerator') {
+                let sql = `SELECT a.id, a.application_number, a.status, a.payment_status, a.payment_amount, a.payment_date, a.stripe_session_id,
+                    a.created_at, u.first_name, u.last_name, u.email, u.institution
+                    FROM accelerator_applications a
+                    LEFT JOIN users u ON a.user_id = u.id
+                    WHERE a.status != 'draft'`;
+                const params = [];
+                if (status && status !== 'all') { sql += ' AND a.payment_status = ?'; params.push(status); }
+                if (search) {
+                    sql += ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ? OR a.application_number LIKE ?)';
+                    const term = `%${search}%`;
+                    params.push(term, term, term, term);
+                }
+                sql += ' ORDER BY a.created_at DESC';
+                query.all(sql, params).forEach(a => {
+                    allPayments.push({
+                        id: a.id, source: 'accelerator', invoice_number: a.application_number, fira_invoice_number: null,
+                        payment_status: a.payment_status || 'unpaid', payment_method: a.stripe_session_id ? 'card' : 'pending',
+                        payment_provider: a.stripe_session_id ? 'stripe' : 'manual', stripe_payment_id: null,
+                        amount: a.payment_amount || 75, registration_status: a.status,
+                        attendee: `${a.first_name || ''} ${a.last_name || ''}`.trim() || 'Applicant',
+                        email: a.email, institution: a.institution,
+                        ticket: 'Processing Fee (€75)', invoice_status: null, due_date: null, created_at: a.created_at
+                    });
+                });
+            }
+
+            // ----- FORUM -----
+            if (sourceFilter === 'all' || sourceFilter === 'forum') {
+                let sql = `SELECT r.id, r.name, r.first_name, r.last_name, r.email, r.institution,
+                    r.payment_status, r.payment_amount, r.payment_date, r.invoice_number, r.stripe_session_id,
+                    r.registered_at as created_at, e.title as event_title, e.is_paid, e.price
+                    FROM forum_event_registrations r
+                    JOIN forum_events e ON r.event_id = e.id
+                    WHERE e.is_paid = 1`;
+                const params = [];
+                if (status && status !== 'all') { sql += ' AND r.payment_status = ?'; params.push(status); }
+                if (search) {
+                    sql += ' AND (r.name LIKE ? OR r.first_name LIKE ? OR r.last_name LIKE ? OR r.email LIKE ? OR r.invoice_number LIKE ?)';
+                    const term = `%${search}%`;
+                    params.push(term, term, term, term, term);
+                }
+                sql += ' ORDER BY r.registered_at DESC';
+                query.all(sql, params).forEach(f => {
+                    const attendeeName = f.name || `${f.first_name || ''} ${f.last_name || ''}`.trim() || 'Forum Member';
+                    allPayments.push({
+                        id: f.id, source: 'forum', invoice_number: f.invoice_number, fira_invoice_number: null,
+                        payment_status: f.payment_status || 'unpaid', payment_method: f.stripe_session_id ? 'card' : 'pending',
+                        payment_provider: f.stripe_session_id ? 'stripe' : 'manual', stripe_payment_id: null,
+                        amount: f.payment_amount || f.price || 0, registration_status: f.payment_status === 'paid' ? 'confirmed' : 'pending',
+                        attendee: attendeeName, email: f.email, institution: f.institution,
+                        ticket: f.event_title || 'Forum Event', invoice_status: null, due_date: null, created_at: f.created_at
+                    });
+                });
+            }
+
+            // Sort all combined results by date descending
+            allPayments.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+            const total = allPayments.length;
+            const pending = allPayments.filter(p => p.payment_status === 'pending' || p.payment_status === 'unpaid').length;
+            const paid = allPayments.filter(p => p.payment_status === 'paid').length;
+            const totalRevenue = allPayments.filter(p => p.payment_status === 'paid').reduce((sum, p) => sum + (p.amount || 0), 0);
+            const pendingRevenue = allPayments.filter(p => p.payment_status === 'pending' || p.payment_status === 'unpaid').reduce((sum, p) => sum + (p.amount || 0), 0);
 
             res.json({
-                payments: enriched,
+                payments: allPayments,
                 summary: { total, pending, paid, totalRevenue, pendingRevenue }
             });
         } catch (err) {
