@@ -2655,6 +2655,66 @@ async function initializeApp() {
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
     try { db.run("INSERT OR IGNORE INTO gala_settings (id) VALUES ('default')"); } catch(e) {}
+
+    // Add speakers_json and schedule_json columns to gala_settings
+    try { db.run(`ALTER TABLE gala_settings ADD COLUMN speakers_json TEXT`); } catch (e) {}
+    try { db.run(`ALTER TABLE gala_settings ADD COLUMN schedule_json TEXT`); } catch (e) {}
+
+    // Seed default gala speakers and schedule if columns are empty
+    const galaCheck = query.get("SELECT speakers_json FROM gala_settings WHERE id = 'default'");
+    if (galaCheck && !galaCheck.speakers_json) {
+        const defaultGalaSpeakers = JSON.stringify([
+            { key: 'chen', name: 'Dr. Elizabeth Chen', title: 'Director, National Cancer Institute', topic: '"The Next Decade of Cancer Research"', image: 'https://randomuser.me/api/portraits/women/23.jpg', bio: 'Dr. Elizabeth Chen is a world-renowned oncologist and the Director of the National Cancer Institute.', badge: 'Keynote Speaker', featured: true },
+            { key: 'weber', name: 'Prof. Michael Weber', title: 'Nobel Laureate in Medicine', topic: 'Awards Presenter', image: 'https://randomuser.me/api/portraits/men/42.jpg', bio: 'Professor Michael Weber received the Nobel Prize in Physiology or Medicine for his discoveries concerning the molecular mechanisms of circadian rhythm.', badge: '', featured: false },
+            { key: 'mitchell', name: 'Dr. Sarah Mitchell', title: 'CEO, BioTech Innovations', topic: 'Industry Address', image: 'https://randomuser.me/api/portraits/women/45.jpg', bio: 'Dr. Sarah Mitchell is the CEO of BioTech Innovations, a leading biotech company specializing in gene therapy and regenerative medicine.', badge: '', featured: false }
+        ]);
+        const defaultGalaSchedule = JSON.stringify([
+            { time: '18:00', title: 'Welcome Reception', description: 'Champagne cocktails and canapes in the Grand Foyer', icon: 'fas fa-champagne-glasses' },
+            { time: '19:00', title: 'Opening & Keynote Address', description: 'Dr. Elizabeth Chen: The Next Decade of Cancer Research', icon: 'fas fa-microphone' },
+            { time: '20:00', title: 'Gala Dinner', description: 'Five-course dinner with premium wine pairings', icon: 'fas fa-utensils' },
+            { time: '21:30', title: 'Biomedical Forum Annual Awards', description: 'Recognition of outstanding contributions to medical research', icon: 'fas fa-trophy' },
+            { time: '22:30', title: 'Networking & Entertainment', description: 'Live music, dancing, and exclusive networking until midnight', icon: 'fas fa-users' }
+        ]);
+        db.run("UPDATE gala_settings SET speakers_json = ?, schedule_json = ? WHERE id = 'default'",
+            [defaultGalaSpeakers, defaultGalaSchedule]);
+    }
+
+    // Plexus settings (admin-editable)
+    db.run(`CREATE TABLE IF NOT EXISTS plexus_settings (
+        id TEXT PRIMARY KEY DEFAULT 'default',
+        price_student_early REAL DEFAULT 39,
+        price_student_late REAL DEFAULT 59,
+        price_professional_early REAL DEFAULT 99,
+        price_professional_late REAL DEFAULT 149,
+        key_dates_json TEXT,
+        testimonials_json TEXT,
+        conference_start_date TEXT DEFAULT '2026-12-04',
+        conference_end_date TEXT DEFAULT '2026-12-05',
+        early_bird_deadline TEXT DEFAULT '2026-09-30',
+        abstract_deadline TEXT DEFAULT '2026-10-15',
+        is_registration_open INTEGER DEFAULT 1,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // Seed default plexus settings if none exist
+    const existingPlexusSettings = query.get("SELECT id FROM plexus_settings WHERE id = 'default'");
+    if (!existingPlexusSettings) {
+        const defaultKeyDates = JSON.stringify([
+            { label: 'Early Bird Registration', date: 'Until September 30, 2026', color: 'var(--up-success)' },
+            { label: 'Abstract Submission Deadline', date: 'October 15, 2026', color: 'var(--up-warning)' },
+            { label: 'Conference', date: 'December 4-5, 2026', color: '#0f172a' }
+        ]);
+        const defaultTestimonials = JSON.stringify([
+            { name: 'Dr. Ana Markovic', title: 'Postdoc, Max Planck Institute', year: 'Plexus 2025', quote: 'Plexus changed the trajectory of my career. I connected with my current PhD supervisor during a coffee break and landed a position at his lab in Munich. The quality of speakers and networking opportunities is unmatched.', avatar: 'https://randomuser.me/api/portraits/women/32.jpg' },
+            { name: 'Marco Rossi', title: 'MD Student, University of Milan', year: 'Plexus 2024', quote: 'As a medical student, attending Plexus opened my eyes to the world of biomedical research. The workshop on grant writing was incredibly practical, and I have already used those skills to secure funding for my thesis project.', avatar: 'https://randomuser.me/api/portraits/men/45.jpg' },
+            { name: 'Dr. Sarah Chen', title: 'Assistant Professor, Stanford', year: 'Plexus 2025', quote: 'The Gala Evening was the highlight of my trip. Meeting Nobel laureates in person and discussing science over dinner was surreal. Zagreb Christmas market made it even more magical!', avatar: 'https://randomuser.me/api/portraits/women/56.jpg' },
+            { name: 'Luka Horvat', title: 'PhD Candidate, University of Zagreb', year: 'Plexus 2023', quote: 'I presented my first poster at Plexus and the feedback I received was invaluable. The questions from senior researchers helped me refine my methodology significantly. Now I am presenting an oral talk!', avatar: 'https://randomuser.me/api/portraits/men/28.jpg' },
+            { name: 'Dr. Emma Mueller', title: 'Research Scientist, ETH Zurich', year: 'Plexus 2024', quote: 'Best organized conference I have attended in Europe. The Med&X team truly understands what young researchers need. The networking app made it so easy to connect with people before the event even started.', avatar: 'https://randomuser.me/api/portraits/women/41.jpg' }
+        ]);
+        db.run("INSERT INTO plexus_settings (id, key_dates_json, testimonials_json) VALUES ('default', ?, ?)",
+            [defaultKeyDates, defaultTestimonials]);
+    }
+
     try { db.run(`ALTER TABLE forum_members ADD COLUMN checked_in INTEGER DEFAULT 0`); } catch(e) {}
     try { db.run(`ALTER TABLE forum_members ADD COLUMN checked_in_at TEXT`); } catch(e) {}
 
@@ -14343,12 +14403,16 @@ By applying to this program, I provide the following consents:
                 console.error('Gala settings table creation failed:', e.message);
             }
         }
+        if (settings) {
+            try { settings.speakers = JSON.parse(settings.speakers_json || '[]'); } catch(e) { settings.speakers = []; }
+            try { settings.schedule = JSON.parse(settings.schedule_json || '[]'); } catch(e) { settings.schedule = []; }
+        }
         res.json(settings || {
             title: 'Gala Evening 2026', tagline: 'The Pinnacle of Biomedical Excellence',
             date: '2026-12-05', time: '18:00', venue: 'Grand Ballroom, Zagreb',
             dress_code: 'Black Tie / Formal Evening Attire', capacity: 150,
             price_gala_only: 95, price_bundle: 174, price_bundle_original: 194,
-            is_registration_open: 1
+            is_registration_open: 1, speakers: [], schedule: []
         });
     });
 
@@ -14366,7 +14430,8 @@ By applying to this program, I provide the following consents:
         db.run("INSERT OR IGNORE INTO gala_settings (id) VALUES ('default')");
 
         const { title, tagline, date, time, venue, dress_code, description, capacity,
-                price_gala_only, price_bundle, price_bundle_original, is_registration_open } = req.body;
+                price_gala_only, price_bundle, price_bundle_original, is_registration_open,
+                speakers_json, schedule_json } = req.body;
         const fields = [];
         const values = [];
         if (title !== undefined) { fields.push('title = ?'); values.push(title); }
@@ -14381,11 +14446,17 @@ By applying to this program, I provide the following consents:
         if (price_bundle !== undefined) { fields.push('price_bundle = ?'); values.push(price_bundle); }
         if (price_bundle_original !== undefined) { fields.push('price_bundle_original = ?'); values.push(price_bundle_original); }
         if (is_registration_open !== undefined) { fields.push('is_registration_open = ?'); values.push(is_registration_open ? 1 : 0); }
+        if (speakers_json !== undefined) { fields.push('speakers_json = ?'); values.push(typeof speakers_json === 'string' ? speakers_json : JSON.stringify(speakers_json)); }
+        if (schedule_json !== undefined) { fields.push('schedule_json = ?'); values.push(typeof schedule_json === 'string' ? schedule_json : JSON.stringify(schedule_json)); }
         if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
         fields.push("updated_at = ?"); values.push(new Date().toISOString());
         db.run(`UPDATE gala_settings SET ${fields.join(', ')} WHERE id = 'default'`, values);
         saveDb();
         const updated = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
+        if (updated) {
+            try { updated.speakers = JSON.parse(updated.speakers_json || '[]'); } catch(e) { updated.speakers = []; }
+            try { updated.schedule = JSON.parse(updated.schedule_json || '[]'); } catch(e) { updated.schedule = []; }
+        }
         res.json({ success: true, settings: updated });
     });
 
@@ -14913,6 +14984,73 @@ By applying to this program, I provide the following consents:
             console.error('Failed to get conversation:', err);
             res.status(500).json({ error: 'Failed to get conversation' });
         }
+    });
+
+    // ========== PLEXUS SETTINGS (admin) ==========
+
+    // Get plexus settings (admin)
+    app.get('/api/admin/plexus/settings', auth, adminOnly, (req, res) => {
+        let settings = query.get("SELECT * FROM plexus_settings WHERE id = 'default'");
+        if (!settings) {
+            db.run(`CREATE TABLE IF NOT EXISTS plexus_settings (
+                id TEXT PRIMARY KEY DEFAULT 'default',
+                price_student_early REAL DEFAULT 39, price_student_late REAL DEFAULT 59,
+                price_professional_early REAL DEFAULT 99, price_professional_late REAL DEFAULT 149,
+                key_dates_json TEXT, testimonials_json TEXT,
+                conference_start_date TEXT DEFAULT '2026-12-04', conference_end_date TEXT DEFAULT '2026-12-05',
+                early_bird_deadline TEXT DEFAULT '2026-09-30', abstract_deadline TEXT DEFAULT '2026-10-15',
+                is_registration_open INTEGER DEFAULT 1, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )`);
+            db.run("INSERT OR IGNORE INTO plexus_settings (id) VALUES ('default')");
+            saveDb();
+            settings = query.get("SELECT * FROM plexus_settings WHERE id = 'default'");
+        }
+        if (settings) {
+            try { settings.key_dates = JSON.parse(settings.key_dates_json || '[]'); } catch(e) { settings.key_dates = []; }
+            try { settings.testimonials = JSON.parse(settings.testimonials_json || '[]'); } catch(e) { settings.testimonials = []; }
+        }
+        res.json(settings || {});
+    });
+
+    // Update plexus settings (admin)
+    app.put('/api/admin/plexus/settings', auth, adminOnly, (req, res) => {
+        db.run(`CREATE TABLE IF NOT EXISTS plexus_settings (
+            id TEXT PRIMARY KEY DEFAULT 'default',
+            price_student_early REAL DEFAULT 39, price_student_late REAL DEFAULT 59,
+            price_professional_early REAL DEFAULT 99, price_professional_late REAL DEFAULT 149,
+            key_dates_json TEXT, testimonials_json TEXT,
+            conference_start_date TEXT DEFAULT '2026-12-04', conference_end_date TEXT DEFAULT '2026-12-05',
+            early_bird_deadline TEXT DEFAULT '2026-09-30', abstract_deadline TEXT DEFAULT '2026-10-15',
+            is_registration_open INTEGER DEFAULT 1, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run("INSERT OR IGNORE INTO plexus_settings (id) VALUES ('default')");
+
+        const { price_student_early, price_student_late, price_professional_early, price_professional_late,
+                key_dates_json, testimonials_json, conference_start_date, conference_end_date,
+                early_bird_deadline, abstract_deadline, is_registration_open } = req.body;
+        const fields = [];
+        const values = [];
+        if (price_student_early !== undefined) { fields.push('price_student_early = ?'); values.push(price_student_early); }
+        if (price_student_late !== undefined) { fields.push('price_student_late = ?'); values.push(price_student_late); }
+        if (price_professional_early !== undefined) { fields.push('price_professional_early = ?'); values.push(price_professional_early); }
+        if (price_professional_late !== undefined) { fields.push('price_professional_late = ?'); values.push(price_professional_late); }
+        if (key_dates_json !== undefined) { fields.push('key_dates_json = ?'); values.push(typeof key_dates_json === 'string' ? key_dates_json : JSON.stringify(key_dates_json)); }
+        if (testimonials_json !== undefined) { fields.push('testimonials_json = ?'); values.push(typeof testimonials_json === 'string' ? testimonials_json : JSON.stringify(testimonials_json)); }
+        if (conference_start_date !== undefined) { fields.push('conference_start_date = ?'); values.push(conference_start_date); }
+        if (conference_end_date !== undefined) { fields.push('conference_end_date = ?'); values.push(conference_end_date); }
+        if (early_bird_deadline !== undefined) { fields.push('early_bird_deadline = ?'); values.push(early_bird_deadline); }
+        if (abstract_deadline !== undefined) { fields.push('abstract_deadline = ?'); values.push(abstract_deadline); }
+        if (is_registration_open !== undefined) { fields.push('is_registration_open = ?'); values.push(is_registration_open ? 1 : 0); }
+        if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+        fields.push("updated_at = ?"); values.push(new Date().toISOString());
+        db.run(`UPDATE plexus_settings SET ${fields.join(', ')} WHERE id = 'default'`, values);
+        saveDb();
+        const updated = query.get("SELECT * FROM plexus_settings WHERE id = 'default'");
+        if (updated) {
+            try { updated.key_dates = JSON.parse(updated.key_dates_json || '[]'); } catch(e) { updated.key_dates = []; }
+            try { updated.testimonials = JSON.parse(updated.testimonials_json || '[]'); } catch(e) { updated.testimonials = []; }
+        }
+        res.json({ success: true, settings: updated });
     });
 
     // API 404 handler — prevent unmatched API routes from returning HTML

@@ -80234,6 +80234,11 @@ You can use variables like {first_name} that will be personalized for each recip
                 this.renderTestimonials();
                 this.renderParticipantCount();
                 this.syncTimelineSelection();
+                // Load dynamic content from API
+                this.loadPlexusSettings();
+                this.loadSpeakersFromDB();
+                this.loadScheduleFromDB();
+                this.loadRegistrationCount();
                 this.initLiveDateGating();
                 this.initCheckinButtons();
 
@@ -80747,6 +80752,141 @@ You can use variables like {first_name} that will be personalized for each recip
             renderParticipantCount() {
                 const el = document.getElementById('pxParticipantCount');
                 if (el) el.textContent = this.participantCount.toLocaleString();
+            },
+
+            // Load plexus settings from API (pricing, key dates, testimonials)
+            async loadPlexusSettings() {
+                try {
+                    const res = await fetch('/api/plexus/settings');
+                    if (!res.ok) return;
+                    const settings = await res.json();
+                    if (!settings || !settings.id) return;
+
+                    // Apply pricing
+                    if (settings.price_student_early) this.pricingOptions['student-early'].price = settings.price_student_early;
+                    if (settings.price_student_late) this.pricingOptions['student-late'].price = settings.price_student_late;
+                    if (settings.price_professional_early) this.pricingOptions['professional-early'].price = settings.price_professional_early;
+                    if (settings.price_professional_late) this.pricingOptions['professional-late'].price = settings.price_professional_late;
+
+                    // Re-render pricing cards
+                    if (typeof ConferenceData !== 'undefined') {
+                        this.refreshPricingFromData();
+                        this.renderPricingCards();
+                    } else {
+                        this.renderPricingCards();
+                    }
+
+                    // Apply key dates
+                    if (settings.key_dates && settings.key_dates.length > 0) {
+                        this.keyDates = settings.key_dates;
+                        this.renderKeyDates();
+                    }
+
+                    // Apply testimonials
+                    if (settings.testimonials && settings.testimonials.length > 0) {
+                        this.testimonials = settings.testimonials;
+                        this.renderTestimonials();
+                    }
+                } catch(e) {
+                    console.log('Could not load plexus settings, using defaults:', e.message);
+                }
+            },
+
+            // Load speakers from database
+            async loadSpeakersFromDB() {
+                try {
+                    const res = await fetch('/api/plexus/speakers');
+                    if (!res.ok) return;
+                    const dbSpeakers = await res.json();
+                    if (!dbSpeakers || dbSpeakers.length === 0) return;
+
+                    // Map DB speakers to the format used by PlexusPortal.speakers
+                    const newSpeakers = {};
+                    dbSpeakers.forEach(s => {
+                        const key = s.id || s.name.toLowerCase().replace(/[^a-z]/g, '');
+                        newSpeakers[key] = {
+                            name: s.name,
+                            title: s.speaker_type === 'keynote' ? 'Keynote Speaker' : (s.title || s.speaker_type || 'Speaker'),
+                            institution: s.institution || '',
+                            image: s.photo_url || 'https://randomuser.me/api/portraits/lego/1.jpg',
+                            bio: s.bio || '',
+                            session: s.talk_title || '',
+                            sessionTime: '',
+                            sessionId: s.id
+                        };
+                    });
+
+                    // Replace hardcoded speakers with DB data
+                    this.speakers = newSpeakers;
+
+                    // Also update ConferenceData if available
+                    if (typeof ConferenceData !== 'undefined') {
+                        ConferenceData.speakers = dbSpeakers.map(s => ({
+                            id: s.id,
+                            slug: s.id,
+                            name: s.name,
+                            title: s.title || '',
+                            institution: s.institution || '',
+                            role: s.speaker_type === 'keynote' ? 'Keynote Speaker' : (s.speaker_type || 'Speaker'),
+                            bio: s.bio || '',
+                            image: s.photo_url || '',
+                            talkTitle: s.talk_title || '',
+                            linkedin: s.linkedin_url || '',
+                            twitter: s.twitter_url || ''
+                        }));
+                        this.renderSpeakersFromData();
+                    }
+                } catch(e) {
+                    console.log('Could not load speakers from DB, using defaults:', e.message);
+                }
+            },
+
+            // Load schedule/sessions from database
+            async loadScheduleFromDB() {
+                try {
+                    const res = await fetch('/api/plexus/sessions');
+                    if (!res.ok) return;
+                    const dbSessions = await res.json();
+                    if (!dbSessions || dbSessions.length === 0) return;
+
+                    // Update ConferenceData if available
+                    if (typeof ConferenceData !== 'undefined') {
+                        ConferenceData.schedule = dbSessions.map(s => ({
+                            id: s.id,
+                            day: s.day || 1,
+                            time: s.start_time || '',
+                            endTime: s.end_time || '',
+                            title: s.title || '',
+                            description: s.description || '',
+                            type: s.session_type || 'talk',
+                            room: s.room || '',
+                            track: s.track || '',
+                            speaker: s.speaker_names || '',
+                            speakerIds: s.speaker_ids || ''
+                        }));
+                        this.renderScheduleFromData();
+                        this.renderLiveScheduleFromData(this._currentLiveDay || 1);
+                    }
+                } catch(e) {
+                    console.log('Could not load schedule from DB, using defaults:', e.message);
+                }
+            },
+
+            // Load live registration count from database
+            async loadRegistrationCount() {
+                try {
+                    const res = await fetch('/api/plexus/stats');
+                    if (!res.ok) return;
+                    const stats = await res.json();
+                    if (stats && stats.total_registrations > 0) {
+                        this.registrationCount = stats.total_registrations;
+                        this.participantCount = stats.total_registrations;
+                        this.animateRegistrationCounter();
+                        this.renderParticipantCount();
+                    }
+                } catch(e) {
+                    console.log('Could not load registration count, using default:', e.message);
+                }
             },
 
             // Toggle schedule view between list and timeline
@@ -83043,6 +83183,71 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (s.capacity) {
                     const capEl = document.querySelector('.gala-register-header p');
                     if (capEl) capEl.textContent = `Limited to ${s.capacity} guests \u2022 Formal attire required`;
+                }
+
+                // Dynamic speakers from DB
+                if (s.speakers && s.speakers.length > 0) {
+                    // Update the speakers lookup object
+                    this.speakers = {};
+                    s.speakers.forEach(sp => {
+                        const key = sp.key || sp.name.toLowerCase().replace(/[^a-z]/g, '');
+                        this.speakers[key] = {
+                            name: sp.name,
+                            title: sp.title,
+                            topic: sp.topic,
+                            image: sp.image,
+                            bio: sp.bio,
+                            social: {}
+                        };
+                    });
+
+                    // Re-render the speakers grid
+                    const speakersGrid = document.querySelector('.gala-speakers-grid');
+                    if (speakersGrid) {
+                        speakersGrid.innerHTML = s.speakers.map(sp => {
+                            const key = sp.key || sp.name.toLowerCase().replace(/[^a-z]/g, '');
+                            const badgeHtml = sp.badge ? `<div class="gala-speaker-badge">${sp.badge}</div>` : '';
+                            const featuredClass = sp.featured ? ' featured' : '';
+                            return `<div class="gala-speaker-card${featuredClass}" onclick="GalaPortal.showSpeakerModal('${key}')">
+                                ${badgeHtml}
+                                <div class="gala-speaker-image">
+                                    <img src="${sp.image}" alt="${sp.name}">
+                                </div>
+                                <div class="gala-speaker-info">
+                                    <h4>${sp.name}</h4>
+                                    <p class="gala-speaker-title">${sp.title}</p>
+                                    <p class="gala-speaker-topic">${sp.topic}</p>
+                                </div>
+                            </div>`;
+                        }).join('');
+                    }
+                }
+
+                // Dynamic schedule/timeline from DB
+                if (s.schedule && s.schedule.length > 0) {
+                    const timeline = document.querySelector('.gala-timeline');
+                    if (timeline) {
+                        timeline.innerHTML = s.schedule.map(item => `
+                            <div class="gala-timeline-item">
+                                <div class="gala-timeline-time">${item.time}</div>
+                                <div class="gala-timeline-content">
+                                    <div class="gala-timeline-icon"><i class="${item.icon || 'fas fa-star'}"></i></div>
+                                    <div class="gala-timeline-details">
+                                        <h4>${item.title}</h4>
+                                        <p>${item.description}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+
+                    // Also update the schedule header with dynamic date
+                    const schedHeader = document.querySelector('.gala-schedule-header p');
+                    if (schedHeader && s.date) {
+                        const dateObj = new Date(s.date + 'T00:00:00');
+                        const dateStr = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                        schedHeader.textContent = `${dateStr} | ${s.venue || 'Grand Ballroom'}`;
+                    }
                 }
             },
 

@@ -6433,6 +6433,7 @@
                         <button class="plexus-tab" onclick="App.showPlexusTab('volunteers')"><i class="fas fa-hand-holding-heart"></i> Volunteers</button>
                         <button class="plexus-tab" onclick="App.showPlexusTab('checkin')"><i class="fas fa-qrcode"></i> Check-in</button>
                         <button class="plexus-tab" onclick="App.showPlexusTab('pending')"><i class="fas fa-tasks"></i> Pending</button>
+                        <button class="plexus-tab" onclick="App.showPlexusTab('settings')"><i class="fas fa-cog"></i> Settings</button>
                     </div>
 
                     <!-- DASHBOARD TAB -->
@@ -6946,6 +6947,43 @@ President, Med&amp;X</textarea>
                             <div class="card-body" id="pxPendingSpeakersList"></div>
                         </div>
                     </div>
+
+                    <!-- SETTINGS TAB -->
+                    <div class="plexus-content" id="plexus-settings">
+                        <div class="card">
+                            <div class="card-header"><h3 class="card-title">Conference Pricing (EUR)</h3></div>
+                            <div class="card-body">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                                    <div class="form-group"><label class="form-label">Student Early Bird</label><input type="number" class="form-input" id="pxSettingPriceStudentEarly" step="0.01" placeholder="39"></div>
+                                    <div class="form-group"><label class="form-label">Student Regular</label><input type="number" class="form-input" id="pxSettingPriceStudentLate" step="0.01" placeholder="59"></div>
+                                    <div class="form-group"><label class="form-label">Professional Early Bird</label><input type="number" class="form-input" id="pxSettingPriceProfEarly" step="0.01" placeholder="99"></div>
+                                    <div class="form-group"><label class="form-label">Professional Regular</label><input type="number" class="form-input" id="pxSettingPriceProfLate" step="0.01" placeholder="149"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header"><h3 class="card-title">Conference Dates</h3></div>
+                            <div class="card-body">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                                    <div class="form-group"><label class="form-label">Conference Start</label><input type="date" class="form-input" id="pxSettingStartDate"></div>
+                                    <div class="form-group"><label class="form-label">Conference End</label><input type="date" class="form-input" id="pxSettingEndDate"></div>
+                                    <div class="form-group"><label class="form-label">Early Bird Deadline</label><input type="date" class="form-input" id="pxSettingEarlyBirdDeadline"></div>
+                                    <div class="form-group"><label class="form-label">Abstract Deadline</label><input type="date" class="form-input" id="pxSettingAbstractDeadline"></div>
+                                </div>
+                                <div class="form-group" style="margin-top: 16px;"><label class="form-label">Registration Open</label><select class="form-input" id="pxSettingRegOpen" style="max-width: 200px;"><option value="1">Yes</option><option value="0">No</option></select></div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;"><h3 class="card-title">Key Dates (shown on user portal)</h3><button class="btn btn-secondary" onclick="PlexusSettingsAdmin.addKeyDate()" style="font-size: 12px;"><i class="fas fa-plus"></i> Add Date</button></div>
+                            <div class="card-body" id="pxKeyDatesEditor"></div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;"><h3 class="card-title">Testimonials</h3><button class="btn btn-secondary" onclick="PlexusSettingsAdmin.addTestimonial()" style="font-size: 12px;"><i class="fas fa-plus"></i> Add Testimonial</button></div>
+                            <div class="card-body" id="pxTestimonialsEditor"></div>
+                        </div>
+                        <div style="margin-top: 20px; display: flex; justify-content: flex-end;"><button class="btn btn-primary" onclick="PlexusSettingsAdmin.saveSettings()" style="padding: 12px 32px;"><i class="fas fa-save"></i> Save All Plexus Settings</button></div>
+                    </div>
+
                 </div>
 
                 <!-- ACCELERATOR -->
@@ -9764,6 +9802,16 @@ President, Med&amp;X</textarea>
                                 </div>
                             </div>
                         </div>
+
+                        <div class="card" style="margin-top: 20px;">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;"><h3 class="card-title">Gala Speakers</h3><button class="btn btn-secondary" onclick="GalaAdmin.addSpeaker()" style="font-size: 12px;"><i class="fas fa-plus"></i> Add Speaker</button></div>
+                            <div class="card-body" id="galaSpeakersEditor"></div>
+                        </div>
+                        <div class="card" style="margin-top: 20px;">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;"><h3 class="card-title">Gala Schedule / Timeline</h3><button class="btn btn-secondary" onclick="GalaAdmin.addScheduleItem()" style="font-size: 12px;"><i class="fas fa-plus"></i> Add Item</button></div>
+                            <div class="card-body" id="galaScheduleEditor"></div>
+                        </div>
+                        <div style="margin-top: 20px; display: flex; justify-content: flex-end;"><button class="btn btn-primary" onclick="GalaAdmin.saveSpeakersAndSchedule()" style="padding: 12px 32px;"><i class="fas fa-save"></i> Save Speakers & Schedule</button></div>
                     </div>
                 </div>
 
@@ -15892,7 +15940,8 @@ President, Med&amp;X</textarea>
                     'sponsors': 'Sponsors',
                     'volunteers': 'Volunteers',
                     'checkin': 'Check-in',
-                    'pending': 'Pending'
+                    'pending': 'Pending',
+                    'settings': 'Settings'
                 };
                 document.title = `Med&X Admin — Plexus · ${tabNames[tab] || tab}`;
 
@@ -15920,6 +15969,7 @@ President, Med&amp;X</textarea>
                     case 'volunteers': this.loadPlexusVolunteers(); break;
                     case 'checkin': this.loadPlexusCheckinStats(); break;
                     case 'pending': this.loadPlexusPending(); break;
+                    case 'settings': PlexusSettingsAdmin.loadSettings(); break;
                 }
             },
 
@@ -17173,6 +17223,7 @@ President, Med&amp;X</textarea>
                     console.error('Failed to load sponsors:', err);
                     this.plexusSponsors = [];
                     this.renderPlexusSponsors();
+                }
             },
 
             renderSponsorStats() {
@@ -22820,10 +22871,10 @@ By applying to this program, I give the following consents:
                 });
 
                 if (res.success) {
-                    App.showToast(`Payment confirmed for ${attendeeName}`, 'success');
+                    Toast.success(`Payment confirmed for ${attendeeName}`);
                     this.loadConferencePayments();
                 } else {
-                    App.showToast(res.error || 'Failed to confirm payment', 'error');
+                    Toast.error(res.error || 'Failed to confirm payment');
                 }
             },
 
@@ -25365,6 +25416,109 @@ By applying to this program, I give the following consents:
         };
 
         // =========================================
+        // PLEXUS SETTINGS ADMIN
+        // =========================================
+        const PlexusSettingsAdmin = {
+            settings: null,
+            keyDates: [],
+            testimonials: [],
+
+            async loadSettings() {
+                try {
+                    const res = await fetch('/api/admin/plexus/settings', {
+                        headers: { 'Authorization': 'Bearer ' + App.token }
+                    });
+                    if (res.ok) {
+                        this.settings = await res.json();
+                        this.keyDates = this.settings.key_dates || [];
+                        this.testimonials = this.settings.testimonials || [];
+                        this.populateForm();
+                        this.renderKeyDatesEditor();
+                        this.renderTestimonialsEditor();
+                    }
+                } catch(e) { console.error('Failed to load plexus settings:', e); }
+            },
+
+            populateForm() {
+                const s = this.settings;
+                if (!s) return;
+                const setVal = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.value = val; };
+                setVal('pxSettingPriceStudentEarly', s.price_student_early);
+                setVal('pxSettingPriceStudentLate', s.price_student_late);
+                setVal('pxSettingPriceProfEarly', s.price_professional_early);
+                setVal('pxSettingPriceProfLate', s.price_professional_late);
+                setVal('pxSettingStartDate', s.conference_start_date);
+                setVal('pxSettingEndDate', s.conference_end_date);
+                setVal('pxSettingEarlyBirdDeadline', s.early_bird_deadline);
+                setVal('pxSettingAbstractDeadline', s.abstract_deadline);
+                setVal('pxSettingRegOpen', s.is_registration_open ? '1' : '0');
+            },
+
+            renderKeyDatesEditor() {
+                const container = document.getElementById('pxKeyDatesEditor');
+                if (!container) return;
+                if (this.keyDates.length === 0) { container.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">No key dates yet.</p>'; return; }
+                container.innerHTML = this.keyDates.map((d, i) => '<div style="display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 12px; align-items: end; margin-bottom: 12px; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Label</label><input type="text" class="form-input" value="' + (d.label || '').replace(/"/g, '&quot;') + '" onchange="PlexusSettingsAdmin.updateKeyDate(' + i + ', \'label\', this.value)"></div>' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Date Text</label><input type="text" class="form-input" value="' + (d.date || '').replace(/"/g, '&quot;') + '" onchange="PlexusSettingsAdmin.updateKeyDate(' + i + ', \'date\', this.value)"></div>' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Color</label><input type="color" class="form-input" value="' + (d.color && d.color.startsWith('#') ? d.color : '#0f172a') + '" onchange="PlexusSettingsAdmin.updateKeyDate(' + i + ', \'color\', this.value)" style="width:50px;height:36px;padding:2px;"></div>' +
+                    '<button class="btn btn-secondary" onclick="PlexusSettingsAdmin.removeKeyDate(' + i + ')" style="height:36px;padding:0 12px;color:var(--danger);" title="Remove"><i class="fas fa-trash"></i></button>' +
+                '</div>').join('');
+            },
+
+            addKeyDate() { this.keyDates.push({ label: 'New Date', date: 'TBD', color: '#0f172a' }); this.renderKeyDatesEditor(); },
+            updateKeyDate(i, field, val) { if (this.keyDates[i]) this.keyDates[i][field] = val; },
+            removeKeyDate(i) { this.keyDates.splice(i, 1); this.renderKeyDatesEditor(); },
+
+            renderTestimonialsEditor() {
+                const container = document.getElementById('pxTestimonialsEditor');
+                if (!container) return;
+                if (this.testimonials.length === 0) { container.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">No testimonials yet.</p>'; return; }
+                container.innerHTML = this.testimonials.map((t, i) => '<div style="padding:16px;background:var(--bg-secondary);border-radius:8px;margin-bottom:12px;">' +
+                    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Name</label><input type="text" class="form-input" value="' + (t.name || '').replace(/"/g, '&quot;') + '" onchange="PlexusSettingsAdmin.updateTestimonial(' + i + ', \'name\', this.value)"></div>' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Title</label><input type="text" class="form-input" value="' + (t.title || '').replace(/"/g, '&quot;') + '" onchange="PlexusSettingsAdmin.updateTestimonial(' + i + ', \'title\', this.value)"></div>' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Year</label><input type="text" class="form-input" value="' + (t.year || '').replace(/"/g, '&quot;') + '" onchange="PlexusSettingsAdmin.updateTestimonial(' + i + ', \'year\', this.value)"></div>' +
+                    '</div>' +
+                    '<div style="display:grid;grid-template-columns:1fr auto;gap:12px;margin-bottom:12px;">' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Avatar URL</label><input type="text" class="form-input" value="' + (t.avatar || '').replace(/"/g, '&quot;') + '" onchange="PlexusSettingsAdmin.updateTestimonial(' + i + ', \'avatar\', this.value)"></div>' +
+                    '<button class="btn btn-secondary" onclick="PlexusSettingsAdmin.removeTestimonial(' + i + ')" style="height:36px;align-self:end;padding:0 12px;color:var(--danger);" title="Remove"><i class="fas fa-trash"></i></button></div>' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Quote</label><textarea class="form-input" rows="2" onchange="PlexusSettingsAdmin.updateTestimonial(' + i + ', \'quote\', this.value)">' + (t.quote || '').replace(/</g, '&lt;') + '</textarea></div>' +
+                '</div>').join('');
+            },
+
+            addTestimonial() { this.testimonials.push({ name: '', title: '', year: 'Plexus 2026', quote: '', avatar: '' }); this.renderTestimonialsEditor(); },
+            updateTestimonial(i, field, val) { if (this.testimonials[i]) this.testimonials[i][field] = val; },
+            removeTestimonial(i) { this.testimonials.splice(i, 1); this.renderTestimonialsEditor(); },
+
+            async saveSettings() {
+                const getVal = (id) => document.getElementById(id)?.value || '';
+                const data = {
+                    price_student_early: parseFloat(getVal('pxSettingPriceStudentEarly')) || 39,
+                    price_student_late: parseFloat(getVal('pxSettingPriceStudentLate')) || 59,
+                    price_professional_early: parseFloat(getVal('pxSettingPriceProfEarly')) || 99,
+                    price_professional_late: parseFloat(getVal('pxSettingPriceProfLate')) || 149,
+                    conference_start_date: getVal('pxSettingStartDate'),
+                    conference_end_date: getVal('pxSettingEndDate'),
+                    early_bird_deadline: getVal('pxSettingEarlyBirdDeadline'),
+                    abstract_deadline: getVal('pxSettingAbstractDeadline'),
+                    is_registration_open: getVal('pxSettingRegOpen') === '1',
+                    key_dates_json: JSON.stringify(this.keyDates),
+                    testimonials_json: JSON.stringify(this.testimonials)
+                };
+                try {
+                    const res = await fetch('/api/admin/plexus/settings', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + App.token },
+                        body: JSON.stringify(data)
+                    });
+                    if (res.ok) { Toast.success('Plexus settings saved successfully'); const r = await res.json(); this.settings = r.settings; }
+                    else { Toast.error('Failed to save settings'); }
+                } catch(e) { console.error('Save plexus settings error:', e); Toast.error('Failed to save settings'); }
+            }
+        };
+
+        // =========================================
         // GALA ADMIN - Gala Evening Management
         // =========================================
         const GalaAdmin = {
@@ -25404,6 +25558,8 @@ By applying to this program, I give the following consents:
                     if (res.ok) {
                         this.settings = await res.json();
                         this.populateSettings();
+                        this.renderSpeakersEditor();
+                        this.renderScheduleEditor();
                     }
                 } catch (err) {
                     console.error('Failed to load gala settings:', err);
@@ -25451,7 +25607,7 @@ By applying to this program, I give the following consents:
                         body: JSON.stringify(data)
                     });
                     if (res.ok) {
-                        App.showToast && App.showToast('Gala settings saved');
+                        Toast.success('Gala settings saved');
                         this.settings = data;
                     } else {
                         alert('Failed to save settings');
@@ -25498,6 +25654,69 @@ By applying to this program, I give the following consents:
                     regsBtn.className = 'btn btn-secondary';
                     settingsBtn.className = 'btn btn-primary';
                 }
+            },
+
+            // Speakers editor
+            renderSpeakersEditor() {
+                const container = document.getElementById('galaSpeakersEditor');
+                if (!container) return;
+                const speakers = this.settings?.speakers || [];
+                if (speakers.length === 0) { container.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">No speakers yet.</p>'; return; }
+                container.innerHTML = speakers.map((s, i) => '<div style="padding:16px;background:var(--bg-secondary);border-radius:8px;margin-bottom:12px;">' +
+                    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;margin-bottom:12px;">' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Name</label><input type="text" class="form-input" value="' + (s.name || '').replace(/"/g, '&quot;') + '" onchange="GalaAdmin.updateSpeaker(' + i + ', \'name\', this.value)"></div>' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Title</label><input type="text" class="form-input" value="' + (s.title || '').replace(/"/g, '&quot;') + '" onchange="GalaAdmin.updateSpeaker(' + i + ', \'title\', this.value)"></div>' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Topic</label><input type="text" class="form-input" value="' + (s.topic || '').replace(/"/g, '&quot;') + '" onchange="GalaAdmin.updateSpeaker(' + i + ', \'topic\', this.value)"></div>' +
+                    '<button class="btn btn-secondary" onclick="GalaAdmin.removeSpeaker(' + i + ')" style="height:36px;align-self:end;padding:0 12px;color:var(--danger);" title="Remove"><i class="fas fa-trash"></i></button></div>' +
+                    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Image URL</label><input type="text" class="form-input" value="' + (s.image || '').replace(/"/g, '&quot;') + '" onchange="GalaAdmin.updateSpeaker(' + i + ', \'image\', this.value)"></div>' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Badge</label><input type="text" class="form-input" value="' + (s.badge || '').replace(/"/g, '&quot;') + '" onchange="GalaAdmin.updateSpeaker(' + i + ', \'badge\', this.value)"></div></div>' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Bio</label><textarea class="form-input" rows="2" onchange="GalaAdmin.updateSpeaker(' + i + ', \'bio\', this.value)">' + (s.bio || '').replace(/</g, '&lt;') + '</textarea></div></div>').join('');
+            },
+            addSpeaker() {
+                if (!this.settings) this.settings = {};
+                if (!this.settings.speakers) this.settings.speakers = [];
+                this.settings.speakers.push({ key: 'speaker_' + Date.now(), name: '', title: '', topic: '', image: '', bio: '', badge: '', featured: false });
+                this.renderSpeakersEditor();
+            },
+            updateSpeaker(i, field, val) { if (this.settings?.speakers?.[i]) this.settings.speakers[i][field] = val; },
+            removeSpeaker(i) { if (this.settings?.speakers) { this.settings.speakers.splice(i, 1); this.renderSpeakersEditor(); } },
+
+            // Schedule editor
+            renderScheduleEditor() {
+                const container = document.getElementById('galaScheduleEditor');
+                if (!container) return;
+                const schedule = this.settings?.schedule || [];
+                if (schedule.length === 0) { container.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">No schedule items yet.</p>'; return; }
+                container.innerHTML = schedule.map((item, i) => '<div style="display:grid;grid-template-columns:100px 1fr 1fr 120px auto;gap:12px;align-items:end;margin-bottom:12px;padding:12px;background:var(--bg-secondary);border-radius:8px;">' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Time</label><input type="text" class="form-input" value="' + (item.time || '').replace(/"/g, '&quot;') + '" onchange="GalaAdmin.updateScheduleItem(' + i + ', \'time\', this.value)" placeholder="18:00"></div>' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Title</label><input type="text" class="form-input" value="' + (item.title || '').replace(/"/g, '&quot;') + '" onchange="GalaAdmin.updateScheduleItem(' + i + ', \'title\', this.value)"></div>' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Description</label><input type="text" class="form-input" value="' + (item.description || '').replace(/"/g, '&quot;') + '" onchange="GalaAdmin.updateScheduleItem(' + i + ', \'description\', this.value)"></div>' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Icon</label><input type="text" class="form-input" value="' + (item.icon || '').replace(/"/g, '&quot;') + '" onchange="GalaAdmin.updateScheduleItem(' + i + ', \'icon\', this.value)" placeholder="fas fa-star"></div>' +
+                    '<button class="btn btn-secondary" onclick="GalaAdmin.removeScheduleItem(' + i + ')" style="height:36px;padding:0 12px;color:var(--danger);" title="Remove"><i class="fas fa-trash"></i></button></div>').join('');
+            },
+            addScheduleItem() {
+                if (!this.settings) this.settings = {};
+                if (!this.settings.schedule) this.settings.schedule = [];
+                this.settings.schedule.push({ time: '', title: '', description: '', icon: 'fas fa-star' });
+                this.renderScheduleEditor();
+            },
+            updateScheduleItem(i, field, val) { if (this.settings?.schedule?.[i]) this.settings.schedule[i][field] = val; },
+            removeScheduleItem(i) { if (this.settings?.schedule) { this.settings.schedule.splice(i, 1); this.renderScheduleEditor(); } },
+
+            async saveSpeakersAndSchedule() {
+                try {
+                    const res = await fetch('/api/admin/gala/settings', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + App.token },
+                        body: JSON.stringify({
+                            speakers_json: JSON.stringify(this.settings?.speakers || []),
+                            schedule_json: JSON.stringify(this.settings?.schedule || [])
+                        })
+                    });
+                    if (res.ok) { Toast.success('Gala speakers & schedule saved'); }
+                    else { Toast.error('Failed to save'); }
+                } catch(e) { console.error('Save gala speakers/schedule error:', e); Toast.error('Failed to save'); }
             },
 
             filterRegistrations() {
@@ -25593,7 +25812,7 @@ By applying to this program, I give the following consents:
                         body: JSON.stringify({ status, admin_notes: notes })
                     });
                     if (res.ok) {
-                        App.showToast && App.showToast(`Registration ${status}`);
+                        Toast.success(`Registration ${status}`);
                         this.loadRegistrations();
                     } else {
                         alert('Failed to update status');

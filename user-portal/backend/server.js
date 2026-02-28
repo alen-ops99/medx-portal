@@ -2531,6 +2531,65 @@ async function initializeApp() {
         db.run("INSERT INTO gala_settings (id) VALUES ('default')");
     }
 
+    // Plexus settings (admin-editable)
+    db.run(`CREATE TABLE IF NOT EXISTS plexus_settings (
+        id TEXT PRIMARY KEY DEFAULT 'default',
+        price_student_early REAL DEFAULT 39,
+        price_student_late REAL DEFAULT 59,
+        price_professional_early REAL DEFAULT 99,
+        price_professional_late REAL DEFAULT 149,
+        key_dates_json TEXT,
+        testimonials_json TEXT,
+        conference_start_date TEXT DEFAULT '2026-12-04',
+        conference_end_date TEXT DEFAULT '2026-12-05',
+        early_bird_deadline TEXT DEFAULT '2026-09-30',
+        abstract_deadline TEXT DEFAULT '2026-10-15',
+        is_registration_open INTEGER DEFAULT 1,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // Seed default plexus settings if none exist
+    const existingPlexusSettings = query.get("SELECT id FROM plexus_settings WHERE id = 'default'");
+    if (!existingPlexusSettings) {
+        const defaultKeyDates = JSON.stringify([
+            { label: 'Early Bird Registration', date: 'Until September 30, 2026', color: 'var(--up-success)' },
+            { label: 'Abstract Submission Deadline', date: 'October 15, 2026', color: 'var(--up-warning)' },
+            { label: 'Conference', date: 'December 4-5, 2026', color: '#0f172a' }
+        ]);
+        const defaultTestimonials = JSON.stringify([
+            { name: 'Dr. Ana Markovic', title: 'Postdoc, Max Planck Institute', year: 'Plexus 2025', quote: 'Plexus changed the trajectory of my career. I connected with my current PhD supervisor during a coffee break and landed a position at his lab in Munich. The quality of speakers and networking opportunities is unmatched.', avatar: 'https://randomuser.me/api/portraits/women/32.jpg' },
+            { name: 'Marco Rossi', title: 'MD Student, University of Milan', year: 'Plexus 2024', quote: 'As a medical student, attending Plexus opened my eyes to the world of biomedical research. The workshop on grant writing was incredibly practical, and I\'ve already used those skills to secure funding for my thesis project.', avatar: 'https://randomuser.me/api/portraits/men/45.jpg' },
+            { name: 'Dr. Sarah Chen', title: 'Assistant Professor, Stanford', year: 'Plexus 2025', quote: 'The Gala Evening was the highlight of my trip. Meeting Nobel laureates in person and discussing science over dinner was surreal. Zagreb\'s Christmas market made it even more magical!', avatar: 'https://randomuser.me/api/portraits/women/56.jpg' },
+            { name: 'Luka Horvat', title: 'PhD Candidate, University of Zagreb', year: 'Plexus 2023', quote: 'I presented my first poster at Plexus and the feedback I received was invaluable. The questions from senior researchers helped me refine my methodology significantly. Now I\'m presenting an oral talk!', avatar: 'https://randomuser.me/api/portraits/men/28.jpg' },
+            { name: 'Dr. Emma Mueller', title: 'Research Scientist, ETH Zurich', year: 'Plexus 2024', quote: 'Best organized conference I\'ve attended in Europe. The Med&X team truly understands what young researchers need. The networking app made it so easy to connect with people before the event even started.', avatar: 'https://randomuser.me/api/portraits/women/41.jpg' }
+        ]);
+        db.run("INSERT INTO plexus_settings (id, key_dates_json, testimonials_json) VALUES ('default', ?, ?)",
+            [defaultKeyDates, defaultTestimonials]);
+    }
+
+    // Add speakers_json and schedule_json columns to gala_settings
+    try { db.run(`ALTER TABLE gala_settings ADD COLUMN speakers_json TEXT`); } catch (e) {}
+    try { db.run(`ALTER TABLE gala_settings ADD COLUMN schedule_json TEXT`); } catch (e) {}
+
+    // Seed default gala speakers and schedule if columns are empty
+    const galaCheck = query.get("SELECT speakers_json FROM gala_settings WHERE id = 'default'");
+    if (galaCheck && !galaCheck.speakers_json) {
+        const defaultGalaSpeakers = JSON.stringify([
+            { key: 'chen', name: 'Dr. Elizabeth Chen', title: 'Director, National Cancer Institute', topic: '"The Next Decade of Cancer Research"', image: 'https://randomuser.me/api/portraits/women/23.jpg', bio: 'Dr. Elizabeth Chen is a world-renowned oncologist and the Director of the National Cancer Institute. Her groundbreaking research in targeted cancer therapies has transformed treatment approaches worldwide. She has published over 300 peer-reviewed articles and holds multiple patents in precision medicine technologies.', badge: 'Keynote Speaker', featured: true },
+            { key: 'weber', name: 'Prof. Michael Weber', title: 'Nobel Laureate in Medicine', topic: 'Awards Presenter', image: 'https://randomuser.me/api/portraits/men/42.jpg', bio: 'Professor Michael Weber received the Nobel Prize in Physiology or Medicine for his discoveries concerning the molecular mechanisms of circadian rhythm. His research at the Max Planck Institute has illuminated how our internal clocks regulate human biology, opening new frontiers in chronotherapy.', badge: '', featured: false },
+            { key: 'mitchell', name: 'Dr. Sarah Mitchell', title: 'CEO, BioTech Innovations', topic: 'Industry Address', image: 'https://randomuser.me/api/portraits/women/45.jpg', bio: 'Dr. Sarah Mitchell is the CEO of BioTech Innovations, a leading biotech company specializing in gene therapy and regenerative medicine. A Stanford-trained molecular biologist, she has led the development of three FDA-approved therapies and was named one of Fortune\'s Most Powerful Women in Business.', badge: '', featured: false }
+        ]);
+        const defaultGalaSchedule = JSON.stringify([
+            { time: '18:00', title: 'Welcome Reception', description: 'Champagne cocktails and canapés in the Grand Foyer', icon: 'fas fa-champagne-glasses' },
+            { time: '19:00', title: 'Opening & Keynote Address', description: 'Dr. Elizabeth Chen: "The Next Decade of Cancer Research"', icon: 'fas fa-microphone' },
+            { time: '20:00', title: 'Gala Dinner', description: 'Five-course dinner with premium wine pairings', icon: 'fas fa-utensils' },
+            { time: '21:30', title: 'Biomedical Forum Annual Awards', description: 'Recognition of outstanding contributions to medical research', icon: 'fas fa-trophy' },
+            { time: '22:30', title: 'Networking & Entertainment', description: 'Live music, dancing, and exclusive networking until midnight', icon: 'fas fa-users' }
+        ]);
+        db.run("UPDATE gala_settings SET speakers_json = ?, schedule_json = ? WHERE id = 'default'",
+            [defaultGalaSpeakers, defaultGalaSchedule]);
+    }
+
     // ========== TABLES FROM ADMIN PORTAL (shared schema) ==========
 
     db.run(`CREATE TABLE IF NOT EXISTS admin_section_preferences (
@@ -13401,13 +13460,18 @@ By applying to this program, I provide the following consents:
     // Get gala settings (public)
     app.get('/api/gala/settings', (req, res) => {
         const settings = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
+        if (settings) {
+            try { settings.speakers = JSON.parse(settings.speakers_json || '[]'); } catch(e) { settings.speakers = []; }
+            try { settings.schedule = JSON.parse(settings.schedule_json || '[]'); } catch(e) { settings.schedule = []; }
+        }
         res.json(settings || {});
     });
 
     // Update gala settings (admin only)
     app.put('/api/gala/settings', auth, adminOnly, (req, res) => {
         const { title, tagline, date, time, venue, dress_code, description, capacity,
-                price_gala_only, price_bundle, price_bundle_original, is_registration_open } = req.body;
+                price_gala_only, price_bundle, price_bundle_original, is_registration_open,
+                speakers_json, schedule_json } = req.body;
         const fields = [];
         const values = [];
         if (title !== undefined) { fields.push('title = ?'); values.push(title); }
@@ -13422,6 +13486,8 @@ By applying to this program, I provide the following consents:
         if (price_bundle !== undefined) { fields.push('price_bundle = ?'); values.push(price_bundle); }
         if (price_bundle_original !== undefined) { fields.push('price_bundle_original = ?'); values.push(price_bundle_original); }
         if (is_registration_open !== undefined) { fields.push('is_registration_open = ?'); values.push(is_registration_open ? 1 : 0); }
+        if (speakers_json !== undefined) { fields.push('speakers_json = ?'); values.push(typeof speakers_json === 'string' ? speakers_json : JSON.stringify(speakers_json)); }
+        if (schedule_json !== undefined) { fields.push('schedule_json = ?'); values.push(typeof schedule_json === 'string' ? schedule_json : JSON.stringify(schedule_json)); }
         if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
         fields.push("updated_at = ?"); values.push(new Date().toISOString());
         db.run(`UPDATE gala_settings SET ${fields.join(', ')} WHERE id = 'default'`, values);
@@ -13670,6 +13736,41 @@ By applying to this program, I provide the following consents:
     app.get('/api/portal-content/published/:section', (req, res) => {
         const items = query.all('SELECT * FROM portal_content WHERE is_published = 1 AND section = ? ORDER BY sort_order ASC', [req.params.section]);
         res.json(items);
+    });
+
+    // ========== PLEXUS SETTINGS (public read) ==========
+
+    // Get plexus settings (public)
+    app.get('/api/plexus/settings', (req, res) => {
+        let settings = query.get("SELECT * FROM plexus_settings WHERE id = 'default'");
+        if (settings) {
+            // Parse JSON fields
+            try { settings.key_dates = JSON.parse(settings.key_dates_json || '[]'); } catch(e) { settings.key_dates = []; }
+            try { settings.testimonials = JSON.parse(settings.testimonials_json || '[]'); } catch(e) { settings.testimonials = []; }
+        }
+        res.json(settings || {});
+    });
+
+    // Get plexus registration stats (live count)
+    app.get('/api/plexus/stats', (req, res) => {
+        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const total = query.get("SELECT COUNT(*) as count FROM registrations WHERE conference_id = ?", [conf?.id || '']);
+        const paid = query.get("SELECT COUNT(*) as count FROM registrations WHERE conference_id = ? AND payment_status = 'paid'", [conf?.id || '']);
+        res.json({
+            total_registrations: total?.count || 0,
+            paid_registrations: paid?.count || 0
+        });
+    });
+
+    // Get plexus sessions (public — only published, with speaker names)
+    app.get('/api/plexus/sessions', (req, res) => {
+        const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+        if (!conf) return res.json([]);
+        const sessions = query.all(`SELECT s.*, GROUP_CONCAT(sp.name) as speaker_names
+            FROM sessions s
+            LEFT JOIN speakers sp ON s.speaker_ids LIKE '%' || sp.id || '%'
+            WHERE s.conference_id = ? AND s.is_published = 1 GROUP BY s.id ORDER BY s.day, s.start_time`, [conf.id]);
+        res.json(sessions || []);
     });
 
     // Serve frontend
