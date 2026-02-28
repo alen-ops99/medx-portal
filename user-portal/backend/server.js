@@ -163,7 +163,9 @@ const storage = multer.diskStorage({
         if (!ALLOWED_UPLOAD_TYPES.includes(type)) {
             return cb(new Error('Invalid upload type'));
         }
-        cb(null, path.join(uploadsDir, type));
+        const destDir = path.join(uploadsDir, type);
+        if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+        cb(null, destDir);
     },
     filename: (req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname)}`)
 });
@@ -5833,21 +5835,32 @@ By applying to this program, I provide the following consents:
     });
 
     // Register for event (enhanced with name/email/institution + payment support)
-    app.post('/api/forum/events/:id/register', auth, (req, res) => {
-        const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
-        if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
+    app.post('/api/forum/events/:id/register', optionalAuth, (req, res) => {
+        const { name, email, institution } = req.body || {};
+
+        // Resolve member_id: use forum membership if logged in, otherwise use email
+        let memberId = null;
+        if (req.user) {
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
+            memberId = currentMember ? currentMember.id : req.user.id;
+        } else if (email) {
+            // Find or identify by email for unauthenticated registrations
+            const existingUser = query.get(`SELECT id FROM users WHERE email = ?`, [email]);
+            memberId = existingUser ? existingUser.id : email;
+        } else {
+            return res.status(400).json({ error: 'Please provide your email to register' });
+        }
 
         const event = query.get(`SELECT * FROM forum_events WHERE id = ?`, [req.params.id]);
         if (!event) return res.status(404).json({ error: 'Event not found' });
 
-        const existing = query.get(`SELECT id FROM forum_event_registrations WHERE event_id = ? AND member_id = ?`, [req.params.id, currentMember.id]);
+        const existing = query.get(`SELECT id FROM forum_event_registrations WHERE event_id = ? AND member_id = ?`, [req.params.id, memberId]);
         if (existing) return res.status(400).json({ error: 'Already registered' });
 
         if (event.capacity && event.registrations_count >= event.capacity) {
             return res.status(400).json({ error: 'Event is at capacity' });
         }
 
-        const { name, email, institution } = req.body || {};
         const id = uuidv4();
         const qrCode = `FORUM-${id.substring(0, 8).toUpperCase()}`;
 
@@ -5866,7 +5879,7 @@ By applying to this program, I provide the following consents:
         }
 
         db.run(`INSERT INTO forum_event_registrations (id, event_id, member_id, name, email, institution, qr_code, payment_status, payment_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, req.params.id, currentMember.id, name || null, email || null, institution || null, qrCode, paymentStatus, isPaid ? price : null]);
+            [id, req.params.id, memberId, name || null, email || null, institution || null, qrCode, paymentStatus, isPaid ? price : null]);
         db.run(`UPDATE forum_events SET registrations_count = registrations_count + 1 WHERE id = ?`, [req.params.id]);
         saveDb();
 
@@ -7990,8 +8003,18 @@ By applying to this program, I provide the following consents:
             return res.status(400).json({ error: 'Invalid upload type' });
         }
         next();
-    }, upload.single('file'), (req, res) => {
-        if (!req.file) return res.status(400).json({ error: 'No file' });
+    }, (req, res, next) => {
+        upload.single('file')(req, res, (err) => {
+            if (err) {
+                if (err.code === 'LIMIT_FILE_SIZE') {
+                    return res.status(413).json({ error: 'File too large. Maximum size is 10MB.' });
+                }
+                return res.status(400).json({ error: err.message || 'Upload failed' });
+            }
+            next();
+        });
+    }, (req, res) => {
+        if (!req.file) return res.status(400).json({ error: 'No file provided. Please select a file to upload.' });
         res.json({ success: true, file_url: `/uploads/${req.params.type}/${req.file.filename}` });
     });
 

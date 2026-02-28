@@ -4923,6 +4923,9 @@ async function initializeApp() {
             if (!user || !(await bcrypt.compare(password, user.password_hash))) {
                 return res.status(401).json({ error: 'Invalid credentials' });
             }
+            if (!user.is_admin) {
+                return res.status(403).json({ error: 'Admin access only. Please use the user portal.' });
+            }
             const token = jwt.sign({ id: user.id, email: user.email, is_admin: user.is_admin }, JWT_SECRET, { expiresIn: '7d' });
             res.json({ success: true, token, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name, institution: user.institution, is_admin: user.is_admin }});
         } catch (e) { console.error(e); res.status(500).json({ error: 'Login failed' }); }
@@ -7190,18 +7193,29 @@ By applying to this program, I provide the following consents:
 
     // Create post
     app.post('/api/forum/posts', auth, (req, res) => {
-        const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
-        if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
+        let authorId;
+        if (req.user.is_admin) {
+            // Admins can post without forum membership
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
+            authorId = currentMember ? currentMember.id : req.user.id;
+        } else {
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
+            if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
+            authorId = currentMember.id;
+        }
 
         const { title, content, post_type, group_id, tags, image_url, video_url, link_url } = req.body;
         const id = uuidv4();
 
         db.run(`INSERT INTO forum_posts (id, author_id, group_id, post_type, title, content, tags, image_url, video_url, link_url)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, currentMember.id, group_id, post_type || 'discussion', title, content, tags, image_url, video_url, link_url]);
+            [id, authorId, group_id, post_type || 'discussion', title, content, tags, image_url, video_url, link_url]);
 
-        // Award points
-        db.run(`UPDATE forum_members SET points = points + 5 WHERE id = ?`, [currentMember.id]);
+        // Award points if member exists
+        const member = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
+        if (member) {
+            db.run(`UPDATE forum_members SET points = points + 5 WHERE id = ?`, [member.id]);
+        }
         saveDb();
 
         res.json({ success: true, id });
@@ -7327,6 +7341,22 @@ By applying to this program, I provide the following consents:
 
         sql += ` ORDER BY fm.created_at DESC`;
         res.json(query.all(sql, params));
+    });
+
+    // Upload media to gallery
+    app.post('/api/forum/media', auth, (req, res) => {
+        const { file_url, title, caption, gallery_name, folder_id, media_type } = req.body;
+        if (!file_url) return res.status(400).json({ error: 'File URL is required' });
+
+        const id = uuidv4();
+        // For admin uploads, auto-approve
+        const isApproved = req.user.is_admin ? 1 : 0;
+
+        db.run(`INSERT INTO forum_media (id, uploader_id, title, caption, file_url, gallery_name, folder_id, media_type, is_approved, approved_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, req.user.id, title || null, caption || null, file_url, gallery_name || 'general', folder_id || null, media_type || 'image', isApproved, isApproved ? req.user.id : null]);
+        saveDb();
+        res.json({ success: true, id });
     });
 
     // Get Forum resources

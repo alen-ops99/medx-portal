@@ -9683,7 +9683,16 @@
         }
 
         [data-theme="dark"] .hub-footer-minimal-social a {
-            background: rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.1);
+        }
+        [data-theme="dark"] .footer-social-branded i {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        [data-theme="dark"] .footer-social-branded:hover i {
+            color: white;
+        }
+        [data-theme="dark"] .footer-social-branded:hover {
+            background: var(--social-color) !important;
         }
 
         /* ===== Beautiful Notification Panel ===== */
@@ -55025,6 +55034,31 @@ textarea:focus:not(:focus-visible),
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(201, 169, 98, 0.3);
 }
+
+/* Mobile: compact hero sections to reduce empty space */
+@media (max-width: 768px) {
+    .px-hero, .fm-hero, .ax-hero {
+        padding: 20px 16px 22px;
+        margin-bottom: 20px;
+        border-radius: 16px;
+    }
+    .px-hero h1, .fm-hero h1, .ax-hero h1 {
+        font-size: clamp(22px, 5vw, 32px);
+        margin-bottom: 8px;
+    }
+    .px-hero p, .fm-hero p, .ax-hero p {
+        font-size: 14px;
+        margin-bottom: 16px;
+    }
+    .px-hero-btn, .fm-hero-btn, .ax-hero-btn {
+        padding: 10px 20px;
+        font-size: 14px;
+    }
+    .px-countdown, .fm-countdown {
+        transform: scale(0.85);
+        margin-bottom: 12px;
+    }
+}
     </style>
 
     <!-- PWA Manifest and Icons -->
@@ -57981,8 +58015,8 @@ textarea:focus:not(:focus-visible),
                                     </button>
                                     <div class="my-events-header">
                                         <div class="my-events-title">
-                                            <i class="fas fa-tasks"></i>
-                                            <h4>Pending Items</h4>
+                                            <i class="fas fa-calendar-alt"></i>
+                                            <h4>My Events</h4>
                                         </div>
                                         <span class="my-events-count" id="myEventsCount">2 items</span>
                                     </div>
@@ -60516,42 +60550,7 @@ textarea:focus:not(:focus-visible),
                             </div>
                         </div>
 
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- My Sessions / Schedule -->
-                        <div class="up-card" style="margin-top: 24px;">
-                            <div class="up-card-header">
-                                <h3 class="up-card-title"><i class="fas fa-calendar-check" style="margin-right: 8px;"></i> My Schedule</h3>
-                                <button class="px-hero-btn px-hero-btn-secondary" style="padding: 8px 16px; font-size: 13px;" onclick="PlexusPortal.showTab('schedule')">
-                                    <i class="fas fa-plus"></i> Add Sessions
-                                </button>
-                            </div>
-                            <div class="up-card-body px-my-sessions" id="pxMySessions">
-                                <p style="color: var(--up-text-muted); text-align: center; padding: 24px 0;">
-                                    <i class="fas fa-calendar-plus" style="font-size: 32px; margin-bottom: 12px; display: block; opacity: 0.5;"></i>
-                                    No sessions added yet. Browse <a href="#" onclick="PlexusPortal.showTab('schedule'); return false;" style="color: var(--up-gold);">the schedule</a> to personalize your experience.
-                                </p>
-                            </div>
-                        </div>
-
-                        <!-- My Abstracts -->
-                        <div class="up-card" style="margin-top: 24px;">
-                            <div class="up-card-header">
-                                <h3 class="up-card-title"><i class="fas fa-file-alt" style="margin-right: 8px;"></i> My Abstracts</h3>
-                                <button class="px-hero-btn px-hero-btn-secondary" style="padding: 8px 16px; font-size: 13px;" onclick="PlexusPortal.showTab('abstract')">
-                                    <i class="fas fa-plus"></i> Submit
-                                </button>
-                            </div>
-                            <div class="up-card-body" id="pxMyAbstracts">
-                                <p style="color: var(--up-text-muted); text-align: center; padding: 24px 0;">
-                                    <i class="fas fa-file-alt" style="font-size: 32px; margin-bottom: 12px; display: block; opacity: 0.5;"></i>
-                                    No abstracts submitted yet
-                                </p>
-                            </div>
-                        </div>
+                        <!-- My Sessions / Schedule and My Abstracts removed — accessible via Plexus Schedule and Abstract tabs -->
                     </div>
 
                     <!-- Live Conference Panel -->
@@ -63417,11 +63416,6 @@ textarea:focus:not(:focus-visible),
                                     </div>
                                 </div>
 
-                                <!-- Back Button -->
-                                <button class="fm-directory-back" onclick="ForumPortal.showHomepage()">
-                                    <i class="fas fa-arrow-left"></i>
-                                    Back to Homepage
-                                </button>
                             </div>
                         </div>
 
@@ -64140,11 +64134,6 @@ textarea:focus:not(:focus-visible),
                                     </div>
                                 </div>
 
-                                <!-- Back to Homepage -->
-                                <button class="fm-directory-back" style="margin-top: 32px;" onclick="ForumPortal.showHomepage()">
-                                    <i class="fas fa-arrow-left"></i>
-                                    Back to Homepage
-                                </button>
                             </div>
                         </div>
 
@@ -64162,10 +64151,6 @@ textarea:focus:not(:focus-visible),
                             <div id="fmFeedPosts">
                                 <!-- Feed posts populated by JS -->
                             </div>
-                            <button class="fm-view-all-btn" style="margin-top: 24px;" onclick="ForumPortal.showHomepage()">
-                                <i class="fas fa-arrow-left"></i>
-                                Back to Homepage
-                            </button>
                         </div>
 
                         <div class="fm-panel" id="fm-panel-events" style="display: none;">
@@ -64173,10 +64158,6 @@ textarea:focus:not(:focus-visible),
                             <div id="fmEventsList">
                                 <!-- Events populated by JS -->
                             </div>
-                            <button class="fm-view-all-btn" style="margin-top: 24px;" onclick="ForumPortal.showHomepage()">
-                                <i class="fas fa-arrow-left"></i>
-                                Back to Homepage
-                            </button>
                         </div>
 
                         <div class="fm-panel" id="fm-panel-gallery" style="display: none;">
@@ -64195,10 +64176,6 @@ textarea:focus:not(:focus-visible),
                                     <span style="font-size: 12px;">Spring Dinner</span>
                                 </div>
                             </div>
-                            <button class="fm-view-all-btn" style="margin-top: 24px;" onclick="ForumPortal.showHomepage()">
-                                <i class="fas fa-arrow-left"></i>
-                                Back to Homepage
-                            </button>
                         </div>
 
                         <div class="fm-panel" id="fm-panel-profile" style="display: none;">
@@ -64273,10 +64250,6 @@ textarea:focus:not(:focus-visible),
                                         </button>
                                     </div>
                                 </div>
-                                <button class="fm-view-all-btn" style="margin-top: 24px;" onclick="ForumPortal.showHomepage()">
-                                    <i class="fas fa-arrow-left"></i>
-                                    Back to Homepage
-                                </button>
                             </div>
                         </div>
                     </div>
@@ -76281,11 +76254,13 @@ You can use variables like {first_name} that will be personalized for each recip
                     }
                 }, false);
 
-                // Also listen for browser popstate (browser back button)
+                // Handle browser back/forward navigation
                 window.addEventListener('popstate', (e) => {
-                    if (e.state && e.state.section) {
-                        this.showSection(e.state.section, false);
-                    } else if (this.currentSection !== 'dashboard') {
+                    const section = e.state?.section || 'dashboard';
+                    try {
+                        this.showSection(section, false);
+                    } catch (err) {
+                        console.error('popstate navigation error:', err);
                         this.showSection('dashboard', false);
                     }
                 });
@@ -85494,8 +85469,9 @@ You can use variables like {first_name} that will be personalized for each recip
 
                     // API registration succeeded — fall through to localStorage sync below
                 } catch (apiErr) {
-                    // API failed (hardcoded event without DB record) — continue with localStorage only
-                    console.log('Forum API registration unavailable, using localStorage:', apiErr.message);
+                    console.error('Forum event registration error:', apiErr.message);
+                    const errorMsg = apiErr.message || 'Registration failed. Please try again.';
+                    this.showToast(errorMsg, 'error');
                 }
 
                 // Save detailed registration data (localStorage fallback)
@@ -103399,8 +103375,7 @@ ${'='.repeat(70)}
             }
         });
 
-        // Handle browser back/forward navigation
-        window.addEventListener('popstate', (e) => App.handlePopState(e));
+        // popstate is handled by UserPortal.init() — no duplicate listener needed
 
         // ========== ACCELERATOR APP ==========
         const AcceleratorApp = {
@@ -115599,6 +115574,11 @@ By applying to this program, I give the following consents:
                 const step = document.getElementById(`welcomeTourStep${stepNum}`);
                 if (step) {
                     step.classList.add('active');
+                } else {
+                    // Safety: if step element is missing, complete the tour to avoid black screen
+                    console.warn(`WelcomeTour: step ${stepNum} not found, completing tour`);
+                    this.complete();
+                    return;
                 }
 
                 // Start feature showcase auto-advance for step 5
