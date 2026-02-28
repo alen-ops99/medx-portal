@@ -7681,43 +7681,59 @@ By applying to this program, I provide the following consents:
             // Check if already registered
             const existing = query.get('SELECT * FROM registrations WHERE conference_id = ? AND user_id = ? AND status != ?', [conf.id, req.user.id, 'cancelled']);
             if (existing) {
-                // Ensure billing data + payment transaction exist for FIRA (may be missing from earlier attempt)
-                if (billing && existing.payment_status !== 'paid') {
-                    const existingTx = query.get('SELECT * FROM payment_transactions WHERE registration_id = ?', [existing.id]);
-                    if (existingTx) {
-                        // Update billing in existing transaction metadata
-                        const meta = existingTx.metadata ? JSON.parse(existingTx.metadata) : {};
-                        meta.billing = billing;
-                        db.run('UPDATE payment_transactions SET metadata = ? WHERE id = ?', [JSON.stringify(meta), existingTx.id]);
-                    } else {
-                        // Create missing payment transaction + invoice
-                        const invoiceNumber = existing.invoice_number || `PLX26-${String(Date.now()).slice(-6)}`;
-                        const vatBreakdown = firaService.calculateVAT(existing.amount_paid);
-
-                        const existingInv = query.get('SELECT id FROM invoices WHERE registration_id = ?', [existing.id]);
-                        if (!existingInv) {
-                            const invoiceId = uuidv4();
-                            const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-                            db.run(`INSERT INTO invoices (id, invoice_number, registration_id, recipient_name, recipient_address, recipient_vat, recipient_email, items, subtotal, vat_rate, vat_amount, total, currency, status, issued_at, due_date)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                                [invoiceId, invoiceNumber, existing.id,
-                                 billing.company || billing.name || `${first_name} ${last_name}`,
-                                 [billing.address, billing.city, billing.zip, billing.country].filter(Boolean).join(', '),
-                                 billing.oib || billing.vatNumber || null, billing.email || email,
-                                 JSON.stringify([{ description: `Plexus 2026`, quantity: 1, price: existing.amount_paid }]),
-                                 vatBreakdown.netto, 25, vatBreakdown.taxValue, existing.amount_paid, 'EUR',
-                                 'issued', new Date().toISOString(), dueDate]);
-                        }
-
-                        const txId = uuidv4();
-                        db.run(`INSERT INTO payment_transactions (id, registration_id, amount, currency, payment_method, payment_provider, status, metadata)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                            [txId, existing.id, existing.amount_paid, 'EUR',
-                             payment_method === 'card' ? 'card' : 'bank_transfer',
-                             payment_method === 'card' ? 'stripe' : 'manual', 'pending',
-                             JSON.stringify({ invoice_number: invoiceNumber, billing: billing })]);
+                // Update amount + billing on unpaid registrations (user may retry with different options)
+                if (existing.payment_status !== 'paid') {
+                    // Update amount_paid if frontend sends a new total
+                    const newTotal = (req.body.total != null && req.body.total >= 0) ? req.body.total : existing.amount_paid;
+                    if (newTotal !== existing.amount_paid) {
+                        db.run('UPDATE registrations SET amount_paid = ? WHERE id = ?', [newTotal, existing.id]);
+                        existing.amount_paid = newTotal;
                     }
-                    saveDb();
+
+                    // Ensure billing data + payment transaction exist for FIRA
+                    if (billing) {
+                        const existingTx = query.get('SELECT * FROM payment_transactions WHERE registration_id = ?', [existing.id]);
+                        if (existingTx) {
+                            // Update billing + amount in existing transaction
+                            const meta = existingTx.metadata ? JSON.parse(existingTx.metadata) : {};
+                            meta.billing = billing;
+                            db.run('UPDATE payment_transactions SET metadata = ?, amount = ? WHERE id = ?',
+                                [JSON.stringify(meta), newTotal, existingTx.id]);
+                        } else {
+                            // Create missing payment transaction + invoice
+                            const invoiceNumber = existing.invoice_number || `PLX26-${String(Date.now()).slice(-6)}`;
+                            const vatBreakdown = firaService.calculateVAT(newTotal);
+
+                            const existingInv = query.get('SELECT id FROM invoices WHERE registration_id = ?', [existing.id]);
+                            if (!existingInv) {
+                                const invoiceId = uuidv4();
+                                const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                                db.run(`INSERT INTO invoices (id, invoice_number, registration_id, recipient_name, recipient_address, recipient_vat, recipient_email, items, subtotal, vat_rate, vat_amount, total, currency, status, issued_at, due_date)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                                    [invoiceId, invoiceNumber, existing.id,
+                                     billing.company || billing.name || `${first_name} ${last_name}`,
+                                     [billing.address, billing.city, billing.zip, billing.country].filter(Boolean).join(', '),
+                                     billing.oib || billing.vatNumber || null, billing.email || email,
+                                     JSON.stringify([{ description: `Plexus 2026`, quantity: 1, price: newTotal }]),
+                                     vatBreakdown.netto, 25, vatBreakdown.taxValue, newTotal, 'EUR',
+                                     'issued', new Date().toISOString(), dueDate]);
+                            } else {
+                                // Update existing invoice amount
+                                const vatBreakdown2 = firaService.calculateVAT(newTotal);
+                                db.run('UPDATE invoices SET subtotal = ?, vat_amount = ?, total = ? WHERE registration_id = ?',
+                                    [vatBreakdown2.netto, vatBreakdown2.taxValue, newTotal, existing.id]);
+                            }
+
+                            const txId = uuidv4();
+                            db.run(`INSERT INTO payment_transactions (id, registration_id, amount, currency, payment_method, payment_provider, status, metadata)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                                [txId, existing.id, newTotal, 'EUR',
+                                 payment_method === 'card' ? 'card' : 'bank_transfer',
+                                 payment_method === 'card' ? 'stripe' : 'manual', 'pending',
+                                 JSON.stringify({ invoice_number: invoiceNumber, billing: billing })]);
+                        }
+                        saveDb();
+                    }
                 }
                 return res.status(400).json({ error: 'Already registered', registration_id: existing.id });
             }
