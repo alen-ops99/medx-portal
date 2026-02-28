@@ -8710,6 +8710,15 @@ President, Med&amp;X</textarea>
                             </div>
                         </div>
 
+                        <!-- Source Filter Buttons -->
+                        <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+                            <button onclick="FinanceApp.filterConfPaySource('all')" id="confPaySrcAll" class="confPaySrcBtn" style="padding: 8px 18px; border-radius: 20px; border: 2px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); font-size: 13px; font-weight: 600; cursor: pointer;">All Sources</button>
+                            <button onclick="FinanceApp.filterConfPaySource('plexus')" id="confPaySrcPlexus" class="confPaySrcBtn" style="padding: 8px 18px; border-radius: 20px; border: 2px solid transparent; background: rgba(99,102,241,0.12); color: #6366f1; font-size: 13px; font-weight: 600; cursor: pointer;">Plexus</button>
+                            <button onclick="FinanceApp.filterConfPaySource('gala')" id="confPaySrcGala" class="confPaySrcBtn" style="padding: 8px 18px; border-radius: 20px; border: 2px solid transparent; background: rgba(201,169,98,0.12); color: #C9A962; font-size: 13px; font-weight: 600; cursor: pointer;">Gala</button>
+                            <button onclick="FinanceApp.filterConfPaySource('accelerator')" id="confPaySrcAccelerator" class="confPaySrcBtn" style="padding: 8px 18px; border-radius: 20px; border: 2px solid transparent; background: rgba(59,130,246,0.12); color: #3b82f6; font-size: 13px; font-weight: 600; cursor: pointer;">Accelerator</button>
+                            <button onclick="FinanceApp.filterConfPaySource('forum')" id="confPaySrcForum" class="confPaySrcBtn" style="padding: 8px 18px; border-radius: 20px; border: 2px solid transparent; background: rgba(20,184,166,0.12); color: #14b8a6; font-size: 13px; font-weight: 600; cursor: pointer;">Forum</button>
+                        </div>
+
                         <!-- Filters -->
                         <div class="card" style="margin-bottom: 20px;">
                             <div class="card-body" style="padding: 16px;">
@@ -8734,6 +8743,7 @@ President, Med&amp;X</textarea>
                                     <thead>
                                         <tr style="border-bottom: 2px solid var(--border);">
                                             <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: var(--text-muted);">Attendee</th>
+                                            <th style="padding: 12px 16px; text-align: center; font-size: 13px; color: var(--text-muted);">Source</th>
                                             <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: var(--text-muted);">Invoice #</th>
                                             <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: var(--text-muted);">Ticket</th>
                                             <th style="padding: 12px 16px; text-align: right; font-size: 13px; color: var(--text-muted);">Amount</th>
@@ -8743,7 +8753,7 @@ President, Med&amp;X</textarea>
                                         </tr>
                                     </thead>
                                     <tbody id="confPayTable">
-                                        <tr><td colspan="7" style="padding: 40px; text-align: center; color: var(--text-muted);">Loading...</td></tr>
+                                        <tr><td colspan="8" style="padding: 40px; text-align: center; color: var(--text-muted);">Loading...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -22820,17 +22830,42 @@ By applying to this program, I give the following consents:
 
             // Conference Payments
             _confPaySearchTimeout: null,
+            _confPaySourceFilter: 'all',
 
             debounceConfPaySearch() {
                 clearTimeout(this._confPaySearchTimeout);
                 this._confPaySearchTimeout = setTimeout(() => this.loadConferencePayments(), 300);
             },
 
+            filterConfPaySource(source) {
+                this._confPaySourceFilter = source;
+                // Update button styles
+                document.querySelectorAll('.confPaySrcBtn').forEach(btn => {
+                    btn.style.border = '2px solid transparent';
+                    btn.style.opacity = '0.7';
+                });
+                const activeBtn = document.getElementById('confPaySrc' + source.charAt(0).toUpperCase() + source.slice(1));
+                if (activeBtn) {
+                    activeBtn.style.border = '2px solid var(--border)';
+                    activeBtn.style.opacity = '1';
+                }
+                this.loadConferencePayments();
+            },
+
+            _getSourceBadge(source) {
+                const colors = { plexus: '#6366f1', gala: '#C9A962', accelerator: '#3b82f6', forum: '#14b8a6' };
+                const labels = { plexus: 'Plexus', gala: 'Gala', accelerator: 'Accelerator', forum: 'Forum' };
+                const color = colors[source] || '#64748b';
+                const label = labels[source] || source;
+                return `<span style="padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; background: ${color}18; color: ${color}; white-space: nowrap;">${label}</span>`;
+            },
+
             async loadConferencePayments() {
                 const status = document.getElementById('confPayStatusFilter')?.value || 'all';
                 const search = document.getElementById('confPaySearch')?.value || '';
+                const source = this._confPaySourceFilter || 'all';
 
-                let url = `/api/finance/conference-payments?status=${status}`;
+                let url = `/api/finance/conference-payments?status=${status}&source=${source}`;
                 if (search) url += `&search=${encodeURIComponent(search)}`;
 
                 const data = await this.api(url);
@@ -22849,7 +22884,7 @@ By applying to this program, I give the following consents:
                 if (!tbody) return;
 
                 if (!data.payments || data.payments.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="padding: 40px; text-align: center; color: var(--text-muted);"><i class="fas fa-inbox" style="font-size: 24px; display: block; margin-bottom: 8px;"></i>No conference payments found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" style="padding: 40px; text-align: center; color: var(--text-muted);"><i class="fas fa-inbox" style="font-size: 24px; display: block; margin-bottom: 8px;"></i>No payments found</td></tr>';
                     return;
                 }
 
@@ -22865,16 +22900,17 @@ By applying to this program, I give the following consents:
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 12px 16px;">
                             <div style="font-weight: 600; color: var(--text-primary);">${this.escapeHtml(p.attendee)}</div>
-                            <div style="font-size: 12px; color: var(--text-muted);">${this.escapeHtml(p.email)}</div>
+                            <div style="font-size: 12px; color: var(--text-muted);">${this.escapeHtml(p.email || '')}</div>
                             ${p.institution ? `<div style="font-size: 11px; color: var(--text-muted);">${this.escapeHtml(p.institution)}</div>` : ''}
                         </td>
+                        <td style="padding: 12px 16px; text-align: center;">${this._getSourceBadge(p.source)}</td>
                         <td style="padding: 12px 16px;">
-                            <div style="font-family: monospace; font-size: 13px; font-weight: 600;">${this.escapeHtml(p.invoice_number)}</div>
+                            <div style="font-family: monospace; font-size: 13px; font-weight: 600;">${this.escapeHtml(p.invoice_number || '—')}</div>
                             ${p.fira_invoice_number ? `<div style="font-size: 11px; color: var(--text-muted);">FIRA: ${this.escapeHtml(p.fira_invoice_number)}</div>` : ''}
                             ${stripeRef}
                         </td>
-                        <td style="padding: 12px 16px; font-size: 13px;">${this.escapeHtml(p.ticket)}</td>
-                        <td style="padding: 12px 16px; text-align: right; font-weight: 600; font-size: 14px;">${p.amount > 0 ? '€' + p.amount.toFixed(2) : 'Free'}</td>
+                        <td style="padding: 12px 16px; font-size: 13px;">${this.escapeHtml(p.ticket || '')}</td>
+                        <td style="padding: 12px 16px; text-align: right; font-weight: 600; font-size: 14px;">${p.amount > 0 ? '€' + Number(p.amount).toFixed(2) : 'Free'}</td>
                         <td style="padding: 12px 16px; text-align: center;">
                             <div style="display: flex; align-items: center; justify-content: center; gap: 6px;">
                                 ${methodIcon}
@@ -22882,7 +22918,7 @@ By applying to this program, I give the following consents:
                                     background: ${p.payment_status === 'paid' ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)'};
                                     color: ${p.payment_status === 'paid' ? '#16a34a' : '#d97706'};">
                                     ${p.payment_status === 'paid' ? '<i class="fas fa-check-circle"></i>' : '<i class="fas fa-clock"></i>'}
-                                    ${p.payment_status.charAt(0).toUpperCase() + p.payment_status.slice(1)}
+                                    ${(p.payment_status || 'pending').charAt(0).toUpperCase() + (p.payment_status || 'pending').slice(1)}
                                 </span>
                             </div>
                         </td>
@@ -22891,7 +22927,7 @@ By applying to this program, I give the following consents:
                             ${p.due_date ? `<div style="font-size: 11px;">Due: ${p.due_date}</div>` : ''}
                         </td>
                         <td style="padding: 12px 16px; text-align: center;">
-                            ${p.payment_status === 'pending' && p.amount > 0 ?
+                            ${(p.payment_status === 'pending' || p.payment_status === 'unpaid') && p.amount > 0 && p.source === 'plexus' ?
                                 `<button onclick="FinanceApp.confirmConferencePayment('${p.id}', '${this.escapeHtml(p.attendee)}')" style="padding: 6px 14px; background: var(--success); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
                                     <i class="fas fa-check"></i> Mark Paid
                                 </button>` :

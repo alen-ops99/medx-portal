@@ -81606,13 +81606,55 @@ You can use variables like {first_name} that will be personalized for each recip
             async handleStripeReturn() {
                 const params = new URLSearchParams(window.location.search);
                 const paymentStatus = params.get('payment');
-                const regId = params.get('reg');
+                const paymentType = params.get('type') || 'plexus';
+                const regId = params.get('reg') || params.get('app');
 
                 if (!paymentStatus || !regId) return;
 
                 // Clean URL
                 window.history.replaceState({}, '', window.location.pathname);
 
+                // ----- Forum event payment return -----
+                if (paymentType === 'forum') {
+                    if (paymentStatus === 'success') {
+                        if (typeof UserPortal !== 'undefined' && UserPortal.showSection) {
+                            UserPortal.showSection('forum');
+                        }
+                        Toast.success('Forum event payment successful! You\'ll receive a confirmation email shortly.');
+                        // Reload forum events to reflect paid status
+                        if (typeof App !== 'undefined' && App.loadForumEvents) {
+                            setTimeout(() => App.loadForumEvents(), 1000);
+                        }
+                    } else if (paymentStatus === 'cancelled') {
+                        if (typeof UserPortal !== 'undefined' && UserPortal.showSection) {
+                            UserPortal.showSection('forum');
+                        }
+                        Toast.error('Payment was cancelled. Your registration is saved — you can complete payment later.');
+                    }
+                    return;
+                }
+
+                // ----- Accelerator payment return -----
+                if (paymentType === 'accelerator') {
+                    if (paymentStatus === 'success') {
+                        if (typeof UserPortal !== 'undefined' && UserPortal.showSection) {
+                            UserPortal.showSection('accelerator');
+                        }
+                        Toast.success('Accelerator processing fee paid! You\'ll receive a confirmation email shortly.');
+                        // Refresh accelerator UI if available
+                        if (typeof AcceleratorPortal !== 'undefined' && AcceleratorPortal.loadMyApplications) {
+                            setTimeout(() => AcceleratorPortal.loadMyApplications(), 1000);
+                        }
+                    } else if (paymentStatus === 'cancelled') {
+                        if (typeof UserPortal !== 'undefined' && UserPortal.showSection) {
+                            UserPortal.showSection('accelerator');
+                        }
+                        Toast.error('Payment was cancelled. You can pay the processing fee later from My Applications.');
+                    }
+                    return;
+                }
+
+                // ----- Plexus conference payment return (existing logic) -----
                 if (paymentStatus === 'success') {
                     // Navigate to Plexus section
                     if (typeof UserPortal !== 'undefined' && UserPortal.showSection) {
@@ -85395,7 +85437,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 document.body.appendChild(modal);
             },
 
-            completeRegistration(eventId) {
+            async completeRegistration(eventId) {
                 const name = document.getElementById('fmRegName')?.value?.trim();
                 const email = document.getElementById('fmRegEmail')?.value?.trim();
                 const institution = document.getElementById('fmRegInstitution')?.value?.trim() || '';
@@ -85407,7 +85449,48 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (!name) { this.showToast('Please enter your name.'); return; }
                 if (!email) { this.showToast('Please enter your email.'); return; }
 
-                // Save detailed registration data
+                // Try API registration first (for DB-backed events)
+                try {
+                    // Resolve slug to event ID from loaded events
+                    let dbEventId = eventId;
+                    if (typeof App !== 'undefined' && App.forumEvents) {
+                        const match = App.forumEvents.find(e => e.slug === eventId || e.id === eventId);
+                        if (match) dbEventId = match.id;
+                    }
+
+                    const result = await UserPortal.api(`/api/forum/events/${dbEventId}/register`, {
+                        method: 'POST',
+                        body: JSON.stringify({ name, email, institution })
+                    });
+
+                    // If paid event, redirect to Stripe
+                    if (result.requires_payment && result.price > 0) {
+                        // Close modal first
+                        const modal = document.querySelector('.fm-registration-modal');
+                        if (modal) modal.remove();
+                        this.showToast('Redirecting to payment...');
+                        try {
+                            const checkout = await UserPortal.api(`/api/forum/events/${dbEventId}/checkout-session`, {
+                                method: 'POST',
+                                body: JSON.stringify({ registration_id: result.id })
+                            });
+                            if (checkout.url) {
+                                window.location.href = checkout.url;
+                                return;
+                            }
+                        } catch (payErr) {
+                            console.error('Forum checkout error:', payErr);
+                            this.showToast('Payment system unavailable. You can pay later.');
+                        }
+                    }
+
+                    // API registration succeeded — fall through to localStorage sync below
+                } catch (apiErr) {
+                    // API failed (hardcoded event without DB record) — continue with localStorage only
+                    console.log('Forum API registration unavailable, using localStorage:', apiErr.message);
+                }
+
+                // Save detailed registration data (localStorage fallback)
                 let registrations = [];
                 try {
                     registrations = JSON.parse(localStorage.getItem('forum_registered_events_data') || '[]');
@@ -100632,6 +100715,24 @@ ${'='.repeat(70)}
                         method: 'POST',
                         body: JSON.stringify({ name, email, institution })
                     });
+
+                    // If this is a paid event, redirect to Stripe checkout
+                    if (result.requires_payment && result.price > 0) {
+                        Toast.success('Redirecting to payment...');
+                        try {
+                            const checkout = await this.api(`/api/forum/events/${eventId}/checkout-session`, {
+                                method: 'POST',
+                                body: JSON.stringify({ registration_id: result.id })
+                            });
+                            if (checkout.url) {
+                                window.location.href = checkout.url;
+                                return;
+                            }
+                        } catch (payErr) {
+                            console.error('Forum checkout error:', payErr);
+                            Toast.error('Payment system unavailable. You can pay later.');
+                        }
+                    }
 
                     Toast.success('Successfully registered!');
 
