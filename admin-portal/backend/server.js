@@ -52,7 +52,14 @@ function generateSpeakerInviteCode() {
 }
 
 const PORT = process.env.PORT || 3001;
-const JWT_SECRET = process.env.JWT_SECRET || 'medx-portal-secret-key-2026';
+const JWT_SECRET = (function() {
+    if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+    if (process.env.NODE_ENV === 'production') {
+        console.error('FATAL: JWT_SECRET env var is required in production');
+        process.exit(1);
+    }
+    return 'medx-portal-secret-key-2026';
+})();
 
 app.use(cors());
 app.use(express.json());
@@ -135,12 +142,15 @@ function auth(req, res, next) {
             const decoded = jwt.verify(token, JWT_SECRET);
             const user = query.get("SELECT id, email, is_admin FROM users WHERE id = ?", [decoded.id]);
             if (user) { req.user = user; return next(); }
-        } catch(e) { /* token invalid/expired, fall through */ }
+        } catch(e) { /* token invalid/expired */ }
     }
-    // Fallback for dev
-    const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
-    req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
-    next();
+    // Dev fallback — ONLY in development
+    if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+        const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
+        req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
+        return next();
+    }
+    return res.status(401).json({ error: 'Authentication required' });
 }
 
 function optionalAuth(req, res, next) {
@@ -150,11 +160,16 @@ function optionalAuth(req, res, next) {
             const decoded = jwt.verify(token, JWT_SECRET);
             const user = query.get("SELECT id, email, is_admin FROM users WHERE id = ?", [decoded.id]);
             if (user) { req.user = user; return next(); }
-        } catch(e) { /* token invalid/expired, fall through */ }
+        } catch(e) { /* token invalid/expired */ }
     }
-    // Fallback for dev
-    const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
-    req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
+    // Dev fallback — ONLY in development
+    if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+        const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
+        req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
+        return next();
+    }
+    // Optional auth — no user is OK
+    req.user = null;
     next();
 }
 
@@ -5056,7 +5071,10 @@ async function initializeApp() {
                 const promo = query.get('SELECT * FROM promo_codes WHERE id = ?', [promo_code_id]);
                 if (promo) {
                     discount = promo.discount_type === 'percentage' ? amount * (promo.discount_value / 100) : promo.discount_value;
-                    db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ?', [promo_code_id]);
+                    db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ? AND (max_uses IS NULL OR used_count < max_uses)', [promo_code_id]);
+                    if (db.getRowsModified() === 0) {
+                        return res.status(400).json({ error: 'Promo code has reached its maximum number of uses' });
+                    }
                 }
             }
 
@@ -5914,7 +5932,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Send message to candidate
-    app.post('/api/accelerator/applications/:id/message', auth, async (req, res) => {
+    app.post('/api/accelerator/applications/:id/message', auth, adminOnly, async (req, res) => {
         try {
             const { subject, content, message_type, send_email } = req.body;
             const id = uuidv4();
@@ -6044,7 +6062,7 @@ By applying to this program, I provide the following consents:
     // ========== ACCELERATOR EVALUATIONS/SCORING ==========
 
     // Save evaluation score for an application
-    app.post('/api/accelerator/applications/:appId/evaluate', auth, (req, res) => {
+    app.post('/api/accelerator/applications/:appId/evaluate', auth, adminOnly, (req, res) => {
         const { criterion_id, score, notes } = req.body;
         const existing = query.get('SELECT id FROM accelerator_evaluations WHERE application_id = ? AND criterion_id = ?',
             [req.params.appId, criterion_id]);
@@ -6065,7 +6083,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Batch evaluate (save multiple scores at once)
-    app.post('/api/accelerator/applications/:appId/evaluate-batch', auth, (req, res) => {
+    app.post('/api/accelerator/applications/:appId/evaluate-batch', auth, adminOnly, (req, res) => {
         try {
             const { evaluations } = req.body; // Array of { criterion_id, score, notes }
             if (!evaluations || !Array.isArray(evaluations)) {
@@ -6890,13 +6908,13 @@ By applying to this program, I provide the following consents:
     // ========== ACCELERATOR FORM CONFIG (Phase 4C) ==========
 
     // Get form configuration
-    app.get('/api/accelerator/form-config', auth, (req, res) => {
+    app.get('/api/accelerator/form-config', auth, adminOnly, (req, res) => {
         const fields = query.all('SELECT * FROM accelerator_form_config ORDER BY section_name, sort_order');
         res.json(fields);
     });
 
     // Bulk update form configuration
-    app.put('/api/accelerator/form-config', auth, (req, res) => {
+    app.put('/api/accelerator/form-config', auth, adminOnly, (req, res) => {
         const { fields } = req.body;
         if (!fields || !Array.isArray(fields)) return res.status(400).json({ error: 'fields array required' });
 
@@ -6907,7 +6925,7 @@ By applying to this program, I provide the following consents:
                     [f.section_name, f.field_name, f.field_type || 'text', f.label, f.placeholder, f.is_required ? 1 : 0, f.options || null, f.sort_order || 0, f.is_visible !== false ? 1 : 0, f.id]);
             } else {
                 db.run(`INSERT INTO accelerator_form_config (id, program_id, section_name, field_name, field_type, label, placeholder, is_required, options, sort_order, is_visible) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-                    [f.id || generateId(), f.program_id || null, f.section_name, f.field_name, f.field_type || 'text', f.label, f.placeholder, f.is_required ? 1 : 0, f.options || null, f.sort_order || 0, f.is_visible !== false ? 1 : 0]);
+                    [f.id || uuidv4(), f.program_id || null, f.section_name, f.field_name, f.field_type || 'text', f.label, f.placeholder, f.is_required ? 1 : 0, f.options || null, f.sort_order || 0, f.is_visible !== false ? 1 : 0]);
             }
         });
         saveDb();
@@ -6915,11 +6933,11 @@ By applying to this program, I provide the following consents:
     });
 
     // Add new field to form configuration
-    app.post('/api/accelerator/form-config/field', auth, (req, res) => {
+    app.post('/api/accelerator/form-config/field', auth, adminOnly, (req, res) => {
         const { program_id, section_name, field_name, field_type, label, placeholder, is_required, options, sort_order, is_visible } = req.body;
         if (!section_name || !field_name) return res.status(400).json({ error: 'section_name and field_name required' });
 
-        const id = generateId();
+        const id = uuidv4();
         db.run(`INSERT INTO accelerator_form_config (id, program_id, section_name, field_name, field_type, label, placeholder, is_required, options, sort_order, is_visible) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
             [id, program_id || null, section_name, field_name, field_type || 'text', label || field_name, placeholder || '', is_required ? 1 : 0, options || null, sort_order || 0, is_visible !== false ? 1 : 0]);
         saveDb();
@@ -6927,7 +6945,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Remove field from form configuration
-    app.delete('/api/accelerator/form-config/field/:id', auth, (req, res) => {
+    app.delete('/api/accelerator/form-config/field/:id', auth, adminOnly, (req, res) => {
         db.run('DELETE FROM accelerator_form_config WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
@@ -7765,8 +7783,9 @@ By applying to this program, I provide the following consents:
         if (is_featured !== undefined) { updates.push('is_featured = ?'); values.push(is_featured ? 1 : 0); }
 
         if (updates.length > 0) {
+            values.push(req.user.id);
             values.push(req.params.id);
-            db.run(`UPDATE forum_posts SET ${updates.join(', ')}, moderated_by = '${req.user.id}', moderated_at = datetime('now') WHERE id = ?`, values);
+            db.run(`UPDATE forum_posts SET ${updates.join(', ')}, moderated_by = ?, moderated_at = datetime('now') WHERE id = ?`, values);
             saveDb();
         }
         res.json({ success: true });
@@ -8902,6 +8921,14 @@ By applying to this program, I provide the following consents:
         });
     });
 
+    // CSV cell sanitization — prevents formula injection (=, +, -, @, tab, carriage return)
+    function sanitizeCsvCell(value) {
+        if (value === null || value === undefined) return '';
+        const str = String(value);
+        if (/^[=+\-@\t\r]/.test(str)) return "'" + str;
+        return str;
+    }
+
     // Export applications CSV (admin)
     app.get('/api/admin/accelerator/export', auth, adminOnly, (req, res) => {
         const applications = query.all(`SELECT a.*,
@@ -8930,7 +8957,7 @@ By applying to this program, I provide the following consents:
                 a.status,
                 a.decision || '',
                 a.submitted_at || ''
-            ].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(','));
+            ].map(v => `"${sanitizeCsvCell(v).replace(/"/g, '""')}"`).join(','));
         });
 
         res.setHeader('Content-Type', 'text/csv');
@@ -9022,7 +9049,7 @@ By applying to this program, I provide the following consents:
 
         const headers = ['First Name','Last Name','Email','Phone','Institution','Country','Ticket','Status','Payment','Amount','Checked In','Date'];
         const csv = [headers.join(',')];
-        rows.forEach(r => csv.push([r.first_name, r.last_name, r.email, r.phone, r.institution, r.country, r.ticket_type, r.status, r.payment_status, r.amount_paid, r.checked_in ? 'Yes' : 'No', r.created_at].map(v => `"${(v||'').toString().replace(/"/g,'""')}"`).join(',')));
+        rows.forEach(r => csv.push([r.first_name, r.last_name, r.email, r.phone, r.institution, r.country, r.ticket_type, r.status, r.payment_status, r.amount_paid, r.checked_in ? 'Yes' : 'No', r.created_at].map(v => `"${sanitizeCsvCell(v).replace(/"/g,'""')}"`).join(',')));
 
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename="registrations.csv"`);
@@ -9030,7 +9057,13 @@ By applying to this program, I provide the following consents:
     });
 
     // ========== FILE UPLOAD ==========
-    app.post('/api/upload/:type', auth, upload.single('file'), (req, res) => {
+    const ALLOWED_UPLOAD_TYPES = ['abstracts', 'posters', 'documents', 'badges', 'photos', 'tickets', 'accelerator', 'chat', 'speakers'];
+    app.post('/api/upload/:type', auth, (req, res, next) => {
+        if (!ALLOWED_UPLOAD_TYPES.includes(req.params.type)) {
+            return res.status(400).json({ error: 'Invalid upload type' });
+        }
+        next();
+    }, upload.single('file'), (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No file' });
         res.json({ success: true, file_url: `/uploads/${req.params.type}/${req.file.filename}` });
     });
@@ -9143,8 +9176,11 @@ By applying to this program, I provide the following consents:
             if (promo) {
                 promoId = promo.id;
                 discount = promo.discount_type === 'percentage' ? price * (promo.discount_value / 100) : promo.discount_value;
-                // Increment promo usage
-                db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ?', [promo.id]);
+                // Atomic increment promo usage — prevents race conditions
+                db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ? AND (max_uses IS NULL OR used_count < max_uses)', [promo.id]);
+                if (db.getRowsModified() === 0) {
+                    return res.status(400).json({ error: 'Promo code has reached its maximum number of uses' });
+                }
             }
         }
 
@@ -10522,7 +10558,7 @@ By applying to this program, I provide the following consents:
             v.status || 'pending'
         ]);
 
-        const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
+        const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${sanitizeCsvCell(c).replace(/"/g, '""')}"`).join(','))].join('\n');
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename="plexus-volunteers-${new Date().toISOString().split('T')[0]}.csv"`);
         res.send(csv);
@@ -12196,7 +12232,7 @@ By applying to this program, I provide the following consents:
     }
 
     // Finance Dashboard
-    app.get('/api/finance/dashboard', auth, (req, res) => {
+    app.get('/api/finance/dashboard', auth, adminOnly, (req, res) => {
         const year = parseInt(req.query.year) || new Date().getFullYear();
 
         // Get latest bank balance
@@ -12244,12 +12280,12 @@ By applying to this program, I provide the following consents:
     });
 
     // Bank Balance
-    app.get('/api/finance/bank-balance', auth, (req, res) => {
+    app.get('/api/finance/bank-balance', auth, adminOnly, (req, res) => {
         const balances = query.all('SELECT * FROM finance_bank_balance ORDER BY date DESC, created_at DESC');
         res.json(balances);
     });
 
-    app.post('/api/finance/bank-balance', auth, (req, res) => {
+    app.post('/api/finance/bank-balance', auth, adminOnly, (req, res) => {
         const { balance, date, notes } = req.body;
         const id = uuidv4();
         db.run('INSERT INTO finance_bank_balance (id, balance, date, notes, created_by) VALUES (?, ?, ?, ?, ?)',
@@ -12258,19 +12294,19 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, id });
     });
 
-    app.delete('/api/finance/bank-balance/:id', auth, (req, res) => {
+    app.delete('/api/finance/bank-balance/:id', auth, adminOnly, (req, res) => {
         db.run('DELETE FROM finance_bank_balance WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
     });
 
     // Fiscal Years
-    app.get('/api/finance/years', auth, (req, res) => {
+    app.get('/api/finance/years', auth, adminOnly, (req, res) => {
         const years = query.all('SELECT * FROM finance_fiscal_years ORDER BY year DESC');
         res.json(years);
     });
 
-    app.post('/api/finance/years', auth, (req, res) => {
+    app.post('/api/finance/years', auth, adminOnly, (req, res) => {
         const { year } = req.body;
         const id = uuidv4();
         db.run('INSERT INTO finance_fiscal_years (id, year, status) VALUES (?, ?, ?)', [id, year, 'open']);
@@ -12278,7 +12314,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, id });
     });
 
-    app.put('/api/finance/years/:year', auth, (req, res) => {
+    app.put('/api/finance/years/:year', auth, adminOnly, (req, res) => {
         const { status, notes } = req.body;
         const year = parseInt(req.params.year);
 
@@ -12300,7 +12336,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Work Units
-    app.get('/api/finance/work-units', auth, (req, res) => {
+    app.get('/api/finance/work-units', auth, adminOnly, (req, res) => {
         const year = req.query.year ? parseInt(req.query.year) : null;
         const status = req.query.status;
 
@@ -12320,7 +12356,7 @@ By applying to this program, I provide the following consents:
         res.json(query.all(sql, params));
     });
 
-    app.post('/api/finance/work-units', auth, (req, res) => {
+    app.post('/api/finance/work-units', auth, adminOnly, (req, res) => {
         const { code, name, description, grant_source, fiscal_year, budget_total } = req.body;
         const id = uuidv4();
         db.run(`INSERT INTO finance_work_units (id, code, name, description, grant_source, fiscal_year, budget_total)
@@ -12330,7 +12366,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, id });
     });
 
-    app.get('/api/finance/work-units/:id', auth, (req, res) => {
+    app.get('/api/finance/work-units/:id', auth, adminOnly, (req, res) => {
         const wu = query.get('SELECT * FROM finance_work_units WHERE id = ?', [req.params.id]);
         if (!wu) return res.status(404).json({ error: 'Not found' });
 
@@ -12339,7 +12375,7 @@ By applying to this program, I provide the following consents:
         res.json({ ...wu, transactions });
     });
 
-    app.put('/api/finance/work-units/:id', auth, (req, res) => {
+    app.put('/api/finance/work-units/:id', auth, adminOnly, (req, res) => {
         const { code, name, description, grant_source, budget_total, status } = req.body;
         db.run(`UPDATE finance_work_units SET code = ?, name = ?, description = ?, grant_source = ?, budget_total = ?, status = ? WHERE id = ?`,
             [code, name, description, grant_source, budget_total, status, req.params.id]);
@@ -12347,7 +12383,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.delete('/api/finance/work-units/:id', auth, (req, res) => {
+    app.delete('/api/finance/work-units/:id', auth, adminOnly, (req, res) => {
         // Check if any transactions reference this work unit
         const count = query.get('SELECT COUNT(*) as c FROM finance_transactions WHERE work_unit_id = ?', [req.params.id]);
         if (count?.c > 0) {
@@ -12359,7 +12395,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Transactions
-    app.get('/api/finance/transactions', auth, (req, res) => {
+    app.get('/api/finance/transactions', auth, adminOnly, (req, res) => {
         const { year, type, project, work_unit_id, limit: limitParam, offset } = req.query;
         let sql = `SELECT t.*, wu.code as work_unit_code, wu.name as work_unit_name
             FROM finance_transactions t
@@ -12398,7 +12434,7 @@ By applying to this program, I provide the following consents:
         res.json(query.all(sql, params));
     });
 
-    app.post('/api/finance/transactions', auth, (req, res) => {
+    app.post('/api/finance/transactions', auth, adminOnly, (req, res) => {
         const { transaction_type, amount, date, description, project, work_unit_id, category, payment_method, reference, fiscal_year } = req.body;
         const id = uuidv4();
         const year = fiscal_year || new Date(date).getFullYear();
@@ -12417,7 +12453,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, id, transaction_number: transactionNumber });
     });
 
-    app.get('/api/finance/transactions/:id', auth, (req, res) => {
+    app.get('/api/finance/transactions/:id', auth, adminOnly, (req, res) => {
         const t = query.get(`SELECT t.*, wu.code as work_unit_code, wu.name as work_unit_name
             FROM finance_transactions t
             LEFT JOIN finance_work_units wu ON t.work_unit_id = wu.id
@@ -12426,7 +12462,7 @@ By applying to this program, I provide the following consents:
         res.json(t);
     });
 
-    app.put('/api/finance/transactions/:id', auth, (req, res) => {
+    app.put('/api/finance/transactions/:id', auth, adminOnly, (req, res) => {
         const existing = query.get('SELECT * FROM finance_transactions WHERE id = ?', [req.params.id]);
         if (!existing) return res.status(404).json({ error: 'Not found' });
 
@@ -12453,7 +12489,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.delete('/api/finance/transactions/:id', auth, (req, res) => {
+    app.delete('/api/finance/transactions/:id', auth, adminOnly, (req, res) => {
         const existing = query.get('SELECT * FROM finance_transactions WHERE id = ?', [req.params.id]);
         if (!existing) return res.status(404).json({ error: 'Not found' });
 
@@ -12468,7 +12504,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Invoices
-    app.get('/api/finance/invoices', auth, (req, res) => {
+    app.get('/api/finance/invoices', auth, adminOnly, (req, res) => {
         const { year, direction, status } = req.query;
         let sql = `SELECT i.*, wu.code as work_unit_code, wu.name as work_unit_name
             FROM finance_invoices i
@@ -12492,7 +12528,7 @@ By applying to this program, I provide the following consents:
         res.json(query.all(sql, params));
     });
 
-    app.post('/api/finance/invoices', auth, (req, res) => {
+    app.post('/api/finance/invoices', auth, adminOnly, (req, res) => {
         const { invoice_type, direction, party_name, party_address, party_oib, party_email,
             issue_date, due_date, fiscalized, notes, project, work_unit_id, fiscal_year, items } = req.body;
 
@@ -12541,7 +12577,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, id, invoice_number: invoiceNumber });
     });
 
-    app.get('/api/finance/invoices/:id', auth, (req, res) => {
+    app.get('/api/finance/invoices/:id', auth, adminOnly, (req, res) => {
         const invoice = query.get(`SELECT i.*, wu.code as work_unit_code, wu.name as work_unit_name
             FROM finance_invoices i
             LEFT JOIN finance_work_units wu ON i.work_unit_id = wu.id
@@ -12552,7 +12588,7 @@ By applying to this program, I provide the following consents:
         res.json({ ...invoice, items });
     });
 
-    app.put('/api/finance/invoices/:id', auth, (req, res) => {
+    app.put('/api/finance/invoices/:id', auth, adminOnly, (req, res) => {
         const { party_name, party_address, party_oib, party_email, issue_date, due_date,
             fiscalized, notes, project, work_unit_id, items } = req.body;
 
@@ -12595,7 +12631,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.delete('/api/finance/invoices/:id', auth, (req, res) => {
+    app.delete('/api/finance/invoices/:id', auth, adminOnly, (req, res) => {
         db.run('DELETE FROM finance_invoice_items WHERE invoice_id = ?', [req.params.id]);
         db.run('DELETE FROM finance_invoices WHERE id = ?', [req.params.id]);
         saveDb();
@@ -12603,7 +12639,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Issue invoice (change status from draft to issued)
-    app.post('/api/finance/invoices/:id/issue', auth, (req, res) => {
+    app.post('/api/finance/invoices/:id/issue', auth, adminOnly, (req, res) => {
         db.run('UPDATE finance_invoices SET status = ?, issue_date = COALESCE(issue_date, date(?)) WHERE id = ?',
             ['issued', 'now', req.params.id]);
         saveDb();
@@ -12611,7 +12647,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Mark invoice as paid
-    app.post('/api/finance/invoices/:id/mark-paid', auth, (req, res) => {
+    app.post('/api/finance/invoices/:id/mark-paid', auth, adminOnly, (req, res) => {
         const invoice = query.get('SELECT * FROM finance_invoices WHERE id = ?', [req.params.id]);
         if (!invoice) return res.status(404).json({ error: 'Not found' });
 
@@ -12640,7 +12676,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Generate invoice PDF
-    app.get('/api/finance/invoices/:id/pdf', auth, async (req, res) => {
+    app.get('/api/finance/invoices/:id/pdf', auth, adminOnly, async (req, res) => {
         const invoice = query.get('SELECT * FROM finance_invoices WHERE id = ?', [req.params.id]);
         if (!invoice) return res.status(404).json({ error: 'Not found' });
 
@@ -12745,7 +12781,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Payment Orders
-    app.get('/api/finance/payment-orders', auth, (req, res) => {
+    app.get('/api/finance/payment-orders', auth, adminOnly, (req, res) => {
         const { year, status } = req.query;
         let sql = `SELECT po.*, wu.code as work_unit_code, wu.name as work_unit_name
             FROM finance_payment_orders po
@@ -12765,7 +12801,7 @@ By applying to this program, I provide the following consents:
         res.json(query.all(sql, params));
     });
 
-    app.post('/api/finance/payment-orders', auth, (req, res) => {
+    app.post('/api/finance/payment-orders', auth, adminOnly, (req, res) => {
         const { recipient_name, recipient_iban, payment_type, amount, reference, date, description, project, work_unit_id, fiscal_year } = req.body;
         const id = uuidv4();
         const year = fiscal_year || new Date().getFullYear();
@@ -12779,7 +12815,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, id, order_number: orderNumber });
     });
 
-    app.get('/api/finance/payment-orders/:id', auth, (req, res) => {
+    app.get('/api/finance/payment-orders/:id', auth, adminOnly, (req, res) => {
         const po = query.get(`SELECT po.*, wu.code as work_unit_code, wu.name as work_unit_name
             FROM finance_payment_orders po
             LEFT JOIN finance_work_units wu ON po.work_unit_id = wu.id
@@ -12788,7 +12824,7 @@ By applying to this program, I provide the following consents:
         res.json(po);
     });
 
-    app.put('/api/finance/payment-orders/:id', auth, (req, res) => {
+    app.put('/api/finance/payment-orders/:id', auth, adminOnly, (req, res) => {
         const { recipient_name, recipient_iban, payment_type, amount, reference, date, execution_date, status, description, project, work_unit_id } = req.body;
         db.run(`UPDATE finance_payment_orders SET recipient_name = ?, recipient_iban = ?, payment_type = ?, amount = ?,
             reference = ?, date = ?, execution_date = ?, status = ?, description = ?, project = ?, work_unit_id = ? WHERE id = ?`,
@@ -12797,14 +12833,14 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.delete('/api/finance/payment-orders/:id', auth, (req, res) => {
+    app.delete('/api/finance/payment-orders/:id', auth, adminOnly, (req, res) => {
         db.run('DELETE FROM finance_payment_orders WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
     });
 
     // Travel Orders
-    app.get('/api/finance/travel-orders', auth, (req, res) => {
+    app.get('/api/finance/travel-orders', auth, adminOnly, (req, res) => {
         const { year, status, traveler_id } = req.query;
         let sql = `SELECT to1.*, wu.code as work_unit_code, wu.name as work_unit_name
             FROM finance_travel_orders to1
@@ -12842,7 +12878,7 @@ By applying to this program, I provide the following consents:
         res.json(orders);
     });
 
-    app.post('/api/finance/travel-orders', auth, (req, res) => {
+    app.post('/api/finance/travel-orders', auth, adminOnly, (req, res) => {
         const { traveler_id, traveler_name, destination, purpose, planned_departure, planned_return, travel_method,
             notes, project, work_unit_id, fiscal_year, advance_amount } = req.body;
 
@@ -12860,7 +12896,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, id, order_number: orderNumber });
     });
 
-    app.get('/api/finance/travel-orders/:id', auth, (req, res) => {
+    app.get('/api/finance/travel-orders/:id', auth, adminOnly, (req, res) => {
         const order = query.get(`SELECT to1.*, wu.code as work_unit_code, wu.name as work_unit_name
             FROM finance_travel_orders to1
             LEFT JOIN finance_work_units wu ON to1.work_unit_id = wu.id
@@ -12871,7 +12907,7 @@ By applying to this program, I provide the following consents:
         res.json({ ...order, evidence });
     });
 
-    app.put('/api/finance/travel-orders/:id', auth, (req, res) => {
+    app.put('/api/finance/travel-orders/:id', auth, adminOnly, (req, res) => {
         const { destination, purpose, planned_departure, planned_return, actual_departure, actual_return,
             travel_method, kilometers, cost_transport, cost_accommodation, cost_daily_allowance, cost_other,
             traveler_notes, notes, project, work_unit_id } = req.body;
@@ -12890,7 +12926,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Travel order workflow
-    app.post('/api/finance/travel-orders/:id/submit', auth, (req, res) => {
+    app.post('/api/finance/travel-orders/:id/submit', auth, adminOnly, (req, res) => {
         const { actual_departure, actual_return, travel_method, kilometers,
             cost_transport, cost_accommodation, cost_daily_allowance, cost_other, traveler_notes } = req.body;
 
@@ -12906,7 +12942,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.post('/api/finance/travel-orders/:id/approve', auth, (req, res) => {
+    app.post('/api/finance/travel-orders/:id/approve', auth, adminOnly, (req, res) => {
         const order = query.get('SELECT * FROM finance_travel_orders WHERE id = ?', [req.params.id]);
         const reimbursement = order.cost_total - (order.advance_amount || 0);
 
@@ -12917,7 +12953,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, reimbursement_amount: reimbursement });
     });
 
-    app.post('/api/finance/travel-orders/:id/reject', auth, (req, res) => {
+    app.post('/api/finance/travel-orders/:id/reject', auth, adminOnly, (req, res) => {
         const { rejection_reason } = req.body;
         db.run(`UPDATE finance_travel_orders SET status = 'rejected', rejection_reason = ? WHERE id = ?`,
             [rejection_reason, req.params.id]);
@@ -12925,7 +12961,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.post('/api/finance/travel-orders/:id/pay', auth, (req, res) => {
+    app.post('/api/finance/travel-orders/:id/pay', auth, adminOnly, (req, res) => {
         const order = query.get('SELECT * FROM finance_travel_orders WHERE id = ?', [req.params.id]);
         if (!order) return res.status(404).json({ error: 'Not found' });
 
@@ -12962,7 +12998,7 @@ By applying to this program, I provide the following consents:
     });
     const travelEvidenceUpload = multer({ storage: travelEvidenceStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 
-    app.post('/api/finance/travel-orders/:id/evidence', auth, travelEvidenceUpload.single('file'), (req, res) => {
+    app.post('/api/finance/travel-orders/:id/evidence', auth, adminOnly, travelEvidenceUpload.single('file'), (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
         const id = uuidv4();
@@ -12975,7 +13011,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, id, file_path: filePath });
     });
 
-    app.delete('/api/finance/travel-orders/:orderId/evidence/:evidenceId', auth, (req, res) => {
+    app.delete('/api/finance/travel-orders/:orderId/evidence/:evidenceId', auth, adminOnly, (req, res) => {
         const evidence = query.get('SELECT * FROM finance_travel_evidence WHERE id = ? AND travel_order_id = ?',
             [req.params.evidenceId, req.params.orderId]);
         if (evidence && evidence.file_path) {
@@ -12988,7 +13024,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Travel order PDF
-    app.get('/api/finance/travel-orders/:id/pdf', auth, (req, res) => {
+    app.get('/api/finance/travel-orders/:id/pdf', auth, adminOnly, (req, res) => {
         const order = query.get('SELECT * FROM finance_travel_orders WHERE id = ?', [req.params.id]);
         if (!order) return res.status(404).json({ error: 'Not found' });
 
@@ -13084,7 +13120,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Finance Settings
-    app.get('/api/finance/settings', auth, (req, res) => {
+    app.get('/api/finance/settings', auth, adminOnly, (req, res) => {
         const settings = {};
         query.all('SELECT setting_key, setting_value FROM finance_settings').forEach(s => {
             settings[s.setting_key] = s.setting_value;
@@ -13092,7 +13128,7 @@ By applying to this program, I provide the following consents:
         res.json(settings);
     });
 
-    app.put('/api/finance/settings', auth, (req, res) => {
+    app.put('/api/finance/settings', auth, adminOnly, (req, res) => {
         Object.entries(req.body).forEach(([key, value]) => {
             const existing = query.get('SELECT id FROM finance_settings WHERE setting_key = ?', [key]);
             if (existing) {
@@ -13107,7 +13143,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.post('/api/finance/settings', auth, (req, res) => {
+    app.post('/api/finance/settings', auth, adminOnly, (req, res) => {
         Object.entries(req.body).forEach(([key, value]) => {
             const existing = query.get('SELECT id FROM finance_settings WHERE setting_key = ?', [key]);
             if (existing) {
@@ -13123,7 +13159,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Finance Reports
-    app.get('/api/finance/reports/by-project', auth, (req, res) => {
+    app.get('/api/finance/reports/by-project', auth, adminOnly, (req, res) => {
         const year = parseInt(req.query.year) || new Date().getFullYear();
         const report = query.all(`
             SELECT project,
@@ -13138,7 +13174,7 @@ By applying to this program, I provide the following consents:
         res.json(report);
     });
 
-    app.get('/api/finance/reports/by-work-unit', auth, (req, res) => {
+    app.get('/api/finance/reports/by-work-unit', auth, adminOnly, (req, res) => {
         const year = parseInt(req.query.year) || new Date().getFullYear();
         const report = query.all(`
             SELECT wu.id, wu.code, wu.name, wu.budget_total, wu.budget_used,
@@ -13153,7 +13189,7 @@ By applying to this program, I provide the following consents:
         res.json(report);
     });
 
-    app.get('/api/finance/reports/monthly', auth, (req, res) => {
+    app.get('/api/finance/reports/monthly', auth, adminOnly, (req, res) => {
         const year = parseInt(req.query.year) || new Date().getFullYear();
         const report = query.all(`
             SELECT strftime('%Y-%m', date) as month,
@@ -13170,7 +13206,7 @@ By applying to this program, I provide the following consents:
     // ===== CONFERENCE PAYMENTS (Plexus + FIRA Integration) =====
 
     // List all payment registrations across all sources (Plexus, Gala, Accelerator, Forum)
-    app.get('/api/finance/conference-payments', auth, (req, res) => {
+    app.get('/api/finance/conference-payments', auth, adminOnly, (req, res) => {
         try {
             const { status, search, source } = req.query;
             const sourceFilter = source || 'all';
@@ -13316,7 +13352,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Confirm bank transfer received (mark as paid) — also creates Finance income record
-    app.post('/api/finance/conference-payments/:id/confirm', auth, (req, res) => {
+    app.post('/api/finance/conference-payments/:id/confirm', auth, adminOnly, (req, res) => {
         try {
             const reg = query.get(`SELECT r.*, t.name as ticket_name, u.first_name, u.last_name
                 FROM registrations r
@@ -13680,7 +13716,7 @@ By applying to this program, I provide the following consents:
         const subscribers = query.all('SELECT * FROM pr_subscribers ORDER BY subscribed_at DESC');
         const csvHeader = 'Email,First Name,Last Name,Subscribed Projects,Language,Source,Status,Subscribed At\n';
         const csvRows = subscribers.map(s =>
-            `"${(s.email || '').replace(/"/g, '""')}","${(s.first_name || '').replace(/"/g, '""')}","${(s.last_name || '').replace(/"/g, '""')}","${(s.subscribed_projects || '').replace(/"/g, '""')}","${s.language || ''}","${s.source || ''}","${s.status || ''}","${s.subscribed_at || ''}"`
+            `"${sanitizeCsvCell(s.email).replace(/"/g, '""')}","${sanitizeCsvCell(s.first_name).replace(/"/g, '""')}","${sanitizeCsvCell(s.last_name).replace(/"/g, '""')}","${sanitizeCsvCell(s.subscribed_projects).replace(/"/g, '""')}","${sanitizeCsvCell(s.language)}","${sanitizeCsvCell(s.source)}","${sanitizeCsvCell(s.status)}","${sanitizeCsvCell(s.subscribed_at)}"`
         ).join('\n');
 
         res.setHeader('Content-Type', 'text/csv');
@@ -15124,6 +15160,234 @@ By applying to this program, I provide the following consents:
             try { updated.testimonials = JSON.parse(updated.testimonials_json || '[]'); } catch(e) { updated.testimonials = []; }
         }
         res.json({ success: true, settings: updated });
+    });
+
+    // ==================== TECH DASHBOARD ====================
+    const TECH_PASSWORD = process.env.TECH_PASSWORD || 'tech123';
+
+    function techAuth(req, res, next) {
+        const pwd = req.headers['x-tech-password'];
+        if (pwd !== TECH_PASSWORD) return res.status(403).json({ error: 'Tech password required' });
+        next();
+    }
+
+    // Verify tech password
+    app.post('/api/admin/tech/verify-password', auth, (req, res) => {
+        const { password } = req.body;
+        res.json({ success: password === TECH_PASSWORD });
+    });
+
+    // System info
+    app.get('/api/admin/tech/system-info', auth, techAuth, (req, res) => {
+        try {
+            const dbStats = fs.existsSync(DB_PATH) ? fs.statSync(DB_PATH) : null;
+            const tables = query.all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+            let totalRows = 0;
+            tables.forEach(t => {
+                const c = query.get(`SELECT COUNT(*) as cnt FROM "${t.name}"`);
+                totalRows += c ? c.cnt : 0;
+            });
+
+            const envVars = {};
+            ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'FIRA_API_KEY',
+             'JWT_SECRET', 'DATABASE_PATH', 'PORT', 'RENDER_EXTERNAL_URL'].forEach(key => {
+                const val = process.env[key];
+                if (val) {
+                    envVars[key] = val.length > 8 ? val.slice(0, 4) + '...' + val.slice(-4) : '****';
+                } else {
+                    envVars[key] = '(not set)';
+                }
+            });
+
+            res.json({
+                success: true,
+                system: {
+                    nodeVersion: process.version,
+                    platform: process.platform,
+                    arch: process.arch,
+                    uptime: process.uptime(),
+                    memoryUsage: process.memoryUsage(),
+                    pid: process.pid
+                },
+                database: {
+                    path: DB_PATH,
+                    size: dbStats ? dbStats.size : 0,
+                    lastModified: dbStats ? dbStats.mtime.toISOString() : null,
+                    tableCount: tables.length,
+                    totalRows
+                },
+                deployment: {
+                    adminUrl: process.env.RENDER_EXTERNAL_URL || 'http://localhost:' + PORT,
+                    userPortalUrl: process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com',
+                    githubRepo: 'https://github.com/alen-ops99/medx-portal'
+                },
+                env: envVars
+            });
+        } catch (err) {
+            console.error('Tech system-info error:', err);
+            res.status(500).json({ error: 'Failed to load system info' });
+        }
+    });
+
+    // List all tables with row counts
+    app.get('/api/admin/tech/tables', auth, techAuth, (req, res) => {
+        try {
+            const tables = query.all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+            const result = tables.map(t => {
+                const countRow = query.get(`SELECT COUNT(*) as cnt FROM "${t.name}"`);
+                const columns = query.all(`PRAGMA table_info("${t.name}")`);
+                return {
+                    name: t.name,
+                    rowCount: countRow ? countRow.cnt : 0,
+                    columns: columns.map(c => ({ name: c.name, type: c.type, notnull: c.notnull, pk: c.pk }))
+                };
+            });
+            res.json({ success: true, tables: result });
+        } catch (err) {
+            console.error('Tech tables error:', err);
+            res.status(500).json({ error: 'Failed to load tables' });
+        }
+    });
+
+    // Get rows from a specific table
+    app.get('/api/admin/tech/tables/:name', auth, techAuth, (req, res) => {
+        try {
+            // Validate table name against actual tables to prevent injection
+            const validTables = query.all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").map(t => t.name);
+            if (!validTables.includes(req.params.name)) {
+                return res.status(400).json({ error: 'Invalid table name' });
+            }
+            const tableName = req.params.name;
+            const limit = Math.min(parseInt(req.query.limit) || 50, 500);
+            const offset = parseInt(req.query.offset) || 0;
+            const search = req.query.search || '';
+
+            const columns = query.all(`PRAGMA table_info("${tableName}")`);
+            let rows;
+            let total;
+            if (search) {
+                const whereClauses = columns.map(c => `"${c.name}" LIKE ?`);
+                const searchParam = `%${search}%`;
+                const params = columns.map(() => searchParam);
+                total = query.get(`SELECT COUNT(*) as cnt FROM "${tableName}" WHERE ${whereClauses.join(' OR ')}`, params);
+                rows = query.all(`SELECT * FROM "${tableName}" WHERE ${whereClauses.join(' OR ')} LIMIT ? OFFSET ?`, [...params, limit, offset]);
+            } else {
+                total = query.get(`SELECT COUNT(*) as cnt FROM "${tableName}"`);
+                rows = query.all(`SELECT * FROM "${tableName}" LIMIT ? OFFSET ?`, [limit, offset]);
+            }
+
+            res.json({
+                success: true,
+                table: tableName,
+                columns: columns.map(c => ({ name: c.name, type: c.type })),
+                rows,
+                total: total ? total.cnt : 0,
+                limit,
+                offset
+            });
+        } catch (err) {
+            console.error('Tech table data error:', err);
+            res.status(500).json({ error: 'Failed to load table data' });
+        }
+    });
+
+    // Download database file
+    app.get('/api/admin/tech/db-download', auth, techAuth, (req, res) => {
+        try {
+            if (!fs.existsSync(DB_PATH)) return res.status(404).json({ error: 'Database file not found' });
+            res.setHeader('Content-Disposition', 'attachment; filename=medx_portal.db');
+            res.setHeader('Content-Type', 'application/octet-stream');
+            const stream = fs.createReadStream(DB_PATH);
+            stream.pipe(res);
+        } catch (err) {
+            console.error('Tech db-download error:', err);
+            res.status(500).json({ error: 'Failed to download database' });
+        }
+    });
+
+    // Export all data as JSON
+    app.get('/api/admin/tech/export-all', auth, techAuth, (req, res) => {
+        try {
+            const tables = query.all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+            const dump = {};
+            tables.forEach(t => {
+                dump[t.name] = query.all(`SELECT * FROM "${t.name}"`);
+            });
+            res.setHeader('Content-Disposition', 'attachment; filename=medx_export_' + new Date().toISOString().slice(0, 10) + '.json');
+            res.setHeader('Content-Type', 'application/json');
+            res.json({ exportDate: new Date().toISOString(), tables: dump });
+        } catch (err) {
+            console.error('Tech export-all error:', err);
+            res.status(500).json({ error: 'Failed to export data' });
+        }
+    });
+
+    // Test Stripe connection
+    app.post('/api/admin/tech/test-stripe', auth, techAuth, async (req, res) => {
+        try {
+            let testStripe;
+            try {
+                if (process.env.STRIPE_SECRET_KEY) {
+                    testStripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+                } else {
+                    return res.json({ success: false, message: 'STRIPE_SECRET_KEY not configured' });
+                }
+            } catch (e) {
+                return res.json({ success: false, message: 'Stripe module not installed: ' + e.message });
+            }
+            const balance = await testStripe.balance.retrieve();
+            res.json({
+                success: true,
+                message: 'Stripe connection OK',
+                balance: balance.available.map(b => ({ amount: b.amount / 100, currency: b.currency }))
+            });
+        } catch (err) {
+            res.json({ success: false, message: 'Stripe error: ' + err.message });
+        }
+    });
+
+    // Test FIRA connection
+    app.post('/api/admin/tech/test-fira', auth, techAuth, async (req, res) => {
+        try {
+            const firaKey = process.env.FIRA_API_KEY;
+            if (!firaKey) return res.json({ success: false, message: 'FIRA_API_KEY not configured' });
+            // Simple health check — try to reach FIRA API
+            const https = require('https');
+            const result = await new Promise((resolve, reject) => {
+                const options = {
+                    hostname: 'api.fira.finance',
+                    path: '/v1/health',
+                    method: 'GET',
+                    headers: { 'FIRA-Api-Key': firaKey },
+                    timeout: 5000
+                };
+                const r = https.request(options, (resp) => {
+                    let data = '';
+                    resp.on('data', chunk => data += chunk);
+                    resp.on('end', () => resolve({ status: resp.statusCode, data }));
+                });
+                r.on('error', reject);
+                r.on('timeout', () => { r.destroy(); reject(new Error('Timeout')); });
+                r.end();
+            });
+            res.json({ success: result.status < 400, message: `FIRA responded with status ${result.status}`, details: result.data });
+        } catch (err) {
+            res.json({ success: false, message: 'FIRA error: ' + err.message });
+        }
+    });
+
+    // Test email (SMTP)
+    app.post('/api/admin/tech/test-email', auth, techAuth, async (req, res) => {
+        try {
+            const result = await sendEmail(
+                req.user.email || 'juginovic.alen@gmail.com',
+                'Med&X Tech Dashboard — Test Email',
+                '<h2>Test Email</h2><p>This is a test email from the Med&X Tech Dashboard.</p><p>Sent at: ' + new Date().toISOString() + '</p>'
+            );
+            res.json({ success: result.success, message: result.mock ? 'Email mock-sent (SMTP not configured)' : 'Test email sent to ' + (req.user.email || 'juginovic.alen@gmail.com'), mock: result.mock || false });
+        } catch (err) {
+            res.json({ success: false, message: 'Email error: ' + err.message });
+        }
     });
 
     // API 404 handler — prevent unmatched API routes from returning HTML

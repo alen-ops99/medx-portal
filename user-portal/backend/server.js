@@ -123,9 +123,18 @@ function buildEmailTemplate(title, bodyHtml) {
 }
 
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'medx-portal-secret-key-2026';
+const JWT_SECRET = (function() {
+    if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+    if (process.env.NODE_ENV === 'production') {
+        console.error('FATAL: JWT_SECRET env var is required in production');
+        process.exit(1);
+    }
+    return 'medx-portal-secret-key-2026';
+})();
 
-app.use(cors());
+app.use(cors({
+    origin: [process.env.RENDER_EXTERNAL_URL, 'http://localhost:3000', 'http://localhost:3001'].filter(Boolean)
+}));
 
 // Stripe webhook needs raw body for signature verification
 // express.json() must be SKIPPED for the webhook route or it corrupts the signature
@@ -147,8 +156,15 @@ const uploadsDir = path.join(__dirname, 'uploads');
 });
 
 // Multer configuration
+const ALLOWED_UPLOAD_TYPES = ['abstracts', 'posters', 'documents', 'badges', 'photos', 'tickets', 'accelerator', 'chat', 'speakers'];
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, path.join(uploadsDir, req.params.type || 'documents')),
+    destination: (req, file, cb) => {
+        const type = req.params.type || 'documents';
+        if (!ALLOWED_UPLOAD_TYPES.includes(type)) {
+            return cb(new Error('Invalid upload type'));
+        }
+        cb(null, path.join(uploadsDir, type));
+    },
     filename: (req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname)}`)
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
@@ -207,18 +223,42 @@ function watchSharedDb() {
     console.log('[Sync] Watching shared DB for cross-portal changes');
 }
 
-// Auth middleware - bypassed for auto-login
+// Auth middleware
 function auth(req, res, next) {
-    // Auto-login: look up actual admin user from DB
-    const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
-    req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
-    next();
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (token && token !== 'auto-login') {
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            const user = query.get("SELECT id, email, is_admin FROM users WHERE id = ?", [decoded.id]);
+            if (user) { req.user = user; return next(); }
+        } catch(e) { /* token invalid/expired */ }
+    }
+    // Dev fallback — ONLY in development
+    if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+        const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
+        req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
+        return next();
+    }
+    return res.status(401).json({ error: 'Authentication required' });
 }
 
 function optionalAuth(req, res, next) {
-    // Auto-login: look up actual admin user from DB
-    const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
-    req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (token && token !== 'auto-login') {
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            const user = query.get("SELECT id, email, is_admin FROM users WHERE id = ?", [decoded.id]);
+            if (user) { req.user = user; return next(); }
+        } catch(e) { /* token invalid/expired */ }
+    }
+    // Dev fallback — ONLY in development
+    if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+        const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
+        req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
+        return next();
+    }
+    // Optional auth — no user is OK
+    req.user = null;
     next();
 }
 
@@ -3314,13 +3354,16 @@ async function initializeApp() {
                 const promo = query.get('SELECT * FROM promo_codes WHERE id = ?', [promo_code_id]);
                 if (promo) {
                     discount = promo.discount_type === 'percentage' ? amount * (promo.discount_value / 100) : promo.discount_value;
-                    db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ?', [promo_code_id]);
+                    db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ? AND (max_uses IS NULL OR used_count < max_uses)', [promo_code_id]);
+                    if (db.getRowsModified() === 0) {
+                        return res.status(400).json({ error: 'Promo code has reached its maximum number of uses' });
+                    }
                 }
             }
 
             const finalAmount = Math.max(0, amount - discount);
             const regId = uuidv4();
-            const invoiceNumber = `PLX26-${Date.now().toString().slice(-6)}`;
+            const invoiceNumber = `INV-${Date.now()}-${uuidv4().split('-')[0]}`;
 
             const qrPath = path.join(uploadsDir, 'tickets', `${regId}.png`);
             await QRCode.toFile(qrPath, JSON.stringify({ id: regId, conf: 'plexus-2026' }));
@@ -3722,7 +3765,8 @@ By applying to this program, I provide the following consents:
         const filePath = path.join(__dirname, doc.file_path);
         if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
 
-        res.setHeader('Content-Disposition', `attachment; filename="${doc.original_filename}"`);
+        const safeName = (doc.original_filename || 'download').replace(/["\r\n]/g, '');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
         res.setHeader('Content-Type', doc.mime_type);
         res.sendFile(filePath);
     });
@@ -7941,7 +7985,12 @@ By applying to this program, I provide the following consents:
     });
 
     // ========== FILE UPLOAD ==========
-    app.post('/api/upload/:type', auth, upload.single('file'), (req, res) => {
+    app.post('/api/upload/:type', auth, (req, res, next) => {
+        if (!ALLOWED_UPLOAD_TYPES.includes(req.params.type)) {
+            return res.status(400).json({ error: 'Invalid upload type' });
+        }
+        next();
+    }, upload.single('file'), (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No file' });
         res.json({ success: true, file_url: `/uploads/${req.params.type}/${req.file.filename}` });
     });
@@ -8009,8 +8058,8 @@ By applying to this program, I provide the following consents:
             if (existing) {
                 // Update amount + billing on unpaid registrations (user may retry with different options)
                 if (existing.payment_status !== 'paid') {
-                    // Update amount_paid if frontend sends a new total
-                    const newTotal = (req.body.total != null && req.body.total >= 0) ? req.body.total : existing.amount_paid;
+                    // Recalculate amount server-side — NEVER trust client-sent total
+                    const newTotal = existing.amount_paid;
                     if (newTotal !== existing.amount_paid) {
                         db.run('UPDATE registrations SET amount_paid = ? WHERE id = ?', [newTotal, existing.id]);
                         existing.amount_paid = newTotal;
@@ -8027,7 +8076,7 @@ By applying to this program, I provide the following consents:
                                 [JSON.stringify(meta), newTotal, existingTx.id]);
                         } else {
                             // Create missing payment transaction + invoice
-                            const invoiceNumber = existing.invoice_number || `PLX26-${String(Date.now()).slice(-6)}`;
+                            const invoiceNumber = existing.invoice_number || `INV-${Date.now()}-${uuidv4().split('-')[0]}`;
                             const vatBreakdown = firaService.calculateVAT(newTotal);
 
                             const existingInv = query.get('SELECT id FROM invoices WHERE registration_id = ?', [existing.id]);
@@ -8073,19 +8122,26 @@ By applying to this program, I provide the following consents:
                 if (match) ticket = match;
             }
 
-            // Calculate price: use frontend-calculated total (after all discounts) if provided
+            // Calculate price server-side — NEVER trust client-sent total
             const today = new Date().toISOString().split('T')[0];
             const baseTicketPrice = today <= conf.early_bird_deadline ? ticket.price_early_bird : today <= conf.regular_deadline ? ticket.price_regular : ticket.price_late;
             let price = baseTicketPrice;
 
-            // Frontend sends final total after discounts (points redemption + coupons)
-            // Accept any non-negative total — discounts can reduce price below base ticket price
-            if (req.body.total != null && req.body.total >= 0) {
-                price = req.body.total;
+            // Apply promo code discount server-side if provided
+            if (req.body.coupon) {
+                const promo = query.get('SELECT * FROM promo_codes WHERE conference_id = ? AND code = ? AND is_active = 1', [conf.id, req.body.coupon.toUpperCase()]);
+                if (promo && (!promo.valid_until || new Date(promo.valid_until) >= new Date()) && (!promo.max_uses || promo.used_count < promo.max_uses)) {
+                    const discount = promo.discount_type === 'percentage' ? price * (promo.discount_value / 100) : promo.discount_value;
+                    price = Math.max(0, price - discount);
+                    db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ? AND (max_uses IS NULL OR used_count < max_uses)', [promo.id]);
+                    if (db.getRowsModified() === 0) {
+                        return res.status(400).json({ error: 'Promo code has reached its maximum number of uses' });
+                    }
+                }
             }
 
             const regId = uuidv4();
-            const invoiceNumber = `PLX26-${String(Date.now()).slice(-6)}`;
+            const invoiceNumber = `INV-${Date.now()}-${uuidv4().split('-')[0]}`;
 
             // Determine payment status: free tickets are auto-paid, others start as pending
             const paymentStatus = price === 0 ? 'paid' : 'pending';
@@ -8451,13 +8507,11 @@ By applying to this program, I provide the following consents:
 
         let event;
         try {
-            if (process.env.STRIPE_WEBHOOK_SECRET) {
-                event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-            } else {
-                // No webhook secret — parse body directly (dev only, not secure for production)
-                console.warn('[Stripe] No STRIPE_WEBHOOK_SECRET set — skipping signature verification (dev mode)');
-                event = JSON.parse(req.body.toString());
+            if (!process.env.STRIPE_WEBHOOK_SECRET) {
+                console.error('[Stripe] STRIPE_WEBHOOK_SECRET not set — webhook rejected');
+                return res.status(500).json({ error: 'Webhook secret not configured' });
             }
+            event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
         } catch (err) {
             console.error('[Stripe] Webhook signature verification failed:', err.message);
             return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -9067,14 +9121,17 @@ By applying to this program, I provide the following consents:
             if (promo) {
                 promoId = promo.id;
                 discount = promo.discount_type === 'percentage' ? price * (promo.discount_value / 100) : promo.discount_value;
-                // Increment promo usage
-                db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ?', [promo.id]);
+                // Atomic increment promo usage — prevents race conditions
+                db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ? AND (max_uses IS NULL OR used_count < max_uses)', [promo.id]);
+                if (db.getRowsModified() === 0) {
+                    return res.status(400).json({ error: 'Promo code has reached its maximum number of uses' });
+                }
             }
         }
 
         const finalAmount = Math.max(0, price - discount);
         const regId = uuidv4();
-        const invoiceNumber = `PLX26-${String(Date.now()).slice(-6)}`;
+        const invoiceNumber = `INV-${Date.now()}-${uuidv4().split('-')[0]}`;
 
         // Generate QR code for ticket
         const qrData = JSON.stringify({ reg_id: regId, conf: 'plexus-2026' });
@@ -12306,7 +12363,8 @@ By applying to this program, I provide the following consents:
 </html>`;
 
         res.setHeader('Content-Type', 'text/html');
-        res.setHeader('Content-Disposition', `inline; filename="${invoice.invoice_number}.html"`);
+        const safeInvoiceName = (invoice.invoice_number || 'invoice').replace(/["\r\n]/g, '');
+        res.setHeader('Content-Disposition', `inline; filename="${safeInvoiceName}.html"`);
         res.send(html);
     });
 
@@ -12645,7 +12703,8 @@ By applying to this program, I provide the following consents:
 </html>`;
 
         res.setHeader('Content-Type', 'text/html');
-        res.setHeader('Content-Disposition', `inline; filename="${order.order_number}.html"`);
+        const safeOrderName = (order.order_number || 'order').replace(/["\r\n]/g, '');
+        res.setHeader('Content-Disposition', `inline; filename="${safeOrderName}.html"`);
         res.send(html);
     });
 
