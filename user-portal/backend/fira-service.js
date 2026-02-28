@@ -111,6 +111,7 @@ function buildFiraOrder(orderData) {
         invoiceType: orderData.invoiceType || 'FISKALNI_RAČUN',
         paymentType: orderData.paymentType || 'TRANSAKCIJSKI',
         currency: 'EUR',
+        taxesIncluded: true,  // Prices are brutto (VAT included)
         lineItems: lineItems.map(item => ({
             name: item.name,
             price: item.price,
