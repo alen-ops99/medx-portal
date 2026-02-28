@@ -80903,7 +80903,18 @@ You can use variables like {first_name} that will be personalized for each recip
                         }
                         this.completeRegistration(res);
                     } else if (res.error === 'Already registered' && res.registration_id) {
-                        // Already registered but maybe unpaid — try card payment for existing registration
+                        // Check if already paid
+                        try {
+                            const regInfo = await UserPortal.api(`/api/plexus/registration/${res.registration_id}/invoice`);
+                            if (regInfo?.registration?.payment_status === 'paid') {
+                                Toast.success('You have already registered and paid! Your pass is confirmed.');
+                                this.completeRegistration({ registration_id: res.registration_id, amount: 0 });
+                                if (btn) { btn.innerHTML = originalHTML; btn.disabled = false; }
+                                return;
+                            }
+                        } catch (e) { /* continue to payment */ }
+
+                        // Already registered but unpaid — try card payment for existing registration
                         if (this.paymentMethod === 'card') {
                             this._pendingRegistrationId = res.registration_id;
                             await this.redirectToStripeCheckout(res.registration_id);
@@ -80954,10 +80965,20 @@ You can use variables like {first_name} that will be personalized for each recip
                     if (choiceEl) choiceEl.style.display = 'none';
                     if (processingEl) processingEl.style.display = 'block';
 
-                    const session = await UserPortal.api('/api/plexus/checkout-session', {
+                    const rawSession = await fetch('/api/plexus/checkout-session', {
                         method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${UserPortal.token}` },
                         body: JSON.stringify({ registration_id: registrationId })
                     });
+                    const session = await rawSession.json();
+                    if (!rawSession.ok) {
+                        if (session.error === 'Already paid') {
+                            Toast.success('You have already paid! Your pass is confirmed.');
+                            this.completeRegistration({ registration_id: registrationId, amount: 0 });
+                            return;
+                        }
+                        throw new Error(session.error || 'Failed to create checkout session');
+                    }
 
                     if (session?.url) {
                         // Redirect to Stripe hosted checkout
