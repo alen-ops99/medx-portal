@@ -8047,11 +8047,26 @@ By applying to this program, I provide the following consents:
     });
 
     // Single-step registration (used by frontend PlexusPortal.submitRegistration)
-    app.post('/api/plexus/register', auth, async (req, res) => {
+    app.post('/api/plexus/register', optionalAuth, async (req, res) => {
         try {
             const { first_name, last_name, email, institution, country, pricing, dietary, accessibility, billing, package_items, payment_method } = req.body;
             const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
             if (!conf) return res.status(400).json({ error: 'Conference not found' });
+
+            // Resolve user: use authenticated user, or find/create from submitted email
+            if (!req.user) {
+                if (!email) return res.status(400).json({ error: 'Email is required' });
+                let user = query.get("SELECT id, email, is_admin FROM users WHERE email = ?", [email]);
+                if (!user) {
+                    const userId = uuidv4();
+                    const tempHash = await bcrypt.hash(uuidv4(), 10); // random password — user can reset later
+                    db.run(`INSERT INTO users (id, email, password_hash, first_name, last_name, institution, country, is_admin)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 0)`, [userId, email, tempHash, first_name || null, last_name || null, institution || null, country || null]);
+                    saveDb();
+                    user = { id: userId, email, is_admin: false };
+                }
+                req.user = user;
+            }
 
             // Check if already registered
             const existing = query.get('SELECT * FROM registrations WHERE conference_id = ? AND user_id = ? AND status != ?', [conf.id, req.user.id, 'cancelled']);
@@ -8319,13 +8334,16 @@ By applying to this program, I provide the following consents:
     });
 
     // Get invoice details for a registration
-    app.get('/api/plexus/registration/:id/invoice', auth, (req, res) => {
+    app.get('/api/plexus/registration/:id/invoice', optionalAuth, (req, res) => {
         try {
+            // Allow access if authenticated user owns it, or if no auth (registration ID is the access token)
+            const whereClause = req.user ? 'r.id = ? AND r.user_id = ?' : 'r.id = ?';
+            const params = req.user ? [req.params.id, req.user.id] : [req.params.id];
             const reg = query.get(`SELECT r.*, t.name as ticket_name, u.first_name, u.last_name, u.email
                 FROM registrations r
                 JOIN ticket_types t ON r.ticket_type_id = t.id
                 JOIN users u ON r.user_id = u.id
-                WHERE r.id = ? AND r.user_id = ?`, [req.params.id, req.user.id]);
+                WHERE ${whereClause}`, params);
 
             if (!reg) return res.status(404).json({ error: 'Registration not found' });
 
@@ -8432,18 +8450,20 @@ By applying to this program, I provide the following consents:
     });
 
     // Create Stripe Checkout Session
-    app.post('/api/plexus/checkout-session', auth, async (req, res) => {
+    app.post('/api/plexus/checkout-session', optionalAuth, async (req, res) => {
         try {
             if (!stripe) return res.status(400).json({ error: 'Stripe is not configured' });
 
             const { registration_id } = req.body;
             if (!registration_id) return res.status(400).json({ error: 'registration_id is required' });
 
+            const whereClause = req.user ? 'r.id = ? AND r.user_id = ?' : 'r.id = ?';
+            const params = req.user ? [registration_id, req.user.id] : [registration_id];
             const reg = query.get(`SELECT r.*, t.name as ticket_name, u.email as user_email
                 FROM registrations r
                 JOIN ticket_types t ON r.ticket_type_id = t.id
                 JOIN users u ON r.user_id = u.id
-                WHERE r.id = ? AND r.user_id = ?`, [registration_id, req.user.id]);
+                WHERE ${whereClause}`, params);
             if (!reg) return res.status(404).json({ error: 'Registration not found' });
             if (reg.payment_status === 'paid') return res.status(400).json({ error: 'Already paid' });
 
