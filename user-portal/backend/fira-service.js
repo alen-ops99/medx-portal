@@ -18,6 +18,7 @@ const VAT_RATE = 0.25; // Croatian VAT 25%
  * Check if FIRA integration is configured
  */
 function isConfigured() {
+    if (process.env.FIRA_DISABLED === 'true') return false;
     return !!FIRA_API_KEY;
 }
 
