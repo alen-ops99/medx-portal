@@ -8252,7 +8252,7 @@ By applying to this program, I provide the following consents:
                                 vatNumber: billing.vatNumber || '',
                                 email: billing.email || email
                             },
-                            invoiceType: 'RAČUN'  // Regular invoice (switch to FISKALNI_RAČUN once fiskalizacija is enabled)
+                            invoiceType: 'FISKALNI_RAČUN'
                         });
                     } catch (firaErr) {
                         console.error('[FIRA] Invoice creation failed (non-blocking):', firaErr.message);
@@ -8605,7 +8605,7 @@ By applying to this program, I provide the following consents:
                                     vatNumber: '',
                                     email: application.email
                                 },
-                                invoiceType: 'RAČUN',
+                                invoiceType: 'FISKALNI_RAČUN',
                                 paymentType: 'KARTICA'
                             });
                             console.log(`[Stripe→FIRA] Accelerator fiscal invoice created: ${firaResult?.invoiceNumber || 'N/A'}`);
@@ -8707,7 +8707,7 @@ By applying to this program, I provide the following consents:
                                 vatNumber: '',
                                 email: galaReg.email
                             },
-                            invoiceType: 'RAČUN',
+                            invoiceType: 'FISKALNI_RAČUN',
                             paymentType: 'KARTICA'
                         });
                         console.log(`[Stripe→FIRA] Gala fiscal invoice created: ${firaResult?.invoiceNumber || 'N/A'}`);
@@ -8796,7 +8796,7 @@ By applying to this program, I provide the following consents:
                                     vatNumber: '',
                                     email: forumReg.email || ''
                                 },
-                                invoiceType: 'RAČUN',
+                                invoiceType: 'FISKALNI_RAČUN',
                                 paymentType: 'KARTICA'
                             });
                             console.log(`[Stripe→FIRA] Forum fiscal invoice created: ${firaResult?.invoiceNumber || 'N/A'}`);
@@ -8925,7 +8925,7 @@ By applying to this program, I provide the following consents:
                                 vatNumber: billingData.vatNumber || '',
                                 email: billingData.email || reg.email
                             },
-                            invoiceType: 'RAČUN',  // Regular invoice (switch to FISKALNI_RAČUN once fiskalizacija is enabled)
+                            invoiceType: 'FISKALNI_RAČUN',
                             paymentType: 'KARTICA'
                         });
 
