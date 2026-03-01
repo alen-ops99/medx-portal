@@ -10493,17 +10493,6 @@
             color: #3b82f6;
         }
 
-        .hub-quick-grid-icon.shop {
-            background: rgba(236, 72, 153, 0.15);
-            color: #ec4899;
-        }
-
-        /* Shop: single column on narrow screens */
-        @media (max-width: 400px) {
-            #shopProductGrid {
-                grid-template-columns: 1fr !important;
-            }
-        }
 
         [data-theme="dark"] .hub-quick-grid-item:hover {
             background: rgba(255, 255, 255, 0.05);
@@ -57280,10 +57269,6 @@ textarea:focus:not(:focus-visible),
                                             <div class="hub-quick-grid-icon mymedx"><i class="fas fa-user-circle"></i></div>
                                             <span>My Med&amp;X</span>
                                         </div>
-                                        <div class="hub-quick-grid-item" onclick="UserPortal.showSection('shop'); Dashboard.closeProjectsDropdown();">
-                                            <div class="hub-quick-grid-icon shop"><i class="fas fa-shopping-bag"></i></div>
-                                            <span>Shop</span>
-                                        </div>
                                         <div class="hub-quick-grid-item" onclick="Dashboard.showNotificationsFromMenu(event); Dashboard.closeProjectsDropdown();">
                                             <div class="hub-quick-grid-icon notifications"><i class="fas fa-bell"></i><span class="up-project-badge" id="hubBadgeNotif">5</span></div>
                                             <span>Notifications</span>
@@ -67076,44 +67061,6 @@ textarea:focus:not(:focus-visible),
                 </div>
             </div>
 
-            <!-- Shop Section -->
-            <div class="up-section" id="up-section-shop">
-                <div class="shop-container" style="max-width: 800px; margin: 0 auto; padding: 20px 16px 40px;">
-                    <!-- Home Button -->
-                    <button class="section-home-btn" onclick="UserPortal.showSection('dashboard')" title="Back to Home" style="background: rgba(236, 72, 153, 0.15); border-color: rgba(236, 72, 153, 0.3); z-index: 1000;">
-                        <div class="home-house" style="--house-color: #ec4899;">
-                            <div class="home-house-chimney"></div>
-                            <div class="home-house-smoke"></div>
-                            <div class="home-house-roof"></div>
-                            <div class="home-house-body">
-                                <div class="home-house-door"></div>
-                            </div>
-                        </div>
-                    </button>
-
-                    <!-- Hero Header -->
-                    <div style="text-align: center; padding: 40px 0 24px;">
-                        <div style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #ec4899, #be185d); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 28px; color: #fff;">
-                            <i class="fas fa-shopping-bag"></i>
-                        </div>
-                        <h1 style="font-size: 24px; font-weight: 700; color: var(--up-text, #1d1d1f); margin: 0 0 4px;">Med&amp;X Shop</h1>
-                        <p style="font-size: 14px; color: var(--up-text-secondary, #6e6e73); margin: 0;">Official merchandise &amp; souvenirs</p>
-                    </div>
-
-                    <!-- How to Order Banner -->
-                    <div style="background: linear-gradient(135deg, rgba(236, 72, 153, 0.08), rgba(236, 72, 153, 0.03)); border: 1px solid rgba(236, 72, 153, 0.2); border-radius: 12px; padding: 14px 16px; margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
-                        <i class="fas fa-info-circle" style="color: #ec4899; font-size: 18px; flex-shrink: 0;"></i>
-                        <div style="font-size: 13px; color: var(--up-text-secondary, #6e6e73); line-height: 1.5;">
-                            <strong style="color: var(--up-text, #1d1d1f);">How to Order</strong> — Click the <em>Order</em> button on any item to send us an email with your selection. We'll reply with payment &amp; shipping details.
-                        </div>
-                    </div>
-
-                    <!-- Product Grid -->
-                    <div id="shopProductGrid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;">
-                        <!-- Populated by ShopPortal.init() -->
-                    </div>
-                </div>
-            </div>
 
         </main>
     </div>
@@ -75993,59 +75940,6 @@ You can use variables like {first_name} that will be personalized for each recip
             }
         };
 
-        // =========================================
-        // SHOP PORTAL - Merchandise catalog
-        // =========================================
-        const ShopPortal = {
-            products: [
-                { id: 'tshirt', name: 'Med&X T-Shirt', price: 25, icon: 'fa-tshirt', desc: 'Premium cotton, unisex fit. Available in S–XXL.' },
-                { id: 'tote', name: 'Canvas Tote Bag', price: 15, icon: 'fa-shopping-bag', desc: 'Durable canvas with embroidered Med&X logo.' },
-                { id: 'notebook', name: 'Leather Notebook', price: 20, icon: 'fa-book', desc: 'A5 vegan leather journal, 200 lined pages.' },
-                { id: 'mug', name: 'Ceramic Mug', price: 12, icon: 'fa-mug-hot', desc: '350ml white ceramic with gold Med&X crest.' },
-                { id: 'pen', name: 'Executive Pen Set', price: 30, icon: 'fa-pen', desc: 'Ballpoint & rollerball in brushed aluminium case.' },
-                { id: 'hoodie', name: 'Med&X Hoodie', price: 45, icon: 'fa-vest', desc: 'Heavyweight fleece, zip-up, embroidered crest.' }
-            ],
-
-            init() {
-                this.renderProducts();
-            },
-
-            renderProducts() {
-                const grid = document.getElementById('shopProductGrid');
-                if (!grid) return;
-
-                grid.innerHTML = this.products.map(function(p) {
-                    return '<div style="background: var(--up-bg, #ffffff); border: 1px solid var(--up-border, #d2d2d7); border-radius: 14px; padding: 18px 16px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px;">' +
-                        '<div style="width: 52px; height: 52px; border-radius: 12px; background: rgba(236, 72, 153, 0.08); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;">' +
-                            '<i class="fas ' + p.icon + '" style="font-size: 22px; color: #ec4899;"></i>' +
-                        '</div>' +
-                        '<div style="font-size: 14px; font-weight: 600; color: var(--up-text, #1d1d1f);">' + p.name + '</div>' +
-                        '<div style="font-size: 12px; color: var(--up-text-secondary, #6e6e73); line-height: 1.4;">' + p.desc + '</div>' +
-                        '<div style="font-size: 18px; font-weight: 700; color: var(--up-gold, #d4a843); margin-top: auto; padding-top: 6px;">&euro;' + p.price + '</div>' +
-                        '<button onclick="ShopPortal.orderProduct(\'' + p.id + '\', \'' + p.name + '\')" style="width: 100%; padding: 10px; border: none; border-radius: 10px; background: linear-gradient(135deg, #ec4899, #be185d); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.15s ease;" onmouseover="this.style.opacity=\'0.9\'" onmouseout="this.style.opacity=\'1\'">' +
-                            '<i class="fas fa-envelope" style="margin-right: 6px;"></i>Order' +
-                        '</button>' +
-                    '</div>';
-                }).join('');
-            },
-
-            orderProduct(id, name) {
-                var user = (typeof UserPortal !== 'undefined' && UserPortal.user) ? UserPortal.user : {};
-                var userName = user.name || 'Member';
-                var userEmail = user.email || '';
-                var subject = encodeURIComponent('Med&X Shop Order: ' + name);
-                var body = encodeURIComponent(
-                    'Hi Med&X Team,\n\n' +
-                    'I would like to order:\n' +
-                    'Product: ' + name + '\n\n' +
-                    'Name: ' + userName + '\n' +
-                    'Email: ' + userEmail + '\n\n' +
-                    'Please send me payment & shipping details.\n\n' +
-                    'Thank you!'
-                );
-                window.location.href = 'mailto:shop@medx.hr?subject=' + subject + '&body=' + body;
-            }
-        };
 
         // =========================================
         // SHARED: Full ISO 3166-1 Country List
@@ -76136,8 +76030,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 rewards: 'Med&X Rewards',
                 bridges: 'Building Bridges',
                 speaker: 'Speaker Portal',
-                mymedx: 'My Med&X',
-                shop: 'Med&X Shop'
+                mymedx: 'My Med&X'
             },
 
             // Initialize the landing page
@@ -76940,7 +76833,6 @@ You can use variables like {first_name} that will be personalized for each recip
                     if (sectionId === 'speaker') SpeakerPortal.init();
                     if (sectionId === 'gala') GalaPortal.init();
                     if (sectionId === 'mymedx') MyMedXPortal.init();
-                    if (sectionId === 'shop') ShopPortal.init();
                 } catch (e) {
                     console.error('showSection init error for', sectionId, ':', e);
                 }
