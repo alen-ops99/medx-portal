@@ -8603,7 +8603,7 @@ By applying to this program, I provide the following consents:
                                     country: application.country_of_residence || 'HR',
                                     oib: application.oib || '',
                                     vatNumber: '',
-                                    email: application.email
+                                    email: application.email || session.customer_details?.email || ''
                                 },
                                 invoiceType: 'FISKALNI_RAČUN',
                                 paymentType: 'KARTICA'
@@ -8705,7 +8705,7 @@ By applying to this program, I provide the following consents:
                                 country: 'HR',
                                 oib: '',
                                 vatNumber: '',
-                                email: galaReg.email
+                                email: galaReg.email || session.customer_details?.email || ''
                             },
                             invoiceType: 'FISKALNI_RAČUN',
                             paymentType: 'KARTICA'
@@ -8794,7 +8794,7 @@ By applying to this program, I provide the following consents:
                                     country: 'HR',
                                     oib: '',
                                     vatNumber: '',
-                                    email: forumReg.email || ''
+                                    email: forumReg.email || session.customer_details?.email || ''
                                 },
                                 invoiceType: 'FISKALNI_RAČUN',
                                 paymentType: 'KARTICA'
