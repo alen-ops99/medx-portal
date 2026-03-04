@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -282,6 +283,10 @@ async function initializeApp() {
         bio TEXT, photo_url TEXT, is_admin INTEGER DEFAULT 0, is_public_profile INTEGER DEFAULT 0,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+
+    // Email verification columns (migration — safe to re-run)
+    try { db.run('ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0'); } catch (e) { /* column may already exist */ }
+    try { db.run('ALTER TABLE users ADD COLUMN verification_token TEXT'); } catch (e) { /* column may already exist */ }
 
     db.run(`CREATE TABLE IF NOT EXISTS conferences (
         id TEXT PRIMARY KEY, name TEXT NOT NULL, year INTEGER, slug TEXT UNIQUE,
@@ -3274,11 +3279,27 @@ async function initializeApp() {
             }
             const id = uuidv4();
             const hash = await bcrypt.hash(password, 10);
-            db.run(`INSERT INTO users (id, email, password_hash, first_name, last_name, institution, country)
-                VALUES (?, ?, ?, ?, ?, ?, ?)`, [id, email, hash, first_name, last_name, institution, country]);
+            const verificationToken = crypto.randomBytes(32).toString('hex');
+            db.run(`INSERT INTO users (id, email, password_hash, first_name, last_name, institution, country, email_verified, verification_token)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`, [id, email, hash, first_name, last_name, institution, country, verificationToken]);
             saveDb();
-            const token = jwt.sign({ id, email, is_admin: 0 }, JWT_SECRET, { expiresIn: '7d' });
-            res.json({ success: true, token, user: { id, email, first_name, last_name, institution, country, is_admin: 0 }});
+
+            // Send verification email
+            const baseUrl = `${req.protocol}://${req.get('host')}`;
+            const verifyUrl = `${baseUrl}/api/verify-email?token=${verificationToken}`;
+            const emailHtml = buildEmailTemplate('Verify Your Email', `
+                <p>Hi ${first_name || 'there'},</p>
+                <p>Thank you for creating your Med&amp;X account! Please verify your email address by clicking the button below:</p>
+                <div style="text-align: center; margin: 32px 0;">
+                    <a href="${verifyUrl}" style="display: inline-block; background: #C9A962; color: #0f172a; text-decoration: none; padding: 14px 36px; border-radius: 8px; font-weight: 600; font-size: 16px;">Verify Email Address</a>
+                </div>
+                <p style="color: #64748b; font-size: 13px;">If the button doesn't work, copy and paste this link into your browser:</p>
+                <p style="word-break: break-all; color: #64748b; font-size: 13px;">${verifyUrl}</p>
+                <p style="color: #64748b; font-size: 13px; margin-top: 24px;">If you didn't create this account, you can safely ignore this email.</p>
+            `);
+            await sendEmail(email, 'Verify your Med&X account', emailHtml);
+
+            res.json({ success: true, needsVerification: true, message: 'Account created. Please check your email to verify your account.' });
         } catch (e) { console.error(e); res.status(500).json({ error: 'Registration failed' }); }
     });
 
@@ -3289,9 +3310,75 @@ async function initializeApp() {
             if (!user || !(await bcrypt.compare(password, user.password_hash))) {
                 return res.status(401).json({ error: 'Invalid credentials' });
             }
+            if (!user.email_verified) {
+                return res.status(403).json({ error: 'Email not verified', needsVerification: true, email: user.email });
+            }
             const token = jwt.sign({ id: user.id, email: user.email, is_admin: user.is_admin }, JWT_SECRET, { expiresIn: '7d' });
             res.json({ success: true, token, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name, institution: user.institution, is_admin: user.is_admin }});
         } catch (e) { console.error(e); res.status(500).json({ error: 'Login failed' }); }
+    });
+
+    // Email verification endpoint — user clicks link from verification email
+    app.get('/api/verify-email', (req, res) => {
+        try {
+            const { token } = req.query;
+            if (!token) {
+                return res.status(400).send('Missing verification token.');
+            }
+            const user = query.get('SELECT id, email, email_verified FROM users WHERE verification_token = ?', [token]);
+            if (!user) {
+                return res.status(400).send('Invalid or expired verification token.');
+            }
+            if (user.email_verified) {
+                return res.redirect('/?verified=already');
+            }
+            db.run('UPDATE users SET email_verified = 1, verification_token = NULL WHERE id = ?', [user.id]);
+            saveDb();
+            console.log(`[Auth] Email verified for user ${user.email}`);
+            res.redirect('/?verified=true');
+        } catch (e) {
+            console.error('Email verification error:', e);
+            res.status(500).send('Verification failed. Please try again.');
+        }
+    });
+
+    // Resend verification email
+    app.post('/api/resend-verification', async (req, res) => {
+        try {
+            const { email } = req.body;
+            if (!email) {
+                return res.status(400).json({ error: 'Email is required' });
+            }
+            const user = query.get('SELECT id, first_name, email_verified FROM users WHERE email = ?', [email]);
+            if (!user) {
+                // Don't reveal whether email exists
+                return res.json({ success: true, message: 'If an account with that email exists, a verification email has been sent.' });
+            }
+            if (user.email_verified) {
+                return res.json({ success: true, message: 'Email is already verified. You can sign in.' });
+            }
+            const verificationToken = crypto.randomBytes(32).toString('hex');
+            db.run('UPDATE users SET verification_token = ? WHERE id = ?', [verificationToken, user.id]);
+            saveDb();
+
+            const baseUrl = `${req.protocol}://${req.get('host')}`;
+            const verifyUrl = `${baseUrl}/api/verify-email?token=${verificationToken}`;
+            const emailHtml = buildEmailTemplate('Verify Your Email', `
+                <p>Hi ${user.first_name || 'there'},</p>
+                <p>Here is your new verification link. Please click the button below to verify your email address:</p>
+                <div style="text-align: center; margin: 32px 0;">
+                    <a href="${verifyUrl}" style="display: inline-block; background: #C9A962; color: #0f172a; text-decoration: none; padding: 14px 36px; border-radius: 8px; font-weight: 600; font-size: 16px;">Verify Email Address</a>
+                </div>
+                <p style="color: #64748b; font-size: 13px;">If the button doesn't work, copy and paste this link into your browser:</p>
+                <p style="word-break: break-all; color: #64748b; font-size: 13px;">${verifyUrl}</p>
+            `);
+            await sendEmail(email, 'Verify your Med&X account', emailHtml);
+            console.log(`[Auth] Verification email resent to ${email}`);
+            res.json({ success: true, message: 'Verification email sent. Please check your inbox.' });
+        } catch (e) {
+            console.error('Resend verification error:', e);
+            res.status(500).json({ error: 'Failed to send verification email' });
+        }
     });
 
     app.get('/api/auth/me', auth, (req, res) => {

@@ -23,7 +23,7 @@
     <meta name="apple-mobile-web-app-title" content="Med&amp;X Check-in">
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%230f172a' width='100' height='100' rx='20'/><text x='50' y='65' font-size='50' text-anchor='middle' fill='%23c9a962'>M</text></svg>">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js" integrity="sha384-Izc791esqyEy3BEIC42q7jbE0AaOkACziN+dyyXgYeDmpeMCLz0xA+xYN3aCd5zz" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" integrity="sha384-9Q0jWoineiIq95JeIyBsNV90KKLfDsbkj29k/YFxf76a2JwkHDYkMuSbNGN6XJfV" crossorigin="anonymous"></script>
@@ -43930,8 +43930,9 @@
             animation: shake 0.4s ease;
         }
 
-        /* Floating Action Button */
-        .fab {
+        /* Floating Action Button — renamed to .fab-btn to avoid
+           conflicting with Font Awesome's .fab (brand icons) class */
+        .fab-btn {
             position: fixed;
             bottom: 24px;
             right: 24px;
@@ -43951,12 +43952,12 @@
             z-index: 1000;
         }
 
-        .fab:hover {
+        .fab-btn:hover {
             transform: scale(1.1);
             box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
         }
 
-        .fab:active {
+        .fab-btn:active {
             transform: scale(0.95);
         }
 
@@ -55863,6 +55864,12 @@ textarea:focus:not(:focus-visible),
                     <span id="biometricLabel">Sign in with Face ID</span>
                 </button>
             </div> -->
+
+            <!-- Resend verification email - shown when login fails due to unverified email -->
+            <div id="resendVerificationSection" style="display: none; margin-top: 16px; padding: 14px 16px; background: rgba(201,169,98,0.08); border: 1px solid rgba(201,169,98,0.25); border-radius: 10px; text-align: center;">
+                <p style="color: #94a3b8; font-size: 13px; margin: 0 0 10px 0;">Didn't receive the email? Check your spam folder, or</p>
+                <button type="button" id="resendVerificationBtn" onclick="UserPortal.resendVerification()" style="background: transparent; color: #C9A962; border: 1px solid #C9A962; padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;">Resend Verification Email</button>
+            </div>
 
             <p class="auth-link" style="margin-top: 24px;">
                 Don't have an account? <a href="#" onclick="UserPortal.switchToRegister(); return false;">Create one</a>
@@ -76062,6 +76069,26 @@ You can use variables like {first_name} that will be personalized for each recip
                     return; // Skip the normal init flow
                 }
 
+                // Handle email verification redirect
+                const verifiedParam = urlParams.get('verified');
+                if (verifiedParam === 'true' || verifiedParam === 'already') {
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    // Open login modal with success message after a short delay for DOM readiness
+                    setTimeout(() => {
+                        this.openLoginModal();
+                        const errEl = document.getElementById('userLoginError');
+                        if (errEl) {
+                            errEl.textContent = verifiedParam === 'already'
+                                ? 'Your email is already verified. Please sign in.'
+                                : 'Email verified successfully! You can now sign in.';
+                            errEl.style.background = 'rgba(34,197,94,0.12)';
+                            errEl.style.color = '#22c55e';
+                            errEl.style.borderColor = '#22c55e';
+                            errEl.classList.add('show');
+                        }
+                    }, 300);
+                }
+
                 // Preserve session when returning from Stripe payment redirect
                 const isStripeReturn = urlParams.get('payment') === 'success' || urlParams.get('payment') === 'cancelled';
 
@@ -76274,6 +76301,15 @@ You can use variables like {first_name} that will be personalized for each recip
             openLoginModal() {
                 this.closePortalModal();
                 document.getElementById('loginModal').classList.add('active');
+                // Reset verification resend section and error styles
+                const resendEl = document.getElementById('resendVerificationSection');
+                if (resendEl) resendEl.style.display = 'none';
+                const errEl = document.getElementById('userLoginError');
+                if (errEl) {
+                    errEl.style.background = '';
+                    errEl.style.color = '';
+                    errEl.style.borderColor = '';
+                }
                 // Check if biometric login is available
                 this.checkBiometricsAvailable();
             },
@@ -76310,6 +76346,52 @@ You can use variables like {first_name} that will be personalized for each recip
 
             openForgotPassword() {
                 Toast.info('Password reset functionality will be implemented. For now, please contact info@medx.hr for assistance.');
+            },
+
+            // Resend verification email
+            async resendVerification() {
+                const email = this._pendingVerificationEmail;
+                if (!email) {
+                    Toast.error('No email address found. Please try registering again.');
+                    return;
+                }
+                const btn = document.getElementById('resendVerificationBtn');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = 'Sending...';
+                }
+                try {
+                    const res = await fetch('/api/resend-verification', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        Toast.success(data.message || 'Verification email sent! Check your inbox.');
+                        if (btn) {
+                            btn.textContent = 'Email Sent!';
+                            // Re-enable after 30 seconds to prevent spam
+                            setTimeout(() => {
+                                btn.disabled = false;
+                                btn.textContent = 'Resend Verification Email';
+                            }, 30000);
+                        }
+                    } else {
+                        Toast.error(data.error || 'Failed to send verification email.');
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.textContent = 'Resend Verification Email';
+                        }
+                    }
+                } catch (err) {
+                    console.error('Resend verification error:', err);
+                    Toast.error('Failed to send verification email. Please try again later.');
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = 'Resend Verification Email';
+                    }
+                }
             },
 
             // Login
@@ -76373,6 +76455,17 @@ You can use variables like {first_name} that will be personalized for each recip
                         this.closeLoginModal();
                         // Show welcome animation on fresh login
                         this.showUserPortal(true, false);
+                    } else if (data.needsVerification) {
+                        // Email not verified — show verification message with resend option
+                        const errEl = document.getElementById('userLoginError');
+                        errEl.innerHTML = '<i class="fas fa-envelope" style="margin-right: 6px;"></i>Please verify your email first. Check your inbox for the verification link.';
+                        errEl.style.background = '';
+                        errEl.style.color = '';
+                        errEl.style.borderColor = '';
+                        errEl.classList.add('show');
+                        this._pendingVerificationEmail = data.email || email;
+                        const resendEl = document.getElementById('resendVerificationSection');
+                        if (resendEl) resendEl.style.display = 'block';
                     } else {
                         const attempts = parseInt(sessionStorage.getItem('medx_login_attempts') || '0') + 1;
                         sessionStorage.setItem('medx_login_attempts', String(attempts));
@@ -76385,6 +76478,9 @@ You can use variables like {first_name} that will be personalized for each recip
                             document.getElementById('userLoginError').textContent = (data.error || 'Invalid email or password') + ` (${remaining} attempt${remaining !== 1 ? 's' : ''} remaining)`;
                         }
                         document.getElementById('userLoginError').classList.add('show');
+                        // Hide resend section for non-verification errors
+                        const resendEl = document.getElementById('resendVerificationSection');
+                        if (resendEl) resendEl.style.display = 'none';
                     }
                 } catch (err) {
                     console.error('Login error:', err);
@@ -76581,7 +76677,23 @@ You can use variables like {first_name} that will be personalized for each recip
 
                     const data = await res.json();
 
-                    if (data.success) {
+                    if (data.success && data.needsVerification) {
+                        // Show verification message instead of auto-login
+                        this.closeRegisterModal();
+                        this.openLoginModal();
+                        const errEl = document.getElementById('userLoginError');
+                        if (errEl) {
+                            errEl.innerHTML = '<i class="fas fa-envelope" style="margin-right: 6px;"></i>Account created! Please check your email to verify your account before signing in.';
+                            errEl.style.background = 'rgba(34,197,94,0.12)';
+                            errEl.style.color = '#22c55e';
+                            errEl.style.borderColor = '#22c55e';
+                            errEl.classList.add('show');
+                        }
+                        // Show resend link
+                        this._pendingVerificationEmail = email;
+                        const resendEl = document.getElementById('resendVerificationSection');
+                        if (resendEl) resendEl.style.display = 'block';
+                    } else if (data.success) {
                         this.token = data.token;
                         this.user = data.user;
                         localStorage.setItem('medx_user_token', data.token);
@@ -82515,7 +82627,7 @@ You can use variables like {first_name} that will be personalized for each recip
 <head>
     <meta charset="UTF-8">
     <title>Plexus 2026 Welcome Guide - ${userName}</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1d1d1f; line-height: 1.6; }
