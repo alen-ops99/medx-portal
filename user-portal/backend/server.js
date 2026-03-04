@@ -123,14 +123,7 @@ function buildEmailTemplate(title, bodyHtml) {
 }
 
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = (function() {
-    if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
-    if (process.env.NODE_ENV === 'production') {
-        console.error('FATAL: JWT_SECRET env var is required in production');
-        process.exit(1);
-    }
-    return 'medx-portal-secret-key-2026';
-})();
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'development' ? 'medx-dev-secret' : (() => { console.error('FATAL: JWT_SECRET environment variable is required in production'); process.exit(1); })());
 
 app.use(cors({
     origin: [process.env.RENDER_EXTERNAL_URL, 'http://localhost:3000', 'http://localhost:3001'].filter(Boolean)
@@ -235,8 +228,8 @@ function auth(req, res, next) {
             if (user) { req.user = user; return next(); }
         } catch(e) { /* token invalid/expired */ }
     }
-    // Dev fallback — ONLY in development
-    if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+    // Dev fallback — only in explicit development mode
+    if (process.env.NODE_ENV === 'development') {
         const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
         req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
         return next();
@@ -253,8 +246,8 @@ function optionalAuth(req, res, next) {
             if (user) { req.user = user; return next(); }
         } catch(e) { /* token invalid/expired */ }
     }
-    // Dev fallback — ONLY in development
-    if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+    // Dev fallback — only in explicit development mode
+    if (process.env.NODE_ENV === 'development') {
         const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
         req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
         return next();
@@ -1123,6 +1116,10 @@ async function initializeApp() {
         created_at DATETIME DEFAULT (datetime('now'))
     )`);
 
+    // Ensure forum_members has role/banned/muted columns (may be missing if admin portal created table first)
+    try { db.run("ALTER TABLE forum_members ADD COLUMN role TEXT DEFAULT 'member'"); } catch(e) {}
+    try { db.run("ALTER TABLE forum_members ADD COLUMN banned INTEGER DEFAULT 0"); } catch(e) {}
+    try { db.run("ALTER TABLE forum_members ADD COLUMN muted INTEGER DEFAULT 0"); } catch(e) {}
     // Add industry column to forum_members if not exists
     try { db.run(`ALTER TABLE forum_members ADD COLUMN industry TEXT`); } catch(e) {}
 
@@ -6361,8 +6358,9 @@ By applying to this program, I provide the following consents:
         if (is_featured !== undefined) { updates.push('is_featured = ?'); values.push(is_featured ? 1 : 0); }
 
         if (updates.length > 0) {
+            values.push(req.user.id);
             values.push(req.params.id);
-            db.run(`UPDATE forum_posts SET ${updates.join(', ')}, moderated_by = '${req.user.id}', moderated_at = datetime('now') WHERE id = ?`, values);
+            db.run(`UPDATE forum_posts SET ${updates.join(', ')}, moderated_by = ?, moderated_at = datetime('now') WHERE id = ?`, values);
             saveDb();
         }
         res.json({ success: true });
@@ -8871,6 +8869,16 @@ By applying to this program, I provide the following consents:
                 if (!reg) {
                     console.error(`[Stripe] Registration ${registrationId} not found`);
                     return res.status(404).send('Registration not found');
+                }
+
+                // Idempotency guard - skip if already processed
+                const existingTx = query.get(
+                    "SELECT id FROM payment_transactions WHERE registration_id = ? AND status = 'completed'",
+                    [registrationId]
+                );
+                if (existingTx) {
+                    console.log(`[Stripe] Webhook already processed for session ${session.id} (registration ${registrationId}), skipping duplicate`);
+                    return res.json({ received: true, duplicate: true });
                 }
 
                 // 1. Update registration payment status

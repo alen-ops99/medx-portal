@@ -66,16 +66,12 @@ function generateSpeakerInviteCode() {
 }
 
 const PORT = process.env.PORT || 3001;
-const JWT_SECRET = (function() {
-    if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
-    if (process.env.NODE_ENV === 'production') {
-        console.error('FATAL: JWT_SECRET env var is required in production');
-        process.exit(1);
-    }
-    return 'medx-portal-secret-key-2026';
-})();
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'development' ? 'medx-dev-secret' : (() => { console.error('FATAL: JWT_SECRET environment variable is required in production'); process.exit(1); })());
 
-app.use(cors());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001'],
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -158,8 +154,8 @@ function auth(req, res, next) {
             if (user) { req.user = user; return next(); }
         } catch(e) { /* token invalid/expired */ }
     }
-    // Dev fallback — ONLY in development
-    if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+    // Dev fallback — only in explicit development mode
+    if (process.env.NODE_ENV === 'development') {
         const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
         req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
         return next();
@@ -176,8 +172,8 @@ function optionalAuth(req, res, next) {
             if (user) { req.user = user; return next(); }
         } catch(e) { /* token invalid/expired */ }
     }
-    // Dev fallback — ONLY in development
-    if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+    // Dev fallback — only in explicit development mode
+    if (process.env.NODE_ENV === 'development') {
         const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
         req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
         return next();
@@ -493,9 +489,9 @@ async function initializeApp() {
         UNIQUE(institution_id, year)
     )`);
     // B1: Add scientific fields, eligible applicants, eligible programs columns
-    db.run(`ALTER TABLE accelerator_institution_details ADD COLUMN scientific_fields TEXT`, () => {});
-    db.run(`ALTER TABLE accelerator_institution_details ADD COLUMN eligible_applicants TEXT`, () => {});
-    db.run(`ALTER TABLE accelerator_institution_details ADD COLUMN eligible_programs TEXT`, () => {});
+    try { db.run(`ALTER TABLE accelerator_institution_details ADD COLUMN scientific_fields TEXT`); } catch(e) { /* column already exists */ }
+    try { db.run(`ALTER TABLE accelerator_institution_details ADD COLUMN eligible_applicants TEXT`); } catch(e) { /* column already exists */ }
+    try { db.run(`ALTER TABLE accelerator_institution_details ADD COLUMN eligible_programs TEXT`); } catch(e) { /* column already exists */ }
 
     // Evaluation criteria (customizable per year)
     db.run(`CREATE TABLE IF NOT EXISTS accelerator_evaluation_criteria (
@@ -2057,9 +2053,9 @@ async function initializeApp() {
     )`);
 
     // C2: Add issue_date, car_model, registration_plate columns to travel orders
-    db.run(`ALTER TABLE finance_travel_orders ADD COLUMN issue_date TEXT`, () => {});
-    db.run(`ALTER TABLE finance_travel_orders ADD COLUMN car_model TEXT`, () => {});
-    db.run(`ALTER TABLE finance_travel_orders ADD COLUMN registration_plate TEXT`, () => {});
+    try { db.run(`ALTER TABLE finance_travel_orders ADD COLUMN issue_date TEXT`); } catch(e) { /* column already exists */ }
+    try { db.run(`ALTER TABLE finance_travel_orders ADD COLUMN car_model TEXT`); } catch(e) { /* column already exists */ }
+    try { db.run(`ALTER TABLE finance_travel_orders ADD COLUMN registration_plate TEXT`); } catch(e) { /* column already exists */ }
 
     // Travel order evidence (uploaded files)
     db.run(`CREATE TABLE IF NOT EXISTS finance_travel_evidence (
@@ -2648,6 +2644,10 @@ async function initializeApp() {
     )`);
 
     // ========== CROSS-PORTAL ALTER TABLE MIGRATIONS ==========
+    // Ensure forum_members has role/banned/muted columns (may be missing if user portal created table first)
+    try { db.run("ALTER TABLE forum_members ADD COLUMN role TEXT DEFAULT 'member'"); } catch(e) {}
+    try { db.run("ALTER TABLE forum_members ADD COLUMN banned INTEGER DEFAULT 0"); } catch(e) {}
+    try { db.run("ALTER TABLE forum_members ADD COLUMN muted INTEGER DEFAULT 0"); } catch(e) {}
     // Forum columns from user portal
     try { db.run(`ALTER TABLE forum_members ADD COLUMN industry TEXT`); } catch(e) {}
     try { db.run(`ALTER TABLE forum_events ADD COLUMN event_scale TEXT DEFAULT 'small'`); } catch(e) {}
@@ -13476,40 +13476,112 @@ By applying to this program, I provide the following consents:
     });
 
     // Confirm bank transfer received (mark as paid) — also creates Finance income record
+    // Supports all payment types: plexus (conference), gala, accelerator, forum
     app.post('/api/finance/conference-payments/:id/confirm', auth, adminOnly, (req, res) => {
         try {
-            const reg = query.get(`SELECT r.*, t.name as ticket_name, u.first_name, u.last_name
-                FROM registrations r
-                JOIN ticket_types t ON r.ticket_type_id = t.id
-                JOIN users u ON r.user_id = u.id
-                WHERE r.id = ?`, [req.params.id]);
-            if (!reg) return res.status(404).json({ error: 'Registration not found' });
-            if (reg.payment_status === 'paid') return res.json({ success: true, message: 'Already paid' });
+            const paymentType = req.body.payment_type || req.query.payment_type || 'plexus';
+            const year = new Date().getFullYear();
+            const now = new Date().toISOString();
+            const today = now.split('T')[0];
 
-            db.run('UPDATE registrations SET payment_status = ? WHERE id = ?', ['paid', reg.id]);
-            db.run('UPDATE payment_transactions SET status = ? WHERE registration_id = ?', ['completed', reg.id]);
-            db.run("UPDATE invoices SET status = 'paid', paid_at = ? WHERE registration_id = ?",
-                [new Date().toISOString(), reg.id]);
+            let attendeeName, description, amount, invoiceNumber, paymentMethod, project, category;
 
-            // Determine payment method from transaction record
-            const tx = query.get('SELECT payment_method FROM payment_transactions WHERE registration_id = ?', [reg.id]);
-            const paymentMethod = tx?.payment_method || 'bank_transfer';
+            if (paymentType === 'plexus') {
+                // ----- PLEXUS (conference) -----
+                const reg = query.get(`SELECT r.*, t.name as ticket_name, u.first_name, u.last_name
+                    FROM registrations r
+                    JOIN ticket_types t ON r.ticket_type_id = t.id
+                    JOIN users u ON r.user_id = u.id
+                    WHERE r.id = ?`, [req.params.id]);
+                if (!reg) return res.status(404).json({ error: 'Registration not found' });
+                if (reg.payment_status === 'paid') return res.json({ success: true, message: 'Already paid' });
+
+                db.run('UPDATE registrations SET payment_status = ? WHERE id = ?', ['paid', reg.id]);
+                db.run('UPDATE payment_transactions SET status = ? WHERE registration_id = ?', ['completed', reg.id]);
+                db.run("UPDATE invoices SET status = 'paid', paid_at = ? WHERE registration_id = ?", [now, reg.id]);
+
+                const tx = query.get('SELECT payment_method FROM payment_transactions WHERE registration_id = ?', [reg.id]);
+                paymentMethod = tx?.payment_method || 'bank_transfer';
+                attendeeName = (reg.first_name && reg.last_name) ? `${reg.first_name} ${reg.last_name}` : 'Attendee';
+                description = `Plexus 2026 — ${attendeeName} — ${reg.ticket_name || 'Conference Ticket'}`;
+                amount = reg.amount_paid;
+                invoiceNumber = reg.invoice_number;
+                project = 'plexus-2026';
+                category = 'conference-registration';
+
+            } else if (paymentType === 'gala') {
+                // ----- GALA -----
+                const reg = query.get(`SELECT * FROM gala_registrations WHERE id = ?`, [req.params.id]);
+                if (!reg) return res.status(404).json({ error: 'Gala registration not found' });
+                if (reg.payment_status === 'paid') return res.json({ success: true, message: 'Already paid' });
+
+                db.run("UPDATE gala_registrations SET payment_status = 'paid', amount_paid = COALESCE(amount_paid, ?) WHERE id = ?",
+                    [reg.pricing === 'bundle' ? 174 : 95, reg.id]);
+
+                paymentMethod = reg.stripe_session_id ? 'card' : 'bank_transfer';
+                attendeeName = `${reg.first_name} ${reg.last_name}`;
+                const ticketLabel = reg.pricing === 'bundle' ? 'Plexus + Gala Bundle' : 'Gala Evening Only';
+                description = `Gala Evening — ${attendeeName} — ${ticketLabel}`;
+                amount = reg.amount_paid || (reg.pricing === 'bundle' ? 174 : 95);
+                invoiceNumber = reg.invoice_number;
+                project = 'plexus-2026';
+                category = 'gala-registration';
+
+            } else if (paymentType === 'accelerator') {
+                // ----- ACCELERATOR -----
+                const reg = query.get(`SELECT a.*, u.first_name, u.last_name, u.email
+                    FROM accelerator_applications a
+                    LEFT JOIN users u ON a.user_id = u.id
+                    WHERE a.id = ?`, [req.params.id]);
+                if (!reg) return res.status(404).json({ error: 'Accelerator application not found' });
+                if (reg.payment_status === 'paid') return res.json({ success: true, message: 'Already paid' });
+
+                db.run("UPDATE accelerator_applications SET payment_status = 'paid', payment_amount = COALESCE(payment_amount, 75), payment_date = ? WHERE id = ?",
+                    [today, reg.id]);
+
+                paymentMethod = reg.stripe_session_id ? 'card' : 'bank_transfer';
+                attendeeName = (reg.first_name && reg.last_name) ? `${reg.first_name} ${reg.last_name}` : 'Applicant';
+                description = `Accelerator — ${attendeeName} — Processing Fee`;
+                amount = reg.payment_amount || 75;
+                invoiceNumber = reg.application_number;
+                project = 'accelerator-2026';
+                category = 'accelerator-fee';
+
+            } else if (paymentType === 'forum') {
+                // ----- FORUM -----
+                const reg = query.get(`SELECT r.*, e.title as event_title, e.price
+                    FROM forum_event_registrations r
+                    JOIN forum_events e ON r.event_id = e.id
+                    WHERE r.id = ?`, [req.params.id]);
+                if (!reg) return res.status(404).json({ error: 'Forum registration not found' });
+                if (reg.payment_status === 'paid') return res.json({ success: true, message: 'Already paid' });
+
+                db.run("UPDATE forum_event_registrations SET payment_status = 'paid', payment_amount = COALESCE(payment_amount, ?), payment_date = ? WHERE id = ?",
+                    [reg.price || 0, today, reg.id]);
+
+                paymentMethod = reg.stripe_session_id ? 'card' : 'bank_transfer';
+                attendeeName = reg.name || `${reg.first_name || ''} ${reg.last_name || ''}`.trim() || 'Forum Member';
+                description = `Forum Event — ${attendeeName} — ${reg.event_title || 'Forum Event'}`;
+                amount = reg.payment_amount || reg.price || 0;
+                invoiceNumber = reg.invoice_number;
+                project = 'forum-2026';
+                category = 'forum-event';
+
+            } else {
+                return res.status(400).json({ error: `Unrecognized payment type: '${paymentType}'. Valid types: plexus, gala, accelerator, forum` });
+            }
 
             // Create Finance income record so it shows in Finance dashboard
-            const year = new Date().getFullYear();
             const transactionNumber = getNextSequenceNumber('income', year);
-            const attendeeName = (reg.first_name && reg.last_name) ? `${reg.first_name} ${reg.last_name}` : 'Attendee';
-            const description = `Plexus 2026 — ${attendeeName} — ${reg.ticket_name || 'Conference Ticket'}`;
-
             db.run(`INSERT INTO finance_transactions (id, transaction_number, transaction_type, amount, date, description, project, category, payment_method, reference, fiscal_year, status, created_by)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [uuidv4(), transactionNumber, 'income', reg.amount_paid, new Date().toISOString().split('T')[0],
-                 description, 'plexus-2026', 'conference-registration',
-                 paymentMethod, reg.invoice_number, year, 'completed', req.user.id]);
+                [uuidv4(), transactionNumber, 'income', amount, today,
+                 description, project, category,
+                 paymentMethod, invoiceNumber, year, 'completed', req.user.id]);
 
             saveDb();
 
-            res.json({ success: true, message: 'Payment confirmed', invoice_number: reg.invoice_number });
+            res.json({ success: true, message: 'Payment confirmed', invoice_number: invoiceNumber });
         } catch (err) {
             console.error('Payment confirmation error:', err.message);
             res.status(500).json({ error: 'Failed to confirm payment' });
