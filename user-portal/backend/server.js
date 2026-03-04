@@ -51,6 +51,9 @@ const emailTransporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: process.env.SMTP_PORT || 587,
     secure: false,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
     auth: {
         user: process.env.SMTP_USER || '',
         pass: process.env.SMTP_PASS || ''
@@ -3297,7 +3300,10 @@ async function initializeApp() {
                 <p style="word-break: break-all; color: #64748b; font-size: 13px;">${verifyUrl}</p>
                 <p style="color: #64748b; font-size: 13px; margin-top: 24px;">If you didn't create this account, you can safely ignore this email.</p>
             `);
-            await sendEmail(email, 'Verify your Med&X account', emailHtml);
+            // Send verification email in background — don't block registration
+            sendEmail(email, 'Verify your Med&X account', emailHtml)
+                .then(result => { if (!result.success) console.error('Verification email failed for', email, result.error); })
+                .catch(err => console.error('Verification email error for', email, err));
 
             res.json({ success: true, needsVerification: true, message: 'Account created. Please check your email to verify your account.' });
         } catch (e) { console.error(e); res.status(500).json({ error: 'Registration failed' }); }
