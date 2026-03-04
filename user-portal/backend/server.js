@@ -3302,29 +3302,34 @@ async function initializeApp() {
             const id = uuidv4();
             const hash = await bcrypt.hash(password, 10);
             const verificationToken = crypto.randomBytes(32).toString('hex');
+            const emailEnabled = !!(process.env.RESEND_API_KEY || process.env.SMTP_USER);
             db.run(`INSERT INTO users (id, email, password_hash, first_name, last_name, institution, country, email_verified, verification_token)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`, [id, email, hash, first_name, last_name, institution, country, verificationToken]);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [id, email, hash, first_name, last_name, institution, country, emailEnabled ? 0 : 1, verificationToken]);
             saveDb();
 
-            // Send verification email
-            const baseUrl = `${req.protocol}://${req.get('host')}`;
-            const verifyUrl = `${baseUrl}/api/verify-email?token=${verificationToken}`;
-            const emailHtml = buildEmailTemplate('Verify Your Email', `
-                <p>Hi ${first_name || 'there'},</p>
-                <p>Thank you for creating your Med&amp;X account! Please verify your email address by clicking the button below:</p>
-                <div style="text-align: center; margin: 32px 0;">
-                    <a href="${verifyUrl}" style="display: inline-block; background: #C9A962; color: #0f172a; text-decoration: none; padding: 14px 36px; border-radius: 8px; font-weight: 600; font-size: 16px;">Verify Email Address</a>
-                </div>
-                <p style="color: #64748b; font-size: 13px;">If the button doesn't work, copy and paste this link into your browser:</p>
-                <p style="word-break: break-all; color: #64748b; font-size: 13px;">${verifyUrl}</p>
-                <p style="color: #64748b; font-size: 13px; margin-top: 24px;">If you didn't create this account, you can safely ignore this email.</p>
-            `);
-            // Send verification email in background — don't block registration
-            sendEmail(email, 'Verify your Med&X account', emailHtml)
-                .then(result => { if (!result.success) console.error('Verification email failed for', email, result.error); })
-                .catch(err => console.error('Verification email error for', email, err));
-
-            res.json({ success: true, needsVerification: true, message: 'Account created. Please check your email to verify your account.' });
+            if (emailEnabled) {
+                // Send verification email
+                const baseUrl = `${req.protocol}://${req.get('host')}`;
+                const verifyUrl = `${baseUrl}/api/verify-email?token=${verificationToken}`;
+                const emailHtml = buildEmailTemplate('Verify Your Email', `
+                    <p>Hi ${first_name || 'there'},</p>
+                    <p>Thank you for creating your Med&amp;X account! Please verify your email address by clicking the button below:</p>
+                    <div style="text-align: center; margin: 32px 0;">
+                        <a href="${verifyUrl}" style="display: inline-block; background: #C9A962; color: #0f172a; text-decoration: none; padding: 14px 36px; border-radius: 8px; font-weight: 600; font-size: 16px;">Verify Email Address</a>
+                    </div>
+                    <p style="color: #64748b; font-size: 13px;">If the button doesn't work, copy and paste this link into your browser:</p>
+                    <p style="word-break: break-all; color: #64748b; font-size: 13px;">${verifyUrl}</p>
+                    <p style="color: #64748b; font-size: 13px; margin-top: 24px;">If you didn't create this account, you can safely ignore this email.</p>
+                `);
+                sendEmail(email, 'Verify your Med&X account', emailHtml)
+                    .then(result => { if (!result.success) console.error('Verification email failed for', email, result.error); })
+                    .catch(err => console.error('Verification email error for', email, err));
+                res.json({ success: true, needsVerification: true, message: 'Account created. Please check your email to verify your account.' });
+            } else {
+                // No email provider configured — skip verification, auto-verify account
+                const token = jwt.sign({ id, email, is_admin: 0 }, JWT_SECRET, { expiresIn: '7d' });
+                res.json({ success: true, token, user: { id, email, first_name, last_name, institution, is_admin: 0 }});
+            }
         } catch (e) { console.error(e); res.status(500).json({ error: 'Registration failed' }); }
     });
 
