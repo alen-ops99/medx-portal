@@ -49,8 +49,8 @@ const app = express();
 // Email configuration (uses environment variables or defaults for development)
 const emailTransporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: process.env.SMTP_PORT || 587,
-    secure: false,
+    port: parseInt(process.env.SMTP_PORT || '465'),
+    secure: process.env.SMTP_PORT ? process.env.SMTP_PORT === '465' : true,
     connectionTimeout: 10000,
     greetingTimeout: 10000,
     socketTimeout: 10000,
