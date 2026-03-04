@@ -9,8 +9,22 @@ const QRCode = require('qrcode');
 const fs = require('fs');
 const initSqlJs = require('sql.js');
 const nodemailer = require('nodemailer');
+const XLSX = require('xlsx');
 
 const app = express();
+
+// C1: XLSX export helper
+function generateXlsxBuffer(headers, rows, sheetName = 'Sheet1') {
+    const data = [headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    // Auto-size columns
+    ws['!cols'] = headers.map((h, i) => ({
+        wch: Math.max(h.length, ...rows.map(r => String(r[i] || '').length)).toString().length > 30 ? 30 : Math.max(h.length + 2, ...rows.slice(0, 20).map(r => String(r[i] || '').length + 2))
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+}
 
 // Email configuration (uses environment variables or defaults for development)
 const emailTransporter = nodemailer.createTransport({
@@ -478,6 +492,10 @@ async function initializeApp() {
         is_active INTEGER DEFAULT 1,
         UNIQUE(institution_id, year)
     )`);
+    // B1: Add scientific fields, eligible applicants, eligible programs columns
+    db.run(`ALTER TABLE accelerator_institution_details ADD COLUMN scientific_fields TEXT`, () => {});
+    db.run(`ALTER TABLE accelerator_institution_details ADD COLUMN eligible_applicants TEXT`, () => {});
+    db.run(`ALTER TABLE accelerator_institution_details ADD COLUMN eligible_programs TEXT`, () => {});
 
     // Evaluation criteria (customizable per year)
     db.run(`CREATE TABLE IF NOT EXISTS accelerator_evaluation_criteria (
@@ -2037,6 +2055,11 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (work_unit_id) REFERENCES finance_work_units(id)
     )`);
+
+    // C2: Add issue_date, car_model, registration_plate columns to travel orders
+    db.run(`ALTER TABLE finance_travel_orders ADD COLUMN issue_date TEXT`, () => {});
+    db.run(`ALTER TABLE finance_travel_orders ADD COLUMN car_model TEXT`, () => {});
+    db.run(`ALTER TABLE finance_travel_orders ADD COLUMN registration_plate TEXT`, () => {});
 
     // Travel order evidence (uploaded files)
     db.run(`CREATE TABLE IF NOT EXISTS finance_travel_evidence (
@@ -5782,7 +5805,8 @@ By applying to this program, I provide the following consents:
         const institutions = query.all(`
             SELECT i.*, d.program_type, d.available_spots, d.internship_duration, d.mentors,
                    d.visa_requirements, d.accommodation_info, d.stipend_info, d.requirements,
-                   d.contact_email, d.contact_person, d.is_active as year_active
+                   d.contact_email, d.contact_person, d.is_active as year_active,
+                   d.scientific_fields, d.eligible_applicants, d.eligible_programs
             FROM accelerator_institutions i
             LEFT JOIN accelerator_institution_details d ON i.id = d.institution_id AND d.year = ?
             WHERE i.is_active = 1
@@ -5793,7 +5817,8 @@ By applying to this program, I provide the following consents:
     // Add/update institution details for a year
     app.put('/api/accelerator/years/:year/institutions/:instId', auth, (req, res) => {
         const { program_type, available_spots, internship_duration, mentors, visa_requirements,
-                accommodation_info, stipend_info, requirements, contact_email, contact_person, is_active } = req.body;
+                accommodation_info, stipend_info, requirements, contact_email, contact_person, is_active,
+                scientific_fields, eligible_applicants, eligible_programs } = req.body;
 
         const existing = query.get('SELECT id FROM accelerator_institution_details WHERE institution_id = ? AND year = ?',
             [req.params.instId, req.params.year]);
@@ -5801,18 +5826,22 @@ By applying to this program, I provide the following consents:
         if (existing) {
             db.run(`UPDATE accelerator_institution_details SET program_type = ?, available_spots = ?,
                 internship_duration = ?, mentors = ?, visa_requirements = ?, accommodation_info = ?,
-                stipend_info = ?, requirements = ?, contact_email = ?, contact_person = ?, is_active = ?
+                stipend_info = ?, requirements = ?, contact_email = ?, contact_person = ?, is_active = ?,
+                scientific_fields = ?, eligible_applicants = ?, eligible_programs = ?
                 WHERE institution_id = ? AND year = ?`,
                 [program_type, available_spots, internship_duration, mentors, visa_requirements,
                  accommodation_info, stipend_info, requirements, contact_email, contact_person, is_active ?? 1,
+                 scientific_fields || null, eligible_applicants || null, eligible_programs || null,
                  req.params.instId, req.params.year]);
         } else {
             const id = uuidv4();
             db.run(`INSERT INTO accelerator_institution_details (id, institution_id, year, program_type, available_spots,
                 internship_duration, mentors, visa_requirements, accommodation_info, stipend_info, requirements,
-                contact_email, contact_person, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                contact_email, contact_person, is_active, scientific_fields, eligible_applicants, eligible_programs)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [id, req.params.instId, req.params.year, program_type, available_spots, internship_duration,
-                 mentors, visa_requirements, accommodation_info, stipend_info, requirements, contact_email, contact_person, is_active ?? 1]);
+                 mentors, visa_requirements, accommodation_info, stipend_info, requirements, contact_email, contact_person, is_active ?? 1,
+                 scientific_fields || null, eligible_applicants || null, eligible_programs || null]);
         }
         saveDb();
         res.json({ success: true });
@@ -8966,25 +8995,22 @@ By applying to this program, I provide the following consents:
             ORDER BY a.submitted_at DESC`);
 
         const headers = ['App#', 'Name', 'Email', 'Institution', 'Degree', 'GPA', '1st Choice', '2nd Choice', '3rd Choice', 'Status', 'Decision', 'Submitted'];
+        const dataRows = applications.map(a => [
+            a.application_number, `${a.first_name} ${a.last_name}`, a.email, a.current_institution,
+            a.degree_program, a.gpa, a.first_choice_name, a.second_choice_name, a.third_choice_name,
+            a.status, a.decision || '', a.submitted_at || ''
+        ]);
+
+        // C1: Support XLSX format
+        if (req.query.format === 'xlsx') {
+            const buf = generateXlsxBuffer(headers, dataRows, 'Applications');
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', 'attachment; filename="accelerator_applications.xlsx"');
+            return res.send(buf);
+        }
+
         const csv = [headers.join(',')];
-
-        applications.forEach(a => {
-            csv.push([
-                a.application_number,
-                `${a.first_name} ${a.last_name}`,
-                a.email,
-                a.current_institution,
-                a.degree_program,
-                a.gpa,
-                a.first_choice_name,
-                a.second_choice_name,
-                a.third_choice_name,
-                a.status,
-                a.decision || '',
-                a.submitted_at || ''
-            ].map(v => `"${sanitizeCsvCell(v).replace(/"/g, '""')}"`).join(','));
-        });
-
+        dataRows.forEach(r => csv.push(r.map(v => `"${sanitizeCsvCell(v).replace(/"/g, '""')}"`).join(',')));
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', 'attachment; filename="accelerator_applications.csv"');
         res.send(csv.join('\n'));
@@ -9073,9 +9099,18 @@ By applying to this program, I provide the following consents:
             FROM registrations r JOIN users u ON r.user_id = u.id JOIN ticket_types t ON r.ticket_type_id = t.id WHERE r.conference_id = ?`, [req.params.confId]);
 
         const headers = ['First Name','Last Name','Email','Phone','Institution','Country','Ticket','Status','Payment','Amount','Checked In','Date'];
-        const csv = [headers.join(',')];
-        rows.forEach(r => csv.push([r.first_name, r.last_name, r.email, r.phone, r.institution, r.country, r.ticket_type, r.status, r.payment_status, r.amount_paid, r.checked_in ? 'Yes' : 'No', r.created_at].map(v => `"${sanitizeCsvCell(v).replace(/"/g,'""')}"`).join(',')));
+        const dataRows = rows.map(r => [r.first_name, r.last_name, r.email, r.phone, r.institution, r.country, r.ticket_type, r.status, r.payment_status, r.amount_paid, r.checked_in ? 'Yes' : 'No', r.created_at]);
 
+        // C1: Support XLSX format
+        if (req.query.format === 'xlsx') {
+            const buf = generateXlsxBuffer(headers, dataRows, 'Registrations');
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', 'attachment; filename="registrations.xlsx"');
+            return res.send(buf);
+        }
+
+        const csv = [headers.join(',')];
+        dataRows.forEach(r => csv.push(r.map(v => `"${sanitizeCsvCell(v).replace(/"/g,'""')}"`).join(',')));
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename="registrations.csv"`);
         res.send(csv.join('\n'));
@@ -10582,6 +10617,14 @@ By applying to this program, I provide the following consents:
             (assignmentMap[v.id] || []).join('; '),
             v.status || 'pending'
         ]);
+
+        // C1: Support XLSX format
+        if (req.query.format === 'xlsx') {
+            const buf = generateXlsxBuffer(headers, rows, 'Volunteers');
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename="plexus-volunteers-${new Date().toISOString().split('T')[0]}.xlsx"`);
+            return res.send(buf);
+        }
 
         const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${sanitizeCsvCell(c).replace(/"/g, '""')}"`).join(','))].join('\n');
         res.setHeader('Content-Type', 'text/csv');
@@ -12419,6 +12462,17 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
+    // C4: Work unit transaction drill-down
+    app.get('/api/finance/work-units/:id/transactions', auth, adminOnly, (req, res) => {
+        const transactions = query.all(`
+            SELECT t.*, wu.code as work_unit_code, wu.name as work_unit_name
+            FROM finance_transactions t
+            LEFT JOIN finance_work_units wu ON t.work_unit_id = wu.id
+            WHERE t.work_unit_id = ?
+            ORDER BY t.date DESC`, [req.params.id]);
+        res.json(transactions);
+    });
+
     // Transactions
     app.get('/api/finance/transactions', auth, adminOnly, (req, res) => {
         const { year, type, project, work_unit_id, limit: limitParam, offset } = req.query;
@@ -12711,13 +12765,16 @@ By applying to this program, I provide the following consents:
             settings[s.setting_key] = s.setting_value;
         });
 
+        // C5: Croatian localization, C6: Print-friendly PDF approach
+        const formatDateHR = (d) => d ? d.split('-').reverse().join('.') : '-';
         const html = `
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
+    <title>Račun ${invoice.invoice_number}</title>
     <style>
-        body { font-family: Arial, sans-serif; font-size: 12px; padding: 40px; }
+        body { font-family: Arial, sans-serif; font-size: 12px; padding: 40px; max-width: 800px; margin: 0 auto; }
         .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
         .logo { font-size: 24px; font-weight: bold; color: #c9a962; }
         .invoice-title { font-size: 20px; font-weight: bold; text-align: right; }
@@ -12732,41 +12789,50 @@ By applying to this program, I provide the following consents:
         .total-row { display: flex; justify-content: flex-end; gap: 40px; margin: 5px 0; }
         .grand-total { font-size: 16px; font-weight: bold; border-top: 2px solid #333; padding-top: 10px; }
         .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; }
+        .print-btn { position: fixed; top: 10px; right: 10px; padding: 10px 20px; background: #c9a962; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; z-index: 100; }
+        .print-btn:hover { background: #b8953a; }
+        @media print {
+            .print-btn { display: none; }
+            body { padding: 20px; }
+            @page { size: A4; margin: 15mm; }
+        }
     </style>
 </head>
 <body>
+    <button class="print-btn" onclick="window.print()">🖨 Ispis / Print</button>
+
     <div class="header">
         <div class="logo">Med&X</div>
         <div class="invoice-title">
-            ${invoice.direction === 'incoming' ? 'INCOMING INVOICE' : 'OUTGOING INVOICE'}<br>
+            ${invoice.direction === 'incoming' ? 'ULAZNI RAČUN' : 'RAČUN'}<br>
             <span style="font-size: 14px; color: #666;">${invoice.invoice_number}</span>
         </div>
     </div>
 
     <div class="parties">
         <div class="party">
-            <div class="party-label">From:</div>
+            <div class="party-label">Od / From:</div>
             <strong>${settings.company_name || 'Med&X'}</strong><br>
             ${settings.company_address || ''}<br>
-            ${settings.company_oib ? 'Tax ID: ' + settings.company_oib : ''}
+            ${settings.company_oib ? 'OIB: ' + settings.company_oib : ''}
         </div>
         <div class="party">
-            <div class="party-label">To:</div>
+            <div class="party-label">Za / To:</div>
             <strong>${invoice.party_name}</strong><br>
             ${invoice.party_address || ''}<br>
-            ${invoice.party_oib ? 'Tax ID: ' + invoice.party_oib : ''}
+            ${invoice.party_oib ? 'OIB: ' + invoice.party_oib : ''}
         </div>
     </div>
 
     <table>
         <thead>
             <tr>
-                <th>Description</th>
-                <th class="text-right">Qty.</th>
-                <th class="text-right">Price</th>
-                <th class="text-right">Discount</th>
-                <th class="text-right">VAT</th>
-                <th class="text-right">Total</th>
+                <th>Opis</th>
+                <th class="text-right">Kol.</th>
+                <th class="text-right">Cijena</th>
+                <th class="text-right">Popust</th>
+                <th class="text-right">PDV</th>
+                <th class="text-right">Ukupno</th>
             </tr>
         </thead>
         <tbody>
@@ -12784,17 +12850,17 @@ By applying to this program, I provide the following consents:
     </table>
 
     <div class="totals">
-        <div class="total-row"><span>Subtotal:</span><span>${invoice.subtotal.toFixed(2)} EUR</span></div>
-        ${invoice.discount_total > 0 ? `<div class="total-row"><span>Discount:</span><span>-${invoice.discount_total.toFixed(2)} EUR</span></div>` : ''}
-        ${invoice.vat_total > 0 ? `<div class="total-row"><span>VAT:</span><span>${invoice.vat_total.toFixed(2)} EUR</span></div>` : ''}
-        <div class="total-row grand-total"><span>TOTAL:</span><span>${invoice.total.toFixed(2)} EUR</span></div>
+        <div class="total-row"><span>Podzbroj:</span><span>${invoice.subtotal.toFixed(2)} EUR</span></div>
+        ${invoice.discount_total > 0 ? `<div class="total-row"><span>Popust:</span><span>-${invoice.discount_total.toFixed(2)} EUR</span></div>` : ''}
+        ${invoice.vat_total > 0 ? `<div class="total-row"><span>PDV:</span><span>${invoice.vat_total.toFixed(2)} EUR</span></div>` : ''}
+        <div class="total-row grand-total"><span>UKUPNO:</span><span>${invoice.total.toFixed(2)} EUR</span></div>
     </div>
 
     <div class="footer">
-        <p><strong>Issue Date:</strong> ${invoice.issue_date || '-'}</p>
-        <p><strong>Payment Due:</strong> ${invoice.due_date || '-'}</p>
+        <p><strong>Datum izdavanja:</strong> ${formatDateHR(invoice.issue_date)}</p>
+        <p><strong>Rok plaćanja:</strong> ${formatDateHR(invoice.due_date)}</p>
         ${settings.company_iban ? `<p><strong>IBAN:</strong> ${settings.company_iban}</p>` : ''}
-        ${invoice.notes ? `<p><strong>Note:</strong> ${invoice.notes}</p>` : ''}
+        ${invoice.notes ? `<p><strong>Napomena:</strong> ${invoice.notes}</p>` : ''}
         <p style="margin-top: 20px; color: #666;">${settings.invoice_footer || ''}</p>
     </div>
 </body>
@@ -12905,7 +12971,7 @@ By applying to this program, I provide the following consents:
 
     app.post('/api/finance/travel-orders', auth, adminOnly, (req, res) => {
         const { traveler_id, traveler_name, destination, purpose, planned_departure, planned_return, travel_method,
-            notes, project, work_unit_id, fiscal_year, advance_amount } = req.body;
+            notes, project, work_unit_id, fiscal_year, advance_amount, issue_date, car_model, registration_plate, kilometers } = req.body;
 
         const id = uuidv4();
         const year = fiscal_year || new Date().getFullYear();
@@ -12913,10 +12979,11 @@ By applying to this program, I provide the following consents:
 
         db.run(`INSERT INTO finance_travel_orders (id, order_number, traveler_id, traveler_name, destination, purpose,
             planned_departure, planned_return, travel_method, notes, project, work_unit_id, fiscal_year,
-            advance_amount, assigned_by, assigned_at, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime(?), 'assigned')`,
+            advance_amount, assigned_by, assigned_at, status, issue_date, car_model, registration_plate, kilometers)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime(?), 'assigned', ?, ?, ?, ?)`,
             [id, orderNumber, traveler_id, traveler_name, destination, purpose || null, planned_departure || null, planned_return || null,
-             travel_method || null, notes || null, project || null, work_unit_id || null, year, advance_amount || 0, req.user.id, 'now']);
+             travel_method || null, notes || null, project || null, work_unit_id || null, year, advance_amount || 0, req.user.id, 'now',
+             issue_date || null, car_model || null, registration_plate || null, kilometers || 0]);
         saveDb();
         res.json({ success: true, id, order_number: orderNumber });
     });
@@ -12984,6 +13051,19 @@ By applying to this program, I provide the following consents:
             [rejection_reason, req.params.id]);
         saveDb();
         res.json({ success: true });
+    });
+
+    // C3: Calculate endpoint — approved → calculated
+    app.post('/api/finance/travel-orders/:id/calculate', auth, adminOnly, (req, res) => {
+        const { reimbursement_amount } = req.body;
+        const order = query.get('SELECT * FROM finance_travel_orders WHERE id = ?', [req.params.id]);
+        if (!order) return res.status(404).json({ error: 'Not found' });
+        if (order.status !== 'approved') return res.status(400).json({ error: 'Order must be approved before calculating' });
+
+        db.run(`UPDATE finance_travel_orders SET status = 'calculated', reimbursement_amount = ? WHERE id = ?`,
+            [reimbursement_amount, req.params.id]);
+        saveDb();
+        res.json({ success: true, reimbursement_amount });
     });
 
     app.post('/api/finance/travel-orders/:id/pay', auth, adminOnly, (req, res) => {
@@ -13058,13 +13138,16 @@ By applying to this program, I provide the following consents:
             settings[s.setting_key] = s.setting_value;
         });
 
+        // C5: Croatian localization, C6: Print-friendly
+        const formatDateHR = (d) => d ? d.split('-').reverse().join('.') : '-';
         const html = `
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
+    <title>Putni nalog ${order.order_number}</title>
     <style>
-        body { font-family: Arial, sans-serif; font-size: 12px; padding: 40px; }
+        body { font-family: Arial, sans-serif; font-size: 12px; padding: 40px; max-width: 800px; margin: 0 auto; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #c9a962; padding-bottom: 20px; }
         .logo { font-size: 24px; font-weight: bold; color: #c9a962; }
         .title { font-size: 18px; font-weight: bold; text-align: right; }
@@ -13083,57 +13166,73 @@ By applying to this program, I provide the following consents:
         .sig-line { border-top: 1px solid #333; margin-top: 40px; padding-top: 5px; }
         .status-badge { display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; }
         .status-approved { background: #d4edda; color: #155724; }
+        .status-calculated { background: #e8daef; color: #6c3483; }
         .status-paid { background: #cce5ff; color: #004085; }
+        .print-btn { position: fixed; top: 10px; right: 10px; padding: 10px 20px; background: #c9a962; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; z-index: 100; }
+        .print-btn:hover { background: #b8953a; }
+        @media print {
+            .print-btn { display: none; }
+            body { padding: 20px; }
+            @page { size: A4; margin: 15mm; }
+        }
     </style>
 </head>
 <body>
+    <button class="print-btn" onclick="window.print()">🖨 Ispis / Print</button>
+
     <div class="header">
         <div class="logo">Med&X</div>
         <div class="title">
-            TRAVEL ORDER<br>
+            PUTNI NALOG<br>
             <span style="font-size: 14px; color: #666;">${order.order_number}</span><br>
+            ${order.issue_date ? `<span style="font-size: 12px; color: #666;">Datum izdavanja: ${formatDateHR(order.issue_date)}</span><br>` : ''}
             <span class="status-badge status-${order.status}">${order.status.toUpperCase()}</span>
         </div>
     </div>
 
     <div class="section">
-        <div class="section-title">Traveler Information</div>
-        <div class="row"><span class="label">Full Name:</span><span class="value">${order.traveler_name}</span></div>
-        <div class="row"><span class="label">Destination:</span><span class="value">${order.destination}</span></div>
-        <div class="row"><span class="label">Purpose of Travel:</span><span class="value">${order.purpose || '-'}</span></div>
+        <div class="section-title">Podaci o putniku</div>
+        <div class="row"><span class="label">Ime i prezime:</span><span class="value">${order.traveler_name}</span></div>
+        <div class="row"><span class="label">Odredište:</span><span class="value">${order.destination}</span></div>
+        <div class="row"><span class="label">Svrha putovanja:</span><span class="value">${order.purpose || '-'}</span></div>
+        <div class="row"><span class="label">Prijevozno sredstvo:</span><span class="value">${order.travel_method || '-'}</span></div>
+        ${order.travel_method === 'car' ? `
+        <div class="row"><span class="label">Model vozila:</span><span class="value">${order.car_model || '-'}</span></div>
+        <div class="row"><span class="label">Registracija:</span><span class="value">${order.registration_plate || '-'}</span></div>
+        ` : ''}
     </div>
 
     <div class="section">
-        <div class="section-title">Dates</div>
-        <div class="row"><span class="label">Planned Departure:</span><span class="value">${order.planned_departure || '-'}</span></div>
-        <div class="row"><span class="label">Planned Return:</span><span class="value">${order.planned_return || '-'}</span></div>
-        <div class="row"><span class="label">Actual Departure:</span><span class="value">${order.actual_departure || '-'}</span></div>
-        <div class="row"><span class="label">Actual Return:</span><span class="value">${order.actual_return || '-'}</span></div>
+        <div class="section-title">Datumi</div>
+        <div class="row"><span class="label">Planirani polazak:</span><span class="value">${formatDateHR(order.planned_departure)}</span></div>
+        <div class="row"><span class="label">Planirani povratak:</span><span class="value">${formatDateHR(order.planned_return)}</span></div>
+        <div class="row"><span class="label">Stvarni polazak:</span><span class="value">${formatDateHR(order.actual_departure)}</span></div>
+        <div class="row"><span class="label">Stvarni povratak:</span><span class="value">${formatDateHR(order.actual_return)}</span></div>
     </div>
 
     <div class="section">
-        <div class="section-title">Expenses</div>
+        <div class="section-title">Troškovi</div>
         <table>
-            <tr><th>Expense Type</th><th class="text-right">Amount (EUR)</th></tr>
-            <tr><td>Transport</td><td class="text-right">${(order.cost_transport || 0).toFixed(2)}</td></tr>
-            <tr><td>Accommodation</td><td class="text-right">${(order.cost_accommodation || 0).toFixed(2)}</td></tr>
-            <tr><td>Daily Allowance</td><td class="text-right">${(order.cost_daily_allowance || 0).toFixed(2)}</td></tr>
-            <tr><td>Other</td><td class="text-right">${(order.cost_other || 0).toFixed(2)}</td></tr>
-            <tr class="total-row"><td>TOTAL</td><td class="text-right">${(order.cost_total || 0).toFixed(2)}</td></tr>
-            ${order.advance_amount > 0 ? `<tr><td>Advance</td><td class="text-right">-${order.advance_amount.toFixed(2)}</td></tr>` : ''}
-            ${order.advance_amount > 0 ? `<tr class="total-row"><td>Amount Due</td><td class="text-right">${((order.cost_total || 0) - (order.advance_amount || 0)).toFixed(2)}</td></tr>` : ''}
+            <tr><th>Vrsta troška</th><th class="text-right">Iznos (EUR)</th></tr>
+            <tr><td>Prijevoz</td><td class="text-right">${(order.cost_transport || 0).toFixed(2)}</td></tr>
+            <tr><td>Smještaj</td><td class="text-right">${(order.cost_accommodation || 0).toFixed(2)}</td></tr>
+            <tr><td>Dnevnica</td><td class="text-right">${(order.cost_daily_allowance || 0).toFixed(2)}</td></tr>
+            <tr><td>Ostalo</td><td class="text-right">${(order.cost_other || 0).toFixed(2)}</td></tr>
+            <tr class="total-row"><td>UKUPNO</td><td class="text-right">${(order.cost_total || 0).toFixed(2)}</td></tr>
+            ${order.advance_amount > 0 ? `<tr><td>Predujam</td><td class="text-right">-${order.advance_amount.toFixed(2)}</td></tr>` : ''}
+            ${order.advance_amount > 0 ? `<tr class="total-row"><td>Za isplatu</td><td class="text-right">${((order.cost_total || 0) - (order.advance_amount || 0)).toFixed(2)}</td></tr>` : ''}
         </table>
-        ${order.kilometers > 0 ? `<p>Kilometers Traveled: ${order.kilometers} km (${settings.travel_km_rate || '0.40'} EUR/km)</p>` : ''}
+        ${order.kilometers > 0 ? `<p>Prijeđeni kilometri: ${order.kilometers} km (${settings.travel_km_rate || '0.40'} EUR/km)</p>` : ''}
     </div>
 
-    ${order.traveler_notes ? `<div class="section"><div class="section-title">Traveler Notes</div><p>${order.traveler_notes}</p></div>` : ''}
+    ${order.traveler_notes ? `<div class="section"><div class="section-title">Napomene putnika</div><p>${order.traveler_notes}</p></div>` : ''}
 
     <div class="signature">
         <div class="sig-block">
-            <div class="sig-line">Traveler</div>
+            <div class="sig-line">Putnik</div>
         </div>
         <div class="sig-block">
-            <div class="sig-line">Approved By</div>
+            <div class="sig-line">Odobrio/la</div>
         </div>
     </div>
 </body>
@@ -15185,6 +15284,40 @@ By applying to this program, I provide the following consents:
             try { updated.testimonials = JSON.parse(updated.testimonials_json || '[]'); } catch(e) { updated.testimonials = []; }
         }
         res.json({ success: true, settings: updated });
+    });
+
+    // D1: Venue Rooms CRUD
+    app.get('/api/admin/plexus/rooms', auth, adminOnly, (req, res) => {
+        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        if (!conf) return res.json([]);
+        res.json(query.all('SELECT * FROM venue_rooms WHERE conference_id = ? ORDER BY name', [conf.id]));
+    });
+
+    app.post('/api/admin/plexus/rooms', auth, adminOnly, (req, res) => {
+        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        if (!conf) return res.status(404).json({ error: 'Conference not found' });
+        const { name, floor, capacity, equipment, description, photo_url } = req.body;
+        const id = uuidv4();
+        db.run(`INSERT INTO venue_rooms (id, conference_id, name, floor, capacity, equipment, description, photo_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, conf.id, name, floor || null, capacity || 0, equipment || null, description || null, photo_url || null]);
+        saveDb();
+        res.json({ success: true, id });
+    });
+
+    app.put('/api/admin/plexus/rooms/:id', auth, adminOnly, (req, res) => {
+        const { name, floor, capacity, equipment, description, photo_url } = req.body;
+        db.run(`UPDATE venue_rooms SET name = ?, floor = ?, capacity = ?, equipment = ?, description = ?, photo_url = ?
+            WHERE id = ?`,
+            [name, floor || null, capacity || 0, equipment || null, description || null, photo_url || null, req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    app.delete('/api/admin/plexus/rooms/:id', auth, adminOnly, (req, res) => {
+        db.run('DELETE FROM venue_rooms WHERE id = ?', [req.params.id]);
+        saveDb();
+        res.json({ success: true });
     });
 
     // ==================== TECH DASHBOARD ====================

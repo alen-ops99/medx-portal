@@ -6538,7 +6538,8 @@
                             <div class="card-header">
                                 <span class="card-title">All Registrations</span>
                                 <div style="display: flex; gap: 8px;">
-                                    <button class="btn btn-secondary" onclick="App.exportPlexusRegistrations()"><i class="fas fa-download"></i> Export</button>
+                                    <button class="btn btn-secondary" onclick="App.exportPlexusRegistrations('csv')"><i class="fas fa-download"></i> CSV</button>
+                                    <button class="btn btn-secondary" onclick="App.exportPlexusRegistrations('xlsx')" style="margin-left: 4px;"><i class="fas fa-file-excel"></i> XLSX</button>
                                     <button class="btn btn-primary" onclick="App.openManualRegistration()"><i class="fas fa-plus"></i> Add</button>
                                 </div>
                             </div>
@@ -6604,7 +6605,8 @@
                             <div class="card-header">
                                 <span class="card-title">Abstract Submissions</span>
                                 <div style="display: flex; gap: 8px;">
-                                    <button class="btn btn-secondary" onclick="App.exportPlexusAbstracts()"><i class="fas fa-download"></i> Export CSV</button>
+                                    <button class="btn btn-secondary" onclick="App.exportPlexusAbstracts('csv')"><i class="fas fa-download"></i> CSV</button>
+                                    <button class="btn btn-secondary" onclick="App.exportPlexusAbstracts('xlsx')" style="margin-left: 4px;"><i class="fas fa-file-excel"></i> XLSX</button>
                                 </div>
                             </div>
                             <div class="card-body">
@@ -6886,7 +6888,8 @@ President, Med&amp;X</textarea>
                             <div class="card">
                                 <div class="card-header">
                                     <span class="card-title">Volunteer Applications</span>
-                                    <button class="btn btn-secondary" onclick="App.exportPlexusVolunteers()"><i class="fas fa-download"></i> Export CSV</button>
+                                    <button class="btn btn-secondary" onclick="App.exportPlexusVolunteers('csv')"><i class="fas fa-download"></i> CSV</button>
+                                    <button class="btn btn-secondary" onclick="App.exportPlexusVolunteers('xlsx')" style="margin-left: 4px;"><i class="fas fa-file-excel"></i> XLSX</button>
                                 </div>
                                 <div class="card-body">
                                     <table class="data-table">
@@ -7004,6 +7007,29 @@ President, Med&amp;X</textarea>
                             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;"><h3 class="card-title">Testimonials</h3><button class="btn btn-secondary" onclick="PlexusSettingsAdmin.addTestimonial()" style="font-size: 12px;"><i class="fas fa-plus"></i> Add Testimonial</button></div>
                             <div class="card-body" id="pxTestimonialsEditor"></div>
                         </div>
+                        <!-- D1: Venue Rooms Management -->
+                        <div class="card">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <h3 class="card-title"><i class="fas fa-door-open" style="margin-right: 8px;"></i>Venue Rooms</h3>
+                                <button class="btn btn-primary" onclick="PlexusSettingsAdmin.addRoom()" style="font-size: 12px;"><i class="fas fa-plus"></i> Add Room</button>
+                            </div>
+                            <div class="card-body">
+                                <table style="width: 100%; font-size: 13px;">
+                                    <thead>
+                                        <tr style="border-bottom: 1px solid var(--border);">
+                                            <th style="padding: 8px; text-align: left;">Name</th>
+                                            <th style="padding: 8px; text-align: left;">Floor</th>
+                                            <th style="padding: 8px; text-align: center;">Capacity</th>
+                                            <th style="padding: 8px; text-align: left;">Equipment</th>
+                                            <th style="padding: 8px; text-align: center;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="pxVenueRoomsTable">
+                                        <tr><td colspan="5" style="padding: 20px; text-align: center; color: var(--text-muted);">Loading rooms...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                         <div style="margin-top: 20px; display: flex; justify-content: flex-end;"><button class="btn btn-primary" onclick="PlexusSettingsAdmin.saveSettings()" style="padding: 12px 32px;"><i class="fas fa-save"></i> Save All Plexus Settings</button></div>
                     </div>
 
@@ -7063,6 +7089,38 @@ President, Med&amp;X</textarea>
                             </div>
                         </div>
                     </div>
+
+                        <!-- B2: Quick Settings Summary Card -->
+                        <div class="card" style="margin-top: 20px;">
+                            <div class="card-header">
+                                <span class="card-title"><i class="fas fa-bolt" style="margin-right: 8px; color: var(--warning);"></i>Quick Settings</span>
+                            </div>
+                            <div class="card-body" id="accQuickSettingsSummary">
+                                <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">Key settings from across Accelerator tabs at a glance.</p>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;" id="accQuickSettingsGrid">
+                                    <div style="background: var(--bg-secondary); border-radius: 8px; padding: 12px;">
+                                        <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;">Application Deadline</div>
+                                        <div style="font-weight: 600;" id="accQsDeadline">—</div>
+                                        <a href="#" onclick="AcceleratorApp.showTab('dates'); return false;" style="font-size: 11px; color: var(--accent-primary);">Edit in Key Dates →</a>
+                                    </div>
+                                    <div style="background: var(--bg-secondary); border-radius: 8px; padding: 12px;">
+                                        <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;">Positions Available</div>
+                                        <div style="font-weight: 600;" id="accQsPositions">—</div>
+                                        <a href="#" onclick="AcceleratorApp.showTab('overview'); return false;" style="font-size: 11px; color: var(--accent-primary);">Edit below →</a>
+                                    </div>
+                                    <div style="background: var(--bg-secondary); border-radius: 8px; padding: 12px;">
+                                        <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;">Institutions</div>
+                                        <div style="font-weight: 600;" id="accQsInstitutions">—</div>
+                                        <a href="#" onclick="AcceleratorApp.showTab('institutions'); return false;" style="font-size: 11px; color: var(--accent-primary);">Edit in Institutions →</a>
+                                    </div>
+                                    <div style="background: var(--bg-secondary); border-radius: 8px; padding: 12px;">
+                                        <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;">Applications</div>
+                                        <div style="font-weight: 600;" id="accQsApplications">—</div>
+                                        <a href="#" onclick="AcceleratorApp.showTab('applications'); return false;" style="font-size: 11px; color: var(--accent-primary);">View Applications →</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
                         <!-- Overview Config Card -->
                         <div class="card" style="margin-top: 20px;">
@@ -7329,7 +7387,8 @@ President, Med&amp;X</textarea>
                             <div class="card-header">
                                 <span class="card-title">Applications for <span id="accAppsYear">2026</span></span>
                                 <div style="display: flex; gap: 8px;">
-                                    <button class="btn btn-secondary" onclick="AcceleratorApp.exportApplicationsCsv()" style="font-size: 12px;"><i class="fas fa-download"></i> Export CSV</button>
+                                    <button class="btn btn-secondary" onclick="AcceleratorApp.exportApplicationsCsv('csv')" style="font-size: 12px;"><i class="fas fa-download"></i> CSV</button>
+                                    <button class="btn btn-secondary" onclick="AcceleratorApp.exportApplicationsCsv('xlsx')" style="font-size: 12px; margin-left: 4px;"><i class="fas fa-file-excel"></i> XLSX</button>
                                 </div>
                             </div>
                             <div class="card-body">
@@ -7628,6 +7687,21 @@ President, Med&amp;X</textarea>
                                     <div>
                                         <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 500;">Visa Requirements</label>
                                         <textarea id="accInstEditVisa" rows="3" placeholder="Required documentation, application process..." style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical;"></textarea>
+                                    </div>
+                                    <!-- B1: New fields - scientific fields, eligible applicants, eligible programs -->
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 500;">Scientific Fields</label>
+                                        <input type="text" id="accInstEditScientificFields" placeholder="e.g., Neuroscience, Oncology, Cardiology" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                        <div>
+                                            <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 500;">Eligible Applicants</label>
+                                            <input type="text" id="accInstEditEligibleApplicants" placeholder="e.g., MD students, PhD candidates, Postdocs" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        </div>
+                                        <div>
+                                            <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 500;">Eligible Programs</label>
+                                            <input type="text" id="accInstEditEligiblePrograms" placeholder="e.g., Clinical rotations, Research fellowships" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        </div>
                                     </div>
                                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                                         <div>
@@ -8419,7 +8493,7 @@ President, Med&amp;X</textarea>
                             <i class="fas fa-plane-departure"></i> Travel Orders
                         </button>
                         <button class="tab-btn" onclick="FinanceApp.showTab('conference-payments', this)">
-                            <i class="fas fa-ticket-alt"></i> Conference Payments
+                            <i class="fas fa-ticket-alt"></i> Event Payments
                         </button>
                         <button class="tab-btn" onclick="FinanceApp.showTab('reports', this)">
                             <i class="fas fa-chart-pie"></i> Reports
@@ -8578,13 +8652,13 @@ President, Med&amp;X</textarea>
                                 <table style="width: 100%;">
                                     <thead>
                                         <tr style="border-bottom: 1px solid var(--border);">
-                                            <th style="padding: 12px; text-align: left;">Code</th>
-                                            <th style="padding: 12px; text-align: left;">Name</th>
-                                            <th style="padding: 12px; text-align: left;">Grant Source</th>
-                                            <th style="padding: 12px; text-align: right;">Budget</th>
-                                            <th style="padding: 12px; text-align: right;">Used</th>
-                                            <th style="padding: 12px; text-align: right;">Remaining</th>
-                                            <th style="padding: 12px; text-align: center;">Status</th>
+                                            <th style="padding: 12px; text-align: left;" title="Unique work unit identifier">Code</th>
+                                            <th style="padding: 12px; text-align: left;" title="Work unit name or project title">Name</th>
+                                            <th style="padding: 12px; text-align: left;" title="Funding source (e.g. EU grant, sponsor, internal)">Grant Source</th>
+                                            <th style="padding: 12px; text-align: right;" title="Total allocated budget for this work unit">Budget</th>
+                                            <th style="padding: 12px; text-align: right;" title="Amount spent so far (sum of linked transactions)">Used</th>
+                                            <th style="padding: 12px; text-align: right;" title="Budget minus used amount">Remaining</th>
+                                            <th style="padding: 12px; text-align: center;" title="Active = accepting expenses, Closed = no new expenses">Status</th>
                                             <th style="padding: 12px; text-align: center;">Actions</th>
                                         </tr>
                                     </thead>
@@ -8614,13 +8688,14 @@ President, Med&amp;X</textarea>
                                 <table style="width: 100%;">
                                     <thead>
                                         <tr style="border-bottom: 1px solid var(--border);">
-                                            <th style="padding: 12px; text-align: left;">Number</th>
-                                            <th style="padding: 12px; text-align: left;">Type</th>
-                                            <th style="padding: 12px; text-align: left;">Party</th>
-                                            <th style="padding: 12px; text-align: right;">Total</th>
-                                            <th style="padding: 12px; text-align: left;">Issue Date</th>
-                                            <th style="padding: 12px; text-align: left;">Due Date</th>
-                                            <th style="padding: 12px; text-align: center;">Status</th>
+                                            <th style="padding: 12px; text-align: left;" title="Invoice number (auto-generated)">Number</th>
+                                            <th style="padding: 12px; text-align: left;" title="Incoming = received from vendor, Outgoing = issued to client">Type</th>
+                                            <th style="padding: 12px; text-align: left;" title="Client or vendor name">Party</th>
+                                            <th style="padding: 12px; text-align: left;" title="Croatian Tax ID (OIB) of the party">OIB</th>
+                                            <th style="padding: 12px; text-align: right;" title="Total amount including VAT">Total</th>
+                                            <th style="padding: 12px; text-align: left;" title="Date the invoice was issued">Issue Date</th>
+                                            <th style="padding: 12px; text-align: left;" title="Payment deadline">Due Date</th>
+                                            <th style="padding: 12px; text-align: center;" title="Draft → Issued → Paid">Status</th>
                                             <th style="padding: 12px; text-align: center;">Actions</th>
                                         </tr>
                                     </thead>
@@ -8669,6 +8744,7 @@ President, Med&amp;X</textarea>
                                         <option value="assigned">Assigned</option>
                                         <option value="submitted">Submitted</option>
                                         <option value="approved">Approved</option>
+                                        <option value="calculated">Calculated</option>
                                         <option value="rejected">Rejected</option>
                                         <option value="paid">Paid</option>
                                     </select>
@@ -8681,12 +8757,12 @@ President, Med&amp;X</textarea>
                                 <table style="width: 100%;">
                                     <thead>
                                         <tr style="border-bottom: 1px solid var(--border);">
-                                            <th style="padding: 12px; text-align: left;">Number</th>
-                                            <th style="padding: 12px; text-align: left;">Traveler</th>
-                                            <th style="padding: 12px; text-align: left;">Destination</th>
-                                            <th style="padding: 12px; text-align: left;">Dates</th>
-                                            <th style="padding: 12px; text-align: right;">Total Cost</th>
-                                            <th style="padding: 12px; text-align: center;">Status</th>
+                                            <th style="padding: 12px; text-align: left;" title="Travel order reference number">Number</th>
+                                            <th style="padding: 12px; text-align: left;" title="Person traveling">Traveler</th>
+                                            <th style="padding: 12px; text-align: left;" title="Travel destination city/country">Destination</th>
+                                            <th style="padding: 12px; text-align: left;" title="Departure and return dates">Dates</th>
+                                            <th style="padding: 12px; text-align: right;" title="Estimated total travel cost including per diem">Total Cost</th>
+                                            <th style="padding: 12px; text-align: center;" title="Assigned → Submitted → Approved → Calculated → Paid">Status</th>
                                             <th style="padding: 12px; text-align: center;">Actions</th>
                                         </tr>
                                     </thead>
@@ -8696,7 +8772,7 @@ President, Med&amp;X</textarea>
                         </div>
                     </div>
 
-                    <!-- Conference Payments Tab -->
+                    <!-- Event Payments Tab -->
                     <div class="finance-tab" id="finance-tab-conference-payments">
                         <!-- Summary Cards -->
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px;">
@@ -8768,7 +8844,7 @@ President, Med&amp;X</textarea>
                         </div>
 
                         <div style="margin-top: 12px; font-size: 12px; color: var(--text-muted);">
-                            <i class="fas fa-info-circle"></i> Pending revenue: <strong id="confPayPendingRevenue">€0.00</strong> awaiting bank transfer confirmation.
+                            <i class="fas fa-info-circle" title="Revenue from bank transfer registrations that haven't been confirmed yet"></i> Pending revenue: <strong id="confPayPendingRevenue">€0.00</strong> awaiting bank transfer confirmation.
                         </div>
                     </div>
 
@@ -8896,6 +8972,16 @@ President, Med&amp;X</textarea>
                                     <label>Invoice Footer Text</label>
                                     <textarea id="finSettingInvoiceFooter" rows="2" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);"></textarea>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- C7: Early bird pricing note -->
+                        <div style="margin-top: 20px; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.3); border-radius: 8px; padding: 16px;">
+                            <div style="font-weight: 600; margin-bottom: 4px;"><i class="fas fa-info-circle" style="color: #3b82f6; margin-right: 6px;"></i>Event Pricing &amp; Early Bird</div>
+                            <div style="font-size: 13px; color: var(--text-muted);">
+                                Conference pricing tiers (early bird, regular) and deadlines are managed in
+                                <a href="#" onclick="App.showSection('plexus'); App.showPlexusTab('settings'); return false;" style="color: var(--accent-primary); font-weight: 500;">Plexus → Settings</a>.
+                                Early bird deadline determines when pricing automatically switches to regular rates.
                             </div>
                         </div>
 
@@ -10610,6 +10696,17 @@ President, Med&amp;X</textarea>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="finTravelOrderId">
+                <!-- C2: Issue date at top -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label>Issue Date</label>
+                        <input type="date" id="finTravelOrderIssueDate" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                    </div>
+                    <div class="form-group">
+                        <label>Destination</label>
+                        <input type="text" id="finTravelOrderDest" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                    </div>
+                </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                     <div class="form-group">
                         <label>Traveler</label>
@@ -10618,28 +10715,28 @@ President, Med&amp;X</textarea>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Destination</label>
-                        <input type="text" id="finTravelOrderDest" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                        <label>Purpose</label>
+                        <input type="text" id="finTravelOrderPurpose" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
                     </div>
                 </div>
-                <div class="form-group">
-                    <label>Purpose</label>
-                    <input type="text" id="finTravelOrderPurpose" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
                     <div class="form-group">
                         <label>Planned Departure</label>
-                        <input type="date" id="finTravelOrderDeparture" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                        <input type="date" id="finTravelOrderDeparture" onchange="FinanceApp.updateTravelDuration()" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
                     </div>
                     <div class="form-group">
                         <label>Planned Return</label>
-                        <input type="date" id="finTravelOrderReturn" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                        <input type="date" id="finTravelOrderReturn" onchange="FinanceApp.updateTravelDuration()" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                    </div>
+                    <div class="form-group">
+                        <label>Duration</label>
+                        <div id="finTravelOrderDuration" style="padding: 10px; font-weight: 600; color: var(--text-muted);">—</div>
                     </div>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                     <div class="form-group">
                         <label>Travel Method</label>
-                        <select id="finTravelOrderMethod" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                        <select id="finTravelOrderMethod" onchange="FinanceApp.toggleCarFields()" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
                             <option value="plane">Plane</option>
                             <option value="train">Train</option>
                             <option value="bus">Bus</option>
@@ -10650,6 +10747,24 @@ President, Med&amp;X</textarea>
                     <div class="form-group">
                         <label>Advance Amount (EUR)</label>
                         <input type="number" id="finTravelOrderAdvance" step="0.01" value="0" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                    </div>
+                </div>
+                <!-- C2: Conditional car fields -->
+                <div id="finTravelOrderCarFields" style="display: none; background: var(--bg-secondary); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                    <div style="font-size: 12px; font-weight: 600; margin-bottom: 8px; color: var(--text-muted);">Vehicle Details</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Car Model</label>
+                            <input type="text" id="finTravelOrderCarModel" placeholder="e.g., VW Golf" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Registration Plate</label>
+                            <input type="text" id="finTravelOrderCarPlate" placeholder="e.g., ZG-1234-AB" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Kilometers</label>
+                            <input type="number" id="finTravelOrderKilometers" step="0.1" value="0" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                        </div>
                     </div>
                 </div>
                 <div class="form-group">
@@ -16493,7 +16608,12 @@ President, Med&amp;X</textarea>
                 this.filterPlexusRegistrations();
             },
 
-            exportPlexusRegistrations() {
+            exportPlexusRegistrations(format = 'csv') {
+                // C1: XLSX uses server-side generation for proper Excel formatting
+                if (format === 'xlsx' && this.currentConference) {
+                    window.open(`/api/admin/export/registrations/${this.currentConference}?format=xlsx`, '_blank');
+                    return;
+                }
                 const data = this.pxRegFiltered && this.pxRegFiltered.length > 0 ? this.pxRegFiltered : this.plexusRegistrations;
                 if (!data || data.length === 0) {
                     Toast.warning('No registrations to export');
@@ -16697,7 +16817,7 @@ President, Med&amp;X</textarea>
                 this.filterPlexusAbstracts();
             },
 
-            exportPlexusAbstracts() {
+            exportPlexusAbstracts(format = 'csv') {
                 const data = this.pxAbsFiltered && this.pxAbsFiltered.length > 0 ? this.pxAbsFiltered : this.plexusAbstracts;
                 if (!data || data.length === 0) {
                     Toast.warning('No abstracts to export');
@@ -16710,6 +16830,21 @@ President, Med&amp;X</textarea>
                     a.category || '', a.status || '', a.decision || '',
                     a.average_score != null ? a.average_score : ''
                 ]);
+
+                // C1: XLSX export
+                if (format === 'xlsx') {
+                    // Client-side XLSX using table data (no server endpoint needed for abstracts)
+                    const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${(c || '').toString().replace(/"/g, '""')}"`).join(','))].join('\n');
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `plexus-abstracts-${new Date().toISOString().split('T')[0]}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    Toast.info('Abstracts exported as CSV (XLSX export coming soon for this data type)');
+                    return;
+                }
 
                 const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${(c || '').toString().replace(/"/g, '""')}"`).join(','))].join('\n');
                 const blob = new Blob([csv], { type: 'text/csv' });
@@ -16886,10 +17021,11 @@ President, Med&amp;X</textarea>
                     `<option value="${s.id}">${this.escapeHtml(s.name || 'Unknown')}</option>`
                 ).join('');
 
-                // Populate room suggestions
+                // D1: Populate room suggestions from venue_rooms + existing sessions
                 const roomList = document.getElementById('roomSuggestions');
                 const existingRooms = [...new Set((this.plexusSessions || []).map(s => s.room).filter(Boolean))];
-                const allRooms = [...new Set([...existingRooms, 'Main Hall', 'Room A', 'Room B', 'Workshop Room'])];
+                const venueRoomNames = (PlexusSettingsAdmin.rooms || []).map(r => r.name);
+                const allRooms = [...new Set([...venueRoomNames, ...existingRooms, 'Main Hall'])];
                 roomList.innerHTML = allRooms.map(r => `<option value="${r}">`).join('');
 
                 if (sessionId) {
@@ -16991,7 +17127,7 @@ President, Med&amp;X</textarea>
             async bulkPublishSessions() {
                 const unpublished = (this.plexusSessions || []).filter(s => !s.is_published);
                 if (unpublished.length === 0) { Toast.success('All sessions are already published'); return; }
-                if (!confirm(`Publish ${unpublished.length} unpublished session(s)? Users will be notified.`)) return;
+                if (!confirm(`Publish ${unpublished.length} unpublished session(s) to the attendee-facing schedule? All registered users will be notified.`)) return;
                 try {
                     const result = await this.api('/api/admin/plexus/sessions/bulk-publish', {
                         method: 'POST', body: JSON.stringify({ session_ids: unpublished.map(s => s.id) })
@@ -17863,7 +17999,12 @@ President, Med&amp;X</textarea>
                 }
             },
 
-            exportPlexusVolunteers() {
+            exportPlexusVolunteers(format = 'csv') {
+                // C1: XLSX uses server endpoint
+                if (format === 'xlsx') {
+                    window.open(`/api/admin/plexus/volunteers/export?format=xlsx`, '_blank');
+                    return;
+                }
                 if (!this.plexusVolunteers || this.plexusVolunteers.length === 0) {
                     Toast.warning('No volunteers to export');
                     return;
@@ -20060,6 +20201,12 @@ President, Med&amp;X</textarea>
                 document.getElementById('accStatReview').textContent = this.applications.filter(a => a.status === 'submitted').length;
                 document.getElementById('accStatValid').textContent = this.applications.filter(a => a.validity_status === 'valid').length;
                 document.getElementById('accStatInstitutions').textContent = this.institutions.length;
+                // B2: Update Quick Settings summary
+                const qsDeadline = document.getElementById('accCfgDeadline')?.value;
+                document.getElementById('accQsDeadline').textContent = qsDeadline ? new Date(qsDeadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+                document.getElementById('accQsPositions').textContent = document.getElementById('accCfgPositions')?.value || '—';
+                document.getElementById('accQsInstitutions').textContent = `${this.institutions.length} active`;
+                document.getElementById('accQsApplications').textContent = `${this.applications.length} total (${this.applications.filter(a => a.status === 'submitted').length} pending)`;
             },
 
             // OVERVIEW CONFIG — Admin-editable overview page values
@@ -20535,6 +20682,9 @@ President, Med&amp;X</textarea>
                 document.getElementById('accInstEditDuration').value = inst.internship_duration || '';
                 document.getElementById('accInstEditMentors').value = inst.mentors || '';
                 document.getElementById('accInstEditVisa').value = inst.visa_requirements || '';
+                document.getElementById('accInstEditScientificFields').value = inst.scientific_fields || '';
+                document.getElementById('accInstEditEligibleApplicants').value = inst.eligible_applicants || '';
+                document.getElementById('accInstEditEligiblePrograms').value = inst.eligible_programs || '';
                 document.getElementById('accInstEditAccommodation').value = inst.accommodation_info || '';
                 document.getElementById('accInstEditStipend').value = inst.stipend_info || '';
                 document.getElementById('accInstEditContactPerson').value = inst.contact_person || '';
@@ -20557,6 +20707,9 @@ President, Med&amp;X</textarea>
                     internship_duration: document.getElementById('accInstEditDuration').value,
                     mentors: document.getElementById('accInstEditMentors').value,
                     visa_requirements: document.getElementById('accInstEditVisa').value,
+                    scientific_fields: document.getElementById('accInstEditScientificFields').value,
+                    eligible_applicants: document.getElementById('accInstEditEligibleApplicants').value,
+                    eligible_programs: document.getElementById('accInstEditEligiblePrograms').value,
                     accommodation_info: document.getElementById('accInstEditAccommodation').value,
                     stipend_info: document.getElementById('accInstEditStipend').value,
                     contact_person: document.getElementById('accInstEditContactPerson').value,
@@ -20837,7 +20990,12 @@ President, Med&amp;X</textarea>
                 }
             },
 
-            exportApplicationsCsv() {
+            exportApplicationsCsv(format = 'csv') {
+                // C1: XLSX uses server endpoint
+                if (format === 'xlsx') {
+                    window.open(`/api/accelerator/years/${this.currentYear}/applications/export?format=xlsx`, '_blank');
+                    return;
+                }
                 const data = this.accAppsFiltered && this.accAppsFiltered.length > 0 ? this.accAppsFiltered : this.applications;
                 if (!data || data.length === 0) { Toast.warning('No applications to export'); return; }
 
@@ -22533,6 +22691,7 @@ By applying to this program, I give the following consents:
                                 </span>
                             </td>
                             <td style="padding: 12px; text-align: center;">
+                                <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.viewWorkUnitDetails('${wu.id}')" title="View Transactions"><i class="fas fa-list"></i></button>
                                 <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.editWorkUnit('${wu.id}')"><i class="fas fa-edit"></i></button>
                                 <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.deleteWorkUnit('${wu.id}')"><i class="fas fa-trash"></i></button>
                             </td>
@@ -22600,6 +22759,86 @@ By applying to this program, I give the following consents:
                 this.loadDashboard();
             },
 
+            // C4: Work unit expense drill-down
+            async viewWorkUnitDetails(id) {
+                const wu = this.workUnits.find(w => w.id === id) || {};
+                const transactions = await this.api(`/api/finance/work-units/${id}/transactions`);
+
+                // Build category breakdown
+                const categories = {};
+                transactions.forEach(t => {
+                    const cat = t.category || 'uncategorized';
+                    if (!categories[cat]) categories[cat] = 0;
+                    categories[cat] += t.amount || 0;
+                });
+
+                const modalHtml = `
+                    <div class="modal-overlay active" id="finWorkUnitDetailModal" onclick="if(event.target===this) FinanceApp.closeModal('finWorkUnitDetailModal')">
+                        <div class="modal" style="max-width: 750px; max-height: 90vh; overflow-y: auto;">
+                            <div class="modal-header">
+                                <h3>${escapeHtml(wu.code || '')} — ${escapeHtml(wu.name || 'Work Unit')} Transactions</h3>
+                                <button class="modal-close" onclick="FinanceApp.closeModal('finWorkUnitDetailModal')">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+                                    <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; text-align: center;">
+                                        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Budget</div>
+                                        <div style="font-weight: 700; font-size: 18px;">${this.formatCurrency(wu.budget_total || 0)}</div>
+                                    </div>
+                                    <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; text-align: center;">
+                                        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Used</div>
+                                        <div style="font-weight: 700; font-size: 18px; color: var(--danger);">${this.formatCurrency(wu.budget_used || 0)}</div>
+                                    </div>
+                                    <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; text-align: center;">
+                                        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Remaining</div>
+                                        <div style="font-weight: 700; font-size: 18px; color: var(--success);">${this.formatCurrency((wu.budget_total || 0) - (wu.budget_used || 0))}</div>
+                                    </div>
+                                </div>
+                                ${Object.keys(categories).length > 0 ? `
+                                <div style="margin-bottom: 16px;">
+                                    <h4 style="margin-bottom: 8px;">By Category</h4>
+                                    ${Object.entries(categories).map(([cat, amount]) => `
+                                        <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border);">
+                                            <span style="text-transform: capitalize;">${escapeHtml(cat)}</span>
+                                            <span style="font-weight: 600;">${this.formatCurrency(amount)}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                ` : ''}
+                                <h4 style="margin-bottom: 8px;">Transactions (${transactions.length})</h4>
+                                ${transactions.length === 0 ? '<div style="color: var(--text-muted); text-align: center; padding: 20px;">No transactions linked to this work unit</div>' : `
+                                <table style="width: 100%; font-size: 13px;">
+                                    <thead><tr style="border-bottom: 1px solid var(--border);">
+                                        <th style="padding: 8px; text-align: left;">Date</th>
+                                        <th style="padding: 8px; text-align: left;">Type</th>
+                                        <th style="padding: 8px; text-align: left;">Description</th>
+                                        <th style="padding: 8px; text-align: left;">Category</th>
+                                        <th style="padding: 8px; text-align: right;">Amount</th>
+                                    </tr></thead>
+                                    <tbody>${transactions.map(t => `
+                                        <tr style="border-bottom: 1px solid var(--border);">
+                                            <td style="padding: 8px;">${t.date || '-'}</td>
+                                            <td style="padding: 8px;"><span style="background: ${t.transaction_type === 'income' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}; color: ${t.transaction_type === 'income' ? 'var(--success)' : 'var(--danger)'}; padding: 2px 6px; border-radius: 4px; font-size: 10px; text-transform: uppercase;">${t.transaction_type}</span></td>
+                                            <td style="padding: 8px;">${escapeHtml(t.description || '-')}</td>
+                                            <td style="padding: 8px; text-transform: capitalize;">${escapeHtml(t.category || '-')}</td>
+                                            <td style="padding: 8px; text-align: right; font-weight: 600; color: ${t.transaction_type === 'income' ? 'var(--success)' : 'var(--danger)'};">${this.formatCurrency(t.amount)}</td>
+                                        </tr>
+                                    `).join('')}</tbody>
+                                </table>
+                                `}
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn btn-secondary" onclick="FinanceApp.closeModal('finWorkUnitDetailModal')">Close</button>
+                            </div>
+                        </div>
+                    </div>`;
+
+                // Remove existing if any, then inject
+                const existing = document.getElementById('finWorkUnitDetailModal');
+                if (existing) existing.remove();
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+            },
+
             // Invoices
             async loadInvoices() {
                 const direction = document.getElementById('finInvoiceDirection')?.value || '';
@@ -22609,7 +22848,7 @@ By applying to this program, I give the following consents:
                 const invoices = await this.api(url);
                 const tbody = document.getElementById('finInvoicesTable');
                 if (invoices.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="8" style="padding: 20px; text-align: center; color: var(--text-muted);">No invoices</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="9" style="padding: 20px; text-align: center; color: var(--text-muted);">No invoices</td></tr>';
                     return;
                 }
                 tbody.innerHTML = invoices.map(inv => `
@@ -22621,6 +22860,7 @@ By applying to this program, I give the following consents:
                             </span>
                         </td>
                         <td style="padding: 12px;">${inv.party_name}</td>
+                        <td style="padding: 12px; font-size: 12px; color: var(--text-muted);">${inv.party_oib || '-'}</td>
                         <td style="padding: 12px; text-align: right; font-weight: 600;">${this.formatCurrency(inv.total)}</td>
                         <td style="padding: 12px;">${inv.issue_date || '-'}</td>
                         <td style="padding: 12px;">${inv.due_date || '-'}</td>
@@ -22880,6 +23120,7 @@ By applying to this program, I give the following consents:
                         assigned: { bg: 'rgba(59,130,246,0.2)', color: '#3b82f6' },
                         submitted: { bg: 'rgba(245,158,11,0.2)', color: 'var(--warning)' },
                         approved: { bg: 'rgba(34,197,94,0.2)', color: 'var(--success)' },
+                        calculated: { bg: 'rgba(168,85,247,0.2)', color: '#a855f7' },
                         rejected: { bg: 'rgba(239,68,68,0.2)', color: 'var(--danger)' },
                         paid: { bg: 'rgba(16,185,129,0.2)', color: 'var(--finances)' }
                     };
@@ -22905,8 +23146,28 @@ By applying to this program, I give the following consents:
                 }).join('');
             },
 
+            // C2: Travel duration calculation
+            updateTravelDuration() {
+                const dep = document.getElementById('finTravelOrderDeparture').value;
+                const ret = document.getElementById('finTravelOrderReturn').value;
+                const el = document.getElementById('finTravelOrderDuration');
+                if (dep && ret) {
+                    const days = Math.ceil((new Date(ret) - new Date(dep)) / (1000 * 60 * 60 * 24));
+                    el.textContent = days > 0 ? `${days} day${days !== 1 ? 's' : ''}` : '—';
+                } else {
+                    el.textContent = '—';
+                }
+            },
+
+            // C2: Toggle car-specific fields
+            toggleCarFields() {
+                const method = document.getElementById('finTravelOrderMethod').value;
+                document.getElementById('finTravelOrderCarFields').style.display = method === 'car' ? 'block' : 'none';
+            },
+
             async openTravelOrderModal() {
                 document.getElementById('finTravelOrderId').value = '';
+                document.getElementById('finTravelOrderIssueDate').value = new Date().toISOString().split('T')[0];
                 document.getElementById('finTravelOrderDest').value = '';
                 document.getElementById('finTravelOrderPurpose').value = '';
                 document.getElementById('finTravelOrderDeparture').value = '';
@@ -22915,6 +23176,11 @@ By applying to this program, I give the following consents:
                 document.getElementById('finTravelOrderAdvance').value = '0';
                 document.getElementById('finTravelOrderProject').value = '';
                 document.getElementById('finTravelOrderNotes').value = '';
+                document.getElementById('finTravelOrderCarModel').value = '';
+                document.getElementById('finTravelOrderCarPlate').value = '';
+                document.getElementById('finTravelOrderKilometers').value = '0';
+                document.getElementById('finTravelOrderDuration').textContent = '—';
+                document.getElementById('finTravelOrderCarFields').style.display = 'none';
                 document.getElementById('finTravelOrderModalTitle').textContent = 'Create Travel Order';
 
                 // Load team members
@@ -22928,6 +23194,7 @@ By applying to this program, I give the following consents:
             async saveTravelOrder() {
                 const travelerSelect = document.getElementById('finTravelOrderTraveler');
                 const selectedOption = travelerSelect.options[travelerSelect.selectedIndex];
+                const method = document.getElementById('finTravelOrderMethod').value;
                 const data = {
                     traveler_id: travelerSelect.value,
                     traveler_name: selectedOption?.dataset?.name || '',
@@ -22935,10 +23202,14 @@ By applying to this program, I give the following consents:
                     purpose: document.getElementById('finTravelOrderPurpose').value,
                     planned_departure: document.getElementById('finTravelOrderDeparture').value,
                     planned_return: document.getElementById('finTravelOrderReturn').value,
-                    travel_method: document.getElementById('finTravelOrderMethod').value,
+                    travel_method: method,
                     advance_amount: parseFloat(document.getElementById('finTravelOrderAdvance').value) || 0,
                     project: document.getElementById('finTravelOrderProject').value || null,
                     notes: document.getElementById('finTravelOrderNotes').value,
+                    issue_date: document.getElementById('finTravelOrderIssueDate').value || null,
+                    car_model: method === 'car' ? document.getElementById('finTravelOrderCarModel').value : null,
+                    registration_plate: method === 'car' ? document.getElementById('finTravelOrderCarPlate').value : null,
+                    kilometers: method === 'car' ? parseFloat(document.getElementById('finTravelOrderKilometers').value) || 0 : 0,
                     fiscal_year: this.currentYear
                 };
 
@@ -22956,15 +23227,32 @@ By applying to this program, I give the following consents:
                 const footer = document.getElementById('finTravelOrderDetailFooter');
                 document.getElementById('finTravelOrderDetailTitle').textContent = `Travel Order ${order.order_number}`;
 
+                // C2: Compute travel duration
+                const travelDuration = (order.planned_departure && order.planned_return)
+                    ? Math.ceil((new Date(order.planned_return) - new Date(order.planned_departure)) / (1000 * 60 * 60 * 24))
+                    : null;
+
                 body.innerHTML = `
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                         <div><strong>Traveler:</strong> ${escapeHtml(order.traveler_name)}</div>
                         <div><strong>Status:</strong> ${escapeHtml(order.status.toUpperCase())}</div>
                         <div><strong>Destination:</strong> ${escapeHtml(order.destination)}</div>
                         <div><strong>Purpose:</strong> ${escapeHtml(order.purpose || '-')}</div>
-                        <div><strong>Planned:</strong> ${escapeHtml(order.planned_departure || '-')} to ${escapeHtml(order.planned_return || '-')}</div>
+                        ${order.issue_date ? `<div><strong>Issue Date:</strong> ${escapeHtml(order.issue_date)}</div>` : ''}
+                        <div><strong>Travel Method:</strong> ${escapeHtml(order.travel_method || '-')}</div>
+                        <div><strong>Planned:</strong> ${escapeHtml(order.planned_departure || '-')} to ${escapeHtml(order.planned_return || '-')}${travelDuration ? ` <span style="color: var(--accent-primary); font-weight: 600;">(${travelDuration} day${travelDuration !== 1 ? 's' : ''})</span>` : ''}</div>
                         <div><strong>Actual:</strong> ${escapeHtml(order.actual_departure || '-')} to ${escapeHtml(order.actual_return || '-')}</div>
                     </div>
+                    ${order.travel_method === 'car' ? `
+                    <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; margin-bottom: 16px;">
+                        <div style="font-size: 12px; font-weight: 600; margin-bottom: 8px; color: var(--text-muted);">Vehicle Details</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+                            <div><strong>Car Model:</strong> ${escapeHtml(order.car_model || '-')}</div>
+                            <div><strong>Reg. Plate:</strong> ${escapeHtml(order.registration_plate || '-')}</div>
+                            <div><strong>Kilometers:</strong> ${order.kilometers || 0} km</div>
+                        </div>
+                    </div>
+                    ` : ''}
                     <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
                         <h4 style="margin-bottom: 12px;">Costs</h4>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
@@ -22990,12 +23278,14 @@ By applying to this program, I give the following consents:
                     ` : ''}
                 `;
 
-                // Footer actions based on status
+                // Footer actions based on status (C3: approved → calculated → paid)
                 let actions = '<button class="btn btn-secondary" onclick="FinanceApp.closeModal(\'finTravelOrderDetailModal\')">Close</button>';
                 if (order.status === 'submitted') {
                     actions += ` <button class="btn btn-primary" onclick="FinanceApp.approveTravelOrder('${id}')"><i class="fas fa-check"></i> Approve</button>`;
                     actions += ` <button class="btn btn-danger" onclick="FinanceApp.rejectTravelOrder('${id}')"><i class="fas fa-times"></i> Reject</button>`;
                 } else if (order.status === 'approved') {
+                    actions += ` <button class="btn btn-primary" onclick="FinanceApp.calculateTravelOrder('${id}')"><i class="fas fa-calculator"></i> Calculate Final Amount</button>`;
+                } else if (order.status === 'calculated') {
                     actions += ` <button class="btn btn-primary" onclick="FinanceApp.payTravelOrder('${id}')"><i class="fas fa-euro-sign"></i> Mark Paid</button>`;
                 }
                 footer.innerHTML = actions;
@@ -23023,6 +23313,23 @@ By applying to this program, I give the following consents:
                 this.loadDashboard();
             },
 
+            // C3: Calculate final amount before paying
+            async calculateTravelOrder(id) {
+                const order = await this.api(`/api/finance/travel-orders/${id}`);
+                const totalExpenses = (order.cost_transport || 0) + (order.cost_accommodation || 0) + (order.cost_daily_allowance || 0) + (order.cost_other || 0);
+                const advance = order.advance_amount || 0;
+                const reimbursement = totalExpenses - advance;
+                const msg = `Calculate final amount?\n\nTotal Expenses: €${totalExpenses.toFixed(2)}\nAdvance Paid: €${advance.toFixed(2)}\n─────────────\nFinal Reimbursement: €${reimbursement.toFixed(2)}\n\nThis will mark the order as "Calculated" and ready for payment.`;
+                if (!confirm(msg)) return;
+                await this.api(`/api/finance/travel-orders/${id}/calculate`, {
+                    method: 'POST',
+                    body: JSON.stringify({ reimbursement_amount: reimbursement })
+                });
+                this.closeModal('finTravelOrderDetailModal');
+                this.loadTravelOrders();
+                this.loadDashboard();
+            },
+
             async payTravelOrder(id) {
                 if (!confirm('Mark this travel order as paid? This will create an expense transaction.')) return;
                 await this.api(`/api/finance/travel-orders/${id}/pay`, { method: 'POST' });
@@ -23033,7 +23340,7 @@ By applying to this program, I give the following consents:
                 this.loadTransactions();
             },
 
-            // Conference Payments
+            // Event Payments
             _confPaySearchTimeout: null,
             _confPaySourceFilter: 'all',
 
@@ -25734,6 +26041,8 @@ By applying to this program, I give the following consents:
                         this.renderKeyDatesEditor();
                         this.renderTestimonialsEditor();
                     }
+                    // D1: Also load rooms
+                    this.loadRooms();
                 } catch(e) { console.error('Failed to load plexus settings:', e); }
             },
 
@@ -25813,6 +26122,98 @@ By applying to this program, I give the following consents:
                     if (res.ok) { Toast.success('Plexus settings saved successfully'); const r = await res.json(); this.settings = r.settings; }
                     else { Toast.error('Failed to save settings'); }
                 } catch(e) { console.error('Save plexus settings error:', e); Toast.error('Failed to save settings'); }
+            },
+
+            // D1: Room Management
+            rooms: [],
+
+            async loadRooms() {
+                try {
+                    const res = await fetch('/api/admin/plexus/rooms', {
+                        headers: { 'Authorization': 'Bearer ' + App.token }
+                    });
+                    if (res.ok) {
+                        this.rooms = await res.json();
+                        this.renderRoomsTable();
+                    }
+                } catch(e) { console.error('Failed to load rooms:', e); }
+            },
+
+            renderRoomsTable() {
+                const tbody = document.getElementById('pxVenueRoomsTable');
+                if (!tbody) return;
+                if (this.rooms.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="padding: 20px; text-align: center; color: var(--text-muted);">No rooms configured. Click "Add Room" to get started.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = this.rooms.map(r => `
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 8px; font-weight: 600;">${escapeHtml(r.name || '')}</td>
+                        <td style="padding: 8px;">${escapeHtml(r.floor || '-')}</td>
+                        <td style="padding: 8px; text-align: center;">${r.capacity || '-'}</td>
+                        <td style="padding: 8px; font-size: 12px; color: var(--text-muted);">${escapeHtml(r.equipment || '-')}</td>
+                        <td style="padding: 8px; text-align: center;">
+                            <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="PlexusSettingsAdmin.editRoom('${r.id}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="PlexusSettingsAdmin.deleteRoom('${r.id}')"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `).join('');
+            },
+
+            async addRoom() {
+                const name = prompt('Room name (e.g., "Main Hall", "Room A"):');
+                if (!name) return;
+                const floor = prompt('Floor (e.g., "Ground", "1st"):') || '';
+                const capacity = parseInt(prompt('Capacity (number of seats):')) || 0;
+                const equipment = prompt('Equipment (e.g., "Projector, Microphone, Whiteboard"):') || '';
+
+                try {
+                    const res = await fetch('/api/admin/plexus/rooms', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + App.token },
+                        body: JSON.stringify({ name, floor, capacity, equipment })
+                    });
+                    if (res.ok) {
+                        Toast.success('Room added');
+                        this.loadRooms();
+                    }
+                } catch(e) { Toast.error('Failed to add room'); }
+            },
+
+            async editRoom(id) {
+                const room = this.rooms.find(r => r.id === id);
+                if (!room) return;
+                const name = prompt('Room name:', room.name);
+                if (name === null) return;
+                const floor = prompt('Floor:', room.floor || '');
+                const capacity = parseInt(prompt('Capacity:', room.capacity || 0)) || 0;
+                const equipment = prompt('Equipment:', room.equipment || '');
+
+                try {
+                    const res = await fetch(`/api/admin/plexus/rooms/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + App.token },
+                        body: JSON.stringify({ name, floor, capacity, equipment })
+                    });
+                    if (res.ok) {
+                        Toast.success('Room updated');
+                        this.loadRooms();
+                    }
+                } catch(e) { Toast.error('Failed to update room'); }
+            },
+
+            async deleteRoom(id) {
+                if (!confirm('Delete this room?')) return;
+                try {
+                    const res = await fetch(`/api/admin/plexus/rooms/${id}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': 'Bearer ' + App.token }
+                    });
+                    if (res.ok) {
+                        Toast.success('Room deleted');
+                        this.loadRooms();
+                    }
+                } catch(e) { Toast.error('Failed to delete room'); }
             }
         };
 
