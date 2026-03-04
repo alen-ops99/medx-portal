@@ -46,39 +46,58 @@ if (firaService.isConfigured()) {
 
 const app = express();
 
-// Email configuration (uses environment variables or defaults for development)
-const emailTransporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '465'),
-    secure: process.env.SMTP_PORT ? process.env.SMTP_PORT === '465' : true,
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
-    auth: {
-        user: process.env.SMTP_USER || '',
-        pass: process.env.SMTP_PASS || ''
-    }
-});
-
-// Helper function to send emails
+// Email configuration — supports Resend API (recommended for cloud hosting) or SMTP fallback
 async function sendEmail(to, subject, htmlContent) {
-    // Skip if no SMTP configured
-    if (!process.env.SMTP_USER) {
-        console.log(`[Email Mock] To: ${to}, Subject: ${subject}`);
-        return { success: true, mock: true };
+    const fromAddress = process.env.EMAIL_FROM || 'Med&X <onboarding@resend.dev>';
+
+    // Option 1: Resend API (HTTP-based, works on all hosting platforms)
+    if (process.env.RESEND_API_KEY) {
+        try {
+            const response = await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ from: fromAddress, to, subject, html: htmlContent })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                console.error('Resend error:', data);
+                return { success: false, error: data.message || 'Resend API error' };
+            }
+            console.log(`[Email Sent via Resend] To: ${to}, Subject: ${subject}`);
+            return { success: true };
+        } catch (err) {
+            console.error('Resend error:', err);
+            return { success: false, error: err.message };
+        }
     }
-    try {
-        await emailTransporter.sendMail({
-            from: process.env.SMTP_FROM || 'Med&X Accelerator <accelerator@medx.hr>',
-            to,
-            subject,
-            html: htmlContent
-        });
-        return { success: true };
-    } catch (err) {
-        console.error('Email error:', err);
-        return { success: false, error: err.message };
+
+    // Option 2: SMTP (nodemailer)
+    if (process.env.SMTP_USER) {
+        try {
+            const transporter = nodemailer.createTransport({
+                host: process.env.SMTP_HOST || 'smtp.gmail.com',
+                port: parseInt(process.env.SMTP_PORT || '465'),
+                secure: process.env.SMTP_PORT ? process.env.SMTP_PORT === '465' : true,
+                connectionTimeout: 10000,
+                greetingTimeout: 10000,
+                socketTimeout: 10000,
+                auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+            });
+            await transporter.sendMail({ from: fromAddress, to, subject, html: htmlContent });
+            console.log(`[Email Sent via SMTP] To: ${to}, Subject: ${subject}`);
+            return { success: true };
+        } catch (err) {
+            console.error('SMTP error:', err);
+            return { success: false, error: err.message };
+        }
     }
+
+    // No email provider configured
+    console.log(`[Email Mock] To: ${to}, Subject: ${subject}`);
+    return { success: true, mock: true };
 }
 
 // Branded email template builder — wraps content in Med&X styled HTML
