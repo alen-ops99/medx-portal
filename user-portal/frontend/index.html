@@ -2639,6 +2639,7 @@
             font-size: 13px;
             margin-bottom: 16px;
             cursor: pointer;
+            touch-action: manipulation;
         }
 
         .back-link:hover {
@@ -4772,6 +4773,8 @@
             animation: splashFadeUp 0.7s ease 0.4s forwards;
             opacity: 0;
             transform: translateY(16px);
+            position: relative;
+            z-index: 2;
         }
 
         .splash-btn-primary {
@@ -4790,6 +4793,8 @@
             transition: all 0.3s ease;
             font-family: inherit;
             letter-spacing: 0.2px;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(201, 169, 98, 0.2);
         }
 
         .splash-btn-primary:hover {
@@ -4818,6 +4823,8 @@
             cursor: pointer;
             transition: all 0.3s ease;
             font-family: inherit;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(201, 169, 98, 0.2);
         }
 
         .splash-btn-secondary:hover {
@@ -5880,6 +5887,9 @@
             box-shadow: var(--up-shadow-xl);
             animation: modal-in 0.3s ease;
             position: relative;
+            max-height: 90vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         .auth-modal-close {
@@ -5945,6 +5955,9 @@
             font-size: 14px;
             font-family: inherit;
             transition: all 0.2s;
+            position: relative;
+            z-index: 1;
+            -webkit-appearance: none;
         }
 
         .auth-form-input:focus {
@@ -9619,6 +9632,10 @@
             font-size: 18px;
             text-decoration: none;
             transition: all 0.3s ease;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(201, 169, 98, 0.15);
+            position: relative;
+            z-index: 10;
         }
 
         .hub-footer-minimal-social a:hover {
@@ -9632,6 +9649,10 @@
             height: 44px !important;
             padding: 0 !important;
             border-radius: 50% !important;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(201, 169, 98, 0.15);
+            position: relative;
+            z-index: 10;
         }
         .footer-social-branded i {
             color: var(--social-color);
@@ -11020,6 +11041,8 @@
             .px-tab {
                 padding: 10px 14px;
                 font-size: 13px;
+                min-height: 44px;
+                flex-shrink: 0;
             }
 
             .px-tab i {
@@ -11779,7 +11802,8 @@
 
         .featured-slide-content {
             position: relative;
-            z-index: 1;
+            z-index: 2;
+            pointer-events: auto;
         }
 
         .featured-badge {
@@ -11837,6 +11861,9 @@
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
+            position: relative;
+            z-index: 5;
+            touch-action: manipulation;
         }
 
         .featured-cta:hover {
@@ -11891,6 +11918,7 @@
             border: none;
             cursor: pointer;
             transition: all 0.3s ease;
+            touch-action: manipulation;
         }
 
         .featured-dot.active {
@@ -19346,6 +19374,8 @@
             transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
             z-index: 100;
             position: relative;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(201, 169, 98, 0.2);
         }
 
         .section-home-btn {
@@ -19645,6 +19675,8 @@
             transition: all 0.2s;
             border: none;
             font-family: inherit;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(201, 169, 98, 0.15);
         }
 
         .px-hero-btn-primary {
@@ -19798,6 +19830,9 @@
             font-family: inherit;
             position: relative;
             z-index: 10;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(201, 169, 98, 0.15);
+            flex-shrink: 0;
         }
 
         .px-tab:hover {
@@ -19957,6 +19992,16 @@
 
         .px-wizard-panel.active {
             display: block;
+        }
+
+        @media (max-width: 768px) {
+            .px-wizard-panel > div[style*="grid-template-columns"] {
+                display: flex !important;
+                flex-direction: column !important;
+            }
+            .px-wizard-panel .px-package-summary {
+                width: 100% !important;
+            }
         }
 
         .px-wizard-actions {
@@ -26329,6 +26374,8 @@
             transition: all 0.2s;
             font-family: inherit;
             white-space: nowrap;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(201, 169, 98, 0.15);
         }
 
         .fm-nav-tab:hover {
@@ -31880,6 +31927,8 @@
             max-width: 1000px;
             margin: 0 auto;
             padding: 24px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         .settings-header {
@@ -46415,7 +46464,7 @@
     background: #0a0a0f;
 }
 .welcome-tour-overlay.active { display: block; }
-.welcome-tour-step { display: none; position: absolute; inset: 0; }
+.welcome-tour-step { display: none; position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .welcome-tour-step.active { display: flex; align-items: center; justify-content: center; animation: wtFadeIn 0.5s ease; }
 @keyframes wtFadeIn { from { opacity: 0; } to { opacity: 1; } }
 
@@ -46448,7 +46497,7 @@
 @keyframes btnBounce { to { opacity: 1; transform: translateY(0); } }
 
 /* Tour Container & Progress */
-.welcome-tour-container { width: 100%; max-width: 580px; padding: 24px; animation: cardSlideUp 0.5s ease; }
+.welcome-tour-container { width: 100%; max-width: 580px; padding: 24px; animation: cardSlideUp 0.5s ease; max-height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 @keyframes cardSlideUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
 .welcome-tour-progress { margin-bottom: 24px; }
 .wt-progress-bar { height: 4px; background: rgba(255, 255, 255, 0.1); border-radius: 2px; overflow: hidden; margin-bottom: 8px; }
@@ -46697,6 +46746,9 @@
     .wt-form-row { grid-template-columns: 1fr; }
     .wt-celebration-content h1 { font-size: 32px; }
     .wt-tour-tooltip { width: 280px; padding: 20px; }
+    .welcome-tour-step.active { align-items: flex-start; padding-top: 20px; }
+    .welcome-tour-container { max-height: none; padding-bottom: 40px; }
+    .wt-interests-grid { max-height: none; overflow-y: visible; }
 }
 
 /* ===== DASHBOARD CUSTOMIZER ===== */
@@ -55047,6 +55099,19 @@ textarea:focus:not(:focus-visible),
     .px-countdown, .fm-countdown {
         transform: scale(0.85);
         margin-bottom: 12px;
+    }
+}
+
+/* ===== GLOBAL MOBILE TOUCH FIX ===== */
+@media (max-width: 768px) {
+    button, .btn, [onclick], a.social-link, .tab-btn, .nav-link, .back-link,
+    .footer-social-branded, .hub-footer-minimal-social a,
+    .section-home-btn, .section-back-btn, .featured-cta, .featured-dot,
+    .px-tab, .px-hero-btn, .fm-nav-tab, .fm-hero-btn, .fm-event-btn,
+    .splash-btn-primary, .splash-btn-secondary,
+    .settings-nav-item, .hub-quick-menu-item, .hub-quick-grid-item {
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: rgba(201, 169, 98, 0.15);
     }
 }
     </style>
@@ -77668,10 +77733,12 @@ You can use variables like {first_name} that will be personalized for each recip
                     this.startAutoPlay();
                 }, { passive: true });
 
-                // Mouse swipe for desktop
+                // Mouse swipe for desktop — only treat as swipe if dragged > threshold
                 let mouseDown = false;
+                let mouseStartX = 0;
                 track.addEventListener('mousedown', (e) => {
                     mouseDown = true;
+                    mouseStartX = e.screenX;
                     this.touchStartX = e.screenX;
                     this.pauseAutoPlay();
                 });
@@ -77679,7 +77746,11 @@ You can use variables like {first_name} that will be personalized for each recip
                 track.addEventListener('mouseup', (e) => {
                     if (mouseDown) {
                         this.touchEndX = e.screenX;
-                        this.handleSwipe();
+                        const dragDistance = Math.abs(e.screenX - mouseStartX);
+                        // Only handle as swipe if dragged more than 50px, otherwise let click through
+                        if (dragDistance > 50) {
+                            this.handleSwipe();
+                        }
                         this.startAutoPlay();
                     }
                     mouseDown = false;
@@ -85192,29 +85263,33 @@ You can use variables like {first_name} that will be personalized for each recip
 
             // Switch between tabs (new navigation)
             switchTab(tabId, btn) {
-                // Update tab button states
-                document.querySelectorAll('.fm-nav-tab').forEach(tab => {
-                    tab.classList.remove('active');
-                });
-                if (btn) btn.classList.add('active');
+                try {
+                    // Update tab button states
+                    document.querySelectorAll('.fm-nav-tab').forEach(tab => {
+                        tab.classList.remove('active');
+                    });
+                    if (btn) btn.classList.add('active');
 
-                // Handle different tabs
-                if (tabId === 'home') {
-                    this.showHomepage();
-                } else if (tabId === 'network') {
-                    // Show the full Network panel
-                    this.showTab('network');
-                } else if (tabId === 'projects') {
-                    // Scroll to projects section on homepage
-                    this.showHomepage();
-                    setTimeout(() => {
-                        const projectsSection = document.querySelector('.fm-projects-section');
-                        if (projectsSection) {
-                            projectsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }
-                    }, 100);
-                } else {
-                    this.showTab(tabId);
+                    // Handle different tabs
+                    if (tabId === 'home') {
+                        this.showHomepage();
+                    } else if (tabId === 'network') {
+                        // Show the full Network panel
+                        this.showTab('network');
+                    } else if (tabId === 'projects') {
+                        // Scroll to projects section on homepage
+                        this.showHomepage();
+                        setTimeout(() => {
+                            const projectsSection = document.querySelector('.fm-projects-section');
+                            if (projectsSection) {
+                                projectsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                        }, 100);
+                    } else {
+                        this.showTab(tabId);
+                    }
+                } catch (err) {
+                    console.error('Forum switchTab error:', err);
                 }
             },
 
@@ -85297,25 +85372,30 @@ You can use variables like {first_name} that will be personalized for each recip
             },
 
             verifyInviteCode() {
-                const input = document.getElementById('fmInviteCode');
-                const code = input ? input.value.trim().toUpperCase() : '';
+                try {
+                    const input = document.getElementById('fmInviteCode');
+                    const code = input ? input.value.trim().toUpperCase() : '';
 
-                if (!code) {
-                    if (input) showFieldError(input, 'Please enter your invitation code');
-                    return;
-                }
+                    if (!code) {
+                        if (input) showFieldError(input, 'Please enter your invitation code');
+                        return;
+                    }
 
-                // Demo codes for testing
-                const validCodes = ['MEDX2026', 'FORUM2026', 'BIOMEDICAL', 'MEMBER'];
+                    // Demo codes for testing
+                    const validCodes = ['MEDX2026', 'FORUM2026', 'BIOMEDICAL', 'MEMBER'];
 
-                if (validCodes.includes(code)) {
-                    if (input) clearFieldError(input);
-                    this.isVerified = true;
-                    sessionStorage.setItem('medx_forum_verified', 'true');
-                    this.showMemberArea();
-                    this.initHomepage();
-                } else {
-                    if (input) showFieldError(input, 'Invalid code. Check your invitation email or contact forum@medx.hr');
+                    if (validCodes.includes(code)) {
+                        if (input) clearFieldError(input);
+                        this.isVerified = true;
+                        sessionStorage.setItem('medx_forum_verified', 'true');
+                        this.showMemberArea();
+                        this.initHomepage();
+                    } else {
+                        if (input) showFieldError(input, 'Invalid code. Check your invitation email or contact forum@medx.hr');
+                    }
+                } catch (err) {
+                    console.error('Forum verifyInviteCode error:', err);
+                    alert('Something went wrong. Please try again or contact forum@medx.hr for assistance.');
                 }
             },
 
@@ -85329,6 +85409,7 @@ You can use variables like {first_name} that will be personalized for each recip
 
             // Timeline event registration - shows modal form
             registerEvent(eventId, btn) {
+                try {
                 // If already registered, allow unregistration directly
                 if (this.registeredEvents.includes(eventId)) {
                     this.registeredEvents = this.registeredEvents.filter(e => e !== eventId);
@@ -85545,6 +85626,10 @@ You can use variables like {first_name} that will be personalized for each recip
                         intBtn.innerHTML = '<i class="fas fa-bell"></i> Following';
                     }
                 });
+                } catch (err) {
+                    console.error('Forum registerEvent error:', err);
+                    alert('Registration encountered an error. Please try again.');
+                }
             },
 
             // Toggle interest in an event
@@ -87981,7 +88066,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 tagItem.remove();
             },
 
-            saveProfile() {
+            async saveProfile() {
                 const profile = {
                     careerStage: document.getElementById('npCareerStage').value,
                     lookingFor: document.getElementById('npLookingFor').value,
@@ -87995,6 +88080,18 @@ You can use variables like {first_name} that will be personalized for each recip
 
                 // Save to localStorage for demo
                 localStorage.setItem('networkingProfile', JSON.stringify(profile));
+
+                // Persist to backend
+                try {
+                    const token = localStorage.getItem('userToken');
+                    if (token) {
+                        await fetch('/api/networking/profile', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                            body: JSON.stringify(profile)
+                        });
+                    }
+                } catch(e) { console.error('Failed to save profile to server:', e); }
 
                 this.showToast('Networking preferences saved!');
             },
@@ -93339,14 +93436,18 @@ ${'='.repeat(70)}
             currentThemeSetting: 'light',
 
             init() {
-                // Load user data into settings forms
-                if (UserPortal.user) {
-                    this.loadUserProfile();
+                try {
+                    // Load user data into settings forms
+                    if (UserPortal.user) {
+                        this.loadUserProfile();
+                    }
+                    this.loadThemeSetting();
+                    this.loadNotificationSettings();
+                    this.loadPrivacySettings();
+                    this.startSessionTimeout();
+                } catch (err) {
+                    console.error('SettingsPortal init error:', err);
                 }
-                this.loadThemeSetting();
-                this.loadNotificationSettings();
-                this.loadPrivacySettings();
-                this.startSessionTimeout();
             },
 
             showTab(tabId) {

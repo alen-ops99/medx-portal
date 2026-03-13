@@ -8888,6 +8888,17 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
+    // Download project file with original filename
+    app.get('/api/files/:id/download', auth, adminOnly, (req, res) => {
+        const file = query.get('SELECT * FROM project_files WHERE id = ?', [req.params.id]);
+        if (!file) return res.status(404).json({ error: 'File not found' });
+
+        const fullPath = path.join(__dirname, file.file_path);
+        if (!fs.existsSync(fullPath)) return res.status(404).json({ error: 'File not found on disk' });
+
+        res.download(fullPath, file.original_name);
+    });
+
     // Search across projects, tasks, files
     app.get('/api/search', auth, adminOnly, (req, res) => {
         const { q } = req.query;
@@ -9968,16 +9979,24 @@ By applying to this program, I provide the following consents:
 
     // Admin: Manage sessions — Phase 3C Schedule Builder
     app.post('/api/admin/plexus/sessions', auth, adminOnly, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
-        const { title, description, session_type, day, start_time, end_time, room, track, speaker_ids, capacity, is_published } = req.body;
+        try {
+            const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+            if (!conf) return res.status(400).json({ error: 'Conference plexus-2026 not found. Please create the conference first.' });
 
-        const id = uuidv4();
-        const speakerIdsStr = Array.isArray(speaker_ids) ? speaker_ids.join(',') : (speaker_ids || null);
-        db.run(`INSERT INTO sessions (id, conference_id, title, description, session_type, day, start_time, end_time, room, track, speaker_ids, capacity, is_published)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, conf.id, title, description, session_type || 'talk', day || 1, start_time, end_time, room, track, speakerIdsStr, capacity || null, is_published ? 1 : 0]);
-        saveDb();
-        res.json({ success: true, session_id: id });
+            const { title, description, session_type, day, start_time, end_time, room, track, speaker_ids, capacity, is_published } = req.body;
+            if (!title) return res.status(400).json({ error: 'Session title is required' });
+
+            const id = uuidv4();
+            const speakerIdsStr = Array.isArray(speaker_ids) ? speaker_ids.join(',') : (speaker_ids || null);
+            db.run(`INSERT INTO sessions (id, conference_id, title, description, session_type, day, start_time, end_time, room, track, speaker_ids, capacity, is_published)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [id, conf.id, title, description, session_type || 'talk', day || 1, start_time, end_time, room, track, speakerIdsStr, capacity || null, is_published ? 1 : 0]);
+            saveDb();
+            res.json({ success: true, session_id: id });
+        } catch (err) {
+            console.error('Error creating session:', err);
+            res.status(500).json({ error: 'Failed to create session: ' + err.message });
+        }
     });
 
     // Admin: Get all sessions (including unpublished)
@@ -13128,8 +13147,26 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
+    // Download travel evidence file with original filename
+    app.get('/api/finance/travel-orders/:orderId/evidence/:evidenceId/download', auth, adminOnly, (req, res) => {
+        const evidence = query.get('SELECT * FROM finance_travel_evidence WHERE id = ? AND travel_order_id = ?',
+            [req.params.evidenceId, req.params.orderId]);
+        if (!evidence) return res.status(404).json({ error: 'Evidence file not found' });
+
+        const fullPath = path.join(__dirname, evidence.file_path);
+        if (!fs.existsSync(fullPath)) return res.status(404).json({ error: 'File not found on disk' });
+
+        res.download(fullPath, evidence.file_name);
+    });
+
     // Travel order PDF
-    app.get('/api/finance/travel-orders/:id/pdf', auth, adminOnly, (req, res) => {
+    app.get('/api/finance/travel-orders/:id/pdf', (req, res, next) => {
+        // Allow token via query param for direct downloads (PDF opened in new tab)
+        if (req.query.token && !req.headers.authorization) {
+            req.headers.authorization = `Bearer ${req.query.token}`;
+        }
+        next();
+    }, auth, adminOnly, (req, res) => {
         const order = query.get('SELECT * FROM finance_travel_orders WHERE id = ?', [req.params.id]);
         if (!order) return res.status(404).json({ error: 'Not found' });
 
@@ -14019,6 +14056,17 @@ By applying to this program, I provide the following consents:
         db.run('DELETE FROM pr_media_assets WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
+    });
+
+    // Download PR media asset with original filename
+    app.get('/api/pr/media/:id/download', auth, (req, res) => {
+        const asset = query.get('SELECT * FROM pr_media_assets WHERE id = ?', [req.params.id]);
+        if (!asset) return res.status(404).json({ error: 'Media asset not found' });
+
+        const fullPath = path.join(__dirname, asset.file_path);
+        if (!fs.existsSync(fullPath)) return res.status(404).json({ error: 'File not found on disk' });
+
+        res.download(fullPath, asset.original_name);
     });
 
     // Campaigns

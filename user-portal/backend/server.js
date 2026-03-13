@@ -5562,442 +5562,482 @@ By applying to this program, I provide the following consents:
 
     // Get current user's Forum membership
     app.get('/api/forum/me', auth, (req, res) => {
-        const member = query.get(`SELECT * FROM forum_members WHERE user_id = ?`, [req.user.id]);
-        res.json(member || { membership_status: 'none' });
+        try {
+            const member = query.get(`SELECT * FROM forum_members WHERE user_id = ?`, [req.user.id]);
+            res.json(member || { membership_status: 'none' });
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Apply for Forum membership
     app.post('/api/forum/apply', auth, (req, res) => {
-        const { specialty, institution, position, bio, research_interests, career_stage, application_text } = req.body;
-        const existing = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
+        try {
+            const { specialty, institution, position, bio, research_interests, career_stage, application_text } = req.body;
+            const existing = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
 
-        if (existing) {
-            return res.status(400).json({ error: 'Application already submitted' });
-        }
+            if (existing) {
+                return res.status(400).json({ error: 'Application already submitted' });
+            }
 
-        const id = uuidv4();
-        db.run(`INSERT INTO forum_members (id, user_id, specialty, institution, position, bio, research_interests, career_stage, application_text, membership_status, application_submitted_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now'))`,
-            [id, req.user.id, specialty, institution, position, bio, research_interests, career_stage, application_text]);
-        saveDb();
-        res.json({ success: true, id });
+            const id = uuidv4();
+            db.run(`INSERT INTO forum_members (id, user_id, specialty, institution, position, bio, research_interests, career_stage, application_text, membership_status, application_submitted_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now'))`,
+                [id, req.user.id, specialty, institution, position, bio, research_interests, career_stage, application_text]);
+            saveDb();
+            res.json({ success: true, id });
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Update Forum profile
     app.put('/api/forum/profile', auth, (req, res) => {
-        const member = query.get(`SELECT * FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
-        if (!member) return res.status(403).json({ error: 'Not an approved Forum member' });
+        try {
+            const member = query.get(`SELECT * FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
+            if (!member) return res.status(403).json({ error: 'Not an approved Forum member' });
 
-        const fields = ['specialty', 'sub_specialties', 'institution', 'position', 'department', 'location_city',
-            'location_country', 'bio', 'research_interests', 'career_stage', 'years_experience', 'orcid_id',
-            'linkedin_url', 'twitter_handle', 'website_url', 'photo_url', 'profile_visibility', 'contact_preference',
-            'is_mentor', 'seeking_mentor', 'mentor_topics', 'languages', 'achievements'];
+            const fields = ['specialty', 'sub_specialties', 'institution', 'position', 'department', 'location_city',
+                'location_country', 'bio', 'research_interests', 'career_stage', 'years_experience', 'orcid_id',
+                'linkedin_url', 'twitter_handle', 'website_url', 'photo_url', 'profile_visibility', 'contact_preference',
+                'is_mentor', 'seeking_mentor', 'mentor_topics', 'languages', 'achievements'];
 
-        const updates = [];
-        const values = [];
-        fields.forEach(f => {
-            if (req.body[f] !== undefined) {
-                updates.push(`${f} = ?`);
-                values.push(req.body[f]);
+            const updates = [];
+            const values = [];
+            fields.forEach(f => {
+                if (req.body[f] !== undefined) {
+                    updates.push(`${f} = ?`);
+                    values.push(req.body[f]);
+                }
+            });
+
+            if (updates.length > 0) {
+                values.push(member.id);
+                db.run(`UPDATE forum_members SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?`, values);
+                saveDb();
             }
-        });
 
-        if (updates.length > 0) {
-            values.push(member.id);
-            db.run(`UPDATE forum_members SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?`, values);
-            saveDb();
-        }
-
-        res.json({ success: true });
+            res.json({ success: true });
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Get Forum member directory
     app.get('/api/forum/members', auth, (req, res) => {
-        const currentMember = query.get(`SELECT * FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
-        if (!currentMember && !req.user.is_admin) {
-            return res.status(403).json({ error: 'Forum access required' });
-        }
+        try {
+            const currentMember = query.get(`SELECT * FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
+            if (!currentMember && !req.user.is_admin) {
+                return res.status(403).json({ error: 'Forum access required' });
+            }
 
-        const { specialty, career_stage, country, search, page = 1, limit = 20 } = req.query;
-        let sql = `SELECT id, user_id, membership_level, specialty, institution, position, location_city, location_country,
-            bio, research_interests, career_stage, photo_url, is_mentor, seeking_mentor, points, badges
-            FROM forum_members WHERE membership_status = 'approved'`;
-        const params = [];
+            const { specialty, career_stage, country, search, page = 1, limit = 20 } = req.query;
+            let sql = `SELECT id, user_id, membership_level, specialty, institution, position, location_city, location_country,
+                bio, research_interests, career_stage, photo_url, is_mentor, seeking_mentor, points, badges
+                FROM forum_members WHERE membership_status = 'approved'`;
+            const params = [];
 
-        if (specialty) { sql += ` AND specialty LIKE ?`; params.push(`%${specialty}%`); }
-        if (career_stage) { sql += ` AND career_stage = ?`; params.push(career_stage); }
-        if (country) { sql += ` AND location_country = ?`; params.push(country); }
-        if (search) {
-            sql += ` AND (bio LIKE ? OR specialty LIKE ? OR institution LIKE ? OR research_interests LIKE ?)`;
-            const s = `%${search}%`;
-            params.push(s, s, s, s);
-        }
+            if (specialty) { sql += ` AND specialty LIKE ?`; params.push(`%${specialty}%`); }
+            if (career_stage) { sql += ` AND career_stage = ?`; params.push(career_stage); }
+            if (country) { sql += ` AND location_country = ?`; params.push(country); }
+            if (search) {
+                sql += ` AND (bio LIKE ? OR specialty LIKE ? OR institution LIKE ? OR research_interests LIKE ?)`;
+                const s = `%${search}%`;
+                params.push(s, s, s, s);
+            }
 
-        sql += ` ORDER BY last_active DESC LIMIT ? OFFSET ?`;
-        params.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
+            sql += ` ORDER BY last_active DESC LIMIT ? OFFSET ?`;
+            params.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
 
-        const members = query.all(sql, params);
+            const members = query.all(sql, params);
 
-        // Get user names
-        const enriched = members.map(m => {
-            const user = query.get(`SELECT first_name, last_name, email FROM users WHERE id = ?`, [m.user_id]);
-            return { ...m, first_name: user?.first_name, last_name: user?.last_name };
-        });
+            // Get user names
+            const enriched = members.map(m => {
+                const user = query.get(`SELECT first_name, last_name, email FROM users WHERE id = ?`, [m.user_id]);
+                return { ...m, first_name: user?.first_name, last_name: user?.last_name };
+            });
 
-        res.json(enriched);
+            res.json(enriched);
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Get single Forum member profile
     app.get('/api/forum/members/:id', auth, (req, res) => {
-        const member = query.get(`SELECT * FROM forum_members WHERE id = ? AND membership_status = 'approved'`, [req.params.id]);
-        if (!member) return res.status(404).json({ error: 'Member not found' });
+        try {
+            const member = query.get(`SELECT * FROM forum_members WHERE id = ? AND membership_status = 'approved'`, [req.params.id]);
+            if (!member) return res.status(404).json({ error: 'Member not found' });
 
-        const user = query.get(`SELECT first_name, last_name, email FROM users WHERE id = ?`, [member.user_id]);
+            const user = query.get(`SELECT first_name, last_name, email FROM users WHERE id = ?`, [member.user_id]);
 
-        // Get connection status with current user
-        const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
-        let connectionStatus = null;
-        if (currentMember && currentMember.id !== member.id) {
-            const conn = query.get(`SELECT status FROM forum_connections WHERE
-                (requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?)`,
-                [currentMember.id, member.id, member.id, currentMember.id]);
-            connectionStatus = conn?.status || null;
-        }
+            // Get connection status with current user
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
+            let connectionStatus = null;
+            if (currentMember && currentMember.id !== member.id) {
+                const conn = query.get(`SELECT status FROM forum_connections WHERE
+                    (requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?)`,
+                    [currentMember.id, member.id, member.id, currentMember.id]);
+                connectionStatus = conn?.status || null;
+            }
 
-        res.json({ ...member, first_name: user?.first_name, last_name: user?.last_name, connection_status: connectionStatus });
+            res.json({ ...member, first_name: user?.first_name, last_name: user?.last_name, connection_status: connectionStatus });
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Send connection request
     app.post('/api/forum/connections', auth, (req, res) => {
-        const { receiver_id, message } = req.body;
-        const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
-        if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
+        try {
+            const { receiver_id, message } = req.body;
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
+            if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
 
-        const existing = query.get(`SELECT id, status FROM forum_connections WHERE
-            (requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?)`,
-            [currentMember.id, receiver_id, receiver_id, currentMember.id]);
+            const existing = query.get(`SELECT id, status FROM forum_connections WHERE
+                (requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?)`,
+                [currentMember.id, receiver_id, receiver_id, currentMember.id]);
 
-        if (existing) {
-            return res.status(400).json({ error: 'Connection already exists', status: existing.status });
-        }
+            if (existing) {
+                return res.status(400).json({ error: 'Connection already exists', status: existing.status });
+            }
 
-        const id = uuidv4();
-        db.run(`INSERT INTO forum_connections (id, requester_id, receiver_id, message, status) VALUES (?, ?, ?, ?, 'pending')`,
-            [id, currentMember.id, receiver_id, message]);
-        saveDb();
-        res.json({ success: true, id });
+            const id = uuidv4();
+            db.run(`INSERT INTO forum_connections (id, requester_id, receiver_id, message, status) VALUES (?, ?, ?, ?, 'pending')`,
+                [id, currentMember.id, receiver_id, message]);
+            saveDb();
+            res.json({ success: true, id });
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Get connections
     app.get('/api/forum/connections', auth, (req, res) => {
-        const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
-        if (!currentMember) return res.json([]);
+        try {
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
+            if (!currentMember) return res.json([]);
 
-        const connections = query.all(`
-            SELECT fc.*,
-                CASE WHEN fc.requester_id = ? THEN fm2.id ELSE fm1.id END as other_member_id,
-                CASE WHEN fc.requester_id = ? THEN u2.first_name ELSE u1.first_name END as other_first_name,
-                CASE WHEN fc.requester_id = ? THEN u2.last_name ELSE u1.last_name END as other_last_name,
-                CASE WHEN fc.requester_id = ? THEN fm2.photo_url ELSE fm1.photo_url END as other_photo,
-                CASE WHEN fc.requester_id = ? THEN fm2.specialty ELSE fm1.specialty END as other_specialty
-            FROM forum_connections fc
-            JOIN forum_members fm1 ON fc.requester_id = fm1.id
-            JOIN forum_members fm2 ON fc.receiver_id = fm2.id
-            JOIN users u1 ON fm1.user_id = u1.id
-            JOIN users u2 ON fm2.user_id = u2.id
-            WHERE (fc.requester_id = ? OR fc.receiver_id = ?)
-            ORDER BY fc.created_at DESC
-        `, [currentMember.id, currentMember.id, currentMember.id, currentMember.id, currentMember.id, currentMember.id, currentMember.id]);
+            const connections = query.all(`
+                SELECT fc.*,
+                    CASE WHEN fc.requester_id = ? THEN fm2.id ELSE fm1.id END as other_member_id,
+                    CASE WHEN fc.requester_id = ? THEN u2.first_name ELSE u1.first_name END as other_first_name,
+                    CASE WHEN fc.requester_id = ? THEN u2.last_name ELSE u1.last_name END as other_last_name,
+                    CASE WHEN fc.requester_id = ? THEN fm2.photo_url ELSE fm1.photo_url END as other_photo,
+                    CASE WHEN fc.requester_id = ? THEN fm2.specialty ELSE fm1.specialty END as other_specialty
+                FROM forum_connections fc
+                JOIN forum_members fm1 ON fc.requester_id = fm1.id
+                JOIN forum_members fm2 ON fc.receiver_id = fm2.id
+                JOIN users u1 ON fm1.user_id = u1.id
+                JOIN users u2 ON fm2.user_id = u2.id
+                WHERE (fc.requester_id = ? OR fc.receiver_id = ?)
+                ORDER BY fc.created_at DESC
+            `, [currentMember.id, currentMember.id, currentMember.id, currentMember.id, currentMember.id, currentMember.id, currentMember.id]);
 
-        res.json(connections);
+            res.json(connections);
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Accept/reject connection
     app.put('/api/forum/connections/:id', auth, (req, res) => {
-        const { status } = req.body;
-        const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
+        try {
+            const { status } = req.body;
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
 
-        const conn = query.get(`SELECT * FROM forum_connections WHERE id = ? AND receiver_id = ?`, [req.params.id, currentMember?.id]);
-        if (!conn) return res.status(404).json({ error: 'Connection request not found' });
+            const conn = query.get(`SELECT * FROM forum_connections WHERE id = ? AND receiver_id = ?`, [req.params.id, currentMember?.id]);
+            if (!conn) return res.status(404).json({ error: 'Connection request not found' });
 
-        if (status === 'accepted') {
-            db.run(`UPDATE forum_connections SET status = 'accepted', accepted_at = datetime('now') WHERE id = ?`, [req.params.id]);
-        } else {
-            db.run(`DELETE FROM forum_connections WHERE id = ?`, [req.params.id]);
-        }
-        saveDb();
-        res.json({ success: true });
+            if (status === 'accepted') {
+                db.run(`UPDATE forum_connections SET status = 'accepted', accepted_at = datetime('now') WHERE id = ?`, [req.params.id]);
+            } else {
+                db.run(`DELETE FROM forum_connections WHERE id = ?`, [req.params.id]);
+            }
+            saveDb();
+            res.json({ success: true });
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Get Forum groups
     app.get('/api/forum/groups', auth, (req, res) => {
-        const groups = query.all(`SELECT fg.*,
-            (SELECT COUNT(*) FROM forum_group_members WHERE group_id = fg.id) as member_count
-            FROM forum_groups fg WHERE fg.is_active = 1 ORDER BY fg.name`);
+        try {
+            const groups = query.all(`SELECT fg.*,
+                (SELECT COUNT(*) FROM forum_group_members WHERE group_id = fg.id) as member_count
+                FROM forum_groups fg WHERE fg.is_active = 1 ORDER BY fg.name`);
 
-        const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
 
-        const enriched = groups.map(g => {
-            const isMember = currentMember ?
-                !!query.get(`SELECT id FROM forum_group_members WHERE group_id = ? AND member_id = ?`, [g.id, currentMember.id]) : false;
-            return { ...g, is_member: isMember };
-        });
+            const enriched = groups.map(g => {
+                const isMember = currentMember ?
+                    !!query.get(`SELECT id FROM forum_group_members WHERE group_id = ? AND member_id = ?`, [g.id, currentMember.id]) : false;
+                return { ...g, is_member: isMember };
+            });
 
-        res.json(enriched);
+            res.json(enriched);
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Join/leave group
     app.post('/api/forum/groups/:id/membership', auth, (req, res) => {
-        const { action } = req.body;
-        const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
-        if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
+        try {
+            const { action } = req.body;
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
+            if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
 
-        if (action === 'join') {
-            const existing = query.get(`SELECT id FROM forum_group_members WHERE group_id = ? AND member_id = ?`, [req.params.id, currentMember.id]);
-            if (!existing) {
-                const id = uuidv4();
-                db.run(`INSERT INTO forum_group_members (id, group_id, member_id) VALUES (?, ?, ?)`, [id, req.params.id, currentMember.id]);
+            if (action === 'join') {
+                const existing = query.get(`SELECT id FROM forum_group_members WHERE group_id = ? AND member_id = ?`, [req.params.id, currentMember.id]);
+                if (!existing) {
+                    const id = uuidv4();
+                    db.run(`INSERT INTO forum_group_members (id, group_id, member_id) VALUES (?, ?, ?)`, [id, req.params.id, currentMember.id]);
+                }
+            } else {
+                db.run(`DELETE FROM forum_group_members WHERE group_id = ? AND member_id = ?`, [req.params.id, currentMember.id]);
             }
-        } else {
-            db.run(`DELETE FROM forum_group_members WHERE group_id = ? AND member_id = ?`, [req.params.id, currentMember.id]);
-        }
-        saveDb();
-        res.json({ success: true });
+            saveDb();
+            res.json({ success: true });
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Get group members
     app.get('/api/forum/groups/:id/members', auth, (req, res) => {
-        const members = query.all(`
-            SELECT fm.id, fm.photo_url, u.first_name, u.last_name, fm.specialty, fm.institution, fgm.joined_at
-            FROM forum_group_members fgm
-            JOIN forum_members fm ON fgm.member_id = fm.id
-            JOIN users u ON fm.user_id = u.id
-            WHERE fgm.group_id = ?
-            ORDER BY fgm.joined_at DESC
-        `, [req.params.id]);
-        res.json(members);
+        try {
+            const members = query.all(`
+                SELECT fm.id, fm.photo_url, u.first_name, u.last_name, fm.specialty, fm.institution, fgm.joined_at
+                FROM forum_group_members fgm
+                JOIN forum_members fm ON fgm.member_id = fm.id
+                JOIN users u ON fm.user_id = u.id
+                WHERE fgm.group_id = ?
+                ORDER BY fgm.joined_at DESC
+            `, [req.params.id]);
+            res.json(members);
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Get group messages
     app.get('/api/forum/groups/:id/messages', auth, (req, res) => {
-        const messages = query.all(`
-            SELECT fgm.*, u.first_name || ' ' || u.last_name as sender_name
-            FROM forum_group_messages fgm
-            JOIN forum_members fm ON fgm.sender_id = fm.id
-            JOIN users u ON fm.user_id = u.id
-            WHERE fgm.group_id = ?
-            ORDER BY fgm.created_at ASC
-            LIMIT 100
-        `, [req.params.id]);
-        res.json(messages);
+        try {
+            const messages = query.all(`
+                SELECT fgm.*, u.first_name || ' ' || u.last_name as sender_name
+                FROM forum_group_messages fgm
+                JOIN forum_members fm ON fgm.sender_id = fm.id
+                JOIN users u ON fm.user_id = u.id
+                WHERE fgm.group_id = ?
+                ORDER BY fgm.created_at ASC
+                LIMIT 100
+            `, [req.params.id]);
+            res.json(messages);
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Send group message
     app.post('/api/forum/groups/:id/messages', auth, upload.single('file'), (req, res) => {
-        const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
-        if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
+        try {
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
+            if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
 
-        // Check if user is group member
-        const isMember = query.get(`SELECT id FROM forum_group_members WHERE group_id = ? AND member_id = ?`, [req.params.id, currentMember.id]);
-        if (!isMember) return res.status(403).json({ error: 'Group membership required' });
+            // Check if user is group member
+            const isMember = query.get(`SELECT id FROM forum_group_members WHERE group_id = ? AND member_id = ?`, [req.params.id, currentMember.id]);
+            if (!isMember) return res.status(403).json({ error: 'Group membership required' });
 
-        const { message } = req.body;
-        let attachments = null;
+            const { message } = req.body;
+            let attachments = null;
 
-        if (req.file) {
-            attachments = JSON.stringify([{
-                name: req.file.originalname,
-                url: `/uploads/${req.file.filename}`,
-                type: req.file.mimetype
-            }]);
-        }
+            if (req.file) {
+                attachments = JSON.stringify([{
+                    name: req.file.originalname,
+                    url: `/uploads/${req.file.filename}`,
+                    type: req.file.mimetype
+                }]);
+            }
 
-        const id = uuidv4();
-        db.run(`INSERT INTO forum_group_messages (id, group_id, sender_id, message, attachments) VALUES (?, ?, ?, ?, ?)`,
-            [id, req.params.id, currentMember.id, message || '', attachments]);
-        saveDb();
+            const id = uuidv4();
+            db.run(`INSERT INTO forum_group_messages (id, group_id, sender_id, message, attachments) VALUES (?, ?, ?, ?, ?)`,
+                [id, req.params.id, currentMember.id, message || '', attachments]);
+            saveDb();
 
-        res.json({ success: true, id });
+            res.json({ success: true, id });
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Get Forum posts/feed
     app.get('/api/forum/posts', auth, (req, res) => {
-        const { group_id, author_id, type, page = 1, limit = 20 } = req.query;
-        let sql = `SELECT fp.*, fm.photo_url as author_photo, u.first_name, u.last_name, fm.specialty, fm.institution
-            FROM forum_posts fp
-            JOIN forum_members fm ON fp.author_id = fm.id
-            JOIN users u ON fm.user_id = u.id
-            WHERE fp.moderation_status = 'approved'`;
-        const params = [];
+        try {
+            const { group_id, author_id, type, page = 1, limit = 20 } = req.query;
+            let sql = `SELECT fp.*, fm.photo_url as author_photo, u.first_name, u.last_name, fm.specialty, fm.institution
+                FROM forum_posts fp
+                JOIN forum_members fm ON fp.author_id = fm.id
+                JOIN users u ON fm.user_id = u.id
+                WHERE fp.moderation_status = 'approved'`;
+            const params = [];
 
-        if (group_id) { sql += ` AND fp.group_id = ?`; params.push(group_id); }
-        if (author_id) { sql += ` AND fp.author_id = ?`; params.push(author_id); }
-        if (type) { sql += ` AND fp.post_type = ?`; params.push(type); }
+            if (group_id) { sql += ` AND fp.group_id = ?`; params.push(group_id); }
+            if (author_id) { sql += ` AND fp.author_id = ?`; params.push(author_id); }
+            if (type) { sql += ` AND fp.post_type = ?`; params.push(type); }
 
-        sql += ` ORDER BY fp.is_pinned DESC, fp.created_at DESC LIMIT ? OFFSET ?`;
-        params.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
+            sql += ` ORDER BY fp.is_pinned DESC, fp.created_at DESC LIMIT ? OFFSET ?`;
+            params.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
 
-        const posts = query.all(sql, params);
+            const posts = query.all(sql, params);
 
-        // Get current user's reactions
-        const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
-        const enriched = posts.map(p => {
-            const hasLiked = currentMember ?
-                !!query.get(`SELECT id FROM forum_post_reactions WHERE post_id = ? AND member_id = ?`, [p.id, currentMember.id]) : false;
-            return { ...p, has_liked: hasLiked };
-        });
+            // Get current user's reactions
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
+            const enriched = posts.map(p => {
+                const hasLiked = currentMember ?
+                    !!query.get(`SELECT id FROM forum_post_reactions WHERE post_id = ? AND member_id = ?`, [p.id, currentMember.id]) : false;
+                return { ...p, has_liked: hasLiked };
+            });
 
-        res.json(enriched);
+            res.json(enriched);
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Create post
     app.post('/api/forum/posts', auth, (req, res) => {
-        const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
-        if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
+        try {
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
+            if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
 
-        const { title, content, post_type, group_id, tags, image_url, video_url, link_url } = req.body;
-        const id = uuidv4();
+            const { title, content, post_type, group_id, tags, image_url, video_url, link_url } = req.body;
+            const id = uuidv4();
 
-        db.run(`INSERT INTO forum_posts (id, author_id, group_id, post_type, title, content, tags, image_url, video_url, link_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, currentMember.id, group_id, post_type || 'discussion', title, content, tags, image_url, video_url, link_url]);
+            db.run(`INSERT INTO forum_posts (id, author_id, group_id, post_type, title, content, tags, image_url, video_url, link_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [id, currentMember.id, group_id, post_type || 'discussion', title, content, tags, image_url, video_url, link_url]);
 
-        // Award points
-        db.run(`UPDATE forum_members SET points = points + 5 WHERE id = ?`, [currentMember.id]);
-        saveDb();
+            // Award points
+            db.run(`UPDATE forum_members SET points = points + 5 WHERE id = ?`, [currentMember.id]);
+            saveDb();
 
-        res.json({ success: true, id });
+            res.json({ success: true, id });
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Like/unlike post
     app.post('/api/forum/posts/:id/react', auth, (req, res) => {
-        const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
-        if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
+        try {
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
+            if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
 
-        const existing = query.get(`SELECT id FROM forum_post_reactions WHERE post_id = ? AND member_id = ?`, [req.params.id, currentMember.id]);
+            const existing = query.get(`SELECT id FROM forum_post_reactions WHERE post_id = ? AND member_id = ?`, [req.params.id, currentMember.id]);
 
-        if (existing) {
-            db.run(`DELETE FROM forum_post_reactions WHERE id = ?`, [existing.id]);
-            db.run(`UPDATE forum_posts SET likes_count = likes_count - 1 WHERE id = ?`, [req.params.id]);
-        } else {
-            const id = uuidv4();
-            db.run(`INSERT INTO forum_post_reactions (id, post_id, member_id) VALUES (?, ?, ?)`, [id, req.params.id, currentMember.id]);
-            db.run(`UPDATE forum_posts SET likes_count = likes_count + 1 WHERE id = ?`, [req.params.id]);
-        }
-        saveDb();
-        res.json({ success: true, liked: !existing });
+            if (existing) {
+                db.run(`DELETE FROM forum_post_reactions WHERE id = ?`, [existing.id]);
+                db.run(`UPDATE forum_posts SET likes_count = likes_count - 1 WHERE id = ?`, [req.params.id]);
+            } else {
+                const id = uuidv4();
+                db.run(`INSERT INTO forum_post_reactions (id, post_id, member_id) VALUES (?, ?, ?)`, [id, req.params.id, currentMember.id]);
+                db.run(`UPDATE forum_posts SET likes_count = likes_count + 1 WHERE id = ?`, [req.params.id]);
+            }
+            saveDb();
+            res.json({ success: true, liked: !existing });
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Get comments for a post
     app.get('/api/forum/posts/:id/comments', auth, (req, res) => {
-        const comments = query.all(`
-            SELECT fc.*, fm.photo_url as author_photo, u.first_name, u.last_name
-            FROM forum_comments fc
-            JOIN forum_members fm ON fc.author_id = fm.id
-            JOIN users u ON fm.user_id = u.id
-            WHERE fc.post_id = ? AND fc.moderation_status = 'approved'
-            ORDER BY fc.created_at ASC
-        `, [req.params.id]);
-        res.json(comments);
+        try {
+            const comments = query.all(`
+                SELECT fc.*, fm.photo_url as author_photo, u.first_name, u.last_name
+                FROM forum_comments fc
+                JOIN forum_members fm ON fc.author_id = fm.id
+                JOIN users u ON fm.user_id = u.id
+                WHERE fc.post_id = ? AND fc.moderation_status = 'approved'
+                ORDER BY fc.created_at ASC
+            `, [req.params.id]);
+            res.json(comments);
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Add comment
     app.post('/api/forum/posts/:id/comments', auth, (req, res) => {
-        const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
-        if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
+        try {
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
+            if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
 
-        const { content, parent_id } = req.body;
-        const id = uuidv4();
+            const { content, parent_id } = req.body;
+            const id = uuidv4();
 
-        db.run(`INSERT INTO forum_comments (id, post_id, author_id, parent_id, content) VALUES (?, ?, ?, ?, ?)`,
-            [id, req.params.id, currentMember.id, parent_id, content]);
-        db.run(`UPDATE forum_posts SET comments_count = comments_count + 1 WHERE id = ?`, [req.params.id]);
+            db.run(`INSERT INTO forum_comments (id, post_id, author_id, parent_id, content) VALUES (?, ?, ?, ?, ?)`,
+                [id, req.params.id, currentMember.id, parent_id, content]);
+            db.run(`UPDATE forum_posts SET comments_count = comments_count + 1 WHERE id = ?`, [req.params.id]);
 
-        // Award points
-        db.run(`UPDATE forum_members SET points = points + 2 WHERE id = ?`, [currentMember.id]);
-        saveDb();
+            // Award points
+            db.run(`UPDATE forum_members SET points = points + 2 WHERE id = ?`, [currentMember.id]);
+            saveDb();
 
-        res.json({ success: true, id });
+            res.json({ success: true, id });
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Get Forum events (user: published only)
     app.get('/api/forum/events', auth, (req, res) => {
-        const { upcoming, past } = req.query;
-        let sql = `SELECT fe.*, u.first_name as organizer_first, u.last_name as organizer_last,
-            (SELECT COUNT(*) FROM forum_event_registrations WHERE event_id = fe.id) as reg_count
-            FROM forum_events fe
-            LEFT JOIN forum_members fm ON fe.organizer_id = fm.id
-            LEFT JOIN users u ON fm.user_id = u.id
-            WHERE (fe.status = 'published' OR fe.is_published = 1)`;
+        try {
+            const { upcoming, past } = req.query;
+            let sql = `SELECT fe.*, u.first_name as organizer_first, u.last_name as organizer_last,
+                (SELECT COUNT(*) FROM forum_event_registrations WHERE event_id = fe.id) as reg_count
+                FROM forum_events fe
+                LEFT JOIN forum_members fm ON fe.organizer_id = fm.id
+                LEFT JOIN users u ON fm.user_id = u.id
+                WHERE (fe.status = 'published' OR fe.is_published = 1)`;
 
-        if (upcoming) sql += ` AND fe.start_date >= date('now')`;
-        if (past) sql += ` AND fe.start_date < date('now')`;
+            if (upcoming) sql += ` AND fe.start_date >= date('now')`;
+            if (past) sql += ` AND fe.start_date < date('now')`;
 
-        sql += ` ORDER BY fe.start_date ASC`;
+            sql += ` ORDER BY fe.start_date ASC`;
 
-        const events = query.all(sql);
+            const events = query.all(sql);
 
-        // Get registration status for current user
-        const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
-        const enriched = events.map(e => {
-            const registration = currentMember ?
-                query.get(`SELECT * FROM forum_event_registrations WHERE event_id = ? AND member_id = ?`, [e.id, currentMember.id]) : null;
-            return { ...e, is_registered: !!registration, registration, registrations_count: e.reg_count || e.registrations_count || 0 };
-        });
+            // Get registration status for current user
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
+            const enriched = events.map(e => {
+                const registration = currentMember ?
+                    query.get(`SELECT * FROM forum_event_registrations WHERE event_id = ? AND member_id = ?`, [e.id, currentMember.id]) : null;
+                return { ...e, is_registered: !!registration, registration, registrations_count: e.reg_count || e.registrations_count || 0 };
+            });
 
-        res.json(enriched);
+            res.json(enriched);
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Register for event (enhanced with name/email/institution + payment support)
     app.post('/api/forum/events/:id/register', optionalAuth, (req, res) => {
-        const { name, email, institution } = req.body || {};
+        try {
+            const { name, email, institution } = req.body || {};
 
-        // Resolve member_id: use forum membership if logged in, otherwise use email
-        let memberId = null;
-        if (req.user) {
-            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
-            memberId = currentMember ? currentMember.id : req.user.id;
-        } else if (email) {
-            // Find or identify by email for unauthenticated registrations
-            const existingUser = query.get(`SELECT id FROM users WHERE email = ?`, [email]);
-            memberId = existingUser ? existingUser.id : email;
-        } else {
-            return res.status(400).json({ error: 'Please provide your email to register' });
-        }
-
-        const event = query.get(`SELECT * FROM forum_events WHERE id = ?`, [req.params.id]);
-        if (!event) return res.status(404).json({ error: 'Event not found' });
-
-        const existing = query.get(`SELECT id FROM forum_event_registrations WHERE event_id = ? AND member_id = ?`, [req.params.id, memberId]);
-        if (existing) return res.status(400).json({ error: 'Already registered' });
-
-        if (event.capacity && event.registrations_count >= event.capacity) {
-            return res.status(400).json({ error: 'Event is at capacity' });
-        }
-
-        const id = uuidv4();
-        const qrCode = `FORUM-${id.substring(0, 8).toUpperCase()}`;
-
-        // Determine if this is a paid event and compute price
-        const isPaid = event.is_paid && event.price > 0;
-        let price = 0;
-        let paymentStatus = 'free';
-        if (isPaid) {
-            const now = new Date();
-            if (event.early_bird_price && event.early_bird_deadline && now < new Date(event.early_bird_deadline)) {
-                price = event.early_bird_price;
+            // Resolve member_id: use forum membership if logged in, otherwise use email
+            let memberId = null;
+            if (req.user) {
+                const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
+                memberId = currentMember ? currentMember.id : req.user.id;
+            } else if (email) {
+                // Find or identify by email for unauthenticated registrations
+                const existingUser = query.get(`SELECT id FROM users WHERE email = ?`, [email]);
+                memberId = existingUser ? existingUser.id : email;
             } else {
-                price = event.price;
+                return res.status(400).json({ error: 'Please provide your email to register' });
             }
-            paymentStatus = 'unpaid';
-        }
 
-        db.run(`INSERT INTO forum_event_registrations (id, event_id, member_id, name, email, institution, qr_code, payment_status, payment_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, req.params.id, memberId, name || null, email || null, institution || null, qrCode, paymentStatus, isPaid ? price : null]);
-        db.run(`UPDATE forum_events SET registrations_count = registrations_count + 1 WHERE id = ?`, [req.params.id]);
-        saveDb();
+            const event = query.get(`SELECT * FROM forum_events WHERE id = ?`, [req.params.id]);
+            if (!event) return res.status(404).json({ error: 'Event not found' });
 
-        res.json({ success: true, id, qr_code: qrCode, checkin_enabled: !!event.checkin_enabled, requires_payment: isPaid, price });
+            const existing = query.get(`SELECT id FROM forum_event_registrations WHERE event_id = ? AND member_id = ?`, [req.params.id, memberId]);
+            if (existing) return res.status(400).json({ error: 'Already registered' });
+
+            if (event.capacity && event.registrations_count >= event.capacity) {
+                return res.status(400).json({ error: 'Event is at capacity' });
+            }
+
+            const id = uuidv4();
+            const qrCode = `FORUM-${id.substring(0, 8).toUpperCase()}`;
+
+            // Determine if this is a paid event and compute price
+            const isPaid = event.is_paid && event.price > 0;
+            let price = 0;
+            let paymentStatus = 'free';
+            if (isPaid) {
+                const now = new Date();
+                if (event.early_bird_price && event.early_bird_deadline && now < new Date(event.early_bird_deadline)) {
+                    price = event.early_bird_price;
+                } else {
+                    price = event.price;
+                }
+                paymentStatus = 'unpaid';
+            }
+
+            db.run(`INSERT INTO forum_event_registrations (id, event_id, member_id, name, email, institution, qr_code, payment_status, payment_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [id, req.params.id, memberId, name || null, email || null, institution || null, qrCode, paymentStatus, isPaid ? price : null]);
+            db.run(`UPDATE forum_events SET registrations_count = registrations_count + 1 WHERE id = ?`, [req.params.id]);
+            saveDb();
+
+            res.json({ success: true, id, qr_code: qrCode, checkin_enabled: !!event.checkin_enabled, requires_payment: isPaid, price });
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Create Stripe checkout session for paid forum event
@@ -6073,16 +6113,18 @@ By applying to this program, I provide the following consents:
 
     // Get user's registration for an event (+ QR code)
     app.get('/api/forum/events/:id/my-registration', auth, (req, res) => {
-        const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
-        if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
+        try {
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
+            if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
 
-        const event = query.get(`SELECT * FROM forum_events WHERE id = ?`, [req.params.id]);
-        if (!event) return res.status(404).json({ error: 'Event not found' });
+            const event = query.get(`SELECT * FROM forum_events WHERE id = ?`, [req.params.id]);
+            if (!event) return res.status(404).json({ error: 'Event not found' });
 
-        const reg = query.get(`SELECT * FROM forum_event_registrations WHERE event_id = ? AND member_id = ?`, [req.params.id, currentMember.id]);
-        if (!reg) return res.status(404).json({ error: 'Not registered' });
+            const reg = query.get(`SELECT * FROM forum_event_registrations WHERE event_id = ? AND member_id = ?`, [req.params.id, currentMember.id]);
+            if (!reg) return res.status(404).json({ error: 'Not registered' });
 
-        res.json({ ...reg, checkin_enabled: !!event.checkin_enabled, event_title: event.title });
+            res.json({ ...reg, checkin_enabled: !!event.checkin_enabled, event_title: event.title });
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Get Forum Event Schedule (read-only for users)
@@ -6097,46 +6139,52 @@ By applying to this program, I provide the following consents:
 
     // Get Forum media/gallery
     app.get('/api/forum/media', auth, (req, res) => {
-        const { event_id, gallery_name, type, folder_id } = req.query;
-        let sql = `SELECT fm.*, u.first_name, u.last_name
-            FROM forum_media fm
-            JOIN forum_members fmem ON fm.uploader_id = fmem.id
-            JOIN users u ON fmem.user_id = u.id
-            WHERE fm.is_approved = 1`;
-        const params = [];
+        try {
+            const { event_id, gallery_name, type, folder_id } = req.query;
+            let sql = `SELECT fm.*, u.first_name, u.last_name
+                FROM forum_media fm
+                JOIN forum_members fmem ON fm.uploader_id = fmem.id
+                JOIN users u ON fmem.user_id = u.id
+                WHERE fm.is_approved = 1`;
+            const params = [];
 
-        if (event_id) { sql += ` AND fm.event_id = ?`; params.push(event_id); }
-        if (gallery_name) { sql += ` AND fm.gallery_name = ?`; params.push(gallery_name); }
-        if (type) { sql += ` AND fm.media_type = ?`; params.push(type); }
-        if (folder_id) { sql += ` AND fm.folder_id = ?`; params.push(folder_id); }
-        else { sql += ` AND (fm.folder_id IS NULL OR fm.folder_id = '')`; }
+            if (event_id) { sql += ` AND fm.event_id = ?`; params.push(event_id); }
+            if (gallery_name) { sql += ` AND fm.gallery_name = ?`; params.push(gallery_name); }
+            if (type) { sql += ` AND fm.media_type = ?`; params.push(type); }
+            if (folder_id) { sql += ` AND fm.folder_id = ?`; params.push(folder_id); }
+            else { sql += ` AND (fm.folder_id IS NULL OR fm.folder_id = '')`; }
 
-        sql += ` ORDER BY fm.created_at DESC`;
-        res.json(query.all(sql, params));
+            sql += ` ORDER BY fm.created_at DESC`;
+            res.json(query.all(sql, params));
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Get gallery folders
     app.get('/api/forum/gallery/folders', auth, (req, res) => {
-        const { parent_id } = req.query;
-        let sql = `SELECT * FROM forum_gallery_folders WHERE 1=1`;
-        const params = [];
+        try {
+            const { parent_id } = req.query;
+            let sql = `SELECT * FROM forum_gallery_folders WHERE 1=1`;
+            const params = [];
 
-        if (parent_id) {
-            sql += ` AND parent_id = ?`;
-            params.push(parent_id);
-        } else {
-            sql += ` AND (parent_id IS NULL OR parent_id = '')`;
-        }
+            if (parent_id) {
+                sql += ` AND parent_id = ?`;
+                params.push(parent_id);
+            } else {
+                sql += ` AND (parent_id IS NULL OR parent_id = '')`;
+            }
 
-        sql += ` ORDER BY event_year DESC, name ASC`;
-        res.json(query.all(sql, params));
+            sql += ` ORDER BY event_year DESC, name ASC`;
+            res.json(query.all(sql, params));
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Get single gallery folder
     app.get('/api/forum/gallery/folders/:id', auth, (req, res) => {
-        const folder = query.get(`SELECT * FROM forum_gallery_folders WHERE id = ?`, [req.params.id]);
-        if (!folder) return res.status(404).json({ error: 'Folder not found' });
-        res.json(folder);
+        try {
+            const folder = query.get(`SELECT * FROM forum_gallery_folders WHERE id = ?`, [req.params.id]);
+            if (!folder) return res.status(404).json({ error: 'Folder not found' });
+            res.json(folder);
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Admin: Create gallery folder
@@ -6174,51 +6222,57 @@ By applying to this program, I provide the following consents:
 
     // Get Forum resources
     app.get('/api/forum/resources', auth, (req, res) => {
-        const { category, type, search } = req.query;
-        let sql = `SELECT fr.*, u.first_name, u.last_name
-            FROM forum_resources fr
-            JOIN forum_members fm ON fr.uploader_id = fm.id
-            JOIN users u ON fm.user_id = u.id
-            WHERE 1=1`;
-        const params = [];
+        try {
+            const { category, type, search } = req.query;
+            let sql = `SELECT fr.*, u.first_name, u.last_name
+                FROM forum_resources fr
+                JOIN forum_members fm ON fr.uploader_id = fm.id
+                JOIN users u ON fm.user_id = u.id
+                WHERE 1=1`;
+            const params = [];
 
-        if (category) { sql += ` AND fr.category = ?`; params.push(category); }
-        if (type) { sql += ` AND fr.resource_type = ?`; params.push(type); }
-        if (search) { sql += ` AND (fr.title LIKE ? OR fr.description LIKE ?)`; params.push(`%${search}%`, `%${search}%`); }
+            if (category) { sql += ` AND fr.category = ?`; params.push(category); }
+            if (type) { sql += ` AND fr.resource_type = ?`; params.push(type); }
+            if (search) { sql += ` AND (fr.title LIKE ? OR fr.description LIKE ?)`; params.push(`%${search}%`, `%${search}%`); }
 
-        sql += ` ORDER BY fr.is_featured DESC, fr.created_at DESC`;
-        res.json(query.all(sql, params));
+            sql += ` ORDER BY fr.is_featured DESC, fr.created_at DESC`;
+            res.json(query.all(sql, params));
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Get mentors
     app.get('/api/forum/mentors', auth, (req, res) => {
-        const mentors = query.all(`
-            SELECT fm.*, u.first_name, u.last_name
-            FROM forum_members fm
-            JOIN users u ON fm.user_id = u.id
-            WHERE fm.is_mentor = 1 AND fm.membership_status = 'approved'
-            ORDER BY fm.points DESC
-        `);
-        res.json(mentors);
+        try {
+            const mentors = query.all(`
+                SELECT fm.*, u.first_name, u.last_name
+                FROM forum_members fm
+                JOIN users u ON fm.user_id = u.id
+                WHERE fm.is_mentor = 1 AND fm.membership_status = 'approved'
+                ORDER BY fm.points DESC
+            `);
+            res.json(mentors);
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Request mentorship
     app.post('/api/forum/mentorship', auth, (req, res) => {
-        const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
-        if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
+        try {
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
+            if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
 
-        const { mentor_id, focus_areas, goals } = req.body;
+            const { mentor_id, focus_areas, goals } = req.body;
 
-        const existing = query.get(`SELECT id FROM forum_mentorships WHERE mentor_id = ? AND mentee_id = ? AND status != 'ended'`,
-            [mentor_id, currentMember.id]);
-        if (existing) return res.status(400).json({ error: 'Mentorship request already exists' });
+            const existing = query.get(`SELECT id FROM forum_mentorships WHERE mentor_id = ? AND mentee_id = ? AND status != 'ended'`,
+                [mentor_id, currentMember.id]);
+            if (existing) return res.status(400).json({ error: 'Mentorship request already exists' });
 
-        const id = uuidv4();
-        db.run(`INSERT INTO forum_mentorships (id, mentor_id, mentee_id, focus_areas, goals) VALUES (?, ?, ?, ?, ?)`,
-            [id, mentor_id, currentMember.id, focus_areas, goals]);
-        saveDb();
+            const id = uuidv4();
+            db.run(`INSERT INTO forum_mentorships (id, mentor_id, mentee_id, focus_areas, goals) VALUES (?, ?, ?, ?, ?)`,
+                [id, mentor_id, currentMember.id, focus_areas, goals]);
+            saveDb();
 
-        res.json({ success: true, id });
+            res.json({ success: true, id });
+        } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // Admin: Get Forum stats
@@ -14212,6 +14266,12 @@ By applying to this program, I provide the following consents:
 
     // Serve frontend
     app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../frontend/index.html')));
+
+    // Global error handler
+    app.use((err, req, res, next) => {
+        console.error('Unhandled error:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    });
 
     // Start watching shared DB for cross-portal sync
     watchSharedDb();

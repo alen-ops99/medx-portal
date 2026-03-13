@@ -1541,6 +1541,14 @@
             flex-shrink: 0;
             margin-top: 2px;
             transition: all 0.15s;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            position: relative;
+            min-width: 24px;
+            min-height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .task-check:hover {
@@ -5303,7 +5311,7 @@
         /* ===== GLOBAL QR SCANNER FAB ===== */
         .qr-fab {
             position: fixed;
-            bottom: 28px;
+            bottom: 96px;
             right: 28px;
             width: 56px;
             height: 56px;
@@ -7088,7 +7096,6 @@ President, Med&amp;X</textarea>
                                 <div class="card-body" id="accTimelinePreview" style="min-height: 200px;"></div>
                             </div>
                         </div>
-                    </div>
 
                         <!-- B2: Quick Settings Summary Card -->
                         <div class="card" style="margin-top: 20px;">
@@ -8721,7 +8728,7 @@ President, Med&amp;X</textarea>
                                             <th style="padding: 12px; text-align: left;">Number</th>
                                             <th style="padding: 12px; text-align: left;">Recipient</th>
                                             <th style="padding: 12px; text-align: right;">Amount</th>
-                                            <th style="padding: 12px; text-align: left;">Date</th>
+                                            <th style="padding: 12px; text-align: left;">Payment Date</th>
                                             <th style="padding: 12px; text-align: left;">Project</th>
                                             <th style="padding: 12px; text-align: center;">Status</th>
                                             <th style="padding: 12px; text-align: center;">Actions</th>
@@ -8832,7 +8839,7 @@ President, Med&amp;X</textarea>
                                             <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: var(--text-muted);">Ticket</th>
                                             <th style="padding: 12px 16px; text-align: right; font-size: 13px; color: var(--text-muted);">Amount</th>
                                             <th style="padding: 12px 16px; text-align: center; font-size: 13px; color: var(--text-muted);">Status</th>
-                                            <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: var(--text-muted);">Date</th>
+                                            <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: var(--text-muted);">Payment Date</th>
                                             <th style="padding: 12px 16px; text-align: center; font-size: 13px; color: var(--text-muted);">Actions</th>
                                         </tr>
                                     </thead>
@@ -11904,7 +11911,8 @@ President, Med&amp;X</textarea>
             async showApp() {
                 document.getElementById('loginPage').style.display = 'none';
                 document.getElementById('mainApp').classList.add('active');
-                document.getElementById('globalQRBtn').style.display = 'flex';
+                // QR FAB starts hidden; shown only when navigating to Plexus section
+                document.getElementById('globalQRBtn').style.display = 'none';
                 this.updateFabBadge();
 
                 // Online/offline listeners for check-in queue
@@ -12108,9 +12116,39 @@ President, Med&amp;X</textarea>
                         ...options.headers
                     }
                 });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
-                return data;
+                const contentType = res.headers.get('content-type') || '';
+                if (!res.ok) {
+                    if (contentType.includes('application/json')) {
+                        const data = await res.json().catch(() => ({}));
+                        throw new Error(data.error || `Request failed (${res.status})`);
+                    }
+                    throw new Error(`Request failed (${res.status}). Server returned a non-JSON error response.`);
+                }
+                if (!contentType.includes('application/json')) {
+                    throw new Error(`Server returned non-JSON response (${res.status}). Check that the API endpoint exists.`);
+                }
+                return res.json();
+            },
+
+            async downloadFile(url, filename) {
+                try {
+                    const response = await fetch(url, {
+                        headers: { 'Authorization': `Bearer ${this.token}` }
+                    });
+                    if (!response.ok) throw new Error(`Download failed (${response.status})`);
+                    const blob = await response.blob();
+                    const blobUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = filename || 'download';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(blobUrl);
+                } catch (err) {
+                    console.error('File download failed:', err);
+                    Toast.error('Failed to download file: ' + err.message);
+                }
             },
 
             // Section definitions for onboarding
@@ -13875,7 +13913,7 @@ President, Med&amp;X</textarea>
 
                 return `
                     <div class="task-item ${isSubtask ? 'subtask' : ''}" style="${isSubtask ? 'padding: 8px 0;' : ''}">
-                        <div class="task-check ${task.status === 'done' ? 'done' : ''}" onclick="App.toggleTask('${task.id}', '${project}')" style="${isSubtask ? 'width: 16px; height: 16px;' : ''}"></div>
+                        <div class="task-check ${task.status === 'done' ? 'done' : ''}" onclick="event.stopPropagation(); App.toggleTask('${task.id}', '${project}')" style="${isSubtask ? 'width: 16px; height: 16px;' : ''}"></div>
                         <div class="task-content" onclick="App.openTaskModal('${project}', '${task.id}')" style="cursor: pointer;">
                             <div class="task-title" style="${isSubtask ? 'font-size: 13px;' : ''}">${this.escapeHtml(task.title)}</div>
                             <div class="task-meta">
@@ -13985,6 +14023,12 @@ President, Med&amp;X</textarea>
                     chatPanel?.classList.add('hidden');
                 }
 
+                // Only show Quick Check-in FAB on Plexus section
+                const qrFab = document.getElementById('globalQRBtn');
+                if (qrFab) {
+                    qrFab.style.display = sectionId === 'plexus' ? 'flex' : 'none';
+                }
+
                 if (sectionId === 'finances') {
                     // Switch to Finances team chat
                     this.currentView = 'finances';
@@ -14060,6 +14104,12 @@ President, Med&amp;X</textarea>
 
                 // Load project-specific channels
                 this.loadProjectChannels(projectId);
+
+                // Only show Quick Check-in FAB on Plexus section
+                const qrFab = document.getElementById('globalQRBtn');
+                if (qrFab) {
+                    qrFab.style.display = projectId === 'plexus' ? 'flex' : 'none';
+                }
 
                 // Load Plexus-specific data
                 if (projectId === 'plexus') {
@@ -14574,7 +14624,7 @@ President, Med&amp;X</textarea>
                 }
                 container.innerHTML = subtasks.map(st => `
                     <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 4px;">
-                        <div class="task-check ${st.status === 'done' ? 'done' : ''}" onclick="App.toggleSubtask('${st.id}')" style="width: 16px; height: 16px; cursor: pointer;"></div>
+                        <div class="task-check ${st.status === 'done' ? 'done' : ''}" onclick="event.stopPropagation(); App.toggleSubtask('${st.id}')" style="width: 16px; height: 16px; cursor: pointer;"></div>
                         <span style="flex: 1; font-size: 13px; ${st.status === 'done' ? 'text-decoration: line-through; color: var(--text-muted);' : ''}">${this.escapeHtml(st.title)}</span>
                         <button class="btn btn-secondary" style="padding: 2px 6px;" onclick="App.deleteSubtask('${st.id}')"><i class="fas fa-times"></i></button>
                     </div>
@@ -16270,12 +16320,13 @@ President, Med&amp;X</textarea>
 
                 this.plexusCurrentTab = tab;
 
-                // Update tab buttons
-                document.querySelectorAll('.plexus-tab').forEach(t => t.classList.remove('active'));
-                document.querySelector(`.plexus-tab[onclick*="'${tab}'"]`)?.classList.add('active');
+                // Update tab buttons (scoped to Plexus section only)
+                const plexusSection = document.getElementById('section-plexus');
+                plexusSection.querySelectorAll(':scope > .plexus-tabs > .plexus-tab').forEach(t => t.classList.remove('active'));
+                plexusSection.querySelector(`:scope > .plexus-tabs > .plexus-tab[onclick*="'${tab}'"]`)?.classList.add('active');
 
-                // Update content panels
-                document.querySelectorAll('.plexus-content').forEach(c => c.classList.remove('active'));
+                // Update content panels (scoped to Plexus section only)
+                plexusSection.querySelectorAll(':scope > .plexus-content').forEach(c => c.classList.remove('active'));
                 document.getElementById(`plexus-${tab}`)?.classList.add('active');
 
                 // Load data for the tab
@@ -17398,7 +17449,7 @@ President, Med&amp;X</textarea>
                     if (!container) return;
                     if (!docs || docs.length === 0) { container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No documents uploaded yet</p>'; return; }
                     const typeIcons = { presentation: 'fa-file-powerpoint', cv: 'fa-file-alt', photo: 'fa-image', 'bio-photo': 'fa-image', bio: 'fa-user', additional: 'fa-file' };
-                    container.innerHTML = docs.map(d => `<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:6px;background:var(--bg-tertiary);margin-bottom:6px;"><i class="fas ${typeIcons[d.type] || 'fa-file'}" style="color:var(--accent);font-size:16px;"></i><div style="flex:1;"><div style="font-size:13px;font-weight:500;">${this.escapeHtml(d.original_name)}</div><div style="font-size:11px;color:var(--text-muted);">${d.type} &bull; ${d.file_size ? (d.file_size / 1024).toFixed(0) + ' KB' : ''} &bull; ${new Date(d.uploaded_at).toLocaleDateString()}</div></div><a href="/api/admin/plexus/speakers/${speakerId}/documents/${d.id}/download" class="btn btn-secondary" style="padding:4px 10px;font-size:12px;" title="Download"><i class="fas fa-download"></i></a></div>`).join('');
+                    container.innerHTML = docs.map(d => `<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:6px;background:var(--bg-tertiary);margin-bottom:6px;"><i class="fas ${typeIcons[d.type] || 'fa-file'}" style="color:var(--accent);font-size:16px;"></i><div style="flex:1;"><div style="font-size:13px;font-weight:500;">${this.escapeHtml(d.original_name)}</div><div style="font-size:11px;color:var(--text-muted);">${d.type} &bull; ${d.file_size ? (d.file_size / 1024).toFixed(0) + ' KB' : ''} &bull; ${new Date(d.uploaded_at).toLocaleDateString()}</div></div><button onclick="App.downloadFile('/api/admin/plexus/speakers/${speakerId}/documents/${d.id}/download', '${this.escapeHtml(d.original_name)}')" class="btn btn-secondary" style="padding:4px 10px;font-size:12px;" title="Download"><i class="fas fa-download"></i></button></div>`).join('');
                 });
             },
 
@@ -17444,7 +17495,7 @@ President, Med&amp;X</textarea>
                 if (emailInput) { const currentEmail = emailInput.value.trim(); if (currentEmail) { await this.api(`/api/admin/plexus/speakers/${speakerId}`, { method: 'PUT', body: JSON.stringify({ email: currentEmail }) }); } }
                 try {
                     const result = await this.api(`/api/admin/plexus/speakers/${speakerId}/send-upload-link`, { method: 'POST' });
-                    if (result.mock) { alert(`Email mocked (no SMTP configured)\n\nInvite Code: ${result.invite_code}\nCheck server console.`); } else { alert(`Upload link sent!\n\nInvite Code: ${result.invite_code}`); }
+                    Toast.success(`Speaker invitation sent successfully!\n\nInvite Code: ${result.invite_code}`);
                     const codeInput = document.getElementById('spkInviteCode'); if (codeInput) codeInput.value = result.invite_code;
                 } catch (err) { console.error('Failed to send upload link:', err); Toast.error(`Failed to send upload link: ${err.message}`); }
             },
@@ -17544,8 +17595,7 @@ President, Med&amp;X</textarea>
                     const skipped = result.results.filter(r => r.status === 'skipped').length;
                     let msg = `Invitations sent to ${sent} speaker(s)`;
                     if (skipped) msg += `\n${skipped} skipped (no email)`;
-                    if (result.results.some(r => r.mock)) msg += '\n\n(Emails mocked - no SMTP configured)';
-                    alert(msg);
+                    Toast.success(msg);
                     await this.loadPlexusSpeakers();
                 } catch (err) { console.error('Failed to send invitations:', err); Toast.error('Failed to send invitations: ' + err.message); }
             },
@@ -21085,7 +21135,7 @@ President, Med&amp;X</textarea>
                                     <div style="font-size: 13px;">${escapeHtml(d.document_type)}</div>
                                     <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(d.original_filename)} ${d.file_size ? '(' + (d.file_size / 1024).toFixed(1) + ' KB)' : ''}</div>
                                 </div>
-                                <a href="/api/accelerator/documents/${escapeHtml(d.id)}/download" class="btn btn-secondary" style="padding: 4px 8px;" title="Download"><i class="fas fa-download"></i></a>
+                                <button onclick="App.downloadFile('/api/accelerator/documents/${escapeHtml(d.id)}/download', '${escapeHtml(d.original_filename || 'document')}')" class="btn btn-secondary" style="padding: 4px 8px;" title="Download"><i class="fas fa-download"></i></button>
                             </div>`;
                         }).join('') : '<p style="color: var(--text-muted);">No documents loaded</p>'}
                     </div>
@@ -21617,8 +21667,8 @@ President, Med&amp;X</textarea>
                 }
             },
 
-            downloadRankingPDF() {
-                window.open(`/api/accelerator/years/${this.currentYear}/ranking-pdf`, '_blank');
+            async downloadRankingPDF() {
+                await App.downloadFile(`/api/accelerator/years/${this.currentYear}/ranking-pdf`, `accelerator-ranking-${this.currentYear}.pdf`);
             },
 
             async editPdfSettings() {
@@ -21778,7 +21828,7 @@ President, Med&amp;X</textarea>
                                     <div style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${f.document_type || f.original_filename || 'Document'}</div>
                                     <div style="font-size: 11px; color: var(--text-muted);">${f.original_filename || ''} ${sizeStr ? '(' + sizeStr + ')' : ''}</div>
                                 </div>
-                                <a href="/api/accelerator/documents/${f.id}/download" class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" title="Download"><i class="fas fa-download"></i></a>
+                                <button onclick="App.downloadFile('/api/accelerator/documents/${f.id}/download', '${(f.original_filename || 'document').replace(/'/g, "\\'")}')" class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" title="Download"><i class="fas fa-download"></i></button>
                             </div>`;
                     }).join('');
 
@@ -22427,6 +22477,27 @@ By applying to this program, I give the following consents:
                 return res.json();
             },
 
+            async downloadPdf(url, filename) {
+                try {
+                    const response = await fetch(url, {
+                        headers: { 'Authorization': `Bearer ${App.token}` }
+                    });
+                    if (!response.ok) throw new Error(`Download failed (${response.status})`);
+                    const blob = await response.blob();
+                    const blobUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = filename || 'document.pdf';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(blobUrl);
+                } catch (err) {
+                    console.error('PDF download failed:', err);
+                    Toast.error('Failed to download PDF: ' + err.message);
+                }
+            },
+
             showTab(tabId, btn) {
                 document.querySelectorAll('.finance-tab').forEach(t => t.classList.remove('active'));
                 document.getElementById('finance-tab-' + tabId).classList.add('active');
@@ -22870,7 +22941,7 @@ By applying to this program, I give the following consents:
                             </span>
                         </td>
                         <td style="padding: 12px; text-align: center;">
-                            <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="window.open('/api/finance/invoices/${inv.id}/pdf', '_blank')" title="View PDF"><i class="fas fa-file-pdf"></i></button>
+                            <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.downloadPdf('/api/finance/invoices/${inv.id}/pdf', 'invoice-${inv.invoice_number}.pdf')" title="View PDF"><i class="fas fa-file-pdf"></i></button>
                             ${inv.status === 'draft' ? `<button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.issueInvoice('${inv.id}')" title="Issue"><i class="fas fa-paper-plane"></i></button>` : ''}
                             ${inv.status === 'issued' ? `<button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.markInvoicePaid('${inv.id}')" title="Mark Paid"><i class="fas fa-check"></i></button>` : ''}
                             <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.deleteInvoice('${inv.id}')"><i class="fas fa-trash"></i></button>
@@ -23139,7 +23210,7 @@ By applying to this program, I give the following consents:
                             </td>
                             <td style="padding: 12px; text-align: center;">
                                 <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.viewTravelOrder('${to.id}')" title="View"><i class="fas fa-eye"></i></button>
-                                <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="window.open('/api/finance/travel-orders/${to.id}/pdf', '_blank')" title="PDF"><i class="fas fa-file-pdf"></i></button>
+                                <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.downloadPdf('/api/finance/travel-orders/${to.id}/pdf', 'travel-order-${escapeHtml(to.order_number)}.pdf')" title="PDF"><i class="fas fa-file-pdf"></i></button>
                             </td>
                         </tr>
                     `;
