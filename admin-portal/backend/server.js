@@ -134,6 +134,7 @@ function watchSharedDb() {
         debounceTimer = setTimeout(() => {
             try {
                 const data = fs.readFileSync(DB_PATH);
+                if (db) { try { db.close(); } catch(e) {} }
                 db = new SQL.Database(data);
                 console.log('[Sync] Reloaded shared DB (changed by other portal)');
             } catch (err) {
@@ -9089,12 +9090,17 @@ By applying to this program, I provide the following consents:
     });
 
     app.post('/api/admin/sessions', auth, adminOnly, (req, res) => {
-        const { conference_id, title, description, session_type, day, start_time, end_time, room, track } = req.body;
-        const id = uuidv4();
-        db.run(`INSERT INTO sessions (id, conference_id, title, description, session_type, day, start_time, end_time, room, track)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [id, conference_id, title, description, session_type, day, start_time, end_time, room, track]);
-        saveDb();
-        res.json({ success: true, session_id: id });
+        try {
+            const { conference_id, title, description, session_type, day, start_time, end_time, room, track } = req.body;
+            const id = uuidv4();
+            db.run(`INSERT INTO sessions (id, conference_id, title, description, session_type, day, start_time, end_time, room, track)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [id, conference_id, title, description, session_type, day, start_time, end_time, room, track]);
+            saveDb();
+            res.json({ success: true, session_id: id });
+        } catch (err) {
+            console.error('Error creating session:', err);
+            res.status(500).json({ error: 'Failed to create session' });
+        }
     });
 
     app.post('/api/admin/announcements', auth, adminOnly, (req, res) => {
@@ -9438,6 +9444,7 @@ By applying to this program, I provide the following consents:
     // Get full schedule
     app.get('/api/plexus/schedule', (req, res) => {
         const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+        if (!conf) return res.json([]);
         const sessions = query.all(`SELECT s.*, GROUP_CONCAT(sp.name) as speaker_names
             FROM sessions s
             LEFT JOIN speakers sp ON s.speaker_ids LIKE '%' || sp.id || '%'
@@ -10020,9 +10027,12 @@ By applying to this program, I provide the following consents:
         db.run(`UPDATE sessions SET title = ?, description = ?, session_type = ?, day = ?, start_time = ?, end_time = ?,
             room = ?, track = ?, speaker_ids = ?, capacity = ?, is_published = ? WHERE id = ?`,
             [title || existing.title, description !== undefined ? description : existing.description,
-             session_type || existing.session_type, day || existing.day,
-             start_time || existing.start_time, end_time || existing.end_time,
-             room || existing.room, track !== undefined ? track : existing.track,
+             session_type || existing.session_type,
+             day !== undefined ? day : existing.day,
+             start_time !== undefined ? start_time : existing.start_time,
+             end_time !== undefined ? end_time : existing.end_time,
+             room !== undefined ? room : existing.room,
+             track !== undefined ? track : existing.track,
              speakerIdsStr, capacity !== undefined ? capacity : existing.capacity,
              is_published !== undefined ? (is_published ? 1 : 0) : existing.is_published,
              req.params.id]);
@@ -15671,6 +15681,12 @@ By applying to this program, I provide the following consents:
     // API 404 handler — prevent unmatched API routes from returning HTML
     app.use('/api', (req, res) => {
         res.status(404).json({ error: 'API endpoint not found' });
+    });
+
+    // Global error handler (must be 4-arg to catch Express errors)
+    app.use((err, req, res, next) => {
+        console.error('Unhandled error:', err);
+        res.status(500).json({ error: 'Internal server error' });
     });
 
     // Serve frontend
