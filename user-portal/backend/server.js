@@ -3296,6 +3296,14 @@ async function initializeApp() {
     app.post('/api/auth/register', async (req, res) => {
         try {
             const { email, password, first_name, last_name, institution, country } = req.body;
+
+            // Input validation
+            if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                return res.status(400).json({ error: 'A valid email address is required' });
+            }
+            if (!password || typeof password !== 'string' || password.length < 8) {
+                return res.status(400).json({ error: 'Password must be at least 8 characters' });
+            }
             if (query.get('SELECT id FROM users WHERE email = ?', [email])) {
                 return res.status(400).json({ error: 'Email exists' });
             }
@@ -5001,8 +5009,8 @@ By applying to this program, I provide the following consents:
 
             if (app.user_id) {
                 try {
-                    db.run(`INSERT INTO notifications (id, user_id, type, title, message, created_at)
-                        VALUES (?, ?, 'accelerator_ranking', 'Accelerator Ranking Published', ?, datetime('now'))`,
+                    db.run(`INSERT INTO user_notifications (id, user_id, category, title, message, created_at)
+                        VALUES (?, ?, 'accelerator', 'Accelerator Ranking Published', ?, datetime('now'))`,
                         [notifId, app.user_id, message]);
                     notified++;
                 } catch (e) { /* ignore duplicate notifications */ }
@@ -5532,7 +5540,7 @@ By applying to this program, I provide the following consents:
                     [f.section_name, f.field_name, f.field_type || 'text', f.label, f.placeholder, f.is_required ? 1 : 0, f.options || null, f.sort_order || 0, f.is_visible !== false ? 1 : 0, f.id]);
             } else {
                 db.run(`INSERT INTO accelerator_form_config (id, program_id, section_name, field_name, field_type, label, placeholder, is_required, options, sort_order, is_visible) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-                    [f.id || generateId(), f.program_id || null, f.section_name, f.field_name, f.field_type || 'text', f.label, f.placeholder, f.is_required ? 1 : 0, f.options || null, f.sort_order || 0, f.is_visible !== false ? 1 : 0]);
+                    [f.id || uuidv4(), f.program_id || null, f.section_name, f.field_name, f.field_type || 'text', f.label, f.placeholder, f.is_required ? 1 : 0, f.options || null, f.sort_order || 0, f.is_visible !== false ? 1 : 0]);
             }
         });
         saveDb();
@@ -5544,7 +5552,7 @@ By applying to this program, I provide the following consents:
         const { program_id, section_name, field_name, field_type, label, placeholder, is_required, options, sort_order, is_visible } = req.body;
         if (!section_name || !field_name) return res.status(400).json({ error: 'section_name and field_name required' });
 
-        const id = generateId();
+        const id = uuidv4();
         db.run(`INSERT INTO accelerator_form_config (id, program_id, section_name, field_name, field_type, label, placeholder, is_required, options, sort_order, is_visible) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
             [id, program_id || null, section_name, field_name, field_type || 'text', label || field_name, placeholder || '', is_required ? 1 : 0, options || null, sort_order || 0, is_visible !== false ? 1 : 0]);
         saveDb();
@@ -6772,6 +6780,7 @@ By applying to this program, I provide the following consents:
     // Bulk email selected members
     app.post('/api/admin/forum/bulk-email', auth, adminOnly, (req, res) => {
         const { member_ids, subject, body } = req.body;
+        if (!Array.isArray(member_ids) || member_ids.length === 0) return res.status(400).json({ error: 'member_ids must be a non-empty array' });
         const members = query.all(`
             SELECT u.email, u.first_name FROM forum_members fm
             JOIN users u ON fm.user_id = u.id
@@ -9288,104 +9297,114 @@ By applying to this program, I provide the following consents:
 
     // Start registration (Step 1: Personal info + account creation)
     app.post('/api/plexus/register/start', async (req, res) => {
-        const { email, password, first_name, last_name, phone, institution, country, title, department } = req.body;
+        try {
+            const { email, password, first_name, last_name, phone, institution, country, title, department } = req.body;
 
-        // Check if user exists
-        let user = query.get('SELECT * FROM users WHERE email = ?', [email]);
+            // Check if user exists
+            let user = query.get('SELECT * FROM users WHERE email = ?', [email]);
 
-        if (user && password) {
-            // Verify password for existing user
-            const valid = await bcrypt.compare(password, user.password_hash);
-            if (!valid) return res.status(400).json({ error: 'Account exists with different password' });
-        } else if (!user) {
-            // Create new user
-            const hash = password ? await bcrypt.hash(password, 10) : null;
-            const userId = uuidv4();
-            db.run(`INSERT INTO users (id, email, password_hash, first_name, last_name, phone, institution, country) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                [userId, email, hash, first_name, last_name, phone, institution, country]);
+            if (user && password) {
+                // Verify password for existing user
+                const valid = await bcrypt.compare(password, user.password_hash);
+                if (!valid) return res.status(400).json({ error: 'Account exists with different password' });
+            } else if (!user) {
+                // Create new user
+                const hash = password ? await bcrypt.hash(password, 10) : null;
+                const userId = uuidv4();
+                db.run(`INSERT INTO users (id, email, password_hash, first_name, last_name, phone, institution, country) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [userId, email, hash, first_name, last_name, phone, institution, country]);
 
-            // Create profile
-            db.run('INSERT INTO user_profiles (user_id, title, department) VALUES (?, ?, ?)', [userId, title, department]);
-            saveDb();
+                // Create profile
+                db.run('INSERT INTO user_profiles (user_id, title, department) VALUES (?, ?, ?)', [userId, title, department]);
+                saveDb();
 
-            user = query.get('SELECT * FROM users WHERE id = ?', [userId]);
+                user = query.get('SELECT * FROM users WHERE id = ?', [userId]);
+            }
+
+            // Check if already registered for this conference
+            const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+            const existingReg = query.get('SELECT * FROM registrations WHERE conference_id = ? AND user_id = ? AND status != ?', [conf.id, user.id, 'cancelled']);
+            if (existingReg) return res.status(400).json({ error: 'Already registered for this conference', registration_id: existingReg.id });
+
+            // Create token for continuing registration
+            const token = jwt.sign({ id: user.id, email: user.email, is_admin: user.is_admin }, JWT_SECRET, { expiresIn: '24h' });
+
+            res.json({ success: true, user_id: user.id, token, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name } });
+        } catch (err) {
+            console.error('Plexus register/start error:', err.message);
+            res.status(500).json({ error: 'Registration failed' });
         }
-
-        // Check if already registered for this conference
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
-        const existingReg = query.get('SELECT * FROM registrations WHERE conference_id = ? AND user_id = ? AND status != ?', [conf.id, user.id, 'cancelled']);
-        if (existingReg) return res.status(400).json({ error: 'Already registered for this conference', registration_id: existingReg.id });
-
-        // Create token for continuing registration
-        const token = jwt.sign({ id: user.id, email: user.email, is_admin: user.is_admin }, JWT_SECRET, { expiresIn: '24h' });
-
-        res.json({ success: true, user_id: user.id, token, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name } });
     });
 
     // Complete registration (Step 2: Ticket selection + payment)
     app.post('/api/plexus/register/complete', auth, async (req, res) => {
-        const { ticket_type_id, registration_type, promo_code, billing_info, registration_details: details } = req.body;
+        try {
+            const { ticket_type_id, registration_type, promo_code, billing_info, registration_details: details } = req.body;
 
-        const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
-        const ticket = query.get('SELECT * FROM ticket_types WHERE id = ?', [ticket_type_id]);
+            const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+            const ticket = query.get('SELECT * FROM ticket_types WHERE id = ?', [ticket_type_id]);
 
-        if (!ticket) return res.status(400).json({ error: 'Invalid ticket type' });
+            if (!ticket) return res.status(400).json({ error: 'Invalid ticket type' });
 
-        // Calculate price
-        const today = new Date().toISOString().split('T')[0];
-        let price = today <= conf.early_bird_deadline ? ticket.price_early_bird : today <= conf.regular_deadline ? ticket.price_regular : ticket.price_late;
+            // Calculate price
+            const today = new Date().toISOString().split('T')[0];
+            let price = today <= conf.early_bird_deadline ? ticket.price_early_bird : today <= conf.regular_deadline ? ticket.price_regular : ticket.price_late;
 
-        // Apply promo code
-        let promoId = null;
-        let discount = 0;
-        if (promo_code) {
-            const promo = query.get('SELECT * FROM promo_codes WHERE conference_id = ? AND code = ? AND is_active = 1', [conf.id, promo_code.toUpperCase()]);
-            if (promo) {
-                promoId = promo.id;
-                discount = promo.discount_type === 'percentage' ? price * (promo.discount_value / 100) : promo.discount_value;
-                // Atomic increment promo usage — prevents race conditions
-                db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ? AND (max_uses IS NULL OR used_count < max_uses)', [promo.id]);
-                if (db.getRowsModified() === 0) {
-                    return res.status(400).json({ error: 'Promo code has reached its maximum number of uses' });
+            // Apply promo code
+            let promoId = null;
+            let discount = 0;
+            if (promo_code) {
+                const promo = query.get('SELECT * FROM promo_codes WHERE conference_id = ? AND code = ? AND is_active = 1', [conf.id, promo_code.toUpperCase()]);
+                if (promo) {
+                    promoId = promo.id;
+                    discount = promo.discount_type === 'percentage' ? price * (promo.discount_value / 100) : promo.discount_value;
+                    // Atomic increment promo usage — prevents race conditions
+                    db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ? AND (max_uses IS NULL OR used_count < max_uses)', [promo.id]);
+                    if (db.getRowsModified() === 0) {
+                        return res.status(400).json({ error: 'Promo code has reached its maximum number of uses' });
+                    }
                 }
             }
+
+            const finalAmount = Math.max(0, price - discount);
+            const regId = uuidv4();
+            const invoiceNumber = `INV-${Date.now()}-${uuidv4().split('-')[0]}`;
+
+            // Generate QR code for ticket
+            const qrData = JSON.stringify({ reg_id: regId, conf: 'plexus-2026' });
+            const qrCode = await QRCode.toDataURL(qrData);
+
+            // Create registration
+            db.run(`INSERT INTO registrations (id, conference_id, user_id, ticket_type_id, registration_type, status, payment_status, amount_paid, promo_code_id, discount_amount, invoice_number, ticket_qr_code)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [regId, conf.id, req.user.id, ticket_type_id, registration_type || 'general', 'confirmed', finalAmount === 0 ? 'paid' : 'pending', finalAmount, promoId, discount, invoiceNumber, qrCode]);
+
+            // Store additional details
+            if (details) {
+                db.run(`INSERT INTO registration_details (registration_id, affiliation_type, billing_name, billing_address, billing_country, billing_vat, wants_invoice, arrival_date, departure_date, accommodation_needed, hotel_preference, networking_interests, how_heard_about, special_requests, gdpr_consent, photo_consent, terms_accepted)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [regId, details.affiliation_type, billing_info?.name, billing_info?.address, billing_info?.country, billing_info?.vat, billing_info ? 1 : 0,
+                     details.arrival_date, details.departure_date, details.accommodation_needed ? 1 : 0, details.hotel_preference,
+                     details.networking_interests, details.how_heard_about, details.special_requests, details.gdpr_consent ? 1 : 0, details.photo_consent ? 1 : 0, 1]);
+            }
+
+            // Update ticket sold count
+            db.run('UPDATE ticket_types SET sold_count = sold_count + 1 WHERE id = ?', [ticket_type_id]);
+            saveDb();
+
+            res.json({
+                success: true,
+                registration_id: regId,
+                invoice_number: invoiceNumber,
+                amount: finalAmount,
+                discount,
+                qr_code: qrCode,
+                payment_required: finalAmount > 0
+            });
+        } catch (err) {
+            console.error('Plexus register/complete error:', err.message);
+            res.status(500).json({ error: 'Registration completion failed' });
         }
-
-        const finalAmount = Math.max(0, price - discount);
-        const regId = uuidv4();
-        const invoiceNumber = `INV-${Date.now()}-${uuidv4().split('-')[0]}`;
-
-        // Generate QR code for ticket
-        const qrData = JSON.stringify({ reg_id: regId, conf: 'plexus-2026' });
-        const qrCode = await QRCode.toDataURL(qrData);
-
-        // Create registration
-        db.run(`INSERT INTO registrations (id, conference_id, user_id, ticket_type_id, registration_type, status, payment_status, amount_paid, promo_code_id, discount_amount, invoice_number, ticket_qr_code)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [regId, conf.id, req.user.id, ticket_type_id, registration_type || 'general', 'confirmed', finalAmount === 0 ? 'paid' : 'pending', finalAmount, promoId, discount, invoiceNumber, qrCode]);
-
-        // Store additional details
-        if (details) {
-            db.run(`INSERT INTO registration_details (registration_id, affiliation_type, billing_name, billing_address, billing_country, billing_vat, wants_invoice, arrival_date, departure_date, accommodation_needed, hotel_preference, networking_interests, how_heard_about, special_requests, gdpr_consent, photo_consent, terms_accepted)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [regId, details.affiliation_type, billing_info?.name, billing_info?.address, billing_info?.country, billing_info?.vat, billing_info ? 1 : 0,
-                 details.arrival_date, details.departure_date, details.accommodation_needed ? 1 : 0, details.hotel_preference,
-                 details.networking_interests, details.how_heard_about, details.special_requests, details.gdpr_consent ? 1 : 0, details.photo_consent ? 1 : 0, 1]);
-        }
-
-        // Update ticket sold count
-        db.run('UPDATE ticket_types SET sold_count = sold_count + 1 WHERE id = ?', [ticket_type_id]);
-        saveDb();
-
-        res.json({
-            success: true,
-            registration_id: regId,
-            invoice_number: invoiceNumber,
-            amount: finalAmount,
-            discount,
-            qr_code: qrCode,
-            payment_required: finalAmount > 0
-        });
     });
 
     // Get my registration
@@ -14108,7 +14127,7 @@ By applying to this program, I provide the following consents:
     });
 
     // List speaker's uploaded documents
-    app.get('/api/speakers/:id/documents', (req, res) => {
+    app.get('/api/speakers/:id/documents', auth, (req, res) => {
         const docs = query.all(
             'SELECT * FROM speaker_documents WHERE speaker_id = ? ORDER BY uploaded_at DESC',
             [req.params.id]
@@ -14117,7 +14136,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Upload a document for a speaker
-    app.post('/api/speakers/:id/documents', upload.single('file'), (req, res) => {
+    app.post('/api/speakers/:id/documents', auth, upload.single('file'), (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No file provided' });
 
         const speakerId = req.params.id;
@@ -14156,7 +14175,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Delete a speaker document
-    app.delete('/api/speakers/:id/documents/:docId', (req, res) => {
+    app.delete('/api/speakers/:id/documents/:docId', auth, (req, res) => {
         const doc = query.get(
             'SELECT * FROM speaker_documents WHERE id = ? AND speaker_id = ?',
             [req.params.docId, req.params.id]
@@ -14262,6 +14281,11 @@ By applying to this program, I provide the following consents:
             LEFT JOIN speakers sp ON s.speaker_ids LIKE '%' || sp.id || '%'
             WHERE s.conference_id = ? AND s.is_published = 1 GROUP BY s.id ORDER BY s.day, s.start_time`, [conf.id]);
         res.json(sessions || []);
+    });
+
+    // API 404 handler — return JSON instead of HTML
+    app.all('/api/*', (req, res) => {
+        res.status(404).json({ error: 'API endpoint not found' });
     });
 
     // Serve frontend

@@ -1551,6 +1551,10 @@
             justify-content: center;
         }
 
+        button, a, [onclick], .plexus-tab, .tab-btn, .qr-fab, .sidebar-link, input, select, textarea, .nav-item {
+            touch-action: manipulation;
+        }
+
         .task-check:hover {
             border-color: var(--accent-gold);
         }
@@ -5328,6 +5332,12 @@
             justify-content: center;
             transition: transform 0.2s, box-shadow 0.2s;
         }
+        @media (max-width: 768px) {
+            .chat-panel.active ~ .qr-fab,
+            body.chat-open .qr-fab {
+                display: none !important;
+            }
+        }
         .qr-fab:hover {
             transform: scale(1.08);
             box-shadow: 0 6px 20px rgba(201, 169, 98, 0.55);
@@ -6687,7 +6697,7 @@
                     </div>
 
                     <!-- Session Modal -->
-                    <div class="modal" id="sessionModal">
+                    <div class="modal" id="sessionModal" style="display: none;">
                         <div class="modal-content" style="max-width: 560px;">
                             <div class="modal-header">
                                 <h3 id="sessionModalTitle">Add Session</h3>
@@ -16661,7 +16671,7 @@ President, Med&amp;X</textarea>
 
             exportPlexusRegistrations(format = 'csv') {
                 // C1: XLSX uses server-side generation for proper Excel formatting
-                if (format === 'xlsx' && this.currentConference) {
+                if (format === 'xlsx') {
                     window.open(`/api/admin/export/registrations/${this.currentConference}?format=xlsx`, '_blank');
                     return;
                 }
@@ -17077,7 +17087,7 @@ President, Med&amp;X</textarea>
                 const existingRooms = [...new Set((this.plexusSessions || []).map(s => s.room).filter(Boolean))];
                 const venueRoomNames = (PlexusSettingsAdmin.rooms || []).map(r => r.name);
                 const allRooms = [...new Set([...venueRoomNames, ...existingRooms, 'Main Hall'])];
-                roomList.innerHTML = allRooms.map(r => `<option value="${r}">`).join('');
+                roomList.innerHTML = allRooms.map(r => `<option value="${escapeHtml(r)}">`).join('');
 
                 if (sessionId) {
                     // Edit mode
