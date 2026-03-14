@@ -1,5 +1,5 @@
 // Med&X Portal Service Worker
-const CACHE_NAME = 'medx-portal-v1';
+const CACHE_NAME = 'medx-portal-v2';
 const OFFLINE_URL = '/offline.html';
 
 // Assets to cache
@@ -41,42 +41,38 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event - network-first strategy (always get fresh content, cache as fallback)
 self.addEventListener('fetch', (event) => {
     // Skip non-GET requests
     if (event.request.method !== 'GET') return;
 
+    // For navigation requests (HTML pages), always go network-first
+    if (event.request.mode === 'navigate' || event.request.destination === 'document') {
+        event.respondWith(
+            fetch(event.request)
+                .then((response) => {
+                    const responseToCache = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+                    return response;
+                })
+                .catch(() => caches.match('/index.html'))
+        );
+        return;
+    }
+
+    // For static assets (fonts, icons, CSS), use cache-first
     event.respondWith(
         caches.match(event.request)
             .then((cachedResponse) => {
-                if (cachedResponse) {
-                    // Return cached version
-                    return cachedResponse;
-                }
-
-                // Fetch from network
+                if (cachedResponse) return cachedResponse;
                 return fetch(event.request)
                     .then((response) => {
-                        // Check if valid response
-                        if (!response || response.status !== 200 || response.type !== 'basic') {
-                            return response;
-                        }
-
-                        // Clone and cache response
+                        if (!response || response.status !== 200 || response.type !== 'basic') return response;
                         const responseToCache = response.clone();
-                        caches.open(CACHE_NAME)
-                            .then((cache) => {
-                                cache.put(event.request, responseToCache);
-                            });
-
+                        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
                         return response;
                     })
-                    .catch(() => {
-                        // Return offline page for navigation requests
-                        if (event.request.mode === 'navigate') {
-                            return caches.match('/index.html');
-                        }
-                    });
+                    .catch(() => null);
             })
     );
 });
