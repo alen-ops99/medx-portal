@@ -85503,6 +85503,10 @@ You can use variables like {first_name} that will be personalized for each recip
                 // Close on backdrop click
                 modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
                 document.body.appendChild(modal);
+            } catch (err) {
+                console.error('Forum registerEvent error:', err);
+                alert('Something went wrong. Please try again.');
+            }
             },
 
             async completeRegistration(eventId) {
@@ -85626,10 +85630,6 @@ You can use variables like {first_name} that will be personalized for each recip
                         intBtn.innerHTML = '<i class="fas fa-bell"></i> Following';
                     }
                 });
-                } catch (err) {
-                    console.error('Forum registerEvent error:', err);
-                    alert('Registration encountered an error. Please try again.');
-                }
             },
 
             // Toggle interest in an event
