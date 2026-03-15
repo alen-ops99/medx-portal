@@ -231,6 +231,7 @@ function watchSharedDb() {
         debounceTimer = setTimeout(() => {
             try {
                 const data = fs.readFileSync(DB_PATH);
+                if (db) { try { db.close(); } catch(e) {} }
                 db = new SQL.Database(data);
                 console.log('[Sync] Reloaded shared DB (changed by other portal)');
             } catch (err) {
