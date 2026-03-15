@@ -1150,6 +1150,11 @@ async function initializeApp() {
     try { db.run("ALTER TABLE forum_members ADD COLUMN muted INTEGER DEFAULT 0"); } catch(e) {}
     // Add industry column to forum_members if not exists
     try { db.run(`ALTER TABLE forum_members ADD COLUMN industry TEXT`); } catch(e) {}
+    // C7 schema drift fix: admin-portal includes these columns but user-portal CREATE TABLE does not
+    try { db.run(`ALTER TABLE forum_members ADD COLUMN first_name TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE forum_members ADD COLUMN last_name TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE forum_members ADD COLUMN email TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE forum_members ADD COLUMN country TEXT`); } catch(e) {}
 
     // Add new columns to forum_events if not exists
     try { db.run(`ALTER TABLE forum_events ADD COLUMN event_scale TEXT DEFAULT 'small'`); } catch(e) {}
@@ -8760,6 +8765,12 @@ By applying to this program, I provide the following consents:
                         return res.status(404).send('Application not found');
                     }
 
+                    // Idempotency guard - skip if already processed
+                    if (application.payment_status === 'paid') {
+                        console.log(`[Stripe] Webhook already processed for session ${session.id} (accelerator application ${applicationId}), skipping duplicate`);
+                        return res.json({ received: true, duplicate: true });
+                    }
+
                     // 1. Update application status to 'paid'
                     db.run(`UPDATE accelerator_applications SET status = 'paid', payment_status = 'paid', payment_amount = 75, payment_date = datetime('now'), stripe_session_id = ? WHERE id = ?`,
                         [session.id, applicationId]);
@@ -8862,6 +8873,12 @@ By applying to this program, I provide the following consents:
                         return res.status(404).send('Gala registration not found');
                     }
 
+                    // Idempotency guard - skip if already processed
+                    if (galaReg.payment_status === 'paid') {
+                        console.log(`[Stripe] Webhook already processed for session ${session.id} (gala registration ${galaRegId}), skipping duplicate`);
+                        return res.json({ received: true, duplicate: true });
+                    }
+
                     // 1. Update gala registration payment status
                     db.run("UPDATE gala_registrations SET payment_status = 'paid', status = 'confirmed' WHERE id = ?", [galaRegId]);
 
@@ -8948,6 +8965,12 @@ By applying to this program, I provide the following consents:
                     if (!forumReg) {
                         console.error(`[Stripe] Forum registration ${forumRegId} not found`);
                         return res.status(404).send('Forum registration not found');
+                    }
+
+                    // Idempotency guard - skip if already processed
+                    if (forumReg.payment_status === 'paid') {
+                        console.log(`[Stripe] Webhook already processed for session ${session.id} (forum registration ${forumRegId}), skipping duplicate`);
+                        return res.json({ received: true, duplicate: true });
                     }
 
                     const amount = session.amount_total ? session.amount_total / 100 : (forumReg.payment_amount || forumReg.price || 0);

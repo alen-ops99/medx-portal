@@ -41704,21 +41704,22 @@
         .member-360-panel {
             position: fixed;
             top: 0;
-            right: -60%;
+            right: 0;
             width: 60%;
             max-width: 800px;
             height: 100vh;
             background: var(--bg-secondary);
             border-left: 1px solid var(--border);
             z-index: 1000;
-            transition: right 0.3s ease;
+            transition: transform 0.3s ease;
+            transform: translateX(100%);
             display: flex;
             flex-direction: column;
             box-shadow: -10px 0 30px rgba(0, 0, 0, 0.3);
         }
 
         .member-360-panel.active {
-            right: 0;
+            transform: translateX(0);
         }
 
         .member-360-backdrop {
@@ -45835,20 +45836,21 @@
         .member-profile-panel {
             position: fixed;
             top: 0;
-            right: -500px;
+            right: 0;
             width: 100%;
             max-width: 480px;
+            transform: translateX(100%);
             height: 100vh;
             background: var(--bg-primary);
             border-left: 1px solid var(--border);
             z-index: 10000;
-            transition: right 0.3s ease;
+            transition: transform 0.3s ease;
             overflow-y: auto;
             box-shadow: -8px 0 32px rgba(0,0,0,0.3);
         }
 
         .member-profile-panel.active {
-            right: 0;
+            transform: translateX(0);
         }
 
         .member-profile-backdrop {
@@ -53063,20 +53065,22 @@ textarea:focus:not(:focus-visible),
 .notification-panel {
     position: fixed;
     top: 0;
-    right: -400px;
+    right: 0;
     width: 400px;
+    max-width: 100vw;
     height: 100vh;
     background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
     border-left: 1px solid var(--border);
     z-index: 10002;
     display: flex;
     flex-direction: column;
-    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateX(100%);
     box-shadow: -10px 0 40px rgba(0, 0, 0, 0.3);
 }
 
 .notification-panel.active {
-    right: 0;
+    transform: translateX(0);
 }
 
 .notification-panel-header {
@@ -76157,16 +76161,24 @@ You can use variables like {first_name} that will be personalized for each recip
                 // Preserve session when returning from Stripe payment redirect
                 const isStripeReturn = urlParams.get('payment') === 'success' || urlParams.get('payment') === 'cancelled';
 
+                // Auto-login from saved session (if token exists)
                 if (!isStripeReturn) {
-                    // Start fresh — clear previous session so visitors
-                    // experience the full flow: landing → sign-in → welcome tour
-                    localStorage.removeItem('medx_user_token');
-                    localStorage.removeItem('medx_user_data');
-                    localStorage.removeItem('medx_onboarding_complete');
-                    localStorage.removeItem('medx_onboarding_completed');
-                    localStorage.removeItem('medx_hidden_cards');
-                    localStorage.removeItem('medx_biometric_enabled');
-                    localStorage.removeItem('medx_biometric_email');
+                    const savedToken = localStorage.getItem('medx_user_token');
+                    const savedUser = localStorage.getItem('medx_user_data');
+                    if (savedToken && savedUser) {
+                        try {
+                            this.token = savedToken;
+                            this.user = JSON.parse(savedUser);
+                            document.getElementById('landingPage').style.display = 'none';
+                            document.getElementById('userPortal').classList.add('active');
+                            this.showUserPortal(false, false);
+                            return; // Skip rest of init — user is logged in
+                        } catch (e) {
+                            // Invalid saved data — clear and continue to landing
+                            localStorage.removeItem('medx_user_token');
+                            localStorage.removeItem('medx_user_data');
+                        }
+                    }
                 }
 
                 // Returning from Stripe payment — auto-login and show appropriate section
@@ -76477,27 +76489,6 @@ You can use variables like {first_name} that will be personalized for each recip
 
                 btn.disabled = true;
                 btn.textContent = 'Signing in...';
-
-                // Demo mode - skip API call for static file serving
-                const demoMode = !window.location.hostname.includes('api') && window.location.protocol !== 'https:';
-
-                if (demoMode) {
-                    // Demo mode - allow login without backend
-                    setTimeout(() => {
-                        this.token = 'demo_token_' + Date.now();
-                        const demoName = email.split('@')[0].split('.').map(n => n.charAt(0).toUpperCase() + n.slice(1)).join(' ');
-                        this.user = { name: demoName, first_name: demoName.split(' ')[0], email: email };
-                        localStorage.setItem('medx_user_token', this.token);
-                        localStorage.setItem('medx_user_data', JSON.stringify(this.user));
-                        localStorage.removeItem('medx_onboarding_completed');
-                        this.storeBiometricCredentials(email);
-                        this.closeLoginModal();
-                        btn.disabled = false;
-                        btn.textContent = 'Sign In';
-                        this.showUserPortal(true, true);
-                    }, 500);
-                    return;
-                }
 
                 try {
                     const res = await fetch('/api/auth/login', {
@@ -76812,8 +76803,7 @@ You can use variables like {first_name} that will be personalized for each recip
             logout() {
                 localStorage.removeItem('medx_user_token');
                 localStorage.removeItem('medx_user_data');
-                // Clear onboarding flag so tour can be shown again on next login
-                localStorage.removeItem('medx_onboarding_completed');
+                // Keep onboarding flag — returning users should not see the tour again
                 this.token = null;
                 this.user = null;
                 document.getElementById('userPortal').classList.remove('active');
@@ -110890,7 +110880,7 @@ By applying to this program, I give the following consents:
             // Initialize new engagement widgets
             if (typeof StreakTracker !== 'undefined') StreakTracker.init();
             if (typeof MilestoneBanner !== 'undefined') MilestoneBanner.init();
-            if (typeof HomepageNotifications !== 'undefined') HomepageNotifications.init();
+            if (typeof HomepageNotifications !== 'undefined' && localStorage.getItem('medx_user_token')) HomepageNotifications.init();
             if (typeof DashboardActivityFeed !== 'undefined') DashboardActivityFeed.init();
             if (typeof ProfileCompleteness !== 'undefined') ProfileCompleteness.init();
             if (typeof QuickPoll !== 'undefined') QuickPoll.init();
@@ -117181,10 +117171,13 @@ By applying to this program, I give the following consents:
 
             async load() {
                 try {
+                    const token = localStorage.getItem('medx_user_token');
+                    if (!token) return;
+                    const authHeaders = { 'Authorization': `Bearer ${token}` };
                     // Fetch notifications placed on homepage or both
                     const [resp1, resp2] = await Promise.all([
-                        fetch('/api/user-notifications?placement=homepage&limit=10'),
-                        fetch('/api/user-notifications?placement=both&limit=10')
+                        fetch('/api/user-notifications?placement=homepage&limit=10', { headers: authHeaders }),
+                        fetch('/api/user-notifications?placement=both&limit=10', { headers: authHeaders })
                     ]);
                     let notifs = [];
                     if (resp1.ok) { const d = await resp1.json(); notifs = notifs.concat(d.notifications || []); }
@@ -120730,7 +120723,11 @@ By applying to this program, I give the following consents:
 
             async loadNotifications() {
                 try {
-                    const resp = await fetch('/api/user-notifications');
+                    const token = localStorage.getItem('medx_user_token');
+                    if (!token) return;
+                    const resp = await fetch('/api/user-notifications', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
                     if (resp.ok) {
                         const data = await resp.json();
                         this.notifications = (data.notifications || []).map(n => ({
@@ -120774,7 +120771,8 @@ By applying to this program, I give the following consents:
             },
 
             checkPermissionPrompt() {
-                // Show permission prompt if not asked before and notifications supported
+                // Show permission prompt only if authenticated, not asked before, and notifications supported
+                if (!localStorage.getItem('medx_user_token')) return;
                 if ('Notification' in window && Notification.permission === 'default') {
                     const dismissed = localStorage.getItem('medx_push_dismissed');
                     if (!dismissed) {
@@ -120962,7 +120960,11 @@ By applying to this program, I give the following consents:
             // ===== ADMIN MESSAGES =====
             async loadAdminMessages() {
                 try {
-                    const resp = await fetch('/api/user/admin-messages');
+                    const token = localStorage.getItem('medx_user_token');
+                    if (!token) return;
+                    const resp = await fetch('/api/user/admin-messages', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
                     if (resp.ok) {
                         this.adminMessages = await resp.json();
                     } else {
@@ -121015,7 +121017,7 @@ By applying to this program, I give the following consents:
             async openAdminMessage(msgId) {
                 // Mark as read
                 try {
-                    await fetch(`/api/user/admin-messages/${msgId}/read`, { method: 'PUT' });
+                    await fetch(`/api/user/admin-messages/${msgId}/read`, { method: 'PUT', headers: { 'Authorization': `Bearer ${localStorage.getItem('medx_user_token')}` } });
                 } catch (e) { /* ignore */ }
 
                 const msg = this.adminMessages.find(m => m.id === msgId);
@@ -121064,7 +121066,7 @@ By applying to this program, I give the following consents:
                 try {
                     const resp = await fetch(`/api/user/admin-messages/${msgId}/reply`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('medx_user_token')}` },
                         body: JSON.stringify({ content })
                     });
                     if (resp.ok) {
@@ -121397,7 +121399,10 @@ By applying to this program, I give the following consents:
         document.addEventListener('DOMContentLoaded', function() {
             FilterBuilder.init();
             TaskAssignment.loadTasks();
-            NotificationSystem.init();
+            // Only initialize notifications if user is authenticated
+            if (localStorage.getItem('medx_user_token')) {
+                NotificationSystem.init();
+            }
 
             // Initialize drag-drop for report builder when opened
             document.querySelectorAll('[onclick*="ReportBuilder.open"]').forEach(btn => {
@@ -121407,37 +121412,7 @@ By applying to this program, I give the following consents:
     </script>
 </body>
 
-    <!-- Bulk Actions Bar -->
-    <div class="bulk-actions-bar" id="bulkActionsBar">
-        <div class="bulk-actions-count">
-            <i class="fas fa-check-square"></i>
-            <span id="bulkActionsCount">0 selected</span>
-        </div>
-        <div class="bulk-actions-divider"></div>
-        <button class="bulk-action-btn success" onclick="BulkActions.approveSelected()">
-            <i class="fas fa-check-circle"></i> Approve
-        </button>
-        <button class="bulk-action-btn warning" onclick="BulkActions.rejectSelected()">
-            <i class="fas fa-times-circle"></i> Reject
-        </button>
-        <button class="bulk-action-btn" onclick="BulkActions.markAsPaid()">
-            <i class="fas fa-dollar-sign"></i> Mark Paid
-        </button>
-        <div class="bulk-actions-divider"></div>
-        <button class="bulk-action-btn primary" onclick="BulkActions.emailSelected()">
-            <i class="fas fa-envelope"></i> Email
-        </button>
-        <button class="bulk-action-btn" onclick="BulkActions.exportSelected()">
-            <i class="fas fa-download"></i> Export
-        </button>
-        <button class="bulk-action-btn danger" onclick="BulkActions.deleteSelected()">
-            <i class="fas fa-trash"></i> Delete
-        </button>
-        <div class="bulk-actions-divider"></div>
-        <button class="bulk-actions-close" onclick="BulkActions.clearSelection()">
-            <i class="fas fa-times"></i>
-        </button>
-    </div>
+    <!-- Bulk Actions Bar removed — admin-only feature -->
 
     <!-- Keyboard Shortcuts Modal -->
     <div class="shortcuts-modal" id="shortcutsModal">
