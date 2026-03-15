@@ -55170,7 +55170,7 @@ textarea:focus:not(:focus-visible),
         </div>
 
         <!-- Input Modal (prompt() replacement) -->
-        <div class="input-modal-overlay" id="inputModal" role="dialog" aria-modal="true" aria-labelledby="inputModalTitle">
+        <div class="input-modal-overlay" id="inputModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="inputModalTitle">
             <div class="input-modal">
                 <div class="input-modal-body">
                     <h3 class="input-modal-title" id="inputModalTitle">Enter value</h3>
@@ -117235,7 +117235,7 @@ By applying to this program, I give the following consents:
             },
 
             handleClick(id, link) {
-                fetch(`/api/user-notifications/${id}/read`, { method: 'PUT' }).catch(() => {});
+                fetch(`/api/user-notifications/${id}/read`, { method: 'PUT', headers: { 'Authorization': `Bearer ${localStorage.getItem('medx_user_token')}` } }).catch(() => {});
                 if (link) {
                     if (link.startsWith('#')) {
                         const section = link.replace('#', '').split('/')[0];
@@ -117251,7 +117251,7 @@ By applying to this program, I give the following consents:
                 this.saveDismissed();
                 this.notifications = this.notifications.filter(n => n.id !== id);
                 this.render();
-                fetch(`/api/user-notifications/${id}/read`, { method: 'PUT' }).catch(() => {});
+                fetch(`/api/user-notifications/${id}/read`, { method: 'PUT', headers: { 'Authorization': `Bearer ${localStorage.getItem('medx_user_token')}` } }).catch(() => {});
             }
         };
 
@@ -119824,6 +119824,7 @@ By applying to this program, I give the following consents:
 
                     this._previousFocus = document.activeElement;
                     overlay.classList.add('active');
+                    overlay.setAttribute('aria-hidden', 'false');
 
                     // Event handlers
                     const submit = () => {
@@ -119867,6 +119868,7 @@ By applying to this program, I give the following consents:
                 const field = document.getElementById('inputModalField');
 
                 overlay.classList.remove('active');
+                overlay.setAttribute('aria-hidden', 'true');
                 if (this._submitHandler) confirmBtn.removeEventListener('click', this._submitHandler);
                 if (this._cancelHandler) cancelBtn.removeEventListener('click', this._cancelHandler);
                 if (this._escHandler) document.removeEventListener('keydown', this._escHandler);
@@ -120871,7 +120873,7 @@ By applying to this program, I give the following consents:
                     notif.read = true;
                     this.unreadCount = Math.max(0, this.unreadCount - 1);
                     this.render();
-                    fetch(`/api/user-notifications/${notificationId}/read`, { method: 'PUT' }).catch(() => {});
+                    fetch(`/api/user-notifications/${notificationId}/read`, { method: 'PUT', headers: { 'Authorization': `Bearer ${localStorage.getItem('medx_user_token')}` } }).catch(() => {});
                     // Navigate to link if present
                     if (notif.link) { window.location.hash = notif.link; }
                 }
@@ -120881,7 +120883,7 @@ By applying to this program, I give the following consents:
                 this.notifications.forEach(n => n.read = true);
                 this.unreadCount = 0;
                 this.render();
-                fetch('/api/user-notifications/mark-all-read', { method: 'PUT' }).catch(() => {});
+                fetch('/api/user-notifications/mark-all-read', { method: 'PUT', headers: { 'Authorization': `Bearer ${localStorage.getItem('medx_user_token')}` } }).catch(() => {});
                 ToastSystem.success('All notifications marked as read');
             },
 
