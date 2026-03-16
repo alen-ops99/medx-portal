@@ -443,18 +443,25 @@
 <div class="copy-toast" id="copyToast">Copied!</div>
 
 <script>
-  // Portal URLs — Render.com deployment
-  const ADMIN_URL = 'https://medx-admin-portal.onrender.com';
-  const USER_URL = 'https://medx-user-portal.onrender.com';
+  // Auto-detect environment: localhost vs production
+  const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  const ADMIN_URL = isLocal ? 'http://localhost:2012' : 'https://medx-admin-portal.onrender.com';
+  const USER_URL = isLocal ? 'http://localhost:2011' : 'https://medx-user-portal.onrender.com';
 
-  // Allow override via query params (for Render.com deployment)
+  // Allow override via query params
   const params = new URLSearchParams(window.location.search);
   const adminUrl = params.get('adminUrl') || ADMIN_URL;
   const userUrl = params.get('userUrl') || USER_URL;
 
   document.getElementById('card-admin').href = adminUrl;
-  document.getElementById('card-member').href = userUrl + '?login=true';
-  document.getElementById('card-applicant').href = userUrl + '?login=true#accelerator';
+  document.getElementById('card-member').href = userUrl;
+  document.getElementById('card-applicant').href = userUrl + '#accelerator';
+
+  // Hide test accounts in production
+  if (!isLocal) {
+    const accounts = document.querySelector('.accounts');
+    if (accounts) accounts.style.display = 'none';
+  }
 
   // Copy password to clipboard
   function copyPass(el) {
