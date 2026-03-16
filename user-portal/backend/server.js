@@ -10,6 +10,7 @@ const QRCode = require('qrcode');
 const fs = require('fs');
 const initSqlJs = require('sql.js');
 const nodemailer = require('nodemailer');
+const webpush = require('web-push');
 const firaService = require('./fira-service');
 
 // Stripe — conditionally loaded based on env config (loaded after .env parsing below)
@@ -100,6 +101,31 @@ async function sendEmail(to, subject, htmlContent) {
     return { success: true, mock: true };
 }
 
+// Send push notification to a specific user
+async function sendPushToUser(userId, payload) {
+    if (!process.env.VAPID_PUBLIC_KEY) return; // Push not configured
+    try {
+        const subs = query.all('SELECT * FROM push_subscriptions WHERE user_id = ?', [userId]);
+        const message = JSON.stringify(payload);
+        for (const sub of subs) {
+            try {
+                await webpush.sendNotification({
+                    endpoint: sub.endpoint,
+                    keys: { p256dh: sub.p256dh, auth: sub.auth }
+                }, message);
+            } catch (err) {
+                if (err.statusCode === 410 || err.statusCode === 404) {
+                    // Subscription expired/invalid — remove it
+                    db.run('DELETE FROM push_subscriptions WHERE id = ?', [sub.id]);
+                    saveDb();
+                }
+            }
+        }
+    } catch (err) {
+        console.error('Push notification error:', err);
+    }
+}
+
 // Branded email template builder — wraps content in Med&X styled HTML
 function buildEmailTemplate(title, bodyHtml) {
     return `
@@ -148,6 +174,18 @@ function buildEmailTemplate(title, bodyHtml) {
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'development' ? 'medx-dev-secret' : (() => { console.error('FATAL: JWT_SECRET environment variable is required in production'); process.exit(1); })());
 
+// Web Push Notifications (VAPID)
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    webpush.setVapidDetails(
+        process.env.VAPID_SUBJECT || 'mailto:accelerator@medx.hr',
+        process.env.VAPID_PUBLIC_KEY,
+        process.env.VAPID_PRIVATE_KEY
+    );
+    console.log('[Push] VAPID configured');
+} else {
+    console.log('[Push] VAPID keys not set — push notifications disabled');
+}
+
 app.use(cors({
     origin: [process.env.RENDER_EXTERNAL_URL, 'http://localhost:3000', 'http://localhost:3001'].filter(Boolean)
 }));
@@ -186,6 +224,51 @@ const storage = multer.diskStorage({
     filename: (req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname)}`)
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
+
+// Cloudinary cloud storage (optional — falls back to local disk)
+let cloudinaryConfigured = false;
+if (process.env.CLOUDINARY_URL) {
+    try {
+        const cloudinary = require('cloudinary').v2;
+        // CLOUDINARY_URL auto-configures: cloudinary://API_KEY:API_SECRET@CLOUD_NAME
+        cloudinaryConfigured = true;
+        console.log('[Storage] Cloudinary configured — uploads will persist to cloud');
+    } catch (e) {
+        console.warn('[Storage] Cloudinary package not found — using local disk');
+    }
+} else {
+    console.log('[Storage] No CLOUDINARY_URL — using local disk storage');
+}
+
+async function uploadToCloud(filePath, folder) {
+    if (!cloudinaryConfigured) return null;
+    try {
+        const cloudinary = require('cloudinary').v2;
+        const result = await cloudinary.uploader.upload(filePath, {
+            folder: `medx/${folder}`,
+            resource_type: 'auto'
+        });
+        // Delete local file after successful cloud upload
+        fs.unlink(filePath, () => {});
+        return result.secure_url;
+    } catch (err) {
+        console.error('Cloudinary upload error:', err);
+        return null; // Fall back to local URL
+    }
+}
+
+// Post-upload middleware: optionally moves file to Cloudinary
+function cloudUpload(folder) {
+    return async (req, res, next) => {
+        if (!req.file || !cloudinaryConfigured) return next();
+        const cloudUrl = await uploadToCloud(req.file.path, folder);
+        if (cloudUrl) {
+            req.file.cloudUrl = cloudUrl;
+            req.file.filename = cloudUrl; // Override so existing code uses cloud URL
+        }
+        next();
+    };
+}
 
 let db;
 let SQL; // Store SQL.js module reference for reloading
@@ -2901,6 +2984,15 @@ async function initializeApp() {
         sort_order INTEGER DEFAULT 0,
         config TEXT,
         UNIQUE(user_id, section, card_id)
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
     saveDb();
@@ -7345,7 +7437,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Upload file for chat
-    app.post('/api/chat/upload', auth, adminOnly, upload.single('file'), (req, res) => {
+    app.post('/api/chat/upload', auth, adminOnly, upload.single('file'), cloudUpload('chat'), (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
         // Move file to chat folder
@@ -8197,9 +8289,13 @@ By applying to this program, I provide the following consents:
             }
             next();
         });
+    }, (req, res, next) => {
+        // Cloud upload middleware (uses req.params.type as folder)
+        cloudUpload(req.params.type || 'documents')(req, res, next);
     }, (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No file provided. Please select a file to upload.' });
-        res.json({ success: true, file_url: `/uploads/${req.params.type}/${req.file.filename}` });
+        const fileUrl = req.file.cloudUrl || `/uploads/${req.params.type}/${req.file.filename}`;
+        res.json({ success: true, file_url: fileUrl });
     });
 
     // ========== PLEXUS CONFERENCE COMPREHENSIVE APIS ==========
@@ -10746,6 +10842,47 @@ By applying to this program, I provide the following consents:
     checkAndSendMonthlyReminders();
     setInterval(checkAndSendMonthlyReminders, 24 * 60 * 60 * 1000); // Check daily
 
+    // ===== WEB PUSH SUBSCRIPTION ENDPOINTS =====
+
+    // Get VAPID public key
+    app.get('/api/push/vapid-key', (req, res) => {
+        res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || '' });
+    });
+
+    // Subscribe to push notifications
+    app.post('/api/push/subscribe', auth, (req, res) => {
+        try {
+            const { endpoint, keys } = req.body;
+            if (!endpoint || !keys?.p256dh || !keys?.auth) {
+                return res.status(400).json({ error: 'Invalid subscription' });
+            }
+            const id = uuidv4();
+            db.run(`INSERT OR REPLACE INTO push_subscriptions (id, user_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?, ?)`,
+                [id, req.user.id, endpoint, keys.p256dh, keys.auth]);
+            saveDb();
+            res.json({ success: true });
+        } catch (err) {
+            console.error('Push subscribe error:', err);
+            res.status(500).json({ error: 'Failed to save subscription' });
+        }
+    });
+
+    // Unsubscribe from push notifications
+    app.delete('/api/push/unsubscribe', auth, (req, res) => {
+        try {
+            const { endpoint } = req.body;
+            if (endpoint) {
+                db.run(`DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?`, [endpoint, req.user.id]);
+            } else {
+                db.run(`DELETE FROM push_subscriptions WHERE user_id = ?`, [req.user.id]);
+            }
+            saveDb();
+            res.json({ success: true });
+        } catch (err) {
+            res.status(500).json({ error: 'Failed to unsubscribe' });
+        }
+    });
+
     // ========== USER NOTIFICATIONS (from Admin Portal via shared DB) ==========
 
     // Get notifications for current user (both targeted and broadcast)
@@ -11126,7 +11263,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Upload document
-    app.post('/api/applicant/applications/:id/documents', applicantAuth, upload.single('file'), (req, res) => {
+    app.post('/api/applicant/applications/:id/documents', applicantAuth, upload.single('file'), cloudUpload('accelerator'), (req, res) => {
         const app = query.get('SELECT * FROM accelerator_applications WHERE id = ? AND user_id = ?',
             [req.params.id, req.applicant.id]);
         if (!app) {
@@ -14160,7 +14297,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Upload a document for a speaker
-    app.post('/api/speakers/:id/documents', auth, upload.single('file'), (req, res) => {
+    app.post('/api/speakers/:id/documents', auth, upload.single('file'), cloudUpload('speakers'), (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No file provided' });
 
         const speakerId = req.params.id;

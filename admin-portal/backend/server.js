@@ -11,6 +11,20 @@ const initSqlJs = require('sql.js');
 const nodemailer = require('nodemailer');
 const XLSX = require('xlsx');
 
+// Load .env file (hand-rolled, no dotenv dependency)
+const envPath = path.join(__dirname, '.env');
+if (fs.existsSync(envPath)) {
+    fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) return;
+        const eqIndex = trimmed.indexOf('=');
+        if (eqIndex === -1) return;
+        const key = trimmed.slice(0, eqIndex).trim();
+        const val = trimmed.slice(eqIndex + 1).trim();
+        if (!process.env[key]) process.env[key] = val;
+    });
+}
+
 const app = express();
 
 // C1: XLSX export helper
@@ -26,36 +40,103 @@ function generateXlsxBuffer(headers, rows, sheetName = 'Sheet1') {
     return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
 
-// Email configuration (uses environment variables or defaults for development)
-const emailTransporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: process.env.SMTP_PORT || 587,
-    secure: false,
-    auth: {
-        user: process.env.SMTP_USER || '',
-        pass: process.env.SMTP_PASS || ''
-    }
-});
-
-// Helper function to send emails
+// Email configuration — supports Resend API (recommended for cloud hosting) or SMTP fallback
 async function sendEmail(to, subject, htmlContent) {
-    // Skip if no SMTP configured
-    if (!process.env.SMTP_USER) {
-        console.log(`[Email Mock] To: ${to}, Subject: ${subject}`);
-        return { success: true, mock: true };
+    const fromAddress = process.env.EMAIL_FROM || 'Med&X <onboarding@resend.dev>';
+
+    // Option 1: Resend API (HTTP-based, works on all hosting platforms)
+    if (process.env.RESEND_API_KEY) {
+        try {
+            const response = await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ from: fromAddress, to, subject, html: htmlContent })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                console.error('Resend error:', data);
+                return { success: false, error: data.message || 'Resend API error' };
+            }
+            console.log(`[Email Sent via Resend] To: ${to}, Subject: ${subject}`);
+            return { success: true };
+        } catch (err) {
+            console.error('Resend error:', err);
+            return { success: false, error: err.message };
+        }
     }
-    try {
-        await emailTransporter.sendMail({
-            from: process.env.SMTP_FROM || 'Med&X Accelerator <accelerator@medx.hr>',
-            to,
-            subject,
-            html: htmlContent
-        });
-        return { success: true };
-    } catch (err) {
-        console.error('Email error:', err);
-        return { success: false, error: err.message };
+
+    // Option 2: SMTP (nodemailer)
+    if (process.env.SMTP_USER) {
+        try {
+            const transporter = nodemailer.createTransport({
+                host: process.env.SMTP_HOST || 'smtp.gmail.com',
+                port: parseInt(process.env.SMTP_PORT || '465'),
+                secure: process.env.SMTP_PORT ? process.env.SMTP_PORT === '465' : true,
+                connectionTimeout: 10000,
+                greetingTimeout: 10000,
+                socketTimeout: 10000,
+                auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+            });
+            await transporter.sendMail({ from: fromAddress, to, subject, html: htmlContent });
+            console.log(`[Email Sent via SMTP] To: ${to}, Subject: ${subject}`);
+            return { success: true };
+        } catch (err) {
+            console.error('SMTP error:', err);
+            return { success: false, error: err.message };
+        }
     }
+
+    // No email provider configured
+    console.log(`[Email Mock] To: ${to}, Subject: ${subject}`);
+    return { success: true, mock: true };
+}
+
+// Branded email template builder — wraps content in Med&X styled HTML
+function buildEmailTemplate(title, bodyHtml) {
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; background: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background: #f4f4f5; padding: 32px 16px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%;">
+    <!-- Header -->
+    <tr><td style="background: #0f172a; padding: 28px 32px; border-radius: 12px 12px 0 0; text-align: center;">
+        <div style="font-size: 28px; font-weight: 700; letter-spacing: 1px;">
+            <span style="color: #C9A962;">Med</span><span style="color: #ffffff;">&amp;</span><span style="color: #C9A962;">X</span>
+        </div>
+        <div style="color: #94a3b8; font-size: 12px; margin-top: 4px; letter-spacing: 2px; text-transform: uppercase;">Building Bridges in Biomedicine</div>
+    </td></tr>
+    <!-- Title bar -->
+    <tr><td style="background: #1e293b; padding: 16px 32px; text-align: center;">
+        <h1 style="margin: 0; color: #C9A962; font-size: 20px; font-weight: 600;">${title}</h1>
+    </td></tr>
+    <!-- Body -->
+    <tr><td style="background: #ffffff; padding: 32px; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;">
+        <div style="color: #334155; font-size: 15px; line-height: 1.7;">
+            ${bodyHtml}
+        </div>
+    </td></tr>
+    <!-- Footer -->
+    <tr><td style="background: #0f172a; padding: 24px 32px; border-radius: 0 0 12px 12px; text-align: center;">
+        <div style="color: #C9A962; font-size: 14px; font-weight: 600; margin-bottom: 8px;">Med&amp;X</div>
+        <div style="color: #94a3b8; font-size: 12px; margin-bottom: 12px;">Building Bridges in Biomedicine</div>
+        <div style="margin-bottom: 8px;">
+            <a href="https://medx.hr" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 8px;">Website</a>
+            <a href="https://www.linkedin.com/company/med-x-croatia/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 8px;">LinkedIn</a>
+            <a href="https://www.instagram.com/medx.hr/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 8px;">Instagram</a>
+        </div>
+        <div style="color: #64748b; font-size: 11px;">&copy; ${new Date().getFullYear()} Med&amp;X. All rights reserved.</div>
+    </td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
 }
 // Generate a speaker invite code: SPK-XXXX-2026
 function generateSpeakerInviteCode() {
