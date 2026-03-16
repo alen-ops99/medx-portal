@@ -51,3 +51,14 @@ services:
       - key: JWT_SECRET
         generateValue: true
     plan: free
+
+  - type: web
+    name: medx-gateway
+    runtime: node
+    rootDir: landing
+    buildCommand: echo "No build needed"
+    startCommand: node serve.js
+    envVars:
+      - key: PORT
+        value: 3005
+    plan: free
