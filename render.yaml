@@ -12,6 +12,18 @@ services:
         value: production
       - key: JWT_SECRET
         generateValue: true
+      # Email — set Resend API key in Render dashboard
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: "Med&X <noreply@medx.hr>"
+      # Push Notifications (VAPID)
+      - key: VAPID_PUBLIC_KEY
+        value: BLaqYNwn9YVPEbvY7qzvR-WtP8NPPe7dG4V9XDmFd0A4k4WdbSbnrBEuO_uo69T-lt2a9NxJ1_5a0jvC4TJZGIU
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        value: "mailto:accelerator@medx.hr"
       # Stripe — set actual values in Render dashboard
       - key: STRIPE_SECRET_KEY
         sync: false
@@ -50,6 +62,11 @@ services:
         value: production
       - key: JWT_SECRET
         generateValue: true
+      # Email — set Resend API key in Render dashboard
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: "Med&X <noreply@medx.hr>"
     plan: free
 
   - type: web
