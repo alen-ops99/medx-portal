@@ -77609,8 +77609,8 @@ You can use variables like {first_name} that will be personalized for each recip
                 const msg = document.createElement('div');
                 msg.className = `ai-msg ${type}`;
                 msg.innerHTML = `
-                    <div class="ai-msg-avatar">${type === 'assistant' ? '<i class="fas fa-robot"></i>' : initials}</div>
-                    <div class="ai-msg-content">${text}</div>
+                    <div class="ai-msg-avatar">${type === 'assistant' ? '<i class="fas fa-robot"></i>' : escapeHtml(initials)}</div>
+                    <div class="ai-msg-content">${type === 'user' ? escapeHtml(text) : text}</div>
                 `;
                 container.appendChild(msg);
                 container.scrollTop = container.scrollHeight;
@@ -79416,10 +79416,10 @@ You can use variables like {first_name} that will be personalized for each recip
                         <i class="fas fa-check" style="display: none;"></i>
                     </button>
                     <div class="notes-task-info">
-                        <div class="notes-task-title">${title}</div>
+                        <div class="notes-task-title">${escapeHtml(title)}</div>
                         <div class="notes-task-meta">
                             <span class="notes-task-badge">Added</span>
-                            Due ${dueDate}
+                            Due ${escapeHtml(dueDate)}
                         </div>
                     </div>
                 `;
@@ -86588,11 +86588,11 @@ You can use variables like {first_name} that will be personalized for each recip
                         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
                             <div style="width: 44px; height: 44px; border-radius: 50%; background: var(--up-bg-muted); display: flex; align-items: center; justify-content: center; color: var(--up-text-muted);"><i class="fas fa-user"></i></div>
                             <div>
-                                <div style="font-size: 15px; font-weight: 600; color: var(--up-text);">${post.author}</div>
-                                <div style="font-size: 12px; color: var(--up-text-muted);">${post.time}</div>
+                                <div style="font-size: 15px; font-weight: 600; color: var(--up-text);">${escapeHtml(post.author)}</div>
+                                <div style="font-size: 12px; color: var(--up-text-muted);">${escapeHtml(post.time)}</div>
                             </div>
                         </div>
-                        <div style="font-size: 14px; color: var(--up-text-secondary); line-height: 1.6; margin-bottom: 16px;">${post.content}</div>
+                        <div style="font-size: 14px; color: var(--up-text-secondary); line-height: 1.6; margin-bottom: 16px;">${escapeHtml(post.content)}</div>
                         <div style="display: flex; gap: 24px; padding-top: 16px; border-top: 1px solid var(--up-border);">
                             <span onclick="ForumPortal.likePost(this)" style="font-size: 13px; color: var(--up-text-muted); cursor: pointer; transition: color 0.2s;"><i class="fas fa-heart"></i> ${post.likes}</span>
                             <span onclick="ForumPortal.toggleComments(this)" style="font-size: 13px; color: var(--up-text-muted); cursor: pointer; transition: color 0.2s;"><i class="fas fa-comment"></i> ${post.comments}</span>
@@ -86780,12 +86780,12 @@ You can use variables like {first_name} that will be personalized for each recip
                         reader.onload = (event) => {
                             const photoPlaceholder = document.querySelector('.fm-photo-placeholder');
                             if (photoPlaceholder) {
-                                photoPlaceholder.innerHTML = `<img src="${event.target.result}" alt="Profile photo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
+                                photoPlaceholder.innerHTML = `<img src="${escapeHtml(event.target.result)}" alt="Profile photo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
                             }
                             // Also update welcome photo
                             const welcomePhoto = document.getElementById('fmWelcomePhoto');
                             if (welcomePhoto) {
-                                welcomePhoto.innerHTML = `<img src="${event.target.result}" alt="Profile photo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
+                                welcomePhoto.innerHTML = `<img src="${escapeHtml(event.target.result)}" alt="Profile photo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
                             }
                         };
                         reader.onerror = () => {
@@ -87329,18 +87329,18 @@ You can use variables like {first_name} that will be personalized for each recip
                 document.getElementById('profileBio').textContent = p.bio;
 
                 // Research tags
-                const tagsHtml = p.researchTags.map(tag => `<span class="profile-tag">${tag}</span>`).join('');
+                const tagsHtml = p.researchTags.map(tag => `<span class="profile-tag">${escapeHtml(tag)}</span>`).join('');
                 document.getElementById('profileResearchTags').innerHTML = tagsHtml;
 
                 // Goals
-                const goalsHtml = p.goals.map(goal => `<span class="profile-tag goal">${goal}</span>`).join('');
+                const goalsHtml = p.goals.map(goal => `<span class="profile-tag goal">${escapeHtml(goal)}</span>`).join('');
                 document.getElementById('profileGoals').innerHTML = goalsHtml;
 
                 // Publications
                 const pubsHtml = p.recentPublications.map(pub => `
                     <div class="profile-publication">
-                        <div class="profile-publication-title">${pub.title}</div>
-                        <div class="profile-publication-meta">${pub.journal} | ${pub.citations} citations</div>
+                        <div class="profile-publication-title">${escapeHtml(pub.title)}</div>
+                        <div class="profile-publication-meta">${escapeHtml(pub.journal)} | ${pub.citations} citations</div>
                     </div>
                 `).join('') || '<p style="color: var(--up-text-muted); font-size: 14px;">No publications listed</p>';
                 document.getElementById('profilePublicationsList').innerHTML = pubsHtml;
@@ -87348,10 +87348,10 @@ You can use variables like {first_name} that will be personalized for each recip
                 // Mutual connections
                 const mutualAvatars = p.mutualConnections.slice(0, 3).map(name => {
                     const initials = name.split(' ').map(n => n[0]).join('');
-                    return `<div class="profile-mutual-avatar">${initials}</div>`;
+                    return `<div class="profile-mutual-avatar">${escapeHtml(initials)}</div>`;
                 }).join('');
                 const mutualText = p.mutualConnections.length > 0
-                    ? `<strong>${p.mutualConnections[0]}</strong>${p.mutualConnections.length > 1 ? ` and <strong>${p.mutualConnections.length - 1} others</strong>` : ''} are mutual connections`
+                    ? `<strong>${escapeHtml(p.mutualConnections[0])}</strong>${p.mutualConnections.length > 1 ? ` and <strong>${p.mutualConnections.length - 1} others</strong>` : ''} are mutual connections`
                     : 'No mutual connections yet';
                 document.getElementById('profileMutual').innerHTML = `
                     <div class="profile-mutual-avatars">${mutualAvatars}</div>
@@ -87475,9 +87475,9 @@ You can use variables like {first_name} that will be personalized for each recip
                             <i class="fas fa-arrow-left"></i>
                         </button>
                         <div class="network-chat-user">
-                            <div class="network-chat-avatar">${initials}</div>
+                            <div class="network-chat-avatar">${escapeHtml(initials)}</div>
                             <div class="network-chat-user-info">
-                                <h4>${userName}</h4>
+                                <h4>${escapeHtml(userName)}</h4>
                                 <span class="network-chat-status"><i class="fas fa-circle"></i> Online</span>
                             </div>
                         </div>
@@ -91049,11 +91049,11 @@ ${'='.repeat(70)}
                 // Render session card
                 const sessionCard = document.getElementById('spDaySessionCard');
                 sessionCard.innerHTML = `
-                    <h3>${event.sessionTitle}</h3>
+                    <h3>${escapeHtml(event.sessionTitle)}</h3>
                     <div class="sp-day-session-details">
-                        <span><i class="fas fa-clock"></i> ${event.sessionTime}</span>
-                        <span><i class="fas fa-door-open"></i> ${event.room || 'Room TBA'}</span>
-                        <span><i class="fas fa-user-tie"></i> ${event.role.charAt(0).toUpperCase() + event.role.slice(1)}</span>
+                        <span><i class="fas fa-clock"></i> ${escapeHtml(event.sessionTime)}</span>
+                        <span><i class="fas fa-door-open"></i> ${escapeHtml(event.room || 'Room TBA')}</span>
+                        <span><i class="fas fa-user-tie"></i> ${escapeHtml(event.role.charAt(0).toUpperCase() + event.role.slice(1))}</span>
                     </div>
                 `;
 
@@ -91064,11 +91064,11 @@ ${'='.repeat(70)}
                 const greenRoomLocation = logistics?.greenRoom?.location || 'Check with coordinator';
 
                 quickActions.innerHTML = `
-                    <a href="tel:${coordinatorPhone}" class="sp-day-action">
+                    <a href="tel:${escapeHtml(coordinatorPhone)}" class="sp-day-action">
                         <i class="fas fa-phone"></i>
                         <span>Call Coordinator</span>
                     </a>
-                    <a href="${venueMapLink}" target="_blank" class="sp-day-action">
+                    <a href="${escapeHtml(venueMapLink)}" target="_blank" class="sp-day-action">
                         <i class="fas fa-map-marker-alt"></i>
                         <span>Directions</span>
                     </a>
@@ -93556,7 +93556,7 @@ ${'='.repeat(70)}
                     const reader = new FileReader();
                     reader.onload = (event) => {
                         const photoEl = document.getElementById('settingsProfilePhoto');
-                        photoEl.innerHTML = `<img src="${event.target.result}" alt="Profile">`;
+                        photoEl.innerHTML = `<img src="${escapeHtml(event.target.result)}" alt="Profile">`;
                     };
                     reader.onerror = () => {
                         Toast.error('Failed to read file. Please try again.');
@@ -94519,10 +94519,10 @@ ${'='.repeat(70)}
                         }
                         let details = dateStr;
                         if (p.venue || p.location) {
-                            const parts = [p.venue, p.location].filter(Boolean);
+                            const parts = [p.venue, p.location].filter(Boolean).map(v => escapeHtml(v));
                             details += ` &middot; ${parts.join(', ')}`;
                         }
-                        header.innerHTML = `${details} <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; margin-left: 8px;" onclick="App.editProjectSettings('${proj}')"><i class="fas fa-edit"></i></button>`;
+                        header.innerHTML = `${details} <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; margin-left: 8px;" onclick="App.editProjectSettings('${escapeHtml(proj)}')"><i class="fas fa-edit"></i></button>`;
                     }
                 });
             },
@@ -94971,10 +94971,10 @@ ${'='.repeat(70)}
                 }
 
                 container.innerHTML = messages.map(msg => {
-                    const initials = msg.sender_name ? msg.sender_name.split(' ').map(n => n[0]).join('') : '?';
+                    const initials = this.escapeHtml(msg.sender_name ? msg.sender_name.split(' ').map(n => n[0]).join('') : '?');
                     const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                     const msgText = this.escapeHtml(msg.message);
-                    const senderName = msg.sender_name || 'Unknown';
+                    const senderName = this.escapeHtml(msg.sender_name || 'Unknown');
 
                     // Reply reference
                     let replyHtml = '';
@@ -94992,7 +94992,7 @@ ${'='.repeat(70)}
                         if (msg.file_type === 'image') {
                             fileHtml = `
                                 <div class="chat-file">
-                                    <img src="${msg.file_url}" alt="${msg.file_name || 'Image'}" class="chat-file-image" onclick="window.open('${msg.file_url}', '_blank')">
+                                    <img src="${this.escapeHtml(msg.file_url)}" alt="${this.escapeHtml(msg.file_name || 'Image')}" class="chat-file-image" onclick="window.open('${this.escapeHtml(msg.file_url)}', '_blank')">
                                 </div>
                             `;
                         } else if (msg.file_type === 'audio') {
@@ -95014,7 +95014,7 @@ ${'='.repeat(70)}
                                                 <span class="audio-duration">${duration}</span>
                                             </div>
                                         </div>
-                                        <audio id="${audioId}" src="${msg.file_url}" preload="metadata" onloadedmetadata="App.updateAudioDuration('${audioId}')" ontimeupdate="App.updateAudioProgress('${audioId}')" onended="App.audioEnded('${audioId}')"></audio>
+                                        <audio id="${audioId}" src="${this.escapeHtml(msg.file_url)}" preload="metadata" onloadedmetadata="App.updateAudioDuration('${audioId}')" ontimeupdate="App.updateAudioProgress('${audioId}')" onended="App.audioEnded('${audioId}')"></audio>
                                     </div>
                                 </div>
                             `;
@@ -95032,9 +95032,9 @@ ${'='.repeat(70)}
 
                             fileHtml = `
                                 <div class="chat-file">
-                                    <a href="${msg.file_url}" target="_blank" class="chat-file-attachment" download="${msg.file_name || 'file'}">
+                                    <a href="${this.escapeHtml(msg.file_url)}" target="_blank" class="chat-file-attachment" download="${this.escapeHtml(msg.file_name || 'file')}">
                                         <i class="fas ${fileIcon}"></i>
-                                        <span>${msg.file_name || 'Download file'}</span>
+                                        <span>${this.escapeHtml(msg.file_name || 'Download file')}</span>
                                     </a>
                                 </div>
                             `;
@@ -96195,8 +96195,8 @@ ${'='.repeat(70)}
                                     <div class="timeline-range"
                                          style="left: ${evt.position}%; width: ${evt.endPosition - evt.position}%; background: ${evt.color};"
                                          onclick="App.showProject('${evt.parent}')"
-                                         title="${evt.name}">
-                                        <span class="timeline-range-label" style="color: ${evt.color};">${evt.name}</span>
+                                         title="${escapeHtml(evt.name)}">
+                                        <span class="timeline-range-label" style="color: ${evt.color};">${escapeHtml(evt.name)}</span>
                                     </div>
                                 `).join('')}
 
@@ -96215,7 +96215,7 @@ ${'='.repeat(70)}
                                             <div class="timeline-dot" style="background: ${event.color};"></div>
                                             <div class="timeline-stem" style="height: 10px; background: ${event.color}40;"></div>
                                             <div class="timeline-card" style="border-color: ${event.color};">
-                                                <span class="tc-name">${event.name}</span>
+                                                <span class="tc-name">${escapeHtml(event.name)}</span>
                                                 <span class="tc-date" style="font-size: 11px; color: var(--text-secondary);">${dateStr}</span>
                                                 <span class="tc-days" style="color: ${event.color};">${daysText}</span>
                                             </div>
@@ -98079,7 +98079,7 @@ ${'='.repeat(70)}
                 }
 
                 container.innerHTML = messages.map(msg => {
-                    const initials = msg.sender_name ? msg.sender_name.split(' ').map(n => n[0]).join('') : '?';
+                    const initials = this.escapeHtml(msg.sender_name ? msg.sender_name.split(' ').map(n => n[0]).join('') : '?');
                     const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                     return `
                         <div class="chat-message">
@@ -98087,7 +98087,7 @@ ${'='.repeat(70)}
                                 <div class="chat-avatar" style="background: ${msg.avatar_color || 'var(--accent-gold)'}; color: var(--bg-primary); width: 24px; height: 24px; font-size: 10px;">
                                     ${initials}
                                 </div>
-                                <span class="chat-sender" style="font-size: 12px;">${msg.sender_name || 'Unknown'}</span>
+                                <span class="chat-sender" style="font-size: 12px;">${this.escapeHtml(msg.sender_name || 'Unknown')}</span>
                                 <span class="chat-time" style="font-size: 10px;">${time}</span>
                             </div>
                             <div class="chat-text" style="font-size: 13px;">${this.escapeHtml(msg.message)}</div>
@@ -99006,7 +99006,7 @@ ${'='.repeat(70)}
                     html += `<div class="schedule-session-block ${typeClass}"
                         style="top: ${topOffset}px; left: ${colStart + 2}px; width: ${colWidth - 6}px; height: ${blockHeight - 2}px;"
                         onclick="App.showSessionDetail('${s.id}')"
-                        title="${this.escapeHtml(s.title || '')} | ${s.start_time} - ${s.end_time}${speakerText ? ' | ' + speakerText : ''}">
+                        title="${this.escapeHtml(s.title || '')} | ${s.start_time} - ${s.end_time}${speakerText ? ' | ' + this.escapeHtml(speakerText) : ''}">
                         <div class="session-block-title">${this.escapeHtml(s.title || 'Untitled')}</div>
                         <div class="session-block-time">${s.start_time} - ${s.end_time}</div>
                         ${speakerText ? `<div class="session-block-speaker">${this.escapeHtml(speakerText)}</div>` : ''}
@@ -99029,7 +99029,7 @@ ${'='.repeat(70)}
                 document.getElementById('sessionDetailBody').innerHTML = `
                     <div style="display: flex; flex-direction: column; gap: 12px;">
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="background: ${typeColors[s.session_type] || '#c9a962'}22; color: ${typeColors[s.session_type] || '#c9a962'}; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;">${typeLabels[s.session_type] || s.session_type || 'Talk'}</span>
+                            <span style="background: ${typeColors[s.session_type] || '#c9a962'}22; color: ${typeColors[s.session_type] || '#c9a962'}; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;">${typeLabels[s.session_type] || this.escapeHtml(s.session_type) || 'Talk'}</span>
                         </div>
                         <div style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 13px;">
                             <i class="fas fa-clock"></i> ${s.start_time || '?'} - ${s.end_time || '?'}
@@ -99095,7 +99095,7 @@ ${'='.repeat(70)}
                             ${s.is_keynote ? '<span style="background: var(--accent-gold); color: var(--bg-primary); padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 600;">KEYNOTE</span>' : ''}
                             <span style="background: ${isPublished ? 'rgba(34,197,94,0.15)' : 'rgba(107,114,128,0.15)'}; color: ${isPublished ? '#22c55e' : '#6b7280'}; padding: 2px 6px; border-radius: 4px; font-size: 9px;"><i class="fas ${isPublished ? 'fa-eye' : 'fa-eye-slash'}" style="margin-right: 3px;"></i>${isPublished ? 'Published' : 'Draft'}</span>
                         </div>
-                        ${s.avatar ? `<img src="${s.avatar}" alt="${this.escapeHtml(s.name)}" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; margin: 12px auto 8px;">` : `<div class="speaker-avatar" style="margin-top: 12px;">${initials}</div>`}
+                        ${s.avatar ? `<img src="${this.escapeHtml(s.avatar)}" alt="${this.escapeHtml(s.name)}" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; margin: 12px auto 8px;">` : `<div class="speaker-avatar" style="margin-top: 12px;">${this.escapeHtml(initials)}</div>`}
                         <div class="speaker-name">${this.escapeHtml(s.name || 'Unknown')}</div>
                         <div class="speaker-title">${this.escapeHtml(s.title || '')}</div>
                         <div class="speaker-org">${this.escapeHtml(s.institution || s.organization || '')}</div>
@@ -100436,17 +100436,17 @@ ${'='.repeat(70)}
                         ${p.title ? `<div style="font-weight: 600; margin-bottom: 8px; font-size: 16px;">${this.escapeHtml(p.title)}</div>` : ''}
                         <div style="font-size: 14px; line-height: 1.6; margin-bottom: 12px; white-space: pre-wrap;">${this.escapeHtml(p.content)}</div>
                         ${p.link_url ? `
-                            <a href="${p.link_url}" target="_blank" style="display: block; padding: 12px; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 12px; text-decoration: none; color: inherit; border: 1px solid var(--border);">
+                            <a href="${this.escapeHtml(p.link_url)}" target="_blank" style="display: block; padding: 12px; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 12px; text-decoration: none; color: inherit; border: 1px solid var(--border);">
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <i class="fas fa-link" style="color: var(--forum);"></i>
-                                    <span style="color: var(--forum); word-break: break-all;">${p.link_url}</span>
+                                    <span style="color: var(--forum); word-break: break-all;">${this.escapeHtml(p.link_url)}</span>
                                 </div>
                             </a>
                         ` : ''}
-                        ${p.image_url ? `<img src="${p.image_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 12px;">` : ''}
+                        ${p.image_url ? `<img src="${this.escapeHtml(p.image_url)}" style="max-width: 100%; border-radius: 8px; margin-bottom: 12px;">` : ''}
                         ${p.video_url ? `
                             <video controls style="max-width: 100%; border-radius: 8px; margin-bottom: 12px;">
-                                <source src="${p.video_url}" type="video/mp4">
+                                <source src="${this.escapeHtml(p.video_url)}" type="video/mp4">
                             </video>
                         ` : ''}
                         ${p.attachments ? `
@@ -100961,7 +100961,7 @@ ${'='.repeat(70)}
                             </div>
                             <div style="max-width: 70%; padding: 10px 14px; background: ${isOwn ? 'var(--forum)' : 'var(--bg-tertiary)'}; color: ${isOwn ? 'white' : 'var(--text-primary)'}; border-radius: 16px; border-bottom-${isOwn ? 'right' : 'left'}-radius: 4px;">
                                 ${this.escapeHtml(m.message || '')}
-                                ${attachments.length > 0 ? `<div style="margin-top: 8px;">${attachments.map(a => `<a href="${a.url}" target="_blank" style="display: inline-flex; align-items: center; gap: 4px; color: ${isOwn ? 'white' : 'var(--forum)'}; font-size: 12px;"><i class="fas fa-paperclip"></i>${this.escapeHtml(a.name)}</a>`).join(' ')}</div>` : ''}
+                                ${attachments.length > 0 ? `<div style="margin-top: 8px;">${attachments.map(a => `<a href="${this.escapeHtml(a.url)}" target="_blank" style="display: inline-flex; align-items: center; gap: 4px; color: ${isOwn ? 'white' : 'var(--forum)'}; font-size: 12px;"><i class="fas fa-paperclip"></i>${this.escapeHtml(a.name)}</a>`).join(' ')}</div>` : ''}
                             </div>
                         </div>
                     `;
@@ -104064,7 +104064,7 @@ ${'='.repeat(70)}
 
                 const programBadge = inst.program_type ?
                     `<span style="background: ${inst.program_type === 'clinical' ? '#f472b6' : '#C9A962'}; color: white; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500;">
-                        ${inst.program_type}
+                        ${this.escapeHtml(inst.program_type)}
                     </span>` : '';
 
                 document.getElementById('accInstModalTitle').innerHTML = `${this.escapeHtml(inst.name)} ${programBadge}`;
@@ -104518,29 +104518,29 @@ ${'='.repeat(70)}
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                         <div>
                             <h4 style="margin: 0 0 12px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Personal Information</h4>
-                            <p><strong>Full Name:</strong> ${app.first_name} ${app.last_name}</p>
-                            <p><strong>Email:</strong> ${app.email}</p>
-                            <p><strong>Phone:</strong> ${app.phone || '-'}</p>
-                            <p><strong>Date of Birth:</strong> ${app.date_of_birth || '-'}</p>
-                            <p><strong>Address:</strong> ${app.address || '-'}</p>
+                            <p><strong>Full Name:</strong> ${this.escapeHtml(app.first_name)} ${this.escapeHtml(app.last_name)}</p>
+                            <p><strong>Email:</strong> ${this.escapeHtml(app.email)}</p>
+                            <p><strong>Phone:</strong> ${this.escapeHtml(app.phone || '-')}</p>
+                            <p><strong>Date of Birth:</strong> ${this.escapeHtml(app.date_of_birth || '-')}</p>
+                            <p><strong>Address:</strong> ${this.escapeHtml(app.address || '-')}</p>
                         </div>
                         <div>
                             <h4 style="margin: 0 0 12px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Education</h4>
-                            <p><strong>Institution:</strong> ${app.current_institution || '-'}</p>
-                            <p><strong>Program:</strong> ${app.degree_program || '-'}</p>
-                            <p><strong>Year of Study:</strong> ${app.year_of_study || '-'}</p>
-                            <p><strong>GPA:</strong> ${app.gpa || '-'}</p>
+                            <p><strong>Institution:</strong> ${this.escapeHtml(app.current_institution || '-')}</p>
+                            <p><strong>Program:</strong> ${this.escapeHtml(app.degree_program || '-')}</p>
+                            <p><strong>Year of Study:</strong> ${this.escapeHtml(app.year_of_study || '-')}</p>
+                            <p><strong>GPA:</strong> ${this.escapeHtml(app.gpa || '-')}</p>
                         </div>
                     </div>
                     <div style="margin-top: 20px;">
                         <h4 style="margin: 0 0 12px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Program</h4>
                         <p><strong>Type:</strong> ${app.program_type === 'clinical' ? 'Clinical' : 'Scientific'}</p>
-                        <p><strong>Institution:</strong> ${instName}</p>
+                        <p><strong>Institution:</strong> ${this.escapeHtml(instName)}</p>
                     </div>
                     <div style="margin-top: 20px;">
                         <h4 style="margin: 0 0 12px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Additional Information</h4>
-                        <p><strong>Previous Experience:</strong><br>${app.previous_experience || '-'}</p>
-                        <p><strong>Special Requirements:</strong> ${app.special_arrangements || '-'}</p>
+                        <p><strong>Previous Experience:</strong><br>${this.escapeHtml(app.previous_experience || '-')}</p>
+                        <p><strong>Special Requirements:</strong> ${this.escapeHtml(app.special_arrangements || '-')}</p>
                     </div>
                     <div style="margin-top: 20px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
@@ -104556,8 +104556,8 @@ ${'='.repeat(70)}
                             <div style="display: flex; align-items: center; gap: 10px; padding: 8px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 4px;">
                                 <i class="fas ${icon}" style="color: ${color};"></i>
                                 <div style="flex: 1;">
-                                    <div style="font-size: 13px;">${d.document_type}</div>
-                                    <div style="font-size: 11px; color: var(--text-muted);">${d.original_filename} ${d.file_size ? '(' + (d.file_size / 1024).toFixed(1) + ' KB)' : ''}</div>
+                                    <div style="font-size: 13px;">${this.escapeHtml(d.document_type)}</div>
+                                    <div style="font-size: 11px; color: var(--text-muted);">${this.escapeHtml(d.original_filename)} ${d.file_size ? '(' + (d.file_size / 1024).toFixed(1) + ' KB)' : ''}</div>
                                 </div>
                                 <a href="/api/accelerator/documents/${d.id}/download" class="btn btn-secondary" style="padding: 4px 8px;" title="Download"><i class="fas fa-download"></i></a>
                             </div>`;
@@ -104567,7 +104567,7 @@ ${'='.repeat(70)}
                         <h4 style="margin: 0 0 12px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Evaluation</h4>
                         ${app.evaluations?.length ? `
                             <table style="width: 100%; font-size: 13px;">
-                                ${app.evaluations.map(e => `<tr><td>${e.name_hr || e.name}</td><td style="text-align: right;"><strong>${e.score}</strong> / ${e.max_points}</td></tr>`).join('')}
+                                ${app.evaluations.map(e => `<tr><td>${this.escapeHtml(e.name_hr || e.name)}</td><td style="text-align: right;"><strong>${e.score}</strong> / ${e.max_points}</td></tr>`).join('')}
                             </table>
                             <p style="margin-top: 10px;"><strong>Total:</strong> ${app.total_score?.toFixed(2) || '-'}</p>
                         ` : '<p style="color: var(--text-muted);">Not evaluated</p>'}
@@ -104576,8 +104576,8 @@ ${'='.repeat(70)}
                         <h4 style="margin: 0 0 12px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Poruke</h4>
                         ${app.messages?.length ? app.messages.map(m => `
                             <div style="padding: 8px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 4px;">
-                                <small style="color: var(--text-muted);">${m.sent_at} - ${m.sent_by}</small>
-                                <p style="margin: 4px 0 0 0;">${m.content}</p>
+                                <small style="color: var(--text-muted);">${this.escapeHtml(m.sent_at)} - ${this.escapeHtml(m.sent_by)}</small>
+                                <p style="margin: 4px 0 0 0;">${this.escapeHtml(m.content)}</p>
                             </div>
                         `).join('') : '<p style="color: var(--text-muted);">No messagea</p>'}
                     </div>
@@ -104611,8 +104611,8 @@ ${'='.repeat(70)}
                 const app = this.applications.find(a => a.id === appId);
                 document.getElementById('accMessageAppId').value = appId;
                 document.getElementById('accMessageRecipient').innerHTML = `
-                    <strong>${app.first_name} ${app.last_name}</strong><br>
-                    <span style="font-size: 13px;">${app.email}</span>
+                    <strong>${this.escapeHtml(app.first_name)} ${this.escapeHtml(app.last_name)}</strong><br>
+                    <span style="font-size: 13px;">${this.escapeHtml(app.email)}</span>
                 `;
                 document.getElementById('accMessageSubject').value = '';
                 document.getElementById('accMessageContent').value = '';
@@ -104653,8 +104653,8 @@ ${'='.repeat(70)}
                 const app = this.applications.find(a => a.id === appId);
                 document.getElementById('accValidityAppId').value = appId;
                 document.getElementById('accValidityCandidate').innerHTML = `
-                    <strong>${app.first_name} ${app.last_name}</strong> (ID: ${app.candidate_id || '-'})<br>
-                    <span style="font-size: 13px;">Institution: ${app.institution_name || '-'}</span>
+                    <strong>${this.escapeHtml(app.first_name)} ${this.escapeHtml(app.last_name)}</strong> (ID: ${this.escapeHtml(app.candidate_id || '-')})<br>
+                    <span style="font-size: 13px;">Institution: ${this.escapeHtml(app.institution_name || '-')}</span>
                 `;
                 document.getElementById('accValidityReason').value = '';
                 document.getElementById('accValidityNotify').checked = true;
@@ -108533,10 +108533,10 @@ By applying to this program, I give the following consents:
                         <div style="display: flex; align-items: center; gap: 12px; padding: 10px; border-bottom: 1px solid var(--border);">
                             <i class="${this.platformIcons[c.platform]}" style="font-size: 20px; color: ${this.platformColors[c.platform]};"></i>
                             <div style="flex: 1;">
-                                <div style="font-weight: 500;">${c.title || c.content_text?.substring(0, 50) || 'Untitled'}</div>
-                                <div style="font-size: 12px; color: var(--text-muted);">${c.scheduled_date} ${c.scheduled_time || ''}</div>
+                                <div style="font-weight: 500;">${escapeHtml(c.title || c.content_text?.substring(0, 50) || 'Untitled')}</div>
+                                <div style="font-size: 12px; color: var(--text-muted);">${escapeHtml(c.scheduled_date)} ${escapeHtml(c.scheduled_time || '')}</div>
                             </div>
-                            <span style="background: rgba(var(--pr-media-rgb), 0.2); color: var(--pr-media); padding: 2px 8px; border-radius: 4px; font-size: 11px;">${c.status}</span>
+                            <span style="background: rgba(var(--pr-media-rgb), 0.2); color: var(--pr-media); padding: 2px 8px; border-radius: 4px; font-size: 11px;">${escapeHtml(c.status)}</span>
                         </div>
                     `).join('');
                 } else {
@@ -121224,7 +121224,7 @@ By applying to this program, I give the following consents:
                 const messagesEl = document.getElementById('speakerChatMessages');
                 messagesEl.innerHTML += `
                     <div class="speaker-chat-message sent">
-                        ${message}
+                        ${escapeHtml(message)}
                         <div style="font-size:10px;opacity:0.7;margin-top:4px;">Just now</div>
                     </div>
                 `;
