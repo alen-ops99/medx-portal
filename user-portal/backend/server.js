@@ -3025,7 +3025,7 @@ async function initializeApp() {
     db.run(`CREATE INDEX IF NOT EXISTS idx_chat_messages_channel ON chat_messages(channel_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_payment_transactions_reg ON payment_transactions(registration_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_invoices_reg ON invoices(registration_id)`);
-    db.run(`CREATE INDEX IF NOT EXISTS idx_abstracts_user ON abstracts(user_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_abstracts_submitter ON abstracts(submitter_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_abstracts_conference ON abstracts(conference_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_conference ON sessions(conference_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_user_notifications_user ON user_notifications(user_id)`);
