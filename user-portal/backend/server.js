@@ -12,6 +12,7 @@ const initSqlJs = require('sql.js');
 const nodemailer = require('nodemailer');
 const webpush = require('web-push');
 const firaService = require('./fira-service');
+const rateLimit = require('express-rate-limit');
 
 // Stripe — conditionally loaded based on env config (loaded after .env parsing below)
 let stripe = null;
@@ -223,7 +224,22 @@ const storage = multer.diskStorage({
     },
     filename: (req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname)}`)
 });
-const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
+const ALLOWED_MIME_TYPES = [
+    'application/pdf',
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/plain', 'text/csv'
+];
+const upload = multer({
+    storage,
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (ALLOWED_MIME_TYPES.includes(file.mimetype)) return cb(null, true);
+        cb(new Error(`File type ${file.mimetype} not allowed. Accepted: PDF, images, Office documents, CSV.`));
+    }
+});
 
 // Cloudinary cloud storage (optional — falls back to local disk)
 let cloudinaryConfigured = false;
@@ -2995,6 +3011,26 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    // === Performance indexes ===
+    db.run(`CREATE INDEX IF NOT EXISTS idx_registrations_user ON registrations(user_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_registrations_conference ON registrations(conference_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_registrations_email ON registrations(email)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_registrations_status ON registrations(status)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_accelerator_apps_user ON accelerator_applications(user_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_accelerator_apps_email ON accelerator_applications(email)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_accelerator_apps_program ON accelerator_applications(program_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_promo_codes_code ON promo_codes(code, conference_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_forum_members_user ON forum_members(user_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_forum_members_email ON forum_members(email)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_chat_messages_channel ON chat_messages(channel_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_payment_transactions_reg ON payment_transactions(registration_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_invoices_reg ON invoices(registration_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_abstracts_user ON abstracts(user_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_abstracts_conference ON abstracts(conference_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_conference ON sessions(conference_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_user_notifications_user ON user_notifications(user_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id)`);
+
     saveDb();
 
     // Seed data
@@ -3391,7 +3427,15 @@ async function initializeApp() {
     }
 
     // ========== AUTH ROUTES ==========
-    app.post('/api/auth/register', async (req, res) => {
+    const authLimiter = rateLimit({
+        windowMs: 15 * 60 * 1000, // 15 minutes
+        max: 15, // max 15 attempts per window
+        message: { error: 'Too many attempts. Please try again in 15 minutes.' },
+        standardHeaders: true,
+        legacyHeaders: false
+    });
+
+    app.post('/api/auth/register', authLimiter, async (req, res) => {
         try {
             const { email, password, first_name, last_name, institution, country } = req.body;
 
@@ -3439,7 +3483,7 @@ async function initializeApp() {
         } catch (e) { console.error(e); res.status(500).json({ error: 'Registration failed' }); }
     });
 
-    app.post('/api/auth/login', async (req, res) => {
+    app.post('/api/auth/login', authLimiter, async (req, res) => {
         try {
             const { email, password } = req.body;
             const user = query.get('SELECT * FROM users WHERE email = ?', [email]);

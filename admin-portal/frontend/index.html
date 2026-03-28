@@ -12794,10 +12794,10 @@ President, Med&amp;X</textarea>
 
                         return `
                             <div class="team-member-bubble ${isActive ? 'active' : ''}" onclick="App.startDM('${member.id}')">
-                                <img src="${photoUrl}" alt="${member.name}" class="team-member-photo" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=${member.avatar_color?.replace('#', '') || 'C9A962'}&color=0f172a&size=72'">
+                                <img src="${photoUrl}" alt="${escapeHtml(member.name)}" class="team-member-photo" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=${member.avatar_color?.replace('#', '') || 'C9A962'}&color=0f172a&size=72'">
                                 <div class="team-member-tooltip">
-                                    <div class="team-member-tooltip-name">${member.name}</div>
-                                    <div class="team-member-tooltip-role">${member.role || 'Team Member'}</div>
+                                    <div class="team-member-tooltip-name">${escapeHtml(member.name)}</div>
+                                    <div class="team-member-tooltip-role">${escapeHtml(member.role || 'Team Member')}</div>
                                 </div>
                             </div>
                         `;
@@ -12895,7 +12895,7 @@ President, Med&amp;X</textarea>
                     html += `<div class="project-channel-item ${parent.id === activeId ? 'active' : ''}"
                          onclick="App.selectPanelChannel('${projectId}', '${parent.id}')">
                         <span class="channel-hash">#</span>
-                        <span class="channel-name">${parent.name}</span>
+                        <span class="channel-name">${escapeHtml(parent.name)}</span>
                         ${mc > 0 ? `<span class="member-count" style="font-size:9px; background:var(--bg-tertiary); color:var(--text-muted); padding:1px 4px; border-radius:8px; margin-left:auto;">${mc}</span>` : ''}
                         <span class="add-subchannel-btn" onclick="event.stopPropagation(); App.addSubChannel('${projectId}', '${parent.id}', event)" title="Add sub-channel">+</span>
                     </div>`;
@@ -12905,7 +12905,7 @@ President, Med&amp;X</textarea>
                             html += `<div class="project-channel-item sub-channel ${child.id === activeId ? 'active' : ''}"
                                  onclick="App.selectPanelChannel('${projectId}', '${child.id}')">
                                 <span class="channel-hash">#</span>
-                                <span class="channel-name">${child.name}</span>
+                                <span class="channel-name">${escapeHtml(child.name)}</span>
                                 ${cmc > 0 ? `<span class="member-count" style="font-size:9px; background:var(--bg-tertiary); color:var(--text-muted); padding:1px 4px; border-radius:8px; margin-left:auto;">${cmc}</span>` : ''}
                             </div>`;
                         });
@@ -12952,12 +12952,12 @@ President, Med&amp;X</textarea>
                                 <i class="fas fa-arrow-left"></i>
                             </button>
                             <i class="fas fa-user" style="color: var(--accent-gold); margin-right: 6px;"></i>
-                            <h3>${result.other_member.name}</h3>
+                            <h3>${escapeHtml(result.other_member.name)}</h3>
                         </div>
                     `;
 
                     // Update placeholder
-                    document.getElementById('chatInput').placeholder = `Message ${result.other_member.name}...`;
+                    document.getElementById('chatInput').placeholder = `Message ${result.other_member.name || 'Unknown'}...`;
 
                     // Load DM messages
                     await this.loadMessages();
@@ -13633,8 +13633,8 @@ President, Med&amp;X</textarea>
                                     <div class="timeline-range"
                                          style="left: ${evt.position}%; width: ${evt.endPosition - evt.position}%; background: ${evt.color};"
                                          onclick="App.showProject('${evt.parent}')"
-                                         title="${evt.name}">
-                                        <span class="timeline-range-label" style="color: ${evt.color};">${evt.name}</span>
+                                         title="${escapeHtml(evt.name)}">
+                                        <span class="timeline-range-label" style="color: ${evt.color};">${escapeHtml(evt.name)}</span>
                                     </div>
                                 `).join('')}
 
@@ -13648,7 +13648,7 @@ President, Med&amp;X</textarea>
                                             <div class="timeline-dot" style="background: ${event.color};"></div>
                                             <div class="timeline-stem" style="height: ${event.stemHeight}px; background: ${event.color}40;"></div>
                                             <div class="timeline-card" style="border-color: ${event.color};">
-                                                <span class="tc-name">${event.name}</span>
+                                                <span class="tc-name">${escapeHtml(event.name)}</span>
                                                 <span class="tc-date" style="font-size: 11px; color: var(--text-secondary);">${dateStr}</span>
                                             </div>
                                         </div>
@@ -13927,7 +13927,7 @@ President, Med&amp;X</textarea>
                         <div class="task-content" onclick="App.openTaskModal('${project}', '${task.id}')" style="cursor: pointer;">
                             <div class="task-title" style="${isSubtask ? 'font-size: 13px;' : ''}">${this.escapeHtml(task.title)}</div>
                             <div class="task-meta">
-                                ${assignee ? `<span title="${assignee.first_name} ${assignee.last_name}" style="display: inline-flex; align-items: center; justify-content: center; width: ${isSubtask ? '16' : '20'}px; height: ${isSubtask ? '16' : '20'}px; border-radius: 50%; background: var(--accent-gold); color: var(--bg-primary); font-size: ${isSubtask ? '8' : '9'}px; font-weight: 600;">${assigneeInitials}</span>` : ''}
+                                ${assignee ? `<span title="${escapeHtml(assignee.first_name)} ${escapeHtml(assignee.last_name)}" style="display: inline-flex; align-items: center; justify-content: center; width: ${isSubtask ? '16' : '20'}px; height: ${isSubtask ? '16' : '20'}px; border-radius: 50%; background: var(--accent-gold); color: var(--bg-primary); font-size: ${isSubtask ? '8' : '9'}px; font-weight: 600;">${escapeHtml(assigneeInitials)}</span>` : ''}
                                 ${hasFiles ? `<span title="${task.files.length} file(s)"><i class="fas fa-paperclip" style="color: var(--text-muted);"></i></span>` : ''}
                                 ${hasSubtasks && !isSubtask ? `<span style="font-size: 11px; color: var(--text-muted);"><i class="fas fa-tasks"></i> ${completedSubtasks}/${task.subtasks.length}</span>` : ''}
                                 ${dueText ? `<span>Due ${dueText}</span>` : ''}
@@ -14333,7 +14333,7 @@ President, Med&amp;X</textarea>
                     el.innerHTML = '<div style="padding: 8px; color: var(--text-secondary);">No pending tasks</div>';
                     return;
                 }
-                el.innerHTML = pending.slice(0, 5).map(t => `<div style="padding: 6px 8px; border-bottom: 1px solid var(--border); font-size: 13px; display: flex; align-items: center; gap: 8px;"><i class="fas fa-circle" style="font-size: 6px; color: var(--accent-gold);"></i>${t.title || t.name || 'Untitled task'}</div>`).join('');
+                el.innerHTML = pending.slice(0, 5).map(t => `<div style="padding: 6px 8px; border-bottom: 1px solid var(--border); font-size: 13px; display: flex; align-items: center; gap: 8px;"><i class="fas fa-circle" style="font-size: 6px; color: var(--accent-gold);"></i>${escapeHtml(t.title || t.name || 'Untitled task')}</div>`).join('');
             },
 
             renderHomeSequences(containerId) {
@@ -14344,7 +14344,7 @@ President, Med&amp;X</textarea>
                     el.innerHTML = '<div style="padding: 8px; color: var(--text-secondary);">No active sequences</div>';
                     return;
                 }
-                el.innerHTML = seqs.slice(0, 5).map(s => `<div style="padding: 6px 8px; border-bottom: 1px solid var(--border); font-size: 13px;">${s.name} <span style="color: var(--text-muted); font-size: 11px;">${s.status || 'active'}</span></div>`).join('');
+                el.innerHTML = seqs.slice(0, 5).map(s => `<div style="padding: 6px 8px; border-bottom: 1px solid var(--border); font-size: 13px;">${escapeHtml(s.name)} <span style="color: var(--text-muted); font-size: 11px;">${escapeHtml(s.status || 'active')}</span></div>`).join('');
             },
 
             renderProjectActivity(containerId) {
@@ -14622,7 +14622,7 @@ President, Med&amp;X</textarea>
                 const select = document.getElementById('taskAssignee');
                 select.innerHTML = '<option value="">Unassigned</option>';
                 this.teamMembers.forEach(m => {
-                    select.innerHTML += `<option value="${m.id}">${m.first_name} ${m.last_name}</option>`;
+                    select.innerHTML += `<option value="${m.id}">${escapeHtml(m.first_name)} ${escapeHtml(m.last_name)}</option>`;
                 });
             },
 
@@ -14725,9 +14725,9 @@ President, Med&amp;X</textarea>
                 files.forEach(file => {
                     this.taskPendingFiles.push(file);
                     container.innerHTML += `
-                        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 4px;" data-pending="${file.name}">
+                        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 4px;" data-pending="${escapeHtml(file.name)}">
                             <i class="fas fa-file" style="color: var(--accent-gold);"></i>
-                            <span style="flex: 1; font-size: 13px;">${file.name}</span>
+                            <span style="flex: 1; font-size: 13px;">${escapeHtml(file.name)}</span>
                             <span style="font-size: 11px; color: var(--text-muted);">(pending)</span>
                         </div>
                     `;
@@ -14784,8 +14784,8 @@ President, Med&amp;X</textarea>
                     const escapedUserId = userId.replace(/'/g, "\\'");
                     return `<div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s;" onmouseover="this.style.background='var(--bg-tertiary)'" onmouseout="this.style.background=''" onclick="App.openConversation('${escapedUserId}')">
                         <div style="min-width: 0;">
-                            <div style="font-weight: 600; font-size: 14px; color: var(--text-primary);">${userId}</div>
-                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 400px;">${latest.title || (latest.content ? latest.content.substring(0, 60) : 'No content')}${latest.content && latest.content.length > 60 ? '...' : ''}</div>
+                            <div style="font-weight: 600; font-size: 14px; color: var(--text-primary);">${escapeHtml(userId)}</div>
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 400px;">${escapeHtml(latest.title || (latest.content ? latest.content.substring(0, 60) : 'No content'))}${latest.content && latest.content.length > 60 ? '...' : ''}</div>
                         </div>
                         <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
                             ${unread > 0 ? `<span style="background: var(--danger, #ef4444); color: white; font-size: 11px; padding: 2px 6px; border-radius: 10px; font-weight: 600;">${unread}</span>` : ''}
@@ -14874,8 +14874,8 @@ President, Med&amp;X</textarea>
                         const isAdmin = m.sender_type === 'admin';
                         html += `<div style="margin-bottom: 12px; display: flex; justify-content: ${isAdmin ? 'flex-end' : 'flex-start'};">
                             <div style="max-width: 70%; padding: 10px 14px; border-radius: 12px; background: ${isAdmin ? 'rgba(167,139,250,0.15)' : 'var(--bg-tertiary)'}; font-size: 13px; color: var(--text-primary);">
-                                ${m.title ? `<div style="font-weight: 600; margin-bottom: 4px;">${m.title}</div>` : ''}
-                                <div>${m.content}</div>
+                                ${m.title ? `<div style="font-weight: 600; margin-bottom: 4px;">${escapeHtml(m.title)}</div>` : ''}
+                                <div>${escapeHtml(m.content)}</div>
                                 <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px;">${new Date(m.created_at).toLocaleString()}</div>
                             </div>
                         </div>`;
@@ -15199,11 +15199,11 @@ President, Med&amp;X</textarea>
                         <div class="sequence-card" style="background: var(--bg-tertiary); border-radius: 8px; padding: 12px; margin-bottom: 8px;">
                             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
                                 <div>
-                                    <strong style="color: var(--text-primary);">${seq.name}</strong>
+                                    <strong style="color: var(--text-primary);">${escapeHtml(seq.name)}</strong>
                                     ${userPosition ? `<div>${userPosition}</div>` : ''}
                                 </div>
                                 <div style="display: flex; gap: 4px;">
-                                    <button class="btn" style="padding: 4px 8px; font-size: 11px;" onclick="App.viewSequence('${seq.id}')">
+                                    <button class="btn" style="padding: 4px 8px; font-size: 11px;" onclick="App.viewSequence('${escapeHtml(seq.id)}')">
                                         <i class="fas fa-eye"></i>
                                     </button>
                                     <button class="btn" style="padding: 4px 8px; font-size: 11px; color: var(--danger);" onclick="App.deleteSequence('${seq.id}')">
@@ -15230,8 +15230,8 @@ President, Med&amp;X</textarea>
                                             <span style="color: ${isDone ? 'var(--success)' : isActive ? 'var(--warning)' : 'var(--text-muted)'};">
                                                 <i class="fas ${isDone ? 'fa-check-circle' : isActive ? 'fa-circle-dot' : 'fa-circle'}"></i>
                                             </span>
-                                            <span style="flex: 1; color: ${isDone ? 'var(--text-muted)' : 'var(--text-primary)'}; ${isDone ? 'text-decoration: line-through;' : ''}">${step.title}</span>
-                                            <span style="color: var(--text-muted); font-size: 11px;">${assigneeName}</span>
+                                            <span style="flex: 1; color: ${isDone ? 'var(--text-muted)' : 'var(--text-primary)'}; ${isDone ? 'text-decoration: line-through;' : ''}">${escapeHtml(step.title)}</span>
+                                            <span style="color: var(--text-muted); font-size: 11px;">${escapeHtml(assigneeName)}</span>
                                             ${step.notification_sent && isActive ? '<span title="Notification sent" style="color: var(--accent-gold); font-size: 10px; margin-left: 2px;"><i class="fas fa-bell"></i></span>' : ''}
                                             ${isActive && step.assigned_to?.toString() === currentUserId ? `
                                                 <button class="btn btn-primary" style="padding: 2px 8px; font-size: 10px;" onclick="App.completeSequenceStep('${seq.id}', '${step.id}')">
@@ -15257,7 +15257,7 @@ President, Med&amp;X</textarea>
                 const assigneeSelect = document.getElementById('seqStepAssignee');
                 if (assigneeSelect && this.teamMembers) {
                     assigneeSelect.innerHTML = '<option value="">Unassigned</option>' +
-                        this.teamMembers.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
+                        this.teamMembers.map(u => `<option value="${u.id}">${escapeHtml(u.name)}</option>`).join('');
                 }
 
                 this.renderSequenceSteps();
@@ -15279,8 +15279,8 @@ President, Med&amp;X</textarea>
                         <div style="display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--bg-tertiary); border-radius: 6px; margin-bottom: 6px;">
                             <span style="background: var(--accent-gold); color: var(--bg-primary); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">${idx + 1}</span>
                             <div style="flex: 1;">
-                                <div style="font-weight: 500;">${step.title}</div>
-                                <div style="font-size: 11px; color: var(--text-muted);">${assigneeName}</div>
+                                <div style="font-weight: 500;">${escapeHtml(step.title)}</div>
+                                <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(assigneeName)}</div>
                             </div>
                             <button class="btn" style="padding: 4px 8px; color: var(--danger);" onclick="App.removeSequenceStep(${idx})">
                                 <i class="fas fa-times"></i>
@@ -15359,9 +15359,9 @@ President, Med&amp;X</textarea>
                         <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: var(--bg-tertiary); border-radius: 8px; margin-bottom: 8px; ${isActive ? 'border-left: 3px solid var(--accent-gold);' : ''}">
                             <span style="background: ${isDone ? 'var(--success)' : isActive ? 'var(--accent-gold)' : 'var(--bg-hover)'}; color: ${isDone || isActive ? 'white' : 'var(--text-secondary)'}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600;">${idx + 1}</span>
                             <div style="flex: 1;">
-                                <div style="font-weight: 500; ${isDone ? 'text-decoration: line-through; color: var(--text-muted);' : ''}">${step.title}</div>
+                                <div style="font-weight: 500; ${isDone ? 'text-decoration: line-through; color: var(--text-muted);' : ''}">${escapeHtml(step.title)}</div>
                                 <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-                                    <i class="fas fa-user"></i> ${assigneeName}
+                                    <i class="fas fa-user"></i> ${escapeHtml(assigneeName)}
                                     ${step.notification_sent && isActive ? ' <span style="color: var(--accent-gold);" title="Notification sent"><i class="fas fa-bell"></i> Notified</span>' : ''}
                                     ${step.completed_at ? ` • Completed ${new Date(step.completed_at).toLocaleDateString()}` : ''}
                                 </div>
@@ -15379,11 +15379,11 @@ President, Med&amp;X</textarea>
                 modal.innerHTML = `
                     <div class="modal" style="max-width: 500px;">
                         <div class="modal-header">
-                            <h2>${seq.name}</h2>
+                            <h2>${escapeHtml(seq.name)}</h2>
                             <button class="modal-close" onclick="document.getElementById('viewSequenceModal').remove()"><i class="fas fa-times"></i></button>
                         </div>
                         <div class="modal-body">
-                            ${seq.description ? `<p style="color: var(--text-secondary); margin-bottom: 16px;">${seq.description}</p>` : ''}
+                            ${seq.description ? `<p style="color: var(--text-secondary); margin-bottom: 16px;">${escapeHtml(seq.description)}</p>` : ''}
                             <h4 style="margin-bottom: 12px; font-size: 14px;">Steps</h4>
                             ${stepsHtml}
                         </div>
@@ -15483,10 +15483,10 @@ President, Med&amp;X</textarea>
                             return `
                                 <div class="timeline-item" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--bg-tertiary); border-radius: 8px; border-left: 3px solid ${color}; ${isPast ? 'opacity: 0.6;' : ''}">
                                     <div style="flex: 1;">
-                                        <div style="font-weight: 500; color: var(--text-primary);">${evt.name}</div>
+                                        <div style="font-weight: 500; color: var(--text-primary);">${escapeHtml(evt.name)}</div>
                                         <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
                                             <i class="fas fa-calendar"></i> ${dateStr}${endDateStr}
-                                            ${evt.description ? ` <span style="margin-left: 8px;"><i class="fas fa-info-circle"></i> ${evt.description}</span>` : ''}
+                                            ${evt.description ? ` <span style="margin-left: 8px;"><i class="fas fa-info-circle"></i> ${escapeHtml(evt.description)}</span>` : ''}
                                         </div>
                                     </div>
                                     <div style="text-align: right; min-width: 80px;">
@@ -15978,7 +15978,7 @@ President, Med&amp;X</textarea>
                     if (hasChildren) {
                         html += `<span class="toggle-children" onclick="App.toggleParentChannel('${project}', '${parent.id}', event)">${toggleIcon}</span>`;
                     }
-                    html += `<span class="hash">#</span>${parent.name}`;
+                    html += `<span class="hash">#</span>${escapeHtml(parent.name)}`;
                     if (mc > 0) html += `<span class="member-count" title="${mc} member${mc !== 1 ? 's' : ''}">${mc}</span>`;
                     html += `<span class="add-subchannel-btn" onclick="App.addSubChannel('${project}', '${parent.id}', event)" title="Add sub-channel">+</span>`;
                     html += `</div>`;
@@ -15988,7 +15988,7 @@ President, Med&amp;X</textarea>
                             const cmc = child.member_count || 0;
                             html += `<div class="project-chat-tab sub-channel ${child.id === activeId ? 'active' : ''}"
                                  onclick="App.selectProjectChannel('${project}', '${child.id}')">
-                                <span class="hash">#</span>${child.name}${cmc > 0 ? `<span class="member-count" title="${cmc} member${cmc !== 1 ? 's' : ''}">${cmc}</span>` : ''}
+                                <span class="hash">#</span>${escapeHtml(child.name)}${cmc > 0 ? `<span class="member-count" title="${cmc} member${cmc !== 1 ? 's' : ''}">${cmc}</span>` : ''}
                             </div>`;
                         });
                     }
@@ -16112,14 +16112,14 @@ President, Med&amp;X</textarea>
                 let pickerHtml = `
                     <div class="member-picker-overlay active" onclick="App.closeChannelMemberPicker()"></div>
                     <div class="member-picker" id="memberPickerDropdown">
-                        <div class="member-picker-title"><i class="fas fa-users" style="margin-right: 4px;"></i> #${channel.name} Members</div>
+                        <div class="member-picker-title"><i class="fas fa-users" style="margin-right: 4px;"></i> #${escapeHtml(channel.name)} Members</div>
                         ${allMembers.map(m => {
                             const initials = m.name ? m.name.split(' ').map(n => n[0]).join('') : '?';
                             const isSelected = currentMemberIds.has(m.id);
                             return `<div class="member-picker-item ${isSelected ? 'selected' : ''}" data-member-id="${m.id}" onclick="App.toggleChannelMember('${m.id}')">
                                 <div class="mp-check"><i class="fas fa-check"></i></div>
-                                <div class="mp-avatar" style="background: ${m.avatar_color || 'var(--accent-gold)'}">${initials}</div>
-                                <span>${m.name}</span>
+                                <div class="mp-avatar" style="background: ${escapeHtml(m.avatar_color || 'var(--accent-gold)')}">${escapeHtml(initials)}</div>
+                                <span>${escapeHtml(m.name)}</span>
                             </div>`;
                         }).join('')}
                         ${allMembers.length === 0 ? '<div style="padding: 12px; color: var(--text-muted); font-size: 12px;">No team members found</div>' : ''}
@@ -17390,7 +17390,7 @@ President, Med&amp;X</textarea>
             openSpeakerDetailModal(speakerId) {
                 const speaker = this.plexusSpeakers.find(s => s.id === speakerId);
                 if (!speaker) return;
-                const teamOptions = this.teamMembers.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+                const teamOptions = this.teamMembers.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
                 const yearOptions = [2024, 2025, 2026, 2027].map(y => `<option value="${y}" ${speaker.year == y ? 'selected' : ''}>${y}</option>`).join('');
                 const typeOptions = ['keynote', 'invited', 'contributed', 'panel', 'workshop'].map(t => `<option value="${t}" ${speaker.speaker_type === t ? 'selected' : ''}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>`).join('');
                 const modalHtml = `
@@ -18358,7 +18358,7 @@ President, Med&amp;X</textarea>
                 } catch (err) {
                     if (resultDiv) {
                         resultDiv.innerHTML = `<div class="checkin-result error" style="padding: 8px 12px; font-size: 13px;">
-                            <i class="fas fa-times-circle"></i> ${err.message || 'Check-in failed'}</div>`;
+                            <i class="fas fa-times-circle"></i> ${escapeHtml(err.message || 'Check-in failed')}</div>`;
                     }
                 }
             },
@@ -18711,7 +18711,7 @@ President, Med&amp;X</textarea>
                         }, 3000);
                     } else {
                         resultDiv.className = 'checkin-result error';
-                        resultDiv.innerHTML = `<i class="fas fa-times-circle"></i> ${result.error || 'Undo failed'}`;
+                        resultDiv.innerHTML = `<i class="fas fa-times-circle"></i> ${escapeHtml(result.error || 'Undo failed')}`;
                     }
                 } catch (err) {
                     if (resultDiv) {
@@ -19071,7 +19071,7 @@ President, Med&amp;X</textarea>
                     <div style="padding: 16px; background: var(--bg-tertiary); border-radius: 10px; margin-bottom: 12px;">
                         <div style="display: flex; gap: 12px; margin-bottom: 12px;">
                             <div style="width: 40px; height: 40px; background: var(--forum); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--bg-primary); font-weight: 600;">
-                                ${(p.first_name || '?')[0]}${(p.last_name || '?')[0]}
+                                ${escapeHtml((p.first_name || '?')[0])}${escapeHtml((p.last_name || '?')[0])}
                             </div>
                             <div>
                                 <div style="font-weight: 600;">${this.escapeHtml(p.first_name || '')} ${this.escapeHtml(p.last_name || '')}</div>
@@ -19083,7 +19083,7 @@ President, Med&amp;X</textarea>
                         </div>
                         ${p.title ? `<div style="font-weight: 600; margin-bottom: 8px;">${this.escapeHtml(p.title)}</div>` : ''}
                         <div style="font-size: 14px; line-height: 1.5; margin-bottom: 12px;">${this.escapeHtml(p.content)}</div>
-                        ${p.image_url ? `<img src="${p.image_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 12px;">` : ''}
+                        ${p.image_url ? `<img src="${escapeHtml(p.image_url)}" style="max-width: 100%; border-radius: 8px; margin-bottom: 12px;">` : ''}
                         <div style="display: flex; gap: 16px; padding-top: 12px; border-top: 1px solid var(--border);">
                             <button class="btn btn-secondary" style="padding: 6px 12px;" onclick="App.likeForumPost('${p.id}')">
                                 <i class="fas fa-heart" style="color: ${p.has_liked ? 'var(--danger)' : 'inherit'};"></i> ${p.likes_count || 0}
@@ -20172,7 +20172,7 @@ President, Med&amp;X</textarea>
                 const toast = document.createElement('div');
                 toast.setAttribute('role', 'alert');
                 toast.style.cssText = `position: fixed; top: 20px; right: 20px; z-index: 100000; display: flex; align-items: center; gap: 10px; padding: 14px 20px; background: var(--bg-secondary); border: 1px solid ${colors[type] || colors.info}; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); color: var(--text-primary); font-size: 14px; animation: fadeInDown 0.3s ease;`;
-                toast.innerHTML = `<i class="fas ${icons[type] || icons.info}" style="color: ${colors[type] || colors.info};"></i> ${message}`;
+                toast.innerHTML = `<i class="fas ${icons[type] || icons.info}" style="color: ${colors[type] || colors.info};"></i> ${escapeHtml(message)}`;
                 document.body.appendChild(toast);
                 setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.3s'; setTimeout(() => toast.remove(), 300); }, 3000);
             },
@@ -20353,8 +20353,8 @@ President, Med&amp;X</textarea>
                             <div class="akd-marker ${isMilestone ? 'diamond' : ''}" style="background: ${d.color || '#22d3ee'};"></div>
                             <div class="akd-content">
                                 <div class="akd-date" onclick="AcceleratorApp.inlineEditDate('${d.id}', '${d.date_start}', '${d.date_end || ''}', this)">${dateRange}</div>
-                                <div class="akd-name" onclick="AcceleratorApp.inlineEditText('${d.id}', 'name', '${eName}', this)">${d.name}</div>
-                                ${d.description ? `<div class="akd-desc" onclick="AcceleratorApp.inlineEditText('${d.id}', 'description', '${eDesc}', this)">${d.description}</div>` : `<div class="akd-desc" style="font-style: italic; opacity: 0.5;" onclick="AcceleratorApp.inlineEditText('${d.id}', 'description', '', this)">Click to add description</div>`}
+                                <div class="akd-name" onclick="AcceleratorApp.inlineEditText('${d.id}', 'name', '${eName}', this)">${escapeHtml(d.name)}</div>
+                                ${d.description ? `<div class="akd-desc" onclick="AcceleratorApp.inlineEditText('${d.id}', 'description', '${eDesc}', this)">${escapeHtml(d.description)}</div>` : `<div class="akd-desc" style="font-style: italic; opacity: 0.5;" onclick="AcceleratorApp.inlineEditText('${d.id}', 'description', '', this)">Click to add description</div>`}
                             </div>
                             <div class="akd-badges">
                                 ${isToday ? '<span class="akd-badge today-badge">Today</span>' : ''}
@@ -20515,8 +20515,8 @@ President, Med&amp;X</textarea>
                             <div class="akd-marker ${isMilestone ? 'diamond' : ''}" style="background: ${d.color || '#22d3ee'};"></div>
                             <div class="akd-content">
                                 <div class="akd-date">${monthDay}</div>
-                                <div class="akd-name">${d.name}</div>
-                                ${d.description ? `<div class="akd-desc">${d.description}</div>` : ''}
+                                <div class="akd-name">${escapeHtml(d.name)}</div>
+                                ${d.description ? `<div class="akd-desc">${escapeHtml(d.description)}</div>` : ''}
                             </div>
                             ${isToday ? '<span class="akd-badge today-badge">Today</span>' : ''}
                             ${isNext ? '<span class="akd-badge next-badge">Next</span>' : ''}
@@ -20579,7 +20579,7 @@ President, Med&amp;X</textarea>
                 // Update filter dropdowns
                 const instSelect = document.getElementById('accAppsInst');
                 const rankSelect = document.getElementById('accRankInst');
-                const opts = '<option value="">All Institutions</option>' + this.institutions.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
+                const opts = '<option value="">All Institutions</option>' + this.institutions.map(i => `<option value="${i.id}">${escapeHtml(i.name)}</option>`).join('');
                 if (instSelect) instSelect.innerHTML = opts;
                 if (rankSelect) rankSelect.innerHTML = opts;
 
@@ -20592,8 +20592,8 @@ President, Med&amp;X</textarea>
                     <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px;">
                         <div style="display: flex; justify-content: space-between; align-items: start;">
                             <div>
-                                <h4 style="margin: 0 0 4px 0;">${inst.name}</h4>
-                                <p style="margin: 0; font-size: 12px; color: var(--text-muted);">${inst.city || ''}, ${inst.country || ''}</p>
+                                <h4 style="margin: 0 0 4px 0;">${escapeHtml(inst.name)}</h4>
+                                <p style="margin: 0; font-size: 12px; color: var(--text-muted);">${escapeHtml(inst.city || '')}, ${escapeHtml(inst.country || '')}</p>
                             </div>
                             <span style="background: ${inst.program_type === 'clinical' ? '#f472b6' : '#22d3ee'}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px;">
                                 ${inst.program_type === 'clinical' ? 'Clinical' : 'Scientific'}
@@ -20735,7 +20735,7 @@ President, Med&amp;X</textarea>
                 document.getElementById('accInstEditDescription').value = inst.description || '';
                 const logoPreview = document.getElementById('accInstLogoPreview');
                 if (logoPreview) {
-                    logoPreview.innerHTML = inst.logo_url ? `<img src="${inst.logo_url}" style="max-height: 60px; border-radius: 8px; border: 1px solid var(--border-color);">` : '';
+                    logoPreview.innerHTML = inst.logo_url ? `<img src="${escapeHtml(inst.logo_url)}" style="max-height: 60px; border-radius: 8px; border: 1px solid var(--border-color);">` : '';
                 }
                 document.getElementById('accInstEditProgramType').value = inst.program_type || '';
                 document.getElementById('accInstEditSpots').value = inst.available_spots || '';
@@ -21225,8 +21225,8 @@ President, Med&amp;X</textarea>
                 const app = this.applications.find(a => a.id === appId);
                 document.getElementById('accValidityAppId').value = appId;
                 document.getElementById('accValidityCandidate').innerHTML = `
-                    <strong>${app.first_name} ${app.last_name}</strong> (ID: ${app.candidate_id || '-'})<br>
-                    <span style="font-size: 13px;">Institution: ${app.institution_name || '-'}</span>
+                    <strong>${escapeHtml(app.first_name)} ${escapeHtml(app.last_name)}</strong> (ID: ${escapeHtml(app.candidate_id || '-')})<br>
+                    <span style="font-size: 13px;">Institution: ${escapeHtml(app.institution_name || '-')}</span>
                 `;
                 document.getElementById('accValidityReason').value = '';
                 document.getElementById('accValidityNotify').checked = true;
@@ -21328,11 +21328,11 @@ President, Med&amp;X</textarea>
                         <tbody>
                             ${this.criteria.map(c => `
                                 <tr style="border-bottom: 1px solid var(--border-color);">
-                                    <td style="padding: 8px;">${c.name}</td>
-                                    <td style="padding: 8px;">${c.name_hr || '-'}</td>
+                                    <td style="padding: 8px;">${escapeHtml(c.name)}</td>
+                                    <td style="padding: 8px;">${escapeHtml(c.name_hr || '-')}</td>
                                     <td style="padding: 8px; text-align: center;">${c.max_points}</td>
                                     <td style="padding: 8px; text-align: center;">${c.weight}</td>
-                                    <td style="padding: 8px; text-align: center;">${c.category}</td>
+                                    <td style="padding: 8px; text-align: center;">${escapeHtml(c.category)}</td>
                                     <td style="padding: 8px; text-align: center;">
                                         <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="AcceleratorApp.editCriterion('${c.id}')"><i class="fas fa-edit"></i></button>
                                         <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="AcceleratorApp.deleteCriterion('${c.id}')"><i class="fas fa-trash"></i></button>
@@ -21381,7 +21381,7 @@ President, Med&amp;X</textarea>
                 const select = document.getElementById('accEvalAppSelect');
                 const apps = this.applications.filter(a => a.status === 'submitted');
                 select.innerHTML = '<option value="">-- Select candidate --</option>' +
-                    apps.map(a => `<option value="${a.id}">${a.work_number || '-'} - ${a.first_name} ${a.last_name}</option>`).join('');
+                    apps.map(a => `<option value="${a.id}">${escapeHtml(a.work_number || '-')} - ${escapeHtml(a.first_name)} ${escapeHtml(a.last_name)}</option>`).join('');
             },
 
             async loadApplicationForEval(appId) {
@@ -21401,7 +21401,7 @@ President, Med&amp;X</textarea>
                 document.getElementById('accEvalScores').innerHTML = this.criteria.map(c => `
                     <div style="display: flex; align-items: center; gap: 12px; padding: 10px; background: var(--bg-secondary); border-radius: 6px; margin-bottom: 8px;">
                         <div style="flex: 1;">
-                            <strong>${c.name_hr || c.name}</strong>
+                            <strong>${escapeHtml(c.name_hr || c.name)}</strong>
                             <small style="color: var(--text-muted);"> (max ${c.max_points})</small>
                         </div>
                         <input type="number" id="eval-${c.id}" value="${evalMap[c.id] || ''}" min="0" max="${c.max_points}" step="0.1"
@@ -21443,11 +21443,11 @@ President, Med&amp;X</textarea>
                 tbody.innerHTML = this.interviewers.map(i => `
                     <tr style="border-bottom: 1px solid var(--border-color);">
                         <td style="padding: 10px;">
-                            <strong>${i.name}</strong>
+                            <strong>${escapeHtml(i.name)}</strong>
                         </td>
-                        <td style="padding: 10px;">${i.email}</td>
-                        <td style="padding: 10px;">${i.institution || '-'}</td>
-                        <td style="padding: 10px;">${i.specialty || '-'}</td>
+                        <td style="padding: 10px;">${escapeHtml(i.email)}</td>
+                        <td style="padding: 10px;">${escapeHtml(i.institution || '-')}</td>
+                        <td style="padding: 10px;">${escapeHtml(i.specialty || '-')}</td>
                         <td style="padding: 10px; text-align: center; white-space: nowrap;">
                             <button class="btn btn-primary" style="padding: 4px 8px; margin: 2px;" onclick="AcceleratorApp.sendMagicLink('${i.id}')" title="Send magic link via email"><i class="fas fa-paper-plane"></i></button>
                             <button class="btn btn-secondary" style="padding: 4px 8px; margin: 2px;" onclick="AcceleratorApp.copyInterviewerLink('${i.access_token}')" title="Copy link"><i class="fas fa-link"></i></button>
@@ -21480,19 +21480,19 @@ President, Med&amp;X</textarea>
                                 <div style="display: grid; gap: 16px;">
                                     <div>
                                         <label style="display: block; margin-bottom: 6px; font-weight: 500;">Full Name *</label>
-                                        <input type="text" id="intName" required value="${interviewer?.name || ''}" placeholder="dr. Ivan Horvat" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        <input type="text" id="intName" required value="${escapeHtml(interviewer?.name || '')}" placeholder="dr. Ivan Horvat" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
                                     </div>
                                     <div>
                                         <label style="display: block; margin-bottom: 6px; font-weight: 500;">Email *</label>
-                                        <input type="email" id="intEmail" required value="${interviewer?.email || ''}" placeholder="john.doe@example.com" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        <input type="email" id="intEmail" required value="${escapeHtml(interviewer?.email || '')}" placeholder="john.doe@example.com" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
                                     </div>
                                     <div>
                                         <label style="display: block; margin-bottom: 6px; font-weight: 500;">Institution</label>
-                                        <input type="text" id="intInstitution" value="${interviewer?.institution || ''}" placeholder="KBC Zagreb" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        <input type="text" id="intInstitution" value="${escapeHtml(interviewer?.institution || '')}" placeholder="KBC Zagreb" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
                                     </div>
                                     <div>
                                         <label style="display: block; margin-bottom: 6px; font-weight: 500;">Specialty</label>
-                                        <input type="text" id="intSpecialty" value="${interviewer?.specialty || ''}" placeholder="Internal Medicine" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        <input type="text" id="intSpecialty" value="${escapeHtml(interviewer?.specialty || '')}" placeholder="Internal Medicine" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
                                     </div>
                                     <div style="display: flex; justify-content: flex-end; gap: 10px; padding-top: 12px; border-top: 1px solid var(--border-color);">
                                         <button type="button" class="btn btn-secondary" onclick="document.getElementById('interviewerModal').remove()">Cancel</button>
@@ -21608,12 +21608,12 @@ President, Med&amp;X</textarea>
                 tbody.innerHTML = filtered.map(r => `
                     <tr style="border-bottom: 1px solid var(--border-color);">
                         <td style="padding: 10px;">
-                            <strong>${r.first_name || ''} ${r.last_name || ''}</strong>
+                            <strong>${escapeHtml(r.first_name || '')} ${escapeHtml(r.last_name || '')}</strong>
                             ${!r.first_name && !r.last_name ? '<span style="color: var(--text-muted);">No name</span>' : ''}
                         </td>
-                        <td style="padding: 10px;">${r.email}</td>
-                        <td style="padding: 10px;">${r.phone || '-'}</td>
-                        <td style="padding: 10px;">${r.current_institution || '-'}</td>
+                        <td style="padding: 10px;">${escapeHtml(r.email)}</td>
+                        <td style="padding: 10px;">${escapeHtml(r.phone || '-')}</td>
+                        <td style="padding: 10px;">${escapeHtml(r.current_institution || '-')}</td>
                         <td style="padding: 10px; text-align: center;">
                             ${r.email_verified ? '<span style="color: var(--success);"><i class="fas fa-check-circle"></i> Yes</span>' : '<span style="color: var(--text-muted);"><i class="fas fa-clock"></i> Pending</span>'}
                         </td>
@@ -21698,37 +21698,37 @@ President, Med&amp;X</textarea>
                                 <div style="display: grid; gap: 16px;">
                                     <div>
                                         <label style="display: block; margin-bottom: 6px; font-weight: 500;">Introduction Text</label>
-                                        <textarea id="pdfHeaderIntro" rows="4" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical; font-size: 13px;">${settings.header_intro || ''}</textarea>
+                                        <textarea id="pdfHeaderIntro" rows="4" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical; font-size: 13px;">${escapeHtml(settings.header_intro || '')}</textarea>
                                         <small style="color: var(--text-muted);">Use [DATE] for automatic date</small>
                                     </div>
                                     <div>
                                         <label style="display: block; margin-bottom: 6px; font-weight: 500;">Document Title</label>
-                                        <input type="text" id="pdfHeaderTitle" value="${settings.header_title || ''}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        <input type="text" id="pdfHeaderTitle" value="${escapeHtml(settings.header_title || '')}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
                                     </div>
                                     <div>
                                         <label style="display: block; margin-bottom: 6px; font-weight: 500;">Article 1</label>
-                                        <textarea id="pdfArticle1" rows="5" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical; font-size: 13px;">${settings.article1_text || ''}</textarea>
+                                        <textarea id="pdfArticle1" rows="5" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical; font-size: 13px;">${escapeHtml(settings.article1_text || '')}</textarea>
                                     </div>
                                     <div>
                                         <label style="display: block; margin-bottom: 6px; font-weight: 500;">Article 2</label>
-                                        <textarea id="pdfArticle2" rows="3" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical; font-size: 13px;">${settings.article2_text || ''}</textarea>
+                                        <textarea id="pdfArticle2" rows="3" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical; font-size: 13px;">${escapeHtml(settings.article2_text || '')}</textarea>
                                     </div>
                                     <div>
                                         <label style="display: block; margin-bottom: 6px; font-weight: 500;">Article 3</label>
-                                        <textarea id="pdfArticle3" rows="3" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical; font-size: 13px;">${settings.article3_text || ''}</textarea>
+                                        <textarea id="pdfArticle3" rows="3" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical; font-size: 13px;">${escapeHtml(settings.article3_text || '')}</textarea>
                                     </div>
                                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
                                         <div>
                                             <label style="display: block; margin-bottom: 6px; font-weight: 500;">Signatory Name</label>
-                                            <input type="text" id="pdfSignName" value="${settings.signatory_name || ''}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                            <input type="text" id="pdfSignName" value="${escapeHtml(settings.signatory_name || '')}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
                                         </div>
                                         <div>
                                             <label style="display: block; margin-bottom: 6px; font-weight: 500;">Body/Organization</label>
-                                            <input type="text" id="pdfSignTitle" value="${settings.signatory_title || ''}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                            <input type="text" id="pdfSignTitle" value="${escapeHtml(settings.signatory_title || '')}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
                                         </div>
                                         <div>
                                             <label style="display: block; margin-bottom: 6px; font-weight: 500;">Role/Position</label>
-                                            <input type="text" id="pdfSignRole" value="${settings.signatory_role || ''}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                            <input type="text" id="pdfSignRole" value="${escapeHtml(settings.signatory_role || '')}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
                                         </div>
                                     </div>
                                     <div style="display: flex; justify-content: flex-end; gap: 10px; padding-top: 12px; border-top: 1px solid var(--border-color);">
@@ -21835,10 +21835,10 @@ President, Med&amp;X</textarea>
                             <div style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--bg-primary); border-radius: 4px;">
                                 <i class="fas ${icon}" style="color: ${color}; width: 16px;"></i>
                                 <div style="flex: 1; min-width: 0;">
-                                    <div style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${f.document_type || f.original_filename || 'Document'}</div>
-                                    <div style="font-size: 11px; color: var(--text-muted);">${f.original_filename || ''} ${sizeStr ? '(' + sizeStr + ')' : ''}</div>
+                                    <div style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(f.document_type || f.original_filename || 'Document')}</div>
+                                    <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(f.original_filename || '')} ${sizeStr ? '(' + sizeStr + ')' : ''}</div>
                                 </div>
-                                <button onclick="App.downloadFile('/api/accelerator/documents/${f.id}/download', '${(f.original_filename || 'document').replace(/'/g, "\\'")}')" class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" title="Download"><i class="fas fa-download"></i></button>
+                                <button onclick="App.downloadFile('/api/accelerator/documents/${escapeHtml(f.id)}/download', '${escapeHtml((f.original_filename || 'document').replace(/'/g, "\\'"))}')" class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" title="Download"><i class="fas fa-download"></i></button>
                             </div>`;
                     }).join('');
 
@@ -21850,8 +21850,8 @@ President, Med&amp;X</textarea>
                                     ${(group.applicant?.name || '?')[0].toUpperCase()}
                                 </div>
                                 <div style="flex: 1;">
-                                    <div style="font-weight: 600;">${group.applicant?.name || 'Unknown'}</div>
-                                    <div style="font-size: 12px; color: var(--text-muted);">${group.applicant?.email || ''} ${group.applicant?.candidate_id ? '| ID: ' + group.applicant.candidate_id : ''}</div>
+                                    <div style="font-weight: 600;">${escapeHtml(group.applicant?.name || 'Unknown')}</div>
+                                    <div style="font-size: 12px; color: var(--text-muted);">${escapeHtml(group.applicant?.email || '')} ${group.applicant?.candidate_id ? '| ID: ' + escapeHtml(group.applicant.candidate_id) : ''}</div>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <span style="background: rgba(34, 211, 238, 0.2); color: var(--accelerator); padding: 2px 8px; border-radius: 12px; font-size: 12px;">${fileCount} file${fileCount !== 1 ? 's' : ''}</span>
@@ -21991,7 +21991,7 @@ By applying to this program, I give the following consents:
                 }
                 this.uploadedDocs[docKey] = file;
                 const statusEl = document.getElementById(`accDocStatus-${docKey}`);
-                statusEl.innerHTML = `<i class="fas fa-check-circle" style="color: #22c55e;"></i> ${file.name}`;
+                statusEl.innerHTML = `<i class="fas fa-check-circle" style="color: #22c55e;"></i> ${escapeHtml(file.name)}`;
             },
 
             updateInstitutionOptions(programType) {
@@ -22005,7 +22005,7 @@ By applying to this program, I give the following consents:
                 }
 
                 const filtered = this.institutions.filter(i => i.program_type === programType);
-                const options = filtered.map(i => `<option value="${i.id}">${i.name} (${i.city}, ${i.country})</option>`).join('');
+                const options = filtered.map(i => `<option value="${i.id}">${escapeHtml(i.name)} (${escapeHtml(i.city)}, ${escapeHtml(i.country)})</option>`).join('');
 
                 primarySelect.innerHTML = '<option value="">-- Select institution --</option>' + options;
                 altSelect.innerHTML = '<option value="">-- No alternative --</option>' + options;
@@ -22575,7 +22575,7 @@ By applying to this program, I give the following consents:
                     });
                     projContainer.innerHTML = Object.entries(projects).map(([name, data]) => `
                         <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border);">
-                            <span style="text-transform: capitalize;">${name}</span>
+                            <span style="text-transform: capitalize;">${escapeHtml(name)}</span>
                             <span><span style="color: var(--success);">${this.formatCurrency(data.income)}</span> / <span style="color: var(--danger);">${this.formatCurrency(data.expenses)}</span></span>
                         </div>
                     `).join('');
@@ -22596,7 +22596,7 @@ By applying to this program, I give the following consents:
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 12px;">${b.date}</td>
                         <td style="padding: 12px; text-align: right; font-weight: 600;">${this.formatCurrency(b.balance)}</td>
-                        <td style="padding: 12px; color: var(--text-muted);">${b.notes || '-'}</td>
+                        <td style="padding: 12px; color: var(--text-muted);">${escapeHtml(b.notes || '-')}</td>
                         <td style="padding: 12px; text-align: center;">
                             <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.deleteBankBalance('${b.id}')"><i class="fas fa-trash"></i></button>
                         </td>
@@ -22683,7 +22683,7 @@ By applying to this program, I give the following consents:
                 // Populate work units
                 await this.loadWorkUnits();
                 const wuSelect = document.getElementById('finTransactionWorkUnit');
-                wuSelect.innerHTML = '<option value="">None</option>' + this.workUnits.map(wu => `<option value="${wu.id}">${wu.code} - ${wu.name}</option>`).join('');
+                wuSelect.innerHTML = '<option value="">None</option>' + this.workUnits.map(wu => `<option value="${wu.id}">${escapeHtml(wu.code)} - ${escapeHtml(wu.name)}</option>`).join('');
 
                 document.getElementById('finTransactionModal').classList.add('active');
             },
@@ -22701,7 +22701,7 @@ By applying to this program, I give the following consents:
 
                 await this.loadWorkUnits();
                 const wuSelect = document.getElementById('finTransactionWorkUnit');
-                wuSelect.innerHTML = '<option value="">None</option>' + this.workUnits.map(wu => `<option value="${wu.id}" ${wu.id === t.work_unit_id ? 'selected' : ''}>${wu.code} - ${wu.name}</option>`).join('');
+                wuSelect.innerHTML = '<option value="">None</option>' + this.workUnits.map(wu => `<option value="${wu.id}" ${wu.id === t.work_unit_id ? 'selected' : ''}>${escapeHtml(wu.code)} - ${escapeHtml(wu.name)}</option>`).join('');
 
                 document.getElementById('finTransactionModal').classList.add('active');
             },
@@ -22760,9 +22760,9 @@ By applying to this program, I give the following consents:
                     const budgetIcon = isOverBudget ? '<i class="fas fa-exclamation-circle" style="color: var(--danger); margin-left: 4px;" title="Over budget!"></i>' : (isWarning ? '<i class="fas fa-exclamation-triangle" style="color: var(--warning); margin-left: 4px;" title="Budget warning: > 80% used"></i>' : '');
                     return `
                         <tr style="border-bottom: 1px solid var(--border); ${rowStyle}">
-                            <td style="padding: 12px; font-weight: 600;">${wu.code}</td>
-                            <td style="padding: 12px;">${wu.name}</td>
-                            <td style="padding: 12px; color: var(--text-muted);">${wu.grant_source || '-'}</td>
+                            <td style="padding: 12px; font-weight: 600;">${escapeHtml(wu.code)}</td>
+                            <td style="padding: 12px;">${escapeHtml(wu.name)}</td>
+                            <td style="padding: 12px; color: var(--text-muted);">${escapeHtml(wu.grant_source || '-')}</td>
                             <td style="padding: 12px; text-align: right;">${this.formatCurrency(wu.budget_total)}</td>
                             <td style="padding: 12px; text-align: right; color: var(--danger);">${this.formatCurrency(wu.budget_used)} <span style="font-size: 11px; color: var(--text-muted);">(${pct.toFixed(1)}%)</span>${budgetIcon}</td>
                             <td style="padding: 12px; text-align: right; color: ${remaining < 0 ? 'var(--danger)' : 'var(--success)'};">${this.formatCurrency(remaining)}</td>
@@ -23011,7 +23011,7 @@ By applying to this program, I give the following consents:
                 this.invoiceItems.forEach((item, idx) => {
                     container.innerHTML += `
                         <div class="invoice-item" data-idx="${idx}" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto; gap: 8px; margin-bottom: 8px; align-items: end;">
-                            <input type="text" placeholder="Description" value="${item.description}" onchange="FinanceApp.updateInvoiceItem(${idx}, 'description', this.value)" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                            <input type="text" placeholder="Description" value="${escapeHtml(item.description)}" onchange="FinanceApp.updateInvoiceItem(${idx}, 'description', this.value)" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
                             <input type="number" placeholder="Qty" value="${item.quantity}" onchange="FinanceApp.updateInvoiceItem(${idx}, 'quantity', this.value)" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
                             <input type="number" placeholder="Price" step="0.01" value="${item.unit_price}" onchange="FinanceApp.updateInvoiceItem(${idx}, 'unit_price', this.value)" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
                             <input type="number" placeholder="Disc %" value="${item.discount_percent}" onchange="FinanceApp.updateInvoiceItem(${idx}, 'discount_percent', this.value)" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
@@ -23267,7 +23267,7 @@ By applying to this program, I give the following consents:
                 // Load team members
                 const members = await this.api('/api/team');
                 const select = document.getElementById('finTravelOrderTraveler');
-                select.innerHTML = '<option value="">Select team member</option>' + members.map(m => `<option value="${m.id}" data-name="${m.name}">${m.name}</option>`).join('');
+                select.innerHTML = '<option value="">Select team member</option>' + members.map(m => `<option value="${m.id}" data-name="${escapeHtml(m.name)}">${escapeHtml(m.name)}</option>`).join('');
 
                 document.getElementById('finTravelOrderModal').classList.add('active');
             },
@@ -23583,8 +23583,8 @@ By applying to this program, I give the following consents:
                         const pct = wu.budget_total > 0 ? (wu.budget_used / wu.budget_total * 100).toFixed(1) : 0;
                         return `
                             <tr style="border-bottom: 1px solid var(--border);">
-                                <td style="padding: 10px; font-weight: 600;">${wu.code}</td>
-                                <td style="padding: 10px;">${wu.name}</td>
+                                <td style="padding: 10px; font-weight: 600;">${escapeHtml(wu.code)}</td>
+                                <td style="padding: 10px;">${escapeHtml(wu.name)}</td>
                                 <td style="padding: 10px; text-align: right;">${this.formatCurrency(wu.budget_total)}</td>
                                 <td style="padding: 10px; text-align: right; color: var(--danger);">${this.formatCurrency(wu.budget_used)}</td>
                                 <td style="padding: 10px; text-align: right;">${pct}%</td>
@@ -23734,8 +23734,8 @@ By applying to this program, I give the following consents:
 
                     const location = [c.city, c.country].filter(x => x).join(', ') || '-';
                     const contactInfo = [];
-                    if (c.email) contactInfo.push(`<a href="mailto:${c.email}" style="color: var(--accent-gold);" onclick="event.stopPropagation();">${c.email}</a>`);
-                    if (c.phone) contactInfo.push(`<span style="color: var(--text-muted);">${c.phone}</span>`);
+                    if (c.email) contactInfo.push(`<a href="mailto:${escapeHtml(c.email)}" style="color: var(--accent-gold);" onclick="event.stopPropagation();">${escapeHtml(c.email)}</a>`);
+                    if (c.phone) contactInfo.push(`<span style="color: var(--text-muted);">${escapeHtml(c.phone)}</span>`);
 
                     return `
                         <tr style="border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s;"
@@ -24237,20 +24237,20 @@ By applying to this program, I give the following consents:
                             <div style="padding: 20px;">
                                 <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px;">
                                     ${s.photo_url
-                                        ? `<img src="${s.photo_url}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">`
-                                        : `<div style="width: 50px; height: 50px; border-radius: 50%; background: rgba(244,114,182,0.2); color: var(--bridges); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px;">${initials}</div>`
+                                        ? `<img src="${escapeHtml(s.photo_url)}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">`
+                                        : `<div style="width: 50px; height: 50px; border-radius: 50%; background: rgba(244,114,182,0.2); color: var(--bridges); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px;">${escapeHtml(initials)}</div>`
                                     }
                                     <div style="flex: 1; min-width: 0;">
-                                        <div style="font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${s.name}</div>
-                                        <div style="font-size: 12px; color: var(--text-muted);">${s.title || ''}</div>
+                                        <div style="font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(s.name)}</div>
+                                        <div style="font-size: 12px; color: var(--text-muted);">${escapeHtml(s.title || '')}</div>
                                     </div>
                                 </div>
-                                ${s.institution ? `<div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;"><i class="fas fa-building" style="width: 16px; color: var(--text-muted);"></i> ${s.institution}</div>` : ''}
-                                ${s.talk_title ? `<div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;"><i class="fas fa-chalkboard-teacher" style="width: 16px;"></i> ${s.talk_title}</div>` : ''}
+                                ${s.institution ? `<div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;"><i class="fas fa-building" style="width: 16px; color: var(--text-muted);"></i> ${escapeHtml(s.institution)}</div>` : ''}
+                                ${s.talk_title ? `<div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;"><i class="fas fa-chalkboard-teacher" style="width: 16px;"></i> ${escapeHtml(s.talk_title)}</div>` : ''}
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px;">
                                     <div style="display: flex; gap: 6px; align-items: center;">
                                         <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: ${s.is_published ? 'rgba(34,197,94,0.2)' : 'rgba(251,146,60,0.2)'}; color: ${s.is_published ? '#22c55e' : '#fb923c'};">${s.is_published ? 'Published' : 'Draft'}</span>
-                                        <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(244,114,182,0.1); color: #f472b6;">${eventName}</span>
+                                        <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(244,114,182,0.1); color: #f472b6;">${escapeHtml(eventName)}</span>
                                     </div>
                                     <div style="display: flex; gap: 4px;">
                                         <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="BridgesApp.toggleSpeakerPublish('${s.id}')" title="${s.is_published ? 'Unpublish' : 'Publish'}"><i class="fas fa-${s.is_published ? 'eye-slash' : 'eye'}"></i></button>
@@ -24273,7 +24273,7 @@ By applying to this program, I give the following consents:
                     const isFilter = id.includes('Filter');
                     el.innerHTML = `<option value="">${isFilter ? 'All Events' : '-- No specific event --'}</option>`;
                     (this.events || []).forEach(e => {
-                        el.innerHTML += `<option value="${e.id}">${e.city} - ${e.name || 'Event'}</option>`;
+                        el.innerHTML += `<option value="${e.id}">${escapeHtml(e.city)} - ${escapeHtml(e.name || 'Event')}</option>`;
                     });
                     el.value = currentVal;
                 });
@@ -24354,7 +24354,7 @@ By applying to this program, I give the following consents:
                     const currentVal = speakerSelect.value;
                     speakerSelect.innerHTML = '<option value="">-- No speaker --</option>';
                     (this.speakers || []).forEach(s => {
-                        speakerSelect.innerHTML += `<option value="${s.id}">${s.name}${s.institution ? ' (' + s.institution + ')' : ''}</option>`;
+                        speakerSelect.innerHTML += `<option value="${s.id}">${escapeHtml(s.name)}${s.institution ? ' (' + escapeHtml(s.institution) + ')' : ''}</option>`;
                     });
                     speakerSelect.value = currentVal;
                 }
@@ -24374,12 +24374,12 @@ By applying to this program, I give the following consents:
                                 ${item.end_time ? `<div style="font-size: 11px; color: var(--text-muted);">- ${item.end_time}</div>` : ''}
                             </div>
                             <div style="flex: 1; min-width: 0;">
-                                <div style="font-weight: 600; font-size: 14px; margin-bottom: 2px;">${item.title}</div>
-                                ${item.speaker_name ? `<div style="font-size: 12px; color: var(--text-secondary);"><i class="fas fa-user" style="margin-right: 4px;"></i>${item.speaker_name}${item.speaker_institution ? ' - ' + item.speaker_institution : ''}</div>` : ''}
-                                ${item.description ? `<div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">${item.description}</div>` : ''}
+                                <div style="font-weight: 600; font-size: 14px; margin-bottom: 2px;">${escapeHtml(item.title)}</div>
+                                ${item.speaker_name ? `<div style="font-size: 12px; color: var(--text-secondary);"><i class="fas fa-user" style="margin-right: 4px;"></i>${escapeHtml(item.speaker_name)}${item.speaker_institution ? ' - ' + escapeHtml(item.speaker_institution) : ''}</div>` : ''}
+                                ${item.description ? `<div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">${escapeHtml(item.description)}</div>` : ''}
                             </div>
                             <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(244,114,182,0.1); color: #f472b6;">${eventName}</span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(244,114,182,0.1); color: #f472b6;">${escapeHtml(eventName)}</span>
                                 <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: ${item.is_published ? 'rgba(34,197,94,0.2)' : 'rgba(251,146,60,0.2)'}; color: ${item.is_published ? '#22c55e' : '#fb923c'};">${item.is_published ? 'Published' : 'Draft'}</span>
                                 <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="BridgesApp.toggleProgramPublish('${item.id}')" title="${item.is_published ? 'Unpublish' : 'Publish'}"><i class="fas fa-${item.is_published ? 'eye-slash' : 'eye'}"></i></button>
                                 <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="BridgesApp.editProgramItem('${item.id}')"><i class="fas fa-edit"></i></button>
@@ -24397,7 +24397,7 @@ By applying to this program, I give the following consents:
                 if (speakerSelect) {
                     speakerSelect.innerHTML = '<option value="">-- No speaker --</option>';
                     (this.speakers || []).forEach(s => {
-                        speakerSelect.innerHTML += `<option value="${s.id}">${s.name}${s.institution ? ' (' + s.institution + ')' : ''}</option>`;
+                        speakerSelect.innerHTML += `<option value="${s.id}">${escapeHtml(s.name)}${s.institution ? ' (' + escapeHtml(s.institution) + ')' : ''}</option>`;
                     });
                 }
 
@@ -24638,8 +24638,8 @@ By applying to this program, I give the following consents:
                             <i class="fas ${n.icon || 'fa-bell'}"></i>
                         </div>
                         <div style="flex: 1; min-width: 0;">
-                            <div style="font-weight: 600; font-size: 13px; margin-bottom: 2px;">${n.title}</div>
-                            <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">${n.message || ''}</div>
+                            <div style="font-weight: 600; font-size: 13px; margin-bottom: 2px;">${escapeHtml(n.title)}</div>
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">${escapeHtml(n.message || '')}</div>
                             <div style="display: flex; gap: 8px; align-items: center; font-size: 11px; color: var(--text-muted);">
                                 <span style="background: ${this.getCategoryColor(n.category)}20; color: ${this.getCategoryColor(n.category)}; padding: 1px 8px; border-radius: 4px; font-weight: 500;">${n.category}</span>
                                 ${n.notification_type && n.notification_type !== 'info' ? `<span style="background: ${n.notification_type === 'warning' ? '#f59e0b' : n.notification_type === 'alert' ? '#ef4444' : n.notification_type === 'success' ? '#22c55e' : '#6b7280'}20; color: ${n.notification_type === 'warning' ? '#f59e0b' : n.notification_type === 'alert' ? '#ef4444' : n.notification_type === 'success' ? '#22c55e' : '#6b7280'}; padding: 1px 6px; border-radius: 4px; font-weight: 500;">${n.notification_type}</span>` : ''}
@@ -25579,8 +25579,8 @@ By applying to this program, I give the following consents:
                     const statusColors = { draft: 'var(--text-muted)', scheduled: 'var(--warning)', sent: 'var(--success)' };
                     return `
                         <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 12px;">${n.name}</td>
-                            <td style="padding: 12px;">${n.subject}</td>
+                            <td style="padding: 12px;">${escapeHtml(n.name)}</td>
+                            <td style="padding: 12px;">${escapeHtml(n.subject)}</td>
                             <td style="padding: 12px; text-align: center;">
                                 <span style="background: ${statusColors[n.status]}22; color: ${statusColors[n.status]}; padding: 2px 8px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">${n.status}</span>
                             </td>
@@ -25686,11 +25686,11 @@ By applying to this program, I give the following consents:
                     overlay.onclick = () => overlay.remove();
                     overlay.innerHTML = `
                         <div style="max-width: 90%; max-height: 90%; background: var(--bg-secondary); border-radius: 12px; overflow: hidden; cursor: default;" onclick="event.stopPropagation()">
-                            <img src="${asset.file_path}" style="max-width: 100%; max-height: 70vh; display: block;" onerror="this.outerHTML='<div style=\\'padding: 40px; text-align: center; color: var(--text-muted);\\'>Preview not available</div>'">
+                            <img src="${escapeHtml(asset.file_path)}" style="max-width: 100%; max-height: 70vh; display: block;" onerror="this.outerHTML='<div style=\\'padding: 40px; text-align: center; color: var(--text-muted);\\'>Preview not available</div>'">
                             <div style="padding: 16px;">
-                                <div style="font-weight: 600;">${asset.original_name || asset.file_name || 'Media'}</div>
-                                <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">${asset.category || ''} ${asset.tags ? '• ' + asset.tags : ''}</div>
-                                ${asset.caption ? `<div style="font-size: 13px; margin-top: 8px; color: var(--text-secondary);">${asset.caption}</div>` : ''}
+                                <div style="font-weight: 600;">${escapeHtml(asset.original_name || asset.file_name || 'Media')}</div>
+                                <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">${escapeHtml(asset.category || '')} ${asset.tags ? '&bull; ' + escapeHtml(asset.tags) : ''}</div>
+                                ${asset.caption ? `<div style="font-size: 13px; margin-top: 8px; color: var(--text-secondary);">${escapeHtml(asset.caption)}</div>` : ''}
                                 <button class="btn btn-danger" style="margin-top: 12px;" onclick="PRApp.deleteMedia('${id}'); this.closest('[style*=position]').remove();">
                                     <i class="fas fa-trash"></i> Delete
                                 </button>
@@ -25761,15 +25761,15 @@ By applying to this program, I give the following consents:
                     <div class="card" style="padding: 16px;">
                         <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
                             <div>
-                                <h4 style="margin-bottom: 4px;">${c.name}</h4>
-                                <span style="background: ${statusColors[c.status]}22; color: ${statusColors[c.status]}; padding: 2px 8px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">${c.status}</span>
+                                <h4 style="margin-bottom: 4px;">${escapeHtml(c.name)}</h4>
+                                <span style="background: ${statusColors[c.status]}22; color: ${statusColors[c.status]}; padding: 2px 8px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">${escapeHtml(c.status)}</span>
                             </div>
                             <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="PRApp.editCampaign('${c.id}')"><i class="fas fa-edit"></i></button>
                         </div>
-                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">${c.description || 'No description'}</p>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">${escapeHtml(c.description || 'No description')}</p>
                         <div style="display: flex; gap: 16px; font-size: 12px; color: var(--text-muted);">
-                            <span><i class="fas fa-calendar"></i> ${c.start_date || 'TBD'} - ${c.end_date || 'TBD'}</span>
-                            ${c.goal ? `<span><i class="fas fa-bullseye"></i> ${c.goal}</span>` : ''}
+                            <span><i class="fas fa-calendar"></i> ${escapeHtml(c.start_date || 'TBD')} - ${escapeHtml(c.end_date || 'TBD')}</span>
+                            ${c.goal ? `<span><i class="fas fa-bullseye"></i> ${escapeHtml(c.goal)}</span>` : ''}
                         </div>
                     </div>
                 `).join('');
@@ -25844,8 +25844,8 @@ By applying to this program, I give the following consents:
 
                 tbody.innerHTML = subscribers.map(s => `
                     <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 12px;">${s.email}</td>
-                        <td style="padding: 12px;">${s.first_name || ''} ${s.last_name || ''}</td>
+                        <td style="padding: 12px;">${escapeHtml(s.email)}</td>
+                        <td style="padding: 12px;">${escapeHtml(s.first_name || '')} ${escapeHtml(s.last_name || '')}</td>
                         <td style="padding: 12px; text-align: center;">${s.subscribed_projects || 'all'}</td>
                         <td style="padding: 12px; text-align: center;">
                             <span style="background: ${s.status === 'active' ? 'rgba(34,197,94,0.2)' : 'rgba(156,163,175,0.2)'}; color: ${s.status === 'active' ? 'var(--success)' : 'var(--text-muted)'}; padding: 2px 8px; border-radius: 4px; font-size: 11px;">${s.status}</span>
