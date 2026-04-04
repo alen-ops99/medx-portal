@@ -303,7 +303,7 @@ async function initializeApp() {
     db.run(`CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, password_hash TEXT,
         first_name TEXT, last_name TEXT, phone TEXT, institution TEXT, country TEXT,
-        bio TEXT, photo_url TEXT, is_admin INTEGER DEFAULT 0, is_public_profile INTEGER DEFAULT 0,
+        bio TEXT, photo_url TEXT, is_admin INTEGER DEFAULT 0, is_public_profile INTEGER DEFAULT 1,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
@@ -5258,6 +5258,91 @@ async function initializeApp() {
         res.json(reg);
     });
 
+    // Admin: Get full user profile for QR lookup
+    app.get('/api/admin/users/:id/profile', auth, adminOnly, (req, res) => {
+        try {
+            const userId = req.params.id;
+            const user = query.get('SELECT id, email, first_name, last_name, phone, institution, country, bio, is_admin, created_at FROM users WHERE id = ?', [userId]);
+            if (!user) return res.status(404).json({ error: 'User not found' });
+
+            const registrations = query.all(`
+                SELECT r.id, r.status, r.payment_status, r.amount_paid, r.created_at,
+                       c.name as conference_name, tt.name as ticket_name
+                FROM registrations r
+                LEFT JOIN conferences c ON r.conference_id = c.id
+                LEFT JOIN ticket_types tt ON r.ticket_type_id = tt.id
+                WHERE r.user_id = ? OR r.email = ?
+                ORDER BY r.created_at DESC
+            `, [userId, user.email]);
+
+            const payments = query.all(`
+                SELECT pt.id, pt.amount, pt.currency, pt.method, pt.status, pt.created_at,
+                       r.id as registration_id
+                FROM payment_transactions pt
+                LEFT JOIN registrations r ON pt.registration_id = r.id
+                WHERE r.user_id = ? OR r.email = ?
+                ORDER BY pt.created_at DESC
+            `, [userId, user.email]);
+
+            const checkedIn = query.all(`
+                SELECT r.id, r.checked_in, r.checked_in_at, c.name as conference_name
+                FROM registrations r
+                LEFT JOIN conferences c ON r.conference_id = c.id
+                WHERE (r.user_id = ? OR r.email = ?) AND r.checked_in = 1
+            `, [userId, user.email]);
+
+            // Also get forum registrations
+            let forumRegs = [];
+            try {
+                forumRegs = query.all(`
+                    SELECT fer.id, fer.event_id, fer.status, fer.payment_status, fer.registered_at,
+                           fe.title as event_name, fe.event_date
+                    FROM forum_event_registrations fer
+                    LEFT JOIN forum_events fe ON fer.event_id = fe.id
+                    WHERE fer.email = ?
+                    ORDER BY fer.registered_at DESC
+                `, [user.email]);
+            } catch(e) {} // table may not exist
+
+            // Also get bridges registrations
+            let bridgesRegs = [];
+            try {
+                bridgesRegs = query.all(`
+                    SELECT br.id, br.event_id, br.status, br.checked_in, br.registered_at,
+                           be.name as event_name, be.city, be.event_date
+                    FROM bridges_registrations br
+                    LEFT JOIN bridges_events be ON br.event_id = be.id
+                    WHERE br.email = ?
+                    ORDER BY br.registered_at DESC
+                `, [user.email]);
+            } catch(e) {} // table may not exist
+
+            // Points purchases
+            let pointsPurchases = [];
+            try {
+                pointsPurchases = query.all('SELECT * FROM rewards_history WHERE user_id = ? AND type = ? ORDER BY created_at DESC', [userId, 'earned']);
+            } catch(e) {} // table may not exist
+
+            res.json({
+                user,
+                registrations,
+                forumRegistrations: forumRegs,
+                bridgesRegistrations: bridgesRegs,
+                payments,
+                pointsPurchases,
+                attendance: checkedIn,
+                summary: {
+                    totalRegistrations: registrations.length + forumRegs.length + bridgesRegs.length,
+                    totalPaid: payments.filter(p => p.status === 'completed').reduce((sum, p) => sum + (p.amount || 0), 0),
+                    eventsAttended: checkedIn.length
+                }
+            });
+        } catch (error) {
+            console.error('Error fetching user profile:', error);
+            res.status(500).json({ error: 'Failed to fetch user profile' });
+        }
+    });
+
     // ========== ABSTRACT ROUTES ==========
     app.post('/api/abstracts', auth, (req, res) => {
         const { conference_id, title, abstract_text, keywords, topic_category, presentation_type, authors } = req.body;
@@ -6726,6 +6811,26 @@ By applying to this program, I provide the following consents:
 
         saveDb();
         res.json({ success: true, notified, total: totalRanked });
+    });
+
+    // Generate result access code for a year
+    app.post('/api/admin/accelerator/result-codes', auth, adminOnly, (req, res) => {
+        try {
+            const { year } = req.body;
+            const code = 'AX' + (year || '26').toString().slice(-2) + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+
+            // Store the code
+            db.run(`CREATE TABLE IF NOT EXISTS accelerator_result_codes (
+                id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, year INTEGER,
+                created_by TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )`);
+            db.run(`INSERT INTO accelerator_result_codes (id, code, year, created_by) VALUES (?,?,?,?)`,
+                [uuidv4(), code, year || 2026, req.user.email]);
+            saveDb();
+            res.json({ success: true, code });
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to generate code' });
+        }
     });
 
     // Get application files grouped by applicant

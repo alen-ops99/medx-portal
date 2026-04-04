@@ -402,7 +402,7 @@ async function initializeApp() {
     db.run(`CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, password_hash TEXT,
         first_name TEXT, last_name TEXT, phone TEXT, institution TEXT, country TEXT,
-        bio TEXT, photo_url TEXT, is_admin INTEGER DEFAULT 0, is_public_profile INTEGER DEFAULT 0,
+        bio TEXT, photo_url TEXT, is_admin INTEGER DEFAULT 0, is_public_profile INTEGER DEFAULT 1,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
@@ -778,6 +778,12 @@ async function initializeApp() {
         sort_order INTEGER DEFAULT 0,
         is_visible INTEGER DEFAULT 1,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // Result access codes for accelerator results lookup
+    db.run(`CREATE TABLE IF NOT EXISTS accelerator_result_codes (
+        id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, year INTEGER,
+        created_by TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
     // ========== BIOMEDICAL FORUM TABLES ==========
@@ -3011,6 +3017,30 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    db.run(`CREATE TABLE IF NOT EXISTS member_rewards (
+        id TEXT PRIMARY KEY,
+        user_id TEXT UNIQUE NOT NULL,
+        total_points_earned INTEGER DEFAULT 0,
+        points_balance INTEGER DEFAULT 0,
+        points_redeemed INTEGER DEFAULT 0,
+        tier TEXT DEFAULT 'bronze',
+        referral_code TEXT,
+        referrals INTEGER DEFAULT 0,
+        tier_upgrade_date TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS rewards_history (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        points INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        reason TEXT,
+        icon TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
     // === Performance indexes ===
     db.run(`CREATE INDEX IF NOT EXISTS idx_registrations_user ON registrations(user_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_registrations_conference ON registrations(conference_id)`);
@@ -3496,6 +3526,33 @@ async function initializeApp() {
             const token = jwt.sign({ id: user.id, email: user.email, is_admin: user.is_admin }, JWT_SECRET, { expiresIn: '7d' });
             res.json({ success: true, token, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name, institution: user.institution, is_admin: user.is_admin }});
         } catch (e) { console.error(e); res.status(500).json({ error: 'Login failed' }); }
+    });
+
+    // Delete user account
+    app.delete('/api/auth/account', auth, async (req, res) => {
+        try {
+            const userId = req.user.id;
+            // Remove from all related tables
+            db.run('DELETE FROM networking_connections WHERE requester_id = ? OR receiver_id = ?', [userId, userId]);
+            db.run('DELETE FROM networking_profiles WHERE user_id = ?', [userId]);
+            db.run('DELETE FROM networking_meetings WHERE requester_id = ? OR receiver_id = ?', [userId, userId]);
+            db.run('DELETE FROM direct_messages WHERE sender_id = ? OR receiver_id = ?', [userId, userId]);
+            db.run('DELETE FROM push_subscriptions WHERE user_id = ?', [userId]);
+            db.run('DELETE FROM user_notifications WHERE user_id = ?', [userId]);
+            db.run('DELETE FROM personal_schedules WHERE user_id = ?', [userId]);
+            db.run('DELETE FROM connections WHERE requester_id = ? OR receiver_id = ?', [userId, userId]);
+            db.run('DELETE FROM messages WHERE sender_id = ? OR receiver_id = ?', [userId, userId]);
+            db.run('DELETE FROM user_profiles WHERE user_id = ?', [userId]);
+            db.run('DELETE FROM channel_read_status WHERE user_id = ?', [userId]);
+            db.run('DELETE FROM chat_read_status WHERE user_id = ?', [userId]);
+            // Finally delete the user
+            db.run('DELETE FROM users WHERE id = ?', [userId]);
+            saveDb();
+            res.json({ success: true, message: 'Account deleted' });
+        } catch (error) {
+            console.error('Error deleting account:', error);
+            res.status(500).json({ error: 'Failed to delete account' });
+        }
     });
 
     // Email verification endpoint — user clicks link from verification email
@@ -4066,7 +4123,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Submit application
-    app.post('/api/accelerator/applications/:id/submit', auth, (req, res) => {
+    app.post('/api/accelerator/applications/:id/submit', auth, async (req, res) => {
         const app = query.get('SELECT * FROM accelerator_applications WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
         if (!app) return res.status(404).json({ error: 'Application not found' });
         if (app.status !== 'draft') return res.status(400).json({ error: 'Application already submitted' });
@@ -4097,6 +4154,21 @@ By applying to this program, I provide the following consents:
         } catch (emailErr) {
             console.warn('Accelerator submit email failed:', emailErr.message);
         }
+
+        // Notify program director about new submission
+        try {
+            const submittedApp = query.get('SELECT * FROM accelerator_applications WHERE id = ?', [req.params.id]);
+            const userName = `${submittedApp?.first_name || ''} ${submittedApp?.last_name || ''}`.trim() || 'Applicant';
+            await sendEmail('marija.pranjic@medx.hr', `New Accelerator Application: ${userName}`,
+                `<h2>New Accelerator Application</h2>
+                <p><strong>Applicant:</strong> ${userName}</p>
+                <p><strong>Email:</strong> ${submittedApp?.email || 'N/A'}</p>
+                <p><strong>Application #:</strong> ${submittedApp?.application_number || req.params.id}</p>
+                <p><strong>Institution Preference:</strong> ${submittedApp?.preferred_institution || 'N/A'}</p>
+                <p><strong>Program:</strong> ${submittedApp?.program_type || 'N/A'}</p>
+                <p style="color:#666;">Submitted at ${new Date().toISOString()}</p>`
+            );
+        } catch(e) { console.log('[Accelerator] Notification email failed:', e.message); }
 
         res.json({ success: true });
     });
@@ -5497,6 +5569,50 @@ By applying to this program, I provide the following consents:
         res.json(docs);
     });
 
+    // Get current user's accelerator applications (all years)
+    app.get('/api/accelerator/my-applications', auth, (req, res) => {
+        try {
+            const apps = query.all(`
+                SELECT a.*, i.name as institution_name
+                FROM accelerator_applications a
+                LEFT JOIN accelerator_institutions i ON a.selected_institution = i.id
+                WHERE a.user_id = ? OR a.email = (SELECT email FROM users WHERE id = ?)
+                ORDER BY a.created_at DESC
+            `, [req.user.id, req.user.id]);
+            res.json(apps);
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to fetch applications' });
+        }
+    });
+
+    // Lookup accelerator results by code
+    app.get('/api/accelerator/results', (req, res) => {
+        try {
+            const { code } = req.query;
+            if (!code) return res.status(400).json({ error: 'Code required' });
+
+            // Check if code table exists and code is valid
+            try {
+                const valid = query.get('SELECT * FROM accelerator_result_codes WHERE code = ?', [code]);
+                if (!valid) return res.status(404).json({ error: 'Invalid code' });
+
+                const results = query.all(`
+                    SELECT application_number, objective_score, interview_score, total_score, rank_position, status
+                    FROM accelerator_applications
+                    WHERE year = ? AND status IN ('accepted', 'waitlisted', 'rejected', 'submitted')
+                    ORDER BY rank_position ASC, total_score DESC
+                `, [valid.year]);
+
+                res.json(results);
+            } catch(e) {
+                // Table doesn't exist yet
+                return res.status(404).json({ error: 'Results not available yet' });
+            }
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to fetch results' });
+        }
+    });
+
     // ========== BUILDING BRIDGES ROUTES ==========
 
     // Get published bridges events (user-facing)
@@ -6423,6 +6539,44 @@ By applying to this program, I provide the following consents:
 
             res.json({ success: true, id });
         } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+    });
+
+    // Forum opportunities
+    app.post('/api/forum/opportunities', auth, (req, res) => {
+        try {
+            const { type, title, description, skills_needed } = req.body;
+            if (!title) return res.status(400).json({ error: 'Title required' });
+            const id = uuidv4();
+            db.run(`CREATE TABLE IF NOT EXISTS forum_opportunities (
+                id TEXT PRIMARY KEY, user_id TEXT, type TEXT, title TEXT, description TEXT,
+                skills_needed TEXT, status TEXT DEFAULT 'active', created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )`);
+            db.run(`INSERT INTO forum_opportunities (id, user_id, type, title, description, skills_needed) VALUES (?,?,?,?,?,?)`,
+                [id, req.user.id, type, title, description, skills_needed]);
+            saveDb();
+            res.json({ success: true, id });
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to post opportunity' });
+        }
+    });
+
+    app.get('/api/forum/opportunities', auth, (req, res) => {
+        try {
+            db.run(`CREATE TABLE IF NOT EXISTS forum_opportunities (
+                id TEXT PRIMARY KEY, user_id TEXT, type TEXT, title TEXT, description TEXT,
+                skills_needed TEXT, status TEXT DEFAULT 'active', created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )`);
+            const opps = query.all(`
+                SELECT o.*, u.first_name, u.last_name, u.institution
+                FROM forum_opportunities o
+                LEFT JOIN users u ON o.user_id = u.id
+                WHERE o.status = 'active'
+                ORDER BY o.created_at DESC
+            `);
+            res.json(opps);
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to fetch opportunities' });
+        }
     });
 
     // Admin: Get Forum stats
@@ -8420,10 +8574,28 @@ By applying to this program, I provide the following consents:
             if (existing) {
                 // Update amount + billing on unpaid registrations (user may retry with different options)
                 if (existing.payment_status !== 'paid') {
-                    // Recalculate amount server-side — NEVER trust client-sent total
-                    const newTotal = existing.amount_paid;
+                    // Recalculate amount server-side from current ticket prices (user may have changed package)
+                    const tickets = query.all('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order', [conf.id]);
+                    let ticket = tickets[0];
+                    if (pricing) {
+                        const isStudent = pricing.includes('student');
+                        const match = tickets.find(t => isStudent ? t.name.toLowerCase().includes('student') : !t.name.toLowerCase().includes('student'));
+                        if (match) ticket = match;
+                    }
+                    const today = new Date().toISOString().split('T')[0];
+                    let newTotal = today <= conf.early_bird_deadline ? ticket.price_early_bird : today <= conf.regular_deadline ? ticket.price_regular : ticket.price_late;
+
+                    // Apply promo code discount if provided
+                    if (req.body.coupon) {
+                        const promo = query.get('SELECT * FROM promo_codes WHERE conference_id = ? AND code = ? AND is_active = 1', [conf.id, req.body.coupon.toUpperCase()]);
+                        if (promo && (!promo.valid_until || new Date(promo.valid_until) >= new Date()) && (!promo.max_uses || promo.used_count < promo.max_uses)) {
+                            const discount = promo.discount_type === 'percentage' ? newTotal * (promo.discount_value / 100) : promo.discount_value;
+                            newTotal = Math.max(0, newTotal - discount);
+                        }
+                    }
+
                     if (newTotal !== existing.amount_paid) {
-                        db.run('UPDATE registrations SET amount_paid = ? WHERE id = ?', [newTotal, existing.id]);
+                        db.run('UPDATE registrations SET amount_paid = ?, ticket_type_id = ? WHERE id = ?', [newTotal, ticket.id, existing.id]);
                         existing.amount_paid = newTotal;
                     }
 
@@ -9192,6 +9364,49 @@ By applying to this program, I provide the following consents:
                 return res.json({ received: true });
             }
 
+            // ===== POINTS PURCHASE PAYMENT =====
+            if (metadata.type === 'points-purchase' && metadata.userId && metadata.points) {
+                const userId = metadata.userId;
+                const points = parseInt(metadata.points);
+
+                let rewards = query.get('SELECT * FROM member_rewards WHERE user_id = ?', [userId]);
+                if (!rewards) {
+                    db.run(`INSERT INTO member_rewards (id, user_id) VALUES (?,?)`, [uuidv4(), userId]);
+                    rewards = query.get('SELECT * FROM member_rewards WHERE user_id = ?', [userId]);
+                }
+
+                const newTotal = (rewards.total_points_earned || 0) + points;
+                const newBalance = (rewards.points_balance || 0) + points;
+                const newTier = newTotal >= 20000 ? 'platinum' : newTotal >= 15000 ? 'gold' : newTotal >= 5000 ? 'silver' : 'bronze';
+
+                db.run(`UPDATE member_rewards SET total_points_earned=?, points_balance=?, tier=?, updated_at=datetime('now') WHERE user_id=?`,
+                    [newTotal, newBalance, newTier, userId]);
+                db.run(`INSERT INTO rewards_history (id, user_id, points, type, reason, icon) VALUES (?,?,?,?,?,?)`,
+                    [uuidv4(), userId, points, 'earned', `Purchased ${points} points`, 'fa-shopping-cart']);
+
+                // Create FIRA invoice if configured
+                try {
+                    if (firaService.isConfigured()) {
+                        const billingStr = session.metadata?.billing || '{}';
+                        const billing = JSON.parse(billingStr);
+                        await firaService.createFiscalInvoice({
+                            invoiceNumber: `PTS-${Date.now()}`,
+                            ticketName: metadata.packageId === 'pts-5000' ? '5,000 Reward Points' : metadata.packageId === 'pts-1000' ? '1,000 Reward Points' : '500 Reward Points',
+                            ticketPrice: session.amount_total / 100,
+                            addons: [],
+                            billing: billing,
+                            invoiceType: 'RAČUN',
+                            paymentType: 'KARTICA'
+                        });
+                    }
+                } catch(e) { console.log('[FIRA] Points invoice failed:', e.message); }
+
+                saveDb();
+                console.log(`[Rewards] ${points} points credited to user ${userId}`);
+
+                return res.json({ received: true });
+            }
+
             // ===== PLEXUS CONFERENCE PAYMENT =====
             const registrationId = metadata.registration_id;
             const invoiceNumber = metadata.invoice_number;
@@ -9650,7 +9865,7 @@ By applying to this program, I provide the following consents:
     // --- ABSTRACT SUBMISSION ---
 
     // Submit abstract
-    app.post('/api/plexus/abstracts', auth, (req, res) => {
+    app.post('/api/plexus/abstracts', auth, async (req, res) => {
         const { title, abstract_text, topic_category, presentation_type, authors } = req.body;
         const keywords = req.body.keywords ?? null;
         const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
@@ -9673,6 +9888,20 @@ By applying to this program, I provide the following consents:
             });
         }
         saveDb();
+
+        // Notify PR team
+        try {
+            const user = query.get('SELECT first_name, last_name, email FROM users WHERE id = ?', [req.user.id]);
+            const userName = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Unknown';
+            await sendEmail('pr@medx.hr', `New Abstract: ${title}`,
+                `<h2>New Abstract Submission</h2>
+                <p><strong>From:</strong> ${userName} (${user?.email || 'N/A'})</p>
+                <p><strong>Title:</strong> ${title}</p>
+                <p><strong>Category:</strong> ${topic_category}</p>
+                <p><strong>Type:</strong> ${presentation_type}</p>
+                <p><strong>Abstract:</strong></p><p>${abstract_text?.substring(0, 500)}${abstract_text?.length > 500 ? '...' : ''}</p>`
+            );
+        } catch(e) { console.log('[Abstract] Email notification failed:', e.message); }
 
         res.json({ success: true, abstract_id: id });
         } catch (err) {
@@ -13870,7 +14099,199 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
+    // ===== REWARDS API =====
+
+    // Claim missing rewards points — sends email to PR team
+    app.post('/api/rewards/claim-missing', auth, async (req, res) => {
+        try {
+            const { what, where, when } = req.body;
+            if (!what) return res.status(400).json({ error: 'Please describe what happened' });
+
+            const user = query.get('SELECT first_name, last_name, email FROM users WHERE id = ?', [req.user.id]);
+            const userName = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Unknown';
+            const userEmail = user?.email || 'unknown';
+
+            const subject = `Missing Points Claim from ${userName}`;
+            const htmlContent = `
+                <h2>Missing Points Claim</h2>
+                <p><strong>From:</strong> ${userName} (${userEmail})</p>
+                <p><strong>What:</strong> ${what}</p>
+                <p><strong>Where:</strong> ${where || 'Not specified'}</p>
+                <p><strong>When:</strong> ${when || 'Not specified'}</p>
+                <p style="color: #666; font-size: 12px;">Submitted at ${new Date().toISOString()}</p>
+            `;
+
+            // Try to send email, but don't fail if email isn't configured
+            try {
+                await sendEmail('pr@medx.hr', subject, htmlContent);
+            } catch (emailErr) {
+                console.log('[Rewards] Email send failed (not configured?):', emailErr.message);
+            }
+
+            res.json({ success: true, message: 'Claim submitted' });
+        } catch (error) {
+            console.error('Error submitting claim:', error);
+            res.status(500).json({ error: 'Failed to submit claim' });
+        }
+    });
+
+    // Get user rewards
+    app.get('/api/rewards', auth, (req, res) => {
+        try {
+            let rewards = query.get('SELECT * FROM member_rewards WHERE user_id = ?', [req.user.id]);
+            if (!rewards) {
+                // Create default
+                const id = uuidv4();
+                db.run(`INSERT INTO member_rewards (id, user_id, total_points_earned, points_balance, tier, referral_code) VALUES (?,?,100,100,'bronze',?)`,
+                    [id, req.user.id, 'MX-' + Math.random().toString(36).substring(2, 8).toUpperCase()]);
+                saveDb();
+                rewards = query.get('SELECT * FROM member_rewards WHERE user_id = ?', [req.user.id]);
+            }
+            const history = query.all('SELECT * FROM rewards_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 50', [req.user.id]);
+            res.json({ ...rewards, history });
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to load rewards' });
+        }
+    });
+
+    // Sync rewards from localStorage (one-time migration)
+    app.put('/api/rewards/sync', auth, (req, res) => {
+        try {
+            const { totalPointsEarned, pointsBalance, pointsRedeemed, tier, referralCode, referrals } = req.body;
+            const existing = query.get('SELECT * FROM member_rewards WHERE user_id = ?', [req.user.id]);
+            if (existing) {
+                // Only update if client has more points (avoid overwriting with stale data)
+                if (totalPointsEarned > existing.total_points_earned) {
+                    db.run(`UPDATE member_rewards SET total_points_earned=?, points_balance=?, points_redeemed=?, tier=?, referrals=?, updated_at=datetime('now') WHERE user_id=?`,
+                        [totalPointsEarned, pointsBalance, pointsRedeemed || 0, tier || 'bronze', referrals || 0, req.user.id]);
+                }
+            } else {
+                db.run(`INSERT INTO member_rewards (id, user_id, total_points_earned, points_balance, points_redeemed, tier, referral_code, referrals) VALUES (?,?,?,?,?,?,?,?)`,
+                    [uuidv4(), req.user.id, totalPointsEarned || 100, pointsBalance || 100, pointsRedeemed || 0, tier || 'bronze', referralCode || '', referrals || 0]);
+            }
+            saveDb();
+            res.json({ success: true });
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to sync rewards' });
+        }
+    });
+
+    // Earn points
+    app.post('/api/rewards/earn', auth, (req, res) => {
+        try {
+            const { points, reason, icon } = req.body;
+            if (!points || points <= 0) return res.status(400).json({ error: 'Invalid points' });
+
+            let rewards = query.get('SELECT * FROM member_rewards WHERE user_id = ?', [req.user.id]);
+            if (!rewards) {
+                db.run(`INSERT INTO member_rewards (id, user_id) VALUES (?,?)`, [uuidv4(), req.user.id]);
+                rewards = query.get('SELECT * FROM member_rewards WHERE user_id = ?', [req.user.id]);
+            }
+
+            const newTotal = (rewards.total_points_earned || 0) + points;
+            const newBalance = (rewards.points_balance || 0) + points;
+            const newTier = newTotal >= 20000 ? 'platinum' : newTotal >= 15000 ? 'gold' : newTotal >= 5000 ? 'silver' : 'bronze';
+
+            db.run(`UPDATE member_rewards SET total_points_earned=?, points_balance=?, tier=?, updated_at=datetime('now') WHERE user_id=?`,
+                [newTotal, newBalance, newTier, req.user.id]);
+            db.run(`INSERT INTO rewards_history (id, user_id, points, type, reason, icon) VALUES (?,?,?,?,?,?)`,
+                [uuidv4(), req.user.id, points, 'earned', reason || 'Activity', icon || 'fa-plus-circle']);
+            saveDb();
+            res.json({ success: true, totalPoints: newTotal, balance: newBalance, tier: newTier });
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to earn points' });
+        }
+    });
+
+    // Redeem points
+    app.post('/api/rewards/redeem', auth, (req, res) => {
+        try {
+            const { points, reason } = req.body;
+            if (!points || points <= 0) return res.status(400).json({ error: 'Invalid points' });
+
+            const rewards = query.get('SELECT * FROM member_rewards WHERE user_id = ?', [req.user.id]);
+            if (!rewards || rewards.points_balance < points) return res.status(400).json({ error: 'Insufficient points' });
+
+            const newBalance = rewards.points_balance - points;
+            const newRedeemed = (rewards.points_redeemed || 0) + points;
+
+            db.run(`UPDATE member_rewards SET points_balance=?, points_redeemed=?, updated_at=datetime('now') WHERE user_id=?`,
+                [newBalance, newRedeemed, req.user.id]);
+            db.run(`INSERT INTO rewards_history (id, user_id, points, type, reason) VALUES (?,?,?,?,?)`,
+                [uuidv4(), req.user.id, -points, 'redeemed', reason || 'Redemption']);
+            saveDb();
+            res.json({ success: true, balance: newBalance });
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to redeem points' });
+        }
+    });
+
+    // Purchase points via Stripe
+    app.post('/api/rewards/purchase-checkout', auth, async (req, res) => {
+        try {
+            if (!stripe) return res.status(400).json({ error: 'Card payments not configured' });
+            const { packageId } = req.body;
+
+            const packages = {
+                'pts-500': { points: 500, price: 500, name: '500 Reward Points' },
+                'pts-1000': { points: 1000, price: 1000, name: '1,000 Reward Points' },
+                'pts-5000': { points: 5000, price: 4500, name: '5,000 Reward Points (10% bonus)' }
+            };
+
+            const pkg = packages[packageId];
+            if (!pkg) return res.status(400).json({ error: 'Invalid package' });
+
+            const user = query.get('SELECT email FROM users WHERE id = ?', [req.user.id]);
+            const baseUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+
+            const session = await stripe.checkout.sessions.create({
+                mode: 'payment',
+                payment_method_types: ['card'],
+                line_items: [{
+                    price_data: {
+                        currency: 'eur',
+                        product_data: { name: pkg.name, description: 'Med&X Loyalty Reward Points' },
+                        unit_amount: pkg.price
+                    },
+                    quantity: 1
+                }],
+                metadata: {
+                    type: 'points-purchase',
+                    userId: req.user.id,
+                    packageId: packageId,
+                    points: pkg.points.toString()
+                },
+                customer_email: user?.email,
+                success_url: `${baseUrl}/?payment=success&type=points&pkg=${packageId}`,
+                cancel_url: `${baseUrl}/?payment=cancelled&type=points`
+            });
+
+            res.json({ sessionId: session.id, url: session.url });
+        } catch (error) {
+            console.error('Points purchase checkout error:', error);
+            res.status(500).json({ error: 'Failed to create checkout' });
+        }
+    });
+
     // ===== NETWORKING PORTAL API =====
+
+    // Get all visible users for discovery (My Network > Discover tab)
+    app.get('/api/networking/discover', auth, (req, res) => {
+        try {
+            const users = query.all(`
+                SELECT u.id, u.first_name, u.last_name, u.institution, u.country, u.bio, u.photo_url, u.created_at,
+                       np.career_stage, np.research_interests, np.looking_for, np.open_to_coffee_chats
+                FROM users u
+                LEFT JOIN networking_profiles np ON np.user_id = u.id
+                WHERE u.is_public_profile = 1 AND u.id != ?
+                ORDER BY u.created_at DESC
+            `, [req.user.id]);
+            res.json(users);
+        } catch (error) {
+            console.error('Error fetching discover users:', error);
+            res.status(500).json({ error: 'Failed to fetch users' });
+        }
+    });
 
     // Save/update networking preferences
     app.put('/api/networking/profile', auth, (req, res) => {
@@ -13908,6 +14329,18 @@ By applying to this program, I provide the following consents:
         db.run('INSERT INTO networking_connections (id, requester_id, receiver_id, message) VALUES (?,?,?,?)',
             [id, req.user.id, receiver_id, message || null]);
         saveDb();
+
+        // Push notification to receiver
+        try {
+            const sender = query.get('SELECT first_name, last_name FROM users WHERE id = ?', [req.user.id]);
+            const senderName = sender ? `${sender.first_name || ''} ${sender.last_name || ''}`.trim() : 'Someone';
+            sendPushToUser(receiver_id, {
+                title: 'New connection request',
+                body: `${senderName} wants to connect with you`,
+                url: '/?section=network'
+            });
+        } catch(e) {}
+
         res.json({ id, status: 'pending' });
     });
 
@@ -13981,6 +14414,10 @@ By applying to this program, I provide the following consents:
         if (!receiver_id || !content) {
             return res.status(400).json({ error: 'receiver_id and content are required' });
         }
+        // Validate receiver exists
+        const receiver = query.get('SELECT id FROM users WHERE id = ?', [receiver_id]);
+        if (!receiver) return res.status(404).json({ error: 'Recipient not found' });
+
         const id = uuidv4();
         const senderId = req.user?.id ?? 'unknown';
         try {
@@ -13989,6 +14426,18 @@ By applying to this program, I provide the following consents:
                 [id, senderId, receiver_id, content.trim()]
             );
             saveDb();
+
+            // Push notification to receiver
+            try {
+                const sender = query.get('SELECT first_name, last_name FROM users WHERE id = ?', [req.user.id]);
+                const senderName = sender ? `${sender.first_name || ''} ${sender.last_name || ''}`.trim() : 'Someone';
+                sendPushToUser(receiver_id, {
+                    title: `New message from ${senderName}`,
+                    body: content.substring(0, 100),
+                    url: '/?section=network'
+                });
+            } catch(e) {}
+
             res.json({ success: true, id, sender_id: senderId, receiver_id, content: content.trim(), created_at: new Date().toISOString() });
         } catch (err) {
             console.error('Failed to send direct message:', err);
