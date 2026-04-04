@@ -9377,7 +9377,7 @@ By applying to this program, I provide the following consents:
 
                 const newTotal = (rewards.total_points_earned || 0) + points;
                 const newBalance = (rewards.points_balance || 0) + points;
-                const newTier = newTotal >= 20000 ? 'platinum' : newTotal >= 15000 ? 'gold' : newTotal >= 5000 ? 'silver' : 'bronze';
+                const newTier = newTotal >= 15000 ? 'platinum' : newTotal >= 10000 ? 'gold' : newTotal >= 3000 ? 'silver' : 'bronze';
 
                 db.run(`UPDATE member_rewards SET total_points_earned=?, points_balance=?, tier=?, updated_at=datetime('now') WHERE user_id=?`,
                     [newTotal, newBalance, newTier, userId]);
@@ -14190,7 +14190,7 @@ By applying to this program, I provide the following consents:
 
             const newTotal = (rewards.total_points_earned || 0) + points;
             const newBalance = (rewards.points_balance || 0) + points;
-            const newTier = newTotal >= 20000 ? 'platinum' : newTotal >= 15000 ? 'gold' : newTotal >= 5000 ? 'silver' : 'bronze';
+            const newTier = newTotal >= 15000 ? 'platinum' : newTotal >= 10000 ? 'gold' : newTotal >= 3000 ? 'silver' : 'bronze';
 
             db.run(`UPDATE member_rewards SET total_points_earned=?, points_balance=?, tier=?, updated_at=datetime('now') WHERE user_id=?`,
                 [newTotal, newBalance, newTier, req.user.id]);
@@ -14233,9 +14233,9 @@ By applying to this program, I provide the following consents:
             const { packageId } = req.body;
 
             const packages = {
-                'pts-500': { points: 500, price: 500, name: '500 Reward Points' },
-                'pts-1000': { points: 1000, price: 1000, name: '1,000 Reward Points' },
-                'pts-5000': { points: 5000, price: 4500, name: '5,000 Reward Points (10% bonus)' }
+                'pts-500': { points: 500, price: 700, name: '500 Reward Points' },
+                'pts-1000': { points: 1000, price: 1500, name: '1,000 Reward Points' },
+                'pts-5000': { points: 5000, price: 6000, name: '5,000 Reward Points (15% bonus)' }
             };
 
             const pkg = packages[packageId];

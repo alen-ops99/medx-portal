@@ -74622,7 +74622,7 @@ You can use variables like {first_name} that will be personalized for each recip
         const RewardsPortal = {
             // Tier configuration
             tiers: ['bronze', 'silver', 'gold', 'platinum'],
-            tierThresholds: { bronze: 0, silver: 5000, gold: 15000, platinum: 20000 },
+            tierThresholds: { bronze: 0, silver: 3000, gold: 10000, platinum: 15000 },
             tierMultipliers: { bronze: 1, silver: 1.2, gold: 1.5, platinum: 2 },
             tierDiscounts: { bronze: 0, silver: 0.05, gold: 0.07, platinum: 0.10 },
 
@@ -75270,10 +75270,10 @@ You can use variables like {first_name} that will be personalized for each recip
                 const container = document.getElementById('rewardsTiersGrid');
 
                 const tierDescriptions = {
-                    bronze: '0–4,999 pts',
-                    silver: '5,000–14,999 pts',
-                    gold: '15,000–19,999 pts',
-                    platinum: '20,000+ pts'
+                    bronze: '0–2,999 pts',
+                    silver: '3,000–9,999 pts',
+                    gold: '10,000–14,999 pts',
+                    platinum: '15,000+ pts'
                 };
 
                 const tierIcons = {
@@ -75715,16 +75715,16 @@ You can use variables like {first_name} that will be personalized for each recip
                             <div style="display: flex; flex-direction: column; gap: 12px;">
                                 <div onclick="RewardsPortal.purchasePoints('pts-500')" style="display:flex; justify-content:space-between; align-items:center; padding:16px; border:1px solid var(--up-border,#e5e7eb); border-radius:12px; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.borderColor='#10b981'" onmouseout="this.style.borderColor=''">
                                     <div><strong style="font-size:16px;">500 Points</strong><br><span style="font-size:13px; color:var(--up-text-secondary);">Standard pack</span></div>
-                                    <div style="font-size:20px; font-weight:700; color:#10b981;">&euro;5</div>
+                                    <div style="font-size:20px; font-weight:700; color:#10b981;">&euro;7</div>
                                 </div>
                                 <div onclick="RewardsPortal.purchasePoints('pts-1000')" style="display:flex; justify-content:space-between; align-items:center; padding:16px; border:2px solid #10b981; border-radius:12px; cursor:pointer; background:rgba(16,185,129,0.05); position:relative;">
                                     <div style="position:absolute; top:-8px; right:12px; background:#10b981; color:white; font-size:10px; font-weight:700; padding:2px 8px; border-radius:4px;">POPULAR</div>
                                     <div><strong style="font-size:16px;">1,000 Points</strong><br><span style="font-size:13px; color:var(--up-text-secondary);">Best value</span></div>
-                                    <div style="font-size:20px; font-weight:700; color:#10b981;">&euro;10</div>
+                                    <div style="font-size:20px; font-weight:700; color:#10b981;">&euro;15</div>
                                 </div>
                                 <div onclick="RewardsPortal.purchasePoints('pts-5000')" style="display:flex; justify-content:space-between; align-items:center; padding:16px; border:1px solid var(--up-border,#e5e7eb); border-radius:12px; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.borderColor='#10b981'" onmouseout="this.style.borderColor=''">
-                                    <div><strong style="font-size:16px;">5,000 Points</strong><br><span style="font-size:13px; color:var(--up-text-secondary);">10% bonus included</span></div>
-                                    <div style="font-size:20px; font-weight:700; color:#10b981;">&euro;45</div>
+                                    <div><strong style="font-size:16px;">5,000 Points</strong><br><span style="font-size:13px; color:var(--up-text-secondary);">15% bonus included</span></div>
+                                    <div style="font-size:20px; font-weight:700; color:#10b981;">&euro;60</div>
                                 </div>
                             </div>
                             <p style="font-size:11px; color:var(--up-text-muted); margin-top:16px; text-align:center;">Secure payment via Stripe. Invoice issued automatically.</p>
@@ -75967,7 +75967,7 @@ You can use variables like {first_name} that will be personalized for each recip
 
                 const tierColors = { bronze: '#cd7f32', silver: '#94a3b8', gold: '#d4a843', platinum: '#a78bfa' };
                 const tierIcons = { bronze: 'fa-medal', silver: 'fa-award', gold: 'fa-crown', platinum: 'fa-gem' };
-                const tierThresholds = { bronze: 0, silver: 5000, gold: 15000, platinum: 20000 };
+                const tierThresholds = { bronze: 0, silver: 3000, gold: 10000, platinum: 15000 };
                 const tiers = ['bronze', 'silver', 'gold', 'platinum'];
                 const tierIdx = tiers.indexOf(tier);
                 const nextTier = tierIdx < 3 ? tiers[tierIdx + 1] : null;
@@ -117772,7 +117772,7 @@ By applying to this program, I give the following consents:
                 if (!banner) return;
 
                 // Use RewardsPortal.getNextTierInfo() as single source of truth
-                let info = { currentTierName: 'Bronze', nextTierName: 'Silver', pointsNeeded: 4900, progress: 2 };
+                let info = { currentTierName: 'Bronze', nextTierName: 'Silver', pointsNeeded: 2900, progress: 3 };
                 if (typeof RewardsPortal !== 'undefined' && RewardsPortal.getNextTierInfo) {
                     try { info = RewardsPortal.getNextTierInfo(); } catch(e) { /* userRewards not yet initialized */ }
                 }
