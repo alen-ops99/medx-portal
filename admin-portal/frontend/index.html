@@ -7591,6 +7591,7 @@ President, Med&amp;X</textarea>
                                     <button class="btn btn-primary" style="background: #22c55e; border-color: #22c55e;" onclick="AcceleratorApp.publishRankings()"><i class="fas fa-bullhorn"></i> Publish Rankings</button>
                                     <button class="btn btn-secondary" onclick="AcceleratorApp.editPdfSettings()"><i class="fas fa-cog"></i> PDF Settings</button>
                                     <button class="btn btn-secondary" onclick="AcceleratorApp.downloadRankingPDF()"><i class="fas fa-file-pdf"></i> Download PDF</button>
+                                    <button class="btn btn-secondary" onclick="AcceleratorApp.generateResultCode()" style="margin-left:8px;"><i class="fas fa-key"></i> Generate Result Code</button>
                                 </div>
                             </div>
                             <div class="card-body">
@@ -8091,7 +8092,8 @@ President, Med&amp;X</textarea>
                             </div>
                             <div class="modal-footer">
                                 <button class="btn btn-secondary" onclick="App.closeModal('forumEventModal')">Cancel</button>
-                                <button class="btn btn-primary" onclick="App.saveForumEvent()"><i class="fas fa-check"></i> Save Event</button>
+                                <button class="btn btn-secondary" onclick="App.saveForumEvent()" style="margin-left:8px;"><i class="fas fa-save"></i> Save Draft</button>
+                                <button class="btn btn-primary" onclick="App.saveForumEvent(true)" style="margin-left:8px;"><i class="fas fa-check-circle"></i> Save & Publish</button>
                             </div>
                         </div>
                     </div>
@@ -19489,7 +19491,7 @@ President, Med&amp;X</textarea>
                 modal.classList.add('active');
             },
 
-            async saveForumEvent() {
+            async saveForumEvent(publish = false) {
                 const title = document.getElementById('feTitle').value.trim();
                 if (!title) { Toast.warning('Title is required'); return; }
 
@@ -19507,7 +19509,7 @@ President, Med&amp;X</textarea>
                     capacity: document.getElementById('feCapacity').value ? parseInt(document.getElementById('feCapacity').value) : null,
                     registration_deadline: document.getElementById('feRegDeadline').value,
                     location_type: document.getElementById('feLocationType').value,
-                    is_published: document.getElementById('fePublished').checked ? 1 : 0,
+                    is_published: publish ? 1 : (document.getElementById('fePublished').checked ? 1 : 0),
                     checkin_enabled: document.getElementById('feCheckinEnabled').checked ? 1 : 0
                 };
 
@@ -21859,6 +21861,34 @@ President, Med&amp;X</textarea>
                     this.loadRanking();
                 } catch (err) {
                     this.showAccToast('Error publishing rankings: ' + err.message, 'error');
+                }
+            },
+
+            async generateResultCode() {
+                try {
+                    const result = await this.api('/api/admin/accelerator/result-codes', {
+                        method: 'POST',
+                        body: JSON.stringify({ year: this.currentYear })
+                    });
+                    if (result.code) {
+                        const modal = document.createElement('div');
+                        modal.className = 'modal';
+                        modal.style.display = 'flex';
+                        modal.innerHTML = `
+                            <div class="modal-content" style="max-width: 400px;">
+                                <div class="modal-header"><h2><i class="fas fa-key" style="color: var(--accent-gold);"></i> Result Access Code</h2><button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button></div>
+                                <div class="modal-body" style="text-align: center; padding: 24px;">
+                                    <p style="color: var(--text-secondary); margin-bottom: 16px;">Share this code with applicants so they can view rankings:</p>
+                                    <div style="font-family: monospace; font-size: 28px; font-weight: 700; color: var(--accent-gold); background: var(--bg-secondary); padding: 16px; border-radius: 8px; letter-spacing: 2px; user-select: all;">${result.code}</div>
+                                    <button onclick="navigator.clipboard.writeText('${result.code}'); Toast.success('Code copied!')" class="btn btn-primary" style="margin-top: 16px;"><i class="fas fa-copy"></i> Copy Code</button>
+                                </div>
+                            </div>
+                        `;
+                        document.body.appendChild(modal);
+                        modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+                    }
+                } catch (err) {
+                    this.showAccToast('Error generating code: ' + err.message, 'error');
                 }
             },
 
