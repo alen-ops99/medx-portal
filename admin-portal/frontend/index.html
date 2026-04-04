@@ -53,7 +53,9 @@
         }
 
         body {
-            font-family: 'Inter', -apple-system, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
             background: var(--bg-primary);
             color: var(--text-primary);
             line-height: 1.5;
@@ -830,12 +832,13 @@
             cursor: pointer;
             font-size: 14px;
             margin-bottom: 2px;
-            transition: all 0.15s;
+            transition: all 0.2s ease;
         }
 
         .nav-item:hover {
             background: var(--bg-tertiary);
             color: var(--text-primary);
+            border-radius: 8px;
         }
 
         .nav-item.active {
@@ -843,6 +846,7 @@
             color: var(--accent-gold);
             border-left: 3px solid var(--accent-gold);
             padding-left: 9px;
+            border-radius: 8px;
         }
 
         .nav-item i {
@@ -883,13 +887,14 @@
             cursor: pointer;
             font-size: 14px;
             margin-bottom: 2px;
-            transition: all 0.15s;
+            transition: all 0.2s ease;
             position: relative;
         }
 
         .sidebar-project:hover {
             background: var(--bg-tertiary);
             color: var(--text-primary);
+            border-radius: 8px;
         }
 
         .sidebar-project.active {
@@ -897,6 +902,7 @@
             color: var(--accent-gold);
             border-left: 3px solid var(--accent-gold);
             padding-left: 9px;
+            border-radius: 8px;
         }
 
         .sidebar-project.pinned {
@@ -1415,14 +1421,16 @@
         /* ===== CARDS ===== */
         .card {
             background: var(--bg-secondary);
-            border: 1px solid var(--border);
+            border: 1px solid rgba(255, 255, 255, 0.06);
             border-radius: 12px;
             margin-bottom: 20px;
-            transition: box-shadow 0.2s ease;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
         .card:hover {
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            border-color: rgba(255, 255, 255, 0.1);
         }
 
         .card-header {
@@ -1654,7 +1662,7 @@
             padding: 8px 14px;
             border-radius: 8px;
             font-size: 13px;
-            font-weight: 500;
+            font-weight: 600;
             cursor: pointer;
             border: none;
             transition: all 0.2s ease;
@@ -1662,44 +1670,51 @@
         }
 
         .btn-primary {
-            background: var(--accent-gold);
+            background: linear-gradient(135deg, #c9a962, #b49650);
+            border: none;
             color: var(--bg-primary);
         }
 
         .btn-primary:hover {
-            background: var(--accent-gold-dim);
             transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(201, 169, 98, 0.3);
         }
 
         .btn-secondary {
             background: var(--bg-tertiary);
             color: var(--text-primary);
+            border: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         .btn-secondary:hover {
             background: var(--bg-hover);
             transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
         }
 
         .btn-danger {
-            background: var(--danger);
+            background: linear-gradient(135deg, #ef4444, #dc2626);
             color: white;
         }
 
         .btn-danger:hover {
-            background: #dc2626;
             transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
         }
 
         .plexus-table {
             width: 100%;
-            border-collapse: collapse;
+            border-collapse: separate;
+            border-spacing: 0;
         }
 
         .plexus-table th, .plexus-table td {
             padding: 12px 16px;
             text-align: left;
             border-bottom: 1px solid var(--border);
+        }
+
+        .plexus-table td {
             font-size: 13px;
         }
 
@@ -1708,7 +1723,12 @@
             color: var(--text-secondary);
             font-size: 11px;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
             background: rgba(255, 255, 255, 0.02);
+        }
+
+        .plexus-table tr:hover td {
+            background: rgba(201, 169, 98, 0.03);
         }
 
         .form-select {
@@ -3345,6 +3365,7 @@
             right: 0;
             bottom: 0;
             background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
             display: none;
             align-items: center;
             justify-content: center;
@@ -3357,12 +3378,13 @@
 
         .modal {
             background: var(--bg-secondary);
-            border: 1px solid var(--border);
+            border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 16px;
             width: 90%;
             max-width: 480px;
             max-height: 85vh;
             overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
 
         .modal-header {
@@ -3399,6 +3421,7 @@
             padding: 20px;
             max-height: 60vh;
             overflow-y: auto;
+            border-radius: 0 0 16px 16px;
         }
 
         .modal-footer {
@@ -5939,10 +5962,21 @@
         .unsaved-bar-actions .btn-save { background: #fff; color: #b45309; }
         .unsaved-bar-actions .btn-discard { background: rgba(255,255,255,0.2); color: #fff; }
 
-        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.3); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.5); }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+
+        /* ===== GLOBAL INPUT/SELECT/TEXTAREA POLISH ===== */
+        input, select, textarea {
+            border-radius: 8px;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--accent-gold, #c9a962);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(201, 169, 98, 0.1);
+        }
     </style>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
@@ -10138,6 +10172,7 @@ President, Med&amp;X</textarea>
                             <option value="accelerator">Accelerator</option>
                             <option value="forum">Biomedical Forum</option>
                             <option value="bridges">Building Bridges</option>
+                            <option value="gala">Gala Evening</option>
                         </select>
                     </div>
                 </div>
@@ -11606,6 +11641,117 @@ President, Med&amp;X</textarea>
         function escapeHtml(str) {
             if (str === null || str === undefined) return '';
             return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+
+        async function showUserProfileFromQR(qrData) {
+            try {
+                const data = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
+                if (!data.userId) return false;
+
+                const response = await fetch('/api/admin/users/' + data.userId + '/profile', {
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                });
+                if (!response.ok) throw new Error('User not found');
+                const profile = await response.json();
+                const u = profile.user;
+
+                // Get the currently selected check-in context
+                const checkInContext = document.getElementById('qrCheckInContext') ? document.getElementById('qrCheckInContext').value : 'general';
+
+                // Context-aware check-in result
+                var contextResult = '';
+                if (checkInContext !== 'general') {
+                    var isRegistered = false;
+                    var eventName = '';
+
+                    if (checkInContext === 'plexus') {
+                        isRegistered = profile.registrations.some(function(r) { return r.status !== 'cancelled'; });
+                        eventName = 'Plexus Conference 2026';
+                    } else if (checkInContext === 'forum') {
+                        isRegistered = profile.forumRegistrations && profile.forumRegistrations.length > 0;
+                        eventName = 'Annual Biomedical Forum';
+                    } else if (checkInContext.indexOf('bridges-') === 0) {
+                        var eventId = checkInContext.replace('bridges-', '');
+                        isRegistered = profile.bridgesRegistrations && profile.bridgesRegistrations.some(function(r) { return r.event_id === eventId; });
+                        eventName = 'Building Bridges Event';
+                    }
+
+                    contextResult = '<div style="text-align:center; padding:20px; margin-bottom:16px; border-radius:12px; background:' + (isRegistered ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)') + ';">' +
+                        '<i class="fas ' + (isRegistered ? 'fa-check-circle' : 'fa-times-circle') + '" style="font-size:48px; color:' + (isRegistered ? '#10b981' : '#ef4444') + ';"></i>' +
+                        '<div style="font-size:18px; font-weight:700; color:' + (isRegistered ? '#10b981' : '#ef4444') + '; margin-top:8px;">' +
+                            (isRegistered ? 'REGISTERED' : 'NOT REGISTERED') +
+                        '</div>' +
+                        '<div style="font-size:13px; color:var(--text-muted,#94a3b8); margin-top:4px;">for ' + escapeHtml(eventName) + '</div>' +
+                    '</div>';
+                }
+
+                const overlay = document.createElement('div');
+                overlay.className = 'modal-overlay active';
+                overlay.style.zIndex = '1100';
+                overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+                overlay.innerHTML = '<div class="modal" style="max-width:600px;">' +
+                    '<div class="modal-header">' +
+                        '<h2><i class="fas fa-user-circle" style="color:var(--accent-gold);margin-right:8px;"></i> Member Profile</h2>' +
+                        '<button class="modal-close" onclick="this.closest(\'.modal-overlay\').remove()"><i class="fas fa-times"></i></button>' +
+                    '</div>' +
+                    '<div class="modal-body">' +
+                        contextResult +
+                        '<div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">' +
+                            '<div><strong>Name:</strong> ' + escapeHtml((u.first_name || '') + ' ' + (u.last_name || '')) + '</div>' +
+                            '<div><strong>Email:</strong> ' + escapeHtml(u.email || '') + '</div>' +
+                            '<div><strong>Institution:</strong> ' + escapeHtml(u.institution || 'N/A') + '</div>' +
+                            '<div><strong>Country:</strong> ' + escapeHtml(u.country || 'N/A') + '</div>' +
+                            '<div><strong>Member Since:</strong> ' + (u.created_at ? new Date(u.created_at).toLocaleDateString() : 'N/A') + '</div>' +
+                            '<div><strong>Tier:</strong> ' + escapeHtml(data.t || 'Bronze') + '</div>' +
+                        '</div>' +
+                        '<div style="background:var(--bg-tertiary); border-radius:8px; padding:16px; margin:12px 0;">' +
+                            '<div style="display:flex; justify-content:space-around; text-align:center;">' +
+                                '<div><div style="font-size:24px; font-weight:700; color:var(--accent-gold);">' + (profile.summary.totalRegistrations || 0) + '</div><div style="font-size:12px; color:var(--text-muted);">Registrations</div></div>' +
+                                '<div><div style="font-size:24px; font-weight:700; color:#10b981;">&euro;' + ((profile.summary.totalPaid || 0).toFixed(0)) + '</div><div style="font-size:12px; color:var(--text-muted);">Total Paid</div></div>' +
+                                '<div><div style="font-size:24px; font-weight:700; color:#a78bfa;">' + (profile.summary.eventsAttended || 0) + '</div><div style="font-size:12px; color:var(--text-muted);">Events Attended</div></div>' +
+                            '</div>' +
+                        '</div>' +
+                        (profile.registrations && profile.registrations.length ?
+                            '<h3 style="margin:16px 0 8px; font-size:14px;">Registration History</h3>' +
+                            '<div style="max-height:200px; overflow-y:auto;">' +
+                                profile.registrations.map(function(r) {
+                                    return '<div style="display:flex; justify-content:space-between; padding:8px 12px; border-bottom:1px solid var(--border); font-size:13px;">' +
+                                        '<span>' + escapeHtml(r.conference_name || 'Event') + ' &mdash; ' + escapeHtml(r.ticket_name || '') + '</span>' +
+                                        '<span style="color:' + (r.payment_status === 'paid' ? '#10b981' : '#f59e0b') + ';">' + escapeHtml(r.payment_status || 'pending') + '</span>' +
+                                    '</div>';
+                                }).join('') +
+                            '</div>' : '') +
+                        (profile.forumRegistrations && profile.forumRegistrations.length ?
+                            '<h3 style="margin:16px 0 8px; font-size:14px;">Forum Events</h3>' +
+                            '<div style="max-height:150px; overflow-y:auto;">' +
+                                profile.forumRegistrations.map(function(r) {
+                                    return '<div style="display:flex; justify-content:space-between; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,0.05); font-size:13px;">' +
+                                        '<span>' + escapeHtml(r.event_name || 'Forum Event') + '</span>' +
+                                        '<span style="color:' + (r.payment_status === 'paid' ? '#10b981' : '#f59e0b') + ';">' + escapeHtml(r.payment_status || r.status || 'registered') + '</span>' +
+                                    '</div>';
+                                }).join('') +
+                            '</div>' : '') +
+                        (profile.bridgesRegistrations && profile.bridgesRegistrations.length ?
+                            '<h3 style="margin:16px 0 8px; font-size:14px;">Building Bridges Events</h3>' +
+                            '<div style="max-height:150px; overflow-y:auto;">' +
+                                profile.bridgesRegistrations.map(function(r) {
+                                    return '<div style="display:flex; justify-content:space-between; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,0.05); font-size:13px;">' +
+                                        '<span>' + escapeHtml(r.event_name || 'BB Event') + ' (' + escapeHtml(r.city || '') + ')</span>' +
+                                        '<span style="color:' + (r.checked_in ? '#10b981' : '#f59e0b') + ';">' + (r.checked_in ? 'Checked In' : 'Registered') + '</span>' +
+                                    '</div>';
+                                }).join('') +
+                            '</div>' : '') +
+                    '</div>' +
+                    '<div class="modal-footer">' +
+                        '<button class="btn btn-secondary" onclick="this.closest(\'.modal-overlay\').remove()">Close</button>' +
+                    '</div>' +
+                '</div>';
+                document.body.appendChild(overlay);
+                return true;
+            } catch (err) {
+                console.error('QR profile lookup failed:', err);
+                return false;
+            }
         }
 
         const Toast = {
@@ -18203,6 +18349,15 @@ President, Med&amp;X</textarea>
                 this._lastScan = code;
                 this._lastScanTime = Date.now();
 
+                // Check if this is a membership QR (has userId field)
+                try {
+                    const parsed = JSON.parse(code || '{}');
+                    if (parsed.userId) {
+                        const handled = await showUserProfileFromQR(parsed);
+                        if (handled) return;
+                    }
+                } catch(e) {} // not JSON, continue with normal check-in
+
                 // Put code in input for visibility
                 const inputIds = { plexus: 'pxCheckinInput', forum: 'fmCheckinInput', bridges: 'brCheckinInput' };
                 const input = document.getElementById(inputIds[eventType]);
@@ -18231,6 +18386,15 @@ President, Med&amp;X</textarea>
                     }
                     return;
                 }
+
+                // Check if this is a membership QR (has userId field) - manual entry
+                try {
+                    const parsed = JSON.parse(code);
+                    if (parsed.userId) {
+                        const handled = await showUserProfileFromQR(parsed);
+                        if (handled) return;
+                    }
+                } catch(e) {} // not JSON, continue with normal check-in
 
                 try {
                     const result = await this.api(endpoints[eventType] || '/api/checkin', {
@@ -18389,6 +18553,18 @@ President, Med&amp;X</textarea>
                             </div>
                             <div class="qr-progress"><div class="qr-progress-fill" id="qrProgressFill" style="width:0%"></div></div>
                             <div class="qr-stats-events" id="qrStatsEvents"></div>
+                        </div>
+
+                        <div style="margin-bottom: 12px;">
+                            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted, #94a3b8); text-transform: uppercase; letter-spacing: 0.5px;">Checking in for:</label>
+                            <select id="qrCheckInContext" style="width: 100%; padding: 10px; border: 1px solid var(--border-color, #334155); border-radius: 8px; background: var(--bg-secondary, #1e293b); color: var(--text-primary, #e2e8f0); font-size: 14px; margin-top: 4px;">
+                                <option value="general">General Lookup</option>
+                                <option value="plexus">Plexus Conference 2026</option>
+                                <option value="forum">Annual Biomedical Forum</option>
+                                <option value="bridges-zurich">Building Bridges: Zurich</option>
+                                <option value="bridges-dc">Building Bridges: Washington DC</option>
+                                <option value="bridges-boston">Building Bridges: Boston</option>
+                            </select>
                         </div>
 
                         <div class="qr-tabs">
@@ -18626,6 +18802,15 @@ President, Med&amp;X</textarea>
                     }
                     return;
                 }
+
+                // Check if this is a membership QR (has userId field)
+                try {
+                    const parsed = JSON.parse(code);
+                    if (parsed.userId) {
+                        const handled = await showUserProfileFromQR(parsed);
+                        if (handled) return;
+                    }
+                } catch(e) {} // not JSON, continue with normal check-in
 
                 // Clear previous auto-fade timer
                 if (this._globalResultTimer) { clearTimeout(this._globalResultTimer); this._globalResultTimer = null; }
