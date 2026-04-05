@@ -10120,6 +10120,22 @@ By applying to this program, I provide the following consents:
         db.run("UPDATE registrations SET checked_in = 1, checked_in_at = datetime('now') WHERE id = ?", [regId]);
         saveDb();
 
+        // Send welcome email on check-in
+        try {
+            const confName = query.get('SELECT name FROM conferences WHERE id = ?', [reg.conference_id])?.name || 'Med&X Event';
+            if (reg.email) {
+                sendEmail(reg.email, `Welcome to ${confName}!`,
+                    `<div style="font-family:system-ui,sans-serif;max-width:500px;margin:0 auto;">
+                        <h2 style="color:#c9a962;">Welcome, ${reg.first_name || 'Guest'}! 🎉</h2>
+                        <p>You've been checked in to <strong>${confName}</strong>.</p>
+                        <p>We're thrilled to have you here. Enjoy the sessions, connect with fellow attendees, and make the most of your experience!</p>
+                        <p>If you need any assistance during the event, don't hesitate to reach out to our team or visit the registration desk.</p>
+                        <p style="margin-top:24px;">Best regards,<br><strong>The Med&X Team</strong><br><a href="mailto:info@medx.hr" style="color:#c9a962;">info@medx.hr</a></p>
+                    </div>`
+                ).catch(() => {});
+            }
+        } catch(e) {}
+
         res.json({ success: true, attendee: { ...reg, checked_in: 1 }, qr_info: qrInfo });
     });
 
