@@ -122252,129 +122252,52 @@ By applying to this program, I give the following consents:
             }
         }
 
-        // ===== Direct Invite Registration (data encoded in URL, no DB lookup) =====
+        // ===== Direct Invite — bypass login, go straight to event registration =====
         function showDirectInviteForm(encodedData) {
             try {
                 const data = JSON.parse(atob(encodedData));
-                const eventName = data.n || 'Med&X Event';
                 const eventType = data.e || 'plexus';
-                const packageItems = data.p || [];
                 const expiresAt = data.x;
 
                 // Check expiry
                 if (expiresAt && new Date(expiresAt) < new Date()) {
-                    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f172a;color:white;font-family:system-ui;padding:20px;text-align:center;"><div><h1 style="color:#ef4444;">Link Expired</h1><p style="color:#94a3b8;">This registration link has expired.</p><a href="/" style="color:#c9a962;">Go to Med&X Portal</a></div></div>';
+                    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f172a;color:white;font-family:system-ui;padding:20px;text-align:center;"><div><h1 style="color:#ef4444;">Link Expired</h1><p style="color:#94a3b8;">This invitation link has expired.</p><a href="/" style="color:#c9a962;">Go to Med&X Portal</a></div></div>';
                     return;
                 }
 
-                // Show items if present
-                let itemsHtml = '';
-                if (packageItems.length > 0) {
-                    itemsHtml = '<div style="margin-bottom:20px;"><div style="font-size:11px;font-weight:600;color:#c9a962;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Registering for:</div>' +
-                        packageItems.map(item => '<div style="display:flex;align-items:center;gap:6px;padding:5px 0;font-size:13px;color:#94a3b8;"><i class="fas fa-check" style="color:#22c55e;font-size:10px;"></i> ' + (typeof item === 'string' ? item : item.name || item) + '</div>').join('') +
-                        '</div>';
-                }
+                // Create a guest session so the portal works without login
+                const guestToken = 'invite_' + Date.now();
+                UserPortal.token = guestToken;
+                UserPortal.user = { id: 'guest_' + Date.now(), first_name: 'Guest', last_name: '', email: '', name: 'Guest' };
+                UserPortal._isInviteMode = true;
+                localStorage.setItem('medx_user_token', guestToken);
+                localStorage.setItem('medx_user_data', JSON.stringify(UserPortal.user));
 
-                document.body.innerHTML = `
-                    <div style="min-height:100vh; background:linear-gradient(160deg,#0f172a,#1e293b); display:flex; align-items:center; justify-content:center; padding:20px; font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">
-                        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,98,0.2); border-radius:24px; max-width:480px; width:100%; padding:40px 32px;">
-                            <div style="text-align:center; margin-bottom:24px;">
-                                <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; color:#c9a962; margin-bottom:8px;">Med&X Invitation</div>
-                                <h1 style="font-size:24px; font-weight:700; color:#fff; margin:0 0 8px;">${eventName}</h1>
-                                <p style="color:#94a3b8; font-size:14px;">You've been invited to register</p>
-                            </div>
-                            ${itemsHtml}
-                            <form onsubmit="submitInviteRegistration(event)" style="display:flex;flex-direction:column;gap:14px;">
-                                <input type="hidden" id="inviteEventType" value="${eventType}">
-                                <input type="hidden" id="inviteEventName" value="${eventName}">
-                                <input type="hidden" id="invitePackageItems" value='${JSON.stringify(packageItems)}'>
-                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-                                    <div>
-                                        <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px;">First Name *</label>
-                                        <input type="text" id="invFirstName" required style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;background:rgba(255,255,255,0.05);color:#fff;font-size:14px;box-sizing:border-box;">
-                                    </div>
-                                    <div>
-                                        <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px;">Last Name *</label>
-                                        <input type="text" id="invLastName" required style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;background:rgba(255,255,255,0.05);color:#fff;font-size:14px;box-sizing:border-box;">
-                                    </div>
-                                </div>
-                                <div>
-                                    <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px;">Email *</label>
-                                    <input type="email" id="invEmail" required style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;background:rgba(255,255,255,0.05);color:#fff;font-size:14px;box-sizing:border-box;">
-                                </div>
-                                <div>
-                                    <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px;">Institution</label>
-                                    <input type="text" id="invInstitution" style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;background:rgba(255,255,255,0.05);color:#fff;font-size:14px;box-sizing:border-box;">
-                                </div>
-                                <div>
-                                    <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px;">Country</label>
-                                    <input type="text" id="invCountry" style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;background:rgba(255,255,255,0.05);color:#fff;font-size:14px;box-sizing:border-box;">
-                                </div>
-                                <button type="submit" id="invSubmitBtn" style="width:100%;padding:14px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-top:8px;">
-                                    Complete Registration
-                                </button>
-                            </form>
-                            <p style="text-align:center;margin-top:16px;font-size:12px;color:#64748b;">By registering, you agree to Med&X's Terms and Privacy Policy.</p>
-                        </div>
-                    </div>
-                `;
+                // Show the user portal and navigate to the event section
+                document.getElementById('landingPage').style.display = 'none';
+                document.getElementById('userPortal').classList.add('active');
+
+                // Map event type to section + tab
+                const sectionMap = {
+                    plexus: { section: 'plexus', tab: 'register' },
+                    gala: { section: 'gala', tab: 'register' },
+                    forum: { section: 'forum', tab: 'events' },
+                    bridges: { section: 'bridges', tab: 'events' }
+                };
+                const target = sectionMap[eventType] || sectionMap.plexus;
+
+                // Initialize portal basics then navigate
+                setTimeout(() => {
+                    UserPortal.showSection(target.section);
+                    // For Plexus, go directly to the Register tab
+                    if (typeof PlexusPortal !== 'undefined' && target.tab === 'register') {
+                        setTimeout(() => PlexusPortal.showTab('register'), 500);
+                    }
+                }, 300);
+
             } catch(e) {
                 console.error('Invite parse error:', e);
-                document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f172a;color:white;font-family:system-ui;padding:20px;text-align:center;"><div><h1 style="color:#ef4444;">Invalid Link</h1><p style="color:#94a3b8;">This registration link is not valid.</p><a href="/" style="color:#c9a962;">Go to Med&X Portal</a></div></div>';
-            }
-        }
-
-        async function submitInviteRegistration(e) {
-            e.preventDefault();
-            const btn = document.getElementById('invSubmitBtn');
-            btn.disabled = true;
-            btn.innerHTML = 'Registering...';
-
-            const eventType = document.getElementById('inviteEventType').value;
-            const eventName = document.getElementById('inviteEventName').value;
-            let packageItems = [];
-            try { packageItems = JSON.parse(document.getElementById('invitePackageItems').value); } catch(e) {}
-
-            const body = {
-                first_name: document.getElementById('invFirstName').value,
-                last_name: document.getElementById('invLastName').value,
-                email: document.getElementById('invEmail').value,
-                institution: document.getElementById('invInstitution').value,
-                country: document.getElementById('invCountry').value,
-                event_type: eventType,
-                event_name: eventName,
-                package_items: packageItems
-            };
-
-            try {
-                const res = await fetch('/api/register-invite', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-                const result = await res.json();
-
-                if (result.success) {
-                    document.body.innerHTML = `
-                        <div style="min-height:100vh; background:linear-gradient(160deg,#0f172a,#1e293b); display:flex; align-items:center; justify-content:center; padding:20px; font-family:system-ui; text-align:center;">
-                            <div style="max-width:400px;">
-                                <div style="width:80px;height:80px;border-radius:50%;background:rgba(34,197,94,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;"><i class="fas fa-check" style="font-size:36px;color:#22c55e;"></i></div>
-                                <h1 style="font-size:28px; font-weight:700; color:#22c55e; margin-bottom:12px;">You're Registered!</h1>
-                                <p style="color:#fff; font-size:18px; margin-bottom:8px;">${eventName}</p>
-                                <p style="color:#94a3b8; font-size:14px; margin-bottom:24px;">A confirmation has been sent to your email.</p>
-                                <a href="/" style="display:inline-block; padding:12px 24px; background:linear-gradient(135deg,#c9a962,#b49650); color:#0f172a; border-radius:10px; font-weight:600; text-decoration:none;">Explore Med&X Portal</a>
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    btn.disabled = false;
-                    btn.innerHTML = 'Complete Registration';
-                    alert(result.error || 'Registration failed');
-                }
-            } catch(err) {
-                btn.disabled = false;
-                btn.innerHTML = 'Complete Registration';
-                alert('Registration failed. Please try again.');
+                document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f172a;color:white;font-family:system-ui;padding:20px;text-align:center;"><div><h1 style="color:#ef4444;">Invalid Link</h1><p style="color:#94a3b8;">This invitation link is not valid.</p><a href="/" style="color:#c9a962;">Go to Med&X Portal</a></div></div>';
             }
         }
 
