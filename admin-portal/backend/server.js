@@ -15911,6 +15911,73 @@ By applying to this program, I provide the following consents:
         }
     });
 
+    // ========== DIRECT REGISTRATION LINKS ==========
+
+    // Generate direct registration link for an event
+    app.post('/api/admin/registration-links', auth, adminOnly, (req, res) => {
+        try {
+            const { event_type, event_id, event_name, expires_days, max_uses } = req.body;
+
+            const crypto = require('crypto');
+            const token = crypto.randomBytes(16).toString('hex');
+            const expiresAt = new Date(Date.now() + (expires_days || 30) * 24 * 60 * 60 * 1000).toISOString();
+
+            db.run(`CREATE TABLE IF NOT EXISTS registration_links (
+                id TEXT PRIMARY KEY,
+                token TEXT UNIQUE NOT NULL,
+                event_type TEXT NOT NULL,
+                event_id TEXT,
+                event_name TEXT,
+                created_by TEXT,
+                expires_at TEXT,
+                max_uses INTEGER DEFAULT 0,
+                uses INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )`);
+
+            const id = uuidv4();
+            db.run(`INSERT INTO registration_links (id, token, event_type, event_id, event_name, created_by, expires_at, max_uses) VALUES (?,?,?,?,?,?,?,?)`,
+                [id, token, event_type, event_id || null, event_name || '', req.user.email, expiresAt, max_uses || 0]);
+            saveDb();
+
+            // Build link pointing to user portal
+            const userPortalUrl = process.env.USER_PORTAL_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000';
+            const link = `${userPortalUrl}/?register=${token}`;
+
+            res.json({ success: true, id, token, link, expiresAt });
+        } catch (error) {
+            console.error('Generate link error:', error);
+            res.status(500).json({ error: 'Failed to generate link' });
+        }
+    });
+
+    // List all registration links
+    app.get('/api/admin/registration-links', auth, adminOnly, (req, res) => {
+        try {
+            db.run(`CREATE TABLE IF NOT EXISTS registration_links (
+                id TEXT PRIMARY KEY, token TEXT UNIQUE, event_type TEXT, event_id TEXT, event_name TEXT,
+                created_by TEXT, expires_at TEXT, max_uses INTEGER DEFAULT 0, uses INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )`);
+            const links = query.all('SELECT * FROM registration_links ORDER BY created_at DESC');
+            res.json(links);
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to fetch links' });
+        }
+    });
+
+    // Deactivate a registration link
+    app.put('/api/admin/registration-links/:id/deactivate', auth, adminOnly, (req, res) => {
+        try {
+            db.run('UPDATE registration_links SET is_active = 0 WHERE id = ?', [req.params.id]);
+            saveDb();
+            res.json({ success: true });
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to deactivate link' });
+        }
+    });
+
     // API 404 handler — prevent unmatched API routes from returning HTML
     app.use('/api', (req, res) => {
         res.status(404).json({ error: 'API endpoint not found' });

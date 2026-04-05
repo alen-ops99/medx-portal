@@ -6549,9 +6549,14 @@
                     <div class="back-link" onclick="App.showSection('dashboard')">
                         <i class="fas fa-arrow-left"></i> Back to Home
                     </div>
-                    <div class="page-header">
-                        <h1>Plexus Conference 2026</h1>
-                        <p>December 4-5, 2026 in Zagreb</p>
+                    <div class="page-header" style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <h1>Plexus Conference 2026</h1>
+                            <p>December 4-5, 2026 in Zagreb</p>
+                        </div>
+                        <button class="btn btn-secondary" onclick="App.generateRegistrationLink('plexus')" style="white-space:nowrap;">
+                            <i class="fas fa-link"></i> Direct Link
+                        </button>
                     </div>
 
                     <!-- Plexus Sub-Navigation -->
@@ -7938,9 +7943,14 @@ President, Med&amp;X</textarea>
                     <div class="back-link" onclick="App.showSection('dashboard')">
                         <i class="fas fa-arrow-left"></i> Back to Home
                     </div>
-                    <div class="page-header">
-                        <h1>Biomedical Forum</h1>
-                        <p id="forumSubtitle">Senior leaders network</p>
+                    <div class="page-header" style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <h1>Biomedical Forum</h1>
+                            <p id="forumSubtitle">Senior leaders network</p>
+                        </div>
+                        <button class="btn btn-secondary" onclick="App.generateRegistrationLink('forum')" style="white-space:nowrap;">
+                            <i class="fas fa-link"></i> Direct Link
+                        </button>
                     </div>
 
                     <!-- Forum Sub-Navigation -->
@@ -8365,9 +8375,14 @@ President, Med&amp;X</textarea>
                             <h1><i class="fas fa-globe-americas" style="color: var(--bridges); margin-right: 12px;"></i>Building Bridges in Biomedicine</h1>
                             <p>Mini-events connecting Croatian biomedical professionals globally</p>
                         </div>
-                        <button class="btn btn-primary" onclick="BridgesApp.openEventModal()">
-                            <i class="fas fa-plus"></i> New Event
-                        </button>
+                        <div style="display:flex; gap:8px;">
+                            <button class="btn btn-secondary" onclick="App.generateRegistrationLink('bridges')" style="white-space:nowrap;">
+                                <i class="fas fa-link"></i> Direct Link
+                            </button>
+                            <button class="btn btn-primary" onclick="BridgesApp.openEventModal()">
+                                <i class="fas fa-plus"></i> New Event
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Events List View -->
@@ -9906,6 +9921,9 @@ President, Med&amp;X</textarea>
                             </h1>
                             <p style="color: var(--text-muted);">Manage invitations, settings, and registrations</p>
                         </div>
+                        <button class="btn btn-secondary" onclick="App.generateRegistrationLink('gala')" style="white-space:nowrap;">
+                            <i class="fas fa-link"></i> Direct Link
+                        </button>
                     </div>
 
                     <!-- Gala Stats -->
@@ -18691,6 +18709,74 @@ President, Med&amp;X</textarea>
                 }
             },
 
+            // --- DIRECT REGISTRATION LINKS ---
+            async generateRegistrationLink(eventType, eventId, eventName) {
+                const typeNames = { plexus: 'Plexus Conference 2026', gala: 'Gala Evening 2026', forum: 'Biomedical Forum', bridges: 'Building Bridges' };
+                const name = eventName || typeNames[eventType] || eventType;
+
+                const modal = document.createElement('div');
+                modal.className = 'modal-overlay';
+                modal.style.cssText = 'display:flex;align-items:center;justify-content:center;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10001;padding:16px;';
+                modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                modal.innerHTML = `
+                    <div class="modal" style="display:block; max-width:460px; width:100%; border-radius:16px;">
+                        <div class="modal-header" style="padding:20px;">
+                            <h3 style="margin:0;"><i class="fas fa-link" style="color:var(--accent-gold);"></i> Generate Registration Link</h3>
+                            <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button>
+                        </div>
+                        <div style="padding:20px;">
+                            <div style="margin-bottom:16px;">
+                                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Event</label>
+                                <input type="text" id="genLinkName" value="${escapeHtml(name)}" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+                            </div>
+                            <div style="margin-bottom:16px;">
+                                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Expires in (days)</label>
+                                <input type="number" id="genLinkExpiry" value="30" min="1" max="365" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+                            </div>
+                            <div style="margin-bottom:16px;">
+                                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Max uses (0 = unlimited)</label>
+                                <input type="number" id="genLinkMaxUses" value="0" min="0" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+                            </div>
+                            <button onclick="App.doGenerateLink('${eventType}','${eventId || ''}')" class="btn btn-primary" style="width:100%;padding:12px;">
+                                <i class="fas fa-magic"></i> Generate Link
+                            </button>
+                            <div id="genLinkResult" style="margin-top:16px; display:none;">
+                                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Registration Link</label>
+                                <div style="display:flex;gap:8px;">
+                                    <input type="text" id="genLinkUrl" readonly style="flex:1;padding:10px;border:1px solid var(--accent-gold);border-radius:8px;background:var(--bg-primary);color:var(--accent-gold);font-size:13px;font-family:monospace;min-width:0;">
+                                    <button onclick="navigator.clipboard.writeText(document.getElementById('genLinkUrl').value);Toast.success('Link copied!')" class="btn btn-primary" style="padding:10px 16px;flex-shrink:0;"><i class="fas fa-copy"></i></button>
+                                </div>
+                                <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">Share this link with invitees. They can register without creating a portal account.</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            },
+
+            async doGenerateLink(eventType, eventId) {
+                const name = document.getElementById('genLinkName').value;
+                const expiry = document.getElementById('genLinkExpiry').value;
+                const maxUses = document.getElementById('genLinkMaxUses').value;
+
+                try {
+                    const result = await this.api('/api/admin/registration-links', {
+                        method: 'POST',
+                        body: JSON.stringify({ event_type: eventType, event_id: eventId || null, event_name: name, expires_days: parseInt(expiry), max_uses: parseInt(maxUses) })
+                    });
+
+                    if (result.link) {
+                        const resultDiv = document.getElementById('genLinkResult');
+                        const urlInput = document.getElementById('genLinkUrl');
+                        resultDiv.style.display = 'block';
+                        urlInput.value = result.link;
+                        Toast.success('Link generated!');
+                    }
+                } catch(e) {
+                    Toast.error('Failed to generate link: ' + e.message);
+                }
+            },
+
             // --- GLOBAL QR SCANNER ---
             _globalScanner: null,
             _globalActiveTab: 'scan',
@@ -18877,10 +18963,32 @@ President, Med&amp;X</textarea>
                                 try {
                                     const parsed = JSON.parse(code.data);
                                     if (parsed.userId) {
-                                        showUserProfileFromQR(parsed);
-                                        return; // Stop scanning after detection
+                                        // Stop camera and show profile
+                                        if (this._globalStream) {
+                                            this._globalStream.getTracks().forEach(t => t.stop());
+                                            this._globalStream = null;
+                                        }
+                                        showUserProfileFromQR(parsed).then(ok => {
+                                            if (!ok) {
+                                                const resultDiv = document.getElementById('globalCheckinResult');
+                                                if (resultDiv) {
+                                                    resultDiv.className = 'checkin-result error';
+                                                    resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Could not load profile. Try manual entry.';
+                                                }
+                                            }
+                                        }).catch(err => {
+                                            console.error('Profile popup failed:', err);
+                                            const resultDiv = document.getElementById('globalCheckinResult');
+                                            if (resultDiv) {
+                                                resultDiv.className = 'checkin-result error';
+                                                resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Profile load failed: ' + (err.message || 'Unknown error');
+                                            }
+                                        });
+                                        return; // Stop scanning
                                     }
-                                } catch(parseErr) {}
+                                } catch(parseErr) {
+                                    console.log('QR not JSON, trying check-in:', parseErr.message);
+                                }
                                 // If not a member QR, try normal check-in
                                 this.globalCheckin(code.data);
                             }
