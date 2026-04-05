@@ -18957,40 +18957,51 @@ President, Med&amp;X</textarea>
                                 const input = document.getElementById('globalCheckinInput');
                                 if (input) input.value = code.data;
                                 const statusEl = document.getElementById('globalQRStatus');
-                                if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:#22c55e;"></i> QR code detected!';
+                                if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:#22c55e;"></i> Detected! Processing...';
 
-                                // Try to parse as JSON and auto-open profile
+                                // Extract userId from QR data (try multiple formats)
+                                let userId = null;
+                                const rawData = code.data.trim();
+
+                                // Format 1: JSON with userId field
                                 try {
-                                    const parsed = JSON.parse(code.data);
-                                    if (parsed.userId) {
-                                        // Stop camera and show profile
-                                        if (this._globalStream) {
-                                            this._globalStream.getTracks().forEach(t => t.stop());
-                                            this._globalStream = null;
-                                        }
-                                        showUserProfileFromQR(parsed).then(ok => {
-                                            if (!ok) {
-                                                const resultDiv = document.getElementById('globalCheckinResult');
-                                                if (resultDiv) {
-                                                    resultDiv.className = 'checkin-result error';
-                                                    resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Could not load profile. Try manual entry.';
-                                                }
-                                            }
-                                        }).catch(err => {
-                                            console.error('Profile popup failed:', err);
-                                            const resultDiv = document.getElementById('globalCheckinResult');
-                                            if (resultDiv) {
-                                                resultDiv.className = 'checkin-result error';
-                                                resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Profile load failed: ' + (err.message || 'Unknown error');
-                                            }
-                                        });
-                                        return; // Stop scanning
-                                    }
-                                } catch(parseErr) {
-                                    console.log('QR not JSON, trying check-in:', parseErr.message);
+                                    const parsed = JSON.parse(rawData);
+                                    if (parsed.userId) userId = parsed.userId;
+                                    else if (parsed.id) userId = parsed.id;
+                                } catch(e) {}
+
+                                // Format 2: Plain UUID
+                                if (!userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawData)) {
+                                    userId = rawData;
                                 }
+
+                                // Format 3: URL containing userId or register token
+                                if (!userId && rawData.includes('userId')) {
+                                    try { userId = JSON.parse(rawData).userId; } catch(e) {}
+                                }
+
+                                if (userId) {
+                                    // Stop camera and show profile
+                                    if (this._globalStream) {
+                                        this._globalStream.getTracks().forEach(t => t.stop());
+                                        this._globalStream = null;
+                                    }
+                                    const statusEl2 = document.getElementById('globalQRStatus');
+                                    if (statusEl2) statusEl2.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:#c9a962;"></i> Loading profile...';
+
+                                    showUserProfileFromQR({ userId: userId }).then(ok => {
+                                        if (!ok) {
+                                            if (statusEl2) statusEl2.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#ef4444;"></i> Profile not found';
+                                        }
+                                    }).catch(err => {
+                                        console.error('Profile popup failed:', err);
+                                        if (statusEl2) statusEl2.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#ef4444;"></i> Error: ' + (err.message || 'Failed');
+                                    });
+                                    return; // Stop scanning
+                                }
+
                                 // If not a member QR, try normal check-in
-                                this.globalCheckin(code.data);
+                                this.globalCheckin(rawData);
                             }
                         }
                     } catch(e) {}
