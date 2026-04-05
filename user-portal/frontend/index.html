@@ -76262,8 +76262,15 @@ You can use variables like {first_name} that will be personalized for each recip
                 // Apply saved theme
                 this.applyTheme();
 
-                // Check for logout parameter in URL
+                // Check for direct registration link FIRST (bypasses entire portal)
                 const urlParams = new URLSearchParams(window.location.search);
+                const registerToken = urlParams.get('register');
+                if (registerToken) {
+                    showDirectRegistrationForm(registerToken);
+                    return; // Stop all other init — direct registration takes over the page
+                }
+
+                // Check for logout parameter in URL
                 if (urlParams.get('logout') === 'true') {
                     localStorage.removeItem('medx_user_token');
                     localStorage.removeItem('medx_user_data');
@@ -122169,7 +122176,7 @@ By applying to this program, I give the following consents:
                     <button onclick="document.getElementById('quickQRModal').remove()" style="position:absolute; top:16px; right:16px; background:none; border:none; color:#94a3b8; font-size:20px; cursor:pointer;"><i class="fas fa-times"></i></button>
                     <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #c9a962; margin-bottom: 20px;">Med&X Member</div>
                     <div style="display:flex; justify-content:center; align-items:center;">
-                        <canvas id="quickQRCanvas" style="border-radius: 12px; background: white; padding: 16px; max-width: 240px;"></canvas>
+                        <canvas id="quickQRCanvas" style="border-radius: 12px; background: white; padding: 16px; width: 220px; height: 220px;"></canvas>
                     </div>
                     <div style="margin-top: 20px;">
                         <div style="font-size: 18px; font-weight: 700; color: #ffffff;">${escapeHtml(name)}</div>
@@ -122226,6 +122233,110 @@ By applying to this program, I give the following consents:
                 }
             } catch(e) {
                 console.error('QR download failed:', e);
+            }
+        }
+
+        // ===== Direct Registration (no account required) =====
+        async function showDirectRegistrationForm(token) {
+            try {
+                const res = await fetch('/api/register-direct/' + encodeURIComponent(token));
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f172a;color:white;font-family:system-ui;padding:20px;text-align:center;"><div><h1 style="color:#c9a962;">Link Invalid</h1><p style="color:#94a3b8;">' + escapeHtml(errData.error || 'This registration link is no longer valid.') + '</p><a href="/" style="color:#c9a962;margin-top:16px;display:inline-block;">Go to Med&X Portal</a></div></div>';
+                    return;
+                }
+                const data = await res.json();
+                if (!data.valid) {
+                    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f172a;color:white;font-family:system-ui;padding:20px;text-align:center;"><div><h1 style="color:#c9a962;">Link Invalid</h1><p style="color:#94a3b8;">' + escapeHtml(data.error || 'This registration link is no longer valid.') + '</p><a href="/" style="color:#c9a962;margin-top:16px;display:inline-block;">Go to Med&X Portal</a></div></div>';
+                    return;
+                }
+
+                document.body.innerHTML = `
+                    <div style="min-height:100vh; background:linear-gradient(160deg,#0f172a,#1e293b); display:flex; align-items:center; justify-content:center; padding:20px; font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">
+                        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,98,0.2); border-radius:24px; max-width:480px; width:100%; padding:40px 32px;">
+                            <div style="text-align:center; margin-bottom:32px;">
+                                <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; color:#c9a962; margin-bottom:8px;">Med&X Registration</div>
+                                <h1 style="font-size:24px; font-weight:700; color:#fff; margin:0 0 8px;">${escapeHtml(data.event_name)}</h1>
+                                <p style="color:#94a3b8; font-size:14px;">Complete the form below to register</p>
+                            </div>
+                            <form id="directRegForm" onsubmit="submitDirectRegistration(event,'${escapeHtml(token)}')" style="display:flex;flex-direction:column;gap:16px;">
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                                    <div>
+                                        <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px;">First Name *</label>
+                                        <input type="text" id="drFirstName" required style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;background:rgba(255,255,255,0.05);color:#fff;font-size:14px;box-sizing:border-box;">
+                                    </div>
+                                    <div>
+                                        <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px;">Last Name *</label>
+                                        <input type="text" id="drLastName" required style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;background:rgba(255,255,255,0.05);color:#fff;font-size:14px;box-sizing:border-box;">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px;">Email *</label>
+                                    <input type="email" id="drEmail" required style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;background:rgba(255,255,255,0.05);color:#fff;font-size:14px;box-sizing:border-box;">
+                                </div>
+                                <div>
+                                    <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px;">Institution</label>
+                                    <input type="text" id="drInstitution" style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;background:rgba(255,255,255,0.05);color:#fff;font-size:14px;box-sizing:border-box;">
+                                </div>
+                                <div>
+                                    <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px;">Country</label>
+                                    <input type="text" id="drCountry" style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;background:rgba(255,255,255,0.05);color:#fff;font-size:14px;box-sizing:border-box;">
+                                </div>
+                                <button type="submit" id="drSubmitBtn" style="width:100%;padding:14px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-top:8px;">
+                                    Register Now
+                                </button>
+                            </form>
+                            <p style="text-align:center;margin-top:16px;font-size:12px;color:#64748b;">By registering, you agree to Med&X's <a href="#" style="color:#c9a962;">Terms</a> and <a href="#" style="color:#c9a962;">Privacy Policy</a>.</p>
+                        </div>
+                    </div>
+                `;
+            } catch(e) {
+                document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f172a;color:white;font-family:system-ui;padding:20px;text-align:center;"><div><h1 style="color:#c9a962;">Something went wrong</h1><p style="color:#94a3b8;">Unable to load registration form.</p><a href="/" style="color:#c9a962;margin-top:16px;display:inline-block;">Go to Med&X Portal</a></div></div>';
+            }
+        }
+
+        async function submitDirectRegistration(e, token) {
+            e.preventDefault();
+            const btn = document.getElementById('drSubmitBtn');
+            btn.disabled = true;
+            btn.textContent = 'Registering...';
+
+            try {
+                const res = await fetch('/api/register-direct/' + encodeURIComponent(token), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        first_name: document.getElementById('drFirstName').value.trim(),
+                        last_name: document.getElementById('drLastName').value.trim(),
+                        email: document.getElementById('drEmail').value.trim(),
+                        institution: document.getElementById('drInstitution').value.trim(),
+                        country: document.getElementById('drCountry').value.trim()
+                    })
+                });
+                const result = await res.json();
+
+                if (result.success) {
+                    document.body.innerHTML = `
+                        <div style="min-height:100vh; background:linear-gradient(160deg,#0f172a,#1e293b); display:flex; align-items:center; justify-content:center; padding:20px; font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif; text-align:center;">
+                            <div style="max-width:400px;">
+                                <div style="width:80px;height:80px;border-radius:50%;background:rgba(34,197,94,0.15);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+                                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                </div>
+                                <h1 style="font-size:28px; font-weight:700; color:#22c55e; margin-bottom:12px;">You're Registered!</h1>
+                                <p style="color:#94a3b8; font-size:16px; margin-bottom:24px;">A confirmation email has been sent to your inbox.</p>
+                                <a href="/" style="display:inline-block; padding:12px 24px; background:linear-gradient(135deg,#c9a962,#b49650); color:#0f172a; border-radius:10px; font-weight:600; text-decoration:none;">Go to Med&X Portal</a>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = 'Register Now';
+                    alert(result.error || 'Registration failed. Please try again.');
+                }
+            } catch(err) {
+                btn.disabled = false;
+                btn.textContent = 'Register Now';
+                alert('Registration failed. Please try again.');
             }
         }
     </script>

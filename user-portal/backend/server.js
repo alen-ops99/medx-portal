@@ -14952,6 +14952,103 @@ By applying to this program, I provide the following consents:
         res.json(sessions || []);
     });
 
+    // ========== DIRECT REGISTRATION (NO AUTH) ==========
+
+    // Validate direct registration link
+    app.get('/api/register-direct/:token', (req, res) => {
+        try {
+            db.run(`CREATE TABLE IF NOT EXISTS registration_links (
+                id TEXT PRIMARY KEY, token TEXT UNIQUE, event_type TEXT, event_id TEXT, event_name TEXT,
+                created_by TEXT, expires_at TEXT, max_uses INTEGER DEFAULT 0, uses INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )`);
+
+            const link = query.get('SELECT * FROM registration_links WHERE token = ? AND is_active = 1', [req.params.token]);
+            if (!link) return res.status(404).json({ error: 'Invalid or expired link' });
+            if (new Date(link.expires_at) < new Date()) return res.status(410).json({ error: 'This registration link has expired' });
+            if (link.max_uses > 0 && link.uses >= link.max_uses) return res.status(410).json({ error: 'This registration link has reached its limit' });
+
+            res.json({
+                valid: true,
+                event_type: link.event_type,
+                event_name: link.event_name,
+                event_id: link.event_id
+            });
+        } catch (error) {
+            console.error('Validate link error:', error);
+            res.status(500).json({ error: 'Failed to validate link' });
+        }
+    });
+
+    // Submit direct registration (no auth required)
+    app.post('/api/register-direct/:token', async (req, res) => {
+        try {
+            db.run(`CREATE TABLE IF NOT EXISTS registration_links (
+                id TEXT PRIMARY KEY, token TEXT UNIQUE, event_type TEXT, event_id TEXT, event_name TEXT,
+                created_by TEXT, expires_at TEXT, max_uses INTEGER DEFAULT 0, uses INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )`);
+
+            const link = query.get('SELECT * FROM registration_links WHERE token = ? AND is_active = 1', [req.params.token]);
+            if (!link) return res.status(404).json({ error: 'Invalid or expired link' });
+            if (new Date(link.expires_at) < new Date()) return res.status(410).json({ error: 'Link expired' });
+            if (link.max_uses > 0 && link.uses >= link.max_uses) return res.status(410).json({ error: 'Link limit reached' });
+
+            const { first_name, last_name, email, institution, country, phone } = req.body;
+            if (!email || !first_name) return res.status(400).json({ error: 'Name and email required' });
+
+            // Find or create user
+            let user = query.get('SELECT id FROM users WHERE email = ?', [email]);
+            if (!user) {
+                const userId = uuidv4();
+                const tempHash = await bcrypt.hash(uuidv4(), 10);
+                db.run('INSERT INTO users (id, email, password_hash, first_name, last_name, institution, country, phone) VALUES (?,?,?,?,?,?,?,?)',
+                    [userId, email, tempHash, first_name, last_name, institution || null, country || null, phone || null]);
+                saveDb();
+                user = { id: userId };
+            }
+
+            // Register for the event based on type
+            const regId = uuidv4();
+            if (link.event_type === 'plexus') {
+                const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+                if (conf) {
+                    const ticket = query.get('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order LIMIT 1', [conf.id]);
+                    db.run('INSERT OR IGNORE INTO registrations (id, conference_id, user_id, ticket_type_id, first_name, last_name, email, institution, country, status, payment_status) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+                        [regId, conf.id, user.id, ticket?.id, first_name, last_name, email, institution, country, 'confirmed', 'pending']);
+                }
+            } else if (link.event_type === 'gala') {
+                db.run('INSERT OR IGNORE INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status) VALUES (?,?,?,?,?,?,?)',
+                    [regId, first_name, last_name, email, institution, 'approved', 'pending']);
+            } else if (link.event_type === 'forum') {
+                db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, status, registered_at) VALUES (?,?,?,?,datetime("now"))',
+                    [regId, link.event_id, user.id, 'registered']);
+            } else if (link.event_type === 'bridges') {
+                db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,datetime("now"))',
+                    [regId, link.event_id, first_name, last_name, email, institution, 'confirmed']);
+            }
+
+            // Increment uses
+            db.run('UPDATE registration_links SET uses = uses + 1 WHERE token = ?', [req.params.token]);
+            saveDb();
+
+            // Send confirmation email
+            try {
+                await sendEmail(email, `Registration Confirmed: ${link.event_name}`,
+                    `<h2>You're registered!</h2>
+                    <p>Dear ${first_name},</p>
+                    <p>Your registration for <strong>${link.event_name}</strong> has been confirmed.</p>
+                    <p>We look forward to seeing you!</p>
+                    <p>Best regards,<br>Med&X Team</p>`);
+            } catch(e) { /* email is best-effort */ }
+
+            res.json({ success: true, message: 'Registration confirmed!' });
+        } catch (error) {
+            console.error('Direct registration error:', error);
+            res.status(500).json({ error: 'Registration failed' });
+        }
+    });
+
     // API 404 handler — return JSON instead of HTML
     app.all('/api/*', (req, res) => {
         res.status(404).json({ error: 'API endpoint not found' });
