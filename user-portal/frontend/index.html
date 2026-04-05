@@ -75187,6 +75187,7 @@ You can use variables like {first_name} that will be personalized for each recip
                     const memberName = user?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Member';
                     const qrData = JSON.stringify({
                         userId: UserPortal.user?.id || '',
+                        email: UserPortal.user?.email || '',
                         memberId: memberId,
                         t: tier
                     });
