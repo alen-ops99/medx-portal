@@ -6035,6 +6035,7 @@
         }
     </style>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </head>
 <body>
     <div class="toast-container" id="toastContainer"></div>
@@ -11729,6 +11730,26 @@ President, Med&amp;X</textarea>
                     profile.registrations.forEach(r => {
                         const isPaid = r.payment_status === 'paid';
                         const isCheckedIn = r.checked_in === 1;
+
+                        // Parse package sub-events
+                        let subEvents = '';
+                        if (r.package_items) {
+                            try {
+                                const items = typeof r.package_items === 'string' ? JSON.parse(r.package_items) : r.package_items;
+                                if (Array.isArray(items) && items.length > 0) {
+                                    subEvents = '<div style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.06);">' +
+                                        items.map(item => {
+                                            const itemName = typeof item === 'string' ? item : (item.name || item.title || item);
+                                            return '<div style="display:flex; align-items:center; gap:6px; padding:4px 0; font-size:12px;">' +
+                                                '<i class="fas fa-check" style="color:#22c55e; font-size:10px;"></i>' +
+                                                '<span style="color:var(--text-muted,#94a3b8);">' + escapeHtml(String(itemName)) + '</span>' +
+                                            '</div>';
+                                        }).join('') +
+                                        '</div>';
+                                }
+                            } catch(e) {}
+                        }
+
                         eventsHtml += `
                             <div style="background:var(--bg-secondary,#1e293b); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-bottom:10px;">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -11741,6 +11762,7 @@ President, Med&amp;X</textarea>
                                     </div>
                                     <span style="display:inline-block; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:600; background:${isPaid ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)'}; color:${isPaid ? '#22c55e' : '#f59e0b'};">${isPaid ? 'PAID' : (r.payment_status || 'PENDING').toUpperCase()}</span>
                                 </div>
+                                ${subEvents}
                                 ${checkinBtn('plexus', r.id, isCheckedIn)}
                             </div>`;
                     });
@@ -18725,6 +18747,18 @@ President, Med&amp;X</textarea>
                                        onkeydown="if(event.key==='Enter') App.globalCheckin()">
                                 <button onclick="App.globalCheckin()"><i class="fas fa-check"></i> Check In</button>
                             </div>
+                            <div style="margin-top:12px; text-align:center; color:var(--text-muted,#94a3b8); font-size:12px;">
+                                <span>— or search by name/email —</span>
+                            </div>
+                            <div style="display:flex; gap:8px; margin-top:8px; padding:0 4px;">
+                                <input type="text" id="globalNameSearch" placeholder="Search by name or email..."
+                                       style="flex:1; padding:10px 14px; border-radius:8px; border:1px solid var(--border-color,#334155); background:var(--bg-secondary,#1e293b); color:var(--text-primary,#e2e8f0); font-size:13px;"
+                                       onkeydown="if(event.key==='Enter') App.searchMemberByName()">
+                                <button onclick="App.searchMemberByName()" style="padding:10px 16px; background:linear-gradient(135deg,#c9a962,#b49650); color:#0f172a; border:none; border-radius:8px; font-weight:600; font-size:13px; cursor:pointer;">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                            <div id="globalNameSearchResults" style="margin-top:8px; padding:0 4px;"></div>
                         </div>
 
                         <div id="qrSearchContent" style="display:none;">
@@ -18999,6 +19033,35 @@ President, Med&amp;X</textarea>
                 await this.globalCheckin(code);
                 // Refresh search results to update checked-in status
                 this.globalSearchAttendees();
+            },
+
+            async searchMemberByName() {
+                const input = document.getElementById('globalNameSearch');
+                const resultsDiv = document.getElementById('globalNameSearchResults');
+                const q = input?.value?.trim();
+                if (!q || q.length < 2) { if (resultsDiv) resultsDiv.innerHTML = ''; return; }
+
+                resultsDiv.innerHTML = '<div style="text-align:center;padding:8px;color:var(--text-muted);font-size:12px;"><i class="fas fa-spinner fa-spin"></i> Searching...</div>';
+
+                try {
+                    const users = await this.api('/api/checkin/search?q=' + encodeURIComponent(q));
+                    if (!users || users.length === 0) {
+                        resultsDiv.innerHTML = '<div style="text-align:center;padding:8px;color:var(--text-muted);font-size:12px;">No members found</div>';
+                        return;
+                    }
+                    resultsDiv.innerHTML = users.map(u => {
+                        const userId = u.user_id || u.id;
+                        return `<div onclick="showUserProfileFromQR({userId:'${escapeHtml(userId)}'})" style="display:flex; justify-content:space-between; align-items:center; padding:10px; margin:4px 0; background:var(--bg-secondary,#1e293b); border-radius:8px; cursor:pointer; border:1px solid rgba(255,255,255,0.04);">
+                            <div>
+                                <div style="font-weight:600; color:var(--text-primary,#e2e8f0); font-size:13px;">${escapeHtml(u.name || '')}</div>
+                                <div style="font-size:11px; color:var(--text-muted,#94a3b8);">${escapeHtml(u.email || '')}</div>
+                            </div>
+                            <span style="font-size:11px; padding:2px 8px; border-radius:4px; background:rgba(201,169,98,0.1); color:#c9a962;">${escapeHtml(u.event || 'member')}</span>
+                        </div>`;
+                    }).join('');
+                } catch(e) {
+                    resultsDiv.innerHTML = '<div style="text-align:center;padding:8px;color:#ef4444;font-size:12px;">Search failed</div>';
+                }
             },
 
             async globalCheckin(code) {

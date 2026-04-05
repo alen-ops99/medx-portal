@@ -343,6 +343,7 @@ async function initializeApp() {
         checked_in INTEGER DEFAULT 0, checked_in_at TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+    try { db.run('ALTER TABLE registrations ADD COLUMN package_items TEXT'); } catch(e) {}
 
     db.run(`CREATE TABLE IF NOT EXISTS abstracts (
         id TEXT PRIMARY KEY, conference_id TEXT, submitter_id TEXT,
@@ -5266,7 +5267,7 @@ async function initializeApp() {
             if (!user) return res.status(404).json({ error: 'User not found' });
 
             const registrations = query.all(`
-                SELECT r.id, r.status, r.payment_status, r.amount_paid, r.created_at,
+                SELECT r.id, r.status, r.payment_status, r.amount_paid, r.created_at, r.checked_in, r.package_items,
                        c.name as conference_name, tt.name as ticket_name
                 FROM registrations r
                 LEFT JOIN conferences c ON r.conference_id = c.id
@@ -15173,22 +15174,22 @@ By applying to this program, I provide the following consents:
         const like = `%${q}%`;
         try {
             const rows = query.all(`
-                SELECT r.id, r.first_name, r.last_name, r.email, r.checked_in, 'plexus' as event, t.name as ticket_name
+                SELECT r.id, r.user_id, r.first_name, r.last_name, r.email, r.checked_in, 'plexus' as event, t.name as ticket_name
                 FROM registrations r LEFT JOIN ticket_types t ON r.ticket_type_id = t.id
                 WHERE (r.first_name || ' ' || r.last_name LIKE ? OR r.email LIKE ?)
                 UNION ALL
-                SELECT id, first_name, last_name, email, checked_in, 'gala' as event, NULL as ticket_name
+                SELECT id, user_id, first_name, last_name, email, checked_in, 'gala' as event, NULL as ticket_name
                 FROM gala_registrations WHERE (first_name || ' ' || last_name LIKE ? OR email LIKE ?)
                 UNION ALL
-                SELECT id, first_name, last_name, email, checked_in, 'forum' as event, NULL as ticket_name
+                SELECT id, NULL as user_id, first_name, last_name, email, checked_in, 'forum' as event, NULL as ticket_name
                 FROM forum_members WHERE (first_name || ' ' || last_name LIKE ? OR email LIKE ?)
                 UNION ALL
-                SELECT id, first_name, last_name, email, checked_in, 'bridges' as event, NULL as ticket_name
+                SELECT id, NULL as user_id, first_name, last_name, email, checked_in, 'bridges' as event, NULL as ticket_name
                 FROM bridges_registrations WHERE (first_name || ' ' || last_name LIKE ? OR email LIKE ?)
                 ORDER BY first_name LIMIT 10
             `, [like, like, like, like, like, like, like, like]);
             res.json(rows.map(r => ({
-                id: r.id, name: `${r.first_name || ''} ${r.last_name || ''}`.trim(), email: r.email, event: r.event, checked_in: r.checked_in, ticket_name: r.ticket_name
+                id: r.id, user_id: r.user_id || null, name: `${r.first_name || ''} ${r.last_name || ''}`.trim(), email: r.email, event: r.event, checked_in: r.checked_in, ticket_name: r.ticket_name
             })));
         } catch (err) {
             console.error('Search error:', err);

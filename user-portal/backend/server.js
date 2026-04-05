@@ -2936,6 +2936,7 @@ async function initializeApp() {
     try { db.run('ALTER TABLE registrations ADD COLUMN institution TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE registrations ADD COLUMN country TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE registrations ADD COLUMN includes_gala INTEGER DEFAULT 0'); } catch(e) {}
+    try { db.run('ALTER TABLE registrations ADD COLUMN package_items TEXT'); } catch(e) {}
     // Gala registration payment & user tracking columns
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN payment_status TEXT DEFAULT \'unpaid\''); } catch(e) {}
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN amount_paid REAL'); } catch(e) {}
@@ -8599,6 +8600,11 @@ By applying to this program, I provide the following consents:
                         existing.amount_paid = newTotal;
                     }
 
+                    // Store package_items on the registration
+                    if (package_items) {
+                        db.run('UPDATE registrations SET package_items = ? WHERE id = ?', [JSON.stringify(package_items), existing.id]);
+                    }
+
                     // Ensure billing data + payment transaction exist for FIRA
                     if (billing) {
                         const existingTx = query.get('SELECT * FROM payment_transactions WHERE registration_id = ?', [existing.id]);
@@ -8606,6 +8612,7 @@ By applying to this program, I provide the following consents:
                             // Update billing + amount in existing transaction
                             const meta = existingTx.metadata ? JSON.parse(existingTx.metadata) : {};
                             meta.billing = billing;
+                            meta.package_items = package_items || [];
                             db.run('UPDATE payment_transactions SET metadata = ?, amount = ? WHERE id = ?',
                                 [JSON.stringify(meta), newTotal, existingTx.id]);
                         } else {
@@ -8639,7 +8646,7 @@ By applying to this program, I provide the following consents:
                                 [txId, existing.id, newTotal, 'EUR',
                                  payment_method === 'card' ? 'card' : 'bank_transfer',
                                  payment_method === 'card' ? 'stripe' : 'manual', 'pending',
-                                 JSON.stringify({ invoice_number: invoiceNumber, billing: billing })]);
+                                 JSON.stringify({ invoice_number: invoiceNumber, billing: billing, package_items: package_items || [] })]);
                         }
                         saveDb();
                     }
@@ -8682,9 +8689,9 @@ By applying to this program, I provide the following consents:
             const chosenPaymentMethod = payment_method === 'card' && stripe ? 'card' : 'bank_transfer';
 
             // Create registration (status: confirmed so they can attend, payment_status: pending until payment)
-            db.run(`INSERT INTO registrations (id, conference_id, user_id, ticket_type_id, registration_type, status, payment_status, amount_paid, invoice_number, dietary_requirements, accessibility_needs)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [regId, conf.id, req.user.id, ticket.id, 'general', 'confirmed', paymentStatus, price, invoiceNumber, dietary || null, accessibility || null]);
+            db.run(`INSERT INTO registrations (id, conference_id, user_id, ticket_type_id, registration_type, status, payment_status, amount_paid, invoice_number, dietary_requirements, accessibility_needs, package_items)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [regId, conf.id, req.user.id, ticket.id, 'general', 'confirmed', paymentStatus, price, invoiceNumber, dietary || null, accessibility || null, JSON.stringify(package_items || [])]);
 
             // Update user profile if needed
             if (first_name || last_name || institution || country) {
@@ -8768,6 +8775,7 @@ By applying to this program, I provide the following consents:
                          fira_invoice_number: firaInvoice?.invoiceNumber || null,
                          fira_pdf_url: firaInvoice?.pdfUrl || null,
                          billing: billing,
+                         package_items: package_items || [],
                          subtotal: req.body.subtotal || price,
                          points_redeemed: req.body.points_redeemed || 0,
                          points_discount: req.body.points_discount || 0,
