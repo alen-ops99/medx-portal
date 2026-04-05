@@ -11706,109 +11706,193 @@ President, Med&amp;X</textarea>
                 const data = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
                 if (!data.userId) return false;
 
+                const token = localStorage.getItem('medx_token') || localStorage.getItem('token');
                 const response = await fetch('/api/admin/users/' + data.userId + '/profile', {
-                    headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('medx_token') || localStorage.getItem('token')) }
+                    headers: { 'Authorization': 'Bearer ' + token }
                 });
                 if (!response.ok) throw new Error('User not found');
                 const profile = await response.json();
                 const u = profile.user;
+                const name = ((u.first_name || '') + ' ' + (u.last_name || '')).trim() || 'Member';
 
-                // Get the currently selected check-in context
-                const checkInContext = document.getElementById('qrCheckInContext') ? document.getElementById('qrCheckInContext').value : 'general';
+                // Build event registration cards
+                let eventsHtml = '';
 
-                // Context-aware check-in result
-                var contextResult = '';
-                if (checkInContext !== 'general') {
-                    var isRegistered = false;
-                    var eventName = '';
-
-                    if (checkInContext === 'plexus') {
-                        isRegistered = profile.registrations.some(function(r) { return r.status !== 'cancelled'; });
-                        eventName = 'Plexus Conference 2026';
-                    } else if (checkInContext === 'forum') {
-                        isRegistered = profile.forumRegistrations && profile.forumRegistrations.length > 0;
-                        eventName = 'Annual Biomedical Forum';
-                    } else if (checkInContext.indexOf('bridges-') === 0) {
-                        var eventId = checkInContext.replace('bridges-', '');
-                        isRegistered = profile.bridgesRegistrations && profile.bridgesRegistrations.some(function(r) { return r.event_id === eventId; });
-                        eventName = 'Building Bridges Event';
-                    }
-
-                    contextResult = '<div style="text-align:center; padding:20px; margin-bottom:16px; border-radius:12px; background:' + (isRegistered ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)') + ';">' +
-                        '<i class="fas ' + (isRegistered ? 'fa-check-circle' : 'fa-times-circle') + '" style="font-size:48px; color:' + (isRegistered ? '#10b981' : '#ef4444') + ';"></i>' +
-                        '<div style="font-size:18px; font-weight:700; color:' + (isRegistered ? '#10b981' : '#ef4444') + '; margin-top:8px;">' +
-                            (isRegistered ? 'REGISTERED' : 'NOT REGISTERED') +
-                        '</div>' +
-                        '<div style="font-size:13px; color:var(--text-muted,#94a3b8); margin-top:4px;">for ' + escapeHtml(eventName) + '</div>' +
-                    '</div>';
+                // Helper to build check-in button
+                function checkinBtn(type, regId, isCheckedIn) {
+                    if (isCheckedIn) return '<div style="margin-top:10px;"><button disabled style="width:100%;padding:8px;background:rgba(34,197,94,0.1);color:#22c55e;border:1px solid rgba(34,197,94,0.3);border-radius:8px;font-size:12px;font-weight:600;cursor:default;"><i class="fas fa-check-circle"></i> Checked In</button></div>';
+                    return '<div style="margin-top:10px;"><button onclick="profileCheckin(\'' + type + '\',\'' + regId + '\',this)" style="width:100%;padding:8px;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-sign-in-alt"></i> Check In Now</button></div>';
                 }
 
-                const overlay = document.createElement('div');
-                overlay.className = 'modal-overlay active';
-                overlay.style.zIndex = '1100';
-                overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
-                overlay.innerHTML = '<div class="modal" style="max-width:600px;">' +
-                    '<div class="modal-header">' +
-                        '<h2><i class="fas fa-user-circle" style="color:var(--accent-gold);margin-right:8px;"></i> Member Profile</h2>' +
-                        '<button class="modal-close" onclick="this.closest(\'.modal-overlay\').remove()"><i class="fas fa-times"></i></button>' +
-                    '</div>' +
-                    '<div class="modal-body">' +
-                        contextResult +
-                        '<div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">' +
-                            '<div><strong>Name:</strong> ' + escapeHtml((u.first_name || '') + ' ' + (u.last_name || '')) + '</div>' +
-                            '<div><strong>Email:</strong> ' + escapeHtml(u.email || '') + '</div>' +
-                            '<div><strong>Institution:</strong> ' + escapeHtml(u.institution || 'N/A') + '</div>' +
-                            '<div><strong>Country:</strong> ' + escapeHtml(u.country || 'N/A') + '</div>' +
-                            '<div><strong>Member Since:</strong> ' + (u.created_at ? new Date(u.created_at).toLocaleDateString() : 'N/A') + '</div>' +
-                            '<div><strong>Tier:</strong> ' + escapeHtml(data.t || 'Bronze') + '</div>' +
-                        '</div>' +
-                        '<div style="background:var(--bg-tertiary); border-radius:8px; padding:16px; margin:12px 0;">' +
-                            '<div style="display:flex; justify-content:space-around; text-align:center;">' +
-                                '<div><div style="font-size:24px; font-weight:700; color:var(--accent-gold);">' + (profile.summary.totalRegistrations || 0) + '</div><div style="font-size:12px; color:var(--text-muted);">Registrations</div></div>' +
-                                '<div><div style="font-size:24px; font-weight:700; color:#10b981;">&euro;' + ((profile.summary.totalPaid || 0).toFixed(0)) + '</div><div style="font-size:12px; color:var(--text-muted);">Total Paid</div></div>' +
-                                '<div><div style="font-size:24px; font-weight:700; color:#a78bfa;">' + (profile.summary.eventsAttended || 0) + '</div><div style="font-size:12px; color:var(--text-muted);">Events Attended</div></div>' +
-                            '</div>' +
-                        '</div>' +
-                        (profile.registrations && profile.registrations.length ?
-                            '<h3 style="margin:16px 0 8px; font-size:14px;">Registration History</h3>' +
-                            '<div style="max-height:200px; overflow-y:auto;">' +
-                                profile.registrations.map(function(r) {
-                                    return '<div style="display:flex; justify-content:space-between; padding:8px 12px; border-bottom:1px solid var(--border); font-size:13px;">' +
-                                        '<span>' + escapeHtml(r.conference_name || 'Event') + ' &mdash; ' + escapeHtml(r.ticket_name || '') + '</span>' +
-                                        '<span style="color:' + (r.payment_status === 'paid' ? '#10b981' : '#f59e0b') + ';">' + escapeHtml(r.payment_status || 'pending') + '</span>' +
-                                    '</div>';
-                                }).join('') +
-                            '</div>' : '') +
-                        (profile.forumRegistrations && profile.forumRegistrations.length ?
-                            '<h3 style="margin:16px 0 8px; font-size:14px;">Forum Events</h3>' +
-                            '<div style="max-height:150px; overflow-y:auto;">' +
-                                profile.forumRegistrations.map(function(r) {
-                                    return '<div style="display:flex; justify-content:space-between; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,0.05); font-size:13px;">' +
-                                        '<span>' + escapeHtml(r.event_name || 'Forum Event') + '</span>' +
-                                        '<span style="color:' + (r.payment_status === 'paid' ? '#10b981' : '#f59e0b') + ';">' + escapeHtml(r.payment_status || r.status || 'registered') + '</span>' +
-                                    '</div>';
-                                }).join('') +
-                            '</div>' : '') +
-                        (profile.bridgesRegistrations && profile.bridgesRegistrations.length ?
-                            '<h3 style="margin:16px 0 8px; font-size:14px;">Building Bridges Events</h3>' +
-                            '<div style="max-height:150px; overflow-y:auto;">' +
-                                profile.bridgesRegistrations.map(function(r) {
-                                    return '<div style="display:flex; justify-content:space-between; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,0.05); font-size:13px;">' +
-                                        '<span>' + escapeHtml(r.event_name || 'BB Event') + ' (' + escapeHtml(r.city || '') + ')</span>' +
-                                        '<span style="color:' + (r.checked_in ? '#10b981' : '#f59e0b') + ';">' + (r.checked_in ? 'Checked In' : 'Registered') + '</span>' +
-                                    '</div>';
-                                }).join('') +
-                            '</div>' : '') +
-                    '</div>' +
-                    '<div class="modal-footer">' +
-                        '<button class="btn btn-secondary" onclick="this.closest(\'.modal-overlay\').remove()">Close</button>' +
-                    '</div>' +
-                '</div>';
-                document.body.appendChild(overlay);
+                // Plexus registrations
+                if (profile.registrations && profile.registrations.length > 0) {
+                    profile.registrations.forEach(r => {
+                        const isPaid = r.payment_status === 'paid';
+                        const isCheckedIn = r.checked_in === 1;
+                        eventsHtml += `
+                            <div style="background:var(--bg-secondary,#1e293b); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-bottom:10px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <div style="display:flex; align-items:center; gap:10px;">
+                                        <i class="fas ${isCheckedIn ? 'fa-check-circle' : 'fa-circle'}" style="color:${isCheckedIn ? '#22c55e' : isPaid ? '#f59e0b' : '#64748b'}; font-size:20px;"></i>
+                                        <div>
+                                            <div style="font-weight:600; color:var(--text-primary,#e2e8f0);">${escapeHtml(r.conference_name || 'Plexus Conference')}</div>
+                                            <div style="font-size:12px; color:var(--text-muted,#94a3b8);">${escapeHtml(r.ticket_name || 'General')}${r.amount_paid ? ' \u00b7 \u20ac' + (r.amount_paid || 0).toFixed(0) : ''}</div>
+                                        </div>
+                                    </div>
+                                    <span style="display:inline-block; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:600; background:${isPaid ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)'}; color:${isPaid ? '#22c55e' : '#f59e0b'};">${isPaid ? 'PAID' : (r.payment_status || 'PENDING').toUpperCase()}</span>
+                                </div>
+                                ${checkinBtn('plexus', r.id, isCheckedIn)}
+                            </div>`;
+                    });
+                }
+
+                // Forum registrations
+                if (profile.forumRegistrations && profile.forumRegistrations.length > 0) {
+                    profile.forumRegistrations.forEach(r => {
+                        const isCheckedIn = r.checked_in === 1;
+                        eventsHtml += `
+                            <div style="background:var(--bg-secondary,#1e293b); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-bottom:10px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <div style="display:flex; align-items:center; gap:10px;">
+                                        <i class="fas ${isCheckedIn ? 'fa-check-circle' : 'fa-circle'}" style="color:${isCheckedIn ? '#22c55e' : '#fb923c'}; font-size:20px;"></i>
+                                        <div>
+                                            <div style="font-weight:600; color:var(--text-primary,#e2e8f0);">${escapeHtml(r.event_name || 'Forum Event')}</div>
+                                            <div style="font-size:12px; color:var(--text-muted,#94a3b8);">Biomedical Forum</div>
+                                        </div>
+                                    </div>
+                                    <span style="display:inline-block; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:600; background:rgba(251,146,60,0.15); color:#fb923c;">${escapeHtml((r.status || 'registered').toUpperCase())}</span>
+                                </div>
+                                ${checkinBtn('forum', r.id, isCheckedIn)}
+                            </div>`;
+                    });
+                }
+
+                // Bridges registrations
+                if (profile.bridgesRegistrations && profile.bridgesRegistrations.length > 0) {
+                    profile.bridgesRegistrations.forEach(r => {
+                        const isCheckedIn = r.checked_in === 1;
+                        eventsHtml += `
+                            <div style="background:var(--bg-secondary,#1e293b); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-bottom:10px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <div style="display:flex; align-items:center; gap:10px;">
+                                        <i class="fas ${isCheckedIn ? 'fa-check-circle' : 'fa-circle'}" style="color:${isCheckedIn ? '#22c55e' : '#f472b6'}; font-size:20px;"></i>
+                                        <div>
+                                            <div style="font-weight:600; color:var(--text-primary,#e2e8f0);">${escapeHtml(r.event_name || 'Building Bridges')}</div>
+                                            <div style="font-size:12px; color:var(--text-muted,#94a3b8);">${escapeHtml(r.city || '')} \u00b7 Building Bridges</div>
+                                        </div>
+                                    </div>
+                                    <span style="display:inline-block; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:600; background:${isCheckedIn ? 'rgba(34,197,94,0.15)' : 'rgba(244,114,182,0.15)'}; color:${isCheckedIn ? '#22c55e' : '#f472b6'};">${isCheckedIn ? 'CHECKED IN' : 'REGISTERED'}</span>
+                                </div>
+                                ${checkinBtn('bridges', r.id, isCheckedIn)}
+                            </div>`;
+                    });
+                }
+
+                if (!eventsHtml) {
+                    eventsHtml = '<div style="text-align:center; padding:20px; color:var(--text-muted,#94a3b8);"><i class="fas fa-calendar-times" style="font-size:24px; opacity:0.3; display:block; margin-bottom:8px;"></i>No event registrations</div>';
+                }
+
+                // Build modal
+                const modal = document.createElement('div');
+                modal.className = 'modal-overlay';
+                modal.style.cssText = 'display:flex; align-items:center; justify-content:center; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:10001; padding:16px;';
+                modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                modal.innerHTML = `
+                    <div class="modal" style="display:block; max-width:500px; width:100%; max-height:90vh; overflow-y:auto; border-radius:16px;">
+                        <div class="modal-header" style="padding:20px; border-bottom:1px solid rgba(255,255,255,0.06);">
+                            <h3 style="margin:0; display:flex; align-items:center; gap:8px;"><i class="fas fa-user-circle" style="color:var(--accent-gold,#c9a962);"></i> Member Profile</h3>
+                            <button class="modal-close" onclick="this.closest('.modal-overlay').remove()" style="background:none; border:none; color:var(--text-muted); font-size:18px; cursor:pointer; position:absolute; top:16px; right:16px;">&times;</button>
+                        </div>
+                        <div style="padding:20px;">
+                            <div style="display:flex; align-items:center; gap:16px; margin-bottom:20px;">
+                                <div style="width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg,#c9a962,#b49650); display:flex; align-items:center; justify-content:center; color:#0f172a; font-weight:700; font-size:20px; flex-shrink:0;">
+                                    ${(u.first_name||'?')[0]}${(u.last_name||'?')[0]}
+                                </div>
+                                <div>
+                                    <div style="font-size:18px; font-weight:700; color:var(--text-primary,#e2e8f0);">${escapeHtml(name)}</div>
+                                    <div style="font-size:13px; color:var(--text-muted,#94a3b8);">${escapeHtml(u.email || '')}</div>
+                                    <div style="font-size:12px; color:var(--text-muted,#94a3b8); margin-top:2px;">${escapeHtml(u.institution || '')}${u.country ? ' \u00b7 ' + escapeHtml(u.country) : ''}</div>
+                                </div>
+                            </div>
+
+                            <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:20px;">
+                                <div style="background:var(--bg-secondary,#1e293b); border-radius:10px; padding:12px; text-align:center;">
+                                    <div style="font-size:22px; font-weight:700; color:var(--accent-gold,#c9a962);">${profile.summary?.totalRegistrations || 0}</div>
+                                    <div style="font-size:11px; color:var(--text-muted,#94a3b8);">Registrations</div>
+                                </div>
+                                <div style="background:var(--bg-secondary,#1e293b); border-radius:10px; padding:12px; text-align:center;">
+                                    <div style="font-size:22px; font-weight:700; color:#22c55e;">\u20ac${(profile.summary?.totalPaid || 0).toFixed(0)}</div>
+                                    <div style="font-size:11px; color:var(--text-muted,#94a3b8);">Total Paid</div>
+                                </div>
+                                <div style="background:var(--bg-secondary,#1e293b); border-radius:10px; padding:12px; text-align:center;">
+                                    <div style="font-size:22px; font-weight:700; color:#a78bfa;">${profile.summary?.eventsAttended || 0}</div>
+                                    <div style="font-size:11px; color:var(--text-muted,#94a3b8);">Attended</div>
+                                </div>
+                            </div>
+
+                            <h4 style="font-size:14px; font-weight:600; color:var(--text-primary,#e2e8f0); margin:0 0 12px; display:flex; align-items:center; gap:6px;"><i class="fas fa-calendar-check" style="color:var(--accent-gold,#c9a962);"></i> Event Registrations</h4>
+                            ${eventsHtml}
+
+                            <div style="margin-top:16px; text-align:center;">
+                                <button onclick="this.closest('.modal-overlay').remove()" class="btn btn-secondary" style="padding:10px 24px;">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
                 return true;
             } catch (err) {
                 console.error('QR profile lookup failed:', err);
                 return false;
+            }
+        }
+
+        async function profileCheckin(type, regId, btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking in...';
+            const token = localStorage.getItem('medx_token') || localStorage.getItem('token');
+            try {
+                let endpoint = '';
+                if (type === 'plexus') endpoint = '/api/plexus/checkin';
+                else if (type === 'forum') endpoint = '/api/admin/forum/checkin';
+                else if (type === 'bridges') endpoint = '/api/admin/bridges/checkin';
+                else endpoint = '/api/checkin';
+
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                    body: JSON.stringify({ code: regId, registration_id: regId })
+                });
+                const result = await res.json();
+
+                if (result.success || res.ok) {
+                    btn.innerHTML = '<i class="fas fa-check-circle"></i> Checked In';
+                    btn.style.background = 'rgba(34,197,94,0.1)';
+                    btn.style.color = '#22c55e';
+                    btn.style.border = '1px solid rgba(34,197,94,0.3)';
+                    // Update the icon next to the event name
+                    const card = btn.closest('div[style*="background:var(--bg-secondary"]');
+                    if (card) {
+                        const icon = card.querySelector('.fa-circle');
+                        if (icon) { icon.classList.remove('fa-circle'); icon.classList.add('fa-check-circle'); icon.style.color = '#22c55e'; }
+                    }
+                    if (navigator.vibrate) navigator.vibrate(200);
+                    Toast.success('Checked in successfully!');
+                } else {
+                    btn.innerHTML = '<i class="fas fa-check-circle"></i> ' + (result.already_checked_in ? 'Already Checked In' : 'Check-in Failed');
+                    btn.style.background = result.already_checked_in ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)';
+                    btn.style.color = result.already_checked_in ? '#22c55e' : '#ef4444';
+                    if (result.already_checked_in) Toast.info('Already checked in');
+                }
+            } catch(err) {
+                console.error('Check-in failed:', err);
+                btn.innerHTML = '<i class="fas fa-times-circle"></i> Failed';
+                btn.style.background = 'rgba(239,68,68,0.1)';
+                btn.style.color = '#ef4444';
+                btn.style.border = '1px solid rgba(239,68,68,0.3)';
+                Toast.error('Check-in failed. Please try again.');
+                btn.disabled = false;
+                setTimeout(() => { btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Check In Now'; btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)'; btn.style.color = 'white'; btn.style.border = 'none'; }, 3000);
             }
         }
 
@@ -18626,7 +18710,7 @@ President, Med&amp;X</textarea>
                         </div>
 
                         <div class="qr-tabs">
-                            <button class="qr-tab-btn active" id="qrTabScan" onclick="App.switchGlobalTab('scan')"><i class="fas fa-camera"></i> Scan</button>
+                            <button class="qr-tab-btn active" id="qrTabScan" onclick="App.switchGlobalTab('scan')"><i class="fas fa-camera"></i> Camera</button>
                             <button class="qr-tab-btn" id="qrTabSearch" onclick="App.switchGlobalTab('search')"><i class="fas fa-search"></i> Search</button>
                         </div>
 
@@ -18681,6 +18765,7 @@ President, Med&amp;X</textarea>
             },
 
             _startGlobalCamera() {
+                if (this._globalStream) return; // Already running
                 const video = document.getElementById('globalQRVideo');
                 const status = document.getElementById('globalQRStatus');
                 if (!video) return;
@@ -18801,10 +18886,9 @@ President, Med&amp;X</textarea>
                     searchBtn.classList.remove('active');
                     scanContent.style.display = '';
                     searchContent.style.display = 'none';
-                    // Restart camera if it was stopped
-                    if (!this._globalScanner) {
-                        const reader = document.getElementById('globalQRReader');
-                        if (reader) { reader.innerHTML = ''; this._startGlobalCamera(); }
+                    // Only start camera if not already running
+                    if (!this._globalStream) {
+                        this._startGlobalCamera();
                     }
                 } else {
                     searchBtn.classList.add('active');
@@ -18812,6 +18896,10 @@ President, Med&amp;X</textarea>
                     searchContent.style.display = '';
                     scanContent.style.display = 'none';
                     // Stop camera to save resources
+                    if (this._globalStream) {
+                        this._globalStream.getTracks().forEach(t => t.stop());
+                        this._globalStream = null;
+                    }
                     if (this._globalScanner) {
                         this._globalScanner.clear().catch(() => {});
                         this._globalScanner = null;
