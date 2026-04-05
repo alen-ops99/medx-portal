@@ -10139,6 +10139,26 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, attendee: { ...reg, checked_in: 1 }, qr_info: qrInfo });
     });
 
+    // Undo check-in
+    app.post('/api/checkin/undo', auth, adminOnly, (req, res) => {
+        try {
+            const { registration_id, type } = req.body;
+            if (!registration_id) return res.status(400).json({ error: 'Registration ID required' });
+
+            if (type === 'forum') {
+                db.run('UPDATE forum_event_registrations SET checked_in = 0, checked_in_at = NULL WHERE id = ?', [registration_id]);
+            } else if (type === 'bridges') {
+                db.run('UPDATE bridges_registrations SET checked_in = 0, checked_in_at = NULL WHERE id = ?', [registration_id]);
+            } else {
+                db.run('UPDATE registrations SET checked_in = 0, checked_in_at = NULL WHERE id = ?', [registration_id]);
+            }
+            saveDb();
+            res.json({ success: true });
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to undo check-in' });
+        }
+    });
+
     // --- ADMIN PLEXUS ROUTES ---
 
     // Admin: Get all registrations
