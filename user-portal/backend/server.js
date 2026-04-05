@@ -14968,8 +14968,12 @@ By applying to this program, I provide the following consents:
             if (new Date(link.expires_at) < new Date()) return res.status(410).json({ error: 'This registration link has expired' });
             if (link.max_uses > 0 && link.uses >= link.max_uses) return res.status(410).json({ error: 'This registration link has reached its limit' });
 
+            let pkgItems = null;
+            try { pkgItems = link.package_items ? JSON.parse(link.package_items) : null; } catch(e) {}
+
             res.json({
                 valid: true,
+                package_items: pkgItems,
                 event_type: link.event_type,
                 event_name: link.event_name,
                 event_id: link.event_id
@@ -15010,12 +15014,16 @@ By applying to this program, I provide the following consents:
 
             // Register for the event based on type
             const regId = uuidv4();
+            // Get package items from link metadata
+            let linkPkgItems = null;
+            try { linkPkgItems = link.package_items ? JSON.parse(link.package_items) : null; } catch(e) {}
+
             if (link.event_type === 'plexus') {
                 const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
                 if (conf) {
                     const ticket = query.get('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order LIMIT 1', [conf.id]);
-                    db.run('INSERT OR IGNORE INTO registrations (id, conference_id, user_id, ticket_type_id, first_name, last_name, email, institution, country, status, payment_status) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-                        [regId, conf.id, user.id, ticket?.id, first_name, last_name, email, institution, country, 'confirmed', 'pending']);
+                    db.run('INSERT OR IGNORE INTO registrations (id, conference_id, user_id, ticket_type_id, first_name, last_name, email, institution, country, status, payment_status, package_items) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                        [regId, conf.id, user.id, ticket?.id, first_name, last_name, email, institution, country, 'confirmed', 'pending', linkPkgItems ? JSON.stringify(linkPkgItems) : null]);
                 }
             } else if (link.event_type === 'gala') {
                 db.run('INSERT OR IGNORE INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status) VALUES (?,?,?,?,?,?,?)',
