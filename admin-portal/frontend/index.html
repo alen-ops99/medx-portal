@@ -18870,8 +18870,18 @@ President, Med&amp;X</textarea>
 
                                 const input = document.getElementById('globalCheckinInput');
                                 if (input) input.value = code.data;
-                                const status = document.getElementById('globalQRStatus');
-                                if (status) status.innerHTML = '<i class="fas fa-check-circle" style="color:#22c55e;"></i> QR code detected!';
+                                const statusEl = document.getElementById('globalQRStatus');
+                                if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:#22c55e;"></i> QR code detected!';
+
+                                // Try to parse as JSON and auto-open profile
+                                try {
+                                    const parsed = JSON.parse(code.data);
+                                    if (parsed.userId) {
+                                        showUserProfileFromQR(parsed);
+                                        return; // Stop scanning after detection
+                                    }
+                                } catch(parseErr) {}
+                                // If not a member QR, try normal check-in
                                 this.globalCheckin(code.data);
                             }
                         }
