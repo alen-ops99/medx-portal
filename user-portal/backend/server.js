@@ -8578,7 +8578,7 @@ By applying to this program, I provide the following consents:
                     // Recalculate amount server-side from current ticket prices (user may have changed package)
                     const tickets = query.all('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order', [conf.id]);
                     let ticket = tickets[0];
-                    if (pricing) {
+                    if (pricing && typeof pricing === 'string') {
                         const isStudent = pricing.includes('student');
                         const match = tickets.find(t => isStudent ? t.name.toLowerCase().includes('student') : !t.name.toLowerCase().includes('student'));
                         if (match) ticket = match;
@@ -8657,7 +8657,7 @@ By applying to this program, I provide the following consents:
             // Find a matching ticket type based on pricing selection (e.g. 'professional-early', 'student-early')
             const tickets = query.all('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order', [conf.id]);
             let ticket = tickets[0]; // default to first ticket
-            if (pricing) {
+            if (pricing && typeof pricing === 'string') {
                 const isStudent = pricing.includes('student');
                 const match = tickets.find(t => isStudent ? t.name.toLowerCase().includes('student') : !t.name.toLowerCase().includes('student'));
                 if (match) ticket = match;
