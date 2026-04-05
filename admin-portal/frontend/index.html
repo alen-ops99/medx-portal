@@ -18745,15 +18745,27 @@ President, Med&amp;X</textarea>
                 if (eventType === 'plexus') {
                     subEventSelect = `
                         <div style="margin-bottom:16px;">
-                            <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Register for</label>
-                            <select id="genLinkSubEvent" onchange="document.getElementById('genLinkName').value=this.options[this.selectedIndex].text" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;">
-                                <option value="plexus-full">Plexus Conference 2026 (Full Event)</option>
-                                <option value="plexus-day1">Plexus 2026 — Day 1 Only (Dec 4)</option>
-                                <option value="plexus-day2">Plexus 2026 — Day 2 Only (Dec 5)</option>
-                                <option value="plexus-gala">Plexus 2026 — Gala Evening Only</option>
-                                <option value="plexus-workshop">Plexus 2026 — Workshop Only</option>
-                                <option value="plexus-vip">Plexus 2026 — VIP / Invited Speaker</option>
-                            </select>
+                            <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Include in registration:</label>
+                            <div style="display:flex;flex-direction:column;gap:6px;" id="genLinkItems">
+                                <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border-color,#334155);border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-primary,#e2e8f0);">
+                                    <input type="checkbox" value="Day 1 — Dec 4" checked style="accent-color:#c9a962;width:16px;height:16px;"> Day 1 — Dec 4
+                                </label>
+                                <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border-color,#334155);border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-primary,#e2e8f0);">
+                                    <input type="checkbox" value="Day 2 — Dec 5" checked style="accent-color:#c9a962;width:16px;height:16px;"> Day 2 — Dec 5
+                                </label>
+                                <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border-color,#334155);border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-primary,#e2e8f0);">
+                                    <input type="checkbox" value="Gala Evening" style="accent-color:#c9a962;width:16px;height:16px;"> Gala Evening
+                                </label>
+                                <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border-color,#334155);border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-primary,#e2e8f0);">
+                                    <input type="checkbox" value="Welcome Reception" style="accent-color:#c9a962;width:16px;height:16px;"> Welcome Reception
+                                </label>
+                                <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border-color,#334155);border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-primary,#e2e8f0);">
+                                    <input type="checkbox" value="Workshop" style="accent-color:#c9a962;width:16px;height:16px;"> Workshop
+                                </label>
+                                <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border-color,#334155);border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-primary,#e2e8f0);">
+                                    <input type="checkbox" value="VIP / Invited Speaker" style="accent-color:#c9a962;width:16px;height:16px;"> VIP / Invited Speaker
+                                </label>
+                            </div>
                         </div>`;
                 }
 
@@ -18805,10 +18817,19 @@ President, Med&amp;X</textarea>
                 const expiry = document.getElementById('genLinkExpiry').value;
                 const maxUses = document.getElementById('genLinkMaxUses').value;
 
+                // Collect selected sub-items (for Plexus)
+                const itemsContainer = document.getElementById('genLinkItems');
+                let selectedItems = [];
+                if (itemsContainer) {
+                    itemsContainer.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+                        selectedItems.push(cb.value);
+                    });
+                }
+
                 try {
                     const result = await this.api('/api/admin/registration-links', {
                         method: 'POST',
-                        body: JSON.stringify({ event_type: eventType, event_id: eventId || null, event_name: name, expires_days: parseInt(expiry), max_uses: parseInt(maxUses) })
+                        body: JSON.stringify({ event_type: eventType, event_id: eventId || null, event_name: name, expires_days: parseInt(expiry), max_uses: parseInt(maxUses), package_items: selectedItems.length ? selectedItems : undefined })
                     });
 
                     if (result.link) {

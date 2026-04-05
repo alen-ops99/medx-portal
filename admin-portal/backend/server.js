@@ -15978,12 +15978,14 @@ By applying to this program, I provide the following consents:
             )`);
 
             const id = uuidv4();
-            db.run(`INSERT INTO registration_links (id, token, event_type, event_id, event_name, created_by, expires_at, max_uses) VALUES (?,?,?,?,?,?,?,?)`,
-                [id, token, event_type, event_id || null, event_name || '', req.user.email, expiresAt, max_uses || 0]);
+            const { package_items } = req.body;
+            try { db.run('ALTER TABLE registration_links ADD COLUMN package_items TEXT'); } catch(e) {}
+            db.run(`INSERT INTO registration_links (id, token, event_type, event_id, event_name, created_by, expires_at, max_uses, package_items) VALUES (?,?,?,?,?,?,?,?,?)`,
+                [id, token, event_type, event_id || null, event_name || '', req.user.email, expiresAt, max_uses || 0, package_items ? JSON.stringify(package_items) : null]);
             saveDb();
 
-            // Build link pointing to user portal
-            const userPortalUrl = process.env.USER_PORTAL_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000';
+            // Build link pointing to user portal (NOT admin portal)
+            const userPortalUrl = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
             const link = `${userPortalUrl}/?register=${token}`;
 
             res.json({ success: true, id, token, link, expiresAt });
