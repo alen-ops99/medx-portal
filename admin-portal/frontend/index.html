@@ -6554,7 +6554,7 @@
                             <h1>Plexus Conference 2026</h1>
                             <p>December 4-5, 2026 in Zagreb</p>
                         </div>
-                        <button class="btn btn-secondary" onclick="App.generateRegistrationLink('plexus')" style="white-space:nowrap;">
+                        <button class="btn btn-primary" onclick="App.generateRegistrationLink('plexus')" style="white-space:nowrap; background:linear-gradient(135deg,#6366f1,#4f46e5); border:none;">
                             <i class="fas fa-link"></i> Direct Link
                         </button>
                     </div>
@@ -9921,7 +9921,7 @@ President, Med&amp;X</textarea>
                             </h1>
                             <p style="color: var(--text-muted);">Manage invitations, settings, and registrations</p>
                         </div>
-                        <button class="btn btn-secondary" onclick="App.generateRegistrationLink('gala')" style="white-space:nowrap;">
+                        <button class="btn btn-primary" onclick="App.generateRegistrationLink('gala')" style="white-space:nowrap; background:linear-gradient(135deg,#6366f1,#4f46e5); border:none;">
                             <i class="fas fa-link"></i> Direct Link
                         </button>
                     </div>
@@ -18714,6 +18714,23 @@ President, Med&amp;X</textarea>
                 const typeNames = { plexus: 'Plexus Conference 2026', gala: 'Gala Evening 2026', forum: 'Biomedical Forum', bridges: 'Building Bridges' };
                 const name = eventName || typeNames[eventType] || eventType;
 
+                // Sub-event options for Plexus
+                let subEventSelect = '';
+                if (eventType === 'plexus') {
+                    subEventSelect = `
+                        <div style="margin-bottom:16px;">
+                            <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Register for</label>
+                            <select id="genLinkSubEvent" onchange="document.getElementById('genLinkName').value=this.options[this.selectedIndex].text" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+                                <option value="plexus-full">Plexus Conference 2026 (Full Event)</option>
+                                <option value="plexus-day1">Plexus 2026 — Day 1 Only (Dec 4)</option>
+                                <option value="plexus-day2">Plexus 2026 — Day 2 Only (Dec 5)</option>
+                                <option value="plexus-gala">Plexus 2026 — Gala Evening Only</option>
+                                <option value="plexus-workshop">Plexus 2026 — Workshop Only</option>
+                                <option value="plexus-vip">Plexus 2026 — VIP / Invited Speaker</option>
+                            </select>
+                        </div>`;
+                }
+
                 const modal = document.createElement('div');
                 modal.className = 'modal-overlay';
                 modal.style.cssText = 'display:flex;align-items:center;justify-content:center;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10001;padding:16px;';
@@ -18725,28 +18742,31 @@ President, Med&amp;X</textarea>
                             <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button>
                         </div>
                         <div style="padding:20px;">
+                            ${subEventSelect}
                             <div style="margin-bottom:16px;">
-                                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Event</label>
+                                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Event Name</label>
                                 <input type="text" id="genLinkName" value="${escapeHtml(name)}" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;">
                             </div>
-                            <div style="margin-bottom:16px;">
-                                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Expires in (days)</label>
-                                <input type="number" id="genLinkExpiry" value="30" min="1" max="365" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                                <div>
+                                    <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Expires in (days)</label>
+                                    <input type="number" id="genLinkExpiry" value="30" min="1" max="365" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+                                </div>
+                                <div>
+                                    <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Max uses (0 = ∞)</label>
+                                    <input type="number" id="genLinkMaxUses" value="0" min="0" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+                                </div>
                             </div>
-                            <div style="margin-bottom:16px;">
-                                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Max uses (0 = unlimited)</label>
-                                <input type="number" id="genLinkMaxUses" value="0" min="0" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;">
-                            </div>
-                            <button onclick="App.doGenerateLink('${eventType}','${eventId || ''}')" class="btn btn-primary" style="width:100%;padding:12px;">
+                            <button onclick="App.doGenerateLink('${eventType}','${eventId || ''}')" class="btn btn-primary" style="width:100%;padding:14px;font-size:15px;">
                                 <i class="fas fa-magic"></i> Generate Link
                             </button>
                             <div id="genLinkResult" style="margin-top:16px; display:none;">
-                                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Registration Link</label>
+                                <label style="display:block;font-size:12px;font-weight:600;color:var(--accent-gold);margin-bottom:6px;">✓ Registration Link Generated</label>
                                 <div style="display:flex;gap:8px;">
-                                    <input type="text" id="genLinkUrl" readonly style="flex:1;padding:10px;border:1px solid var(--accent-gold);border-radius:8px;background:var(--bg-primary);color:var(--accent-gold);font-size:13px;font-family:monospace;min-width:0;">
-                                    <button onclick="navigator.clipboard.writeText(document.getElementById('genLinkUrl').value);Toast.success('Link copied!')" class="btn btn-primary" style="padding:10px 16px;flex-shrink:0;"><i class="fas fa-copy"></i></button>
+                                    <input type="text" id="genLinkUrl" readonly style="flex:1;padding:10px;border:1px solid var(--accent-gold);border-radius:8px;background:var(--bg-primary);color:var(--accent-gold);font-size:12px;font-family:monospace;min-width:0;">
+                                    <button onclick="navigator.clipboard.writeText(document.getElementById('genLinkUrl').value);Toast.success('Link copied!')" class="btn btn-primary" style="padding:10px 16px;flex-shrink:0;"><i class="fas fa-copy"></i> Copy</button>
                                 </div>
-                                <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">Share this link with invitees. They can register without creating a portal account.</p>
+                                <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">Share this link via email. Recipients register without a portal account.</p>
                             </div>
                         </div>
                     </div>
@@ -18963,14 +18983,15 @@ President, Med&amp;X</textarea>
                                 let userId = null;
                                 const rawData = code.data.trim();
 
-                                // Format 1: JSON with userId field
+                                // Format 1: JSON — try every possible identifier
                                 let memberEmail = null;
+                                let memberId = null;
                                 try {
                                     const parsed = JSON.parse(rawData);
                                     if (parsed.userId && parsed.userId !== '') userId = parsed.userId;
                                     else if (parsed.id && parsed.id !== '') userId = parsed.id;
-                                    // Fallback: use email to find user
-                                    if (!userId && parsed.email) memberEmail = parsed.email;
+                                    if (parsed.email && parsed.email !== '') memberEmail = parsed.email;
+                                    if (parsed.memberId) memberId = parsed.memberId;
                                 } catch(e) {}
 
                                 // Format 2: Plain UUID
@@ -18983,8 +19004,8 @@ President, Med&amp;X</textarea>
                                     try { userId = JSON.parse(rawData).userId; } catch(e) {}
                                 }
 
-                                // Use email as fallback identifier
-                                const lookupId = userId || memberEmail;
+                                // Use email or memberId as fallback
+                                const lookupId = userId || memberEmail || memberId;
 
                                 if (lookupId) {
                                     // Stop camera and show profile
