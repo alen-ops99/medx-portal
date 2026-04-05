@@ -5307,14 +5307,57 @@
             background: #000;
         }
         .qr-scanner-container video { border-radius: 12px; }
-        #qr-reader { width: 100% !important; }
-        #qr-reader__scan_region { min-height: 250px; }
-        #qr-reader__dashboard { padding: 8px !important; }
-        #qr-reader__dashboard_section { padding: 4px !important; }
-        #qr-reader__dashboard_section_csr button {
-            background: var(--accent) !important; color: #fff !important;
-            border: none !important; padding: 8px 16px !important;
-            border-radius: 6px !important; cursor: pointer !important;
+        #qr-reader, #globalQRReader { width: 100% !important; }
+        #qr-reader video, #globalQRReader video { border-radius: 12px !important; }
+        #qr-reader__scan_region, #globalQRReader > div:first-child { min-height: 250px; }
+        #qr-reader__dashboard, #globalQRReader__dashboard { padding: 12px !important; }
+        #qr-reader__dashboard_section, #globalQRReader__dashboard_section { padding: 6px !important; }
+        #qr-reader__dashboard_section_csr button,
+        #globalQRReader__dashboard_section_csr button,
+        #qr-reader__dashboard button,
+        #globalQRReader button,
+        [id^="qr-reader"] button,
+        [id^="globalQR"] button {
+            background: linear-gradient(135deg, #c9a962, #b49650) !important;
+            color: #0f172a !important;
+            border: none !important;
+            padding: 10px 20px !important;
+            border-radius: 10px !important;
+            cursor: pointer !important;
+            font-weight: 600 !important;
+            font-size: 13px !important;
+            transition: all 0.2s !important;
+            font-family: inherit !important;
+        }
+        [id^="qr-reader"] button:hover,
+        [id^="globalQR"] button:hover {
+            transform: translateY(-1px) !important;
+            box-shadow: 0 4px 12px rgba(201, 169, 98, 0.3) !important;
+        }
+        /* Hide the ugly default select styling */
+        #qr-reader__dashboard select,
+        #globalQRReader select,
+        [id^="qr-reader"] select,
+        [id^="globalQR"] select {
+            background: var(--bg-secondary, #1e293b) !important;
+            color: var(--text-primary, #e2e8f0) !important;
+            border: 1px solid var(--border-color, #334155) !important;
+            border-radius: 8px !important;
+            padding: 8px 12px !important;
+            font-size: 13px !important;
+            font-family: inherit !important;
+        }
+        /* Style the file input area */
+        #qr-reader__dashboard_section_swaplink,
+        [id*="__dashboard_section_swaplink"] {
+            color: var(--accent-gold, #c9a962) !important;
+            font-size: 13px !important;
+            text-decoration: none !important;
+        }
+        /* QR viewfinder styling */
+        #qr-reader__scan_region img,
+        [id*="__scan_region"] img {
+            opacity: 0.5 !important;
         }
         .checkin-camera-section { text-align: center; margin-bottom: 20px; }
         .checkin-camera-toggle {
@@ -5410,11 +5453,24 @@
         }
         .qr-modal h3 i { color: var(--accent-gold); }
         .qr-modal .qr-viewfinder {
-            border-radius: 10px;
+            border-radius: 12px;
             overflow: hidden;
             margin-bottom: 16px;
             min-height: 280px;
-            background: var(--bg-primary);
+            background: #000;
+            position: relative;
+        }
+        .qr-modal .qr-viewfinder video {
+            width: 100%;
+            display: block;
+            border-radius: 12px;
+        }
+        .qr-modal .qr-viewfinder canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
         }
         .qr-modal .manual-entry {
             display: flex;
@@ -11651,7 +11707,7 @@ President, Med&amp;X</textarea>
                 if (!data.userId) return false;
 
                 const response = await fetch('/api/admin/users/' + data.userId + '/profile', {
-                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                    headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('medx_token') || localStorage.getItem('token')) }
                 });
                 if (!response.ok) throw new Error('User not found');
                 const profile = await response.json();
@@ -18575,9 +18631,13 @@ President, Med&amp;X</textarea>
                         </div>
 
                         <div id="qrScanContent">
-                            <div class="qr-viewfinder" id="globalQRReader"></div>
+                            <div id="globalQRReader" style="position:relative; overflow:hidden; border-radius:12px; background:#000; min-height:280px;">
+                                <video id="globalQRVideo" playsinline webkit-playsinline autoplay muted style="width:100%; height:280px; border-radius:12px; display:block; object-fit:cover; z-index:1;"></video>
+                                <canvas id="globalQROverlay" style="display:none;"></canvas>
+                                <div id="globalQRStatus" style="text-align:center; padding:8px 12px; color:#fff; font-size:13px; position:absolute; bottom:8px; left:8px; right:8px; background:rgba(0,0,0,0.7); border-radius:8px; z-index:2;">Starting camera...</div>
+                            </div>
                             <div class="manual-entry">
-                                <input type="text" id="globalCheckinInput" placeholder="Or type code / ID manually…"
+                                <input type="text" id="globalCheckinInput" placeholder="Paste member ID or scan QR…"
                                        onkeydown="if(event.key==='Enter') App.globalCheckin()">
                                 <button onclick="App.globalCheckin()"><i class="fas fa-check"></i> Check In</button>
                             </div>
@@ -18621,35 +18681,96 @@ President, Med&amp;X</textarea>
             },
 
             _startGlobalCamera() {
-                try {
-                    const scanner = new Html5QrcodeScanner('globalQRReader', {
-                        fps: 10,
-                        qrbox: { width: 250, height: 250 },
-                        rememberLastUsedCamera: true,
-                        showTorchButtonIfSupported: true
-                    }, false);
+                const video = document.getElementById('globalQRVideo');
+                const status = document.getElementById('globalQRStatus');
+                if (!video) return;
 
-                    scanner.render(
-                        (decodedText) => {
-                            if (this._globalLastScan === decodedText && Date.now() - this._globalLastScanTime < 3000) return;
-                            this._globalLastScan = decodedText;
-                            this._globalLastScanTime = Date.now();
+                // iOS Safari needs simple constraints
+                const constraints = { video: { facingMode: { ideal: 'environment' } }, audio: false };
 
-                            const input = document.getElementById('globalCheckinInput');
-                            if (input) input.value = decodedText;
-                            this.globalCheckin(decodedText);
-                        },
-                        () => {}
-                    );
-                    this._globalScanner = scanner;
-                } catch (err) {
-                    console.error('Global QR Scanner init failed:', err);
-                    const reader = document.getElementById('globalQRReader');
-                    if (reader) reader.innerHTML = '<p style="color: var(--text-muted); padding: 20px; text-align: center;">Camera not available. Use manual entry below.</p>';
+                navigator.mediaDevices.getUserMedia(constraints).then(stream => {
+                    this._globalStream = stream;
+                    video.srcObject = stream;
+                    video.setAttribute('playsinline', '');
+                    video.setAttribute('webkit-playsinline', '');
+                    video.muted = true;
+
+                    // iOS requires play() after srcObject is set
+                    const playPromise = video.play();
+                    if (playPromise) {
+                        playPromise.then(() => {
+                            if (status) status.textContent = 'Point camera at QR code...';
+                            // Start scanning after a short delay to let video stabilize
+                            setTimeout(() => this._scanGlobalFrame(), 500);
+                        }).catch(err => {
+                            console.error('Video play failed:', err);
+                            if (status) status.textContent = 'Tap the video to start scanning';
+                            // On iOS, user might need to tap to play
+                            video.addEventListener('click', () => {
+                                video.play().then(() => this._scanGlobalFrame()).catch(() => {});
+                            }, { once: true });
+                        });
+                    }
+                }).catch(err => {
+                    console.error('Camera failed:', err);
+                    if (status) status.innerHTML = '<i class="fas fa-video-slash"></i> Camera not available.<br>Use manual entry below.';
+                });
+            },
+
+            _scanGlobalFrame() {
+                if (!this._globalStream) return;
+                const video = document.getElementById('globalQRVideo');
+                if (!video || video.paused || video.ended || video.readyState < 2) {
+                    setTimeout(() => this._scanGlobalFrame(), 200);
+                    return;
                 }
+
+                // Use a hidden canvas for frame analysis
+                let canvas = this._scanCanvas;
+                if (!canvas) {
+                    canvas = document.createElement('canvas');
+                    this._scanCanvas = canvas;
+                }
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                if (typeof jsQR !== 'undefined') {
+                    try {
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+
+                        if (code && code.data) {
+                            const now = Date.now();
+                            if (this._globalLastScan !== code.data || now - (this._globalLastScanTime || 0) > 3000) {
+                                this._globalLastScan = code.data;
+                                this._globalLastScanTime = now;
+
+                                if (navigator.vibrate) navigator.vibrate(200);
+
+                                const input = document.getElementById('globalCheckinInput');
+                                if (input) input.value = code.data;
+                                const status = document.getElementById('globalQRStatus');
+                                if (status) status.innerHTML = '<i class="fas fa-check-circle" style="color:#22c55e;"></i> QR code detected!';
+                                this.globalCheckin(code.data);
+                            }
+                        }
+                    } catch(e) {}
+                }
+
+                requestAnimationFrame(() => this._scanGlobalFrame());
             },
 
             closeGlobalQRScanner() {
+                if (this._globalStream) {
+                    this._globalStream.getTracks().forEach(t => t.stop());
+                    this._globalStream = null;
+                }
+                if (this._globalHtml5Qr) {
+                    this._globalHtml5Qr.stop().catch(() => {});
+                    this._globalHtml5Qr = null;
+                }
                 if (this._globalScanner) {
                     this._globalScanner.clear().catch(() => {});
                     this._globalScanner = null;
@@ -18805,12 +18926,49 @@ President, Med&amp;X</textarea>
                     return;
                 }
 
-                // Check if this is a membership QR (has userId field)
+                // Check if this is a UUID (plain member ID typed manually)
+                const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                if (uuidRegex.test(code)) {
+                    if (resultDiv) {
+                        resultDiv.className = 'checkin-result success';
+                        resultDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading member profile...';
+                    }
+                    try {
+                        const handled = await showUserProfileFromQR({ userId: code });
+                        if (handled) {
+                            if (resultDiv) { resultDiv.className = ''; resultDiv.innerHTML = ''; }
+                            return;
+                        }
+                    } catch(e) {}
+                    if (resultDiv) {
+                        resultDiv.className = 'checkin-result error';
+                        resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Member not found with this ID.';
+                    }
+                    return;
+                }
+
+                // Check if this is a membership QR JSON (has userId field)
                 try {
                     const parsed = JSON.parse(code);
                     if (parsed.userId) {
-                        const handled = await showUserProfileFromQR(parsed);
-                        if (handled) return;
+                        if (resultDiv) {
+                            resultDiv.className = 'checkin-result success';
+                            resultDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading member profile...';
+                        }
+                        try {
+                            const handled = await showUserProfileFromQR(parsed);
+                            if (handled) {
+                                if (resultDiv) { resultDiv.className = ''; resultDiv.innerHTML = ''; }
+                                return;
+                            }
+                        } catch(profileErr) {
+                            console.error('Profile lookup failed:', profileErr);
+                        }
+                        if (resultDiv) {
+                            resultDiv.className = 'checkin-result error';
+                            resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Member profile not found.';
+                        }
+                        return;
                     }
                 } catch(e) {} // not JSON, continue with normal check-in
 
@@ -18866,11 +19024,10 @@ President, Med&amp;X</textarea>
                         resultDiv.innerHTML = `<i class="fas fa-times-circle"></i> ${escapeHtml(result.error || 'Not found')}`;
                     }
                 } catch (err) {
-                    // Network error — queue for offline retry
-                    this.queueCheckin(code);
+                    console.error('Check-in API error:', err);
                     if (resultDiv) {
-                        resultDiv.className = 'checkin-result already';
-                        resultDiv.innerHTML = '<i class="fas fa-wifi"></i> Offline — queued for retry';
+                        resultDiv.className = 'checkin-result error';
+                        resultDiv.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Check-in failed. Please try again.';
                     }
                 }
             },
