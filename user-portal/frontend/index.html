@@ -76699,7 +76699,7 @@ You can use variables like {first_name} that will be personalized for each recip
                     this.token = 'demo_token_' + Date.now();
                     // Use provided name or extract from email for demo
                     const demoName = email.split('@')[0].split('.').map(n => n.charAt(0).toUpperCase() + n.slice(1)).join(' ');
-                    this.user = { name: demoName, first_name: demoName.split(' ')[0], email: email };
+                    this.user = { id: 'demo_' + Date.now(), name: demoName, first_name: demoName.split(' ')[0], email: email };
                     localStorage.setItem('medx_user_token', this.token);
                     localStorage.setItem('medx_user_data', JSON.stringify(this.user));
                     // Clear onboarding flag for demo to show welcome tour
@@ -76970,6 +76970,16 @@ You can use variables like {first_name} that will be personalized for each recip
 
             // Show User Portal (with optional welcome animation)
             showUserPortal(showWelcome = false, isNewUser = false) {
+                // Fetch real user ID from backend if missing
+                if (!this.user?.id || this.user.id.startsWith('demo_') || this.user.id === '') {
+                    this.api('/api/auth/me').then(data => {
+                        if (data && data.id) {
+                            this.user = { ...this.user, ...data };
+                            localStorage.setItem('medx_user_data', JSON.stringify(this.user));
+                        }
+                    }).catch(() => {});
+                }
+
                 // Initialize conference data store
                 if (typeof ConferenceData !== 'undefined') ConferenceData.init();
 

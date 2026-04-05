@@ -18964,10 +18964,13 @@ President, Med&amp;X</textarea>
                                 const rawData = code.data.trim();
 
                                 // Format 1: JSON with userId field
+                                let memberEmail = null;
                                 try {
                                     const parsed = JSON.parse(rawData);
-                                    if (parsed.userId) userId = parsed.userId;
-                                    else if (parsed.id) userId = parsed.id;
+                                    if (parsed.userId && parsed.userId !== '') userId = parsed.userId;
+                                    else if (parsed.id && parsed.id !== '') userId = parsed.id;
+                                    // Fallback: use email to find user
+                                    if (!userId && parsed.email) memberEmail = parsed.email;
                                 } catch(e) {}
 
                                 // Format 2: Plain UUID
@@ -18980,7 +18983,10 @@ President, Med&amp;X</textarea>
                                     try { userId = JSON.parse(rawData).userId; } catch(e) {}
                                 }
 
-                                if (userId) {
+                                // Use email as fallback identifier
+                                const lookupId = userId || memberEmail;
+
+                                if (lookupId) {
                                     // Stop camera and show profile
                                     if (this._globalStream) {
                                         this._globalStream.getTracks().forEach(t => t.stop());
@@ -18989,7 +18995,7 @@ President, Med&amp;X</textarea>
                                     const statusEl2 = document.getElementById('globalQRStatus');
                                     if (statusEl2) statusEl2.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:#c9a962;"></i> Loading profile...';
 
-                                    showUserProfileFromQR({ userId: userId }).then(ok => {
+                                    showUserProfileFromQR({ userId: lookupId }).then(ok => {
                                         if (!ok) {
                                             if (statusEl2) statusEl2.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#ef4444;"></i> Profile not found';
                                         }
