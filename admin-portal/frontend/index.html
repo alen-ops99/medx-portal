@@ -4474,6 +4474,8 @@
         }
         .schedule-grid-room-col {
             position: relative;
+            overflow: hidden;
+            max-width: 100%;
         }
         .schedule-session-block {
             position: absolute;
@@ -4484,6 +4486,8 @@
             font-size: 11px;
             cursor: pointer;
             overflow: hidden;
+            max-width: 100%;
+            box-sizing: border-box;
             transition: transform 0.15s, box-shadow 0.15s;
             z-index: 2;
             border-left: 3px solid transparent;
@@ -6783,6 +6787,7 @@
                             <div class="card-header">
                                 <span class="card-title">Conference Schedule</span>
                                 <div style="display: flex; gap: 8px;">
+                                    <button class="btn btn-success" onclick="App.saveAndPublishSchedule()" style="background: var(--success); color: white; border: none;"><i class="fas fa-cloud-upload-alt"></i> Save & Publish Schedule</button>
                                     <button class="btn btn-secondary" onclick="App.bulkPublishSessions()"><i class="fas fa-globe"></i> Publish All</button>
                                     <button class="btn btn-secondary" onclick="App.sendQuickNotification('plexus', 'plexus-schedule')" title="Send notification about schedule update"><i class="fas fa-bell"></i> Notify</button>
                                     <button class="btn btn-primary" onclick="App.openSessionModal()"><i class="fas fa-plus"></i> Add Session</button>
@@ -9172,7 +9177,7 @@ President, Med&amp;X</textarea>
                             <i class="fas fa-calendar-alt"></i> Calendar
                         </button>
                         <button class="tab-btn" onclick="PRApp.showTab('social', this)" style="padding: 10px 16px; background: transparent; color: var(--text-secondary); border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
-                            <i class="fas fa-share-alt"></i> Social Media
+                            <i class="fas fa-share-alt"></i> Social Posts
                         </button>
                         <button class="tab-btn" onclick="PRApp.showTab('newsletters', this)" style="padding: 10px 16px; background: transparent; color: var(--text-secondary); border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
                             <i class="fas fa-envelope-open-text"></i> Newsletters
@@ -9180,36 +9185,34 @@ President, Med&amp;X</textarea>
                         <button class="tab-btn" onclick="PRApp.showTab('media', this)" style="padding: 10px 16px; background: transparent; color: var(--text-secondary); border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
                             <i class="fas fa-images"></i> Media Library
                         </button>
-                        <button class="tab-btn" onclick="PRApp.showTab('ai-studio', this)" style="padding: 10px 16px; background: transparent; color: var(--text-secondary); border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
+                        <button class="tab-btn" onclick="PRApp.showTab('ai-studio', this)" style="display:none; padding: 10px 16px; background: transparent; color: var(--text-secondary); border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
                             <i class="fas fa-magic"></i> AI Studio
                         </button>
-                        <button class="tab-btn" onclick="PRApp.showTab('campaigns', this)" style="padding: 10px 16px; background: transparent; color: var(--text-secondary); border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
+                        <button class="tab-btn" onclick="PRApp.showTab('campaigns', this)" style="display:none; padding: 10px 16px; background: transparent; color: var(--text-secondary); border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
                             <i class="fas fa-bullseye"></i> Campaigns
                         </button>
-                        <button class="tab-btn" onclick="PRApp.showTab('subscribers', this)" style="padding: 10px 16px; background: transparent; color: var(--text-secondary); border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
+                        <button class="tab-btn" onclick="PRApp.showTab('subscribers', this)" style="display:none; padding: 10px 16px; background: transparent; color: var(--text-secondary); border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
                             <i class="fas fa-users"></i> Subscribers
                         </button>
                     </div>
 
                     <!-- Dashboard Tab -->
                     <div class="pr-tab active" id="pr-tab-dashboard">
-                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px;">
                             <div class="card" style="text-align: center; padding: 20px;">
                                 <div style="font-size: 32px; font-weight: 700; color: var(--pr-media);" id="prDashPosts">0</div>
                                 <div style="font-size: 13px; color: var(--text-muted);">Posts This Month</div>
                             </div>
                             <div class="card" style="text-align: center; padding: 20px;">
-                                <div style="font-size: 32px; font-weight: 700; color: var(--success);" id="prDashEngagement">0</div>
-                                <div style="font-size: 13px; color: var(--text-muted);">Total Engagement</div>
-                            </div>
-                            <div class="card" style="text-align: center; padding: 20px;">
                                 <div style="font-size: 32px; font-weight: 700; color: var(--accelerator);" id="prDashSubscribers">0</div>
-                                <div style="font-size: 13px; color: var(--text-muted);">Subscribers</div>
+                                <div style="font-size: 13px; color: var(--text-muted);">Newsletter Subscribers</div>
                             </div>
                             <div class="card" style="text-align: center; padding: 20px;">
-                                <div style="font-size: 32px; font-weight: 700; color: var(--forum);" id="prDashCampaigns">0</div>
-                                <div style="font-size: 13px; color: var(--text-muted);">Active Campaigns</div>
+                                <div style="font-size: 32px; font-weight: 700; color: var(--success);" id="prDashMedia">0</div>
+                                <div style="font-size: 13px; color: var(--text-muted);">Media Assets</div>
                             </div>
+                            <!-- Hidden stats elements to prevent JS errors -->
+                            <div style="display:none;"><span id="prDashEngagement">0</span><span id="prDashCampaigns">0</span></div>
                         </div>
 
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
@@ -9288,14 +9291,20 @@ President, Med&amp;X</textarea>
                                         <i class="fas fa-calendar-week"></i> Week
                                     </button>
                                 </div>
-                                <select id="prCalendarPlatform" onchange="PRApp.refreshCalendarView()" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary);">
-                                    <option value="">All Platforms</option>
-                                    <option value="instagram">Instagram</option>
-                                    <option value="linkedin">LinkedIn</option>
-                                    <option value="twitter">Twitter/X</option>
-                                    <option value="facebook">Facebook</option>
-                                    <option value="tiktok">TikTok</option>
-                                    <option value="youtube">YouTube</option>
+                                <select id="prCalendarType" onchange="PRApp.refreshCalendarView()" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary);">
+                                    <option value="">All Types</option>
+                                    <option value="social">Social Post</option>
+                                    <option value="newsletter">Newsletter</option>
+                                    <option value="event">Event</option>
+                                </select>
+                                <select id="prCalendarStatus" onchange="PRApp.refreshCalendarView()" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary);">
+                                    <option value="">All Statuses</option>
+                                    <option value="draft">Draft</option>
+                                    <option value="published">Published</option>
+                                </select>
+                                <!-- Platform filter hidden for simplicity -->
+                                <select id="prCalendarPlatform" style="display:none;">
+                                    <option value=""></option>
                                 </select>
                                 <button class="btn btn-primary" onclick="PRApp.openContentModal()"><i class="fas fa-plus"></i> Add Content</button>
                             </div>
@@ -9318,11 +9327,11 @@ President, Med&amp;X</textarea>
                         </div>
                     </div>
 
-                    <!-- Social Media Tab -->
+                    <!-- Social Posts Tab -->
                     <div class="pr-tab" id="pr-tab-social">
                         <div class="card">
                             <div class="card-header">
-                                <span class="card-title">Social Media Posts</span>
+                                <span class="card-title">Social Posts Log</span>
                                 <div style="display: flex; gap: 8px;">
                                     <select id="prPostsPlatform" onchange="PRApp.loadPosts()" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary);">
                                         <option value="">All Platforms</option>
@@ -17594,6 +17603,31 @@ President, Med&amp;X</textarea>
                 }
             },
 
+            async saveAndPublishSchedule() {
+                const totalSessions = (this.plexusSessions || []).length;
+                const unpublished = (this.plexusSessions || []).filter(s => !s.is_published);
+                if (totalSessions === 0) { Toast.warning('No sessions to publish. Add sessions first.'); return; }
+
+                const msg = unpublished.length > 0
+                    ? `This will publish ${unpublished.length} unpublished session(s) out of ${totalSessions} total. The full schedule will be visible to all attendees on the user portal.\n\nContinue?`
+                    : `All ${totalSessions} session(s) are already published. The schedule is live on the user portal.\n\nRe-publish to refresh?`;
+
+                if (!confirm(msg)) return;
+
+                try {
+                    if (unpublished.length > 0) {
+                        await this.api('/api/admin/plexus/sessions/bulk-publish', {
+                            method: 'POST', body: JSON.stringify({ session_ids: unpublished.map(s => s.id) })
+                        });
+                    }
+                    await this.loadPlexusSchedule();
+                    Toast.success(`Schedule saved & published (${totalSessions} sessions live)`);
+                } catch (err) {
+                    console.error('Failed to save & publish schedule:', err);
+                    Toast.error('Failed to publish schedule');
+                }
+            },
+
             // Speaker selection tracking for bulk actions
             selectedSpeakerIds: new Set(),
 
@@ -20134,6 +20168,7 @@ President, Med&amp;X</textarea>
                     <div style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
                         <button class="btn btn-secondary active" onclick="App.showEventDetailTab('schedule')" id="evtTabSchedule"><i class="fas fa-clock"></i> Schedule</button>
                         <button class="btn btn-secondary" onclick="App.showEventDetailTab('registrations')" id="evtTabRegs"><i class="fas fa-users"></i> Registrations</button>
+                        <button class="btn btn-secondary" onclick="App.showEventDetailTab('checkin')" id="evtTabCheckin"><i class="fas fa-qrcode"></i> Check-in</button>
                     </div>
 
                     <div id="eventDetailContent"></div>
@@ -20149,13 +20184,104 @@ President, Med&amp;X</textarea>
 
                 // Update tab buttons
                 document.querySelectorAll('[id^="evtTab"]').forEach(b => b.classList.remove('active'));
-                const tabBtn = document.getElementById(tab === 'schedule' ? 'evtTabSchedule' : 'evtTabRegs');
+                const tabBtnId = tab === 'schedule' ? 'evtTabSchedule' : (tab === 'registrations' ? 'evtTabRegs' : 'evtTabCheckin');
+                const tabBtn = document.getElementById(tabBtnId);
                 if (tabBtn) tabBtn.classList.add('active');
 
                 if (tab === 'schedule') {
                     this.renderEventSchedule(content);
-                } else {
-                    content.innerHTML = '<div style="padding: 16px; text-align: center; color: var(--text-secondary);"><i class="fas fa-users" style="font-size: 24px; margin-bottom: 8px; display: block;"></i>Registrations view coming soon</div>';
+                } else if (tab === 'registrations') {
+                    this.renderEventDetailRegistrations(content);
+                } else if (tab === 'checkin') {
+                    this.renderEventDetailCheckin(content);
+                }
+            },
+
+            async renderEventDetailRegistrations(container) {
+                const eventId = this.currentForumEventId;
+                if (!eventId) { container.innerHTML = '<p style="color: var(--text-muted);">No event selected</p>'; return; }
+
+                container.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin" style="font-size: 24px; color: var(--forum);"></i></div>';
+
+                try {
+                    const regs = await this.api(`/api/admin/forum/events/${eventId}/registrations`);
+                    if (!regs || regs.length === 0) {
+                        container.innerHTML = '<div class="table-empty"><i class="fas fa-users"></i><p>No registrations yet</p></div>';
+                        return;
+                    }
+                    const checkedIn = regs.filter(r => r.checked_in).length;
+                    container.innerHTML = `
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <span style="font-size: 13px; color: var(--text-muted);">${regs.length} registered | ${checkedIn} checked in</span>
+                        </div>
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead><tr style="border-bottom: 2px solid var(--border);">
+                                <th style="text-align: left; padding: 10px; font-weight: 600; font-size: 13px;">Name</th>
+                                <th style="text-align: left; padding: 10px; font-weight: 600; font-size: 13px;">Email</th>
+                                <th style="text-align: left; padding: 10px; font-weight: 600; font-size: 13px;">Institution</th>
+                                <th style="text-align: center; padding: 10px; font-weight: 600; font-size: 13px;">Status</th>
+                                <th style="text-align: center; padding: 10px; font-weight: 600; font-size: 13px;">Actions</th>
+                            </tr></thead>
+                            <tbody>
+                                ${regs.map(r => `
+                                    <tr style="border-bottom: 1px solid var(--border);">
+                                        <td style="padding: 10px;">${this.escapeHtml(r.name || (r.user_first ? (r.user_first + ' ' + (r.user_last || '')) : 'Unknown'))}</td>
+                                        <td style="padding: 10px; font-size: 13px;">${this.escapeHtml(r.email || r.user_email || '-')}</td>
+                                        <td style="padding: 10px; font-size: 13px;">${this.escapeHtml(r.institution || r.member_institution || '-')}</td>
+                                        <td style="padding: 10px; text-align: center;">${r.checked_in
+                                            ? '<span style="background: rgba(34,197,94,0.2); color: #22c55e; padding: 2px 8px; border-radius: 12px; font-size: 11px;"><i class="fas fa-check"></i> Checked in</span>'
+                                            : '<span style="background: rgba(148,163,184,0.2); color: #94a3b8; padding: 2px 8px; border-radius: 12px; font-size: 11px;">Registered</span>'
+                                        }</td>
+                                        <td style="padding: 10px; text-align: center;">${!r.checked_in
+                                            ? `<button class="btn btn-primary" style="padding: 4px 10px; font-size: 11px;" onclick="App.checkinForumRegistrant('${eventId}', '${r.id}'); setTimeout(() => App.renderEventDetailRegistrations(document.getElementById('eventDetailContent')), 500)"><i class="fas fa-check"></i> Check in</button>`
+                                            : `<span style="font-size: 11px; color: var(--text-muted);">${r.checked_in_at ? new Date(r.checked_in_at).toLocaleTimeString() : 'Done'}</span>`
+                                        }</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } catch (err) {
+                    console.error('Failed to load registrations:', err);
+                    container.innerHTML = '<div class="table-empty"><i class="fas fa-exclamation-triangle"></i><p>Failed to load registrations</p></div>';
+                }
+            },
+
+            renderEventDetailCheckin(container) {
+                const eventId = this.currentForumEventId;
+                if (!eventId) { container.innerHTML = '<p style="color: var(--text-muted);">No event selected</p>'; return; }
+
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 24px;">
+                        <i class="fas fa-qrcode" style="font-size: 48px; color: var(--forum); margin-bottom: 16px; display: block;"></i>
+                        <h4 style="margin-bottom: 16px;">Event Check-in</h4>
+                        <div style="max-width: 400px; margin: 0 auto;">
+                            <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                                <input type="text" id="fmEvtCheckinInput" class="search-input" placeholder="Enter registration ID or scan QR code..." style="flex: 1; padding: 12px;">
+                                <button class="btn btn-primary" onclick="App.performForumEventCheckin('${eventId}')" style="padding: 12px 20px;"><i class="fas fa-check"></i> Check In</button>
+                            </div>
+                            <div id="fmEvtCheckinResult" style="margin-top: 12px;"></div>
+                        </div>
+                    </div>
+                `;
+            },
+
+            async performForumEventCheckin(eventId) {
+                const input = document.getElementById('fmEvtCheckinInput');
+                const resultDiv = document.getElementById('fmEvtCheckinResult');
+                const value = input?.value?.trim();
+                if (!value) { Toast.warning('Enter a registration ID'); return; }
+
+                try {
+                    await this.api(`/api/admin/forum/events/${eventId}/checkin`, {
+                        method: 'POST',
+                        body: JSON.stringify({ registration_id: value })
+                    });
+                    resultDiv.innerHTML = '<div style="background: rgba(34,197,94,0.15); color: #22c55e; padding: 12px; border-radius: 8px; margin-top: 8px;"><i class="fas fa-check-circle"></i> Successfully checked in!</div>';
+                    input.value = '';
+                    input.focus();
+                } catch (err) {
+                    resultDiv.innerHTML = `<div style="background: rgba(239,68,68,0.15); color: #ef4444; padding: 12px; border-radius: 8px; margin-top: 8px;"><i class="fas fa-times-circle"></i> ${err.message || 'Check-in failed'}</div>`;
                 }
             },
 
@@ -21044,7 +21170,7 @@ President, Med&amp;X</textarea>
                 if (tab === 'institutions') this.loadInstitutions();
                 if (tab === 'apply') { this.formEditMode = false; this.loadFormConfig().then(() => this.renderFormPreview()); }
                 if (tab === 'applications') this.loadApplications();
-                if (tab === 'evaluation') { this.loadCriteria(); this.loadApplicationsForEval(); }
+                if (tab === 'evaluation') { this.loadCriteria().then(() => this.loadApplicationsForEval()); }
                 if (tab === 'interviewers') this.loadInterviewers();
                 if (tab === 'ranking') this.loadRanking();
                 if (tab === 'files') this.loadGroupedFiles();
@@ -22528,10 +22654,18 @@ President, Med&amp;X</textarea>
             },
 
             async loadApplicationsForEval() {
+                // Ensure applications are loaded
+                if (!this.applications || this.applications.length === 0) {
+                    await this.loadApplications();
+                }
                 const select = document.getElementById('accEvalAppSelect');
-                const apps = this.applications.filter(a => a.status === 'submitted');
+                // Show all submitted and valid applications (not just 'submitted')
+                const apps = this.applications.filter(a =>
+                    a.status === 'submitted' || a.status === 'valid' ||
+                    a.validity_status === 'valid' || a.validity_status === 'submitted'
+                );
                 select.innerHTML = '<option value="">-- Select candidate --</option>' +
-                    apps.map(a => `<option value="${a.id}">${escapeHtml(a.work_number || '-')} - ${escapeHtml(a.first_name)} ${escapeHtml(a.last_name)}</option>`).join('');
+                    apps.map(a => `<option value="${a.id}">${escapeHtml(a.work_number || a.candidate_id || '-')} - ${escapeHtml(a.first_name)} ${escapeHtml(a.last_name)} (${escapeHtml(a.current_institution || 'N/A')})</option>`).join('');
             },
 
             async loadApplicationForEval(appId) {
@@ -22561,19 +22695,32 @@ President, Med&amp;X</textarea>
             },
 
             async saveEvaluation() {
-                if (!this.currentApplication) return;
+                if (!this.currentApplication) {
+                    this.showAccToast('No candidate selected. Please select a candidate first.', 'warning');
+                    return;
+                }
+                if (!this.criteria || this.criteria.length === 0) {
+                    this.showAccToast('No evaluation criteria defined. Add criteria first.', 'warning');
+                    return;
+                }
 
-                const evaluations = this.criteria.map(c => ({
-                    criterion_id: c.id,
-                    score: parseFloat(document.getElementById(`eval-${c.id}`).value) || 0
-                }));
+                const evaluations = this.criteria.map(c => {
+                    const el = document.getElementById(`eval-${c.id}`);
+                    return {
+                        criterion_id: c.id,
+                        score: el ? (parseFloat(el.value) || 0) : 0
+                    };
+                });
 
                 try {
-                    await this.api(`/api/accelerator/applications/${this.currentApplication.id}/evaluate-batch`, {
+                    const appId = this.currentApplication.id;
+                    await this.api(`/api/accelerator/applications/${appId}/evaluate-batch`, {
                         method: 'POST', body: JSON.stringify({ evaluations })
                     });
                     this.showAccToast('Evaluation scores saved successfully.', 'success');
-                    this.loadApplications();
+                    await this.loadApplications();
+                    // Refresh the dropdown to reflect updated scores
+                    this.loadApplicationsForEval();
                 } catch (err) {
                     this.showAccToast('Error saving evaluation: ' + err.message, 'error');
                 }
@@ -22601,6 +22748,7 @@ President, Med&amp;X</textarea>
                         <td style="padding: 10px; text-align: center; white-space: nowrap;">
                             <button class="btn btn-primary" style="padding: 4px 8px; margin: 2px;" onclick="AcceleratorApp.sendMagicLink('${i.id}')" title="Send magic link via email"><i class="fas fa-paper-plane"></i></button>
                             <button class="btn btn-secondary" style="padding: 4px 8px; margin: 2px;" onclick="AcceleratorApp.copyInterviewerLink('${i.access_token}')" title="Copy link"><i class="fas fa-link"></i></button>
+                            <button class="btn btn-secondary" style="padding: 4px 8px; margin: 2px;" onclick="AcceleratorApp.showAssignCandidatesModal('${i.id}')" title="Assign candidates"><i class="fas fa-users"></i></button>
                             <button class="btn btn-secondary" style="padding: 4px 8px; margin: 2px;" onclick="AcceleratorApp.showInterviewerModal('${i.id}')" title="Edit"><i class="fas fa-edit"></i></button>
                             <button class="btn btn-secondary" style="padding: 4px 8px; margin: 2px;" onclick="AcceleratorApp.regenerateToken('${i.id}')" title="Regenerate token"><i class="fas fa-key"></i></button>
                             <button class="btn btn-secondary" style="padding: 4px 8px; margin: 2px;" onclick="AcceleratorApp.deleteInterviewer('${i.id}')" title="Delete"><i class="fas fa-trash"></i></button>
@@ -22697,6 +22845,10 @@ President, Med&amp;X</textarea>
             },
 
             copyInterviewerLink(token) {
+                if (!token || token === 'null' || token === 'undefined') {
+                    this.showAccToast('No access token. Click the key icon to generate one first.', 'warning');
+                    return;
+                }
                 const link = `${window.location.origin}/evaluate?token=${token}`;
                 navigator.clipboard.writeText(link);
                 this.showAccToast('Magic link copied to clipboard.', 'success');
@@ -22704,14 +22856,58 @@ President, Med&amp;X</textarea>
 
             async sendMagicLink(id) {
                 const interviewer = this.interviewers.find(i => i.id === id);
-                if (!confirm(`Send magic link to ${interviewer.email}?`)) return;
+                if (!interviewer) {
+                    this.showAccToast('Interviewer not found.', 'error');
+                    return;
+                }
+
+                // Auto-generate token if missing
+                if (!interviewer.access_token) {
+                    try {
+                        const result = await this.api(`/api/accelerator/interviewers/${id}/regenerate-token`, { method: 'POST' });
+                        interviewer.access_token = result.access_token;
+                    } catch (e) {
+                        this.showAccToast('Could not generate access token.', 'error');
+                        return;
+                    }
+                }
+
+                const magicLink = `${window.location.origin}/evaluate?token=${interviewer.access_token}`;
 
                 try {
                     await this.api(`/api/accelerator/interviewers/${id}/send-link`, { method: 'POST' });
                     this.showAccToast(`Magic link sent to ${interviewer.email}`, 'success');
                 } catch (err) {
-                    this.showAccToast('Error sending magic link: ' + err.message, 'error');
+                    // Fallback: show copyable link in a modal if email fails
+                    this.showMagicLinkModal(interviewer, magicLink, err.message);
                 }
+            },
+
+            showMagicLinkModal(interviewer, magicLink, errorMsg) {
+                const existingModal = document.getElementById('magicLinkModal');
+                if (existingModal) existingModal.remove();
+                const modal = document.createElement('div');
+                modal.className = 'modal-overlay active';
+                modal.id = 'magicLinkModal';
+                modal.onclick = function(e) { if (e.target === this) this.remove(); };
+                modal.innerHTML = `
+                    <div class="modal" style="max-width: 550px;">
+                        <div class="modal-header">
+                            <h3><i class="fas fa-link" style="color: var(--accelerator);"></i> Magic Link for ${escapeHtml(interviewer.name)}</h3>
+                            <button class="modal-close" onclick="document.getElementById('magicLinkModal').remove()">&times;</button>
+                        </div>
+                        <div class="modal-body" style="padding: 20px;">
+                            ${errorMsg ? `<div style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 12px; margin-bottom: 16px; color: #ef4444; font-size: 13px;"><i class="fas fa-exclamation-triangle"></i> Email could not be sent: ${escapeHtml(errorMsg)}. Copy the link below and send it manually.</div>` : ''}
+                            <p style="color: var(--text-secondary); margin-bottom: 12px;">Share this unique evaluation link with <strong>${escapeHtml(interviewer.name)}</strong> (${escapeHtml(interviewer.email)}):</p>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="text" id="magicLinkInput" value="${escapeHtml(magicLink)}" readonly style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-family: monospace; font-size: 12px;">
+                                <button class="btn btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('magicLinkInput').value); AcceleratorApp.showAccToast('Link copied to clipboard!', 'success');" style="white-space: nowrap;"><i class="fas fa-copy"></i> Copy</button>
+                            </div>
+                            <p style="color: var(--text-muted); font-size: 12px; margin-top: 12px;"><i class="fas fa-shield-alt"></i> This link is unique to this interviewer. Do not share publicly.</p>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
             },
 
             async regenerateToken(id) {
@@ -22723,6 +22919,116 @@ President, Med&amp;X</textarea>
                     this.loadInterviewers();
                 } catch (err) {
                     this.showAccToast('Error regenerating token: ' + err.message, 'error');
+                }
+            },
+
+            async showAssignCandidatesModal(interviewerId) {
+                const interviewer = this.interviewers.find(i => i.id === interviewerId);
+                if (!interviewer) return;
+
+                // Ensure applications are loaded
+                if (!this.applications || this.applications.length === 0) {
+                    await this.loadApplications();
+                }
+
+                // Get currently assigned candidates for this interviewer
+                let assignedIds = [];
+                try {
+                    const assignments = await this.api(`/api/accelerator/interviewers/${interviewerId}/assignments`);
+                    assignedIds = (assignments || []).map(a => a.application_id);
+                } catch (e) {
+                    // Endpoint may not exist yet - start with empty
+                }
+
+                const candidates = this.applications.filter(a =>
+                    a.status === 'submitted' || a.validity_status === 'valid'
+                );
+
+                const existingModal = document.getElementById('assignCandidatesModal');
+                if (existingModal) existingModal.remove();
+
+                const modal = document.createElement('div');
+                modal.className = 'modal-overlay active';
+                modal.id = 'assignCandidatesModal';
+                modal.onclick = function(e) { if (e.target === this) this.remove(); };
+                modal.innerHTML = `
+                    <div class="modal" style="max-width: 600px; max-height: 85vh; overflow-y: auto;">
+                        <div class="modal-header">
+                            <h3><i class="fas fa-users" style="color: var(--accelerator);"></i> Assign Candidates to ${escapeHtml(interviewer.name)}</h3>
+                            <button class="modal-close" onclick="document.getElementById('assignCandidatesModal').remove()">&times;</button>
+                        </div>
+                        <div class="modal-body" style="padding: 16px;">
+                            <div style="margin-bottom: 12px; display: flex; gap: 8px; align-items: center;">
+                                <input type="text" id="assignCandSearch" placeholder="Search candidates..." oninput="AcceleratorApp.filterAssignCandidates()" style="flex: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                <button class="btn btn-secondary" onclick="AcceleratorApp.toggleAllAssignCandidates(true)" style="padding: 6px 10px; font-size: 12px;">Select All</button>
+                                <button class="btn btn-secondary" onclick="AcceleratorApp.toggleAllAssignCandidates(false)" style="padding: 6px 10px; font-size: 12px;">Deselect All</button>
+                            </div>
+                            <div id="assignCandidatesList" style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;">
+                                ${candidates.length === 0 ? '<p style="padding: 20px; text-align: center; color: var(--text-muted);">No submitted candidates found.</p>' :
+                                candidates.map(c => `
+                                    <label class="assign-cand-item" data-name="${escapeHtml((c.first_name + ' ' + c.last_name).toLowerCase())}" data-inst="${escapeHtml((c.current_institution || '').toLowerCase())}" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background 0.15s;">
+                                        <input type="checkbox" value="${c.id}" ${assignedIds.includes(c.id) ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: var(--accelerator);">
+                                        <div style="flex: 1;">
+                                            <strong>${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}</strong>
+                                            <span style="color: var(--text-muted); font-size: 12px; margin-left: 8px;">#${escapeHtml(c.work_number || c.candidate_id || '-')}</span>
+                                            <div style="font-size: 12px; color: var(--text-secondary);">${escapeHtml(c.current_institution || 'No institution')}</div>
+                                        </div>
+                                    </label>
+                                `).join('')}
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border-color);">
+                                <span style="color: var(--text-muted); font-size: 13px;" id="assignCandCount">${assignedIds.length} selected</span>
+                                <div style="display: flex; gap: 8px;">
+                                    <button class="btn btn-secondary" onclick="document.getElementById('assignCandidatesModal').remove()">Cancel</button>
+                                    <button class="btn btn-primary" onclick="AcceleratorApp.saveAssignments('${interviewerId}')"><i class="fas fa-save"></i> Save Assignments</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+
+                // Wire up count updater
+                modal.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                    cb.addEventListener('change', () => {
+                        const count = modal.querySelectorAll('input[type="checkbox"]:checked').length;
+                        document.getElementById('assignCandCount').textContent = count + ' selected';
+                    });
+                });
+            },
+
+            filterAssignCandidates() {
+                const search = (document.getElementById('assignCandSearch')?.value || '').toLowerCase();
+                document.querySelectorAll('#assignCandidatesList .assign-cand-item').forEach(item => {
+                    const name = item.dataset.name || '';
+                    const inst = item.dataset.inst || '';
+                    item.style.display = (!search || name.includes(search) || inst.includes(search)) ? 'flex' : 'none';
+                });
+            },
+
+            toggleAllAssignCandidates(checked) {
+                document.querySelectorAll('#assignCandidatesList input[type="checkbox"]').forEach(cb => {
+                    if (cb.closest('.assign-cand-item').style.display !== 'none') {
+                        cb.checked = checked;
+                    }
+                });
+                const count = document.querySelectorAll('#assignCandidatesList input[type="checkbox"]:checked').length;
+                document.getElementById('assignCandCount').textContent = count + ' selected';
+            },
+
+            async saveAssignments(interviewerId) {
+                const checkboxes = document.querySelectorAll('#assignCandidatesList input[type="checkbox"]');
+                const applicationIds = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+
+                try {
+                    await this.api(`/api/accelerator/interviewers/${interviewerId}/assignments`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ application_ids: applicationIds })
+                    });
+                    document.getElementById('assignCandidatesModal').remove();
+                    this.showAccToast(`${applicationIds.length} candidate(s) assigned successfully.`, 'success');
+                } catch (err) {
+                    this.showAccToast('Error saving assignments: ' + err.message, 'error');
                 }
             },
 
@@ -22862,7 +23168,22 @@ President, Med&amp;X</textarea>
             },
 
             async editPdfSettings() {
-                const settings = await this.api(`/api/accelerator/years/${this.currentYear}/pdf-settings`);
+                let settings;
+                try {
+                    settings = await this.api(`/api/accelerator/years/${this.currentYear}/pdf-settings`);
+                } catch (err) {
+                    // Use defaults if API fails
+                    settings = {
+                        header_intro: `Pursuant to Article 8, Section 1 of the Regulations on the Med&X Accelerator International Program, the Committee for Organization of the Med&X Accelerator Program at its conference call held on [DATE] hereby decides:`,
+                        header_title: `Provisional Ranking List of Applicants for the Med&X Accelerator Program`,
+                        article1_text: '',
+                        article2_text: '',
+                        article3_text: '',
+                        signatory_name: 'Alen Juginovic, M.D.',
+                        signatory_title: 'Committee for Organization of the Med&X Accelerator Program',
+                        signatory_role: 'President'
+                    };
+                }
                 const existingPdfModal = document.getElementById('pdfSettingsModal');
                 if (existingPdfModal) existingPdfModal.remove();
                 const modal = document.createElement('div');
@@ -26655,13 +26976,21 @@ By applying to this program, I give the following consents:
                     this.currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
                 const platform = document.getElementById('prCalendarPlatform')?.value || '';
+                const contentType = document.getElementById('prCalendarType')?.value || '';
+                const contentStatus = document.getElementById('prCalendarStatus')?.value || '';
                 const project = this.currentProject;
 
                 let url = `/api/pr/calendar?month=${monthStr}`;
                 if (platform) url += `&platform=${platform}`;
                 if (project) url += `&project=${project}`;
+                if (contentType) url += `&type=${contentType}`;
+                if (contentStatus) url += `&status=${contentStatus}`;
 
-                const items = await this.api(url);
+                let items = await this.api(url);
+
+                // Client-side type/status filtering as fallback
+                if (contentType) items = items.filter(i => (i.content_type || i.type || '') === contentType || (contentType === 'social' && ['instagram','linkedin','twitter','facebook','tiktok','youtube'].includes(i.platform)));
+                if (contentStatus) items = items.filter(i => (i.status || '').toLowerCase() === contentStatus);
 
                 const grid = document.getElementById('prCalendarGrid');
                 const firstDay = new Date(year, month, 1).getDay();
@@ -26764,27 +27093,21 @@ By applying to this program, I give the following consents:
                 const container = document.getElementById('prPostsList');
 
                 if (!posts.length) {
-                    container.innerHTML = '<p style="color: var(--text-muted);">No posts yet. Log your published posts to track engagement.</p>';
+                    container.innerHTML = '<p style="color: var(--text-muted);">No posts logged yet. Click "Log Post" to record a social media post.</p>';
                     return;
                 }
 
                 container.innerHTML = posts.map(p => `
                     <div class="card" style="padding: 16px;">
-                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-                            <i class="${this.platformIcons[p.platform]}" style="font-size: 24px; color: ${this.platformColors[p.platform]};"></i>
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                            <i class="${this.platformIcons[p.platform]}" style="font-size: 20px; color: ${this.platformColors[p.platform]};"></i>
                             <div style="flex: 1;">
                                 <div style="font-weight: 600; text-transform: capitalize;">${p.platform}</div>
-                                <div style="font-size: 12px; color: var(--text-muted);">${p.published_at?.split('T')[0] || ''}</div>
+                                <div style="font-size: 12px; color: var(--text-muted);">${p.published_at?.split('T')[0] || 'No date'}</div>
                             </div>
-                            <span style="background: rgba(var(--plexus-rgb), 0.2); color: var(--plexus); padding: 2px 8px; border-radius: 4px; font-size: 11px;">${p.project}</span>
+                            <span style="background: rgba(var(--plexus-rgb), 0.2); color: var(--plexus); padding: 2px 8px; border-radius: 4px; font-size: 11px;">${p.project || 'General'}</span>
                         </div>
-                        <p style="font-size: 13px; margin-bottom: 12px;">${p.content_text?.substring(0, 150) || 'No caption'}...</p>
-                        <div style="display: flex; gap: 16px; font-size: 13px;">
-                            <span><i class="fas fa-heart" style="color: var(--danger);"></i> ${p.likes}</span>
-                            <span><i class="fas fa-comment"></i> ${p.comments}</span>
-                            <span><i class="fas fa-share"></i> ${p.shares}</span>
-                            <span><i class="fas fa-eye"></i> ${p.reach}</span>
-                        </div>
+                        <p style="font-size: 13px; color: var(--text-secondary); margin: 0;">${p.content_text?.substring(0, 200) || 'No caption'}</p>
                     </div>
                 `).join('');
             },
