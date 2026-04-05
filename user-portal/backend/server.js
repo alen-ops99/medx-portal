@@ -14238,7 +14238,7 @@ By applying to this program, I provide the following consents:
     app.post('/api/rewards/purchase-checkout', auth, async (req, res) => {
         try {
             if (!stripe) return res.status(400).json({ error: 'Card payments not configured' });
-            const { packageId } = req.body;
+            const { packageId, points: customPoints, price: customPrice } = req.body;
 
             const packages = {
                 'pts-500': { points: 500, price: 700, name: '500 Reward Points' },
@@ -14246,7 +14246,14 @@ By applying to this program, I provide the following consents:
                 'pts-5000': { points: 5000, price: 6000, name: '5,000 Reward Points (15% bonus)' }
             };
 
-            const pkg = packages[packageId];
+            let pkg;
+            if (packageId === 'custom' && customPoints && customPrice) {
+                // Custom amount: validate price matches (€0.014/point in cents)
+                const expectedPrice = Math.round(customPoints * 1.4);
+                pkg = { points: customPoints, price: expectedPrice, name: `${customPoints.toLocaleString()} Reward Points` };
+            } else {
+                pkg = packages[packageId];
+            }
             if (!pkg) return res.status(400).json({ error: 'Invalid package' });
 
             const user = query.get('SELECT email FROM users WHERE id = ?', [req.user.id]);

@@ -75694,46 +75694,71 @@ You can use variables like {first_name} that will be personalized for each recip
             },
 
             showBuyPointsModal() {
-                const existing = document.getElementById('buyPointsModal');
-                if (existing) existing.remove();
+                try {
+                    const existing = document.getElementById('buyPointsModal');
+                    if (existing) existing.remove();
 
-                const modal = document.createElement('div');
-                modal.id = 'buyPointsModal';
-                modal.className = 'rewards-redeem-modal active';
-                modal.innerHTML = `
-                    <div class="rewards-redeem-content" style="max-width: 480px;">
-                        <div class="rewards-redeem-header">
-                            <h2><i class="fas fa-shopping-cart" style="color: #10b981;"></i> Buy Points</h2>
-                            <button class="rewards-redeem-close" onclick="document.getElementById('buyPointsModal').remove()"><i class="fas fa-times"></i></button>
-                        </div>
-                        <div class="rewards-redeem-body" style="padding: 24px;">
-                            <p style="color: var(--up-text-secondary); margin-bottom: 20px;">Top up your points balance instantly via card payment.</p>
-                            <div style="display: flex; flex-direction: column; gap: 12px;">
-                                <div onclick="RewardsPortal.purchasePoints('pts-500')" style="display:flex; justify-content:space-between; align-items:center; padding:16px; border:1px solid var(--up-border,#e5e7eb); border-radius:12px; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.borderColor='#10b981'" onmouseout="this.style.borderColor=''">
-                                    <div><strong style="font-size:16px;">500 Points</strong><br><span style="font-size:13px; color:var(--up-text-secondary);">Standard pack</span></div>
-                                    <div style="font-size:20px; font-weight:700; color:#10b981;">&euro;7</div>
-                                </div>
-                                <div onclick="RewardsPortal.purchasePoints('pts-1000')" style="display:flex; justify-content:space-between; align-items:center; padding:16px; border:2px solid #10b981; border-radius:12px; cursor:pointer; background:rgba(16,185,129,0.05); position:relative;">
-                                    <div style="position:absolute; top:-8px; right:12px; background:#10b981; color:white; font-size:10px; font-weight:700; padding:2px 8px; border-radius:4px;">POPULAR</div>
-                                    <div><strong style="font-size:16px;">1,000 Points</strong><br><span style="font-size:13px; color:var(--up-text-secondary);">Best value</span></div>
-                                    <div style="font-size:20px; font-weight:700; color:#10b981;">&euro;15</div>
-                                </div>
-                                <div onclick="RewardsPortal.purchasePoints('pts-5000')" style="display:flex; justify-content:space-between; align-items:center; padding:16px; border:1px solid var(--up-border,#e5e7eb); border-radius:12px; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.borderColor='#10b981'" onmouseout="this.style.borderColor=''">
-                                    <div><strong style="font-size:16px;">5,000 Points</strong><br><span style="font-size:13px; color:var(--up-text-secondary);">15% bonus included</span></div>
-                                    <div style="font-size:20px; font-weight:700; color:#10b981;">&euro;60</div>
-                                </div>
+                    const modal = document.createElement('div');
+                    modal.id = 'buyPointsModal';
+                    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10000; display:flex; align-items:center; justify-content:center; padding:16px;';
+                    modal.innerHTML = `
+                        <div style="background:var(--up-bg,#fff); border-radius:20px; max-width:420px; width:100%; max-height:85vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                            <div style="padding:20px 24px; border-bottom:1px solid var(--up-border,#e5e7eb); display:flex; justify-content:space-between; align-items:center;">
+                                <h2 style="font-size:18px; font-weight:700; color:var(--up-text,#1d1d1f); margin:0;"><i class="fas fa-coins" style="color:#10b981;"></i> Buy Points</h2>
+                                <button onclick="document.getElementById('buyPointsModal').remove()" style="background:none; border:none; font-size:20px; color:var(--up-text-muted,#94a3b8); cursor:pointer;">&times;</button>
                             </div>
-                            <p style="font-size:11px; color:var(--up-text-muted); margin-top:16px; text-align:center;">Secure payment via Stripe. Invoice issued automatically.</p>
+                            <div style="padding:24px;">
+                                <p style="color:var(--up-text-secondary,#64748b); font-size:14px; margin-bottom:20px;">Choose a package or use the slider for a custom amount.</p>
+
+                                <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:24px;">
+                                    <div onclick="RewardsPortal.purchasePoints('pts-500')" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border:1px solid var(--up-border,#e5e7eb); border-radius:12px; cursor:pointer;" onmouseover="this.style.borderColor='#10b981';this.style.background='rgba(16,185,129,0.03)'" onmouseout="this.style.borderColor='';this.style.background=''">
+                                        <div><strong style="color:var(--up-text,#1d1d1f);">500 Points</strong></div>
+                                        <div style="font-size:18px; font-weight:700; color:#10b981;">&euro;7</div>
+                                    </div>
+                                    <div onclick="RewardsPortal.purchasePoints('pts-1000')" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border:2px solid #10b981; border-radius:12px; cursor:pointer; background:rgba(16,185,129,0.04); position:relative;">
+                                        <span style="position:absolute; top:-8px; right:12px; background:#10b981; color:white; font-size:9px; font-weight:700; padding:2px 8px; border-radius:4px; text-transform:uppercase;">Popular</span>
+                                        <div><strong style="color:var(--up-text,#1d1d1f);">1,000 Points</strong></div>
+                                        <div style="font-size:18px; font-weight:700; color:#10b981;">&euro;15</div>
+                                    </div>
+                                    <div onclick="RewardsPortal.purchasePoints('pts-5000')" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border:1px solid var(--up-border,#e5e7eb); border-radius:12px; cursor:pointer;" onmouseover="this.style.borderColor='#10b981';this.style.background='rgba(16,185,129,0.03)'" onmouseout="this.style.borderColor='';this.style.background=''">
+                                        <div><strong style="color:var(--up-text,#1d1d1f);">5,000 Points</strong> <span style="font-size:11px; color:#10b981;">15% bonus</span></div>
+                                        <div style="font-size:18px; font-weight:700; color:#10b981;">&euro;60</div>
+                                    </div>
+                                </div>
+
+                                <div style="border-top:1px solid var(--up-border,#e5e7eb); padding-top:20px;">
+                                    <div style="font-size:13px; font-weight:600; color:var(--up-text,#1d1d1f); margin-bottom:12px;">Custom Amount</div>
+                                    <div style="text-align:center; margin-bottom:8px;">
+                                        <span id="buySliderPoints" style="font-size:28px; font-weight:700; color:var(--up-text,#1d1d1f);">100</span>
+                                        <span style="font-size:14px; color:var(--up-text-secondary,#64748b);"> points</span>
+                                        <div style="font-size:16px; font-weight:600; color:#10b981; margin-top:4px;">&euro;<span id="buySliderPrice">1.40</span></div>
+                                    </div>
+                                    <input type="range" id="buySlider" min="100" max="10000" step="100" value="100"
+                                        oninput="document.getElementById('buySliderPoints').textContent=this.value; document.getElementById('buySliderPrice').textContent=(this.value*0.014).toFixed(2);"
+                                        style="width:100%; accent-color:#10b981; cursor:pointer;">
+                                    <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--up-text-muted,#94a3b8);">
+                                        <span>100</span><span>10,000</span>
+                                    </div>
+                                    <button onclick="RewardsPortal.purchaseCustomPoints()" style="width:100%; margin-top:12px; padding:12px; background:linear-gradient(135deg,#10b981,#059669); color:white; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer;">
+                                        <i class="fas fa-shopping-cart"></i> Buy Custom Amount
+                                    </button>
+                                </div>
+
+                                <p style="font-size:11px; color:var(--up-text-muted,#94a3b8); margin-top:16px; text-align:center;">Secure payment via Stripe. Invoice issued automatically.</p>
+                            </div>
                         </div>
-                    </div>
-                `;
-                document.body.appendChild(modal);
-                modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+                    `;
+                    document.body.appendChild(modal);
+                    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+                } catch(err) {
+                    console.error('Buy points modal error:', err);
+                    alert('Could not open buy points. Please try again.');
+                }
             },
 
             async purchasePoints(packageId) {
                 document.getElementById('buyPointsModal')?.remove();
-                this.showToast('Redirecting to payment...');
+                Toast.info('Redirecting to payment...');
                 try {
                     const res = await UserPortal.api('/api/rewards/purchase-checkout', {
                         method: 'POST',
@@ -75742,10 +75767,32 @@ You can use variables like {first_name} that will be personalized for each recip
                     if (res.url) {
                         window.location.href = res.url;
                     } else {
-                        this.showToast('Payment setup failed. Please try again.', 'error');
+                        Toast.error('Payment not available. Stripe may not be configured.');
                     }
                 } catch(e) {
-                    this.showToast('Payment not available right now.', 'error');
+                    Toast.error('Payment not available. Stripe may not be configured.');
+                }
+            },
+
+            async purchaseCustomPoints() {
+                const slider = document.getElementById('buySlider');
+                const points = parseInt(slider?.value || '100');
+                const price = Math.round(points * 1.4); // €0.014 per point, in cents
+
+                document.getElementById('buyPointsModal')?.remove();
+                Toast.info('Redirecting to payment...');
+                try {
+                    const res = await UserPortal.api('/api/rewards/purchase-checkout', {
+                        method: 'POST',
+                        body: JSON.stringify({ packageId: 'custom', points, price })
+                    });
+                    if (res.url) {
+                        window.location.href = res.url;
+                    } else {
+                        Toast.error('Payment not available. Stripe may not be configured.');
+                    }
+                } catch(e) {
+                    Toast.error('Payment not available. Stripe may not be configured.');
                 }
             },
 
@@ -122180,6 +122227,20 @@ By applying to this program, I give the following consents:
             }
         }
     </script>
+
+    <!-- Floating QR Code Button — always visible -->
+    <button id="floatingQRBtn" onclick="showQuickQR()" style="
+        position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+        width: 56px; height: 56px; border-radius: 50%;
+        background: linear-gradient(135deg, #c9a962, #b49650);
+        color: #0f172a; border: none; cursor: pointer;
+        box-shadow: 0 4px 20px rgba(201,169,98,0.4);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 22px; transition: all 0.3s;
+    " onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform=''">
+        <i class="fas fa-qrcode"></i>
+    </button>
+
 </body>
 
     <!-- Bulk Actions Bar removed — admin-only feature -->
