@@ -15985,8 +15985,17 @@ By applying to this program, I provide the following consents:
             saveDb();
 
             // Build link pointing to user portal (NOT admin portal)
+            // Encode event info in URL so user portal doesn't need DB lookup
             const userPortalUrl = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
-            const link = `${userPortalUrl}/?register=${token}`;
+            const linkData = Buffer.from(JSON.stringify({
+                t: token,
+                e: event_type,
+                n: event_name || '',
+                i: event_id || '',
+                p: package_items || [],
+                x: expiresAt
+            })).toString('base64url');
+            const link = `${userPortalUrl}/?invite=${linkData}`;
 
             res.json({ success: true, id, token, link, expiresAt });
         } catch (error) {
