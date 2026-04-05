@@ -667,6 +667,15 @@ async function initializeApp() {
         UNIQUE(application_id, criterion_id, evaluator_id)
     )`);
 
+    // Interviewer-candidate assignments
+    db.run(`CREATE TABLE IF NOT EXISTS accelerator_interviewer_assignments (
+        id TEXT PRIMARY KEY,
+        interviewer_id TEXT NOT NULL,
+        application_id TEXT NOT NULL,
+        assigned_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(interviewer_id, application_id)
+    )`);
+
     // Applicant accounts (public registration for candidates)
     db.run(`CREATE TABLE IF NOT EXISTS accelerator_applicants (
         id TEXT PRIMARY KEY,
@@ -5032,8 +5041,8 @@ async function initializeApp() {
             db.run(`INSERT INTO accelerator_evaluation_criteria (id, year, name, name_hr, max_points, weight, category, sort_order) VALUES (?, 2026, 'Leadership & Impact', 'Leadership & Impact', 10, 0.20, 'subjective', 4)`, [uuidv4()]);
 
             // Interviewers (schema: id, year, name, email, institution, specialty, is_active)
-            db.run(`INSERT INTO accelerator_interviewers (id, year, name, email, institution, specialty) VALUES (?, 2026, 'Dr. Alen Juginovic', 'juginovic.alen@gmail.com', 'Harvard Medical School', 'Sleep Neuroscience')`, [uuidv4()]);
-            db.run(`INSERT INTO accelerator_interviewers (id, year, name, email, institution, specialty) VALUES (?, 2026, 'Dr. Miro Vukovic', 'vp@medx.hr', 'Med&X', 'Program Management')`, [uuidv4()]);
+            db.run(`INSERT INTO accelerator_interviewers (id, year, name, email, institution, specialty, access_token) VALUES (?, 2026, 'Dr. Alen Juginovic', 'juginovic.alen@gmail.com', 'Harvard Medical School', 'Sleep Neuroscience', ?)`, [uuidv4(), uuidv4()]);
+            db.run(`INSERT INTO accelerator_interviewers (id, year, name, email, institution, specialty, access_token) VALUES (?, 2026, 'Dr. Miro Vukovic', 'vp@medx.hr', 'Med&X', 'Program Management', ?)`, [uuidv4(), uuidv4()]);
 
             saveDb();
             console.log('Accelerator applications & criteria seeded');
@@ -6592,6 +6601,13 @@ By applying to this program, I provide the following consents:
                 return res.status(404).json({ error: 'Interviewer not found' });
             }
 
+            // Auto-generate token if missing
+            if (!interviewer.access_token) {
+                interviewer.access_token = uuidv4();
+                db.run('UPDATE accelerator_interviewers SET access_token = ? WHERE id = ?', [interviewer.access_token, req.params.id]);
+                saveDb();
+            }
+
             const baseUrl = req.headers.origin || `http://localhost:${PORT}`;
             const magicLink = `${baseUrl}/evaluate?token=${interviewer.access_token}`;
 
@@ -6635,6 +6651,44 @@ By applying to this program, I provide the following consents:
         db.run('UPDATE accelerator_interviewers SET access_token = ? WHERE id = ?', [newToken, req.params.id]);
         saveDb();
         res.json({ success: true, access_token: newToken });
+    });
+
+    // Get interviewer assignments
+    app.get('/api/accelerator/interviewers/:id/assignments', auth, (req, res) => {
+        const assignments = query.all(
+            `SELECT a.*, app.first_name, app.last_name, app.current_institution, app.work_number
+             FROM accelerator_interviewer_assignments a
+             JOIN accelerator_applications app ON a.application_id = app.id
+             WHERE a.interviewer_id = ?`,
+            [req.params.id]
+        );
+        res.json(assignments);
+    });
+
+    // Save interviewer assignments (replace all)
+    app.put('/api/accelerator/interviewers/:id/assignments', auth, (req, res) => {
+        try {
+            const { application_ids } = req.body;
+            if (!Array.isArray(application_ids)) {
+                return res.status(400).json({ error: 'application_ids must be an array' });
+            }
+
+            // Remove old assignments for this interviewer
+            db.run('DELETE FROM accelerator_interviewer_assignments WHERE interviewer_id = ?', [req.params.id]);
+
+            // Insert new assignments
+            application_ids.forEach(appId => {
+                const id = uuidv4();
+                db.run(`INSERT INTO accelerator_interviewer_assignments (id, interviewer_id, application_id)
+                    VALUES (?, ?, ?)`, [id, req.params.id, appId]);
+            });
+
+            saveDb();
+            res.json({ success: true, count: application_ids.length });
+        } catch (err) {
+            console.error('Error saving assignments:', err);
+            res.status(500).json({ error: 'Failed to save assignments' });
+        }
     });
 
     // ========== APPLICANT REGISTRATIONS (Admin View) ==========
