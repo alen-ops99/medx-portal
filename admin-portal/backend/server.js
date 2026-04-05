@@ -151,7 +151,7 @@ const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'development' ? 'medx-dev-secret' : (() => { console.error('FATAL: JWT_SECRET environment variable is required in production'); process.exit(1); })());
 
 app.use(cors({
-  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001'],
+  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : true,
   credentials: true
 }));
 app.use(express.json());
@@ -5275,14 +5275,17 @@ async function initializeApp() {
                 ORDER BY r.created_at DESC
             `, [userId, user.email]);
 
-            const payments = query.all(`
-                SELECT pt.id, pt.amount, pt.currency, pt.method, pt.status, pt.created_at,
-                       r.id as registration_id
-                FROM payment_transactions pt
-                LEFT JOIN registrations r ON pt.registration_id = r.id
-                WHERE r.user_id = ? OR r.email = ?
-                ORDER BY pt.created_at DESC
-            `, [userId, user.email]);
+            let payments = [];
+            try {
+                payments = query.all(`
+                    SELECT pt.id, pt.amount, pt.currency, pt.payment_method, pt.status, pt.created_at,
+                           r.id as registration_id
+                    FROM payment_transactions pt
+                    LEFT JOIN registrations r ON pt.registration_id = r.id
+                    WHERE r.user_id = ? OR r.email = ?
+                    ORDER BY pt.created_at DESC
+                `, [userId, user.email]);
+            } catch(e) { console.log('Payments query failed:', e.message); }
 
             const checkedIn = query.all(`
                 SELECT r.id, r.checked_in, r.checked_in_at, c.name as conference_name
