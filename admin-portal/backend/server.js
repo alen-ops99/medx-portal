@@ -10117,11 +10117,12 @@ By applying to this program, I provide the following consents:
         if (!reg) return res.status(404).json({ error: 'Registration not found' });
         if (reg.checked_in) return res.json({ success: true, already_checked_in: true, attendee: reg, qr_info: qrInfo });
 
+        const isFirstCheckin = !reg.checked_in_at; // Never been checked in before
         db.run("UPDATE registrations SET checked_in = 1, checked_in_at = datetime('now') WHERE id = ?", [regId]);
         saveDb();
 
-        // Send welcome email on check-in
-        try {
+        // Send welcome email only on FIRST check-in (not after undo/redo)
+        if (isFirstCheckin) try {
             const confName = query.get('SELECT name FROM conferences WHERE id = ?', [reg.conference_id])?.name || 'Med&X Event';
             if (reg.email) {
                 sendEmail(reg.email, `Welcome to ${confName}!`,
@@ -10145,12 +10146,13 @@ By applying to this program, I provide the following consents:
             const { registration_id, type } = req.body;
             if (!registration_id) return res.status(400).json({ error: 'Registration ID required' });
 
+            // Keep checked_in_at so we know welcome email was already sent
             if (type === 'forum') {
-                db.run('UPDATE forum_event_registrations SET checked_in = 0, checked_in_at = NULL WHERE id = ?', [registration_id]);
+                db.run('UPDATE forum_event_registrations SET checked_in = 0 WHERE id = ?', [registration_id]);
             } else if (type === 'bridges') {
-                db.run('UPDATE bridges_registrations SET checked_in = 0, checked_in_at = NULL WHERE id = ?', [registration_id]);
+                db.run('UPDATE bridges_registrations SET checked_in = 0 WHERE id = ?', [registration_id]);
             } else {
-                db.run('UPDATE registrations SET checked_in = 0, checked_in_at = NULL WHERE id = ?', [registration_id]);
+                db.run('UPDATE registrations SET checked_in = 0 WHERE id = ?', [registration_id]);
             }
             saveDb();
             res.json({ success: true });
