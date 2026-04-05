@@ -1808,7 +1808,7 @@
 
         .timeline-track {
             position: relative;
-            height: 100px;
+            height: 160px;
             margin: 20px 0 16px;
         }
 
@@ -1889,12 +1889,13 @@
         }
 
         .timeline-card .tc-name {
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 500;
             color: var(--text-primary);
             max-width: 100px;
             overflow: hidden;
             text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .timeline-card .tc-days {
@@ -3795,7 +3796,7 @@
             }
 
             .timeline-track {
-                height: 70px;
+                height: 120px;
             }
 
             .timeline-event-card {
@@ -6514,8 +6515,13 @@
                             </div>
                         </div>
                         <div class="card" style="grid-column: span 1;">
-                            <div class="card-header">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                                 <span class="card-title">Registration Trends</span>
+                                <select id="trendEventFilter" onchange="App.loadRegistrationTrendsChart(this.value)" style="font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); cursor: pointer;">
+                                    <option value="all">All Events</option>
+                                    <option value="plexus">Plexus Only</option>
+                                    <option value="accelerator">Accelerator Only</option>
+                                </select>
                             </div>
                             <div class="card-body" style="height: 260px;">
                                 <canvas id="dashTrendChart"></canvas>
@@ -6793,8 +6799,8 @@
                     </div>
 
                     <!-- Session Modal -->
-                    <div class="modal" id="sessionModal" style="display: none;">
-                        <div class="modal-content" style="max-width: 560px;">
+                    <div class="modal-overlay" id="sessionModal" onclick="if(event.target===this) App.closeModal('sessionModal')">
+                        <div class="modal" style="max-width: 560px;">
                             <div class="modal-header">
                                 <h3 id="sessionModalTitle">Add Session</h3>
                                 <button class="modal-close" onclick="App.closeModal('sessionModal')"><i class="fas fa-times"></i></button>
@@ -7090,8 +7096,15 @@ President, Med&amp;X</textarea>
 
                     <!-- SETTINGS TAB -->
                     <div class="plexus-content" id="plexus-settings">
-                        <div class="card">
-                            <div class="card-header"><h3 class="card-title">Conference Pricing (EUR)</h3></div>
+                        <!-- Prominent Save & Publish button at top -->
+                        <div style="margin-bottom: 20px; display: flex; justify-content: flex-end;">
+                            <button class="btn btn-primary" onclick="PlexusSettingsAdmin.saveAndPublish()" style="padding: 14px 36px; font-size: 15px; font-weight: 600; background: linear-gradient(135deg, #a78bfa, #7c3aed); border: none; box-shadow: 0 4px 14px rgba(167, 139, 250, 0.4);">
+                                <i class="fas fa-rocket" style="margin-right: 8px;"></i> Save & Publish to Users
+                            </button>
+                        </div>
+                        <!-- Pricing: green left border -->
+                        <div class="card" style="border-left: 3px solid rgba(74, 222, 128, 0.5);">
+                            <div class="card-header"><h3 class="card-title"><i class="fas fa-euro-sign" style="margin-right: 8px; color: #4ade80;"></i>Conference Pricing (EUR)</h3></div>
                             <div class="card-body">
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                                     <div class="form-group"><label class="form-label">Student Early Bird</label><input type="number" class="form-input" id="pxSettingPriceStudentEarly" step="0.01" placeholder="39"></div>
@@ -7101,8 +7114,9 @@ President, Med&amp;X</textarea>
                                 </div>
                             </div>
                         </div>
-                        <div class="card">
-                            <div class="card-header"><h3 class="card-title">Conference Dates</h3></div>
+                        <!-- Dates: blue left border -->
+                        <div class="card" style="border-left: 3px solid rgba(96, 165, 250, 0.5);">
+                            <div class="card-header"><h3 class="card-title"><i class="fas fa-calendar-alt" style="margin-right: 8px; color: #60a5fa;"></i>Conference Dates</h3></div>
                             <div class="card-body">
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                                     <div class="form-group"><label class="form-label">Conference Start</label><input type="date" class="form-input" id="pxSettingStartDate"></div>
@@ -7113,16 +7127,18 @@ President, Med&amp;X</textarea>
                                 <div class="form-group" style="margin-top: 16px;"><label class="form-label">Registration Open</label><select class="form-input" id="pxSettingRegOpen" style="max-width: 200px;"><option value="1">Yes</option><option value="0">No</option></select></div>
                             </div>
                         </div>
-                        <div class="card">
-                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;"><h3 class="card-title">Key Dates (shown on user portal)</h3><button class="btn btn-secondary" onclick="PlexusSettingsAdmin.addKeyDate()" style="font-size: 12px;"><i class="fas fa-plus"></i> Add Date</button></div>
+                        <!-- General: gold left border -->
+                        <div class="card" style="border-left: 3px solid rgba(201, 169, 98, 0.5);">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;"><h3 class="card-title"><i class="fas fa-calendar-check" style="margin-right: 8px; color: #c9a962;"></i>Key Dates (shown on user portal)</h3><button class="btn btn-secondary" onclick="PlexusSettingsAdmin.addKeyDate()" style="font-size: 12px;"><i class="fas fa-plus"></i> Add Date</button></div>
                             <div class="card-body" id="pxKeyDatesEditor"></div>
                         </div>
-                        <div class="card">
-                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;"><h3 class="card-title">Testimonials</h3><button class="btn btn-secondary" onclick="PlexusSettingsAdmin.addTestimonial()" style="font-size: 12px;"><i class="fas fa-plus"></i> Add Testimonial</button></div>
+                        <!-- General: gold left border -->
+                        <div class="card" style="border-left: 3px solid rgba(201, 169, 98, 0.5);">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;"><h3 class="card-title"><i class="fas fa-quote-left" style="margin-right: 8px; color: #c9a962;"></i>Testimonials</h3><button class="btn btn-secondary" onclick="PlexusSettingsAdmin.addTestimonial()" style="font-size: 12px;"><i class="fas fa-plus"></i> Add Testimonial</button></div>
                             <div class="card-body" id="pxTestimonialsEditor"></div>
                         </div>
-                        <!-- D1: Venue Rooms Management -->
-                        <div class="card">
+                        <!-- D1: Venue Rooms Management — General: gold left border -->
+                        <div class="card" style="border-left: 3px solid rgba(201, 169, 98, 0.5);">
                             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                                 <h3 class="card-title"><i class="fas fa-door-open" style="margin-right: 8px;"></i>Venue Rooms</h3>
                                 <button class="btn btn-primary" onclick="PlexusSettingsAdmin.addRoom()" style="font-size: 12px;"><i class="fas fa-plus"></i> Add Room</button>
@@ -7454,14 +7470,20 @@ President, Med&amp;X</textarea>
 
                                     <!-- Section 5: Required Documents -->
                                     <div style="margin-bottom: 24px; padding: 20px; background: var(--bg-secondary); border-radius: 10px;">
-                                        <h3 style="margin: 0 0 16px 0; font-size: 16px; color: var(--accent-primary);"><i class="fas fa-file-upload" style="margin-right: 8px;"></i>5. Required Documents</h3>
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                            <h3 style="margin: 0; font-size: 16px; color: var(--accent-primary);"><i class="fas fa-file-upload" style="margin-right: 8px;"></i>5. Required Documents</h3>
+                                            <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="AcceleratorApp.editDocumentTypes('required')"><i class="fas fa-edit"></i> Edit Types</button>
+                                        </div>
                                         <p style="margin: 0 0 16px 0; font-size: 13px; color: var(--text-muted);">All documents must be in PDF format. Maximum file size: 10 MB.</p>
                                         <div id="accRequiredDocs" style="display: grid; gap: 12px;"></div>
                                     </div>
 
                                     <!-- Section 6: Optional Documents (Bonus Points) -->
                                     <div style="margin-bottom: 24px; padding: 20px; background: var(--bg-secondary); border-radius: 10px;">
-                                        <h3 style="margin: 0 0 16px 0; font-size: 16px; color: var(--accent-gold);"><i class="fas fa-star" style="margin-right: 8px;"></i>6. Additional Documents (bonus points)</h3>
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                            <h3 style="margin: 0; font-size: 16px; color: var(--accent-gold);"><i class="fas fa-star" style="margin-right: 8px;"></i>6. Additional Documents (bonus points)</h3>
+                                            <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="AcceleratorApp.editDocumentTypes('optional')"><i class="fas fa-edit"></i> Edit Types</button>
+                                        </div>
                                         <p style="margin: 0 0 16px 0; font-size: 13px; color: var(--text-muted);">These documents are optional but can earn additional points during evaluation.</p>
                                         <div id="accOptionalDocs" style="display: grid; gap: 12px;"></div>
                                     </div>
@@ -7485,7 +7507,7 @@ President, Med&amp;X</textarea>
                                             <i class="fas fa-save"></i> Save Draft
                                         </button>
                                         <button type="submit" class="btn btn-primary" style="padding: 12px 32px;">
-                                            <i class="fas fa-paper-plane"></i> Submit Application
+                                            <i class="fas fa-save"></i> Save Form Configuration
                                         </button>
                                     </div>
                                 </form>
@@ -7727,8 +7749,8 @@ President, Med&amp;X</textarea>
                 </div>
 
                 <!-- Application Detail Modal -->
-                <div id="accAppModal" class="modal" style="display: none;">
-                    <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+                <div id="accAppModal" class="modal-overlay" onclick="if(event.target===this) AcceleratorApp.closeAppModal()">
+                    <div class="modal" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
                         <div class="modal-header">
                             <h3 id="accAppModalTitle">Application Details</h3>
                             <button class="modal-close" onclick="AcceleratorApp.closeAppModal()">&times;</button>
@@ -7738,8 +7760,8 @@ President, Med&amp;X</textarea>
                 </div>
 
                 <!-- Institution Detail Modal -->
-                <div id="accInstModal" class="modal" style="display: none;">
-                    <div class="modal-content" style="max-width: 700px;">
+                <div id="accInstModal" class="modal-overlay" onclick="if(event.target===this) AcceleratorApp.closeInstModal()">
+                    <div class="modal" style="max-width: 700px;">
                         <div class="modal-header">
                             <h3 id="accInstModalTitle">Institution Details</h3>
                             <button class="modal-close" onclick="AcceleratorApp.closeInstModal()">&times;</button>
@@ -7749,8 +7771,8 @@ President, Med&amp;X</textarea>
                 </div>
 
                 <!-- Institution Edit Modal -->
-                <div id="accInstEditModal" class="modal" style="display: none;">
-                    <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
+                <div id="accInstEditModal" class="modal-overlay" onclick="if(event.target===this) AcceleratorApp.closeInstEditModal()">
+                    <div class="modal" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
                         <div class="modal-header">
                             <h3 id="accInstEditTitle">Edit Institution</h3>
                             <button class="modal-close" onclick="AcceleratorApp.closeInstEditModal()">&times;</button>
@@ -7848,8 +7870,8 @@ President, Med&amp;X</textarea>
                 </div>
 
                 <!-- Message Candidate Modal -->
-                <div id="accMessageModal" class="modal" style="display: none;">
-                    <div class="modal-content" style="max-width: 500px;">
+                <div id="accMessageModal" class="modal-overlay" onclick="if(event.target===this) AcceleratorApp.closeMessageModal()">
+                    <div class="modal" style="max-width: 500px;">
                         <div class="modal-header">
                             <h3 id="accMessageModalTitle">Send Message</h3>
                             <button class="modal-close" onclick="AcceleratorApp.closeMessageModal()">&times;</button>
@@ -7892,8 +7914,8 @@ President, Med&amp;X</textarea>
                 </div>
 
                 <!-- Validity Status Modal -->
-                <div id="accValidityModal" class="modal" style="display: none;">
-                    <div class="modal-content" style="max-width: 450px;">
+                <div id="accValidityModal" class="modal-overlay" onclick="if(event.target===this) AcceleratorApp.closeValidityModal()">
+                    <div class="modal" style="max-width: 450px;">
                         <div class="modal-header">
                             <h3>Set Application Validity</h3>
                             <button class="modal-close" onclick="AcceleratorApp.closeValidityModal()">&times;</button>
@@ -8422,9 +8444,9 @@ President, Med&amp;X</textarea>
                                     <p id="bridgesEventSubtitle" style="color: var(--text-muted);"></p>
                                 </div>
                                 <div style="display: flex; gap: 8px; align-items: center;">
-                                    <button class="btn btn-secondary" id="bridgesPublishBtn" onclick="BridgesApp.togglePublish()"><i class="fas fa-globe"></i> Publish</button>
-                                    <button class="btn btn-secondary" onclick="BridgesApp.editCurrentEvent()"><i class="fas fa-edit"></i> Edit</button>
-                                    <button class="btn btn-danger" onclick="BridgesApp.deleteCurrentEvent()"><i class="fas fa-trash"></i></button>
+                                    <button class="btn btn-secondary" id="bridgesPublishBtn" onclick="BridgesApp.togglePublish()" style="border-radius: 8px;"><i class="fas fa-globe"></i> Publish</button>
+                                    <button class="btn btn-primary" onclick="BridgesApp.editCurrentEvent()" style="border-radius: 8px;"><i class="fas fa-edit"></i> Edit</button>
+                                    <button class="btn btn-danger" onclick="BridgesApp.deleteCurrentEvent()" style="border-radius: 8px;"><i class="fas fa-trash"></i></button>
                                 </div>
                             </div>
                             <div class="card-body">
@@ -12043,10 +12065,7 @@ President, Med&amp;X</textarea>
             // ========== CUSTOMIZABLE DASHBOARD CARDS ==========
             CARD_REGISTRY: {
                 home: [
-                    { id: 'portal-pulse', title: 'Portal Pulse', icon: 'fa-heartbeat', default: true, renderer: 'renderPortalPulseCard' },
-                    { id: 'timeline', title: 'Timeline', icon: 'fa-calendar-alt', default: true, renderer: 'renderHomeTimeline' },
-                    { id: 'tasks', title: 'Tasks', icon: 'fa-tasks', default: true, renderer: 'renderHomeTasks' },
-                    { id: 'sequences', title: 'Sequences', icon: 'fa-stream', default: true, renderer: 'renderHomeSequences' },
+                    // portal-pulse, timeline, tasks, sequences removed — already exist as static HTML widgets above
                     { id: 'project-activity', title: 'Project Activity', icon: 'fa-chart-line', default: true, renderer: 'renderProjectActivity' },
                     { id: 'registration-trends', title: 'Registration Trends', icon: 'fa-chart-area', default: false, renderer: 'renderRegistrationTrends' },
                     { id: 'finance-overview', title: 'Finance Overview', icon: 'fa-euro-sign', default: false, renderer: 'renderFinanceOverview' },
@@ -12416,58 +12435,79 @@ President, Med&amp;X</textarea>
                     });
                 }
 
-                // Registration Trends Line Chart
-                // TODO: Wire to a /api/dashboard/trends endpoint that returns monthly registration
-                // data per project. Currently only the final month uses live totals from the summary
-                // endpoint; earlier months show 0. Once a trends API exists, replace the data arrays
-                // with the response (e.g. summary.plexus.monthly_registrations).
-                const trendCtx = document.getElementById('dashTrendChart');
-                if (trendCtx && typeof Chart !== 'undefined') {
-                    if (window._dashTrendChart) window._dashTrendChart.destroy();
-                    window._dashTrendChart = new Chart(trendCtx, {
-                        type: 'line',
-                        data: {
-                            labels: ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb'],
-                            datasets: [{
-                                label: 'Plexus Registrations',
-                                data: [0, 0, 0, 0, 0, plexusReg],
-                                borderColor: '#a78bfa',
-                                backgroundColor: 'rgba(167,139,250,0.1)',
-                                fill: true,
-                                tension: 0.4,
-                                pointRadius: 4,
-                                pointBackgroundColor: '#a78bfa'
-                            }, {
-                                label: 'Accelerator Applications',
-                                data: [0, 0, 0, 0, 0, accReg],
-                                borderColor: '#22d3ee',
-                                backgroundColor: 'rgba(34,211,238,0.1)',
-                                fill: true,
-                                tension: 0.4,
-                                pointRadius: 4,
-                                pointBackgroundColor: '#22d3ee'
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: {
-                                    labels: { color: 'rgba(255,255,255,0.7)', font: { family: 'Inter', size: 12 } }
-                                }
-                            },
-                            scales: {
-                                x: {
-                                    ticks: { color: 'rgba(255,255,255,0.5)', font: { family: 'Inter' } },
-                                    grid: { color: 'rgba(255,255,255,0.05)' }
+                // Registration Trends Line Chart — wired to live /api/dashboard/trends endpoint
+                this.loadRegistrationTrendsChart();
+            },
+
+            _trendEventFilter: 'all',
+
+            async loadRegistrationTrendsChart(eventFilter) {
+                if (eventFilter !== undefined) this._trendEventFilter = eventFilter;
+                const filter = this._trendEventFilter;
+                try {
+                    const trends = await this.api(`/api/dashboard/trends?event=${filter}`);
+                    // Merge all dates from both datasets
+                    const dateSet = new Set();
+                    (trends.plexus || []).forEach(r => dateSet.add(r.date));
+                    (trends.accelerator || []).forEach(r => dateSet.add(r.date));
+                    const dates = Array.from(dateSet).sort();
+
+                    // If no data, show at least last 7 days
+                    if (dates.length === 0) {
+                        for (let i = 6; i >= 0; i--) {
+                            const d = new Date(); d.setDate(d.getDate() - i);
+                            dates.push(d.toISOString().split('T')[0]);
+                        }
+                    }
+
+                    const plexusMap = {}; (trends.plexus || []).forEach(r => { plexusMap[r.date] = r.count; });
+                    const accMap = {}; (trends.accelerator || []).forEach(r => { accMap[r.date] = r.count; });
+
+                    const labels = dates.map(d => { const dt = new Date(d + 'T12:00:00'); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
+                    const plexusData = dates.map(d => plexusMap[d] || 0);
+                    const accData = dates.map(d => accMap[d] || 0);
+
+                    const datasets = [];
+                    if (filter === 'all' || filter === 'plexus') {
+                        datasets.push({
+                            label: 'Plexus Registrations',
+                            data: plexusData,
+                            borderColor: '#a78bfa',
+                            backgroundColor: 'rgba(167,139,250,0.1)',
+                            fill: true, tension: 0.4, pointRadius: 4, pointBackgroundColor: '#a78bfa'
+                        });
+                    }
+                    if (filter === 'all' || filter === 'accelerator') {
+                        datasets.push({
+                            label: 'Accelerator Applications',
+                            data: accData,
+                            borderColor: '#22d3ee',
+                            backgroundColor: 'rgba(34,211,238,0.1)',
+                            fill: true, tension: 0.4, pointRadius: 4, pointBackgroundColor: '#22d3ee'
+                        });
+                    }
+
+                    const trendCtx = document.getElementById('dashTrendChart');
+                    if (trendCtx && typeof Chart !== 'undefined') {
+                        if (window._dashTrendChart) window._dashTrendChart.destroy();
+                        window._dashTrendChart = new Chart(trendCtx, {
+                            type: 'line',
+                            data: { labels, datasets },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: { labels: { color: 'rgba(255,255,255,0.7)', font: { family: 'Inter', size: 12 } } }
                                 },
-                                y: {
-                                    ticks: { color: 'rgba(255,255,255,0.5)', font: { family: 'Inter' } },
-                                    grid: { color: 'rgba(255,255,255,0.05)' }
+                                scales: {
+                                    x: { ticks: { color: 'rgba(255,255,255,0.5)', font: { family: 'Inter' }, maxRotation: 45 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                                    y: { ticks: { color: 'rgba(255,255,255,0.5)', font: { family: 'Inter' }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true }
                                 }
                             }
-                        }
-                    });
+                        });
+                    }
+                } catch(e) {
+                    console.error('Failed to load registration trends:', e);
                 }
             },
 
@@ -13908,12 +13948,11 @@ President, Med&amp;X</textarea>
                 const ranges = events.filter(e => e.type === 'range');
                 const points = events.filter(e => e.type === 'point');
 
-                // Assign above/below positions for point events with proper collision detection
-                // Each card occupies ~10% of timeline width horizontally
-                const cardWidth = 10; // percentage of timeline width a card occupies
-                const baseStemHeight = 10; // px - minimum stem height
-                const stemIncrement = 22; // px - how much to increase stem per collision tier
-                const maxTiers = 4; // maximum number of graduated heights per lane
+                // Assign above/below positions for point events with collision detection
+                // Two events overlap if within ~8% of timeline width
+                const cardWidth = 8; // percentage of timeline width a card occupies
+                const stemHeights = [40, 60, 80, 100]; // px - graduated stem heights per tier
+                const maxTiers = stemHeights.length;
 
                 // Occupied bands: track which horizontal ranges are taken at each tier per lane
                 // Each entry: { left: number, right: number, tier: number }
@@ -13929,7 +13968,7 @@ President, Med&amp;X</textarea>
                     );
                 }
 
-                // Place each event, trying to find the best lane and tier
+                // Place each event, alternating above/below then escalating tiers
                 points.forEach((event, i) => {
                     let bestLane = null;
                     let bestTier = maxTiers; // start with worst case
@@ -13951,11 +13990,11 @@ President, Med&amp;X</textarea>
                     // Fallback: if all tiers exhausted, place above at max tier
                     if (bestLane === null) {
                         bestLane = 'above';
-                        bestTier = maxTiers;
+                        bestTier = maxTiers - 1;
                     }
 
                     event.position_type = bestLane;
-                    event.stemHeight = baseStemHeight + (bestTier * stemIncrement);
+                    event.stemHeight = stemHeights[Math.min(bestTier, maxTiers - 1)];
 
                     // Register the occupied band
                     const band = {
@@ -14003,7 +14042,7 @@ President, Med&amp;X</textarea>
                                             <div class="timeline-stem" style="height: ${event.stemHeight}px; background: ${event.color}40;"></div>
                                             <div class="timeline-card" style="border-color: ${event.color};">
                                                 <span class="tc-name">${escapeHtml(event.name)}</span>
-                                                <span class="tc-date" style="font-size: 11px; color: var(--text-secondary);">${dateStr}</span>
+                                                <span class="tc-date" style="font-size: 10px; color: var(--text-secondary); white-space: nowrap;">${dateStr}</span>
                                             </div>
                                         </div>
                                     `;
@@ -20156,48 +20195,138 @@ President, Med&amp;X</textarea>
             },
 
             async addScheduleItem() {
-                const title = prompt('Program item title:');
-                if (!title) return;
-                const speaker = prompt('Speaker (optional):') || null;
-                const start_time = prompt('Start time (e.g., 09:00):') || null;
-                const end_time = prompt('End time (e.g., 10:00):') || null;
+                const existing = document.getElementById('forumScheduleModal');
+                if (existing) existing.remove();
 
-                try {
-                    await this.api(`/api/admin/forum/events/${this.currentForumEventId}/schedule`, {
-                        method: 'POST',
-                        body: JSON.stringify({ title, speaker, start_time, end_time })
-                    });
-                    // Reload
-                    this.forumEventSchedule = await this.api(`/api/admin/forum/events/${this.currentForumEventId}/schedule`) || [];
-                    const content = document.getElementById('eventDetailContent');
-                    if (content) this.renderEventSchedule(content);
-                    Toast.success('Schedule item added');
-                } catch (err) {
-                    Toast.error('Failed to add schedule item');
-                }
+                const modalHtml = `
+                    <div id="forumScheduleModal" class="modal-overlay active" onclick="if(event.target===this) this.remove()">
+                        <div class="modal" style="max-width: 480px;">
+                            <div class="modal-header">
+                                <h3>Add Schedule Item</h3>
+                                <button class="modal-close" onclick="document.getElementById('forumScheduleModal').remove()">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="forumScheduleAddForm" style="display: grid; gap: 16px;">
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Title *</label>
+                                        <input type="text" id="fmSchedTitle" required placeholder="Program item title" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                    </div>
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Speaker</label>
+                                        <input type="text" id="fmSchedSpeaker" placeholder="Speaker name (optional)" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                        <div>
+                                            <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Start Time</label>
+                                            <input type="time" id="fmSchedStart" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        </div>
+                                        <div>
+                                            <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">End Time</label>
+                                            <input type="time" id="fmSchedEnd" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px;">
+                                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('forumScheduleModal').remove()">Cancel</button>
+                                        <button type="submit" class="btn btn-primary"><i class="fas fa-plus" style="margin-right: 6px;"></i>Add Item</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>`;
+
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+                document.getElementById('forumScheduleAddForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const title = document.getElementById('fmSchedTitle').value.trim();
+                    const speaker = document.getElementById('fmSchedSpeaker').value.trim() || null;
+                    const start_time = document.getElementById('fmSchedStart').value || null;
+                    const end_time = document.getElementById('fmSchedEnd').value || null;
+
+                    if (!title) { Toast.warning('Title is required.'); return; }
+
+                    try {
+                        await this.api(`/api/admin/forum/events/${this.currentForumEventId}/schedule`, {
+                            method: 'POST',
+                            body: JSON.stringify({ title, speaker, start_time, end_time })
+                        });
+                        document.getElementById('forumScheduleModal').remove();
+                        this.forumEventSchedule = await this.api(`/api/admin/forum/events/${this.currentForumEventId}/schedule`) || [];
+                        const content = document.getElementById('eventDetailContent');
+                        if (content) this.renderEventSchedule(content);
+                        Toast.success('Schedule item added');
+                    } catch (err) {
+                        Toast.error('Failed to add schedule item');
+                    }
+                });
             },
 
             async editScheduleItem(itemId) {
                 const item = (this.forumEventSchedule || []).find(i => i.id === itemId);
                 if (!item) return;
 
-                const title = prompt('Title:', item.title);
-                if (title === null) return;
-                const speaker = prompt('Speaker:', item.speaker_ids || item.speaker || '');
-                const start_time = prompt('Start time:', item.start_time || '');
-                const end_time = prompt('End time:', item.end_time || '');
+                const existing = document.getElementById('forumScheduleEditModal');
+                if (existing) existing.remove();
 
-                try {
-                    await this.api(`/api/admin/forum/events/${this.currentForumEventId}/schedule/${itemId}`, {
-                        method: 'PUT',
-                        body: JSON.stringify({ title, speaker: speaker || null, start_time: start_time || null, end_time: end_time || null })
-                    });
-                    this.forumEventSchedule = await this.api(`/api/admin/forum/events/${this.currentForumEventId}/schedule`) || [];
-                    const content = document.getElementById('eventDetailContent');
-                    if (content) this.renderEventSchedule(content);
-                    Toast.success('Schedule item updated');
-                } catch (err) {
-                    Toast.error('Failed to update schedule item');
+                const modalHtml = `
+                    <div id="forumScheduleEditModal" class="modal-overlay active" onclick="if(event.target===this) this.remove()">
+                        <div class="modal" style="max-width: 480px;">
+                            <div class="modal-header">
+                                <h3>Edit Schedule Item</h3>
+                                <button class="modal-close" onclick="document.getElementById('forumScheduleEditModal').remove()">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="forumScheduleEditForm" style="display: grid; gap: 16px;">
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Title *</label>
+                                        <input type="text" id="fmSchedEditTitle" required value="${(item.title || '').replace(/"/g, '&quot;')}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                    </div>
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Speaker</label>
+                                        <input type="text" id="fmSchedEditSpeaker" value="${(item.speaker_ids || item.speaker || '').replace(/"/g, '&quot;')}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                        <div>
+                                            <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Start Time</label>
+                                            <input type="time" id="fmSchedEditStart" value="${item.start_time || ''}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        </div>
+                                        <div>
+                                            <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">End Time</label>
+                                            <input type="time" id="fmSchedEditEnd" value="${item.end_time || ''}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px;">
+                                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('forumScheduleEditModal').remove()">Cancel</button>
+                                        <button type="submit" class="btn btn-primary"><i class="fas fa-save" style="margin-right: 6px;"></i>Save Changes</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>`;
+
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+                document.getElementById('forumScheduleEditForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const title = document.getElementById('fmSchedEditTitle').value.trim();
+                    const speaker = document.getElementById('fmSchedEditSpeaker').value.trim() || null;
+                    const start_time = document.getElementById('fmSchedEditStart').value || null;
+                    const end_time = document.getElementById('fmSchedEditEnd').value || null;
+
+                    if (!title) { Toast.warning('Title is required.'); return; }
+
+                    try {
+                        await this.api(`/api/admin/forum/events/${this.currentForumEventId}/schedule/${itemId}`, {
+                            method: 'PUT',
+                            body: JSON.stringify({ title, speaker, start_time, end_time })
+                        });
+                        document.getElementById('forumScheduleEditModal').remove();
+                        this.forumEventSchedule = await this.api(`/api/admin/forum/events/${this.currentForumEventId}/schedule`) || [];
+                        const content = document.getElementById('eventDetailContent');
+                        if (content) this.renderEventSchedule(content);
+                        Toast.success('Schedule item updated');
+                    } catch (err) {
+                        Toast.error('Failed to update schedule item');
                 }
             },
 
@@ -20947,11 +21076,48 @@ President, Med&amp;X</textarea>
             },
 
             async addYear() {
-                const year = prompt('Enter year (e.g., 2027):');
-                if (!year || isNaN(year)) return;
-                await this.api('/api/accelerator/years', { method: 'POST', body: JSON.stringify({ year: parseInt(year) }) });
-                await this.loadYears();
-                this.loadYear(year);
+                const existing = document.getElementById('accYearAddModal');
+                if (existing) existing.remove();
+
+                const modalHtml = `
+                    <div id="accYearAddModal" class="modal-overlay active" onclick="if(event.target===this) this.remove()">
+                        <div class="modal" style="max-width: 380px;">
+                            <div class="modal-header">
+                                <h3>Add Program Year</h3>
+                                <button class="modal-close" onclick="document.getElementById('accYearAddModal').remove()">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="accYearAddForm" style="display: grid; gap: 16px;">
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Year *</label>
+                                        <input type="number" id="accYearAddValue" required min="2020" max="2099" value="${new Date().getFullYear() + 1}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); font-size: 16px; text-align: center;">
+                                    </div>
+                                    <div style="display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px;">
+                                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('accYearAddModal').remove()">Cancel</button>
+                                        <button type="submit" class="btn btn-primary"><i class="fas fa-plus" style="margin-right: 6px;"></i>Add Year</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>`;
+
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+                document.getElementById('accYearAddForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const year = document.getElementById('accYearAddValue').value;
+                    if (!year || isNaN(year)) { Toast.warning('Please enter a valid year.'); return; }
+
+                    try {
+                        await this.api('/api/accelerator/years', { method: 'POST', body: JSON.stringify({ year: parseInt(year) }) });
+                        document.getElementById('accYearAddModal').remove();
+                        await this.loadYears();
+                        this.loadYear(year);
+                        this.showAccToast(`Year ${year} added!`, 'success');
+                    } catch (err) {
+                        this.showAccToast('Error adding year: ' + err.message, 'error');
+                    }
+                });
             },
 
             updateStats() {
@@ -21229,38 +21395,156 @@ President, Med&amp;X</textarea>
             },
 
             async addKeyDate() {
-                const name = prompt('Period name (e.g., "Applications Open"):');
-                if (!name) return;
-                const date_start = prompt('Start Date (YYYY-MM-DD):');
-                if (!date_start) return;
-                const date_end = prompt('End Date (optional, YYYY-MM-DD):', '');
-                const description = prompt('Description (optional):', '');
-                const catInput = prompt('Category (event / deadline / milestone):', 'event');
-                const category = ['event', 'deadline', 'milestone'].includes(catInput) ? catInput : 'event';
-                const colorMap = { event: '#22d3ee', deadline: '#ef4444', milestone: '#c9a962' };
+                const existing = document.getElementById('accKeyDateAddModal');
+                if (existing) existing.remove();
 
-                await this.api(`/api/accelerator/years/${this.currentYear}/dates`, {
-                    method: 'POST', body: JSON.stringify({ name, date_start, date_end: date_end || null, description, category, color: colorMap[category] })
+                const modalHtml = `
+                    <div id="accKeyDateAddModal" class="modal-overlay active" onclick="if(event.target===this) this.remove()">
+                        <div class="modal" style="max-width: 550px;">
+                            <div class="modal-header">
+                                <h3>Add Key Date</h3>
+                                <button class="modal-close" onclick="document.getElementById('accKeyDateAddModal').remove()">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="accKeyDateAddForm" style="display: grid; gap: 16px;">
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Name *</label>
+                                        <input type="text" id="akdAddName" required placeholder='e.g., "Applications Open"' style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                        <div>
+                                            <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Start Date *</label>
+                                            <input type="date" id="akdAddStart" required style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        </div>
+                                        <div>
+                                            <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">End Date</label>
+                                            <input type="date" id="akdAddEnd" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Description</label>
+                                        <textarea id="akdAddDesc" rows="3" placeholder="Optional description..." style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical;"></textarea>
+                                    </div>
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Category</label>
+                                        <select id="akdAddCategory" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                            <option value="event">Event</option>
+                                            <option value="deadline">Deadline</option>
+                                            <option value="milestone">Milestone</option>
+                                        </select>
+                                    </div>
+                                    <div style="display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px;">
+                                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('accKeyDateAddModal').remove()">Cancel</button>
+                                        <button type="submit" class="btn btn-primary"><i class="fas fa-plus" style="margin-right: 6px;"></i>Add Key Date</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>`;
+
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+                document.getElementById('accKeyDateAddForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const name = document.getElementById('akdAddName').value.trim();
+                    const date_start = document.getElementById('akdAddStart').value;
+                    const date_end = document.getElementById('akdAddEnd').value;
+                    const description = document.getElementById('akdAddDesc').value;
+                    const category = document.getElementById('akdAddCategory').value;
+                    const colorMap = { event: '#22d3ee', deadline: '#ef4444', milestone: '#c9a962' };
+
+                    if (!name || !date_start) { Toast.warning('Name and Start Date are required.'); return; }
+
+                    try {
+                        await this.api(`/api/accelerator/years/${this.currentYear}/dates`, {
+                            method: 'POST', body: JSON.stringify({ name, date_start, date_end: date_end || null, description, category, color: colorMap[category] })
+                        });
+                        document.getElementById('accKeyDateAddModal').remove();
+                        this.loadKeyDates();
+                        this.showAccToast('Key date added!', 'success');
+                    } catch (err) {
+                        this.showAccToast('Error adding key date: ' + err.message, 'error');
+                    }
                 });
-                this.loadKeyDates();
             },
 
             async editKeyDateModal(id) {
                 const d = this._keyDates.find(x => x.id === id);
                 if (!d) return;
-                const newName = prompt('Name:', d.name);
-                if (!newName) return;
-                const newStart = prompt('Start Date:', d.date_start);
-                const newEnd = prompt('End Date:', d.date_end || '');
-                const newDesc = prompt('Description:', d.description || '');
-                const catInput = prompt('Category (event / deadline / milestone):', d.category || 'event');
-                const category = ['event', 'deadline', 'milestone'].includes(catInput) ? catInput : (d.category || 'event');
-                const colorMap = { event: '#22d3ee', deadline: '#ef4444', milestone: '#c9a962' };
 
-                await this.api(`/api/accelerator/dates/${id}`, {
-                    method: 'PUT', body: JSON.stringify({ name: newName, date_start: newStart, date_end: newEnd || null, description: newDesc, category, color: colorMap[category] })
+                // Build modal HTML
+                const modalHtml = `
+                    <div id="accKeyDateEditModal" class="modal-overlay active" onclick="if(event.target===this) this.remove()">
+                        <div class="modal" style="max-width: 550px;">
+                            <div class="modal-header">
+                                <h3>Edit Key Date</h3>
+                                <button class="modal-close" onclick="document.getElementById('accKeyDateEditModal').remove()">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="accKeyDateEditForm" style="display: grid; gap: 16px;">
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Name *</label>
+                                        <input type="text" id="akdEditName" value="${(d.name || '').replace(/"/g, '&quot;')}" required style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                        <div>
+                                            <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Start Date *</label>
+                                            <input type="date" id="akdEditStart" value="${d.date_start || ''}" required style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        </div>
+                                        <div>
+                                            <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">End Date</label>
+                                            <input type="date" id="akdEditEnd" value="${d.date_end || ''}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Description</label>
+                                        <textarea id="akdEditDesc" rows="3" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical;">${(d.description || '').replace(/</g, '&lt;')}</textarea>
+                                    </div>
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Category</label>
+                                        <select id="akdEditCategory" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                            <option value="event" ${d.category === 'event' ? 'selected' : ''}>Event</option>
+                                            <option value="deadline" ${d.category === 'deadline' ? 'selected' : ''}>Deadline</option>
+                                            <option value="milestone" ${d.category === 'milestone' ? 'selected' : ''}>Milestone</option>
+                                        </select>
+                                    </div>
+                                    <div style="display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px;">
+                                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('accKeyDateEditModal').remove()">Cancel</button>
+                                        <button type="submit" class="btn btn-primary"><i class="fas fa-save" style="margin-right: 6px;"></i>Save Changes</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>`;
+
+                // Remove any existing modal first
+                const existing = document.getElementById('accKeyDateEditModal');
+                if (existing) existing.remove();
+
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+                document.getElementById('accKeyDateEditForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const newName = document.getElementById('akdEditName').value.trim();
+                    const newStart = document.getElementById('akdEditStart').value;
+                    const newEnd = document.getElementById('akdEditEnd').value;
+                    const newDesc = document.getElementById('akdEditDesc').value;
+                    const category = document.getElementById('akdEditCategory').value;
+                    const colorMap = { event: '#22d3ee', deadline: '#ef4444', milestone: '#c9a962' };
+
+                    if (!newName || !newStart) { Toast.warning('Name and Start Date are required.'); return; }
+
+                    try {
+                        await this.api(`/api/accelerator/dates/${id}`, {
+                            method: 'PUT', body: JSON.stringify({ name: newName, date_start: newStart, date_end: newEnd || null, description: newDesc, category, color: colorMap[category] })
+                        });
+                        document.getElementById('accKeyDateEditModal').remove();
+                        this.loadKeyDates();
+                        this.showAccToast('Key date updated!', 'success');
+                    } catch (err) {
+                        this.showAccToast('Error updating key date: ' + err.message, 'error');
+                    }
                 });
-                this.loadKeyDates();
             },
 
             async deleteKeyDate(id) {
@@ -21393,29 +21677,73 @@ President, Med&amp;X</textarea>
                         </div>
                     </div>
                 `;
-                document.getElementById('accInstModal').style.display = 'flex';
+                document.getElementById('accInstModal').classList.add('active');
             },
 
             closeInstModal() {
-                document.getElementById('accInstModal').style.display = 'none';
+                document.getElementById('accInstModal').classList.remove('active');
             },
 
             async addInstitution() {
-                const name = prompt('Institution name:');
-                if (!name) return;
-                const city = prompt('City:');
-                const country = prompt('Country:');
+                const existing = document.getElementById('accInstAddModal');
+                if (existing) existing.remove();
 
-                const result = await this.api('/api/accelerator/institutions', {
-                    method: 'POST', body: JSON.stringify({ name, city, country })
+                const modalHtml = `
+                    <div id="accInstAddModal" class="modal-overlay active" onclick="if(event.target===this) this.remove()">
+                        <div class="modal" style="max-width: 450px;">
+                            <div class="modal-header">
+                                <h3>Add Institution</h3>
+                                <button class="modal-close" onclick="document.getElementById('accInstAddModal').remove()">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="accInstAddForm" style="display: grid; gap: 16px;">
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Institution Name *</label>
+                                        <input type="text" id="accInstAddName" required placeholder="e.g., Harvard Medical School" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                        <div>
+                                            <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">City</label>
+                                            <input type="text" id="accInstAddCity" placeholder="e.g., Boston" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        </div>
+                                        <div>
+                                            <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Country</label>
+                                            <input type="text" id="accInstAddCountry" placeholder="e.g., USA" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px;">
+                                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('accInstAddModal').remove()">Cancel</button>
+                                        <button type="submit" class="btn btn-primary"><i class="fas fa-plus" style="margin-right: 6px;"></i>Add & Configure</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>`;
+
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+                document.getElementById('accInstAddForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const name = document.getElementById('accInstAddName').value.trim();
+                    const city = document.getElementById('accInstAddCity').value.trim();
+                    const country = document.getElementById('accInstAddCountry').value.trim();
+
+                    if (!name) { Toast.warning('Institution name is required.'); return; }
+
+                    try {
+                        const result = await this.api('/api/accelerator/institutions', {
+                            method: 'POST', body: JSON.stringify({ name, city, country })
+                        });
+                        document.getElementById('accInstAddModal').remove();
+                        await this.loadInstitutions();
+                        if (result.id) {
+                            this.openInstEditModal(result.id);
+                        }
+                        this.showAccToast('Institution added!', 'success');
+                    } catch (err) {
+                        this.showAccToast('Error adding institution: ' + err.message, 'error');
+                    }
                 });
-
-                // Refresh the institutions list first so the edit modal has the new data
-                await this.loadInstitutions();
-
-                if (result.id) {
-                    this.openInstEditModal(result.id);
-                }
             },
 
             async editInstitution(instId) {
@@ -21448,11 +21776,11 @@ President, Med&amp;X</textarea>
                 document.getElementById('accInstEditContactPerson').value = inst.contact_person || '';
                 document.getElementById('accInstEditContactEmail').value = inst.contact_email || '';
 
-                document.getElementById('accInstEditModal').style.display = 'flex';
+                document.getElementById('accInstEditModal').classList.add('active');
             },
 
             closeInstEditModal() {
-                document.getElementById('accInstEditModal').style.display = 'none';
+                document.getElementById('accInstEditModal').classList.remove('active');
             },
 
             async saveInstitutionDetails(event) {
@@ -21866,11 +22194,11 @@ President, Med&amp;X</textarea>
                         `).join('') : '<p style="color: var(--text-muted);">No messagea</p>'}
                     </div>
                 `;
-                document.getElementById('accAppModal').style.display = 'flex';
+                document.getElementById('accAppModal').classList.add('active');
             },
 
             closeAppModal() {
-                document.getElementById('accAppModal').style.display = 'none';
+                document.getElementById('accAppModal').classList.remove('active');
             },
 
             messageCandidate(appId) {
@@ -21884,11 +22212,11 @@ President, Med&amp;X</textarea>
                 document.getElementById('accMessageContent').value = '';
                 document.getElementById('accMessageType').value = 'info';
                 document.getElementById('accMessageSendEmail').checked = true;
-                document.getElementById('accMessageModal').style.display = 'flex';
+                document.getElementById('accMessageModal').classList.add('active');
             },
 
             closeMessageModal() {
-                document.getElementById('accMessageModal').style.display = 'none';
+                document.getElementById('accMessageModal').classList.remove('active');
             },
 
             async sendMessage(e) {
@@ -21946,7 +22274,7 @@ President, Med&amp;X</textarea>
                     }
                 }
 
-                document.getElementById('accValidityModal').style.display = 'flex';
+                document.getElementById('accValidityModal').classList.add('active');
 
                 // Add click handlers for validity options
                 document.querySelectorAll('.validity-option').forEach(opt => {
@@ -21964,7 +22292,7 @@ President, Med&amp;X</textarea>
             },
 
             closeValidityModal() {
-                document.getElementById('accValidityModal').style.display = 'none';
+                document.getElementById('accValidityModal').classList.remove('active');
             },
 
             async saveValidity(e) {
@@ -22043,30 +22371,154 @@ President, Med&amp;X</textarea>
             },
 
             async addCriterion() {
-                const name = prompt('Name (English):');
-                if (!name) return;
-                const name_hr = prompt('Name (Croatian):');
-                const max_points = prompt('Maximum points:', '10');
-                const weight = prompt('Weight (1 = normal):', '1');
-                const category = prompt('Category (objective/interview/bonus):', 'objective');
+                // Remove any existing modal
+                const existing = document.getElementById('accCriterionAddModal');
+                if (existing) existing.remove();
 
-                await this.api(`/api/accelerator/years/${this.currentYear}/criteria`, {
-                    method: 'POST', body: JSON.stringify({ name, name_hr, max_points: parseFloat(max_points), weight: parseFloat(weight), category })
+                const modalHtml = `
+                    <div id="accCriterionAddModal" class="modal-overlay active" onclick="if(event.target===this) this.remove()">
+                        <div class="modal" style="max-width: 500px;">
+                            <div class="modal-header">
+                                <h3>Add Criterion</h3>
+                                <button class="modal-close" onclick="document.getElementById('accCriterionAddModal').remove()">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="accCriterionAddForm" style="display: grid; gap: 16px;">
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Name (English) *</label>
+                                        <input type="text" id="accCritAddName" required placeholder="e.g., GPA Score" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                    </div>
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Name (Croatian)</label>
+                                        <input type="text" id="accCritAddNameHr" placeholder="e.g., Prosjek ocjena" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                        <div>
+                                            <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Max Points *</label>
+                                            <input type="number" id="accCritAddMaxPoints" value="10" min="0" step="0.1" required style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        </div>
+                                        <div>
+                                            <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Weight</label>
+                                            <input type="number" id="accCritAddWeight" value="1" min="0" step="0.1" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Category</label>
+                                        <select id="accCritAddCategory" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                            <option value="objective">Objective</option>
+                                            <option value="interview">Interview</option>
+                                            <option value="bonus">Bonus</option>
+                                        </select>
+                                    </div>
+                                    <div style="display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px;">
+                                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('accCriterionAddModal').remove()">Cancel</button>
+                                        <button type="submit" class="btn btn-primary"><i class="fas fa-plus" style="margin-right: 6px;"></i>Add Criterion</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>`;
+
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+                document.getElementById('accCriterionAddForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const name = document.getElementById('accCritAddName').value.trim();
+                    const name_hr = document.getElementById('accCritAddNameHr').value.trim();
+                    const max_points = document.getElementById('accCritAddMaxPoints').value;
+                    const weight = document.getElementById('accCritAddWeight').value;
+                    const category = document.getElementById('accCritAddCategory').value;
+
+                    if (!name) { Toast.warning('Name is required.'); return; }
+
+                    try {
+                        await this.api(`/api/accelerator/years/${this.currentYear}/criteria`, {
+                            method: 'POST', body: JSON.stringify({ name, name_hr, max_points: parseFloat(max_points), weight: parseFloat(weight), category })
+                        });
+                        document.getElementById('accCriterionAddModal').remove();
+                        this.loadCriteria();
+                        this.showAccToast('Criterion added!', 'success');
+                    } catch (err) {
+                        this.showAccToast('Error adding criterion: ' + err.message, 'error');
+                    }
                 });
-                this.loadCriteria();
             },
 
             async editCriterion(id) {
                 const c = this.criteria.find(x => x.id === id);
-                const name = prompt('Name:', c.name);
-                const name_hr = prompt('Name (HR):', c.name_hr);
-                const max_points = prompt('Max Points:', c.max_points);
-                const weight = prompt('Weight:', c.weight);
+                if (!c) return;
 
-                await this.api(`/api/accelerator/criteria/${id}`, {
-                    method: 'PUT', body: JSON.stringify({ name, name_hr, max_points: parseFloat(max_points), weight: parseFloat(weight) })
+                // Remove any existing modal
+                const existing = document.getElementById('accCriterionEditModal');
+                if (existing) existing.remove();
+
+                const modalHtml = `
+                    <div id="accCriterionEditModal" class="modal-overlay active" onclick="if(event.target===this) this.remove()">
+                        <div class="modal" style="max-width: 500px;">
+                            <div class="modal-header">
+                                <h3>Edit Criterion</h3>
+                                <button class="modal-close" onclick="document.getElementById('accCriterionEditModal').remove()">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="accCriterionEditForm" style="display: grid; gap: 16px;">
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Name (English) *</label>
+                                        <input type="text" id="accCritEditName" value="${(c.name || '').replace(/"/g, '&quot;')}" required style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                    </div>
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Name (Croatian)</label>
+                                        <input type="text" id="accCritEditNameHr" value="${(c.name_hr || '').replace(/"/g, '&quot;')}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                        <div>
+                                            <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Max Points *</label>
+                                            <input type="number" id="accCritEditMaxPoints" value="${c.max_points || 10}" min="0" step="0.1" required style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        </div>
+                                        <div>
+                                            <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Weight</label>
+                                            <input type="number" id="accCritEditWeight" value="${c.weight || 1}" min="0" step="0.1" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600;">Category</label>
+                                        <select id="accCritEditCategory" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
+                                            <option value="objective" ${c.category === 'objective' ? 'selected' : ''}>Objective</option>
+                                            <option value="interview" ${c.category === 'interview' ? 'selected' : ''}>Interview</option>
+                                            <option value="bonus" ${c.category === 'bonus' ? 'selected' : ''}>Bonus</option>
+                                        </select>
+                                    </div>
+                                    <div style="display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px;">
+                                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('accCriterionEditModal').remove()">Cancel</button>
+                                        <button type="submit" class="btn btn-primary"><i class="fas fa-save" style="margin-right: 6px;"></i>Save Changes</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>`;
+
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+                document.getElementById('accCriterionEditForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const name = document.getElementById('accCritEditName').value.trim();
+                    const name_hr = document.getElementById('accCritEditNameHr').value.trim();
+                    const max_points = document.getElementById('accCritEditMaxPoints').value;
+                    const weight = document.getElementById('accCritEditWeight').value;
+                    const category = document.getElementById('accCritEditCategory').value;
+
+                    if (!name) { Toast.warning('Name is required.'); return; }
+
+                    try {
+                        await this.api(`/api/accelerator/criteria/${id}`, {
+                            method: 'PUT', body: JSON.stringify({ name, name_hr, max_points: parseFloat(max_points), weight: parseFloat(weight), category })
+                        });
+                        document.getElementById('accCriterionEditModal').remove();
+                        this.loadCriteria();
+                        this.showAccToast('Criterion updated!', 'success');
+                    } catch (err) {
+                        this.showAccToast('Error updating criterion: ' + err.message, 'error');
+                    }
                 });
-                this.loadCriteria();
             },
 
             async deleteCriterion(id) {
@@ -22163,12 +22615,14 @@ President, Med&amp;X</textarea>
 
             showInterviewerModal(id) {
                 const interviewer = id ? this.interviewers.find(i => i.id === id) : null;
+                const existingModal = document.getElementById('interviewerModal');
+                if (existingModal) existingModal.remove();
                 const modal = document.createElement('div');
-                modal.className = 'modal';
-                modal.style.display = 'flex';
+                modal.className = 'modal-overlay active';
                 modal.id = 'interviewerModal';
+                modal.onclick = function(e) { if (e.target === this) this.remove(); };
                 modal.innerHTML = `
-                    <div class="modal-content" style="max-width: 450px;">
+                    <div class="modal" style="max-width: 450px;">
                         <div class="modal-header">
                             <h3>${interviewer ? 'Edit Interviewer' : 'Add Interviewer'}</h3>
                             <button class="modal-close" onclick="document.getElementById('interviewerModal').remove()">&times;</button>
@@ -22383,11 +22837,11 @@ President, Med&amp;X</textarea>
                     });
                     if (result.code) {
                         const modal = document.createElement('div');
-                        modal.className = 'modal';
-                        modal.style.display = 'flex';
+                        modal.className = 'modal-overlay active';
+                        modal.onclick = function(e) { if (e.target === this) this.remove(); };
                         modal.innerHTML = `
-                            <div class="modal-content" style="max-width: 400px;">
-                                <div class="modal-header"><h2><i class="fas fa-key" style="color: var(--accent-gold);"></i> Result Access Code</h2><button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button></div>
+                            <div class="modal" style="max-width: 400px;">
+                                <div class="modal-header"><h2><i class="fas fa-key" style="color: var(--accent-gold);"></i> Result Access Code</h2><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button></div>
                                 <div class="modal-body" style="text-align: center; padding: 24px;">
                                     <p style="color: var(--text-secondary); margin-bottom: 16px;">Share this code with applicants so they can view rankings:</p>
                                     <div style="font-family: monospace; font-size: 28px; font-weight: 700; color: var(--accent-gold); background: var(--bg-secondary); padding: 16px; border-radius: 8px; letter-spacing: 2px; user-select: all;">${result.code}</div>
@@ -22409,12 +22863,14 @@ President, Med&amp;X</textarea>
 
             async editPdfSettings() {
                 const settings = await this.api(`/api/accelerator/years/${this.currentYear}/pdf-settings`);
+                const existingPdfModal = document.getElementById('pdfSettingsModal');
+                if (existingPdfModal) existingPdfModal.remove();
                 const modal = document.createElement('div');
-                modal.className = 'modal';
-                modal.style.display = 'flex';
+                modal.className = 'modal-overlay active';
                 modal.id = 'pdfSettingsModal';
+                modal.onclick = function(e) { if (e.target === this) this.remove(); };
                 modal.innerHTML = `
-                    <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
+                    <div class="modal" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
                         <div class="modal-header">
                             <h3>PDF Settings - Ranking List ${this.currentYear}</h3>
                             <button class="modal-close" onclick="document.getElementById('pdfSettingsModal').remove()">&times;</button>
@@ -22718,6 +23174,83 @@ By applying to this program, I give the following consents:
                 this.uploadedDocs[docKey] = file;
                 const statusEl = document.getElementById(`accDocStatus-${docKey}`);
                 statusEl.innerHTML = `<i class="fas fa-check-circle" style="color: #22c55e;"></i> ${escapeHtml(file.name)}`;
+            },
+
+            editDocumentTypes(section) {
+                const isRequired = section === 'required';
+                const docs = this.documentTypes.filter(d => d.required === isRequired);
+
+                const existing = document.getElementById('accDocTypesEditModal');
+                if (existing) existing.remove();
+
+                const rows = docs.map((d, i) => `
+                    <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--bg-tertiary); border-radius: 6px;" data-doc-idx="${i}">
+                        <span style="min-width: 24px; text-align: center; font-size: 12px; font-weight: 600; color: var(--text-muted);">${i + 1}</span>
+                        <input type="text" value="${d.label.replace(/^\d+\.\s*/, '').replace(/"/g, '&quot;')}" style="flex: 1; padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); font-size: 13px;" data-doc-key="${d.key}">
+                        <button type="button" class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="this.closest('[data-doc-idx]').remove()"><i class="fas fa-trash"></i></button>
+                    </div>
+                `).join('');
+
+                const modalHtml = `
+                    <div id="accDocTypesEditModal" class="modal-overlay active" onclick="if(event.target===this) this.remove()">
+                        <div class="modal" style="max-width: 600px; max-height: 85vh; overflow-y: auto;">
+                            <div class="modal-header">
+                                <h3>Edit ${isRequired ? 'Required' : 'Optional'} Document Types</h3>
+                                <button class="modal-close" onclick="document.getElementById('accDocTypesEditModal').remove()">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">Edit, reorder, or remove document types. Changes are saved to the form configuration.</p>
+                                <div id="accDocTypesEditList" style="display: grid; gap: 8px; margin-bottom: 16px;">
+                                    ${rows}
+                                </div>
+                                <button type="button" class="btn btn-secondary" style="width: 100%; margin-bottom: 16px;" onclick="AcceleratorApp.addDocTypeRow('${section}')">
+                                    <i class="fas fa-plus"></i> Add Document Type
+                                </button>
+                                <div style="display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border-color);">
+                                    <button class="btn btn-secondary" onclick="document.getElementById('accDocTypesEditModal').remove()">Cancel</button>
+                                    <button class="btn btn-primary" onclick="AcceleratorApp.saveDocumentTypes('${section}')"><i class="fas fa-save" style="margin-right: 6px;"></i>Save</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+            },
+
+            addDocTypeRow(section) {
+                const list = document.getElementById('accDocTypesEditList');
+                const count = list.children.length + 1;
+                const newKey = 'custom_' + Date.now();
+                list.insertAdjacentHTML('beforeend', `
+                    <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--bg-tertiary); border-radius: 6px;" data-doc-idx="${count}">
+                        <span style="min-width: 24px; text-align: center; font-size: 12px; font-weight: 600; color: var(--text-muted);">${count}</span>
+                        <input type="text" placeholder="Document type name..." style="flex: 1; padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); font-size: 13px;" data-doc-key="${newKey}">
+                        <button type="button" class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="this.closest('[data-doc-idx]').remove()"><i class="fas fa-trash"></i></button>
+                    </div>
+                `);
+            },
+
+            saveDocumentTypes(section) {
+                const isRequired = section === 'required';
+                const list = document.getElementById('accDocTypesEditList');
+                const rows = list.querySelectorAll('[data-doc-idx]');
+                const newDocs = [];
+                rows.forEach((row, i) => {
+                    const input = row.querySelector('input');
+                    const label = input.value.trim();
+                    if (!label) return;
+                    const key = input.dataset.docKey || 'custom_' + i;
+                    newDocs.push({ key, label: `${i + 1}. ${label}`, required: isRequired });
+                });
+
+                // Update the documentTypes array
+                this.documentTypes = this.documentTypes.filter(d => d.required !== isRequired).concat(newDocs);
+
+                // Re-render the form documents
+                this.initApplicationForm();
+
+                document.getElementById('accDocTypesEditModal').remove();
+                this.showAccToast('Document types updated!', 'success');
             },
 
             updateInstitutionOptions(programType) {
@@ -23061,7 +23594,7 @@ By applying to this program, I give the following consents:
                 // Submit buttons preview
                 html += `<div style="display: flex; gap: 12px; justify-content: flex-end; padding-top: 16px; border-top: 1px solid var(--border-color); opacity: 0.6;">
                     <button class="btn btn-secondary" disabled><i class="fas fa-save"></i> Save Draft</button>
-                    <button class="btn btn-primary" disabled style="padding: 12px 32px;"><i class="fas fa-paper-plane"></i> Submit Application</button>
+                    <button class="btn btn-primary" disabled style="padding: 12px 32px;"><i class="fas fa-save"></i> Save Form Configuration</button>
                 </div>`;
 
                 container.innerHTML = html;
@@ -26904,6 +27437,11 @@ By applying to this program, I give the following consents:
             addTestimonial() { this.testimonials.push({ name: '', title: '', year: 'Plexus 2026', quote: '', avatar: '' }); this.renderTestimonialsEditor(); },
             updateTestimonial(i, field, val) { if (this.testimonials[i]) this.testimonials[i][field] = val; },
             removeTestimonial(i) { this.testimonials.splice(i, 1); this.renderTestimonialsEditor(); },
+
+            async saveAndPublish() {
+                if (!confirm('Save all Plexus settings and publish changes to the user portal?\n\nThis will immediately update pricing, dates, key dates, and testimonials visible to users.')) return;
+                await this.saveSettings();
+            },
 
             async saveSettings() {
                 const getVal = (id) => document.getElementById(id)?.value || '';

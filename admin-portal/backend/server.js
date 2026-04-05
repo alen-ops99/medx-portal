@@ -8539,6 +8539,35 @@ By applying to this program, I provide the following consents:
         res.json(summary);
     });
 
+    // Registration trends endpoint — returns daily counts for the last 30 days
+    app.get('/api/dashboard/trends', auth, adminOnly, (req, res) => {
+        const eventFilter = req.query.event || 'all'; // 'plexus', 'accelerator', or 'all'
+        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const program = query.get('SELECT id FROM accelerator_programs WHERE is_active = 1');
+
+        let plexusTrends = [];
+        let acceleratorTrends = [];
+
+        if (eventFilter === 'all' || eventFilter === 'plexus') {
+            plexusTrends = query.all(
+                "SELECT date(created_at) as date, count(*) as count FROM registrations WHERE conference_id = ? AND created_at > datetime('now', '-30 days') GROUP BY date(created_at) ORDER BY date ASC",
+                [conf?.id]
+            ) || [];
+        }
+
+        if (eventFilter === 'all' || eventFilter === 'accelerator') {
+            acceleratorTrends = query.all(
+                "SELECT date(created_at) as date, count(*) as count FROM accelerator_applications WHERE program_id = ? AND created_at > datetime('now', '-30 days') GROUP BY date(created_at) ORDER BY date ASC",
+                [program?.id]
+            ) || [];
+        }
+
+        res.json({
+            plexus: plexusTrends,
+            accelerator: acceleratorTrends
+        });
+    });
+
     app.get('/api/dashboard/portal-stats', auth, adminOnly, (req, res) => {
         const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
         const program = query.get('SELECT id FROM accelerator_programs WHERE is_active = 1');
