@@ -11739,8 +11739,8 @@ President, Med&amp;X</textarea>
 
                 // Helper to build check-in button
                 function checkinBtn(type, regId, isCheckedIn) {
-                    if (isCheckedIn) return '<div style="margin-top:10px;"><button disabled style="width:100%;padding:8px;background:rgba(34,197,94,0.1);color:#22c55e;border:1px solid rgba(34,197,94,0.3);border-radius:8px;font-size:12px;font-weight:600;cursor:default;"><i class="fas fa-check-circle"></i> Checked In</button></div>';
-                    return '<div style="margin-top:10px;"><button onclick="profileCheckin(\'' + type + '\',\'' + regId + '\',this)" style="width:100%;padding:8px;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-sign-in-alt"></i> Check In Now</button></div>';
+                    if (isCheckedIn) return '<div style="margin-top:10px;display:flex;gap:8px;"><button disabled style="flex:1;padding:8px;background:rgba(34,197,94,0.1);color:#22c55e;border:1px solid rgba(34,197,94,0.3);border-radius:8px;font-size:12px;font-weight:600;cursor:default;"><i class="fas fa-check-circle"></i> Checked In</button><button onclick="profileUndoCheckin(\'' + type + '\',\'' + regId + '\',this)" style="padding:8px 12px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-undo"></i> Undo</button></div>';
+                    return '<div style="margin-top:10px;"><button onclick="profileCheckin(\'' + type + '\',\'' + regId + '\',this)" style="width:100%;padding:10px;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-sign-in-alt"></i> Check In Now</button></div>';
                 }
 
                 // Plexus registrations
@@ -11943,6 +11943,39 @@ President, Med&amp;X</textarea>
                 Toast.error('Check-in failed. Please try again.');
                 btn.disabled = false;
                 setTimeout(() => { btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Check In Now'; btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)'; btn.style.color = 'white'; btn.style.border = 'none'; }, 3000);
+            }
+        }
+
+        async function profileUndoCheckin(type, regId, btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            const token = localStorage.getItem('medx_token') || localStorage.getItem('token');
+            try {
+                // Update DB directly — set checked_in back to 0
+                let endpoint = '/api/checkin/undo';
+                if (type === 'bridges') endpoint = '/api/bridges/registrations/' + regId + '/undo-checkin';
+
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                    body: JSON.stringify({ registration_id: regId, type: type })
+                });
+
+                // Update UI — replace both buttons with Check In Now
+                const container = btn.parentElement;
+                container.innerHTML = '<button onclick="profileCheckin(\'' + type + '\',\'' + regId + '\',this)" style="width:100%;padding:10px;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-sign-in-alt"></i> Check In Now</button>';
+
+                // Update icon
+                const card = container.closest('div[style*="background:var(--bg-secondary"]');
+                if (card) {
+                    const icon = card.querySelector('.fa-check-circle');
+                    if (icon) { icon.classList.remove('fa-check-circle'); icon.classList.add('fa-circle'); icon.style.color = '#f59e0b'; }
+                }
+                Toast.success('Check-in undone');
+            } catch(err) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-undo"></i> Undo';
+                Toast.error('Failed to undo check-in');
             }
         }
 
