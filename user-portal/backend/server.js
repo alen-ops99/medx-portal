@@ -14954,6 +14954,65 @@ By applying to this program, I provide the following consents:
 
     // ========== DIRECT REGISTRATION (NO AUTH) ==========
 
+    // Invite registration (data encoded in URL, no DB token needed)
+    app.post('/api/register-invite', async (req, res) => {
+        try {
+            const { first_name, last_name, email, institution, country, event_type, event_name, package_items } = req.body;
+            if (!email || !first_name) return res.status(400).json({ error: 'Name and email required' });
+
+            // Find or create user
+            let user = query.get('SELECT id FROM users WHERE email = ?', [email]);
+            if (!user) {
+                const userId = uuidv4();
+                const tempHash = await bcrypt.hash(uuidv4(), 10);
+                db.run('INSERT INTO users (id, email, password_hash, first_name, last_name, institution, country, is_public_profile) VALUES (?,?,?,?,?,?,?,1)',
+                    [userId, email, tempHash, first_name, last_name, institution || null, country || null]);
+                user = { id: userId };
+            }
+
+            const regId = uuidv4();
+            const pkgJson = package_items && package_items.length ? JSON.stringify(package_items) : null;
+
+            if (event_type === 'plexus') {
+                const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+                if (conf) {
+                    const ticket = query.get('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order LIMIT 1', [conf.id]);
+                    db.run('INSERT OR IGNORE INTO registrations (id, conference_id, user_id, ticket_type_id, first_name, last_name, email, institution, country, status, payment_status, package_items) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                        [regId, conf.id, user.id, ticket?.id, first_name, last_name, email, institution, country, 'confirmed', 'pending', pkgJson]);
+                }
+            } else if (event_type === 'gala') {
+                db.run('INSERT OR IGNORE INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status) VALUES (?,?,?,?,?,?,?)',
+                    [regId, first_name, last_name, email, institution, 'approved', 'pending']);
+            } else if (event_type === 'forum') {
+                db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, status, registered_at) VALUES (?,?,?,?,datetime("now"))',
+                    [regId, req.body.event_id || null, user.id, 'registered']);
+            } else if (event_type === 'bridges') {
+                db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,datetime("now"))',
+                    [regId, req.body.event_id || null, first_name, last_name, email, institution, 'confirmed']);
+            }
+
+            saveDb();
+
+            // Send confirmation email
+            try {
+                await sendEmail(email, `Registration Confirmed: ${event_name || 'Med&X Event'}`,
+                    `<div style="font-family:system-ui;max-width:500px;margin:0 auto;">
+                        <h2 style="color:#c9a962;">Registration Confirmed!</h2>
+                        <p>Dear ${first_name},</p>
+                        <p>Your registration for <strong>${event_name || 'Med&X Event'}</strong> has been confirmed.</p>
+                        ${package_items && package_items.length ? '<p><strong>Registered for:</strong></p><ul>' + package_items.map(i => '<li>' + i + '</li>').join('') + '</ul>' : ''}
+                        <p>We look forward to seeing you!</p>
+                        <p>Best regards,<br><strong>Med&X Team</strong></p>
+                    </div>`);
+            } catch(e) {}
+
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Invite registration error:', error);
+            res.status(500).json({ error: 'Registration failed' });
+        }
+    });
+
     // Validate direct registration link
     app.get('/api/register-direct/:token', (req, res) => {
         try {
