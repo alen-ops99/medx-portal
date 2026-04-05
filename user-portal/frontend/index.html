@@ -122168,7 +122168,9 @@ By applying to this program, I give the following consents:
                 <div id="quickQRCard" style="background: linear-gradient(160deg, #0f172a, #1e293b); border-radius: 24px; padding: 40px 32px; text-align: center; max-width: 340px; width: 100%; position: relative; border: 1px solid rgba(201,169,98,0.2);">
                     <button onclick="document.getElementById('quickQRModal').remove()" style="position:absolute; top:16px; right:16px; background:none; border:none; color:#94a3b8; font-size:20px; cursor:pointer;"><i class="fas fa-times"></i></button>
                     <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #c9a962; margin-bottom: 20px;">Med&X Member</div>
-                    <canvas id="quickQRCanvas" style="border-radius: 12px; background: white; padding: 12px;"></canvas>
+                    <div style="display:flex; justify-content:center; align-items:center;">
+                        <canvas id="quickQRCanvas" style="border-radius: 12px; background: white; padding: 16px; max-width: 240px;"></canvas>
+                    </div>
                     <div style="margin-top: 20px;">
                         <div style="font-size: 18px; font-weight: 700; color: #ffffff;">${escapeHtml(name)}</div>
                         <div style="display: inline-block; margin-top: 8px; padding: 4px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; background: ${tierColor}20; color: ${tierColor}; border: 1px solid ${tierColor}40;">${tier}</div>
@@ -122230,11 +122232,11 @@ By applying to this program, I give the following consents:
 
     <!-- Floating QR Code Button — always visible -->
     <button id="floatingQRBtn" onclick="showQuickQR()" style="
-        position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+        position: fixed; bottom: 88px; right: 24px; z-index: 9999;
         width: 56px; height: 56px; border-radius: 50%;
-        background: linear-gradient(135deg, #c9a962, #b49650);
-        color: #0f172a; border: none; cursor: pointer;
-        box-shadow: 0 4px 20px rgba(201,169,98,0.4);
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        color: #c9a962; border: 2px solid rgba(201,169,98,0.4); cursor: pointer;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
         display: flex; align-items: center; justify-content: center;
         font-size: 22px; transition: all 0.3s;
     " onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform=''">
