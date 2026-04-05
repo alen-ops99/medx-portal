@@ -5262,9 +5262,12 @@ async function initializeApp() {
     // Admin: Get full user profile for QR lookup
     app.get('/api/admin/users/:id/profile', auth, adminOnly, (req, res) => {
         try {
-            const userId = req.params.id;
-            const user = query.get('SELECT id, email, first_name, last_name, phone, institution, country, bio, is_admin, created_at FROM users WHERE id = ?', [userId]);
+            const idOrEmail = req.params.id;
+            // Try by ID first, then by email
+            let user = query.get('SELECT id, email, first_name, last_name, phone, institution, country, bio, is_admin, created_at FROM users WHERE id = ?', [idOrEmail]);
+            if (!user) user = query.get('SELECT id, email, first_name, last_name, phone, institution, country, bio, is_admin, created_at FROM users WHERE email = ?', [idOrEmail]);
             if (!user) return res.status(404).json({ error: 'User not found' });
+            const userId = user.id;
 
             const registrations = query.all(`
                 SELECT r.id, r.status, r.payment_status, r.amount_paid, r.created_at, r.checked_in, r.package_items,
