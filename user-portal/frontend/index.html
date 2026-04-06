@@ -76989,6 +76989,12 @@ You can use variables like {first_name} that will be personalized for each recip
                 // Initialize conference data store
                 if (typeof ConferenceData !== 'undefined') ConferenceData.init();
 
+                // Initialize swipe gestures and browser back/forward navigation (once)
+                if (!this._swipeGesturesInitialized) {
+                    this.initSwipeGestures();
+                    this._swipeGesturesInitialized = true;
+                }
+
                 // Get user's display name
                 const fullName = this.user.name || `${this.user.first_name || ''} ${this.user.last_name || ''}`.trim();
                 const firstName = fullName.split(' ')[0] || 'there';
@@ -77017,8 +77023,8 @@ You can use variables like {first_name} that will be personalized for each recip
                     Dashboard.init();
                     FeaturedCarousel.init();
                     this.loadUserData();
-                    // Allow initial API calls to complete before enabling error toasts
-                    setTimeout(() => { UserPortal._initialLoadComplete = true; }, 3000);
+                    // Enable error toasts immediately (initial load suppression no longer needed)
+                    UserPortal._initialLoadComplete = true;
                     return;
                 }
 
@@ -77061,8 +77067,8 @@ You can use variables like {first_name} that will be personalized for each recip
                     }, 1000);
                 }
 
-                // Allow initial API calls to complete before enabling error toasts
-                setTimeout(() => { UserPortal._initialLoadComplete = true; }, 3000);
+                // Enable error toasts immediately (initial load suppression no longer needed)
+                UserPortal._initialLoadComplete = true;
             },
 
             // Show beautiful welcome animation
@@ -122205,7 +122211,35 @@ By applying to this program, I give the following consents:
                 </div>
             `;
             document.body.appendChild(modal);
-            modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+            // Hide floating QR button while modal is open to prevent z-index overlap
+            const floatBtn = document.getElementById('floatingQRBtn');
+            if (floatBtn) floatBtn.style.display = 'none';
+
+            // Restore floating button when modal closes
+            const restoreFloatBtn = () => {
+                const btn = document.getElementById('floatingQRBtn');
+                if (btn) btn.style.display = 'flex';
+            };
+
+            // Close on backdrop click
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                    restoreFloatBtn();
+                }
+            });
+
+            // Close on X button click
+            const closeBtn = modal.querySelector('button');
+            if (closeBtn) {
+                const origOnclick = closeBtn.getAttribute('onclick');
+                closeBtn.removeAttribute('onclick');
+                closeBtn.addEventListener('click', () => {
+                    document.getElementById('quickQRModal')?.remove();
+                    restoreFloatBtn();
+                });
+            }
 
             // Generate QR
             const qrData = JSON.stringify({
