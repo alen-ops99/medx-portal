@@ -122216,32 +122216,13 @@ By applying to this program, I give the following consents:
             `;
             document.body.appendChild(modal);
 
-            // Hide floating QR button while modal is open to prevent z-index overlap
-            const floatBtn = document.getElementById('floatingQRBtn');
-            if (floatBtn) floatBtn.style.display = 'none';
-
-            // Restore floating button when modal closes
-            const restoreFloatBtn = () => {
-                const btn = document.getElementById('floatingQRBtn');
-                if (btn) btn.style.display = 'flex';
-            };
-
-            // Close on backdrop click
+            // Simple close handlers — no hiding/showing the floating button
             modal.addEventListener('click', (e) => {
-                if (e.target === modal) {
-                    modal.remove();
-                    restoreFloatBtn();
-                }
+                if (e.target === modal) modal.remove();
             });
-
-            // Close on X button click
-            const closeBtn = modal.querySelector('.qr-modal-close-btn');
-            if (closeBtn) {
-                closeBtn.addEventListener('click', () => {
-                    document.getElementById('quickQRModal')?.remove();
-                    restoreFloatBtn();
-                });
-            }
+            modal.querySelector('.qr-modal-close-btn')?.addEventListener('click', () => {
+                document.getElementById('quickQRModal')?.remove();
+            });
 
             // Generate QR
             const qrData = JSON.stringify({

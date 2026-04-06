@@ -6081,7 +6081,7 @@
 
             <div class="login-error" id="loginError">Invalid email or password</div>
 
-            <form class="login-form" onsubmit="event.preventDefault(); App.login(event)">
+            <form class="login-form" onsubmit="event.preventDefault(); try{App.login(event)}catch(err){console.error(err);document.getElementById('loginError').textContent=err.message;document.getElementById('loginError').classList.add('show')}; return false;">
                 <div class="form-group">
                     <label class="form-label">Email</label>
                     <input type="email" class="form-input" id="loginEmail" placeholder="juginovic.alen@gmail.com" required>
