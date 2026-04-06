@@ -10247,6 +10247,27 @@ By applying to this program, I provide the following consents:
     // --- ADMIN PLEXUS ROUTES ---
 
     // Admin: Get all registrations
+    // Update a registration (admin)
+    app.put('/api/admin/plexus/registrations/:id', auth, adminOnly, (req, res) => {
+        try {
+            const { amount_paid, payment_status, package_items, status, ticket_type_id } = req.body;
+            const updates = [];
+            const values = [];
+            if (amount_paid !== undefined) { updates.push('amount_paid = ?'); values.push(amount_paid); }
+            if (payment_status) { updates.push('payment_status = ?'); values.push(payment_status); }
+            if (package_items) { updates.push('package_items = ?'); values.push(typeof package_items === 'string' ? package_items : JSON.stringify(package_items)); }
+            if (status) { updates.push('status = ?'); values.push(status); }
+            if (ticket_type_id) { updates.push('ticket_type_id = ?'); values.push(ticket_type_id); }
+            if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
+            values.push(req.params.id);
+            db.run(`UPDATE registrations SET ${updates.join(', ')} WHERE id = ?`, values);
+            saveDb();
+            res.json({ success: true });
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to update registration' });
+        }
+    });
+
     app.get('/api/admin/plexus/registrations', auth, adminOnly, (req, res) => {
         const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
         const registrations = query.all(`SELECT r.*,
