@@ -12256,6 +12256,12 @@ President, Med&amp;X</textarea>
                 e.preventDefault();
                 const email = document.getElementById('loginEmail').value;
                 const password = document.getElementById('loginPassword').value;
+                const errEl = document.getElementById('loginError');
+                const submitBtn = e.target.querySelector('button[type="submit"]');
+
+                // Prevent double-click
+                if (submitBtn) submitBtn.disabled = true;
+                errEl.classList.remove('show');
 
                 try {
                     const res = await fetch('/api/auth/login', {
@@ -12264,11 +12270,15 @@ President, Med&amp;X</textarea>
                         body: JSON.stringify({ email, password })
                     });
 
-                    const data = await res.json();
+                    let data;
+                    try {
+                        data = await res.json();
+                    } catch (parseErr) {
+                        throw new Error('Server returned an invalid response. Please try again.');
+                    }
 
                     if (data.success) {
                         if (!data.user || !data.user.is_admin) {
-                            const errEl = document.getElementById('loginError');
                             errEl.textContent = 'Access denied. Admin privileges required.';
                             errEl.classList.add('show');
                             return;
@@ -12279,13 +12289,15 @@ President, Med&amp;X</textarea>
                         localStorage.setItem('medx_user', JSON.stringify(data.user));
                         await this.showApp();
                     } else {
-                        const errEl = document.getElementById('loginError');
                         errEl.textContent = data.error || 'Invalid credentials';
                         errEl.classList.add('show');
                     }
                 } catch (err) {
                     console.error('Login error:', err);
-                    document.getElementById('loginError').classList.add('show');
+                    errEl.textContent = err.message || 'Network error. Please check your connection and try again.';
+                    errEl.classList.add('show');
+                } finally {
+                    if (submitBtn) submitBtn.disabled = false;
                 }
             },
 
