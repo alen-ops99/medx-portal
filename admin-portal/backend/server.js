@@ -7844,23 +7844,31 @@ By applying to this program, I provide the following consents:
 
     // Admin: Create event (enhanced)
     app.post('/api/admin/forum/events', auth, adminOnly, (req, res) => {
-        const { title, description, event_type, start_date, end_date, location_type, location_name,
-            location_address, virtual_link, venue, capacity, registration_deadline, is_paid, price, agenda,
-            speakers, status, is_published, checkin_enabled } = req.body;
-        const id = uuidv4();
+        try {
+            const { title, description, event_type, start_date, end_date, location_type, location_name,
+                location_address, virtual_link, capacity, registration_deadline, is_paid, price, agenda,
+                speakers, status } = req.body;
+            const id = uuidv4();
 
-        const organizer = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
+            // Ensure columns exist
+            try { db.run('ALTER TABLE forum_events ADD COLUMN is_published INTEGER DEFAULT 0'); } catch(e) {}
+            try { db.run('ALTER TABLE forum_events ADD COLUMN checkin_enabled INTEGER DEFAULT 0'); } catch(e) {}
+            try { db.run('ALTER TABLE forum_events ADD COLUMN venue TEXT'); } catch(e) {}
+            try { db.run('ALTER TABLE forum_events ADD COLUMN updated_at TEXT'); } catch(e) {}
 
-        db.run(`INSERT INTO forum_events (id, title, description, event_type, start_date, end_date, location_type,
-            location_name, location_address, virtual_link, venue, capacity, registration_deadline, is_paid, price,
-            agenda, speakers, organizer_id, status, is_published, checkin_enabled, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-            [id, title, description, event_type || 'symposium', start_date, end_date, location_type || 'in_person',
-             location_name, location_address, virtual_link, venue, capacity || null, registration_deadline,
-             is_paid ? 1 : 0, price || 0, agenda, speakers, organizer?.id,
-             status || 'planning', is_published ? 1 : 0, checkin_enabled ? 1 : 0]);
-        saveDb();
-        res.json({ success: true, id });
+            db.run(`INSERT INTO forum_events (id, title, description, event_type, start_date, end_date, location_type,
+                location_name, location_address, virtual_link, capacity, registration_deadline, is_paid, price,
+                agenda, speakers, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+                [id, title, description, event_type || 'symposium', start_date, end_date, location_type || 'in_person',
+                 location_name, location_address, virtual_link, capacity || null, registration_deadline,
+                 is_paid ? 1 : 0, price || 0, agenda, speakers, status || 'published']);
+            saveDb();
+            res.json({ success: true, id });
+        } catch(error) {
+            console.error('Create forum event error:', error);
+            res.status(500).json({ error: 'Failed to create event: ' + error.message });
+        }
     });
 
     // Admin: Update event
