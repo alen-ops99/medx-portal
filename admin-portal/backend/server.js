@@ -5293,6 +5293,14 @@ async function initializeApp() {
             // Try by ID first, then by email
             let user = query.get('SELECT id, email, first_name, last_name, phone, institution, country, bio, is_admin, created_at FROM users WHERE id = ?', [idOrEmail]);
             if (!user) user = query.get('SELECT id, email, first_name, last_name, phone, institution, country, bio, is_admin, created_at FROM users WHERE email = ?', [idOrEmail]);
+
+            // If user not found by ID/email, check forum registrations directly (for invite-only registrants)
+            if (!user) {
+                const forumReg = query.get('SELECT first_name, last_name, email, institution FROM forum_event_registrations WHERE email = ? OR member_id = ? LIMIT 1', [idOrEmail, idOrEmail]);
+                if (forumReg) {
+                    user = { id: idOrEmail, email: forumReg.email, first_name: forumReg.first_name, last_name: forumReg.last_name, institution: forumReg.institution, country: '', bio: null, is_admin: 0, created_at: '' };
+                }
+            }
             if (!user) return res.status(404).json({ error: 'User not found' });
             const userId = user.id;
 
@@ -5329,13 +5337,12 @@ async function initializeApp() {
             let forumRegs = [];
             try {
                 forumRegs = query.all(`
-                    SELECT fer.id, fer.event_id, fer.status, fer.payment_status, fer.registered_at,
-                           fe.title as event_name, fe.event_date
+                    SELECT fer.*, fe.title as event_name, fe.event_date
                     FROM forum_event_registrations fer
                     LEFT JOIN forum_events fe ON fer.event_id = fe.id
-                    WHERE fer.email = ?
+                    WHERE fer.email = ? OR fer.member_id = ?
                     ORDER BY fer.registered_at DESC
-                `, [user.email]);
+                `, [user.email, userId]);
             } catch(e) {} // table may not exist
 
             // Also get bridges registrations
