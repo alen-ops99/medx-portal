@@ -9752,6 +9752,76 @@ By applying to this program, I provide the following consents:
                 return res.json({ received: true });
             }
 
+            // ===== INVITE LINK PAYMENT (any event type) =====
+            if (metadata.type && metadata.type.startsWith('invite-')) {
+                const invRegId = metadata.registration_id;
+                const invEmail = metadata.email || session.customer_details?.email;
+                const invEventType = metadata.type.replace('invite-', '');
+                console.log(`[Stripe] Invite payment confirmed for ${invRegId} (${invEventType})`);
+
+                try {
+                    // Update payment status in the relevant table
+                    const amount = session.amount_total ? session.amount_total / 100 : 0;
+                    if (invEventType === 'plexus') {
+                        db.run("UPDATE registrations SET payment_status = 'paid', amount_paid = ? WHERE id = ?", [amount, invRegId]);
+                    } else if (invEventType === 'gala') {
+                        db.run("UPDATE gala_registrations SET payment_status = 'paid', status = 'confirmed' WHERE id = ?", [invRegId]);
+                    } else if (invEventType === 'forum') {
+                        db.run("UPDATE forum_event_registrations SET payment_status = 'paid', payment_amount = ? WHERE id = ?", [amount, invRegId]);
+                    } else if (invEventType === 'bridges') {
+                        db.run("UPDATE bridges_registrations SET status = 'confirmed' WHERE id = ?", [invRegId]);
+                    }
+                    saveDb();
+
+                    // Also update on admin portal
+                    const adminUrl = process.env.ADMIN_PORTAL_URL || 'https://medx-admin-portal.onrender.com';
+                    try {
+                        fetch(adminUrl + '/api/public/register-invite', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                first_name: metadata.first_name, last_name: metadata.last_name, email: invEmail,
+                                event_type: invEventType, event_name: metadata.event_name,
+                                package_items: metadata.items ? metadata.items.split(', ').filter(Boolean) : [],
+                                guest_count: parseInt(metadata.guest_count || '0'),
+                                total_amount: amount, dietary: metadata.dietary, allergies: metadata.allergies,
+                                payment_completed: true
+                            })
+                        }).catch(() => {});
+                    } catch(e) {}
+
+                    // Generate QR and send confirmation email NOW (payment is done)
+                    const user = query.get('SELECT id FROM users WHERE email = ?', [invEmail]);
+                    const qrData = JSON.stringify({ type: 'MEDX_MEMBER', userId: user?.id || invRegId, email: invEmail, name: (metadata.first_name || '') + ' ' + (metadata.last_name || ''), regId: invRegId });
+                    let qrDataUrl = '';
+                    try { qrDataUrl = await QRCode.toDataURL(qrData, { width: 200, margin: 2 }); } catch(e) {}
+
+                    const itemsList = metadata.items ? metadata.items.split(', ').filter(Boolean) : [];
+                    const guestCnt = parseInt(metadata.guest_count || '0');
+                    const invEmailBody = `
+                        <div style="text-align:center;margin-bottom:8px;">
+                            <div style="display:inline-block;background:#22c55e;color:#fff;font-size:13px;font-weight:600;padding:6px 20px;border-radius:20px;letter-spacing:0.5px;">PAYMENT CONFIRMED</div>
+                        </div>
+                        <p style="margin-top:20px;">Dear <strong>${metadata.first_name || 'Guest'}</strong>,</p>
+                        <p>Your payment of <strong>&euro;${amount.toFixed(2)}</strong> for <strong style="color:#C9A962;">${metadata.event_name || 'Med&X Event'}</strong> has been received.</p>
+                        ${itemsList.length ? '<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;"><tr><td style="background:#f8fafc;padding:10px 16px;font-size:13px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Registered For</td></tr>' + itemsList.map(i => '<tr><td style="padding:10px 16px;font-size:14px;color:#334155;border-bottom:1px solid #f1f5f9;">&#10003; ' + i + '</td></tr>').join('') + '</table>' : ''}
+                        ${guestCnt ? '<p>&#128101; <strong>+' + guestCnt + ' Guest' + (guestCnt > 1 ? 's' : '') + '</strong> included</p>' : ''}
+                        ${qrDataUrl ? '<table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;"><tr><td align="center"><table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:16px;padding:24px;text-align:center;"><tr><td style="padding-bottom:12px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Your Check-in QR Code</td></tr><tr><td><img src="' + qrDataUrl + '" alt="QR Code" width="180" height="180" style="display:block;margin:0 auto;border-radius:8px;" /></td></tr><tr><td style="padding-top:12px;font-size:12px;color:#94a3b8;">Present this code at the event entrance</td></tr></table></td></tr></table>' : ''}
+                        <p>We look forward to seeing you!</p>
+                        <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;border-top:1px solid #e2e8f0;padding-top:16px;">
+                            <tr><td style="font-size:13px;color:#64748b;">Questions? Contact <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></td></tr>
+                        </table>`;
+                    try {
+                        await sendEmail(invEmail, `Payment Confirmed: ${metadata.event_name || 'Med&X Event'}`,
+                            buildEmailTemplate('Payment Confirmed', invEmailBody));
+                        console.log(`[Stripe] Confirmation email sent to ${invEmail}`);
+                    } catch(emailErr) { console.log('[Stripe] Invite confirmation email failed:', emailErr.message); }
+                } catch(dbErr) {
+                    console.error('[Stripe] Failed to process invite webhook:', dbErr.message);
+                }
+                return res.json({ received: true });
+            }
+
             // ===== PLEXUS CONFERENCE PAYMENT =====
             const registrationId = metadata.registration_id;
             const invoiceNumber = metadata.invoice_number;
@@ -15298,14 +15368,18 @@ By applying to this program, I provide the following consents:
             if (!email || !first_name) return res.status(400).json({ error: 'Name and email required' });
 
             // Forward to admin portal (so registration appears in admin system)
+            const adminUrl = process.env.ADMIN_PORTAL_URL || 'https://medx-admin-portal.onrender.com';
             try {
-                const adminUrl = process.env.ADMIN_PORTAL_URL || 'https://medx-admin-portal.onrender.com';
-                await fetch(adminUrl + '/api/public/register-invite', {
+                // Wake up admin portal first (Render free tier sleeps after 15min)
+                try { await fetch(adminUrl + '/health', { signal: AbortSignal.timeout(30000) }); } catch(e) {}
+                const syncResp = await fetch(adminUrl + '/api/public/register-invite', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(req.body)
+                    body: JSON.stringify(req.body),
+                    signal: AbortSignal.timeout(15000)
                 });
-                console.log('[Sync] Registration forwarded to admin portal');
+                if (syncResp.ok) console.log('[Sync] Registration forwarded to admin portal');
+                else console.log('[Sync] Admin sync returned:', syncResp.status);
             } catch(syncErr) { console.log('[Sync] Admin sync failed (non-blocking):', syncErr.message); }
 
             // Find or create user locally
@@ -15341,15 +15415,14 @@ By applying to this program, I provide the following consents:
 
             saveDb();
 
-            // Generate QR code for check-in
-            const qrData = JSON.stringify({ type: 'MEDX_MEMBER', userId: user.id, email, name: first_name + ' ' + last_name, regId });
-            let qrDataUrl = '';
-            try {
-                qrDataUrl = await QRCode.toDataURL(qrData, { width: 200, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
-            } catch(qrErr) { console.log('QR generation failed:', qrErr.message); }
+            // Helper: generate QR + send confirmation email (called after payment or immediately for free events)
+            async function sendRegistrationConfirmation() {
+                const qrData = JSON.stringify({ type: 'MEDX_MEMBER', userId: user.id, email, name: first_name + ' ' + last_name, regId });
+                let qrDataUrl = '';
+                try {
+                    qrDataUrl = await QRCode.toDataURL(qrData, { width: 200, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
+                } catch(qrErr) { console.log('QR generation failed:', qrErr.message); }
 
-            // Send confirmation email with QR code
-            try {
                 const regEmailBody = `
                     <div style="text-align:center;margin-bottom:8px;">
                         <div style="display:inline-block;background:#22c55e;color:#fff;font-size:13px;font-weight:600;padding:6px 20px;border-radius:20px;letter-spacing:0.5px;">REGISTRATION CONFIRMED</div>
@@ -15381,11 +15454,13 @@ By applying to this program, I provide the following consents:
                             <span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span>
                         </td></tr>
                     </table>`;
-                await sendEmail(email, `Registration Confirmed: ${event_name || 'Med&X Event'}`,
-                    buildEmailTemplate('Registration Confirmed', regEmailBody));
-            } catch(e) { console.log('Confirmation email failed:', e.message); }
+                try {
+                    await sendEmail(email, `Registration Confirmed: ${event_name || 'Med&X Event'}`,
+                        buildEmailTemplate('Registration Confirmed', regEmailBody));
+                } catch(e) { console.log('Confirmation email failed:', e.message); }
+            }
 
-            // If paid event, create Stripe checkout session
+            // If paid event, create Stripe checkout session (email sent AFTER payment succeeds)
             let checkoutUrl = null;
             if (stripe) {
                 // Use the total amount from the form (includes +1 guest if selected)
@@ -15417,7 +15492,7 @@ By applying to this program, I provide the following consents:
                             mode: 'payment',
                             payment_method_types: ['card'],
                             line_items: [{ price_data: { currency: 'eur', product_data: { name: event_name || 'Med&X Event Registration' }, unit_amount: Math.round(price * 100) }, quantity: 1 }],
-                            metadata: { registration_id: regId, type: 'invite-' + event_type, email },
+                            metadata: { registration_id: regId, type: 'invite-' + event_type, email, first_name, last_name: last_name || '', event_name: event_name || 'Med&X Event', items: (package_items || []).join(', '), guest_count: String(guest_count || 0), dietary: dietary || '', allergies: allergies || '' },
                             customer_email: email,
                             success_url: `${baseUrl}/invite-success`,
                             cancel_url: `${baseUrl}/invite-cancelled`
@@ -15432,6 +15507,11 @@ By applying to this program, I provide the following consents:
                         console.log('[Stripe] Checkout creation failed:', stripeErr.message);
                     }
                 }
+            }
+
+            // Send confirmation email: immediately for free events, deferred for paid (sent after Stripe payment)
+            if (!checkoutUrl) {
+                await sendRegistrationConfirmation();
             }
 
             // FAILSAFE 1: Log to local CSV file (always works, no external deps)
