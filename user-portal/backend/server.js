@@ -454,17 +454,27 @@ app.get('/invite/:data', (req, res) => {
             total_amount: parseFloat(document.getElementById('eventPrice').value) || 0
         };
         try {
-            const res = await fetch('/api/register-invite', {
+            // Register on admin portal (so it appears in admin registrations)
+            const adminUrl = '${process.env.ADMIN_PORTAL_URL || "https://medx-admin-portal.onrender.com"}';
+            const res = await fetch(adminUrl + '/api/public/register-invite', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
             });
             const result = await res.json();
             if (result.success) {
-                // If paid event and Stripe checkout URL returned, redirect to payment
-                if (result.checkout_url) {
+                // Also register locally for Stripe/email/CSV
+                const localRes = await fetch('/api/register-invite', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                }).catch(() => null);
+                const localResult = localRes ? await localRes.json().catch(() => ({})) : {};
+
+                // If paid event, redirect to Stripe payment
+                if (localResult.checkout_url) {
                     btn.textContent = 'Redirecting to payment...';
-                    window.location.href = result.checkout_url;
+                    window.location.href = localResult.checkout_url;
                     return;
                 }
                 document.querySelector('.card').innerHTML = '<div class="success"><div class="success-icon"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div><h1 style="color:#22c55e;margin-bottom:8px;">You\\'re Registered!</h1><p style="color:#94a3b8;font-size:16px;margin-bottom:12px;">A confirmation has been sent to your email.</p><p style="color:#64748b;font-size:13px;margin-bottom:24px;">We look forward to seeing you!</p><a href="https://medx.hr" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Visit Med&X</a></div>';
