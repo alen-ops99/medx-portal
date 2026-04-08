@@ -20529,27 +20529,43 @@ President, Med&amp;X</textarea>
                     if (!regs || regs.length === 0) {
                         container.innerHTML = '<div class="table-empty"><i class="fas fa-users"></i><p>No registrations yet</p></div>';
                     } else {
+                        this._forumRegs = regs;
                         container.innerHTML = `
-                            <div style="margin-bottom: 12px; font-size: 13px; color: var(--text-muted);">
-                                ${regs.length} registered | ${regs.filter(r => r.checked_in).length} checked in
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+                                <span style="font-size: 13px; color: var(--text-muted);">${regs.length} registered | ${regs.filter(r => r.checked_in).length} checked in</span>
+                                <button class="btn btn-secondary" style="padding:5px 12px;font-size:11px;" onclick="App.exportForumRegistrations()"><i class="fas fa-file-excel"></i> Export</button>
                             </div>
+                            <div style="overflow-x:auto;">
                             <table class="simple-table" style="width: 100%;">
                                 <thead><tr>
-                                    <th>Name</th><th>Email</th><th>Institution</th><th>Registered</th><th>Check-in</th><th>Actions</th>
+                                    <th>Name</th><th>Email</th><th>Registered For</th><th>Dietary / Allergies</th><th>Guests</th><th>Paid</th><th>Status</th><th>Actions</th>
                                 </tr></thead>
                                 <tbody>
-                                    ${regs.map(r => `
-                                        <tr>
-                                            <td>${this.escapeHtml(r.name || (r.user_first ? (r.user_first + ' ' + (r.user_last || '')) : 'Unknown'))}</td>
-                                            <td>${this.escapeHtml(r.email || r.user_email || '-')}</td>
-                                            <td>${this.escapeHtml(r.institution || r.member_institution || '-')}</td>
-                                            <td>${r.registered_at ? new Date(r.registered_at).toLocaleDateString() : '-'}</td>
-                                            <td>${r.checked_in ? '<span class="status good"><i class="fas fa-check"></i> Checked in</span>' : '<span class="status neutral">Not checked in</span>'}</td>
-                                            <td>${!r.checked_in ? `<button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="App.checkinForumRegistrant('${eventId}', '${r.id}')"><i class="fas fa-qrcode"></i> Check in</button>` : `<span style="font-size: 11px; color: var(--text-muted);">${r.checked_in_at ? new Date(r.checked_in_at).toLocaleTimeString() : ''}</span>`}</td>
-                                        </tr>
-                                    `).join('')}
+                                    ${regs.map(r => {
+                                        const name = ((r.first_name || '') + ' ' + (r.last_name || '')).trim() || 'Unknown';
+                                        let pkg = '-';
+                                        try { const items = r.package_items ? JSON.parse(r.package_items) : []; pkg = items.length ? items.join(', ') : '-'; } catch(e) {}
+                                        const diet = [r.dietary && r.dietary !== 'No special requirements' ? r.dietary : '', r.allergies && r.allergies !== 'None' ? r.allergies : ''].filter(Boolean).join(' / ') || '-';
+                                        return `<tr>
+                                            <td style="font-weight:600;">${this.escapeHtml(name)}</td>
+                                            <td>${this.escapeHtml(r.email || '-')}</td>
+                                            <td style="font-size:12px;">${this.escapeHtml(pkg)}</td>
+                                            <td style="font-size:12px;">${this.escapeHtml(diet)}</td>
+                                            <td style="text-align:center;">${r.guest_count ? '+' + r.guest_count : '-'}</td>
+                                            <td style="text-align:center;font-weight:600;color:var(--accent-gold);">${r.amount_paid ? '€' + r.amount_paid : '-'}</td>
+                                            <td>${r.checked_in ? '<span class="status good"><i class="fas fa-check"></i> In</span>' : '<span class="status neutral">Reg</span>'}</td>
+                                            <td style="white-space:nowrap;">
+                                                ${!r.checked_in
+                                                    ? '<button class="btn btn-primary" style="padding:3px 8px;font-size:11px;" onclick="App.checkinForumRegistrant(\'' + eventId + '\',\'' + r.id + '\')"><i class="fas fa-check"></i></button>'
+                                                    : '<button class="btn btn-secondary" style="padding:3px 8px;font-size:11px;" onclick="App.uncheckForumRegistrant(\'' + eventId + '\',\'' + r.id + '\')"><i class="fas fa-undo"></i></button>'
+                                                }
+                                                <button class="btn btn-danger" style="padding:3px 8px;font-size:11px;margin-left:3px;" onclick="if(confirm(\'Delete?\'))App.deleteForumRegistrant(\'${eventId}\',\'${r.id}\')"><i class="fas fa-trash"></i></button>
+                                            </td>
+                                        </tr>`;
+                                    }).join('')}
                                 </tbody>
                             </table>
+                            </div>
                         `;
                     }
 
