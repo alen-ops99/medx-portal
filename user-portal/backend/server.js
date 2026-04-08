@@ -52,6 +52,35 @@ const app = express();
 async function sendEmail(to, subject, htmlContent) {
     const fromAddress = process.env.EMAIL_FROM || 'Med&X <onboarding@resend.dev>';
 
+    // Option 0: SendGrid (works on Render, no domain verification needed)
+    if (process.env.SENDGRID_API_KEY) {
+        try {
+            const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    personalizations: [{ to: [{ email: to }] }],
+                    from: { email: process.env.SMTP_USER || 'juginovic.alen@gmail.com', name: 'Med&X' },
+                    subject,
+                    content: [{ type: 'text/html', value: htmlContent }]
+                })
+            });
+            if (response.ok || response.status === 202) {
+                console.log(`[Email Sent via SendGrid] To: ${to}, Subject: ${subject}`);
+                return { success: true };
+            }
+            const errData = await response.text();
+            console.error('SendGrid error:', response.status, errData);
+            return { success: false, error: errData };
+        } catch (err) {
+            console.error('SendGrid error:', err.message);
+            return { success: false, error: err.message };
+        }
+    }
+
     // Option 1: Resend API (HTTP-based, works on all hosting platforms)
     if (process.env.RESEND_API_KEY) {
         try {
