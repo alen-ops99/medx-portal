@@ -11767,7 +11767,6 @@ President, Med&amp;X</textarea>
                     if (resp.ok) { profile = await resp.json(); break; }
                 }
                 if (!profile) throw new Error('User not found');
-                const profile = await response.json();
                 const u = profile.user;
                 const name = ((u.first_name || '') + ' ' + (u.last_name || '')).trim() || 'Member';
 
