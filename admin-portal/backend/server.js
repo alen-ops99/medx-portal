@@ -7963,15 +7963,28 @@ By applying to this program, I provide the following consents:
     // Admin: Get event registrations
     app.get('/api/admin/forum/events/:id/registrations', auth, adminOnly, (req, res) => {
         const registrations = query.all(`
-            SELECT fer.*, u.first_name as user_first, u.last_name as user_last, u.email as user_email,
-                fm.specialty, fm.institution as member_institution
+            SELECT fer.*,
+                COALESCE(fer.first_name, u.first_name) as first_name,
+                COALESCE(fer.last_name, u.last_name) as last_name,
+                COALESCE(fer.email, u.email) as email,
+                COALESCE(fer.institution, u.institution) as institution
             FROM forum_event_registrations fer
-            LEFT JOIN forum_members fm ON fer.member_id = fm.id
-            LEFT JOIN users u ON fm.user_id = u.id
+            LEFT JOIN users u ON fer.member_id = u.id
             WHERE fer.event_id = ?
             ORDER BY fer.registered_at DESC
         `, [req.params.id]);
         res.json(registrations);
+    });
+
+    // Admin: Delete a forum event registration
+    app.delete('/api/admin/forum/events/:eventId/registrations/:regId', auth, adminOnly, (req, res) => {
+        try {
+            db.run('DELETE FROM forum_event_registrations WHERE id = ? AND event_id = ?', [req.params.regId, req.params.eventId]);
+            saveDb();
+            res.json({ success: true });
+        } catch(e) {
+            res.status(500).json({ error: 'Failed to delete registration' });
+        }
     });
 
     // Admin: Check in a registrant
@@ -10305,8 +10318,14 @@ By applying to this program, I provide the following consents:
                     const fe = query.get("SELECT id FROM forum_events WHERE title LIKE '%Annual%' ORDER BY start_date LIMIT 1");
                     if (fe) forumEventId = fe.id;
                 }
-                db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, first_name, last_name, email, status, registered_at) VALUES (?,?,?,?,?,?,?,datetime("now"))',
-                    [regId, forumEventId, user.id, first_name, last_name, email, 'registered']);
+                try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN package_items TEXT'); } catch(e) {}
+                try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN institution TEXT'); } catch(e) {}
+                try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN dietary TEXT'); } catch(e) {}
+                try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN allergies TEXT'); } catch(e) {}
+                try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN guest_count INTEGER DEFAULT 0'); } catch(e) {}
+                try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN amount_paid REAL DEFAULT 0'); } catch(e) {}
+                db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, first_name, last_name, email, institution, status, package_items, dietary, allergies, guest_count, amount_paid, registered_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,datetime("now"))',
+                    [regId, forumEventId, user.id, first_name, last_name, email, institution || '', 'registered', pkgJson, req.body.dietary || '', req.body.allergies || '', req.body.guest_count || 0, total_amount || 0]);
             } else if (event_type === 'bridges') {
                 db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,datetime("now"))',
                     [regId, req.body.event_id || null, first_name, last_name, email, institution, 'confirmed']);
