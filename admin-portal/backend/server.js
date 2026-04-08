@@ -3311,16 +3311,16 @@ async function initializeApp() {
                 [memberId, m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9]]);
         });
 
-        // Create Annual Biomedical Forum event (Dec 6, 2026)
+        // Create Annual Biomedical Forum event (May 25-27, 2026)
         const annualForumId = uuidv4();
-        db.run(`INSERT INTO forum_events (id, title, description, event_type, start_date, end_date, location_type, location_name, location_address, capacity, is_members_only, status)
-            VALUES (?, 'Annual Biomedical Forum 2026', 'The flagship annual gathering of the Biomedical Forum community. A full-day event featuring keynote speakers, panel discussions, and exclusive networking opportunities for senior biomedical leaders.', 'conference', '2026-12-06T09:00:00', '2026-12-06T22:00:00', 'in_person', 'Hotel Esplanade Zagreb', 'Mihanoviceva 1, Zagreb', 150, 1, 'published')`,
+        db.run(`INSERT INTO forum_events (id, title, description, event_type, start_date, end_date, location_type, location_name, location_address, capacity, is_paid, price, status)
+            VALUES (?, 'Annual Biomedical Forum 2026', 'Three-day forum bringing together Croatian and international biomedical leaders.\n\nDay 1 (May 25) — Conference Program in Split, Croatia\nDay 2 (May 26) — Conference Program in Zagreb, Croatia\nDay 3 (May 27) — Gala Dinner at Crystal Ballroom, The Westin Zagreb (7:30 PM, €100)', 'conference', '2026-05-25', '2026-05-27', 'in_person', 'Split & Zagreb, Croatia', 'Multiple venues', 200, 1, 150, 'published')`,
             [annualForumId]);
 
         // Create sample posts
         const posts = [
             ['Welcome to the Biomedical Forum!', 'Excited to launch our new community platform. Looking forward to connecting with fellow researchers and clinicians.', 'announcement'],
-            ['Upcoming: Annual Forum 2026', 'Mark your calendars for December 6th! Our annual gathering will feature keynote speakers and networking sessions.', 'event'],
+            ['Upcoming: Annual Forum 2026', 'Mark your calendars for May 25-27! Three days in Split and Zagreb featuring keynote speakers, panels, and our Gala Evening.', 'event'],
             ['Research Collaboration Opportunity', 'Looking for collaborators on a multi-center study on cardiovascular biomarkers. DM if interested.', 'discussion'],
             ['New Publication Alert', 'Our team just published findings on gut microbiome and autoimmune diseases in Nature Medicine.', 'update']
         ];

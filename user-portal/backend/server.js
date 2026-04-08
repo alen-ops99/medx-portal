@@ -7456,7 +7456,7 @@ By applying to this program, I provide the following consents:
         let event = query.get(`SELECT id FROM forum_events WHERE slug = 'annual-forum-2026'`);
         if (!event) {
             const eventId = uuidv4();
-            db.run(`INSERT INTO forum_events (id, title, description, slug, event_scale, status) VALUES (?, 'Annual Forum 2026', '', 'annual-forum-2026', 'large', 'published')`, [eventId]);
+            db.run(`INSERT INTO forum_events (id, title, description, slug, event_scale, start_date, end_date, location_name, is_paid, price, status) VALUES (?, 'Annual Biomedical Forum 2026', 'May 25-27: Split, Zagreb & Gala Evening at The Westin Zagreb', 'annual-forum-2026', 'large', '2026-05-25', '2026-05-27', 'Split & Zagreb, Croatia', 1, 150, 'published')`, [eventId]);
             event = { id: eventId };
         }
 
@@ -7517,7 +7517,7 @@ By applying to this program, I provide the following consents:
         let event = query.get(`SELECT id FROM forum_events WHERE slug = 'annual-forum-2026'`);
         if (!event) {
             const eventId = uuidv4();
-            db.run(`INSERT INTO forum_events (id, title, description, slug, event_scale, status) VALUES (?, 'Annual Forum 2026', '', 'annual-forum-2026', 'large', 'published')`, [eventId]);
+            db.run(`INSERT INTO forum_events (id, title, description, slug, event_scale, start_date, end_date, location_name, is_paid, price, status) VALUES (?, 'Annual Biomedical Forum 2026', 'May 25-27: Split, Zagreb & Gala Evening at The Westin Zagreb', 'annual-forum-2026', 'large', '2026-05-25', '2026-05-27', 'Split & Zagreb, Croatia', 1, 150, 'published')`, [eventId]);
             event = { id: eventId };
         }
 
