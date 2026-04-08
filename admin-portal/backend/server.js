@@ -970,10 +970,19 @@ async function initializeApp() {
         id TEXT PRIMARY KEY,
         event_id TEXT,
         member_id TEXT,
+        first_name TEXT,
+        last_name TEXT,
+        email TEXT,
+        institution TEXT,
         status TEXT DEFAULT 'registered',
         ticket_type TEXT DEFAULT 'general',
         payment_status TEXT,
         payment_amount REAL,
+        amount_paid REAL DEFAULT 0,
+        package_items TEXT,
+        dietary TEXT,
+        allergies TEXT,
+        guest_count INTEGER DEFAULT 0,
         checked_in INTEGER DEFAULT 0,
         checked_in_at TEXT,
         qr_code TEXT,
@@ -10326,6 +10335,9 @@ By applying to this program, I provide the following consents:
                     const fe = query.get("SELECT id FROM forum_events WHERE title LIKE '%Annual%' ORDER BY start_date LIMIT 1");
                     if (fe) forumEventId = fe.id;
                 }
+                try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN first_name TEXT'); } catch(e) {}
+                try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN last_name TEXT'); } catch(e) {}
+                try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN email TEXT'); } catch(e) {}
                 try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN package_items TEXT'); } catch(e) {}
                 try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN institution TEXT'); } catch(e) {}
                 try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN dietary TEXT'); } catch(e) {}
