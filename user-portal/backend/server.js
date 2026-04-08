@@ -9792,11 +9792,11 @@ By applying to this program, I provide the following consents:
 
                     // Generate QR and send confirmation email NOW (payment is done)
                     const user = query.get('SELECT id FROM users WHERE email = ?', [invEmail]);
-                    const qrData = JSON.stringify({ type: 'MEDX_MEMBER', userId: user?.id || invRegId, email: invEmail, name: (metadata.first_name || '') + ' ' + (metadata.last_name || ''), regId: invRegId });
+                    const itemsList = metadata.items ? metadata.items.split(', ').filter(Boolean) : [];
+                    const qrData = JSON.stringify({ type: 'MEDX_MEMBER', userId: user?.id || invRegId, email: invEmail, name: (metadata.first_name || '') + ' ' + (metadata.last_name || ''), regId: invRegId, evt: metadata.type.replace('invite-', ''), evtName: metadata.event_name || 'Med&X Event', items: itemsList, guests: parseInt(metadata.guest_count || '0'), diet: metadata.dietary || '', allrg: metadata.allergies || '', amt: session.amount_total ? session.amount_total / 100 : 0 });
                     let qrDataUrl = '';
                     try { qrDataUrl = await QRCode.toDataURL(qrData, { width: 200, margin: 2 }); } catch(e) {}
 
-                    const itemsList = metadata.items ? metadata.items.split(', ').filter(Boolean) : [];
                     const guestCnt = parseInt(metadata.guest_count || '0');
                     const invEmailBody = `
                         <div style="text-align:center;margin-bottom:8px;">
@@ -15417,7 +15417,7 @@ By applying to this program, I provide the following consents:
 
             // Helper: generate QR + send confirmation email (called after payment or immediately for free events)
             async function sendRegistrationConfirmation() {
-                const qrData = JSON.stringify({ type: 'MEDX_MEMBER', userId: user.id, email, name: first_name + ' ' + last_name, regId });
+                const qrData = JSON.stringify({ type: 'MEDX_MEMBER', userId: user.id, email, name: first_name + ' ' + last_name, regId, evt: event_type, evtName: event_name || 'Med&X Event', items: package_items || [], guests: guest_count || 0, diet: dietary || '', allrg: allergies || '', amt: total_amount || 0 });
                 let qrDataUrl = '';
                 try {
                     qrDataUrl = await QRCode.toDataURL(qrData, { width: 200, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
@@ -15676,6 +15676,48 @@ By applying to this program, I provide the following consents:
     app.use((err, req, res, next) => {
         console.error('Unhandled error:', err);
         res.status(500).json({ error: 'Internal server error' });
+    });
+
+    // Health check (used by admin portal wake-up ping)
+    app.get('/health', (req, res) => res.json({ ok: true }));
+
+    // Public registrations lookup (used by admin portal for cross-portal data)
+    app.get('/api/public/registrations/:email', (req, res) => {
+        try {
+            const email = decodeURIComponent(req.params.email);
+            const user = query.get('SELECT id, first_name, last_name, email, institution, country FROM users WHERE email = ?', [email]);
+            if (!user) return res.json({ registrations: [], forumRegistrations: [], galaRegistrations: [], bridgesRegistrations: [] });
+
+            let registrations = [];
+            try {
+                registrations = query.all(`SELECT r.id, r.status, r.payment_status, r.amount_paid, r.created_at, r.checked_in, r.package_items,
+                    c.name as conference_name, tt.name as ticket_name
+                    FROM registrations r LEFT JOIN conferences c ON r.conference_id = c.id LEFT JOIN ticket_types tt ON r.ticket_type_id = tt.id
+                    WHERE r.user_id = ? OR r.email = ? ORDER BY r.created_at DESC`, [user.id, email]);
+            } catch(e) {}
+
+            let forumRegistrations = [];
+            try {
+                forumRegistrations = query.all(`SELECT fer.*, fe.title as event_name, fe.event_date
+                    FROM forum_event_registrations fer LEFT JOIN forum_events fe ON fer.event_id = fe.id
+                    WHERE fer.email = ? OR fer.member_id = ? ORDER BY fer.registered_at DESC`, [email, user.id]);
+            } catch(e) {}
+
+            let galaRegistrations = [];
+            try {
+                galaRegistrations = query.all('SELECT * FROM gala_registrations WHERE email = ? ORDER BY registered_at DESC', [email]);
+            } catch(e) {}
+
+            let bridgesRegistrations = [];
+            try {
+                bridgesRegistrations = query.all(`SELECT br.*, be.name as event_name, be.city FROM bridges_registrations br
+                    LEFT JOIN bridges_events be ON br.event_id = be.id WHERE br.email = ? ORDER BY br.registered_at DESC`, [email]);
+            } catch(e) {}
+
+            res.json({ user, registrations, forumRegistrations, galaRegistrations, bridgesRegistrations });
+        } catch(e) {
+            res.status(500).json({ error: 'Lookup failed' });
+        }
     });
 
     // Start watching shared DB for cross-portal sync
