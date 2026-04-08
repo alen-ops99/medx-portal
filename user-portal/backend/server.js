@@ -263,9 +263,21 @@ app.get('/invite/:data', (req, res) => {
             if (data.i) {
                 const event = query.get('SELECT * FROM forum_events WHERE id = ?', [data.i]);
                 if (event) {
-                    eventInfo.name = event.name || event.title || eventInfo.name;
-                    eventInfo.date = event.event_date || event.date || '';
-                    eventInfo.venue = event.venue_name ? event.venue_name + (event.city ? ', ' + event.city : '') : '';
+                    eventInfo.name = event.title || event.name || eventInfo.name;
+                    eventInfo.date = event.start_date ? new Date(event.start_date).toLocaleDateString('en-US', {weekday:'long', month:'long',day:'numeric',year:'numeric'}) : '';
+                    eventInfo.venue = event.location_name || '';
+                    if (event.location_address) eventInfo.venue += (eventInfo.venue ? ', ' : '') + event.location_address;
+                    eventInfo.price = event.price || 0;
+                    eventInfo.description = event.description || '';
+                }
+            } else {
+                // No specific event ID — try to find the main forum event
+                const event = query.get("SELECT * FROM forum_events ORDER BY start_date ASC LIMIT 1");
+                if (event) {
+                    eventInfo.name = event.title || eventInfo.name;
+                    eventInfo.date = event.start_date ? new Date(event.start_date).toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'}) : '';
+                    eventInfo.venue = event.location_name || '';
+                    eventInfo.price = event.price || 0;
                 }
             }
         } else if (eventType === 'bridges') {
