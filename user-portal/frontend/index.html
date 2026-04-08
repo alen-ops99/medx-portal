@@ -77340,13 +77340,8 @@ You can use variables like {first_name} that will be personalized for each recip
                         throw err;
                     }
                     console.error(`UserPortal API error (${endpoint}):`, err);
-                    // Only show error toast for user-initiated actions, not background fetches
-                    // Suppress for common background endpoints that fail silently
-                    const silentEndpoints = ['/api/user-notifications', '/api/portal-content', '/api/rewards', '/api/networking', '/api/auth/me', '/api/plexus/stats', '/api/dashboard'];
-                    const isSilent = silentEndpoints.some(ep => endpoint.startsWith(ep));
-                    if (this._initialLoadComplete && !isSilent) {
-                        Toast.error('Something went wrong. Please try again.');
-                    }
+                    // Never show generic error toasts — they confuse users.
+                    // Individual features handle their own errors with specific messages.
                     throw err;
                 }
             },
