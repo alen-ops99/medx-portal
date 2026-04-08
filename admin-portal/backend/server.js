@@ -16099,7 +16099,7 @@ By applying to this program, I provide the following consents:
                 p: package_items || [],
                 x: expiresAt
             })).toString('base64url');
-            const link = `${userPortalUrl}/?invite=${linkData}`;
+            const link = `${userPortalUrl}/invite/${linkData}`;
 
             res.json({ success: true, id, token, link, expiresAt });
         } catch (error) {

@@ -122264,53 +122264,9 @@ By applying to this program, I give the following consents:
             }
         }
 
-        // ===== Direct Invite — bypass login, go straight to event registration =====
+        // ===== Direct Invite — redirect to server-rendered standalone page =====
         function showDirectInviteForm(encodedData) {
-            try {
-                const data = JSON.parse(atob(encodedData));
-                const eventType = data.e || 'plexus';
-                const expiresAt = data.x;
-
-                // Check expiry
-                if (expiresAt && new Date(expiresAt) < new Date()) {
-                    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f172a;color:white;font-family:system-ui;padding:20px;text-align:center;"><div><h1 style="color:#ef4444;">Link Expired</h1><p style="color:#94a3b8;">This invitation link has expired.</p><a href="/" style="color:#c9a962;">Go to Med&X Portal</a></div></div>';
-                    return;
-                }
-
-                // Create a guest session so the portal works without login
-                const guestToken = 'invite_' + Date.now();
-                UserPortal.token = guestToken;
-                UserPortal.user = { id: 'guest_' + Date.now(), first_name: 'Guest', last_name: '', email: '', name: 'Guest' };
-                UserPortal._isInviteMode = true;
-                localStorage.setItem('medx_user_token', guestToken);
-                localStorage.setItem('medx_user_data', JSON.stringify(UserPortal.user));
-
-                // Show the user portal and navigate to the event section
-                document.getElementById('landingPage').style.display = 'none';
-                document.getElementById('userPortal').classList.add('active');
-
-                // Map event type to section + tab
-                const sectionMap = {
-                    plexus: { section: 'plexus', tab: 'register' },
-                    gala: { section: 'gala', tab: 'register' },
-                    forum: { section: 'forum', tab: 'events' },
-                    bridges: { section: 'bridges', tab: 'events' }
-                };
-                const target = sectionMap[eventType] || sectionMap.plexus;
-
-                // Initialize portal basics then navigate
-                setTimeout(() => {
-                    UserPortal.showSection(target.section);
-                    // For Plexus, go directly to the Register tab
-                    if (typeof PlexusPortal !== 'undefined' && target.tab === 'register') {
-                        setTimeout(() => PlexusPortal.showTab('register'), 500);
-                    }
-                }, 300);
-
-            } catch(e) {
-                console.error('Invite parse error:', e);
-                document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f172a;color:white;font-family:system-ui;padding:20px;text-align:center;"><div><h1 style="color:#ef4444;">Invalid Link</h1><p style="color:#94a3b8;">This invitation link is not valid.</p><a href="/" style="color:#c9a962;">Go to Med&X Portal</a></div></div>';
-            }
+            window.location.href = '/invite/' + encodedData;
         }
 
         // ===== Direct Registration (no account required) =====
