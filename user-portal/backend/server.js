@@ -278,8 +278,9 @@ app.get('/invite/:data', (req, res) => {
             }
         } else if (eventType === 'forum') {
             // Check if this is a gala-only invite
-            const isGalaOnly = packageItems.length === 1 && packageItems[0].toLowerCase().includes('gala');
-            const isGalaIncluded = packageItems.some(p => p.toLowerCase().includes('gala'));
+            const pkgItems = data.p || [];
+            const isGalaOnly = pkgItems.length === 1 && pkgItems[0].toLowerCase().includes('gala');
+            const isGalaIncluded = pkgItems.some(p => p.toLowerCase().includes('gala'));
 
             if (isGalaOnly) {
                 // Gala-only: show gala-specific details
