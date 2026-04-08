@@ -7845,28 +7845,23 @@ By applying to this program, I provide the following consents:
     // Admin: Create event (enhanced)
     app.post('/api/admin/forum/events', auth, adminOnly, (req, res) => {
         try {
-            const { title, description, event_type, start_date, end_date, location_type, location_name,
-                location_address, virtual_link, capacity, registration_deadline, is_paid, price, agenda,
-                speakers, status } = req.body;
+            const b = req.body;
             const id = uuidv4();
 
-            // Ensure columns exist
-            try { db.run('ALTER TABLE forum_events ADD COLUMN is_published INTEGER DEFAULT 0'); } catch(e) {}
-            try { db.run('ALTER TABLE forum_events ADD COLUMN checkin_enabled INTEGER DEFAULT 0'); } catch(e) {}
-            try { db.run('ALTER TABLE forum_events ADD COLUMN venue TEXT'); } catch(e) {}
-            try { db.run('ALTER TABLE forum_events ADD COLUMN updated_at TEXT'); } catch(e) {}
-
-            db.run(`INSERT INTO forum_events (id, title, description, event_type, start_date, end_date, location_type,
-                location_name, location_address, virtual_link, capacity, registration_deadline, is_paid, price,
-                agenda, speakers, status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-                [id, title, description, event_type || 'symposium', start_date, end_date, location_type || 'in_person',
-                 location_name, location_address, virtual_link, capacity || null, registration_deadline,
-                 is_paid ? 1 : 0, price || 0, agenda, speakers, status || 'published']);
+            // Use simple INSERT with only core columns that definitely exist
+            db.run(`INSERT INTO forum_events (id, title, description, event_type, start_date, end_date,
+                location_type, location_name, location_address, capacity, registration_deadline,
+                is_paid, price, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+                [id, b.title || '', b.description || '', b.event_type || 'symposium',
+                 b.start_date || null, b.end_date || null,
+                 b.location_type || 'in_person', b.location_name || '', b.location_address || '',
+                 b.capacity ? parseInt(b.capacity) : null, b.registration_deadline || null,
+                 b.is_paid ? 1 : 0, b.price ? parseFloat(b.price) : 0, b.status || 'published']);
             saveDb();
             res.json({ success: true, id });
         } catch(error) {
-            console.error('Create forum event error:', error);
+            console.error('Create forum event error:', error.message);
             res.status(500).json({ error: 'Failed to create event: ' + error.message });
         }
     });
