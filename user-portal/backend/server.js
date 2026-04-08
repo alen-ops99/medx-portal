@@ -232,7 +232,12 @@ app.get('/invite-cancelled', (req, res) => {
 // Must be defined BEFORE express.static so it takes priority over the SPA.
 app.get('/invite/:data', (req, res) => {
     try {
-        const data = JSON.parse(Buffer.from(req.params.data, 'base64url').toString());
+        // Support both base64url and standard base64
+        let rawData = req.params.data;
+        // Convert base64url to standard base64
+        rawData = rawData.replace(/-/g, '+').replace(/_/g, '/');
+        while (rawData.length % 4) rawData += '=';
+        const data = JSON.parse(Buffer.from(rawData, 'base64').toString());
         const eventType = data.e || 'plexus';
         const expiresAt = data.x;
 
@@ -448,8 +453,8 @@ app.get('/invite/:data', (req, res) => {
 
         res.send(html);
     } catch(e) {
-        console.error('Invite page error:', e);
-        res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Invalid Link</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Invalid Link</h1><p style="color:#94a3b8;">This registration link is not valid.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&X</a></div></body></html>`);
+        console.error('Invite page error:', e.message, e.stack);
+        res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Error</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;padding:20px;"><div><h1 style="color:#ef4444;">Registration Error</h1><p style="color:#94a3b8;margin-bottom:12px;">There was an issue loading this registration page.</p><p style="color:#475569;font-size:12px;font-family:monospace;max-width:400px;word-break:break-all;">${escapeHtml(e.message)}</p><p style="margin-top:16px;"><a href="https://medx.hr" style="color:#c9a962;">Visit Med&X</a> | <a href="mailto:laura.rodman@medx.hr" style="color:#c9a962;">Contact Laura</a></p></div></body></html>`);
     }
 });
 
