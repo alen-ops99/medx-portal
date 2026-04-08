@@ -159,42 +159,46 @@ async function sendPushToUser(userId, payload) {
 }
 
 // Branded email template builder — wraps content in Med&X styled HTML
+const MEDX_LOGO_URL = 'https://medx-user-portal.onrender.com/assets/images/medx-logo.png';
+
 function buildEmailTemplate(title, bodyHtml) {
     return `
 <!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin: 0; padding: 0; background: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background: #f4f4f5; padding: 32px 16px;">
+<body style="margin: 0; padding: 0; background: #f0f0f3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background: #f0f0f3; padding: 40px 16px;">
 <tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%;">
-    <!-- Header -->
-    <tr><td style="background: #0f172a; padding: 28px 32px; border-radius: 12px 12px 0 0; text-align: center;">
-        <div style="font-size: 28px; font-weight: 700; letter-spacing: 1px;">
-            <span style="color: #C9A962;">Med</span><span style="color: #ffffff;">&amp;</span><span style="color: #C9A962;">X</span>
-        </div>
-        <div style="color: #94a3b8; font-size: 12px; margin-top: 4px; letter-spacing: 2px; text-transform: uppercase;">Building Bridges in Biomedicine</div>
+<table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08);">
+    <!-- Header with logo -->
+    <tr><td style="background: linear-gradient(135deg, #0f172a 0%, #1a2744 100%); padding: 36px 32px 28px; text-align: center;">
+        <img src="${MEDX_LOGO_URL}" alt="Med&X" width="160" style="display: block; margin: 0 auto 12px; height: auto; max-width: 160px; filter: brightness(0) invert(1);" />
+        <div style="color: #94a3b8; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; font-weight: 500;">Building Bridges in Biomedicine</div>
     </td></tr>
+    <!-- Gold accent line -->
+    <tr><td style="background: linear-gradient(90deg, #b8922e, #C9A962, #dfc070, #C9A962, #b8922e); height: 3px; font-size: 0; line-height: 0;">&nbsp;</td></tr>
     <!-- Title bar -->
-    <tr><td style="background: #1e293b; padding: 16px 32px; text-align: center;">
-        <h1 style="margin: 0; color: #C9A962; font-size: 20px; font-weight: 600;">${title}</h1>
+    <tr><td style="background: #1e293b; padding: 20px 32px; text-align: center;">
+        <h1 style="margin: 0; color: #C9A962; font-size: 22px; font-weight: 600; letter-spacing: 0.5px;">${title}</h1>
     </td></tr>
     <!-- Body -->
-    <tr><td style="background: #ffffff; padding: 32px; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;">
-        <div style="color: #334155; font-size: 15px; line-height: 1.7;">
+    <tr><td style="background: #ffffff; padding: 36px 40px;">
+        <div style="color: #334155; font-size: 15px; line-height: 1.75;">
             ${bodyHtml}
         </div>
     </td></tr>
     <!-- Footer -->
-    <tr><td style="background: #0f172a; padding: 24px 32px; border-radius: 0 0 12px 12px; text-align: center;">
-        <div style="color: #C9A962; font-size: 14px; font-weight: 600; margin-bottom: 8px;">Med&amp;X</div>
-        <div style="color: #94a3b8; font-size: 12px; margin-bottom: 12px;">Building Bridges in Biomedicine</div>
-        <div style="margin-bottom: 8px;">
-            <a href="https://medx.hr" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 8px;">Website</a>
-            <a href="https://www.linkedin.com/company/med-x-croatia/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 8px;">LinkedIn</a>
-            <a href="https://www.instagram.com/medx.hr/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 8px;">Instagram</a>
+    <tr><td style="background: #0f172a; padding: 28px 32px; text-align: center;">
+        <img src="${MEDX_LOGO_URL}" alt="Med&X" width="80" style="display: block; margin: 0 auto 10px; height: auto; max-width: 80px; filter: brightness(0) invert(1);" />
+        <div style="color: #94a3b8; font-size: 11px; margin-bottom: 16px; letter-spacing: 1px;">Building Bridges in Biomedicine</div>
+        <div style="margin-bottom: 16px;">
+            <a href="https://medx.hr" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">Website</a>
+            <span style="color: #334155;">|</span>
+            <a href="https://www.linkedin.com/company/med-x-croatia/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">LinkedIn</a>
+            <span style="color: #334155;">|</span>
+            <a href="https://www.instagram.com/medx.hr/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">Instagram</a>
         </div>
-        <div style="color: #64748b; font-size: 11px;">&copy; ${new Date().getFullYear()} Med&amp;X. All rights reserved.</div>
+        <div style="border-top: 1px solid #1e293b; padding-top: 12px; color: #64748b; font-size: 11px;">&copy; ${new Date().getFullYear()} Med&amp;X. All rights reserved.</div>
     </td></tr>
 </table>
 </td></tr>
@@ -15346,21 +15350,39 @@ By applying to this program, I provide the following consents:
 
             // Send confirmation email with QR code
             try {
+                const regEmailBody = `
+                    <div style="text-align:center;margin-bottom:8px;">
+                        <div style="display:inline-block;background:#22c55e;color:#fff;font-size:13px;font-weight:600;padding:6px 20px;border-radius:20px;letter-spacing:0.5px;">REGISTRATION CONFIRMED</div>
+                    </div>
+                    <p style="margin-top:20px;">Dear <strong>${first_name}</strong>,</p>
+                    <p>Your registration for <strong style="color:#C9A962;">${event_name || 'Med&X Event'}</strong> has been confirmed.</p>
+                    ${package_items && package_items.length ? `
+                    <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+                        <tr><td style="background:#f8fafc;padding:10px 16px;font-size:13px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Registered For</td></tr>
+                        ${package_items.map(item => '<tr><td style="padding:10px 16px;font-size:14px;color:#334155;border-bottom:1px solid #f1f5f9;">&#10003; ' + item + '</td></tr>').join('')}
+                    </table>` : ''}
+                    ${guest_count ? '<p>&#128101; <strong>+' + guest_count + ' Guest' + (guest_count > 1 ? 's' : '') + '</strong> included in your registration</p>' : ''}
+                    ${dietary && dietary !== 'No special requirements' ? '<p><strong>Dietary:</strong> ' + dietary + '</p>' : ''}
+                    ${allergies && allergies !== 'None' ? '<p><strong>Allergies:</strong> ' + allergies + '</p>' : ''}
+                    ${qrDataUrl ? `
+                    <table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;">
+                        <tr><td align="center">
+                            <table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:16px;padding:24px;text-align:center;">
+                                <tr><td style="padding-bottom:12px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Your Check-in QR Code</td></tr>
+                                <tr><td><img src="${qrDataUrl}" alt="QR Code" width="180" height="180" style="display:block;margin:0 auto;border-radius:8px;" /></td></tr>
+                                <tr><td style="padding-top:12px;font-size:12px;color:#94a3b8;">Present this code at the event entrance</td></tr>
+                            </table>
+                        </td></tr>
+                    </table>` : ''}
+                    <p>We look forward to seeing you!</p>
+                    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;border-top:1px solid #e2e8f0;padding-top:16px;">
+                        <tr><td style="font-size:13px;color:#64748b;">
+                            Questions? Contact <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br>
+                            <span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span>
+                        </td></tr>
+                    </table>`;
                 await sendEmail(email, `Registration Confirmed: ${event_name || 'Med&X Event'}`,
-                    `<div style="font-family:system-ui;max-width:500px;margin:0 auto;background:#0f172a;padding:32px;border-radius:16px;">
-                        <div style="text-align:center;margin-bottom:24px;"><span style="font-size:24px;font-weight:700;color:#fff;">med<span style="color:#c9a962;">&amp;</span>X</span></div>
-                        <h2 style="color:#22c55e;text-align:center;">You're Registered!</h2>
-                        <p style="color:#e2e8f0;">Dear ${first_name},</p>
-                        <p style="color:#94a3b8;">Your registration for <strong style="color:#c9a962;">${event_name || 'Med&X Event'}</strong> has been confirmed.</p>
-                        ${package_items && package_items.length ? '<p style="color:#94a3b8;"><strong style="color:#e2e8f0;">Registered for:</strong></p><ul style="color:#94a3b8;">' + package_items.map(i => '<li>' + i + '</li>').join('') + '</ul>' : ''}
-                        ${guest_count ? '<p style="color:#94a3b8;"><strong style="color:#e2e8f0;">+' + guest_count + ' Guest' + (guest_count > 1 ? 's' : '') + '</strong> included</p>' : ''}
-                        ${dietary && dietary !== 'No special requirements' ? '<p style="color:#94a3b8;"><strong style="color:#e2e8f0;">Dietary:</strong> ' + dietary + '</p>' : ''}
-                        ${allergies && allergies !== 'None' ? '<p style="color:#94a3b8;"><strong style="color:#e2e8f0;">Allergies:</strong> ' + allergies + '</p>' : ''}
-                        ${qrDataUrl ? '<div style="text-align:center;margin:24px 0;"><p style="color:#c9a962;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Your Check-in QR Code</p><img src="' + qrDataUrl + '" alt="QR Code" style="width:180px;height:180px;border-radius:12px;background:#fff;padding:12px;"/><p style="color:#64748b;font-size:11px;margin-top:8px;">Show this QR code at the event entrance for check-in</p></div>' : ''}
-                        <p style="color:#94a3b8;">We look forward to seeing you!</p>
-                        <p style="color:#64748b;font-size:12px;margin-top:24px;">For any questions, contact Laura Rodman at <a href="mailto:laura.rodman@medx.hr" style="color:#c9a962;">laura.rodman@medx.hr</a></p>
-                        <p style="color:#64748b;font-size:12px;">Best regards,<br><strong style="color:#e2e8f0;">The Med&X Team</strong></p>
-                    </div>`);
+                    buildEmailTemplate('Registration Confirmed', regEmailBody));
             } catch(e) { console.log('Confirmation email failed:', e.message); }
 
             // If paid event, create Stripe checkout session

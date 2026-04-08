@@ -11754,13 +11754,19 @@ President, Med&amp;X</textarea>
         async function showUserProfileFromQR(qrData) {
             try {
                 const data = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
-                if (!data.userId) return false;
+                if (!data.userId && !data.email) return false;
 
                 const token = localStorage.getItem('medx_token') || localStorage.getItem('token');
-                const response = await fetch('/api/admin/users/' + data.userId + '/profile', {
-                    headers: { 'Authorization': 'Bearer ' + token }
-                });
-                if (!response.ok) throw new Error('User not found');
+                // Try email first (works cross-portal since userId differs between DBs), then userId fallback
+                const lookups = [data.email, data.userId].filter(Boolean);
+                let profile = null;
+                for (const lookupId of lookups) {
+                    const resp = await fetch('/api/admin/users/' + encodeURIComponent(lookupId) + '/profile', {
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    });
+                    if (resp.ok) { profile = await resp.json(); break; }
+                }
+                if (!profile) throw new Error('User not found');
                 const profile = await response.json();
                 const u = profile.user;
                 const name = ((u.first_name || '') + ' ' + (u.last_name || '')).trim() || 'Member';
@@ -19145,7 +19151,7 @@ President, Med&amp;X</textarea>
                                     const statusEl2 = document.getElementById('globalQRStatus');
                                     if (statusEl2) statusEl2.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:#c9a962;"></i> Loading profile...';
 
-                                    showUserProfileFromQR({ userId: lookupId }).then(ok => {
+                                    showUserProfileFromQR({ userId: userId || memberId, email: memberEmail }).then(ok => {
                                         if (!ok) {
                                             if (statusEl2) statusEl2.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#ef4444;"></i> Profile not found';
                                         }
@@ -19336,7 +19342,7 @@ President, Med&amp;X</textarea>
                     }
                     resultsDiv.innerHTML = users.map(u => {
                         const userId = u.user_id || u.id;
-                        return `<div onclick="showUserProfileFromQR({userId:'${escapeHtml(userId)}'})" style="display:flex; justify-content:space-between; align-items:center; padding:10px; margin:4px 0; background:var(--bg-secondary,#1e293b); border-radius:8px; cursor:pointer; border:1px solid rgba(255,255,255,0.04);">
+                        return `<div onclick="showUserProfileFromQR({userId:'${escapeHtml(userId)}', email:'${escapeHtml(u.email || '')}'})" style="display:flex; justify-content:space-between; align-items:center; padding:10px; margin:4px 0; background:var(--bg-secondary,#1e293b); border-radius:8px; cursor:pointer; border:1px solid rgba(255,255,255,0.04);">
                             <div>
                                 <div style="font-weight:600; color:var(--text-primary,#e2e8f0); font-size:13px;">${escapeHtml(u.name || '')}</div>
                                 <div style="font-size:11px; color:var(--text-muted,#94a3b8);">${escapeHtml(u.email || '')}</div>
