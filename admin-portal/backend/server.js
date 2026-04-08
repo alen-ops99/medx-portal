@@ -345,6 +345,23 @@ async function initializeApp() {
     )`);
     try { db.run('ALTER TABLE registrations ADD COLUMN package_items TEXT'); } catch(e) {}
 
+    // Fix forum event dates (migration — runs on every startup)
+    try {
+        db.run(`UPDATE forum_events SET
+            title = 'Annual Biomedical Forum 2026',
+            description = 'Three-day forum: Day 1 (May 25) Split, Day 2 (May 26) Zagreb, Day 3 (May 27) Gala Dinner at The Westin Zagreb.',
+            start_date = '2026-05-25', end_date = '2026-05-27',
+            location_name = 'Split & Zagreb, Croatia',
+            is_paid = 1, price = 150, status = 'published'
+            WHERE title LIKE '%Annual%Forum%' OR title LIKE '%Annual%Biomedical%'`);
+        const forumEvents = query.all("SELECT id FROM forum_events WHERE title LIKE '%Annual%' ORDER BY id");
+        if (forumEvents.length > 1) {
+            for (let i = 1; i < forumEvents.length; i++) {
+                db.run('DELETE FROM forum_events WHERE id = ?', [forumEvents[i].id]);
+            }
+        }
+    } catch(e) {}
+
     db.run(`CREATE TABLE IF NOT EXISTS abstracts (
         id TEXT PRIMARY KEY, conference_id TEXT, submitter_id TEXT,
         submitter_name TEXT, submitter_email TEXT,
