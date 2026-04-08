@@ -206,6 +206,18 @@ function escapeHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// Download registrations CSV log (admin only)
+app.get('/api/admin/registrations-csv', auth, (req, res) => {
+    const csvPath = path.join(__dirname, 'registrations-log.csv');
+    if (fs.existsSync(csvPath)) {
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', 'attachment; filename=registrations-log.csv');
+        res.send(fs.readFileSync(csvPath, 'utf8'));
+    } else {
+        res.status(404).json({ error: 'No registrations yet' });
+    }
+});
+
 // ========== INVITE SUCCESS/CANCEL PAGES ==========
 app.get('/invite-success', (req, res) => {
     res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Registration Complete</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:system-ui;text-align:center;padding:20px;"><div style="max-width:400px;"><div style="width:80px;height:80px;border-radius:50%;background:rgba(34,197,94,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div><h1 style="color:#22c55e;margin-bottom:12px;">Payment Successful!</h1><p style="color:#94a3b8;font-size:16px;margin-bottom:8px;">Your registration is confirmed.</p><p style="color:#64748b;font-size:14px;margin-bottom:24px;">A confirmation and invoice have been sent to your email. We look forward to seeing you!</p><a href="https://medx.hr" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Visit Med&X</a></div></body></html>`);
@@ -15287,38 +15299,38 @@ By applying to this program, I provide the following consents:
                 }
             }
 
-            // FAILSAFE: Log registration to Google Sheets (if webhook configured)
+            // FAILSAFE 1: Log to local CSV file (always works, no external deps)
+            try {
+                const csvLine = [new Date().toISOString(), first_name + ' ' + last_name, email, institution || '', country || '', event_name || event_type, (package_items || []).join('; '), checkoutUrl ? 'Stripe' : 'Free', regId].map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',');
+                const csvPath = path.join(__dirname, 'registrations-log.csv');
+                if (!fs.existsSync(csvPath)) {
+                    fs.writeFileSync(csvPath, 'Timestamp,Name,Email,Institution,Country,Event,Items,Payment,RegID\n');
+                }
+                fs.appendFileSync(csvPath, csvLine + '\n');
+            } catch(e) { console.log('[Failsafe] CSV log failed:', e.message); }
+
+            // FAILSAFE 2: Google Sheets webhook (if configured)
             try {
                 const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
                 if (sheetsWebhook) {
                     fetch(sheetsWebhook, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            timestamp: new Date().toISOString(),
-                            name: `${first_name} ${last_name}`,
-                            email,
-                            institution: institution || '',
-                            country: country || '',
-                            event: event_name || event_type,
-                            items: (package_items || []).join(', '),
-                            payment: checkoutUrl ? 'Stripe' : 'Free',
-                            registration_id: regId
-                        })
+                        body: JSON.stringify({ timestamp: new Date().toISOString(), name: first_name + ' ' + last_name, email, institution: institution || '', event: event_name || event_type, items: (package_items || []).join(', '), payment: checkoutUrl ? 'Stripe' : 'Free', registration_id: regId })
                     }).catch(() => {});
                 }
             } catch(e) {}
 
-            // Also send email notification as backup
+            // FAILSAFE 3: Email to Laura
             try {
                 await sendEmail('laura.rodman@medx.hr', `New Registration: ${first_name} ${last_name} — ${event_name || event_type}`,
                     `<div style="font-family:system-ui;max-width:500px;margin:0 auto;">
-                        <h2 style="color:#c9a962;">New Direct Link Registration</h2>
+                        <h2 style="color:#c9a962;">New Registration</h2>
                         <p><strong>Name:</strong> ${first_name} ${last_name}</p>
                         <p><strong>Email:</strong> ${email}</p>
                         <p><strong>Event:</strong> ${event_name || event_type}</p>
-                        ${package_items && package_items.length ? '<p><strong>Registered for:</strong></p><ul>' + package_items.map(i => '<li>' + i + '</li>').join('') + '</ul>' : ''}
-                        <p style="color:#64748b;font-size:12px;">Registration ID: ${regId}</p>
+                        ${package_items && package_items.length ? '<p><strong>Items:</strong> ' + package_items.join(', ') + '</p>' : ''}
+                        <p style="color:#64748b;font-size:12px;">ID: ${regId}</p>
                     </div>`);
             } catch(emailErr) {}
 
