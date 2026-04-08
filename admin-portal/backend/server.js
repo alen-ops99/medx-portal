@@ -10299,8 +10299,14 @@ By applying to this program, I provide the following consents:
                 db.run('INSERT OR IGNORE INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status) VALUES (?,?,?,?,?,?,?)',
                     [regId, first_name, last_name, email, institution, 'approved', 'pending']);
             } else if (event_type === 'forum') {
-                db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, status, registered_at) VALUES (?,?,?,?,datetime("now"))',
-                    [regId, req.body.event_id || null, user.id, 'registered']);
+                // Find the forum event if no event_id provided
+                let forumEventId = req.body.event_id || null;
+                if (!forumEventId) {
+                    const fe = query.get("SELECT id FROM forum_events WHERE title LIKE '%Annual%' ORDER BY start_date LIMIT 1");
+                    if (fe) forumEventId = fe.id;
+                }
+                db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, first_name, last_name, email, status, registered_at) VALUES (?,?,?,?,?,?,?,datetime("now"))',
+                    [regId, forumEventId, user.id, first_name, last_name, email, 'registered']);
             } else if (event_type === 'bridges') {
                 db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,datetime("now"))',
                     [regId, req.body.event_id || null, first_name, last_name, email, institution, 'confirmed']);
