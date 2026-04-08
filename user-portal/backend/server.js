@@ -358,7 +358,7 @@ app.get('/invite/:data', (req, res) => {
             </form>
             <div class="footer" style="margin-top:20px;">
                 <p style="margin-bottom:8px;">By registering, you agree to Med&amp;X's <a href="https://medx.hr/terms">Terms &amp; Conditions</a> and <a href="https://medx.hr/privacy">Privacy Policy</a>.</p>
-                <p style="font-size:11px;color:#475569;">All registrations are non-refundable unless cancelled at least 30 days before the event. For questions, contact <a href="mailto:info@medx.hr">info@medx.hr</a>.</p>
+                <p style="font-size:11px;color:#475569;">All registrations are non-refundable. For questions, contact <a href="mailto:info@medx.hr">info@medx.hr</a>.</p>
                 <p style="font-size:11px;color:#475569;margin-top:8px;">We look forward to seeing you! &mdash; The Med&amp;X Team</p>
             </div>
         </div>
