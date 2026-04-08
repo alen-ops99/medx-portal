@@ -380,7 +380,8 @@ app.get('/invite/:data', (req, res) => {
             </form>
             <div class="footer" style="margin-top:20px;">
                 <p style="margin-bottom:8px;">By registering, you agree to Med&amp;X's <a href="https://medx.hr/terms">Terms &amp; Conditions</a> and <a href="https://medx.hr/privacy">Privacy Policy</a>.</p>
-                <p style="font-size:11px;color:#475569;">All registrations are non-refundable. For questions, contact <a href="mailto:info@medx.hr">info@medx.hr</a>.</p>
+                <p style="font-size:11px;color:#475569;">All registrations are non-refundable.</p>
+                <p style="font-size:11px;color:#475569;margin-top:8px;">For any questions, please contact Laura Rodman at <a href="mailto:laura.rodman@medx.hr" style="color:#c9a962;">laura.rodman@medx.hr</a></p>
                 <p style="font-size:11px;color:#475569;margin-top:8px;">We look forward to seeing you! &mdash; The Med&amp;X Team</p>
             </div>
         </div>
@@ -15286,20 +15287,40 @@ By applying to this program, I provide the following consents:
                 }
             }
 
-            // FAILSAFE: Notify admin team about new registration
+            // FAILSAFE: Log registration to Google Sheets (if webhook configured)
             try {
-                await sendEmail('info@medx.hr', `New Registration: ${first_name} ${last_name} — ${event_name || event_type}`,
+                const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
+                if (sheetsWebhook) {
+                    fetch(sheetsWebhook, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            timestamp: new Date().toISOString(),
+                            name: `${first_name} ${last_name}`,
+                            email,
+                            institution: institution || '',
+                            country: country || '',
+                            event: event_name || event_type,
+                            items: (package_items || []).join(', '),
+                            payment: checkoutUrl ? 'Stripe' : 'Free',
+                            registration_id: regId
+                        })
+                    }).catch(() => {});
+                }
+            } catch(e) {}
+
+            // Also send email notification as backup
+            try {
+                await sendEmail('laura.rodman@medx.hr', `New Registration: ${first_name} ${last_name} — ${event_name || event_type}`,
                     `<div style="font-family:system-ui;max-width:500px;margin:0 auto;">
                         <h2 style="color:#c9a962;">New Direct Link Registration</h2>
                         <p><strong>Name:</strong> ${first_name} ${last_name}</p>
                         <p><strong>Email:</strong> ${email}</p>
-                        <p><strong>Institution:</strong> ${institution || 'Not provided'}</p>
                         <p><strong>Event:</strong> ${event_name || event_type}</p>
                         ${package_items && package_items.length ? '<p><strong>Registered for:</strong></p><ul>' + package_items.map(i => '<li>' + i + '</li>').join('') + '</ul>' : ''}
-                        <p><strong>Payment:</strong> ${checkoutUrl ? 'Stripe checkout initiated' : 'Free / No payment required'}</p>
-                        <p style="color:#64748b;font-size:12px;">Registration ID: ${regId}<br>Registered at: ${new Date().toISOString()}</p>
+                        <p style="color:#64748b;font-size:12px;">Registration ID: ${regId}</p>
                     </div>`);
-            } catch(emailErr) { console.log('[Failsafe] Admin notification email failed:', emailErr.message); }
+            } catch(emailErr) {}
 
             res.json({ success: true, checkout_url: checkoutUrl || null });
         } catch (error) {
