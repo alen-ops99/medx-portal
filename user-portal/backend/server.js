@@ -81,14 +81,16 @@ async function sendEmail(to, subject, htmlContent) {
         try {
             const transporter = nodemailer.createTransport({
                 host: process.env.SMTP_HOST || 'smtp.gmail.com',
-                port: parseInt(process.env.SMTP_PORT || '465'),
-                secure: process.env.SMTP_PORT ? process.env.SMTP_PORT === '465' : true,
+                port: parseInt(process.env.SMTP_PORT || '587'),
+                secure: parseInt(process.env.SMTP_PORT || '587') === 465,
                 connectionTimeout: 10000,
                 greetingTimeout: 10000,
                 socketTimeout: 10000,
                 auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
             });
-            await transporter.sendMail({ from: fromAddress, to, subject, html: htmlContent });
+            // Gmail SMTP requires FROM to match the authenticated user
+            const smtpFrom = `Med&X <${process.env.SMTP_USER}>`;
+            await transporter.sendMail({ from: smtpFrom, to, subject, html: htmlContent });
             console.log(`[Email Sent via SMTP] To: ${to}, Subject: ${subject}`);
             return { success: true };
         } catch (err) {
