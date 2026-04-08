@@ -200,6 +200,201 @@ app.use((req, res, next) => {
         express.json()(req, res, next);
     }
 });
+// HTML escape helper for server-rendered pages
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ========== STANDALONE INVITE REGISTRATION PAGE ==========
+// Serves a full server-rendered HTML page for VIP invite links.
+// Must be defined BEFORE express.static so it takes priority over the SPA.
+app.get('/invite/:data', (req, res) => {
+    try {
+        const data = JSON.parse(Buffer.from(req.params.data, 'base64url').toString());
+        const eventType = data.e || 'plexus';
+        const expiresAt = data.x;
+
+        // Check expiry
+        if (expiresAt && new Date(expiresAt) < new Date()) {
+            return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Expired</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Link Expired</h1><p style="color:#94a3b8;">This invitation link has expired.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&X</a></div></body></html>`);
+        }
+
+        // Fetch LIVE event data from DB
+        let eventInfo = { name: data.n || 'Med&X Event', date: '', price: 0, venue: '', description: '' };
+
+        if (eventType === 'gala') {
+            const gala = query.get("SELECT * FROM gala_settings WHERE id = 'default'") ||
+                         query.get("SELECT * FROM plexus_settings WHERE id = 'default'");
+            if (gala) {
+                eventInfo.name = gala.title || 'Gala Evening 2026';
+                eventInfo.date = gala.date || 'December 5, 2026';
+                eventInfo.venue = gala.venue || 'Hotel Esplanade, Zagreb';
+                eventInfo.price = gala.price_gala_only || 75;
+                try {
+                    const schedule = JSON.parse(gala.schedule_json || '[]');
+                    eventInfo.schedule = schedule;
+                } catch(e) {}
+            }
+        } else if (eventType === 'plexus') {
+            const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+            if (conf) {
+                eventInfo.name = conf.name || 'Plexus Conference 2026';
+                eventInfo.date = conf.start_date ? new Date(conf.start_date).toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'}) : '';
+                eventInfo.venue = conf.venue_name ? conf.venue_name + ', ' + conf.venue_city : '';
+                // Get ticket price
+                const ticket = query.get('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order LIMIT 1', [conf.id]);
+                const today = new Date().toISOString().split('T')[0];
+                if (ticket) {
+                    eventInfo.price = today <= conf.early_bird_deadline ? ticket.price_early_bird :
+                                     today <= conf.regular_deadline ? ticket.price_regular : ticket.price_late;
+                }
+            }
+        } else if (eventType === 'forum') {
+            if (data.i) {
+                const event = query.get('SELECT * FROM forum_events WHERE id = ?', [data.i]);
+                if (event) {
+                    eventInfo.name = event.name || event.title || eventInfo.name;
+                    eventInfo.date = event.event_date || event.date || '';
+                    eventInfo.venue = event.venue_name ? event.venue_name + (event.city ? ', ' + event.city : '') : '';
+                }
+            }
+        } else if (eventType === 'bridges') {
+            if (data.i) {
+                const event = query.get('SELECT * FROM bridges_events WHERE id = ?', [data.i]);
+                if (event) {
+                    eventInfo.name = event.name;
+                    eventInfo.date = event.event_date;
+                    eventInfo.venue = event.venue_name ? event.venue_name + ', ' + event.city : event.city;
+                }
+            }
+        }
+
+        // Package items from admin selection
+        const packageItems = data.p || [];
+        const packageHtml = packageItems.length ? packageItems.map(item =>
+            `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg><span style="color:#e2e8f0;font-size:14px;">${escapeHtml(item)}</span></div>`
+        ).join('') : '';
+
+        // Render the full standalone HTML page
+        const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${escapeHtml(eventInfo.name)} — Registration</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { min-height:100vh; background:linear-gradient(160deg,#0f172a,#1e293b); font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif; color:#e2e8f0; }
+        .container { max-width:520px; margin:0 auto; padding:40px 20px; }
+        .logo { text-align:center; margin-bottom:32px; }
+        .logo span { font-size:28px; font-weight:700; color:#fff; letter-spacing:-0.5px; }
+        .logo span em { font-style:normal; color:#c9a962; }
+        .card { background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,98,0.2); border-radius:20px; padding:32px 28px; }
+        .event-badge { display:inline-block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#c9a962; margin-bottom:12px; }
+        h1 { font-size:24px; font-weight:700; color:#fff; margin-bottom:6px; }
+        .event-meta { font-size:14px; color:#94a3b8; margin-bottom:20px; }
+        .event-meta i { color:#c9a962; margin-right:6px; }
+        .items-section { background:rgba(34,197,94,0.05); border:1px solid rgba(34,197,94,0.15); border-radius:12px; padding:16px; margin-bottom:24px; }
+        .items-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#c9a962; margin-bottom:8px; }
+        .price-row { display:flex; justify-content:space-between; align-items:center; padding:16px; background:rgba(201,169,98,0.08); border-radius:12px; margin-bottom:24px; }
+        .price-label { font-size:14px; color:#94a3b8; }
+        .price-value { font-size:28px; font-weight:700; color:#c9a962; }
+        .form-grid { display:grid; gap:16px; }
+        .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        label { display:block; font-size:12px; font-weight:600; color:#94a3b8; margin-bottom:6px; }
+        input, select { width:100%; padding:12px 14px; border:1px solid rgba(255,255,255,0.1); border-radius:10px; background:rgba(255,255,255,0.05); color:#fff; font-size:14px; font-family:inherit; }
+        input:focus, select:focus { border-color:#c9a962; outline:none; box-shadow:0 0 0 3px rgba(201,169,98,0.1); }
+        input::placeholder { color:#64748b; }
+        select option { background:#1e293b; color:#e2e8f0; }
+        .submit-btn { width:100%; padding:14px; background:linear-gradient(135deg,#c9a962,#b49650); color:#0f172a; border:none; border-radius:12px; font-size:16px; font-weight:700; cursor:pointer; margin-top:8px; font-family:inherit; }
+        .submit-btn:hover { opacity:0.95; }
+        .submit-btn:disabled { opacity:0.5; cursor:not-allowed; }
+        .footer { text-align:center; margin-top:20px; font-size:12px; color:#64748b; }
+        .footer a { color:#c9a962; text-decoration:none; }
+        .success { text-align:center; padding:40px 20px; }
+        .success-icon { width:80px; height:80px; border-radius:50%; background:rgba(34,197,94,0.1); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; }
+        @media(max-width:480px) { .form-row { grid-template-columns:1fr; } .container { padding:20px 16px; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo"><span>med<em>&amp;</em>X</span></div>
+        <div class="card">
+            <div class="event-badge"><i class="fas fa-envelope-open-text"></i> You're Invited</div>
+            <h1>${escapeHtml(eventInfo.name)}</h1>
+            <div class="event-meta">
+                ${eventInfo.date ? '<div style="margin-bottom:4px;"><i class="fas fa-calendar"></i>' + escapeHtml(String(eventInfo.date)) + '</div>' : ''}
+                ${eventInfo.venue ? '<div><i class="fas fa-map-marker-alt"></i>' + escapeHtml(String(eventInfo.venue)) + '</div>' : ''}
+            </div>
+            ${packageHtml ? '<div class="items-section"><div class="items-label">Your Registration Includes:</div>' + packageHtml + '</div>' : ''}
+            ${eventInfo.price ? '<div class="price-row"><span class="price-label">Registration Fee</span><span class="price-value">&euro;' + eventInfo.price + '</span></div>' : ''}
+            <form id="regForm" class="form-grid" onsubmit="submitReg(event)">
+                <input type="hidden" id="eventType" value="${escapeHtml(eventType)}">
+                <input type="hidden" id="eventName" value="${escapeHtml(eventInfo.name)}">
+                <input type="hidden" id="packageItems" value='${escapeHtml(JSON.stringify(packageItems))}'>
+                <div class="form-row">
+                    <div><label>First Name *</label><input type="text" id="firstName" required placeholder="First name"></div>
+                    <div><label>Last Name *</label><input type="text" id="lastName" required placeholder="Last name"></div>
+                </div>
+                <div><label>Email *</label><input type="email" id="email" required placeholder="your@email.com"></div>
+                <div class="form-row">
+                    <div><label>Institution</label><input type="text" id="institution" placeholder="University / Company"></div>
+                    <div><label>Country</label><input type="text" id="country" placeholder="Country"></div>
+                </div>
+                <div><label>Dietary Requirements</label><select id="dietary"><option>No special requirements</option><option>Vegetarian</option><option>Vegan</option><option>Gluten-free</option><option>Halal</option><option>Kosher</option><option>Other</option></select></div>
+                <button type="submit" class="submit-btn" id="submitBtn">Complete Registration</button>
+            </form>
+            <div class="footer">By registering, you agree to Med&amp;X's <a href="https://medx.hr">Terms</a> &amp; <a href="https://medx.hr">Privacy Policy</a>.</div>
+        </div>
+    </div>
+    <script>
+    async function submitReg(e) {
+        e.preventDefault();
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        btn.textContent = 'Registering...';
+        try {
+            const res = await fetch('/api/register-invite', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    first_name: document.getElementById('firstName').value,
+                    last_name: document.getElementById('lastName').value,
+                    email: document.getElementById('email').value,
+                    institution: document.getElementById('institution').value,
+                    country: document.getElementById('country').value,
+                    event_type: document.getElementById('eventType').value,
+                    event_name: document.getElementById('eventName').value,
+                    package_items: JSON.parse(document.getElementById('packageItems').value || '[]')
+                })
+            });
+            const result = await res.json();
+            if (result.success) {
+                document.querySelector('.card').innerHTML = '<div class="success"><div class="success-icon"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div><h1 style="color:#22c55e;margin-bottom:8px;">You\\'re Registered!</h1><p style="color:#94a3b8;font-size:16px;margin-bottom:24px;">A confirmation has been sent to your email.</p><a href="https://medx.hr" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Visit Med&X</a></div>';
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'Complete Registration';
+                alert(result.error || 'Registration failed. Please try again.');
+            }
+        } catch(err) {
+            btn.disabled = false;
+            btn.textContent = 'Complete Registration';
+            alert('Registration failed. Please check your connection.');
+        }
+    }
+    </script>
+</body>
+</html>`;
+
+        res.send(html);
+    } catch(e) {
+        console.error('Invite page error:', e);
+        res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Invalid Link</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Invalid Link</h1><p style="color:#94a3b8;">This registration link is not valid.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&X</a></div></body></html>`);
+    }
+});
+
 app.use(express.static(path.join(__dirname, '../frontend')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
