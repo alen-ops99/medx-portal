@@ -454,27 +454,18 @@ app.get('/invite/:data', (req, res) => {
             total_amount: parseFloat(document.getElementById('eventPrice').value) || 0
         };
         try {
-            // Register on admin portal (so it appears in admin registrations)
-            const adminUrl = '${process.env.ADMIN_PORTAL_URL || "https://medx-admin-portal.onrender.com"}';
-            const res = await fetch(adminUrl + '/api/public/register-invite', {
+            // Register via user portal API (handles admin sync + Stripe + email)
+            const res = await fetch('/api/register-invite', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
             });
             const result = await res.json();
             if (result.success) {
-                // Also register locally for Stripe/email/CSV
-                const localRes = await fetch('/api/register-invite', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                }).catch(() => null);
-                const localResult = localRes ? await localRes.json().catch(() => ({})) : {};
-
                 // If paid event, redirect to Stripe payment
-                if (localResult.checkout_url) {
+                if (result.checkout_url) {
                     btn.textContent = 'Redirecting to payment...';
-                    window.location.href = localResult.checkout_url;
+                    window.location.href = result.checkout_url;
                     return;
                 }
                 document.querySelector('.card').innerHTML = '<div class="success"><div class="success-icon"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div><h1 style="color:#22c55e;margin-bottom:8px;">You\\'re Registered!</h1><p style="color:#94a3b8;font-size:16px;margin-bottom:12px;">A confirmation has been sent to your email.</p><p style="color:#64748b;font-size:13px;margin-bottom:24px;">We look forward to seeing you!</p><a href="https://medx.hr" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Visit Med&X</a></div>';
@@ -15260,7 +15251,18 @@ By applying to this program, I provide the following consents:
             const { first_name, last_name, email, institution, country, event_type, event_name, package_items, guest_count, coupon_code, total_amount, dietary, allergies } = req.body;
             if (!email || !first_name) return res.status(400).json({ error: 'Name and email required' });
 
-            // Find or create user
+            // Forward to admin portal (so registration appears in admin system)
+            try {
+                const adminUrl = process.env.ADMIN_PORTAL_URL || 'https://medx-admin-portal.onrender.com';
+                await fetch(adminUrl + '/api/public/register-invite', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(req.body)
+                });
+                console.log('[Sync] Registration forwarded to admin portal');
+            } catch(syncErr) { console.log('[Sync] Admin sync failed (non-blocking):', syncErr.message); }
+
+            // Find or create user locally
             let user = query.get('SELECT id FROM users WHERE email = ?', [email]);
             if (!user) {
                 const userId = uuidv4();
