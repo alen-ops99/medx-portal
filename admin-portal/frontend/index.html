@@ -11831,6 +11831,32 @@ President, Med&amp;X</textarea>
                 if (profile.forumRegistrations && profile.forumRegistrations.length > 0) {
                     profile.forumRegistrations.forEach(r => {
                         const isCheckedIn = r.checked_in === 1;
+                        const amtPaid = r.amount_paid || r.payment_amount || 0;
+
+                        // Parse package items for forum registrations too
+                        let forumSubEvents = '';
+                        if (r.package_items) {
+                            try {
+                                const items = typeof r.package_items === 'string' ? JSON.parse(r.package_items) : r.package_items;
+                                if (Array.isArray(items) && items.length > 0) {
+                                    forumSubEvents = '<div style="margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.08);">' +
+                                        '<div style="font-size:11px; font-weight:600; color:var(--accent-gold,#c9a962); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Registered Items (' + items.length + ')</div>' +
+                                        items.map(item => {
+                                            const itemName = typeof item === 'string' ? item : (item.name || item.title || item);
+                                            return '<div style="display:flex; align-items:center; gap:8px; padding:6px 10px; margin:4px 0; background:rgba(34,197,94,0.06); border-radius:8px; border-left:3px solid #22c55e;"><i class="fas fa-check-circle" style="color:#22c55e; font-size:12px;"></i><span style="color:var(--text-primary,#e2e8f0); font-size:13px;">' + escapeHtml(String(itemName)) + '</span></div>';
+                                        }).join('') + '</div>';
+                                }
+                            } catch(e) {}
+                        }
+
+                        // Extra details row
+                        let detailsHtml = '';
+                        const details = [];
+                        if (r.guest_count) details.push('<i class="fas fa-users" style="color:#c9a962;"></i> +' + r.guest_count + ' guest' + (r.guest_count > 1 ? 's' : ''));
+                        if (r.dietary && r.dietary !== 'No special requirements') details.push('<i class="fas fa-utensils" style="color:#c9a962;"></i> ' + escapeHtml(r.dietary));
+                        if (r.allergies && r.allergies !== 'None') details.push('<i class="fas fa-exclamation-triangle" style="color:#f59e0b;"></i> ' + escapeHtml(r.allergies));
+                        if (details.length) detailsHtml = '<div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:12px; font-size:12px; color:var(--text-muted,#94a3b8);">' + details.join('') + '</div>';
+
                         eventsHtml += `
                             <div style="background:var(--bg-secondary,#1e293b); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-bottom:10px;">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -11838,11 +11864,13 @@ President, Med&amp;X</textarea>
                                         <i class="fas ${isCheckedIn ? 'fa-check-circle' : 'fa-circle'}" style="color:${isCheckedIn ? '#22c55e' : '#fb923c'}; font-size:20px;"></i>
                                         <div>
                                             <div style="font-weight:600; color:var(--text-primary,#e2e8f0);">${escapeHtml(r.event_name || 'Forum Event')}</div>
-                                            <div style="font-size:12px; color:var(--text-muted,#94a3b8);">Biomedical Forum</div>
+                                            <div style="font-size:12px; color:var(--text-muted,#94a3b8);">Biomedical Forum${amtPaid ? ' &middot; &euro;' + amtPaid.toFixed(2) : ''}</div>
                                         </div>
                                     </div>
                                     <span style="display:inline-block; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:600; background:rgba(251,146,60,0.15); color:#fb923c;">${escapeHtml((r.status || 'registered').toUpperCase())}</span>
                                 </div>
+                                ${forumSubEvents}
+                                ${detailsHtml}
                                 ${checkinBtn('forum', r.id, isCheckedIn)}
                             </div>`;
                     });

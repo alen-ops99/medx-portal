@@ -15451,7 +15451,7 @@ By applying to this program, I provide the following consents:
                     fetch(sheetsWebhook, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ timestamp: new Date().toISOString(), name: first_name + ' ' + last_name, email, institution: institution || '', event: event_name || event_type, items: (package_items || []).join(', '), payment: checkoutUrl ? 'Stripe' : 'Free', registration_id: regId })
+                        body: JSON.stringify({ timestamp: new Date().toISOString(), name: first_name + ' ' + last_name, email, institution: institution || '', event: event_name || event_type, items: (package_items || []).join(', '), guests: guest_count || 0, dietary: dietary || '', allergies: allergies || '', amount: total_amount || 0, payment: checkoutUrl ? 'Stripe' : 'Free', registration_id: regId })
                     }).catch(() => {});
                 }
             } catch(e) {}
