@@ -11920,6 +11920,48 @@ President, Med&amp;X</textarea>
                     });
                 }
 
+                // Fallback: use QR code embedded data if no registrations found in DB
+                if (!eventsHtml && data.evt) {
+                    const evtLabels = { plexus: 'Plexus Conference 2026', gala: 'Plexus 2026 Gala Evening', forum: 'Biomedical Forum 2026', bridges: 'Building Bridges' };
+                    const evtColors = { plexus: '#6366f1', gala: '#a855f7', forum: '#fb923c', bridges: '#f472b6' };
+                    const evtIcons = { plexus: 'fa-microscope', gala: 'fa-glass-cheers', forum: 'fa-comments', bridges: 'fa-handshake' };
+                    const evtLabel = data.evtName || evtLabels[data.evt] || data.evt;
+                    const evtColor = evtColors[data.evt] || '#c9a962';
+                    const evtIcon = evtIcons[data.evt] || 'fa-ticket-alt';
+
+                    let qrItemsHtml = '';
+                    if (data.items && data.items.length) {
+                        qrItemsHtml = '<div style="margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.08);">' +
+                            '<div style="font-size:11px; font-weight:600; color:var(--accent-gold,#c9a962); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Registered Items (' + data.items.length + ')</div>' +
+                            data.items.map(item => '<div style="display:flex; align-items:center; gap:8px; padding:6px 10px; margin:4px 0; background:rgba(34,197,94,0.06); border-radius:8px; border-left:3px solid #22c55e;"><i class="fas fa-check-circle" style="color:#22c55e; font-size:12px;"></i><span style="color:var(--text-primary,#e2e8f0); font-size:13px;">' + escapeHtml(String(item)) + '</span></div>').join('') +
+                            '</div>';
+                    }
+
+                    let qrDetailsHtml = '';
+                    const qrDetails = [];
+                    if (data.guests) qrDetails.push('<i class="fas fa-users" style="color:#c9a962;"></i> +' + data.guests + ' guest' + (data.guests > 1 ? 's' : ''));
+                    if (data.diet && data.diet !== 'No special requirements') qrDetails.push('<i class="fas fa-utensils" style="color:#c9a962;"></i> ' + escapeHtml(data.diet));
+                    if (data.allrg && data.allrg !== 'None') qrDetails.push('<i class="fas fa-exclamation-triangle" style="color:#f59e0b;"></i> ' + escapeHtml(data.allrg));
+                    if (qrDetails.length) qrDetailsHtml = '<div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:12px; font-size:12px; color:var(--text-muted,#94a3b8);">' + qrDetails.join('') + '</div>';
+
+                    eventsHtml = `
+                        <div style="background:var(--bg-secondary,#1e293b); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-bottom:10px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <i class="fas ${evtIcon}" style="color:${evtColor}; font-size:20px;"></i>
+                                    <div>
+                                        <div style="font-weight:600; color:var(--text-primary,#e2e8f0); font-size:15px;">${escapeHtml(evtLabel)}</div>
+                                        <div style="font-size:13px; color:var(--text-muted,#94a3b8);">${data.amt ? '&euro;' + Number(data.amt).toFixed(2) : 'Registered via invite link'}</div>
+                                    </div>
+                                </div>
+                                <span style="display:inline-block; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600; background:rgba(201,169,98,0.15); color:#c9a962;">FROM QR</span>
+                            </div>
+                            ${qrItemsHtml}
+                            ${qrDetailsHtml}
+                        </div>
+                        <div style="text-align:center; padding:8px; font-size:11px; color:var(--text-muted,#64748b);"><i class="fas fa-info-circle"></i> Registration data from QR code (cross-portal sync pending)</div>`;
+                }
+
                 if (!eventsHtml) {
                     eventsHtml = '<div style="text-align:center; padding:20px; color:var(--text-muted,#94a3b8);"><i class="fas fa-calendar-times" style="font-size:24px; opacity:0.3; display:block; margin-bottom:8px;"></i>No event registrations</div>';
                 }

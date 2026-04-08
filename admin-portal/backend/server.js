@@ -5296,7 +5296,7 @@ async function initializeApp() {
     });
 
     // Admin: Get full user profile for QR lookup
-    app.get('/api/admin/users/:id/profile', auth, adminOnly, (req, res) => {
+    app.get('/api/admin/users/:id/profile', auth, adminOnly, async (req, res) => {
         try {
             const idOrEmail = req.params.id;
             // Try by ID first, then by email
@@ -5384,6 +5384,25 @@ async function initializeApp() {
             try {
                 pointsPurchases = query.all('SELECT * FROM rewards_history WHERE user_id = ? AND type = ? ORDER BY created_at DESC', [userId, 'earned']);
             } catch(e) {} // table may not exist
+
+            // Cross-portal fallback: if no registrations found locally, fetch from user portal
+            const totalLocal = registrations.length + forumRegs.length + bridgesRegs.length + galaRegs.length;
+            if (totalLocal === 0 && user.email) {
+                try {
+                    const userPortalUrl = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
+                    const cpResp = await fetch(userPortalUrl + '/api/public/registrations/' + encodeURIComponent(user.email), {
+                        signal: AbortSignal.timeout(10000)
+                    });
+                    if (cpResp.ok) {
+                        const cpData = await cpResp.json();
+                        if (cpData.registrations?.length) registrations = cpData.registrations;
+                        if (cpData.forumRegistrations?.length) forumRegs = cpData.forumRegistrations;
+                        if (cpData.galaRegistrations?.length) galaRegs = cpData.galaRegistrations;
+                        if (cpData.bridgesRegistrations?.length) bridgesRegs = cpData.bridgesRegistrations;
+                        console.log(`[CrossPortal] Fetched registrations for ${user.email} from user portal`);
+                    }
+                } catch(cpErr) { console.log('[CrossPortal] Fallback lookup failed:', cpErr.message); }
+            }
 
             res.json({
                 user,
@@ -16274,6 +16293,9 @@ By applying to this program, I provide the following consents:
 
     // Serve frontend
     app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../frontend/index.html')));
+
+    // Health check
+    app.get('/health', (req, res) => res.json({ ok: true }));
 
     // Start watching shared DB for cross-portal sync
     watchSharedDb();
