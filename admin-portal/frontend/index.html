@@ -20593,7 +20593,12 @@ President, Med&amp;X</textarea>
                 try {
                     await this.api('/api/checkin/undo', { method: 'POST', body: JSON.stringify({ registration_id: regId, type: 'forum' }) });
                     Toast.success('Check-in undone');
-                    this.renderEventDetailRegistrations(document.getElementById('eventDetailContent'));
+                    // Refresh whichever modal is open
+                    if (document.getElementById('forumEventRegsModal')?.classList.contains('active')) {
+                        await this.viewForumEventRegs(eventId);
+                    } else {
+                        this.renderEventDetailRegistrations(document.getElementById('eventDetailContent'));
+                    }
                 } catch(e) { Toast.error('Failed to undo check-in'); }
             },
 
@@ -20601,7 +20606,11 @@ President, Med&amp;X</textarea>
                 try {
                     await this.api(`/api/admin/forum/events/${eventId}/registrations/${regId}`, { method: 'DELETE' });
                     Toast.success('Registration deleted');
-                    this.renderEventDetailRegistrations(document.getElementById('eventDetailContent'));
+                    if (document.getElementById('forumEventRegsModal')?.classList.contains('active')) {
+                        await this.viewForumEventRegs(eventId);
+                    } else {
+                        this.renderEventDetailRegistrations(document.getElementById('eventDetailContent'));
+                    }
                 } catch(e) { Toast.error('Failed to delete'); }
             },
 
