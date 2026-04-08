@@ -393,7 +393,21 @@ app.get('/invite/:data', (req, res) => {
                     <div><label>Country</label><input type="text" id="country" placeholder="Country"></div>
                 </div>
                 <div><label>Dietary Requirements</label><select id="dietary"><option>No special requirements</option><option>Vegetarian</option><option>Vegan</option><option>Gluten-free</option><option>Halal</option><option>Kosher</option><option>Other</option></select></div>
+                ${eventInfo.price ? `<div style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;">
+                    <input type="checkbox" id="addGuest" onchange="updateTotal()" style="width:18px;height:18px;accent-color:#c9a962;cursor:pointer;">
+                    <div style="flex:1;"><label style="margin:0;cursor:pointer;" for="addGuest">Add +1 Guest</label><div style="font-size:11px;color:#64748b;">Additional &euro;${eventInfo.price} per guest</div></div>
+                    <span style="color:#c9a962;font-weight:600;">+&euro;${eventInfo.price}</span>
+                </div>` : ''}
+                <div>
+                    <label>Discount Code <span style="font-size:11px;color:#64748b;">(optional)</span></label>
+                    <input type="text" id="couponCode" placeholder="Enter code if you have one" style="text-transform:uppercase;font-family:monospace;">
+                </div>
                 <input type="hidden" id="eventPrice" value="${eventInfo.price || 0}">
+                <input type="hidden" id="basePrice" value="${eventInfo.price || 0}">
+                <div id="totalDisplay" style="display:${eventInfo.price ? 'flex' : 'none'};justify-content:space-between;align-items:center;padding:14px 16px;background:rgba(201,169,98,0.12);border-radius:10px;border:1px solid rgba(201,169,98,0.2);">
+                    <span style="font-size:14px;color:#94a3b8;">Total</span>
+                    <span id="totalAmount" style="font-size:24px;font-weight:700;color:#c9a962;">&euro;${eventInfo.price || 0}</span>
+                </div>
                 <button type="submit" class="submit-btn" id="submitBtn">${eventInfo.price ? 'Proceed to Payment — &euro;' + eventInfo.price : 'Complete Registration'}</button>
             </form>
             <div class="footer" style="margin-top:20px;">
@@ -405,6 +419,15 @@ app.get('/invite/:data', (req, res) => {
         </div>
     </div>
     <script>
+    function updateTotal() {
+        const base = parseFloat(document.getElementById('basePrice').value) || 0;
+        const hasGuest = document.getElementById('addGuest')?.checked;
+        const total = hasGuest ? base * 2 : base;
+        document.getElementById('totalAmount').textContent = '\u20ac' + total;
+        document.getElementById('eventPrice').value = total;
+        document.getElementById('submitBtn').textContent = total > 0 ? 'Proceed to Payment \u2014 \u20ac' + total : 'Complete Registration';
+    }
+
     async function submitReg(e) {
         e.preventDefault();
         const btn = document.getElementById('submitBtn');
@@ -420,7 +443,10 @@ app.get('/invite/:data', (req, res) => {
             event_type: document.getElementById('eventType').value,
             event_name: document.getElementById('eventName').value,
             package_items: JSON.parse(document.getElementById('packageItems').value || '[]'),
-            dietary: document.getElementById('dietary').value
+            dietary: document.getElementById('dietary').value,
+            add_guest: document.getElementById('addGuest')?.checked || false,
+            coupon_code: document.getElementById('couponCode')?.value?.trim() || '',
+            total_amount: parseFloat(document.getElementById('eventPrice').value) || 0
         };
         try {
             const res = await fetch('/api/register-invite', {
@@ -15216,7 +15242,7 @@ By applying to this program, I provide the following consents:
     // Invite registration (data encoded in URL, no DB token needed)
     app.post('/api/register-invite', async (req, res) => {
         try {
-            const { first_name, last_name, email, institution, country, event_type, event_name, package_items } = req.body;
+            const { first_name, last_name, email, institution, country, event_type, event_name, package_items, add_guest, coupon_code, total_amount } = req.body;
             if (!email || !first_name) return res.status(400).json({ error: 'Name and email required' });
 
             // Find or create user
@@ -15252,33 +15278,53 @@ By applying to this program, I provide the following consents:
 
             saveDb();
 
-            // Send confirmation email
+            // Generate QR code for check-in
+            const qrData = JSON.stringify({ type: 'MEDX_MEMBER', userId: user.id, email, name: first_name + ' ' + last_name, regId });
+            let qrDataUrl = '';
+            try {
+                qrDataUrl = await QRCode.toDataURL(qrData, { width: 200, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
+            } catch(qrErr) { console.log('QR generation failed:', qrErr.message); }
+
+            // Send confirmation email with QR code
             try {
                 await sendEmail(email, `Registration Confirmed: ${event_name || 'Med&X Event'}`,
-                    `<div style="font-family:system-ui;max-width:500px;margin:0 auto;">
-                        <h2 style="color:#c9a962;">Registration Confirmed!</h2>
-                        <p>Dear ${first_name},</p>
-                        <p>Your registration for <strong>${event_name || 'Med&X Event'}</strong> has been confirmed.</p>
-                        ${package_items && package_items.length ? '<p><strong>Registered for:</strong></p><ul>' + package_items.map(i => '<li>' + i + '</li>').join('') + '</ul>' : ''}
-                        <p>We look forward to seeing you!</p>
-                        <p>Best regards,<br><strong>Med&X Team</strong></p>
+                    `<div style="font-family:system-ui;max-width:500px;margin:0 auto;background:#0f172a;padding:32px;border-radius:16px;">
+                        <div style="text-align:center;margin-bottom:24px;"><span style="font-size:24px;font-weight:700;color:#fff;">med<span style="color:#c9a962;">&amp;</span>X</span></div>
+                        <h2 style="color:#22c55e;text-align:center;">You're Registered!</h2>
+                        <p style="color:#e2e8f0;">Dear ${first_name},</p>
+                        <p style="color:#94a3b8;">Your registration for <strong style="color:#c9a962;">${event_name || 'Med&X Event'}</strong> has been confirmed.</p>
+                        ${package_items && package_items.length ? '<p style="color:#94a3b8;"><strong style="color:#e2e8f0;">Registered for:</strong></p><ul style="color:#94a3b8;">' + package_items.map(i => '<li>' + i + '</li>').join('') + '</ul>' : ''}
+                        ${add_guest ? '<p style="color:#94a3b8;"><strong style="color:#e2e8f0;">+1 Guest</strong> included</p>' : ''}
+                        ${qrDataUrl ? '<div style="text-align:center;margin:24px 0;"><p style="color:#c9a962;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Your Check-in QR Code</p><img src="' + qrDataUrl + '" alt="QR Code" style="width:180px;height:180px;border-radius:12px;background:#fff;padding:12px;"/><p style="color:#64748b;font-size:11px;margin-top:8px;">Show this QR code at the event entrance for check-in</p></div>' : ''}
+                        <p style="color:#94a3b8;">We look forward to seeing you!</p>
+                        <p style="color:#64748b;font-size:12px;margin-top:24px;">For any questions, contact Laura Rodman at <a href="mailto:laura.rodman@medx.hr" style="color:#c9a962;">laura.rodman@medx.hr</a></p>
+                        <p style="color:#64748b;font-size:12px;">Best regards,<br><strong style="color:#e2e8f0;">The Med&X Team</strong></p>
                     </div>`);
-            } catch(e) {}
+            } catch(e) { console.log('Confirmation email failed:', e.message); }
 
             // If paid event, create Stripe checkout session
             let checkoutUrl = null;
             if (stripe) {
-                let price = 0;
-                if (event_type === 'gala') {
-                    const gala = query.get("SELECT price_gala_only FROM gala_settings WHERE id = 'default'");
-                    price = gala?.price_gala_only || 0;
-                } else if (event_type === 'plexus') {
-                    const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
-                    if (conf) {
-                        const ticket = query.get('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order LIMIT 1', [conf.id]);
-                        const today = new Date().toISOString().split('T')[0];
-                        price = ticket ? (today <= conf.early_bird_deadline ? ticket.price_early_bird : today <= conf.regular_deadline ? ticket.price_regular : ticket.price_late) : 0;
+                // Use the total amount from the form (includes +1 guest if selected)
+                let price = total_amount || 0;
+
+                // Fallback: calculate from DB if no total provided
+                if (!price) {
+                    if (event_type === 'gala') {
+                        const gala = query.get("SELECT price_gala_only FROM gala_settings WHERE id = 'default'");
+                        price = gala?.price_gala_only || 0;
+                    } else if (event_type === 'plexus') {
+                        const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+                        if (conf) {
+                            const ticket = query.get('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order LIMIT 1', [conf.id]);
+                            const today = new Date().toISOString().split('T')[0];
+                            price = ticket ? (today <= conf.early_bird_deadline ? ticket.price_early_bird : today <= conf.regular_deadline ? ticket.price_regular : ticket.price_late) : 0;
+                        }
+                    } else if (event_type === 'forum') {
+                        const evt = query.get('SELECT price FROM forum_events WHERE id = ?', [req.body.event_id || '']);
+                        price = evt?.price || 0;
                     }
+                    if (add_guest) price *= 2;
                 }
 
                 if (price > 0) {
@@ -15307,7 +15353,7 @@ By applying to this program, I provide the following consents:
 
             // FAILSAFE 1: Log to local CSV file (always works, no external deps)
             try {
-                const csvLine = [new Date().toISOString(), first_name + ' ' + last_name, email, institution || '', country || '', event_name || event_type, (package_items || []).join('; '), checkoutUrl ? 'Stripe' : 'Free', regId].map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',');
+                const csvLine = [new Date().toISOString(), first_name + ' ' + last_name, email, institution || '', country || '', event_name || event_type, (package_items || []).join('; '), add_guest ? '+1 Guest' : 'No guest', checkoutUrl ? 'Stripe' : 'Free', regId].map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',');
                 const csvPath = path.join(__dirname, 'registrations-log.csv');
                 if (!fs.existsSync(csvPath)) {
                     fs.writeFileSync(csvPath, 'Timestamp,Name,Email,Institution,Country,Event,Items,Payment,RegID\n');
