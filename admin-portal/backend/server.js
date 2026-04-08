@@ -10250,6 +10250,55 @@ By applying to this program, I provide the following consents:
     // --- ADMIN PLEXUS ROUTES ---
 
     // Admin: Get all registrations
+    // Public invite registration (no auth — called from invite page on user portal)
+    app.post('/api/public/register-invite', async (req, res) => {
+        try {
+            const { first_name, last_name, email, institution, country, event_type, event_name, package_items, guest_count, coupon_code, total_amount, dietary, allergies } = req.body;
+            if (!email || !first_name) return res.status(400).json({ error: 'Name and email required' });
+
+            // Find or create user
+            let user = query.get('SELECT id FROM users WHERE email = ?', [email]);
+            if (!user) {
+                const userId = uuidv4();
+                const tempHash = await require('bcryptjs').hash(uuidv4(), 10);
+                db.run('INSERT INTO users (id, email, password_hash, first_name, last_name, institution, country, is_public_profile) VALUES (?,?,?,?,?,?,?,1)',
+                    [userId, email, tempHash, first_name, last_name, institution || null, country || null]);
+                user = { id: userId };
+            }
+
+            const regId = uuidv4();
+            const pkgJson = package_items && package_items.length ? JSON.stringify(package_items) : null;
+            const metaJson = JSON.stringify({ guest_count: guest_count || 0, dietary: dietary || '', allergies: allergies || '', coupon_code: coupon_code || '', total_amount: total_amount || 0 });
+
+            if (event_type === 'plexus') {
+                const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+                if (conf) {
+                    const ticket = query.get('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order LIMIT 1', [conf.id]);
+                    try { db.run('ALTER TABLE registrations ADD COLUMN package_items TEXT'); } catch(e) {}
+                    db.run('INSERT OR IGNORE INTO registrations (id, conference_id, user_id, ticket_type_id, first_name, last_name, email, institution, country, status, payment_status, amount_paid, package_items, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,datetime("now"))',
+                        [regId, conf.id, user.id, ticket?.id, first_name, last_name, email, institution, country, 'confirmed', 'pending', total_amount || 0, pkgJson]);
+                }
+            } else if (event_type === 'gala') {
+                db.run('INSERT OR IGNORE INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status) VALUES (?,?,?,?,?,?,?)',
+                    [regId, first_name, last_name, email, institution, 'approved', 'pending']);
+            } else if (event_type === 'forum') {
+                db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, status, registered_at) VALUES (?,?,?,?,datetime("now"))',
+                    [regId, req.body.event_id || null, user.id, 'registered']);
+            } else if (event_type === 'bridges') {
+                db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,datetime("now"))',
+                    [regId, req.body.event_id || null, first_name, last_name, email, institution, 'confirmed']);
+            }
+
+            saveDb();
+
+            // Return success with registration ID for QR code generation
+            res.json({ success: true, registration_id: regId, user_id: user.id });
+        } catch (error) {
+            console.error('Public invite registration error:', error);
+            res.status(500).json({ error: 'Registration failed' });
+        }
+    });
+
     // Update a registration (admin)
     app.put('/api/admin/plexus/registrations/:id', auth, adminOnly, (req, res) => {
         try {
