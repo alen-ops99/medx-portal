@@ -20569,7 +20569,9 @@ President, Med&amp;X</textarea>
                         `;
                     }
 
-                    document.getElementById('forumEventRegsModal').classList.add('active');
+                    const regsModal = document.getElementById('forumEventRegsModal');
+                    regsModal.style.display = 'flex';
+                    regsModal.classList.add('active');
                 } catch (err) {
                     console.error('Failed to load registrations:', err);
                     Toast.error('Failed to load registrations');
