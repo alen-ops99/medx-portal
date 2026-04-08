@@ -5367,6 +5367,18 @@ async function initializeApp() {
                 `, [user.email]);
             } catch(e) {} // table may not exist
 
+            // Gala registrations
+            let galaRegs = [];
+            try {
+                galaRegs = query.all(`
+                    SELECT id, first_name, last_name, email, institution, status, payment_status,
+                           amount_paid, dietary, requests, checked_in, registered_at
+                    FROM gala_registrations
+                    WHERE email = ?
+                    ORDER BY registered_at DESC
+                `, [user.email]);
+            } catch(e) {} // table may not exist
+
             // Points purchases
             let pointsPurchases = [];
             try {
@@ -5378,11 +5390,12 @@ async function initializeApp() {
                 registrations,
                 forumRegistrations: forumRegs,
                 bridgesRegistrations: bridgesRegs,
+                galaRegistrations: galaRegs,
                 payments,
                 pointsPurchases,
                 attendance: checkedIn,
                 summary: {
-                    totalRegistrations: registrations.length + forumRegs.length + bridgesRegs.length,
+                    totalRegistrations: registrations.length + forumRegs.length + bridgesRegs.length + galaRegs.length,
                     totalPaid: payments.filter(p => p.status === 'completed').reduce((sum, p) => sum + (p.amount || 0), 0),
                     eventsAttended: checkedIn.length
                 }
