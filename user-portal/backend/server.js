@@ -260,24 +260,34 @@ app.get('/invite/:data', (req, res) => {
                 }
             }
         } else if (eventType === 'forum') {
-            if (data.i) {
-                const event = query.get('SELECT * FROM forum_events WHERE id = ?', [data.i]);
-                if (event) {
-                    eventInfo.name = event.title || event.name || eventInfo.name;
-                    eventInfo.date = event.start_date ? new Date(event.start_date).toLocaleDateString('en-US', {weekday:'long', month:'long',day:'numeric',year:'numeric'}) : '';
-                    eventInfo.venue = event.location_name || '';
-                    if (event.location_address) eventInfo.venue += (eventInfo.venue ? ', ' : '') + event.location_address;
-                    eventInfo.price = event.price || 0;
-                    eventInfo.description = event.description || '';
-                }
+            // Check if this is a gala-only invite
+            const isGalaOnly = packageItems.length === 1 && packageItems[0].toLowerCase().includes('gala');
+            const isGalaIncluded = packageItems.some(p => p.toLowerCase().includes('gala'));
+
+            if (isGalaOnly) {
+                // Gala-only: show gala-specific details
+                eventInfo.name = 'Gala Dinner at the Annual Biomedical Forum 2026';
+                eventInfo.date = 'Wednesday, May 27, 2026 · 7:30 PM';
+                eventInfo.venue = 'Crystal Ballroom, The Westin Zagreb';
+                eventInfo.price = 100;
+                eventInfo.description = 'An elegant evening celebrating Croatian biomedicine. Join distinguished leaders for fine dining, networking, and the Annual Awards Ceremony.';
             } else {
-                // No specific event ID — try to find the main forum event
-                const event = query.get("SELECT * FROM forum_events ORDER BY start_date ASC LIMIT 1");
+                // Full forum or multi-day
+                const event = data.i ? query.get('SELECT * FROM forum_events WHERE id = ?', [data.i]) : query.get("SELECT * FROM forum_events ORDER BY start_date ASC LIMIT 1");
                 if (event) {
                     eventInfo.name = event.title || eventInfo.name;
-                    eventInfo.date = event.start_date ? new Date(event.start_date).toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'}) : '';
-                    eventInfo.venue = event.location_name || '';
                     eventInfo.price = event.price || 0;
+                    eventInfo.description = event.description || '';
+                    // Build date range
+                    if (event.start_date && event.end_date && event.start_date !== event.end_date) {
+                        const s = new Date(event.start_date);
+                        const e = new Date(event.end_date);
+                        eventInfo.date = s.toLocaleDateString('en-US', {month:'long',day:'numeric'}) + ' – ' + e.toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'});
+                    } else if (event.start_date) {
+                        eventInfo.date = new Date(event.start_date).toLocaleDateString('en-US', {weekday:'long',month:'long',day:'numeric',year:'numeric'});
+                    }
+                    eventInfo.venue = event.location_name || '';
+                    if (event.location_address) eventInfo.venue += (eventInfo.venue ? ', ' : '') + event.location_address;
                 }
             }
         } else if (eventType === 'bridges') {
@@ -15275,6 +15285,21 @@ By applying to this program, I provide the following consents:
                     }
                 }
             }
+
+            // FAILSAFE: Notify admin team about new registration
+            try {
+                await sendEmail('info@medx.hr', `New Registration: ${first_name} ${last_name} — ${event_name || event_type}`,
+                    `<div style="font-family:system-ui;max-width:500px;margin:0 auto;">
+                        <h2 style="color:#c9a962;">New Direct Link Registration</h2>
+                        <p><strong>Name:</strong> ${first_name} ${last_name}</p>
+                        <p><strong>Email:</strong> ${email}</p>
+                        <p><strong>Institution:</strong> ${institution || 'Not provided'}</p>
+                        <p><strong>Event:</strong> ${event_name || event_type}</p>
+                        ${package_items && package_items.length ? '<p><strong>Registered for:</strong></p><ul>' + package_items.map(i => '<li>' + i + '</li>').join('') + '</ul>' : ''}
+                        <p><strong>Payment:</strong> ${checkoutUrl ? 'Stripe checkout initiated' : 'Free / No payment required'}</p>
+                        <p style="color:#64748b;font-size:12px;">Registration ID: ${regId}<br>Registered at: ${new Date().toISOString()}</p>
+                    </div>`);
+            } catch(emailErr) { console.log('[Failsafe] Admin notification email failed:', emailErr.message); }
 
             res.json({ success: true, checkout_url: checkoutUrl || null });
         } catch (error) {
