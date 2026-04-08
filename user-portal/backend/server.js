@@ -265,8 +265,91 @@ app.get('/api/test-email', async (req, res) => {
 });
 
 // ========== INVITE SUCCESS/CANCEL PAGES ==========
-app.get('/invite-success', (req, res) => {
-    res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Registration Complete</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:system-ui;text-align:center;padding:20px;"><div style="max-width:400px;"><div style="width:80px;height:80px;border-radius:50%;background:rgba(34,197,94,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div><h1 style="color:#22c55e;margin-bottom:12px;">Payment Successful!</h1><p style="color:#94a3b8;font-size:16px;margin-bottom:8px;">Your registration is confirmed.</p><p style="color:#64748b;font-size:14px;margin-bottom:24px;">A confirmation and invoice have been sent to your email. We look forward to seeing you!</p><a href="https://medx.hr" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Visit Med&X</a></div></body></html>`);
+app.get('/invite-success', async (req, res) => {
+    const sessionId = req.query.session_id;
+    let qrDataUrl = '';
+    let eventName = 'Med&X Event';
+    let customerEmail = '';
+    let firstName = 'Guest';
+    let itemsList = [];
+    let amount = 0;
+
+    // Try to get session details from Stripe for QR generation
+    if (sessionId && stripe) {
+        try {
+            const session = await stripe.checkout.sessions.retrieve(sessionId);
+            const meta = session.metadata || {};
+            customerEmail = meta.email || session.customer_details?.email || '';
+            firstName = meta.first_name || session.customer_details?.name?.split(' ')[0] || 'Guest';
+            eventName = meta.event_name || 'Med&X Event';
+            itemsList = meta.items ? meta.items.split(', ').filter(Boolean) : [];
+            amount = session.amount_total ? session.amount_total / 100 : 0;
+            const regId = meta.registration_id || '';
+            const evtType = (meta.type || '').replace('invite-', '');
+
+            // Generate QR code for display
+            const user = query.get('SELECT id FROM users WHERE email = ?', [customerEmail]);
+            const qrPayload = JSON.stringify({ type: 'MEDX_MEMBER', userId: user?.id || regId, email: customerEmail, name: firstName + ' ' + (meta.last_name || ''), regId, evt: evtType, evtName: eventName, items: itemsList, guests: parseInt(meta.guest_count || '0'), diet: meta.dietary || '', allrg: meta.allergies || '', amt: amount });
+            qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 280, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
+        } catch(e) { console.log('Success page Stripe lookup failed:', e.message); }
+    }
+
+    const itemsHtml = itemsList.length ? '<div style="text-align:left;background:rgba(255,255,255,0.05);border-radius:10px;padding:14px 18px;margin:16px 0;">' +
+        '<div style="font-size:11px;font-weight:600;color:#c9a962;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Registered For</div>' +
+        itemsList.map(i => '<div style="padding:4px 0;color:#e2e8f0;font-size:14px;">✓ ' + i + '</div>').join('') + '</div>' : '';
+
+    res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Registration Complete — Med&X</title></head>
+<body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:system-ui;text-align:center;padding:20px;margin:0;">
+<div style="max-width:440px;width:100%;">
+    <div style="width:80px;height:80px;border-radius:50%;background:rgba(34,197,94,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <h1 style="color:#22c55e;margin-bottom:8px;font-size:24px;">Payment Successful!</h1>
+    <p style="color:#94a3b8;font-size:16px;margin-bottom:4px;">Your registration for <strong style="color:#c9a962;">${eventName}</strong> is confirmed.</p>
+    ${amount ? '<p style="color:#64748b;font-size:14px;">Amount paid: <strong style="color:#e2e8f0;">€' + amount.toFixed(2) + '</strong></p>' : ''}
+    ${itemsHtml}
+    ${qrDataUrl ? `
+    <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(201,169,98,0.2);border-radius:16px;padding:24px;margin:20px 0;">
+        <div style="font-size:11px;font-weight:700;color:#c9a962;text-transform:uppercase;letter-spacing:2px;margin-bottom:14px;">Your Check-in QR Code</div>
+        <img id="qrImg" src="${qrDataUrl}" alt="QR Code" style="width:200px;height:200px;border-radius:12px;background:#fff;padding:8px;" />
+        <p style="color:#94a3b8;font-size:12px;margin-top:10px;">Present this code at the event entrance</p>
+        <button onclick="downloadQR()" style="margin-top:12px;padding:10px 24px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">
+            ⬇ Download QR Code
+        </button>
+    </div>` : ''}
+    <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:10px;padding:14px;margin:16px 0;">
+        <p style="color:#22c55e;font-size:14px;margin:0;">📧 A confirmation email with your QR code has been sent${customerEmail ? ' to <strong>' + customerEmail + '</strong>' : ''}.</p>
+        <p style="color:#64748b;font-size:12px;margin:6px 0 0;">Check your spam folder if you don't see it within a few minutes.</p>
+    </div>
+    <a href="https://medx.hr" style="display:inline-block;padding:12px 24px;background:rgba(255,255,255,0.06);color:#c9a962;border:1px solid rgba(201,169,98,0.3);border-radius:10px;font-weight:600;text-decoration:none;margin-top:8px;">Visit Med&X →</a>
+</div>
+<script>
+function downloadQR() {
+    const img = document.getElementById('qrImg');
+    const canvas = document.createElement('canvas');
+    canvas.width = 400; canvas.height = 480;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, 400, 480);
+    ctx.fillStyle = '#c9a962'; ctx.font = 'bold 18px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('Med&X — ${eventName.replace(/'/g, "\\'")}', 200, 36);
+    ctx.fillStyle = '#94a3b8'; ctx.font = '12px system-ui';
+    ctx.fillText('Check-in QR Code', 200, 56);
+    const qr = new Image(); qr.crossOrigin = 'anonymous'; qr.src = img.src;
+    qr.onload = () => {
+        ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.roundRect(80, 72, 240, 240, 12); ctx.fill();
+        ctx.drawImage(qr, 90, 82, 220, 220);
+        ctx.fillStyle = '#94a3b8'; ctx.font = '13px system-ui';
+        ctx.fillText('${firstName.replace(/'/g, "\\'")}', 200, 340);
+        ctx.fillText('${customerEmail.replace(/'/g, "\\'")}', 200, 360);
+        ctx.fillStyle = '#64748b'; ctx.font = '11px system-ui';
+        ctx.fillText('Present at event entrance for check-in', 200, 400);
+        ctx.fillText('© Med&X ${new Date().getFullYear()}', 200, 460);
+        const a = document.createElement('a');
+        a.download = 'medx-qr-code.png'; a.href = canvas.toDataURL('image/png'); a.click();
+    };
+}
+</script>
+</body></html>`);
 });
 
 app.get('/invite-cancelled', (req, res) => {
@@ -15494,7 +15577,7 @@ By applying to this program, I provide the following consents:
                             line_items: [{ price_data: { currency: 'eur', product_data: { name: event_name || 'Med&X Event Registration' }, unit_amount: Math.round(price * 100) }, quantity: 1 }],
                             metadata: { registration_id: regId, type: 'invite-' + event_type, email, first_name, last_name: last_name || '', event_name: event_name || 'Med&X Event', items: (package_items || []).join(', '), guest_count: String(guest_count || 0), dietary: dietary || '', allergies: allergies || '' },
                             customer_email: email,
-                            success_url: `${baseUrl}/invite-success`,
+                            success_url: `${baseUrl}/invite-success?session_id={CHECKOUT_SESSION_ID}`,
                             cancel_url: `${baseUrl}/invite-cancelled`
                         });
                         checkoutUrl = session.url;
