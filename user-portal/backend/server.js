@@ -393,10 +393,13 @@ app.get('/invite/:data', (req, res) => {
                     <div><label>Country</label><input type="text" id="country" placeholder="Country"></div>
                 </div>
                 <div><label>Dietary Requirements</label><select id="dietary"><option>No special requirements</option><option>Vegetarian</option><option>Vegan</option><option>Gluten-free</option><option>Halal</option><option>Kosher</option><option>Other</option></select></div>
-                ${eventInfo.price ? `<div style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;">
-                    <input type="checkbox" id="addGuest" onchange="updateTotal()" style="width:18px;height:18px;accent-color:#c9a962;cursor:pointer;">
-                    <div style="flex:1;"><label style="margin:0;cursor:pointer;" for="addGuest">Add +1 Guest</label><div style="font-size:11px;color:#64748b;">Additional &euro;${eventInfo.price} per guest</div></div>
-                    <span style="color:#c9a962;font-weight:600;">+&euro;${eventInfo.price}</span>
+                ${eventInfo.price ? `<div style="padding:14px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;">
+                    <label style="margin-bottom:8px;">Additional Guests <span style="font-size:11px;color:#64748b;">(&euro;${eventInfo.price} per guest, max 2)</span></label>
+                    <select id="guestCount" onchange="updateTotal()" style="width:100%;padding:10px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;background:rgba(255,255,255,0.05);color:#fff;font-size:14px;">
+                        <option value="0">No additional guests</option>
+                        <option value="1">+1 Guest (+&euro;${eventInfo.price})</option>
+                        <option value="2">+2 Guests (+&euro;${eventInfo.price * 2})</option>
+                    </select>
                 </div>` : ''}
                 <div>
                     <label>Discount Code <span style="font-size:11px;color:#64748b;">(optional)</span></label>
@@ -421,8 +424,8 @@ app.get('/invite/:data', (req, res) => {
     <script>
     function updateTotal() {
         const base = parseFloat(document.getElementById('basePrice').value) || 0;
-        const hasGuest = document.getElementById('addGuest')?.checked;
-        const total = hasGuest ? base * 2 : base;
+        const guests = parseInt(document.getElementById('guestCount')?.value || '0');
+        const total = base * (1 + guests);
         document.getElementById('totalAmount').textContent = '\u20ac' + total;
         document.getElementById('eventPrice').value = total;
         document.getElementById('submitBtn').textContent = total > 0 ? 'Proceed to Payment \u2014 \u20ac' + total : 'Complete Registration';
@@ -444,7 +447,7 @@ app.get('/invite/:data', (req, res) => {
             event_name: document.getElementById('eventName').value,
             package_items: JSON.parse(document.getElementById('packageItems').value || '[]'),
             dietary: document.getElementById('dietary').value,
-            add_guest: document.getElementById('addGuest')?.checked || false,
+            guest_count: parseInt(document.getElementById('guestCount')?.value || '0'),
             coupon_code: document.getElementById('couponCode')?.value?.trim() || '',
             total_amount: parseFloat(document.getElementById('eventPrice').value) || 0
         };
@@ -15242,7 +15245,7 @@ By applying to this program, I provide the following consents:
     // Invite registration (data encoded in URL, no DB token needed)
     app.post('/api/register-invite', async (req, res) => {
         try {
-            const { first_name, last_name, email, institution, country, event_type, event_name, package_items, add_guest, coupon_code, total_amount } = req.body;
+            const { first_name, last_name, email, institution, country, event_type, event_name, package_items, guest_count, coupon_code, total_amount } = req.body;
             if (!email || !first_name) return res.status(400).json({ error: 'Name and email required' });
 
             // Find or create user
@@ -15294,7 +15297,7 @@ By applying to this program, I provide the following consents:
                         <p style="color:#e2e8f0;">Dear ${first_name},</p>
                         <p style="color:#94a3b8;">Your registration for <strong style="color:#c9a962;">${event_name || 'Med&X Event'}</strong> has been confirmed.</p>
                         ${package_items && package_items.length ? '<p style="color:#94a3b8;"><strong style="color:#e2e8f0;">Registered for:</strong></p><ul style="color:#94a3b8;">' + package_items.map(i => '<li>' + i + '</li>').join('') + '</ul>' : ''}
-                        ${add_guest ? '<p style="color:#94a3b8;"><strong style="color:#e2e8f0;">+1 Guest</strong> included</p>' : ''}
+                        ${guest_count ? '<p style="color:#94a3b8;"><strong style="color:#e2e8f0;">+' + guest_count + ' Guest' + (guest_count > 1 ? 's' : '') + '</strong> included</p>' : ''}
                         ${qrDataUrl ? '<div style="text-align:center;margin:24px 0;"><p style="color:#c9a962;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Your Check-in QR Code</p><img src="' + qrDataUrl + '" alt="QR Code" style="width:180px;height:180px;border-radius:12px;background:#fff;padding:12px;"/><p style="color:#64748b;font-size:11px;margin-top:8px;">Show this QR code at the event entrance for check-in</p></div>' : ''}
                         <p style="color:#94a3b8;">We look forward to seeing you!</p>
                         <p style="color:#64748b;font-size:12px;margin-top:24px;">For any questions, contact Laura Rodman at <a href="mailto:laura.rodman@medx.hr" style="color:#c9a962;">laura.rodman@medx.hr</a></p>
@@ -15324,7 +15327,7 @@ By applying to this program, I provide the following consents:
                         const evt = query.get('SELECT price FROM forum_events WHERE id = ?', [req.body.event_id || '']);
                         price = evt?.price || 0;
                     }
-                    if (add_guest) price *= 2;
+                    if (guest_count) price *= (1 + guest_count);
                 }
 
                 if (price > 0) {
@@ -15353,7 +15356,7 @@ By applying to this program, I provide the following consents:
 
             // FAILSAFE 1: Log to local CSV file (always works, no external deps)
             try {
-                const csvLine = [new Date().toISOString(), first_name + ' ' + last_name, email, institution || '', country || '', event_name || event_type, (package_items || []).join('; '), add_guest ? '+1 Guest' : 'No guest', checkoutUrl ? 'Stripe' : 'Free', regId].map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',');
+                const csvLine = [new Date().toISOString(), first_name + ' ' + last_name, email, institution || '', country || '', event_name || event_type, (package_items || []).join('; '), guest_count ? '+' + guest_count + ' guest(s)' : 'No guests', checkoutUrl ? 'Stripe' : 'Free', regId].map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',');
                 const csvPath = path.join(__dirname, 'registrations-log.csv');
                 if (!fs.existsSync(csvPath)) {
                     fs.writeFileSync(csvPath, 'Timestamp,Name,Email,Institution,Country,Event,Items,Payment,RegID\n');
