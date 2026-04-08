@@ -220,6 +220,17 @@ app.get('/api/admin/registrations-csv', auth, (req, res) => {
     }
 });
 
+// Test email endpoint (temporary)
+app.get('/api/test-email', async (req, res) => {
+    try {
+        const result = await sendEmail('juginovic.alen@gmail.com', 'Render SMTP Test ' + new Date().toISOString().slice(11,19),
+            '<h2 style="color:#c9a962;">SMTP Works on Render!</h2><p>This email was sent from the live Render deployment.</p>');
+        res.json({ result, smtp_user: process.env.SMTP_USER, smtp_host: process.env.SMTP_HOST, has_resend: !!process.env.RESEND_API_KEY });
+    } catch(e) {
+        res.json({ error: e.message, smtp_user: process.env.SMTP_USER });
+    }
+});
+
 // ========== INVITE SUCCESS/CANCEL PAGES ==========
 app.get('/invite-success', (req, res) => {
     res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Registration Complete</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:system-ui;text-align:center;padding:20px;"><div style="max-width:400px;"><div style="width:80px;height:80px;border-radius:50%;background:rgba(34,197,94,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div><h1 style="color:#22c55e;margin-bottom:12px;">Payment Successful!</h1><p style="color:#94a3b8;font-size:16px;margin-bottom:8px;">Your registration is confirmed.</p><p style="color:#64748b;font-size:14px;margin-bottom:24px;">A confirmation and invoice have been sent to your email. We look forward to seeing you!</p><a href="https://medx.hr" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Visit Med&X</a></div></body></html>`);
