@@ -7975,7 +7975,7 @@ President, Med&amp;X</textarea>
                             <h1>Biomedical Forum</h1>
                             <p id="forumSubtitle">Senior leaders network</p>
                         </div>
-                        <button class="btn btn-secondary" onclick="App.generateRegistrationLink('forum')" style="white-space:nowrap;">
+                        <button class="btn btn-primary" onclick="App.generateRegistrationLink('forum','9799cb97-e3a7-493a-ac23-ee2910e8457b','Annual Biomedical Forum 2026')" style="white-space:nowrap; background:linear-gradient(135deg,#6366f1,#4f46e5); border:none;">
                             <i class="fas fa-link"></i> Direct Link
                         </button>
                     </div>
@@ -18825,33 +18825,30 @@ President, Med&amp;X</textarea>
                 const typeNames = { plexus: 'Plexus Conference 2026', gala: 'Gala Evening 2026', forum: 'Biomedical Forum', bridges: 'Building Bridges' };
                 const name = eventName || typeNames[eventType] || eventType;
 
-                // Sub-event options for Plexus
+                // Sub-event options
+                const cbStyle = 'display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border-color,#334155);border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-primary,#e2e8f0);';
+                const cbInput = 'accent-color:#c9a962;width:16px;height:16px;';
                 let subEventSelect = '';
+
                 if (eventType === 'plexus') {
-                    subEventSelect = `
-                        <div style="margin-bottom:16px;">
-                            <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Include in registration:</label>
-                            <div style="display:flex;flex-direction:column;gap:6px;" id="genLinkItems">
-                                <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border-color,#334155);border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-primary,#e2e8f0);">
-                                    <input type="checkbox" value="Day 1 — Dec 4" checked style="accent-color:#c9a962;width:16px;height:16px;"> Day 1 — Dec 4
-                                </label>
-                                <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border-color,#334155);border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-primary,#e2e8f0);">
-                                    <input type="checkbox" value="Day 2 — Dec 5" checked style="accent-color:#c9a962;width:16px;height:16px;"> Day 2 — Dec 5
-                                </label>
-                                <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border-color,#334155);border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-primary,#e2e8f0);">
-                                    <input type="checkbox" value="Gala Evening" style="accent-color:#c9a962;width:16px;height:16px;"> Gala Evening
-                                </label>
-                                <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border-color,#334155);border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-primary,#e2e8f0);">
-                                    <input type="checkbox" value="Welcome Reception" style="accent-color:#c9a962;width:16px;height:16px;"> Welcome Reception
-                                </label>
-                                <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border-color,#334155);border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-primary,#e2e8f0);">
-                                    <input type="checkbox" value="Workshop" style="accent-color:#c9a962;width:16px;height:16px;"> Workshop
-                                </label>
-                                <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border-color,#334155);border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-primary,#e2e8f0);">
-                                    <input type="checkbox" value="VIP / Invited Speaker" style="accent-color:#c9a962;width:16px;height:16px;"> VIP / Invited Speaker
-                                </label>
-                            </div>
-                        </div>`;
+                    subEventSelect = `<div style="margin-bottom:16px;">
+                        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Include in registration:</label>
+                        <div style="display:flex;flex-direction:column;gap:6px;" id="genLinkItems">
+                            <label style="${cbStyle}"><input type="checkbox" value="Day 1 — Dec 4" checked style="${cbInput}"> Day 1 — Dec 4</label>
+                            <label style="${cbStyle}"><input type="checkbox" value="Day 2 — Dec 5" checked style="${cbInput}"> Day 2 — Dec 5</label>
+                            <label style="${cbStyle}"><input type="checkbox" value="Gala Evening" style="${cbInput}"> Gala Evening</label>
+                            <label style="${cbStyle}"><input type="checkbox" value="Welcome Reception" style="${cbInput}"> Welcome Reception</label>
+                            <label style="${cbStyle}"><input type="checkbox" value="Workshop" style="${cbInput}"> Workshop</label>
+                            <label style="${cbStyle}"><input type="checkbox" value="VIP / Invited Speaker" style="${cbInput}"> VIP / Invited Speaker</label>
+                        </div></div>`;
+                } else if (eventType === 'forum') {
+                    subEventSelect = `<div style="margin-bottom:16px;">
+                        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Include in registration:</label>
+                        <div style="display:flex;flex-direction:column;gap:6px;" id="genLinkItems">
+                            <label style="${cbStyle}"><input type="checkbox" value="Day 1 — May 25, Split (Conference)" checked style="${cbInput}"> Day 1 — May 25, Split (Conference)</label>
+                            <label style="${cbStyle}"><input type="checkbox" value="Day 2 — May 26, Zagreb (Conference)" checked style="${cbInput}"> Day 2 — May 26, Zagreb (Conference)</label>
+                            <label style="${cbStyle}"><input type="checkbox" value="Day 3 — May 27, Gala Dinner (The Westin Zagreb)" style="${cbInput}"> Day 3 — May 27, Gala Dinner (The Westin Zagreb)</label>
+                        </div></div>`;
                 }
 
                 const modal = document.createElement('div');
