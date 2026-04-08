@@ -206,6 +206,15 @@ function escapeHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// ========== INVITE SUCCESS/CANCEL PAGES ==========
+app.get('/invite-success', (req, res) => {
+    res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Registration Complete</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:system-ui;text-align:center;padding:20px;"><div style="max-width:400px;"><div style="width:80px;height:80px;border-radius:50%;background:rgba(34,197,94,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div><h1 style="color:#22c55e;margin-bottom:12px;">Payment Successful!</h1><p style="color:#94a3b8;font-size:16px;margin-bottom:8px;">Your registration is confirmed.</p><p style="color:#64748b;font-size:14px;margin-bottom:24px;">A confirmation and invoice have been sent to your email. We look forward to seeing you!</p><a href="https://medx.hr" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Visit Med&X</a></div></body></html>`);
+});
+
+app.get('/invite-cancelled', (req, res) => {
+    res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Payment Cancelled</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:system-ui;text-align:center;padding:20px;"><div style="max-width:400px;"><h1 style="color:#f59e0b;margin-bottom:12px;">Payment Cancelled</h1><p style="color:#94a3b8;font-size:16px;margin-bottom:24px;">Your registration is saved but payment was not completed. You can try again or contact us.</p><a href="mailto:info@medx.hr" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Contact Med&X</a></div></body></html>`);
+});
+
 // ========== STANDALONE INVITE REGISTRATION PAGE ==========
 // Serves a full server-rendered HTML page for VIP invite links.
 // Must be defined BEFORE express.static so it takes priority over the SPA.
@@ -320,7 +329,7 @@ app.get('/invite/:data', (req, res) => {
 </head>
 <body>
     <div class="container">
-        <div class="logo"><span>med<em>&amp;</em>X</span></div>
+        <div class="logo"><img src="/assets/images/medx-logo.png" alt="Med&X" style="height:40px;filter:brightness(0) invert(1);" onerror="this.outerHTML='<span style=\\'font-size:28px;font-weight:700;color:#fff;\\'>med<em style=\\'color:#c9a962;font-style:normal;\\'>&amp;</em>X</span>'"></div>
         <div class="card">
             <div class="event-badge"><i class="fas fa-envelope-open-text"></i> You're Invited</div>
             <h1>${escapeHtml(eventInfo.name)}</h1>
@@ -344,9 +353,14 @@ app.get('/invite/:data', (req, res) => {
                     <div><label>Country</label><input type="text" id="country" placeholder="Country"></div>
                 </div>
                 <div><label>Dietary Requirements</label><select id="dietary"><option>No special requirements</option><option>Vegetarian</option><option>Vegan</option><option>Gluten-free</option><option>Halal</option><option>Kosher</option><option>Other</option></select></div>
-                <button type="submit" class="submit-btn" id="submitBtn">Complete Registration</button>
+                <input type="hidden" id="eventPrice" value="${eventInfo.price || 0}">
+                <button type="submit" class="submit-btn" id="submitBtn">${eventInfo.price ? 'Proceed to Payment — &euro;' + eventInfo.price : 'Complete Registration'}</button>
             </form>
-            <div class="footer">By registering, you agree to Med&amp;X's <a href="https://medx.hr">Terms</a> &amp; <a href="https://medx.hr">Privacy Policy</a>.</div>
+            <div class="footer" style="margin-top:20px;">
+                <p style="margin-bottom:8px;">By registering, you agree to Med&amp;X's <a href="https://medx.hr/terms">Terms &amp; Conditions</a> and <a href="https://medx.hr/privacy">Privacy Policy</a>.</p>
+                <p style="font-size:11px;color:#475569;">All registrations are non-refundable unless cancelled at least 30 days before the event. For questions, contact <a href="mailto:info@medx.hr">info@medx.hr</a>.</p>
+                <p style="font-size:11px;color:#475569;margin-top:8px;">We look forward to seeing you! &mdash; The Med&amp;X Team</p>
+            </div>
         </div>
     </div>
     <script>
@@ -354,33 +368,42 @@ app.get('/invite/:data', (req, res) => {
         e.preventDefault();
         const btn = document.getElementById('submitBtn');
         btn.disabled = true;
-        btn.textContent = 'Registering...';
+        btn.textContent = 'Processing...';
+        const price = parseFloat(document.getElementById('eventPrice').value) || 0;
+        const body = {
+            first_name: document.getElementById('firstName').value,
+            last_name: document.getElementById('lastName').value,
+            email: document.getElementById('email').value,
+            institution: document.getElementById('institution').value,
+            country: document.getElementById('country').value,
+            event_type: document.getElementById('eventType').value,
+            event_name: document.getElementById('eventName').value,
+            package_items: JSON.parse(document.getElementById('packageItems').value || '[]'),
+            dietary: document.getElementById('dietary').value
+        };
         try {
             const res = await fetch('/api/register-invite', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    first_name: document.getElementById('firstName').value,
-                    last_name: document.getElementById('lastName').value,
-                    email: document.getElementById('email').value,
-                    institution: document.getElementById('institution').value,
-                    country: document.getElementById('country').value,
-                    event_type: document.getElementById('eventType').value,
-                    event_name: document.getElementById('eventName').value,
-                    package_items: JSON.parse(document.getElementById('packageItems').value || '[]')
-                })
+                body: JSON.stringify(body)
             });
             const result = await res.json();
             if (result.success) {
-                document.querySelector('.card').innerHTML = '<div class="success"><div class="success-icon"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div><h1 style="color:#22c55e;margin-bottom:8px;">You\\'re Registered!</h1><p style="color:#94a3b8;font-size:16px;margin-bottom:24px;">A confirmation has been sent to your email.</p><a href="https://medx.hr" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Visit Med&X</a></div>';
+                // If paid event and Stripe checkout URL returned, redirect to payment
+                if (result.checkout_url) {
+                    btn.textContent = 'Redirecting to payment...';
+                    window.location.href = result.checkout_url;
+                    return;
+                }
+                document.querySelector('.card').innerHTML = '<div class="success"><div class="success-icon"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div><h1 style="color:#22c55e;margin-bottom:8px;">You\\'re Registered!</h1><p style="color:#94a3b8;font-size:16px;margin-bottom:12px;">A confirmation has been sent to your email.</p><p style="color:#64748b;font-size:13px;margin-bottom:24px;">We look forward to seeing you!</p><a href="https://medx.hr" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Visit Med&X</a></div>';
             } else {
                 btn.disabled = false;
-                btn.textContent = 'Complete Registration';
+                btn.textContent = price ? 'Proceed to Payment' : 'Complete Registration';
                 alert(result.error || 'Registration failed. Please try again.');
             }
         } catch(err) {
             btn.disabled = false;
-            btn.textContent = 'Complete Registration';
+            btn.textContent = price ? 'Proceed to Payment' : 'Complete Registration';
             alert('Registration failed. Please check your connection.');
         }
     }
@@ -15201,7 +15224,47 @@ By applying to this program, I provide the following consents:
                     </div>`);
             } catch(e) {}
 
-            res.json({ success: true });
+            // If paid event, create Stripe checkout session
+            let checkoutUrl = null;
+            if (stripe) {
+                let price = 0;
+                if (event_type === 'gala') {
+                    const gala = query.get("SELECT price_gala_only FROM gala_settings WHERE id = 'default'");
+                    price = gala?.price_gala_only || 0;
+                } else if (event_type === 'plexus') {
+                    const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+                    if (conf) {
+                        const ticket = query.get('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order LIMIT 1', [conf.id]);
+                        const today = new Date().toISOString().split('T')[0];
+                        price = ticket ? (today <= conf.early_bird_deadline ? ticket.price_early_bird : today <= conf.regular_deadline ? ticket.price_regular : ticket.price_late) : 0;
+                    }
+                }
+
+                if (price > 0) {
+                    try {
+                        const baseUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+                        const session = await stripe.checkout.sessions.create({
+                            mode: 'payment',
+                            payment_method_types: ['card'],
+                            line_items: [{ price_data: { currency: 'eur', product_data: { name: event_name || 'Med&X Event Registration' }, unit_amount: Math.round(price * 100) }, quantity: 1 }],
+                            metadata: { registration_id: regId, type: 'invite-' + event_type, email },
+                            customer_email: email,
+                            success_url: `${baseUrl}/invite-success`,
+                            cancel_url: `${baseUrl}/invite-cancelled`
+                        });
+                        checkoutUrl = session.url;
+                        // Update registration to track payment
+                        if (event_type === 'plexus') {
+                            db.run('UPDATE registrations SET amount_paid = ?, payment_status = ? WHERE id = ?', [price, 'pending', regId]);
+                        }
+                        saveDb();
+                    } catch(stripeErr) {
+                        console.log('[Stripe] Checkout creation failed:', stripeErr.message);
+                    }
+                }
+            }
+
+            res.json({ success: true, checkout_url: checkoutUrl || null });
         } catch (error) {
             console.error('Invite registration error:', error);
             res.status(500).json({ error: 'Registration failed' });
