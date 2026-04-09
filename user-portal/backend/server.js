@@ -9897,6 +9897,35 @@ By applying to this program, I provide the following consents:
                     }
                     saveDb();
 
+                    // Create FIRA fiscal invoice
+                    if (firaService.isConfigured() && amount > 0) {
+                        try {
+                            const invoiceNum = `INV-${invRegId.substring(0, 8).toUpperCase()}`;
+                            const firaResult = await firaService.createFiscalInvoice({
+                                invoiceNumber: invoiceNum,
+                                ticketName: metadata.event_name || 'Med&X Event Registration',
+                                ticketPrice: amount,
+                                addons: [],
+                                billing: {
+                                    name: ((metadata.first_name || '') + ' ' + (metadata.last_name || '')).trim() || 'Guest',
+                                    company: '',
+                                    address: '',
+                                    city: '',
+                                    zip: '',
+                                    country: 'HR',
+                                    oib: '',
+                                    vatNumber: '',
+                                    email: invEmail || ''
+                                },
+                                invoiceType: 'RAČUN',
+                                paymentType: 'KARTICA'
+                            });
+                            console.log(`[Stripe→FIRA] Invite fiscal invoice created: ${firaResult?.invoiceNumber || invoiceNum}`);
+                        } catch(firaErr) {
+                            console.error('[Stripe→FIRA] Invite invoice failed (non-blocking):', firaErr.message);
+                        }
+                    }
+
                     // Also update on admin portal
                     const adminUrl = process.env.ADMIN_PORTAL_URL || 'https://medx-admin-portal.onrender.com';
                     try {
