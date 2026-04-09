@@ -12001,11 +12001,11 @@ President, Med&amp;X</textarea>
 
                             <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:20px;">
                                 <div style="background:var(--bg-secondary,#1e293b); border-radius:10px; padding:12px; text-align:center;">
-                                    <div style="font-size:22px; font-weight:700; color:var(--accent-gold,#c9a962);">${profile.summary?.totalRegistrations || 0}</div>
+                                    <div style="font-size:22px; font-weight:700; color:var(--accent-gold,#c9a962);">${profile.summary?.totalRegistrations || (data.evt ? 1 : 0)}</div>
                                     <div style="font-size:11px; color:var(--text-muted,#94a3b8);">Registrations</div>
                                 </div>
                                 <div style="background:var(--bg-secondary,#1e293b); border-radius:10px; padding:12px; text-align:center;">
-                                    <div style="font-size:22px; font-weight:700; color:#22c55e;">\u20ac${(profile.summary?.totalPaid || 0).toFixed(0)}</div>
+                                    <div style="font-size:22px; font-weight:700; color:#22c55e;">\u20ac${(profile.summary?.totalPaid || data.amt || 0).toFixed ? (profile.summary?.totalPaid || data.amt || 0).toFixed(0) : (profile.summary?.totalPaid || data.amt || 0)}</div>
                                     <div style="font-size:11px; color:var(--text-muted,#94a3b8);">Total Paid</div>
                                 </div>
                                 <div style="background:var(--bg-secondary,#1e293b); border-radius:10px; padding:12px; text-align:center;">
@@ -18945,7 +18945,7 @@ President, Med&amp;X</textarea>
                         <div style="display:flex;flex-direction:column;gap:6px;" id="genLinkItems">
                             <label style="${cbStyle}"><input type="checkbox" value="Day 1 — May 25, Split (Conference)" checked style="${cbInput}"> Day 1 — May 25, Split (Conference)</label>
                             <label style="${cbStyle}"><input type="checkbox" value="Day 2 — May 26, Zagreb (Conference)" checked style="${cbInput}"> Day 2 — May 26, Zagreb (Conference)</label>
-                            <label style="${cbStyle}"><input type="checkbox" value="Gala Evening — May 27, The Westin Zagreb" style="${cbInput}"> Gala Evening — May 27, The Westin Zagreb</label>
+                            <label style="${cbStyle}"><input type="checkbox" value="Gala Evening — May 27 (The Westin Zagreb)" style="${cbInput}"> Gala Evening — May 27 (The Westin Zagreb)</label>
                         </div></div>`;
                 }
 
