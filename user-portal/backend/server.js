@@ -274,6 +274,7 @@ app.get('/invite-success', async (req, res) => {
     let lastName = '';
     let itemsList = [];
     let amount = 0;
+    let guestCount = 0;
 
     // Try to get session details from Stripe for QR generation
     if (sessionId && stripe) {
@@ -286,6 +287,7 @@ app.get('/invite-success', async (req, res) => {
             eventName = meta.event_name || 'Med&X Event';
             itemsList = meta.items ? meta.items.split(', ').filter(Boolean) : [];
             amount = session.amount_total ? session.amount_total / 100 : 0;
+            guestCount = parseInt(meta.guest_count || '0');
             const regId = meta.registration_id || '';
             const evtType = (meta.type || '').replace('invite-', '');
 
@@ -310,6 +312,7 @@ app.get('/invite-success', async (req, res) => {
     <p style="color:#94a3b8;font-size:16px;margin-bottom:4px;">Your registration for <strong style="color:#c9a962;">${eventName}</strong> is confirmed.</p>
     ${amount ? '<p style="color:#64748b;font-size:14px;">Amount paid: <strong style="color:#e2e8f0;">€' + amount.toFixed(2) + '</strong></p>' : ''}
     ${itemsHtml}
+    ${guestCount ? '<div style="background:rgba(201,169,98,0.1);border:1px solid rgba(201,169,98,0.2);border-radius:10px;padding:12px;margin:12px 0;"><p style="color:#c9a962;font-size:14px;margin:0;">👥 <strong>+' + guestCount + ' Guest' + (guestCount > 1 ? 's' : '') + '</strong> included in your registration</p><p style="color:#94a3b8;font-size:12px;margin:6px 0 0;">Your guest(s) can use the same QR code for check-in.</p></div>' : ''}
     ${qrDataUrl ? `
     <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(201,169,98,0.2);border-radius:16px;padding:24px;margin:20px 0;">
         <div style="font-size:11px;font-weight:700;color:#c9a962;text-transform:uppercase;letter-spacing:2px;margin-bottom:14px;">Your Check-in QR Code</div>
@@ -9926,7 +9929,7 @@ By applying to this program, I provide the following consents:
                         <p style="margin-top:20px;">Dear <strong>${metadata.first_name || 'Guest'}</strong>,</p>
                         <p>Your payment of <strong>&euro;${amount.toFixed(2)}</strong> for <strong style="color:#C9A962;">${metadata.event_name || 'Med&X Event'}</strong> has been received.</p>
                         ${itemsList.length ? '<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;"><tr><td style="background:#f8fafc;padding:10px 16px;font-size:13px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Registered For</td></tr>' + itemsList.map(i => '<tr><td style="padding:10px 16px;font-size:14px;color:#334155;border-bottom:1px solid #f1f5f9;">&#10003; ' + i + '</td></tr>').join('') + '</table>' : ''}
-                        ${guestCnt ? '<p>&#128101; <strong>+' + guestCnt + ' Guest' + (guestCnt > 1 ? 's' : '') + '</strong> included</p>' : ''}
+                        ${guestCnt ? '<p>&#128101; <strong>+' + guestCnt + ' Guest' + (guestCnt > 1 ? 's' : '') + '</strong> included in your registration. Your guest(s) can use the same QR code for check-in.</p>' : ''}
                         ${qrDataUrl ? '<table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;"><tr><td align="center"><table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:16px;padding:24px;text-align:center;"><tr><td style="padding-bottom:12px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Your Check-in QR Code</td></tr><tr><td><img src="' + qrDataUrl + '" alt="QR Code" width="180" height="180" style="display:block;margin:0 auto;border-radius:8px;" /></td></tr><tr><td style="padding-top:12px;font-size:12px;color:#94a3b8;">Present this code at the event entrance</td></tr></table></td></tr></table>' : ''}
                         <p>We look forward to seeing you!</p>
                         <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;border-top:1px solid #e2e8f0;padding-top:16px;">
@@ -15555,7 +15558,7 @@ By applying to this program, I provide the following consents:
                         <tr><td style="background:#f8fafc;padding:10px 16px;font-size:13px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Registered For</td></tr>
                         ${package_items.map(item => '<tr><td style="padding:10px 16px;font-size:14px;color:#334155;border-bottom:1px solid #f1f5f9;">&#10003; ' + item + '</td></tr>').join('')}
                     </table>` : ''}
-                    ${guest_count ? '<p>&#128101; <strong>+' + guest_count + ' Guest' + (guest_count > 1 ? 's' : '') + '</strong> included in your registration</p>' : ''}
+                    ${guest_count ? '<p>&#128101; <strong>+' + guest_count + ' Guest' + (guest_count > 1 ? 's' : '') + '</strong> included in your registration. Your guest(s) can use the same QR code for check-in.</p>' : ''}
                     ${dietary && dietary !== 'No special requirements' ? '<p><strong>Dietary:</strong> ' + dietary + '</p>' : ''}
                     ${allergies && allergies !== 'None' ? '<p><strong>Allergies:</strong> ' + allergies + '</p>' : ''}
                     ${qrDataUrl ? `

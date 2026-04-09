@@ -19213,8 +19213,10 @@ President, Med&amp;X</textarea>
                                 // Format 1: JSON — try every possible identifier
                                 let memberEmail = null;
                                 let memberId = null;
+                                let fullQrData = null;
                                 try {
                                     const parsed = JSON.parse(rawData);
+                                    fullQrData = parsed;
                                     if (parsed.userId && parsed.userId !== '') userId = parsed.userId;
                                     else if (parsed.id && parsed.id !== '') userId = parsed.id;
                                     if (parsed.email && parsed.email !== '') memberEmail = parsed.email;
@@ -19243,7 +19245,7 @@ President, Med&amp;X</textarea>
                                     const statusEl2 = document.getElementById('globalQRStatus');
                                     if (statusEl2) statusEl2.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:#c9a962;"></i> Loading profile...';
 
-                                    showUserProfileFromQR({ userId: userId || memberId, email: memberEmail }).then(ok => {
+                                    showUserProfileFromQR(fullQrData || { userId: userId || memberId, email: memberEmail }).then(ok => {
                                         if (!ok) {
                                             if (statusEl2) statusEl2.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#ef4444;"></i> Profile not found';
                                         }
