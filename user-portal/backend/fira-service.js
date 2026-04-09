@@ -164,6 +164,27 @@ async function createFiscalInvoice(orderData) {
 
         if (!response.ok) {
             const errorBody = await response.text();
+            // If VAT rejected (account not in PDV system), retry with 0% tax
+            if (errorBody.includes('not in the PDV system') || errorBody.includes('taxes while')) {
+                console.log('[FIRA] Account not VAT-registered — retrying with 0% tax');
+                firaOrder.lineItems.forEach(item => { item.taxRate = 0; item.price = firaOrder.brutto / (firaOrder.lineItems.length || 1); });
+                firaOrder.netto = firaOrder.brutto;
+                firaOrder.taxValue = 0;
+                firaOrder.taxExempt = true;
+                const retry = await fetch(`${FIRA_API_URL}/api/v1/webshop/order/custom`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'FIRA-Api-Key': FIRA_API_KEY },
+                    body: JSON.stringify(firaOrder)
+                });
+                if (!retry.ok) {
+                    const retryErr = await retry.text();
+                    console.error(`[FIRA] Retry also failed ${retry.status}: ${retryErr}`);
+                    throw new Error(`FIRA API returned ${retry.status}: ${retryErr}`);
+                }
+                const retryResult = await retry.json();
+                console.log(`[FIRA] Invoice created (no VAT): ${retryResult.invoiceNumber || retryResult.id}`);
+                return { firaId: retryResult.id, invoiceNumber: retryResult.invoiceNumber, status: retryResult.status, pdfUrl: retryResult.pdfUrl || null, rawResponse: retryResult };
+            }
             console.error(`[FIRA] API error ${response.status}: ${errorBody}`);
             throw new Error(`FIRA API returned ${response.status}: ${errorBody}`);
         }
