@@ -15747,20 +15747,6 @@ By applying to this program, I provide the following consents:
         }
     });
 
-    // API 404 handler — return JSON instead of HTML
-    app.all('/api/*', (req, res) => {
-        res.status(404).json({ error: 'API endpoint not found' });
-    });
-
-    // Serve frontend
-    app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../frontend/index.html')));
-
-    // Global error handler
-    app.use((err, req, res, next) => {
-        console.error('Unhandled error:', err);
-        res.status(500).json({ error: 'Internal server error' });
-    });
-
     // Health check (used by admin portal wake-up ping)
     app.get('/health', (req, res) => res.json({ ok: true }));
 
@@ -15801,6 +15787,20 @@ By applying to this program, I provide the following consents:
         } catch(e) {
             res.status(500).json({ error: 'Lookup failed' });
         }
+    });
+
+    // API 404 handler — return JSON instead of HTML
+    app.all('/api/*', (req, res) => {
+        res.status(404).json({ error: 'API endpoint not found' });
+    });
+
+    // Serve frontend
+    app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../frontend/index.html')));
+
+    // Global error handler
+    app.use((err, req, res, next) => {
+        console.error('Unhandled error:', err);
+        res.status(500).json({ error: 'Internal server error' });
     });
 
     // Start watching shared DB for cross-portal sync
