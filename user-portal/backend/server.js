@@ -271,6 +271,7 @@ app.get('/invite-success', async (req, res) => {
     let eventName = 'Med&X Event';
     let customerEmail = '';
     let firstName = 'Guest';
+    let lastName = '';
     let itemsList = [];
     let amount = 0;
 
@@ -281,6 +282,7 @@ app.get('/invite-success', async (req, res) => {
             const meta = session.metadata || {};
             customerEmail = meta.email || session.customer_details?.email || '';
             firstName = meta.first_name || session.customer_details?.name?.split(' ')[0] || 'Guest';
+            lastName = meta.last_name || '';
             eventName = meta.event_name || 'Med&X Event';
             itemsList = meta.items ? meta.items.split(', ').filter(Boolean) : [];
             amount = session.amount_total ? session.amount_total / 100 : 0;
@@ -326,24 +328,60 @@ app.get('/invite-success', async (req, res) => {
 <script>
 function downloadQR() {
     const img = document.getElementById('qrImg');
+    const S = 2; // 2x resolution for crisp output
+    const W = 600, H = 700;
     const canvas = document.createElement('canvas');
-    canvas.width = 400; canvas.height = 480;
+    canvas.width = W * S; canvas.height = H * S;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, 400, 480);
-    ctx.fillStyle = '#c9a962'; ctx.font = 'bold 18px system-ui'; ctx.textAlign = 'center';
-    ctx.fillText('Med&X — ${eventName.replace(/'/g, "\\'")}', 200, 36);
-    ctx.fillStyle = '#94a3b8'; ctx.font = '12px system-ui';
-    ctx.fillText('Check-in QR Code', 200, 56);
+    ctx.scale(S, S);
+    // Background
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, W, H);
+    // Gold top bar
+    ctx.fillStyle = '#c9a962'; ctx.fillRect(0, 0, W, 4);
+    // Med&X logo text
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#c9a962'; ctx.font = 'bold 28px system-ui';
+    ctx.fillText('Med&X', W/2, 50);
+    ctx.fillStyle = '#64748b'; ctx.font = '12px system-ui';
+    ctx.fillText('Building Bridges in Biomedicine', W/2, 70);
+    // Event name — word wrap for long titles
+    ctx.fillStyle = '#e2e8f0'; ctx.font = 'bold 18px system-ui';
+    const title = 'Med&X — ${eventName.replace(/'/g, "\\'")}';
+    const words = title.split(' ');
+    let lines = []; let line = '';
+    for (const w of words) {
+        const test = line ? line + ' ' + w : w;
+        if (ctx.measureText(test).width > W - 80) { lines.push(line); line = w; }
+        else line = test;
+    }
+    if (line) lines.push(line);
+    let ty = 110;
+    ctx.fillStyle = '#c9a962'; ctx.font = 'bold 17px system-ui';
+    for (const l of lines) { ctx.fillText(l, W/2, ty); ty += 24; }
+    // Subtitle
+    ctx.fillStyle = '#94a3b8'; ctx.font = '13px system-ui';
+    ctx.fillText('Check-in QR Code', W/2, ty + 8); ty += 30;
+    // QR code white card
+    const qrSize = 300, cardPad = 20;
+    const cardX = (W - qrSize - cardPad*2) / 2, cardY = ty;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.roundRect(cardX, cardY, qrSize + cardPad*2, qrSize + cardPad*2, 16); ctx.fill();
     const qr = new Image(); qr.crossOrigin = 'anonymous'; qr.src = img.src;
     qr.onload = () => {
-        ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.roundRect(80, 72, 240, 240, 12); ctx.fill();
-        ctx.drawImage(qr, 90, 82, 220, 220);
-        ctx.fillStyle = '#94a3b8'; ctx.font = '13px system-ui';
-        ctx.fillText('${firstName.replace(/'/g, "\\'")}', 200, 340);
-        ctx.fillText('${customerEmail.replace(/'/g, "\\'")}', 200, 360);
-        ctx.fillStyle = '#64748b'; ctx.font = '11px system-ui';
-        ctx.fillText('Present at event entrance for check-in', 200, 400);
-        ctx.fillText('© Med&X ${new Date().getFullYear()}', 200, 460);
+        ctx.drawImage(qr, cardX + cardPad, cardY + cardPad, qrSize, qrSize);
+        const belowQR = cardY + qrSize + cardPad*2 + 30;
+        // Name and email
+        ctx.fillStyle = '#e2e8f0'; ctx.font = 'bold 16px system-ui';
+        ctx.fillText('${firstName.replace(/'/g, "\\'")} ${(lastName || '').replace(/'/g, "\\'")}', W/2, belowQR);
+        ctx.fillStyle = '#94a3b8'; ctx.font = '14px system-ui';
+        ctx.fillText('${customerEmail.replace(/'/g, "\\'")}', W/2, belowQR + 24);
+        // Footer
+        ctx.fillStyle = '#64748b'; ctx.font = '12px system-ui';
+        ctx.fillText('Present at event entrance for check-in', W/2, belowQR + 60);
+        // Bottom bar
+        ctx.fillStyle = '#c9a962'; ctx.fillRect(0, H - 4, W, 4);
+        ctx.fillStyle = '#475569'; ctx.font = '11px system-ui';
+        ctx.fillText('© Med&X ${new Date().getFullYear()} — medx.hr', W/2, H - 16);
         const a = document.createElement('a');
         a.download = 'medx-qr-code.png'; a.href = canvas.toDataURL('image/png'); a.click();
     };
