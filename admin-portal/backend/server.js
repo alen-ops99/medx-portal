@@ -16300,7 +16300,18 @@ By applying to this program, I provide the following consents:
     // Start watching shared DB for cross-portal sync
     watchSharedDb();
 
-    app.listen(PORT, () => console.log(`Med&X Admin Portal running on http://localhost:${PORT}`));
+    app.listen(PORT, () => {
+        console.log(`Med&X Admin Portal running on http://localhost:${PORT}`);
+
+        // Keep-alive: ping self every 14 min to prevent Render free tier from sleeping
+        const KEEP_ALIVE_URL = process.env.RENDER_EXTERNAL_URL || 'https://medx-admin-portal.onrender.com';
+        if (process.env.NODE_ENV === 'production') {
+            setInterval(() => {
+                fetch(KEEP_ALIVE_URL + '/health').catch(() => {});
+            }, 14 * 60 * 1000);
+            console.log('[KeepAlive] Pinging every 14 min to prevent sleep');
+        }
+    });
 }
 
 initializeApp().catch(console.error);
