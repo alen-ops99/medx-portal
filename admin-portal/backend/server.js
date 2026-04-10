@@ -2838,6 +2838,21 @@ async function initializeApp() {
     )`);
     try { db.run("INSERT OR IGNORE INTO gala_settings (id) VALUES ('default')"); } catch(e) {}
 
+    // Forum gala settings (separate from Plexus gala)
+    db.run(`CREATE TABLE IF NOT EXISTS forum_gala_settings (
+        id TEXT PRIMARY KEY DEFAULT 'default',
+        name TEXT DEFAULT 'Gala Dinner at the Annual Biomedical Forum 2026',
+        date TEXT DEFAULT 'Wednesday, May 27, 2026 · 7:30 PM',
+        venue TEXT DEFAULT 'Crystal Ballroom, The Westin Zagreb',
+        description TEXT DEFAULT 'An elegant evening celebrating Croatian biomedicine.',
+        price REAL DEFAULT 10,
+        early_bird_price REAL,
+        early_bird_deadline TEXT,
+        capacity INTEGER DEFAULT 150,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    try { db.run("INSERT OR IGNORE INTO forum_gala_settings (id) VALUES ('default')"); } catch(e) {}
+
     // Add speakers_json and schedule_json columns to gala_settings
     try { db.run(`ALTER TABLE gala_settings ADD COLUMN speakers_json TEXT`); } catch (e) {}
     try { db.run(`ALTER TABLE gala_settings ADD COLUMN schedule_json TEXT`); } catch (e) {}
@@ -16293,6 +16308,30 @@ By applying to this program, I provide the following consents:
 
     // Serve frontend
     app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../frontend/index.html')));
+
+    // Forum Gala Settings (admin-editable pricing)
+    app.get('/api/admin/forum/gala-settings', auth, adminOnly, (req, res) => {
+        try {
+            const settings = query.get("SELECT * FROM forum_gala_settings WHERE id = 'default'");
+            res.json(settings || {});
+        } catch(e) { res.json({}); }
+    });
+
+    app.put('/api/admin/forum/gala-settings', auth, adminOnly, (req, res) => {
+        try {
+            const { name, date, venue, description, price, early_bird_price, early_bird_deadline, capacity } = req.body;
+            db.run(`UPDATE forum_gala_settings SET
+                name = COALESCE(?, name), date = COALESCE(?, date), venue = COALESCE(?, venue),
+                description = COALESCE(?, description), price = COALESCE(?, price),
+                early_bird_price = ?, early_bird_deadline = ?, capacity = COALESCE(?, capacity),
+                updated_at = datetime('now')
+                WHERE id = 'default'`,
+                [name || null, date || null, venue || null, description || null, price !== undefined ? price : null,
+                 early_bird_price || null, early_bird_deadline || null, capacity || null]);
+            saveDb();
+            res.json({ success: true });
+        } catch(e) { res.status(500).json({ error: e.message }); }
+    });
 
     // Health check
     app.get('/health', (req, res) => res.json({ ok: true }));

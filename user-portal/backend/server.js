@@ -452,13 +452,33 @@ app.get('/invite/:data', (req, res) => {
             const isGalaOnly = pkgItems.length === 1 && pkgItems[0].toLowerCase().includes('gala');
             const isGalaIncluded = pkgItems.some(p => p.toLowerCase().includes('gala'));
 
+            // Get forum gala pricing from DB (admin-editable)
+            let forumGalaPrice = 10;
+            try {
+                const fgs = query.get("SELECT * FROM forum_gala_settings WHERE id = 'default'");
+                if (fgs) forumGalaPrice = fgs.price || 10;
+            } catch(e) {}
+
             if (isGalaOnly) {
                 // Gala-only: show gala-specific details
-                eventInfo.name = 'Gala Dinner at the Annual Biomedical Forum 2026';
-                eventInfo.date = 'Wednesday, May 27, 2026 · 7:30 PM';
-                eventInfo.venue = 'Crystal Ballroom, The Westin Zagreb';
-                eventInfo.price = 100;
-                eventInfo.description = 'An elegant evening celebrating Croatian biomedicine. Join distinguished leaders for fine dining, networking, and the Annual Awards Ceremony.';
+                let fgName = 'Gala Dinner at the Annual Biomedical Forum 2026';
+                let fgDate = 'Wednesday, May 27, 2026 · 7:30 PM';
+                let fgVenue = 'Crystal Ballroom, The Westin Zagreb';
+                let fgDesc = 'An elegant evening celebrating Croatian biomedicine. Join distinguished leaders for fine dining, networking, and the Annual Awards Ceremony.';
+                try {
+                    const fgs = query.get("SELECT * FROM forum_gala_settings WHERE id = 'default'");
+                    if (fgs) {
+                        if (fgs.name) fgName = fgs.name;
+                        if (fgs.date) fgDate = fgs.date;
+                        if (fgs.venue) fgVenue = fgs.venue;
+                        if (fgs.description) fgDesc = fgs.description;
+                    }
+                } catch(e) {}
+                eventInfo.name = fgName;
+                eventInfo.date = fgDate;
+                eventInfo.venue = fgVenue;
+                eventInfo.price = forumGalaPrice;
+                eventInfo.description = fgDesc;
             } else {
                 // Full forum or multi-day
                 const event = data.i ? query.get('SELECT * FROM forum_events WHERE id = ?', [data.i]) : query.get("SELECT * FROM forum_events ORDER BY start_date ASC LIMIT 1");
@@ -3171,6 +3191,24 @@ async function initializeApp() {
     const existingGalaSettings = query.get("SELECT id FROM gala_settings WHERE id = 'default'");
     if (!existingGalaSettings) {
         db.run("INSERT INTO gala_settings (id) VALUES ('default')");
+    }
+
+    // Forum gala settings (admin-editable pricing)
+    db.run(`CREATE TABLE IF NOT EXISTS forum_gala_settings (
+        id TEXT PRIMARY KEY DEFAULT 'default',
+        name TEXT DEFAULT 'Gala Dinner at the Annual Biomedical Forum 2026',
+        date TEXT DEFAULT 'Wednesday, May 27, 2026 · 7:30 PM',
+        venue TEXT DEFAULT 'Crystal Ballroom, The Westin Zagreb',
+        description TEXT DEFAULT 'An elegant evening celebrating Croatian biomedicine.',
+        price REAL DEFAULT 10,
+        early_bird_price REAL,
+        early_bird_deadline TEXT,
+        capacity INTEGER DEFAULT 150,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    const existingForumGala = query.get("SELECT id FROM forum_gala_settings WHERE id = 'default'");
+    if (!existingForumGala) {
+        db.run("INSERT INTO forum_gala_settings (id) VALUES ('default')");
     }
 
     // Plexus settings (admin-editable)
@@ -9969,6 +10007,21 @@ By applying to this program, I provide the following consents:
                             buildEmailTemplate('Payment Confirmed', invEmailBody));
                         console.log(`[Stripe] Confirmation email sent to ${invEmail}`);
                     } catch(emailErr) { console.log('[Stripe] Invite confirmation email failed:', emailErr.message); }
+
+                    // Notify Laura about the paid registration
+                    try {
+                        await sendEmail('laura.rodman@medx.hr', `Payment Received: ${metadata.first_name || ''} ${metadata.last_name || ''} — ${metadata.event_name || 'Med&X Event'}`,
+                            `<div style="font-family:system-ui;max-width:500px;margin:0 auto;">
+                                <h2 style="color:#22c55e;">Payment Confirmed</h2>
+                                <p><strong>Name:</strong> ${metadata.first_name || ''} ${metadata.last_name || ''}</p>
+                                <p><strong>Email:</strong> ${invEmail}</p>
+                                <p><strong>Event:</strong> ${metadata.event_name || ''}</p>
+                                <p><strong>Items:</strong> ${metadata.items || 'N/A'}</p>
+                                <p><strong>Amount:</strong> &euro;${amount.toFixed(2)}</p>
+                                <p><strong>Guests:</strong> ${metadata.guest_count || '0'}</p>
+                                <p style="color:#64748b;font-size:12px;">ID: ${invRegId}</p>
+                            </div>`);
+                    } catch(e) {}
                 } catch(dbErr) {
                     console.error('[Stripe] Failed to process invite webhook:', dbErr.message);
                 }
@@ -15689,23 +15742,25 @@ By applying to this program, I provide the following consents:
                 }
             } catch(e) {}
 
-            // FAILSAFE 3: Email to Laura
-            try {
-                await sendEmail('laura.rodman@medx.hr', `New Registration: ${first_name} ${last_name} — ${event_name || event_type}`,
-                    `<div style="font-family:system-ui;max-width:500px;margin:0 auto;">
-                        <h2 style="color:#c9a962;">New Registration</h2>
-                        <p><strong>Name:</strong> ${first_name} ${last_name}</p>
-                        <p><strong>Email:</strong> ${email}</p>
-                        <p><strong>Institution:</strong> ${institution || 'N/A'}</p>
-                        <p><strong>Event:</strong> ${event_name || event_type}</p>
-                        ${package_items && package_items.length ? '<p><strong>Items:</strong> ' + package_items.join(', ') + '</p>' : ''}
-                        ${guest_count ? '<p><strong>Guests:</strong> +' + guest_count + '</p>' : ''}
-                        ${dietary && dietary !== 'No special requirements' ? '<p><strong>Dietary:</strong> ' + dietary + '</p>' : ''}
-                        ${allergies && allergies !== 'None' ? '<p><strong>Allergies:</strong> ' + allergies + '</p>' : ''}
-                        <p><strong>Total:</strong> &euro;${total_amount || 0}</p>
-                        <p style="color:#64748b;font-size:12px;">ID: ${regId}</p>
-                    </div>`);
-            } catch(emailErr) {}
+            // FAILSAFE 3: Email to Laura (only for free events — paid events get notified after Stripe webhook)
+            if (!checkoutUrl) {
+                try {
+                    await sendEmail('laura.rodman@medx.hr', `New Registration: ${first_name} ${last_name} — ${event_name || event_type}`,
+                        `<div style="font-family:system-ui;max-width:500px;margin:0 auto;">
+                            <h2 style="color:#c9a962;">New Registration</h2>
+                            <p><strong>Name:</strong> ${first_name} ${last_name}</p>
+                            <p><strong>Email:</strong> ${email}</p>
+                            <p><strong>Institution:</strong> ${institution || 'N/A'}</p>
+                            <p><strong>Event:</strong> ${event_name || event_type}</p>
+                            ${package_items && package_items.length ? '<p><strong>Items:</strong> ' + package_items.join(', ') + '</p>' : ''}
+                            ${guest_count ? '<p><strong>Guests:</strong> +' + guest_count + '</p>' : ''}
+                            ${dietary && dietary !== 'No special requirements' ? '<p><strong>Dietary:</strong> ' + dietary + '</p>' : ''}
+                            ${allergies && allergies !== 'None' ? '<p><strong>Allergies:</strong> ' + allergies + '</p>' : ''}
+                            <p><strong>Total:</strong> &euro;${total_amount || 0}</p>
+                            <p style="color:#64748b;font-size:12px;">ID: ${regId}</p>
+                        </div>`);
+                } catch(emailErr) {}
+            }
 
             res.json({ success: true, checkout_url: checkoutUrl || null });
         } catch (error) {
