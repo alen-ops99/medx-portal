@@ -7990,6 +7990,7 @@ President, Med&amp;X</textarea>
                         <button class="plexus-tab forum-tab" onclick="App.showForumTab('applications')"><i class="fas fa-user-plus"></i> Applications</button>
                         <button class="plexus-tab forum-tab" onclick="App.showForumTab('checkin')"><i class="fas fa-qrcode"></i> Check-in</button>
                         <button class="plexus-tab forum-tab" onclick="App.showForumTab('gallery')"><i class="fas fa-images"></i> Gallery</button>
+                        <button class="plexus-tab forum-tab" onclick="App.showForumTab('pricing')"><i class="fas fa-euro-sign"></i> Pricing</button>
                     </div>
 
                     <!-- Dashboard Tab -->
@@ -8285,6 +8286,55 @@ President, Med&amp;X</textarea>
                             <div class="card-body">
                                 <div class="gallery-grid" id="fmGalleryGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px;">
                                     <div class="table-empty" style="grid-column: 1/-1;"><i class="fas fa-images"></i><p>No media yet</p></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pricing Tab -->
+                    <div class="plexus-content forum-content" id="forum-pricing">
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title"><i class="fas fa-euro-sign" style="color:var(--accent-gold);margin-right:8px;"></i>Forum Gala Pricing</span>
+                                <button class="btn btn-primary" onclick="App.saveForumGalaPricing()"><i class="fas fa-save"></i> Save & Publish</button>
+                            </div>
+                            <div class="card-body">
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                                    <div>
+                                        <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">Gala Ticket Price (€)</label>
+                                        <input type="number" id="fgPrice" min="0" step="1" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:16px;font-weight:700;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">Early Bird Price (€, optional)</label>
+                                        <input type="number" id="fgEarlyBirdPrice" min="0" step="1" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:16px;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">Early Bird Deadline</label>
+                                        <input type="date" id="fgEarlyBirdDeadline" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">Capacity</label>
+                                        <input type="number" id="fgCapacity" min="1" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;">
+                                    </div>
+                                </div>
+                                <div style="margin-top:16px;">
+                                    <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">Event Name</label>
+                                    <input type="text" id="fgName" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+                                </div>
+                                <div style="margin-top:12px;">
+                                    <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">Date & Time</label>
+                                    <input type="text" id="fgDate" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+                                </div>
+                                <div style="margin-top:12px;">
+                                    <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">Venue</label>
+                                    <input type="text" id="fgVenue" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+                                </div>
+                                <div style="margin-top:12px;">
+                                    <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">Description</label>
+                                    <textarea id="fgDescription" rows="3" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;resize:vertical;"></textarea>
+                                </div>
+                                <div style="margin-top:16px;padding:12px;background:rgba(201,169,98,0.08);border:1px solid rgba(201,169,98,0.2);border-radius:8px;">
+                                    <p style="margin:0;font-size:13px;color:var(--text-muted);"><i class="fas fa-info-circle" style="color:var(--accent-gold);margin-right:6px;"></i>Changes update the invite link pricing automatically. Existing links will use the new price on next load.</p>
                                 </div>
                             </div>
                         </div>
@@ -19806,8 +19856,44 @@ President, Med&amp;X</textarea>
                     case 'gallery': this.loadForumGallery(); break;
                     case 'members': this.loadForumMembers(); break;
                     case 'applications': this.loadForumApplications(); break;
+                    case 'pricing': this.loadForumGalaPricing(); break;
                     case 'checkin': break; // Check-in tab needs no data pre-load
                 }
+            },
+
+            async loadForumGalaPricing() {
+                try {
+                    const s = await this.api('/api/admin/forum/gala-settings');
+                    if (s) {
+                        document.getElementById('fgPrice').value = s.price || 10;
+                        document.getElementById('fgEarlyBirdPrice').value = s.early_bird_price || '';
+                        document.getElementById('fgEarlyBirdDeadline').value = s.early_bird_deadline || '';
+                        document.getElementById('fgCapacity').value = s.capacity || 150;
+                        document.getElementById('fgName').value = s.name || '';
+                        document.getElementById('fgDate').value = s.date || '';
+                        document.getElementById('fgVenue').value = s.venue || '';
+                        document.getElementById('fgDescription').value = s.description || '';
+                    }
+                } catch(e) { console.error('Failed to load gala pricing:', e); }
+            },
+
+            async saveForumGalaPricing() {
+                try {
+                    await this.api('/api/admin/forum/gala-settings', {
+                        method: 'PUT',
+                        body: JSON.stringify({
+                            price: parseFloat(document.getElementById('fgPrice').value) || 0,
+                            early_bird_price: parseFloat(document.getElementById('fgEarlyBirdPrice').value) || null,
+                            early_bird_deadline: document.getElementById('fgEarlyBirdDeadline').value || null,
+                            capacity: parseInt(document.getElementById('fgCapacity').value) || 150,
+                            name: document.getElementById('fgName').value,
+                            date: document.getElementById('fgDate').value,
+                            venue: document.getElementById('fgVenue').value,
+                            description: document.getElementById('fgDescription').value
+                        })
+                    });
+                    Toast.success('Pricing saved! New invite links will use this price.');
+                } catch(e) { Toast.error('Failed to save: ' + e.message); }
             },
 
             async loadForumStats() {
