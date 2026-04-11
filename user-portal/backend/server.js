@@ -453,10 +453,10 @@ app.get('/invite/:data', (req, res) => {
             const isGalaIncluded = pkgItems.some(p => p.toLowerCase().includes('gala'));
 
             // Get forum gala pricing from DB (admin-editable)
-            let forumGalaPrice = 10;
+            let forumGalaPrice = 1;
             try {
                 const fgs = query.get("SELECT * FROM forum_gala_settings WHERE id = 'default'");
-                if (fgs) forumGalaPrice = fgs.price || 10;
+                if (fgs) forumGalaPrice = fgs.price || 1;
             } catch(e) {}
 
             if (isGalaOnly) {
@@ -3200,7 +3200,7 @@ async function initializeApp() {
         date TEXT DEFAULT 'Wednesday, May 27, 2026 · 7:30 PM',
         venue TEXT DEFAULT 'Crystal Ballroom, The Westin Zagreb',
         description TEXT DEFAULT 'An elegant evening celebrating Croatian biomedicine.',
-        price REAL DEFAULT 10,
+        price REAL DEFAULT 1,
         early_bird_price REAL,
         early_bird_deadline TEXT,
         capacity INTEGER DEFAULT 150,
