@@ -2845,7 +2845,7 @@ async function initializeApp() {
         date TEXT DEFAULT 'Wednesday, May 27, 2026 · 7:30 PM',
         venue TEXT DEFAULT 'Crystal Ballroom, The Westin Zagreb',
         description TEXT DEFAULT 'An elegant evening celebrating Croatian biomedicine.',
-        price REAL DEFAULT 10,
+        price REAL DEFAULT 1,
         early_bird_price REAL,
         early_bird_deadline TEXT,
         capacity INTEGER DEFAULT 150,
