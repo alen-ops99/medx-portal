@@ -3210,6 +3210,8 @@ async function initializeApp() {
     if (!existingForumGala) {
         db.run("INSERT INTO forum_gala_settings (id) VALUES ('default')");
     }
+    // Migration: update gala price to €10
+    db.run("UPDATE forum_gala_settings SET price = 10 WHERE id = 'default' AND price = 1");
 
     // Plexus settings (admin-editable)
     db.run(`CREATE TABLE IF NOT EXISTS plexus_settings (

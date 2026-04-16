@@ -16295,20 +16295,6 @@ By applying to this program, I provide the following consents:
         }
     });
 
-    // API 404 handler — prevent unmatched API routes from returning HTML
-    app.use('/api', (req, res) => {
-        res.status(404).json({ error: 'API endpoint not found' });
-    });
-
-    // Global error handler (must be 4-arg to catch Express errors)
-    app.use((err, req, res, next) => {
-        console.error('Unhandled error:', err);
-        res.status(500).json({ error: 'Internal server error' });
-    });
-
-    // Serve frontend
-    app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../frontend/index.html')));
-
     // Forum Gala Settings (admin-editable pricing)
     app.get('/api/admin/forum/gala-settings', auth, adminOnly, (req, res) => {
         try {
@@ -16332,6 +16318,20 @@ By applying to this program, I provide the following consents:
             res.json({ success: true });
         } catch(e) { res.status(500).json({ error: e.message }); }
     });
+
+    // API 404 handler — prevent unmatched API routes from returning HTML
+    app.use('/api', (req, res) => {
+        res.status(404).json({ error: 'API endpoint not found' });
+    });
+
+    // Global error handler (must be 4-arg to catch Express errors)
+    app.use((err, req, res, next) => {
+        console.error('Unhandled error:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    });
+
+    // Serve frontend
+    app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../frontend/index.html')));
 
     // Health check
     app.get('/health', (req, res) => res.json({ ok: true }));
