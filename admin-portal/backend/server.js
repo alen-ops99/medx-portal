@@ -2982,6 +2982,13 @@ async function initializeApp() {
     db.run(`CREATE INDEX IF NOT EXISTS idx_accelerator_apps_email ON accelerator_applications(email)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_accelerator_apps_program ON accelerator_applications(program_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_promo_codes_code ON promo_codes(code, conference_id)`);
+
+    // Seed FORUM26 promo code for forum gala (€20 off → €80 final)
+    const existingForum26 = query.get("SELECT id FROM promo_codes WHERE code = 'FORUM26' AND conference_id = 'forum-gala'");
+    if (!existingForum26) {
+        db.run("INSERT INTO promo_codes (id, conference_id, code, discount_type, discount_value, max_uses, used_count, is_active) VALUES (?, 'forum-gala', 'FORUM26', 'fixed', 20, 0, 0, 1)", [uuidv4()]);
+    }
+
     db.run(`CREATE INDEX IF NOT EXISTS idx_forum_members_user ON forum_members(user_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_forum_members_email ON forum_members(email)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_chat_messages_channel ON chat_messages(channel_id)`);
@@ -10391,8 +10398,16 @@ By applying to this program, I provide the following consents:
                 try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN allergies TEXT'); } catch(e) {}
                 try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN guest_count INTEGER DEFAULT 0'); } catch(e) {}
                 try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN amount_paid REAL DEFAULT 0'); } catch(e) {}
-                db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, first_name, last_name, email, institution, status, package_items, dietary, allergies, guest_count, amount_paid, registered_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,datetime("now"))',
-                    [regId, forumEventId, user.id, first_name, last_name, email, institution || '', 'registered', pkgJson, req.body.dietary || '', req.body.allergies || '', req.body.guest_count || 0, total_amount || 0]);
+                try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN coupon_code TEXT'); } catch(e) {}
+                try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN discount_amount REAL DEFAULT 0'); } catch(e) {}
+                // Compute discount from coupon code
+                let discAmt = 0;
+                if (coupon_code) {
+                    const promo = query.get("SELECT * FROM promo_codes WHERE UPPER(code) = UPPER(?) AND conference_id = 'forum-gala' AND is_active = 1", [coupon_code.trim()]);
+                    if (promo) discAmt = promo.discount_type === 'fixed' ? promo.discount_value : Math.round((total_amount || 0) * promo.discount_value / 100 * 100) / 100;
+                }
+                db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, first_name, last_name, email, institution, status, package_items, dietary, allergies, guest_count, amount_paid, coupon_code, discount_amount, registered_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime("now"))',
+                    [regId, forumEventId, user.id, first_name, last_name, email, institution || '', 'registered', pkgJson, req.body.dietary || '', req.body.allergies || '', req.body.guest_count || 0, total_amount || 0, coupon_code || '', discAmt]);
             } else if (event_type === 'bridges') {
                 db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,datetime("now"))',
                     [regId, req.body.event_id || null, first_name, last_name, email, institution, 'confirmed']);

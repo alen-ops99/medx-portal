@@ -594,7 +594,11 @@ app.get('/invite/:data', (req, res) => {
                 </div>` : ''}
                 <div>
                     <label>Discount Code <span style="font-size:11px;color:#64748b;">(optional)</span></label>
-                    <input type="text" id="couponCode" placeholder="Enter code if you have one" style="text-transform:uppercase;font-family:monospace;">
+                    <div style="display:flex;gap:8px;">
+                        <input type="text" id="couponCode" placeholder="Enter code" style="text-transform:uppercase;font-family:monospace;flex:1;" oninput="clearCouponStatus()">
+                        <button type="button" onclick="applyCoupon()" id="applyBtn" style="padding:10px 18px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;white-space:nowrap;">Apply</button>
+                    </div>
+                    <div id="couponStatus" style="margin-top:6px;font-size:12px;display:none;"></div>
                 </div>
                 <input type="hidden" id="eventPrice" value="${eventInfo.price || 0}">
                 <input type="hidden" id="basePrice" value="${eventInfo.price || 0}">
@@ -613,13 +617,52 @@ app.get('/invite/:data', (req, res) => {
         </div>
     </div>
     <script>
+    let activeDiscount = 0;
+    let activeDiscountType = '';
+
     function updateTotal() {
         const base = parseFloat(document.getElementById('basePrice').value) || 0;
         const guests = parseInt(document.getElementById('guestCount')?.value || '0');
-        const total = base * (1 + guests);
+        let total = base * (1 + guests);
+        if (activeDiscount > 0) {
+            const disc = activeDiscountType === 'fixed' ? activeDiscount : Math.round(total * activeDiscount / 100 * 100) / 100;
+            total = Math.max(0, total - disc);
+        }
         document.getElementById('totalAmount').textContent = '\u20ac' + total;
         document.getElementById('eventPrice').value = total;
         document.getElementById('submitBtn').textContent = total > 0 ? 'Proceed to Payment \u2014 \u20ac' + total : 'Complete Registration';
+    }
+
+    function clearCouponStatus() {
+        activeDiscount = 0;
+        activeDiscountType = '';
+        document.getElementById('couponStatus').style.display = 'none';
+        updateTotal();
+    }
+
+    async function applyCoupon() {
+        const code = document.getElementById('couponCode').value.trim();
+        const status = document.getElementById('couponStatus');
+        if (!code) { status.style.display = 'block'; status.style.color = '#ef4444'; status.textContent = 'Please enter a code'; return; }
+        const btn = document.getElementById('applyBtn');
+        btn.disabled = true; btn.textContent = '...';
+        try {
+            const resp = await fetch('/api/invite/validate-coupon', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, event_type: document.getElementById('eventType').value }) });
+            const data = await resp.json();
+            if (data.valid) {
+                activeDiscount = data.discount_value;
+                activeDiscountType = data.discount_type;
+                status.style.display = 'block'; status.style.color = '#22c55e';
+                status.textContent = '\u2713 Code applied! \u20ac' + data.discount_value + ' discount';
+                updateTotal();
+            } else {
+                activeDiscount = 0; activeDiscountType = '';
+                status.style.display = 'block'; status.style.color = '#ef4444';
+                status.textContent = data.error || 'Invalid code';
+                updateTotal();
+            }
+        } catch(e) { status.style.display = 'block'; status.style.color = '#ef4444'; status.textContent = 'Could not verify code'; }
+        btn.disabled = false; btn.textContent = 'Apply';
     }
 
     async function submitReg(e) {
@@ -3210,8 +3253,14 @@ async function initializeApp() {
     if (!existingForumGala) {
         db.run("INSERT INTO forum_gala_settings (id) VALUES ('default')");
     }
-    // Migration: update gala price to €10
-    db.run("UPDATE forum_gala_settings SET price = 10 WHERE id = 'default' AND price = 1");
+    // Migration: update gala price to €100
+    db.run("UPDATE forum_gala_settings SET price = 100 WHERE id = 'default' AND price IN (1, 10)");
+
+    // Seed FORUM26 promo code for forum gala (€20 off → €80 final)
+    const existingForum26 = query.get("SELECT id FROM promo_codes WHERE code = 'FORUM26' AND conference_id = 'forum-gala'");
+    if (!existingForum26) {
+        db.run("INSERT INTO promo_codes (id, conference_id, code, discount_type, discount_value, max_uses, used_count, is_active) VALUES (?, 'forum-gala', 'FORUM26', 'fixed', 20, 0, 0, 1)", [uuidv4()]);
+    }
 
     // Plexus settings (admin-editable)
     db.run(`CREATE TABLE IF NOT EXISTS plexus_settings (
@@ -15570,6 +15619,21 @@ By applying to this program, I provide the following consents:
     // ========== DIRECT REGISTRATION (NO AUTH) ==========
 
     // Invite registration (data encoded in URL, no DB token needed)
+    // Validate a coupon code for invite registrations
+    app.post('/api/invite/validate-coupon', (req, res) => {
+        try {
+            const { code, event_type } = req.body;
+            if (!code) return res.json({ valid: false, error: 'No code provided' });
+            const confId = event_type === 'forum' ? 'forum-gala' : event_type === 'gala' ? 'gala' : null;
+            if (!confId) return res.json({ valid: false, error: 'No coupons for this event type' });
+            const promo = query.get("SELECT * FROM promo_codes WHERE UPPER(code) = UPPER(?) AND conference_id = ? AND is_active = 1", [code.trim(), confId]);
+            if (!promo) return res.json({ valid: false, error: 'Invalid code' });
+            if (promo.valid_until && new Date(promo.valid_until) < new Date()) return res.json({ valid: false, error: 'Code expired' });
+            if (promo.max_uses > 0 && promo.used_count >= promo.max_uses) return res.json({ valid: false, error: 'Code limit reached' });
+            res.json({ valid: true, discount_type: promo.discount_type, discount_value: promo.discount_value });
+        } catch(e) { res.json({ valid: false, error: 'Validation error' }); }
+    });
+
     app.post('/api/register-invite', async (req, res) => {
         try {
             const { first_name, last_name, email, institution, country, event_type, event_name, package_items, guest_count, coupon_code, total_amount, dietary, allergies } = req.body;
@@ -15614,8 +15678,10 @@ By applying to this program, I provide the following consents:
                 db.run('INSERT OR IGNORE INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status) VALUES (?,?,?,?,?,?,?)',
                     [regId, first_name, last_name, email, institution, 'approved', 'pending']);
             } else if (event_type === 'forum') {
-                db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, status, registered_at) VALUES (?,?,?,?,datetime("now"))',
-                    [regId, req.body.event_id || null, user.id, 'registered']);
+                try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN coupon_code TEXT'); } catch(e) {}
+                try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN discount_amount REAL DEFAULT 0'); } catch(e) {}
+                db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, status, coupon_code, registered_at) VALUES (?,?,?,?,?,datetime("now"))',
+                    [regId, req.body.event_id || null, user.id, 'registered', coupon_code || '']);
             } else if (event_type === 'bridges') {
                 db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,datetime("now"))',
                     [regId, req.body.event_id || null, first_name, last_name, email, institution, 'confirmed']);
@@ -15671,26 +15737,39 @@ By applying to this program, I provide the following consents:
             // If paid event, create Stripe checkout session (email sent AFTER payment succeeds)
             let checkoutUrl = null;
             if (stripe) {
-                // Use the total amount from the form (includes +1 guest if selected)
-                let price = total_amount || 0;
-
-                // Fallback: calculate from DB if no total provided
-                if (!price) {
-                    if (event_type === 'gala') {
-                        const gala = query.get("SELECT price_gala_only FROM gala_settings WHERE id = 'default'");
-                        price = gala?.price_gala_only || 0;
-                    } else if (event_type === 'plexus') {
-                        const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
-                        if (conf) {
-                            const ticket = query.get('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order LIMIT 1', [conf.id]);
-                            const today = new Date().toISOString().split('T')[0];
-                            price = ticket ? (today <= conf.early_bird_deadline ? ticket.price_early_bird : today <= conf.regular_deadline ? ticket.price_regular : ticket.price_late) : 0;
-                        }
-                    } else if (event_type === 'forum') {
-                        const evt = query.get('SELECT price FROM forum_events WHERE id = ?', [req.body.event_id || '']);
-                        price = evt?.price || 0;
+                // Always calculate price server-side from DB (never trust client total_amount)
+                let basePrice = 0;
+                if (event_type === 'gala') {
+                    const gala = query.get("SELECT price_gala_only FROM gala_settings WHERE id = 'default'");
+                    basePrice = gala?.price_gala_only || 0;
+                } else if (event_type === 'plexus') {
+                    const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+                    if (conf) {
+                        const ticket = query.get('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order LIMIT 1', [conf.id]);
+                        const today = new Date().toISOString().split('T')[0];
+                        basePrice = ticket ? (today <= conf.early_bird_deadline ? ticket.price_early_bird : today <= conf.regular_deadline ? ticket.price_regular : ticket.price_late) : 0;
                     }
-                    if (guest_count) price *= (1 + guest_count);
+                } else if (event_type === 'forum') {
+                    const fgs = query.get("SELECT price FROM forum_gala_settings WHERE id = 'default'");
+                    basePrice = fgs?.price || 0;
+                }
+                let price = basePrice * (1 + (parseInt(guest_count) || 0));
+                let discountAmount = 0;
+                let appliedCoupon = '';
+
+                // Validate and apply coupon code server-side
+                if (coupon_code) {
+                    const confId = event_type === 'forum' ? 'forum-gala' : event_type === 'gala' ? 'gala' : null;
+                    if (confId) {
+                        const promo = query.get("SELECT * FROM promo_codes WHERE UPPER(code) = UPPER(?) AND conference_id = ? AND is_active = 1", [coupon_code.trim(), confId]);
+                        if (promo && (!promo.valid_until || new Date(promo.valid_until) >= new Date()) && (!promo.max_uses || promo.used_count < promo.max_uses)) {
+                            discountAmount = promo.discount_type === 'fixed' ? promo.discount_value : Math.round(price * promo.discount_value / 100 * 100) / 100;
+                            price = Math.max(0, price - discountAmount);
+                            appliedCoupon = promo.code;
+                            db.run("UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ?", [promo.id]);
+                            saveDb();
+                        }
+                    }
                 }
 
                 if (price > 0) {
@@ -15700,7 +15779,7 @@ By applying to this program, I provide the following consents:
                             mode: 'payment',
                             payment_method_types: ['card'],
                             line_items: [{ price_data: { currency: 'eur', product_data: { name: event_name || 'Med&X Event Registration' }, unit_amount: Math.round(price * 100) }, quantity: 1 }],
-                            metadata: { registration_id: regId, type: 'invite-' + event_type, email, first_name, last_name: last_name || '', event_name: event_name || 'Med&X Event', items: (package_items || []).join(', '), guest_count: String(guest_count || 0), dietary: dietary || '', allergies: allergies || '' },
+                            metadata: { registration_id: regId, type: 'invite-' + event_type, email, first_name, last_name: last_name || '', event_name: event_name || 'Med&X Event', items: (package_items || []).join(', '), guest_count: String(guest_count || 0), dietary: dietary || '', allergies: allergies || '', coupon_code: appliedCoupon, discount_amount: String(discountAmount) },
                             customer_email: email,
                             success_url: `${baseUrl}/invite-success?session_id={CHECKOUT_SESSION_ID}`,
                             cancel_url: `${baseUrl}/invite-cancelled`
