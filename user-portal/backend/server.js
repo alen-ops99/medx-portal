@@ -9902,7 +9902,7 @@ By applying to this program, I provide the following consents:
                             ticketPrice: session.amount_total / 100,
                             addons: [],
                             billing: billing,
-                            invoiceType: 'RAČUN',
+                            invoiceType: 'FISKALNI_RAČUN',
                             paymentType: 'KARTICA'
                         });
                     }
@@ -9955,7 +9955,7 @@ By applying to this program, I provide the following consents:
                                     vatNumber: '',
                                     email: invEmail || ''
                                 },
-                                invoiceType: 'RAČUN',
+                                invoiceType: 'FISKALNI_RAČUN',
                                 paymentType: 'KARTICA'
                             });
                             console.log(`[Stripe→FIRA] Invite fiscal invoice created: ${firaResult?.invoiceNumber || invoiceNum}`);
