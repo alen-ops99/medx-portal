@@ -10073,6 +10073,18 @@ By applying to this program, I provide the following consents:
                                 <p style="color:#64748b;font-size:12px;">ID: ${invRegId}</p>
                             </div>`);
                     } catch(e) {}
+
+                    // Log to Google Sheets AFTER payment confirmed
+                    try {
+                        const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
+                        if (sheetsWebhook) {
+                            fetch(sheetsWebhook, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ timestamp: new Date().toISOString(), name: (metadata.first_name || '') + ' ' + (metadata.last_name || ''), email: invEmail, institution: '', event: metadata.event_name || invEventType, items: metadata.items || '', guests: metadata.guest_count || 0, dietary: metadata.dietary || '', allergies: metadata.allergies || '', amount, payment: 'Paid', coupon: metadata.coupon_code || '', discount: metadata.discount_amount || '0', registration_id: invRegId })
+                            }).catch(() => {});
+                        }
+                    } catch(e) {}
                 } catch(dbErr) {
                     console.error('[Stripe] Failed to process invite webhook:', dbErr.message);
                 }
@@ -15811,17 +15823,19 @@ By applying to this program, I provide the following consents:
                 fs.appendFileSync(csvPath, csvLine + '\n');
             } catch(e) { console.log('[Failsafe] CSV log failed:', e.message); }
 
-            // FAILSAFE 2: Google Sheets webhook (if configured)
-            try {
-                const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
-                if (sheetsWebhook) {
-                    fetch(sheetsWebhook, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ timestamp: new Date().toISOString(), name: first_name + ' ' + last_name, email, institution: institution || '', event: event_name || event_type, items: (package_items || []).join(', '), guests: guest_count || 0, dietary: dietary || '', allergies: allergies || '', amount: total_amount || 0, payment: checkoutUrl ? 'Stripe' : 'Free', registration_id: regId })
-                    }).catch(() => {});
-                }
-            } catch(e) {}
+            // FAILSAFE 2: Google Sheets webhook (only for FREE events — paid events get logged after Stripe payment confirms)
+            if (!checkoutUrl) {
+                try {
+                    const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
+                    if (sheetsWebhook) {
+                        fetch(sheetsWebhook, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ timestamp: new Date().toISOString(), name: first_name + ' ' + last_name, email, institution: institution || '', event: event_name || event_type, items: (package_items || []).join(', '), guests: guest_count || 0, dietary: dietary || '', allergies: allergies || '', amount: 0, payment: 'Free', registration_id: regId })
+                        }).catch(() => {});
+                    }
+                } catch(e) {}
+            }
 
             // FAILSAFE 3: Email to Laura (only for free events — paid events get notified after Stripe webhook)
             if (!checkoutUrl) {
