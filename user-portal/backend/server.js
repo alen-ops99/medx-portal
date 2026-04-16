@@ -10027,6 +10027,7 @@ By applying to this program, I provide the following consents:
                                 package_items: metadata.items ? metadata.items.split(', ').filter(Boolean) : [],
                                 guest_count: parseInt(metadata.guest_count || '0'),
                                 total_amount: amount, dietary: metadata.dietary, allergies: metadata.allergies,
+                                coupon_code: metadata.coupon_code || '', discount_amount: parseFloat(metadata.discount_amount || '0'),
                                 payment_completed: true
                             })
                         }).catch(() => {});
@@ -15651,20 +15652,9 @@ By applying to this program, I provide the following consents:
             const { first_name, last_name, email, institution, country, event_type, event_name, package_items, guest_count, coupon_code, total_amount, dietary, allergies } = req.body;
             if (!email || !first_name) return res.status(400).json({ error: 'Name and email required' });
 
-            // Forward to admin portal (so registration appears in admin system)
+            // NOTE: Admin portal sync moved to AFTER payment (in Stripe webhook handler).
+            // For free events (no checkout), we forward to admin immediately below.
             const adminUrl = process.env.ADMIN_PORTAL_URL || 'https://medx-admin-portal.onrender.com';
-            try {
-                // Wake up admin portal first (Render free tier sleeps after 15min)
-                try { await fetch(adminUrl + '/health', { signal: AbortSignal.timeout(30000) }); } catch(e) {}
-                const syncResp = await fetch(adminUrl + '/api/public/register-invite', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(req.body),
-                    signal: AbortSignal.timeout(15000)
-                });
-                if (syncResp.ok) console.log('[Sync] Registration forwarded to admin portal');
-                else console.log('[Sync] Admin sync returned:', syncResp.status);
-            } catch(syncErr) { console.log('[Sync] Admin sync failed (non-blocking):', syncErr.message); }
 
             // Find or create user locally
             let user = query.get('SELECT id FROM users WHERE email = ?', [email]);
@@ -15811,6 +15801,17 @@ By applying to this program, I provide the following consents:
             // Send confirmation email: immediately for free events, deferred for paid (sent after Stripe payment)
             if (!checkoutUrl) {
                 await sendRegistrationConfirmation();
+
+                // Forward free event registrations to admin portal now (paid events forwarded after Stripe webhook)
+                try {
+                    try { await fetch(adminUrl + '/health', { signal: AbortSignal.timeout(30000) }); } catch(e) {}
+                    await fetch(adminUrl + '/api/public/register-invite', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(req.body),
+                        signal: AbortSignal.timeout(15000)
+                    });
+                } catch(e) { console.log('[Sync] Admin sync failed (non-blocking):', e.message); }
             }
 
             // FAILSAFE 1: Log to local CSV file (always works, no external deps)
