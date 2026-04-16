@@ -8,7 +8,8 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const QRCode = require('qrcode');
 const fs = require('fs');
-const initSqlJs = require('sql.js');
+const Database = require('libsql');
+const { createDatabase } = require('../../shared/db');
 const nodemailer = require('nodemailer');
 const webpush = require('web-push');
 const firaService = require('./fira-service');
@@ -818,13 +819,11 @@ function cloudUpload(folder) {
 }
 
 let db;
-let SQL; // Store SQL.js module reference for reloading
-// Flexible DB path: use shared DB locally, or local copy when deployed
 const SHARED_DB_PATH = path.join(__dirname, '../../shared/medx_portal.db');
 const LOCAL_DB_PATH = path.join(__dirname, 'medx_portal.db');
 const DB_PATH = process.env.DATABASE_PATH || (fs.existsSync(SHARED_DB_PATH) ? SHARED_DB_PATH : LOCAL_DB_PATH);
 
-// Database helper
+// Database helper — identical to sql.js version; shared/db.js handles translation
 const query = {
     run: (sql, params = []) => { db.run(sql, params); saveDb(); },
     get: (sql, params = []) => {
@@ -842,34 +841,24 @@ const query = {
     }
 };
 
-let _lastSaveTime = 0;
+let _syncTimer = null;
 function saveDb() {
-    _lastSaveTime = Date.now();
-    fs.writeFileSync(DB_PATH, Buffer.from(db.export()));
+    // libsql auto-persists to local disk — schedule debounced Turso cloud sync
+    if (process.env.TURSO_DATABASE_URL) {
+        if (_syncTimer) clearTimeout(_syncTimer);
+        _syncTimer = setTimeout(() => { db.sync(); }, 2000);
+    }
 }
 
-// Watch shared DB for changes from the other portal
+// Cross-portal sync
 function watchSharedDb() {
-    // Only watch when using shared DB (local dev), not when deployed
-    if (DB_PATH !== SHARED_DB_PATH) { console.log('[Sync] Running with local DB — cross-portal sync disabled'); return; }
-    let debounceTimer = null;
-    fs.watch(DB_PATH, (eventType) => {
-        if (eventType !== 'change') return;
-        // Ignore our own writes (within 2s)
-        if (Date.now() - _lastSaveTime < 2000) return;
-        if (debounceTimer) clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-            try {
-                const data = fs.readFileSync(DB_PATH);
-                if (db) { try { db.close(); } catch(e) {} }
-                db = new SQL.Database(data);
-                console.log('[Sync] Reloaded shared DB (changed by other portal)');
-            } catch (err) {
-                console.error('[Sync] Error reloading DB:', err.message);
-            }
-        }, 500);
-    });
-    console.log('[Sync] Watching shared DB for cross-portal changes');
+    if (process.env.TURSO_DATABASE_URL) {
+        // With Turso: periodic sync replaces file watching
+        console.log('[Sync] Turso sync enabled — cross-portal sync via cloud');
+        return;
+    }
+    // Local dev: libsql operates directly on the file, no memory reload needed
+    console.log('[Sync] Using shared local DB file');
 }
 
 // Auth middleware
@@ -917,17 +906,16 @@ function adminOnly(req, res, next) {
 }
 
 async function initializeApp() {
-    SQL = await initSqlJs();
-
-    // Ensure shared directory exists
+    // Ensure DB directory exists
     const sharedDir = path.dirname(DB_PATH);
     if (!fs.existsSync(sharedDir)) fs.mkdirSync(sharedDir, { recursive: true });
 
-    if (fs.existsSync(DB_PATH)) {
-        db = new SQL.Database(fs.readFileSync(DB_PATH));
-    } else {
-        db = new SQL.Database();
-    }
+    db = createDatabase(Database, {
+        localPath: DB_PATH,
+        syncUrl: process.env.TURSO_DATABASE_URL,
+        authToken: process.env.TURSO_AUTH_TOKEN,
+    });
+    console.log(`[DB] Opened ${DB_PATH}` + (process.env.TURSO_DATABASE_URL ? ' with Turso sync' : ' (local only)'));
 
     // Create schema
     db.run(`CREATE TABLE IF NOT EXISTS users (
@@ -3823,7 +3811,7 @@ async function initializeApp() {
         'Petra Horvat': 'https://randomuser.me/api/portraits/women/63.jpg'
     };
     Object.entries(teamPhotoMap).forEach(([name, photoUrl]) => {
-        db.run('UPDATE team_members SET photo_url = ? WHERE name = ? AND (photo_url IS NULL OR photo_url = "")', [photoUrl, name]);
+        db.run("UPDATE team_members SET photo_url = ? WHERE name = ? AND (photo_url IS NULL OR photo_url = '')", [photoUrl, name]);
     });
     saveDb();
 
@@ -8442,7 +8430,7 @@ By applying to this program, I provide the following consents:
     // Get tasks for a project
     app.get('/api/tasks/:project', auth, adminOnly, (req, res) => {
         // Get parent tasks (no parent_id)
-        const tasks = query.all('SELECT * FROM project_tasks WHERE project = ? AND (parent_id IS NULL OR parent_id = "") ORDER BY sort_order, created_at DESC',
+        const tasks = query.all("SELECT * FROM project_tasks WHERE project = ? AND (parent_id IS NULL OR parent_id = '') ORDER BY sort_order, created_at DESC",
             [req.params.project]);
         // Attach files and subtasks to each task
         tasks.forEach(task => {
@@ -16054,6 +16042,12 @@ By applying to this program, I provide the following consents:
                 fetch(KEEP_ALIVE_URL + '/health').catch(() => {});
             }, 14 * 60 * 1000);
             console.log('[KeepAlive] Pinging every 14 min to prevent sleep');
+        }
+
+        // Periodic Turso sync: pull remote changes every 60s
+        if (process.env.TURSO_DATABASE_URL) {
+            setInterval(() => { db.sync(); }, 60000);
+            console.log('[Turso] Periodic sync every 60s');
         }
     });
 }
