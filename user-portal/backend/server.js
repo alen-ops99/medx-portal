@@ -480,8 +480,15 @@ app.get('/invite/:data', (req, res) => {
                 eventInfo.price = forumGalaPrice;
                 eventInfo.description = fgDesc;
             } else {
-                // Full forum or multi-day
-                const event = data.i ? query.get('SELECT * FROM forum_events WHERE id = ?', [data.i]) : query.get("SELECT * FROM forum_events ORDER BY start_date ASC LIMIT 1");
+                // Full forum, Day 1, or Day 2
+                let event = data.i ? query.get('SELECT * FROM forum_events WHERE id = ?', [data.i]) : null;
+                // Fallback: match by package item name to slug
+                if (!event && pkgItems.length) {
+                    const item = pkgItems[0].toLowerCase();
+                    if (item.includes('day 1') || item.includes('split')) event = query.get("SELECT * FROM forum_events WHERE slug = 'forum-2026-day1'");
+                    else if (item.includes('day 2') || item.includes('zagreb')) event = query.get("SELECT * FROM forum_events WHERE slug = 'forum-2026-day2'");
+                }
+                if (!event) event = query.get("SELECT * FROM forum_events ORDER BY start_date ASC LIMIT 1");
                 if (event) {
                     eventInfo.name = event.title || eventInfo.name;
                     eventInfo.price = event.price || 0;
@@ -3260,6 +3267,16 @@ async function initializeApp() {
     const existingForum26 = query.get("SELECT id FROM promo_codes WHERE code = 'FORUM26' AND conference_id = 'forum-gala'");
     if (!existingForum26) {
         db.run("INSERT INTO promo_codes (id, conference_id, code, discount_type, discount_value, max_uses, used_count, is_active) VALUES (?, 'forum-gala', 'FORUM26', 'fixed', 20, 0, 0, 1)", [uuidv4()]);
+    }
+
+    // Seed Day 1 and Day 2 of the Annual Biomedical Forum (free events)
+    if (!query.get("SELECT id FROM forum_events WHERE slug = 'forum-2026-day1'")) {
+        db.run(`INSERT INTO forum_events (id, title, description, slug, event_scale, start_date, end_date, location_name, is_paid, price, status)
+            VALUES (?, 'Annual Biomedical Forum 2026 — Day 1', 'Conference program featuring keynote lectures, panel discussions, and networking sessions in Split, Croatia.', 'forum-2026-day1', 'large', '2026-05-25', '2026-05-25', 'Split, Croatia', 0, 0, 'published')`, [uuidv4()]);
+    }
+    if (!query.get("SELECT id FROM forum_events WHERE slug = 'forum-2026-day2'")) {
+        db.run(`INSERT INTO forum_events (id, title, description, slug, event_scale, start_date, end_date, location_name, is_paid, price, status)
+            VALUES (?, 'Annual Biomedical Forum 2026 — Day 2', 'Conference program featuring keynote lectures, panel discussions, and networking sessions in Zagreb, Croatia.', 'forum-2026-day2', 'large', '2026-05-26', '2026-05-26', 'Zagreb, Croatia', 0, 0, 'published')`, [uuidv4()]);
     }
 
     // Plexus settings (admin-editable)

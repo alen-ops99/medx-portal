@@ -3366,6 +3366,12 @@ async function initializeApp() {
             VALUES (?, 'Annual Biomedical Forum 2026', 'Three-day forum bringing together Croatian and international biomedical leaders.\n\nDay 1 (May 25) — Conference Program in Split, Croatia\nDay 2 (May 26) — Conference Program in Zagreb, Croatia\nDay 3 (May 27) — Gala Dinner at Crystal Ballroom, The Westin Zagreb (7:30 PM, €100)', 'conference', '2026-05-25', '2026-05-27', 'in_person', 'Split & Zagreb, Croatia', 'Multiple venues', 200, 1, 150, 'published')`,
             [annualForumId]);
 
+        // Seed Day 1 and Day 2 as separate free events for individual registration
+        db.run(`INSERT INTO forum_events (id, title, description, event_type, start_date, end_date, location_type, location_name, location_address, capacity, is_paid, price, status)
+            VALUES (?, 'Annual Biomedical Forum 2026 — Day 1', 'Conference program featuring keynote lectures, panel discussions, and networking sessions in Split, Croatia.', 'conference', '2026-05-25', '2026-05-25', 'in_person', 'Split, Croatia', 'TBD', 200, 0, 0, 'published')`, [uuidv4()]);
+        db.run(`INSERT INTO forum_events (id, title, description, event_type, start_date, end_date, location_type, location_name, location_address, capacity, is_paid, price, status)
+            VALUES (?, 'Annual Biomedical Forum 2026 — Day 2', 'Conference program featuring keynote lectures, panel discussions, and networking sessions in Zagreb, Croatia.', 'conference', '2026-05-26', '2026-05-26', 'in_person', 'Zagreb, Croatia', 'TBD', 200, 0, 0, 'published')`, [uuidv4()]);
+
         // Create sample posts
         const posts = [
             ['Welcome to the Biomedical Forum!', 'Excited to launch our new community platform. Looking forward to connecting with fellow researchers and clinicians.', 'announcement'],
