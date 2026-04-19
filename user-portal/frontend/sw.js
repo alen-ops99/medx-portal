@@ -1,5 +1,5 @@
 // Med&X Portal Service Worker
-const CACHE_NAME = 'medx-portal-v3';
+const CACHE_NAME = 'medx-portal-v4';
 const OFFLINE_URL = '/offline.html';
 
 // Assets to cache
