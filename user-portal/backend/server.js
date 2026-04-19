@@ -9563,6 +9563,11 @@ By applying to this program, I provide the following consents:
 
             const baseUrl = `${req.protocol}://${req.get('host')}`;
 
+            // Idempotency-Key: prefer the FE-supplied key so that double-submits (or retries from the same page) don't create two Stripe sessions.
+            // Fall back to a deterministic key per registration so accidental retries on the same registration id converge.
+            const idempotencyKey = (req.headers['x-idempotency-key'] && String(req.headers['x-idempotency-key']).trim().slice(0, 128))
+                || `reg-${reg.id}-${reg.invoice_number || ''}`;
+
             const session = await stripe.checkout.sessions.create({
                 mode: 'payment',
                 payment_method_types: ['card'],
@@ -9584,7 +9589,7 @@ By applying to this program, I provide the following consents:
                 customer_email: billingEmail,
                 success_url: `${baseUrl}/?payment=success&reg=${reg.id}`,
                 cancel_url: `${baseUrl}/?payment=cancelled&reg=${reg.id}`
-            });
+            }, { idempotencyKey });
 
             // Store Stripe session ID and update payment method in transaction
             if (tx) {
@@ -9605,7 +9610,7 @@ By applying to this program, I provide the following consents:
         const sig = req.headers['stripe-signature'];
 
         // In demo mode (no Stripe), reject
-        if (!stripe) return res.status(400).send('Stripe not configured');
+        if (!stripe) return res.status(400).json({ error: 'Stripe not configured' });
 
         let event;
         try {
@@ -9616,7 +9621,7 @@ By applying to this program, I provide the following consents:
             event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
         } catch (err) {
             console.error('[Stripe] Webhook signature verification failed:', err.message);
-            return res.status(400).send(`Webhook Error: ${err.message}`);
+            return res.status(400).json({ error: `Webhook Error: ${err.message}` });
         }
 
         if (event.type === 'checkout.session.completed') {
@@ -15620,6 +15625,23 @@ By applying to this program, I provide the following consents:
         res.json({
             total_registrations: total?.count || 0,
             paid_registrations: paid?.count || 0
+        });
+    });
+
+    // VAT preview — called by the FE on billing-country change so Step 3 shows the correct breakdown
+    // Query params: amount (EUR, gross), country (ISO-3166 alpha-2), vat_id (optional EU VAT number)
+    app.get('/api/plexus/vat-preview', (req, res) => {
+        const amount = Math.max(0, parseFloat(req.query.amount) || 0);
+        const country = (req.query.country || '').toUpperCase();
+        const hasVatId = !!(req.query.vat_id && String(req.query.vat_id).trim().length > 3);
+        const breakdown = firaService.calculateVATForCountry(amount, country, hasVatId);
+        res.json({
+            brutto: breakdown.brutto,
+            netto: breakdown.netto,
+            vat_amount: breakdown.taxValue,
+            vat_rate: breakdown.rate,
+            vat_label: breakdown.label,
+            reason: breakdown.reason
         });
     });
 

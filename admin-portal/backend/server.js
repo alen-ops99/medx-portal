@@ -12,6 +12,8 @@ const { createDatabase } = require('../../shared/db');
 const nodemailer = require('nodemailer');
 const XLSX = require('xlsx');
 const rateLimit = require('express-rate-limit');
+// FIRA shared with user-portal — invoice issuance on admin "Mark Paid" is feature-flagged (ENABLE_FIRA_ON_MARK_PAID=true)
+const firaService = require('../../user-portal/backend/fira-service');
 
 // Load .env file (hand-rolled, no dotenv dependency)
 const envPath = path.join(__dirname, '.env');
@@ -14070,7 +14072,7 @@ By applying to this program, I provide the following consents:
 
     // Confirm bank transfer received (mark as paid) — also creates Finance income record
     // Supports all payment types: plexus (conference), gala, accelerator, forum
-    app.post('/api/finance/conference-payments/:id/confirm', auth, adminOnly, (req, res) => {
+    app.post('/api/finance/conference-payments/:id/confirm', auth, adminOnly, async (req, res) => {
         try {
             const paymentType = req.body.payment_type || req.query.payment_type || 'plexus';
             const year = new Date().getFullYear();
@@ -14174,7 +14176,27 @@ By applying to this program, I provide the following consents:
 
             saveDb();
 
-            res.json({ success: true, message: 'Payment confirmed', invoice_number: invoiceNumber });
+            // Feature-flagged FIRA fiscal invoice on mark-paid (default OFF). Flip ENABLE_FIRA_ON_MARK_PAID=true
+            // in Render env only after UAT against Stripe/FIRA test keys.
+            let firaResult = null;
+            if (process.env.ENABLE_FIRA_ON_MARK_PAID === 'true' && firaService.isConfigured()) {
+                try {
+                    firaResult = await firaService.createFiscalInvoice({
+                        invoiceNumber,
+                        ticketName: description,
+                        ticketPrice: amount,
+                        addons: [],
+                        billing: { name: attendeeName, country: 'HR', email: '' },
+                        invoiceType: 'FISKALNI_RAČUN',
+                        paymentType: paymentMethod === 'card' ? 'KARTICA' : 'TRANSAKCIJSKI'
+                    });
+                    console.log(`[FIRA] Fiscal invoice issued on mark-paid: ${firaResult?.firaId || invoiceNumber}`);
+                } catch (firaErr) {
+                    console.error('[FIRA] Mark-paid fiscal invoice failed (non-blocking):', firaErr.message);
+                }
+            }
+
+            res.json({ success: true, message: 'Payment confirmed', invoice_number: invoiceNumber, fira_invoice: firaResult });
         } catch (err) {
             console.error('Payment confirmation error:', err.message);
             res.status(500).json({ error: 'Failed to confirm payment' });

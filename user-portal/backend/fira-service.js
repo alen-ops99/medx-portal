@@ -12,7 +12,43 @@
 const FIRA_API_URL = process.env.FIRA_API_URL || 'https://app.fira.finance';
 const FIRA_API_KEY = process.env.FIRA_API_KEY || '';
 
-const VAT_RATE = 0.25; // Croatian VAT 25%
+const VAT_RATE = 0.25; // Croatian standard VAT 25%
+
+// EU member states (ISO-3166-1 alpha-2). Used to decide between Croatian VAT (B2C EU) vs reverse charge (B2B EU with VAT ID) vs export (non-EU).
+const EU_COUNTRIES = new Set([
+    'AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI',
+    'FR', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT',
+    'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK'
+]);
+
+/**
+ * Decide the applicable VAT rate for a customer given their country and whether they provided an EU VAT ID.
+ *
+ * Rules (simplified — seek tax advisor confirmation before relying on this in production):
+ *   HR customer: 25% (Croatian domestic)
+ *   EU customer with VAT ID (B2B): 0% reverse charge (Article 196 VAT Directive)
+ *   EU customer without VAT ID (B2C): 25% Croatian VAT — place of supply for live events is where event is held
+ *   Non-EU customer: 0% (export of services)
+ *
+ * Returns: { rate: number, label: string, reason: string }
+ */
+function vatRuleForCountry(country, hasVatId) {
+    const c = (country || '').toUpperCase();
+    if (c === 'HR') {
+        return { rate: 0.25, label: '25% HR', reason: 'Croatian domestic VAT' };
+    }
+    if (EU_COUNTRIES.has(c) && hasVatId) {
+        return { rate: 0, label: '0% reverse charge', reason: 'EU B2B reverse charge (Article 196)' };
+    }
+    if (EU_COUNTRIES.has(c)) {
+        return { rate: 0.25, label: '25% HR', reason: 'EU B2C — place of supply is event location (Croatia)' };
+    }
+    if (c) {
+        return { rate: 0, label: '0% export', reason: 'Non-EU — export of services' };
+    }
+    // Country unknown — assume Croatian domestic until we know better
+    return { rate: 0.25, label: '25% HR', reason: 'Default — no country provided' };
+}
 
 /**
  * Check if FIRA integration is configured
@@ -32,6 +68,21 @@ function calculateVAT(bruttoAmount) {
     const netto = Math.round((bruttoAmount / (1 + VAT_RATE)) * 100) / 100;
     const taxValue = Math.round((bruttoAmount - netto) * 100) / 100;
     return { netto, taxValue, brutto: bruttoAmount };
+}
+
+/**
+ * Calculate VAT for a customer given their country and whether they provided an EU VAT ID.
+ * When VAT rate is 0 (reverse charge / export), the entire brutto amount becomes netto (no tax line).
+ * Returns: { netto, taxValue, brutto, rate, label, reason }
+ */
+function calculateVATForCountry(bruttoAmount, country, hasVatId) {
+    const rule = vatRuleForCountry(country, hasVatId);
+    if (rule.rate === 0) {
+        return { netto: bruttoAmount, taxValue: 0, brutto: bruttoAmount, rate: 0, label: rule.label, reason: rule.reason };
+    }
+    const netto = Math.round((bruttoAmount / (1 + rule.rate)) * 100) / 100;
+    const taxValue = Math.round((bruttoAmount - netto) * 100) / 100;
+    return { netto, taxValue, brutto: bruttoAmount, rate: rule.rate, label: rule.label, reason: rule.reason };
 }
 
 /**
@@ -229,9 +280,12 @@ async function getInvoiceStatus(firaId) {
 module.exports = {
     isConfigured,
     calculateVAT,
+    calculateVATForCountry,
+    vatRuleForCountry,
     buildLineItems,
     buildFiraOrder,
     createFiscalInvoice,
     getInvoiceStatus,
-    VAT_RATE
+    VAT_RATE,
+    EU_COUNTRIES
 };
