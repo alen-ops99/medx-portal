@@ -59222,7 +59222,7 @@ textarea:focus:not(:focus-visible),
                                                             </div>
                                                             <div>
                                                                 <label style="font-size: 12px; font-weight: 600; color: var(--up-text-secondary); display: block; margin-bottom: 4px;">Country *</label>
-                                                                <input type="text" id="pxBillingCountry" class="auth-form-input" placeholder="Croatia" style="width: 100%;">
+                                                                <input type="text" id="pxBillingCountry" class="auth-form-input" placeholder="Croatia" style="width: 100%;" oninput="PlexusPortal.updateRedeemSlider()">
                                                             </div>
                                                         </div>
                                                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
@@ -59232,7 +59232,7 @@ textarea:focus:not(:focus-visible),
                                                             </div>
                                                             <div>
                                                                 <label style="font-size: 12px; font-weight: 600; color: var(--up-text-secondary); display: block; margin-bottom: 4px;">VAT Number</label>
-                                                                <input type="text" id="pxBillingVAT" class="auth-form-input" placeholder="HR + OIB (for EU companies)" style="width: 100%;">
+                                                                <input type="text" id="pxBillingVAT" class="auth-form-input" placeholder="HR + OIB (for EU companies)" style="width: 100%;" oninput="PlexusPortal.updateRedeemSlider()">
                                                             </div>
                                                         </div>
                                                         <div>
@@ -59311,6 +59311,11 @@ textarea:focus:not(:focus-visible),
                                                     <span style="font-size: 13px; color: var(--up-success, #22c55e);"><i class="fas fa-tag"></i> Coupon Discount</span>
                                                     <span style="font-size: 13px; font-weight: 600; color: var(--up-success, #22c55e);" id="pxCouponDiscountAmount">-€0</span>
                                                 </div>
+                                            </div>
+                                            <div id="pxVatBreakdownRow" style="display: none; padding: 8px 0; border-bottom: 1px solid var(--up-border, #e5e7eb); margin-bottom: 8px; font-size: 12px; color: var(--up-text-muted, #94a3b8);">
+                                                <div style="display: flex; justify-content: space-between;"><span>Net amount</span><span id="pxVatNet">€0.00</span></div>
+                                                <div style="display: flex; justify-content: space-between;"><span id="pxVatLabel">VAT</span><span id="pxVatAmount">€0.00</span></div>
+                                                <div id="pxVatReason" style="font-size: 11px; margin-top: 4px; font-style: italic;"></div>
                                             </div>
                                             <div class="px-package-summary-total">
                                                 <span>Total</span>
@@ -81842,6 +81847,20 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (companyField && !companyField.value) companyField.value = institution;
             },
 
+            // Idempotency key — stable per attempt, survives page reloads via sessionStorage so retries
+            // converge on the same key. Stripe uses it to collapse duplicate session creations.
+            _getIdempotencyKey() {
+                let key = sessionStorage.getItem('medx_plexus_idemp');
+                if (!key) {
+                    key = 'ipx-' + (crypto?.randomUUID?.() || String(Date.now()) + '-' + Math.random().toString(36).slice(2));
+                    sessionStorage.setItem('medx_plexus_idemp', key);
+                }
+                return key;
+            },
+            _clearIdempotencyKey() {
+                sessionStorage.removeItem('medx_plexus_idemp');
+            },
+
             // ISO 7064 Mod 11,10 check-digit validation for Croatian OIB (matches official algorithm)
             _isValidOIB(oib) {
                 if (!/^\d{11}$/.test(oib)) return false;
@@ -81937,11 +81956,13 @@ You can use variables like {first_name} that will be personalized for each recip
 
                 try {
                     // Use fetch directly (not UserPortal.api) so we can read JSON from error responses
+                    const idempKey = this._getIdempotencyKey();
                     const rawRes = await fetch('/api/plexus/register', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${UserPortal.token}`
+                            'Authorization': `Bearer ${UserPortal.token}`,
+                            'X-Idempotency-Key': idempKey
                         },
                         body: JSON.stringify(data)
                     });
@@ -82029,7 +82050,11 @@ You can use variables like {first_name} that will be personalized for each recip
 
                     const rawSession = await fetch('/api/plexus/checkout-session', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${UserPortal.token}` },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${UserPortal.token}`,
+                            'X-Idempotency-Key': this._getIdempotencyKey()
+                        },
                         body: JSON.stringify({ registration_id: registrationId })
                     });
                     const session = await rawSession.json();
@@ -82281,6 +82306,9 @@ You can use variables like {first_name} that will be personalized for each recip
 
             // Complete registration and update states
             async completeRegistration(apiResponse) {
+                // Registration successful — clear the idempotency key so a future registration uses a fresh one
+                this._clearIdempotencyKey();
+
                 // Set registered flag
                 localStorage.setItem('plexus_registered', 'true');
                 localStorage.setItem('plexus_interested', 'true');
@@ -82826,7 +82854,36 @@ You can use variables like {first_name} that will be personalized for each recip
                 // Update total: subtract both points and coupon discounts
                 const baseTotal = this.calculateTotal();
                 const finalTotal = Math.max(0, baseTotal - pointsDiscount - couponDiscount);
-                if (totalEl) totalEl.textContent = `€${finalTotal.toFixed(0)}`;
+                if (totalEl) totalEl.textContent = `€${finalTotal.toFixed(2)}`;
+
+                // Refresh VAT breakdown whenever total moves
+                this.refreshVatPreview(finalTotal);
+            },
+
+            // Fetch VAT breakdown for the current billing country + amount; update the summary UI
+            async refreshVatPreview(amount) {
+                const breakdownRow = document.getElementById('pxVatBreakdownRow');
+                if (!breakdownRow) return;
+                if (!amount || amount <= 0) {
+                    breakdownRow.style.display = 'none';
+                    return;
+                }
+                const country = document.getElementById('pxBillingCountry')?.value?.trim() || '';
+                const vatId = document.getElementById('pxBillingVAT')?.value?.trim() || '';
+                try {
+                    const url = `/api/plexus/vat-preview?amount=${encodeURIComponent(amount)}&country=${encodeURIComponent(country)}&vat_id=${encodeURIComponent(vatId)}`;
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error('vat-preview unavailable');
+                    const data = await res.json();
+                    document.getElementById('pxVatNet').textContent = `€${data.netto.toFixed(2)}`;
+                    document.getElementById('pxVatLabel').textContent = `VAT (${data.vat_label})`;
+                    document.getElementById('pxVatAmount').textContent = `€${data.vat_amount.toFixed(2)}`;
+                    document.getElementById('pxVatReason').textContent = data.reason || '';
+                    breakdownRow.style.display = 'block';
+                } catch (err) {
+                    // Don't block the user — just hide the breakdown if the endpoint is unreachable
+                    breakdownRow.style.display = 'none';
+                }
             },
 
             // ===== INTEREST / MY EVENTS =====
