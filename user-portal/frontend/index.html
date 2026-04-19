@@ -43692,6 +43692,16 @@
             }
         }
 
+        /* Touch-device tap-target minimum — WCAG 2.5.5 (44x44 CSS px) */
+        @media (hover: none) and (pointer: coarse) {
+            button, a[role="button"], .btn, .modal-close,
+            input[type="submit"], input[type="button"],
+            .up-generic-modal-close, .connect-modal-btn,
+            .px-hero-btn, .auth-form-submit {
+                min-height: 44px;
+            }
+        }
+
         /* ===== MICRO-INTERACTIONS ===== */
 
         /* Card Hover Lift Effect */
@@ -55896,8 +55906,10 @@ textarea:focus:not(:focus-visible),
                 <div class="footer-column">
                     <h4>Resources</h4>
                     <a href="#">FAQ</a>
-                    <a href="#">Contact Us</a>
-                    <a href="#">Privacy Policy</a>
+                    <a href="mailto:info@medx.hr">Contact Us</a>
+                    <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('privacy');">Privacy Policy</a>
+                    <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('terms');">Terms</a>
+                    <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('refund');">Refund Policy</a>
                 </div>
                 <div class="footer-column">
                     <h4>Connect</h4>
@@ -58918,9 +58930,76 @@ textarea:focus:not(:focus-visible),
                                                     <select class="auth-form-select" id="pxRegCountry">
                                                         <option value="">Select country</option>
                                                         <option value="HR">Croatia</option>
-                                                        <option value="US">United States</option>
-                                                        <option value="DE">Germany</option>
-                                                        <option value="GB">United Kingdom</option>
+                                                        <optgroup label="Europe (EU)">
+                                                            <option value="AT">Austria</option>
+                                                            <option value="BE">Belgium</option>
+                                                            <option value="BG">Bulgaria</option>
+                                                            <option value="CY">Cyprus</option>
+                                                            <option value="CZ">Czechia</option>
+                                                            <option value="DK">Denmark</option>
+                                                            <option value="EE">Estonia</option>
+                                                            <option value="FI">Finland</option>
+                                                            <option value="FR">France</option>
+                                                            <option value="DE">Germany</option>
+                                                            <option value="GR">Greece</option>
+                                                            <option value="HU">Hungary</option>
+                                                            <option value="IE">Ireland</option>
+                                                            <option value="IT">Italy</option>
+                                                            <option value="LV">Latvia</option>
+                                                            <option value="LT">Lithuania</option>
+                                                            <option value="LU">Luxembourg</option>
+                                                            <option value="MT">Malta</option>
+                                                            <option value="NL">Netherlands</option>
+                                                            <option value="PL">Poland</option>
+                                                            <option value="PT">Portugal</option>
+                                                            <option value="RO">Romania</option>
+                                                            <option value="SK">Slovakia</option>
+                                                            <option value="SI">Slovenia</option>
+                                                            <option value="ES">Spain</option>
+                                                            <option value="SE">Sweden</option>
+                                                        </optgroup>
+                                                        <optgroup label="Europe (non-EU)">
+                                                            <option value="AL">Albania</option>
+                                                            <option value="BA">Bosnia &amp; Herzegovina</option>
+                                                            <option value="CH">Switzerland</option>
+                                                            <option value="GB">United Kingdom</option>
+                                                            <option value="IS">Iceland</option>
+                                                            <option value="ME">Montenegro</option>
+                                                            <option value="MK">North Macedonia</option>
+                                                            <option value="NO">Norway</option>
+                                                            <option value="RS">Serbia</option>
+                                                            <option value="TR">Turkey</option>
+                                                            <option value="UA">Ukraine</option>
+                                                            <option value="XK">Kosovo</option>
+                                                        </optgroup>
+                                                        <optgroup label="Americas">
+                                                            <option value="AR">Argentina</option>
+                                                            <option value="BR">Brazil</option>
+                                                            <option value="CA">Canada</option>
+                                                            <option value="CL">Chile</option>
+                                                            <option value="CO">Colombia</option>
+                                                            <option value="MX">Mexico</option>
+                                                            <option value="PE">Peru</option>
+                                                            <option value="US">United States</option>
+                                                        </optgroup>
+                                                        <optgroup label="Asia &amp; Middle East">
+                                                            <option value="CN">China</option>
+                                                            <option value="IL">Israel</option>
+                                                            <option value="IN">India</option>
+                                                            <option value="JP">Japan</option>
+                                                            <option value="KR">South Korea</option>
+                                                            <option value="SA">Saudi Arabia</option>
+                                                            <option value="SG">Singapore</option>
+                                                            <option value="AE">United Arab Emirates</option>
+                                                        </optgroup>
+                                                        <optgroup label="Oceania &amp; Africa">
+                                                            <option value="AU">Australia</option>
+                                                            <option value="EG">Egypt</option>
+                                                            <option value="MA">Morocco</option>
+                                                            <option value="NG">Nigeria</option>
+                                                            <option value="NZ">New Zealand</option>
+                                                            <option value="ZA">South Africa</option>
+                                                        </optgroup>
                                                         <option value="other">Other</option>
                                                     </select>
                                                 </div>
@@ -59149,7 +59228,7 @@ textarea:focus:not(:focus-visible),
                                                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                                                             <div>
                                                                 <label style="font-size: 12px; font-weight: 600; color: var(--up-text-secondary); display: block; margin-bottom: 4px;">OIB (Croatian Tax ID)</label>
-                                                                <input type="text" id="pxBillingOIB" class="auth-form-input" placeholder="Optional for individuals" maxlength="11" style="width: 100%;">
+                                                                <input type="text" id="pxBillingOIB" class="auth-form-input" placeholder="Optional for individuals (11 digits)" maxlength="11" inputmode="numeric" pattern="\d{11}" autocomplete="off" style="width: 100%;">
                                                             </div>
                                                             <div>
                                                                 <label style="font-size: 12px; font-weight: 600; color: var(--up-text-secondary); display: block; margin-bottom: 4px;">VAT Number</label>
@@ -59239,8 +59318,8 @@ textarea:focus:not(:focus-visible),
                                             </div>
                                             <div style="font-size: 11px; color: var(--up-text-muted, #94a3b8); margin: 16px 0; line-height: 1.5;">
                                                 <i class="fas fa-shield-alt" style="color: var(--up-gold, #c9a962);"></i>
-                                                By completing registration, you agree to Med&X's <a href="#" style="color: var(--up-gold, #c9a962);">Terms & Conditions</a> and <a href="#" style="color: var(--up-gold, #c9a962);">Privacy Policy</a>.
-                                                All personal data is processed in accordance with GDPR. Refund requests must be submitted at least 30 days before the event.
+                                                By completing registration, you agree to Med&X's <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('terms');" style="color: var(--up-gold, #c9a962);">Terms &amp; Conditions</a>, <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('privacy');" style="color: var(--up-gold, #c9a962);">Privacy Policy</a>, and <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('refund');" style="color: var(--up-gold, #c9a962);">Refund Policy</a>.
+                                                All personal data is processed in accordance with GDPR.
                                                 Med&X reserves the right to modify the conference program. Prices include applicable taxes.
                                             </div>
                                             <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">
@@ -67183,7 +67262,7 @@ textarea:focus:not(:focus-visible),
 
 
             <footer style="text-align: center; padding: 24px 16px; border-top: 1px solid var(--up-border, #e5e7eb); margin-top: 40px; font-size: 11px; color: var(--up-text-muted, #94a3b8); line-height: 1.6;">
-                &copy; 2026 Med&X. All rights reserved. | <a href="#" style="color: var(--up-gold, #c9a962);">Privacy Policy</a> | <a href="#" style="color: var(--up-gold, #c9a962);">Terms of Service</a> | <a href="mailto:info@medx.hr" style="color: var(--up-gold, #c9a962);">Contact</a><br>
+                &copy; 2026 Med&X. All rights reserved. | <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('privacy');" style="color: var(--up-gold, #c9a962);">Privacy Policy</a> | <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('terms');" style="color: var(--up-gold, #c9a962);">Terms of Service</a> | <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('refund');" style="color: var(--up-gold, #c9a962);">Refund Policy</a> | <a href="mailto:info@medx.hr" style="color: var(--up-gold, #c9a962);">Contact</a><br>
                 Med&X is a registered non-profit organization (OIB: pending). Personal data processed under GDPR.
             </footer>
 
@@ -75197,13 +75276,16 @@ You can use variables like {first_name} that will be personalized for each recip
                         margin: 2,
                         color: { dark: '#000000', light: '#ffffff' }
                     }, function(error, canvas) {
-                        if (!error) {
-                            canvas.style.width = '100%';
-                            canvas.style.height = '100%';
-                            canvas.style.borderRadius = '4px';
-                            canvas.style.imageRendering = 'pixelated';
-                            qrContainer.appendChild(canvas);
+                        if (error) {
+                            console.error('QR generation failed:', error);
+                            qrContainer.textContent = 'QR unavailable';
+                            return;
                         }
+                        canvas.style.width = '100%';
+                        canvas.style.height = '100%';
+                        canvas.style.borderRadius = '4px';
+                        canvas.style.imageRendering = 'pixelated';
+                        qrContainer.appendChild(canvas);
                     });
                 }
             },
@@ -75212,6 +75294,13 @@ You can use variables like {first_name} that will be personalized for each recip
             downloadMembershipCard() {
                 const card = document.getElementById('membershipCard');
                 if (!card) return;
+
+                // Verify QR actually rendered before snapshotting; if it didn't, the download looks broken
+                const qrCanvas = card.querySelector('#memberCardQR canvas');
+                if (!qrCanvas || qrCanvas.width === 0 || qrCanvas.height === 0) {
+                    Toast.warning('QR code not ready yet — please wait a moment and try again');
+                    return;
+                }
 
                 // Use html2canvas if available, otherwise show alert
                 if (typeof html2canvas !== 'undefined') {
@@ -75225,6 +75314,9 @@ You can use variables like {first_name} that will be personalized for each recip
                         link.download = 'medx-membership-card.png';
                         link.href = canvas.toDataURL('image/png');
                         link.click();
+                    }).catch(err => {
+                        console.error('Card download failed:', err);
+                        Toast.error('Could not generate card image');
                     });
                 } else {
                     // Fallback - create downloadable card info
@@ -76636,6 +76728,13 @@ You can use variables like {first_name} that will be personalized for each recip
             async login(e) {
                 if (e) e.preventDefault();
 
+                // Clear any prior error so it's not visible while the fetch is in flight
+                const errEl = document.getElementById('userLoginError');
+                if (errEl) {
+                    errEl.textContent = '';
+                    errEl.classList.remove('show');
+                }
+
                 // Rate limiting
                 const lockoutUntil = parseInt(sessionStorage.getItem('medx_login_lockout') || '0');
                 if (Date.now() < lockoutUntil) {
@@ -77357,6 +77456,18 @@ You can use variables like {first_name} that will be personalized for each recip
                     bodyEl.innerHTML = content;
                     modal.classList.add('active');
                     document.body.style.overflow = 'hidden';
+
+                    // Restore-on-close: remember what had focus, focus into the modal
+                    this._modalPreviousFocus = document.activeElement;
+                    const firstFocusable = modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+                    if (firstFocusable) firstFocusable.focus();
+
+                    // Escape-to-close (idempotent: remove any prior handler before adding)
+                    if (this._modalEscHandler) document.removeEventListener('keydown', this._modalEscHandler);
+                    this._modalEscHandler = (e) => {
+                        if (e.key === 'Escape') { this.closeModal(); }
+                    };
+                    document.addEventListener('keydown', this._modalEscHandler);
                 }
             },
 
@@ -77367,6 +77478,7 @@ You can use variables like {first_name} that will be personalized for each recip
                         title: 'Privacy Policy',
                         body: `
                             <div style="font-size: 14px; line-height: 1.7; color: var(--up-text, #334155);">
+                                <p style="margin-bottom: 12px; padding: 10px 12px; background: #fef3c7; border-left: 3px solid #c9a962; border-radius: 4px; font-size: 13px;"><strong>Draft &mdash; pending legal review.</strong> Croatian translation will be added. For questions contact <a href="mailto:pr@medx.hr" style="color: var(--up-gold);">pr@medx.hr</a>.</p>
                                 <p style="margin-bottom: 16px;"><strong>Last updated:</strong> February 2026</p>
                                 <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">1. Information We Collect</h3>
                                 <p style="margin-bottom: 12px;">We collect information you provide directly, including your name, email address, institution, country, and any other data submitted through forms on our platform. We also collect usage data such as pages visited, features used, and interaction patterns to improve our services.</p>
@@ -77387,6 +77499,7 @@ You can use variables like {first_name} that will be personalized for each recip
                         title: 'Terms of Service',
                         body: `
                             <div style="font-size: 14px; line-height: 1.7; color: var(--up-text, #334155);">
+                                <p style="margin-bottom: 12px; padding: 10px 12px; background: #fef3c7; border-left: 3px solid #c9a962; border-radius: 4px; font-size: 13px;"><strong>Draft &mdash; pending legal review.</strong> Croatian translation will be added. For questions contact <a href="mailto:pr@medx.hr" style="color: var(--up-gold);">pr@medx.hr</a>.</p>
                                 <p style="margin-bottom: 16px;"><strong>Last updated:</strong> February 2026</p>
                                 <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">1. Acceptance of Terms</h3>
                                 <p style="margin-bottom: 12px;">By accessing or using the Med&X User Portal, you agree to be bound by these Terms of Service. If you do not agree, please do not use our platform.</p>
@@ -77406,6 +77519,37 @@ You can use variables like {first_name} that will be personalized for each recip
                                 <p>For questions about these terms, please contact <a href="mailto:pr@medx.hr" style="color: var(--up-gold);">pr@medx.hr</a>.</p>
                             </div>
                         `
+                    },
+                    refund: {
+                        title: 'Refund Policy',
+                        body: `
+                            <div style="font-size: 14px; line-height: 1.7; color: var(--up-text, #334155);">
+                                <p style="margin-bottom: 12px; padding: 10px 12px; background: #fef3c7; border-left: 3px solid #c9a962; border-radius: 4px; font-size: 13px;"><strong>Note:</strong> This is a placeholder refund policy pending legal review. / <em>Napomena: ovo je privremeni tekst u očekivanju pravne revizije.</em></p>
+                                <p style="margin-bottom: 16px;"><strong>Last updated:</strong> April 2026</p>
+
+                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">1. Event Registration Refunds</h3>
+                                <p style="margin-bottom: 12px;">Refund requests for Med&X event registrations (including Plexus Conference and Forum events) must be submitted in writing to <a href="mailto:registration@medx.hr" style="color: var(--up-gold);">registration@medx.hr</a> at least 30 days before the event start date.</p>
+
+                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">2. Refund Schedule</h3>
+                                <ul style="margin-bottom: 12px; padding-left: 20px;">
+                                    <li>More than 60 days before event: full refund less a 10% administrative fee.</li>
+                                    <li>30–60 days before event: 50% refund.</li>
+                                    <li>Less than 30 days before event: no refund, but your registration may be transferred to another attendee (name change fee may apply).</li>
+                                </ul>
+
+                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">3. Event Cancellation by Med&amp;X</h3>
+                                <p style="margin-bottom: 12px;">If Med&amp;X cancels or postpones an event, attendees will be offered either a full refund or transfer to the rescheduled event. Med&amp;X is not responsible for travel, accommodation, or other incidental costs incurred.</p>
+
+                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">4. EU Consumer Rights (where applicable)</h3>
+                                <p style="margin-bottom: 12px;">For consumers in the European Union, the 14-day right of withdrawal under Directive 2011/83/EU does <strong>not</strong> apply to event tickets tied to a specific date. You may however cancel under sections 1–2 above.</p>
+
+                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">5. Processing Time</h3>
+                                <p style="margin-bottom: 12px;">Approved refunds are processed within 10 business days to the original payment method. Bank transfer refunds may take additional time depending on your bank.</p>
+
+                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">6. Contact</h3>
+                                <p>To request a refund or ask questions, contact <a href="mailto:registration@medx.hr" style="color: var(--up-gold);">registration@medx.hr</a>.</p>
+                            </div>
+                        `
                     }
                 };
 
@@ -77421,6 +77565,14 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (modal) {
                     modal.classList.remove('active');
                     document.body.style.overflow = '';
+                }
+                if (this._modalEscHandler) {
+                    document.removeEventListener('keydown', this._modalEscHandler);
+                    this._modalEscHandler = null;
+                }
+                if (this._modalPreviousFocus && typeof this._modalPreviousFocus.focus === 'function') {
+                    try { this._modalPreviousFocus.focus(); } catch (_) { /* element may have been removed */ }
+                    this._modalPreviousFocus = null;
                 }
             }
         };
@@ -80810,7 +80962,9 @@ You can use variables like {first_name} that will be personalized for each recip
 
                 const pricing = (typeof ConferenceData !== 'undefined') ? ConferenceData.pricing : null;
                 const cutoff = pricing?.earlyBirdCutoff || '2026-09-30';
-                const isEarlyBird = new Date() <= new Date(cutoff + 'T23:59:59');
+                // Interpret cutoff as end-of-day UTC so all users see the same moment regardless of local TZ
+                const isEarlyBird = new Date() <= new Date(cutoff + 'T23:59:59Z');
+                const cutoffDisplay = new Date(cutoff + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                 const tiers = pricing?.tiers || [];
 
                 // Define features per type
@@ -80840,7 +80994,7 @@ You can use variables like {first_name} that will be personalized for each recip
                     const deadlineStr = deadlineDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                     const isEarlyTier = tier.id.includes('early');
                     const deadlineIcon = isEarlyTier ? 'fa-clock' : 'fa-calendar';
-                    const deadlineLabel = isEarlyTier ? ('Until ' + deadlineStr) : ('After ' + cutoff.split('-').slice(1).join('/').replace(/^0/, '') + '/' + cutoff.split('-')[0]);
+                    const deadlineLabel = isEarlyTier ? ('Until ' + deadlineStr) : ('After ' + cutoffDisplay);
 
                     // Show early-bird savings for early tiers
                     const showSavings = isEarlyTier && tier.regularPrice && tier.earlyBirdPrice && tier.regularPrice > tier.earlyBirdPrice;
@@ -81688,8 +81842,25 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (companyField && !companyField.value) companyField.value = institution;
             },
 
+            // ISO 7064 Mod 11,10 check-digit validation for Croatian OIB (matches official algorithm)
+            _isValidOIB(oib) {
+                if (!/^\d{11}$/.test(oib)) return false;
+                let a = 10;
+                for (let i = 0; i < 10; i++) {
+                    a = (a + parseInt(oib[i], 10)) % 10;
+                    if (a === 0) a = 10;
+                    a = (a * 2) % 11;
+                }
+                const check = (11 - a) % 10;
+                return check === parseInt(oib[10], 10);
+            },
+
             // Submit registration with billing info + payment method
             async submitRegistration() {
+                // Guard against double-submit (button-disable alone can be bypassed on retry/auto-submit paths)
+                if (this._submittingRegistration) return;
+                this._submittingRegistration = true;
+
                 // Collect billing info from the form
                 const billingName = document.getElementById('pxBillingName')?.value?.trim();
                 const billingAddress = document.getElementById('pxBillingAddress')?.value?.trim();
@@ -81708,6 +81879,18 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (total > 0) {
                     if (!billingName || !billingAddress || !billingCity || !billingZip || !billingCountry || !billingEmail) {
                         Toast.error('Please fill in all required billing fields (marked with *).');
+                        this._submittingRegistration = false;
+                        return;
+                    }
+                }
+
+                // OIB validation: if provided (or Croatian billing address), must be 11 digits with valid ISO 7064 Mod 11,10 check digit
+                const oib = document.getElementById('pxBillingOIB')?.value?.trim() || '';
+                if (oib) {
+                    if (!/^\d{11}$/.test(oib) || !this._isValidOIB(oib)) {
+                        Toast.error('OIB must be 11 digits and pass the check-digit validation.');
+                        this._submittingRegistration = false;
+                        document.getElementById('pxBillingOIB')?.focus();
                         return;
                     }
                 }
@@ -81785,6 +81968,7 @@ You can use variables like {first_name} that will be personalized for each recip
                                 Toast.success('You have already registered and paid! Your pass is confirmed.');
                                 this.completeRegistration({ registration_id: res.registration_id, amount: 0 });
                                 if (btn) { btn.innerHTML = originalHTML; btn.disabled = false; }
+                                this._submittingRegistration = false;
                                 return;
                             }
                         } catch (e) { /* continue to payment */ }
@@ -81811,12 +81995,14 @@ You can use variables like {first_name} that will be personalized for each recip
                             Toast.info('You are already registered. Complete your payment below.');
                         }
                         if (btn) { btn.innerHTML = originalHTML; btn.disabled = false; }
+                        this._submittingRegistration = false;
                     } else {
                         Toast.error(res.error || 'Registration failed. Please try again.');
                         if (btn) {
                             btn.innerHTML = originalHTML;
                             btn.disabled = false;
                         }
+                        this._submittingRegistration = false;
                     }
                 } catch (err) {
                     console.error('Registration error:', err);
@@ -81826,6 +82012,7 @@ You can use variables like {first_name} that will be personalized for each recip
                         btn.innerHTML = originalHTML;
                         btn.disabled = false;
                     }
+                    this._submittingRegistration = false;
                 }
             },
 
@@ -81883,6 +82070,7 @@ You can use variables like {first_name} that will be personalized for each recip
                         btn.innerHTML = '<i class="fas fa-check-circle"></i> Complete Registration';
                         btn.disabled = false;
                     }
+                    this._submittingRegistration = false;
                 }
             },
 
@@ -82466,10 +82654,14 @@ You can use variables like {first_name} that will be personalized for each recip
                     this.appliedCoupon = validCoupon;
                     const discountValue = typeof validCoupon.value === 'number' ? validCoupon.value : 10;
 
-                    msgEl.style.display = 'block';
+                    msgEl.style.display = 'flex';
+                    msgEl.style.alignItems = 'center';
+                    msgEl.style.justifyContent = 'space-between';
+                    msgEl.style.gap = '8px';
                     msgEl.style.background = 'rgba(34, 197, 94, 0.1)';
                     msgEl.style.color = '#22c55e';
-                    msgEl.textContent = `Coupon applied! ${validCoupon.item} (-€${discountValue})`;
+                    msgEl.innerHTML = `<span>Coupon applied! ${this.escapeHtml ? this.escapeHtml(validCoupon.item) : validCoupon.item} (-€${discountValue})</span>` +
+                        `<button type="button" onclick="PlexusPortal.removeCoupon()" style="background: none; border: 1px solid currentColor; color: inherit; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;">Remove</button>`;
                     input.disabled = true;
                     input.style.opacity = '0.6';
 
@@ -82485,10 +82677,14 @@ You can use variables like {first_name} that will be personalized for each recip
                     // Demo mode: accept any valid-format coupon for €5 discount
                     this.appliedCoupon = { code: code, value: 5, item: 'Demo Coupon' };
 
-                    msgEl.style.display = 'block';
+                    msgEl.style.display = 'flex';
+                    msgEl.style.alignItems = 'center';
+                    msgEl.style.justifyContent = 'space-between';
+                    msgEl.style.gap = '8px';
                     msgEl.style.background = 'rgba(34, 197, 94, 0.1)';
                     msgEl.style.color = '#22c55e';
-                    msgEl.textContent = 'Coupon applied! €5 discount';
+                    msgEl.innerHTML = `<span>Coupon applied! €5 discount</span>` +
+                        `<button type="button" onclick="PlexusPortal.removeCoupon()" style="background: none; border: 1px solid currentColor; color: inherit; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;">Remove</button>`;
                     input.disabled = true;
                     input.style.opacity = '0.6';
 
@@ -82510,6 +82706,25 @@ You can use variables like {first_name} that will be personalized for each recip
                     // Reset total without coupon
                     this.updateRedeemSlider();
                 }
+            },
+
+            removeCoupon() {
+                this.appliedCoupon = null;
+                const input = document.getElementById('pxCouponInput');
+                const msgEl = document.getElementById('pxCouponMessage');
+                const discountRow = document.getElementById('pxCouponDiscountRow');
+                if (input) {
+                    input.disabled = false;
+                    input.style.opacity = '1';
+                    input.value = '';
+                    input.focus();
+                }
+                if (msgEl) {
+                    msgEl.style.display = 'none';
+                    msgEl.innerHTML = '';
+                }
+                if (discountRow) discountRow.style.display = 'none';
+                this.updateRedeemSlider();
             },
 
             // ===== POINTS REDEMPTION =====
@@ -82572,8 +82787,14 @@ You can use variables like {first_name} that will be personalized for each recip
                 this.redeemEnabled = !this.redeemEnabled;
                 const toggle = document.getElementById('pxRedeemToggle');
                 const sliderSection = document.getElementById('pxRedeemSliderSection');
+                const slider = document.getElementById('pxRedeemSlider');
 
                 if (this.redeemEnabled) {
+                    // Cap slider at the lesser of: user's actual points balance, or 100 * current subtotal (can't discount more than the ticket)
+                    const userPoints = (typeof RewardsPortal !== 'undefined' && RewardsPortal.userRewards?.pointsBalance) || 0;
+                    const subtotalCents = Math.max(0, Math.floor(this.calculateTotal() * 100));
+                    const maxRedeemable = Math.min(userPoints, subtotalCents);
+                    if (slider) slider.max = String(maxRedeemable);
                     toggle?.classList.add('active');
                     sliderSection?.classList.add('active');
                 } else {
@@ -82581,7 +82802,7 @@ You can use variables like {first_name} that will be personalized for each recip
                     sliderSection?.classList.remove('active');
                     // Reset points
                     this.pointsToRedeem = 0;
-                    document.getElementById('pxRedeemSlider').value = 0;
+                    if (slider) slider.value = 0;
                     this.updateRedeemSlider();
                 }
             },
@@ -121456,11 +121677,20 @@ By applying to this program, I give the following consents:
                 this.renderAdminMessages();
                 this.checkPermissionPrompt();
                 // Poll for new notifications every 30 seconds
-                setInterval(async () => {
+                // Guard against re-init creating duplicate timers
+                if (this._pollInterval) clearInterval(this._pollInterval);
+                this._pollInterval = setInterval(async () => {
                     await Promise.all([this.loadNotifications(), this.loadAdminMessages()]);
                     this.render();
                     this.renderAdminMessages();
                 }, 30000);
+            },
+
+            destroy() {
+                if (this._pollInterval) {
+                    clearInterval(this._pollInterval);
+                    this._pollInterval = null;
+                }
             },
 
             loadPreferences() {
