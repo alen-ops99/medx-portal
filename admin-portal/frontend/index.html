@@ -6858,6 +6858,10 @@
                                     </div>
                                 </div>
                                 <div>
+                                    <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Track</label>
+                                    <input type="text" class="search-input" id="sessionTrack" placeholder="e.g. Clinical, Research, Industry (optional)" style="width: 100%;">
+                                </div>
+                                <div>
                                     <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Speaker(s)</label>
                                     <select class="search-input" id="sessionSpeakers" multiple style="width: 100%; min-height: 60px;"></select>
                                     <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Hold Ctrl/Cmd to select multiple</div>
@@ -17234,7 +17238,7 @@ President, Med&amp;X</textarea>
             exportPlexusRegistrations(format = 'csv') {
                 // C1: XLSX uses server-side generation for proper Excel formatting
                 if (format === 'xlsx') {
-                    window.open(`/api/admin/export/registrations/${this.currentConference}?format=xlsx`, '_blank');
+                    window.open(`/api/admin/export/registrations/plexus-2026?format=xlsx`, '_blank');
                     return;
                 }
                 const data = this.pxRegFiltered && this.pxRegFiltered.length > 0 ? this.pxRegFiltered : this.plexusRegistrations;
@@ -17665,6 +17669,8 @@ President, Med&amp;X</textarea>
                     document.getElementById('sessionCapacity').value = s.capacity || '';
                     document.getElementById('sessionDescription').value = s.description || '';
                     document.getElementById('sessionPublished').checked = !!s.is_published;
+                    const trackElEdit = document.getElementById('sessionTrack');
+                    if (trackElEdit) trackElEdit.value = s.track || '';
                     if (s.speaker_ids) {
                         const ids = s.speaker_ids.split(',').map(x => x.trim());
                         Array.from(speakerSelect.options).forEach(opt => { opt.selected = ids.includes(opt.value); });
@@ -17681,6 +17687,8 @@ President, Med&amp;X</textarea>
                     document.getElementById('sessionCapacity').value = '';
                     document.getElementById('sessionDescription').value = '';
                     document.getElementById('sessionPublished').checked = false;
+                    const trackElCreate = document.getElementById('sessionTrack');
+                    if (trackElCreate) trackElCreate.value = '';
                     Array.from(speakerSelect.options).forEach(opt => opt.selected = false);
                 }
 
@@ -17693,9 +17701,14 @@ President, Med&amp;X</textarea>
                 const startTime = document.getElementById('sessionStartTime').value;
                 const endTime = document.getElementById('sessionEndTime').value;
                 if (!startTime || !endTime) { Toast.warning('Start and end times are required'); return; }
+                if (this._timeToMinutes(endTime) <= this._timeToMinutes(startTime)) {
+                    Toast.warning('End time must be after start time');
+                    return;
+                }
 
                 const speakerSelect = document.getElementById('sessionSpeakers');
                 const selectedSpeakerIds = Array.from(speakerSelect.selectedOptions).map(o => o.value);
+                const trackEl = document.getElementById('sessionTrack');
 
                 const data = {
                     title,
@@ -17704,6 +17717,7 @@ President, Med&amp;X</textarea>
                     start_time: startTime,
                     end_time: endTime,
                     room: document.getElementById('sessionRoom').value.trim() || 'Main Hall',
+                    track: (trackEl && trackEl.value.trim()) || null,
                     capacity: parseInt(document.getElementById('sessionCapacity').value) || null,
                     description: document.getElementById('sessionDescription').value.trim(),
                     is_published: document.getElementById('sessionPublished').checked ? 1 : 0,
@@ -17726,7 +17740,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteSession(id) {
-                if (!confirm('Delete this session? This cannot be undone.')) return;
+                if (!confirm('Delete this session and remove it from all attendees\' saved schedules? This cannot be undone.')) return;
                 try {
                     await this.api(`/api/admin/plexus/sessions/${id}`, { method: 'DELETE' });
                     await this.loadPlexusSchedule();
