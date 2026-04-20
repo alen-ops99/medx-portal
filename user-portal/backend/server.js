@@ -9614,6 +9614,11 @@ By applying to this program, I provide the following consents:
 
             const baseUrl = `${req.protocol}://${req.get('host')}`;
 
+            // Idempotency-Key: prefer the FE-supplied key so that double-submits (or retries from the same page) don't create two Stripe sessions.
+            // Fall back to a deterministic key per registration so accidental retries on the same registration id converge.
+            const idempotencyKey = (req.headers['x-idempotency-key'] && String(req.headers['x-idempotency-key']).trim().slice(0, 128))
+                || `reg-${reg.id}-${reg.invoice_number || ''}`;
+
             const session = await stripe.checkout.sessions.create({
                 mode: 'payment',
                 payment_method_types: ['card'],
@@ -9635,7 +9640,7 @@ By applying to this program, I provide the following consents:
                 customer_email: billingEmail,
                 success_url: `${baseUrl}/?payment=success&reg=${reg.id}`,
                 cancel_url: `${baseUrl}/?payment=cancelled&reg=${reg.id}`
-            });
+            }, { idempotencyKey });
 
             // Store Stripe session ID and update payment method in transaction
             if (tx) {
@@ -9656,7 +9661,7 @@ By applying to this program, I provide the following consents:
         const sig = req.headers['stripe-signature'];
 
         // In demo mode (no Stripe), reject
-        if (!stripe) return res.status(400).send('Stripe not configured');
+        if (!stripe) return res.status(400).json({ error: 'Stripe not configured' });
 
         let event;
         try {
@@ -9667,7 +9672,7 @@ By applying to this program, I provide the following consents:
             event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
         } catch (err) {
             console.error('[Stripe] Webhook signature verification failed:', err.message);
-            return res.status(400).send(`Webhook Error: ${err.message}`);
+            return res.status(400).json({ error: `Webhook Error: ${err.message}` });
         }
 
         if (event.type === 'checkout.session.completed') {

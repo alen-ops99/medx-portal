@@ -12,7 +12,7 @@
 const FIRA_API_URL = process.env.FIRA_API_URL || 'https://app.fira.finance';
 const FIRA_API_KEY = process.env.FIRA_API_KEY || '';
 
-const VAT_RATE = 0.25; // Croatian VAT 25%
+const VAT_RATE = 0.25; // Historical placeholder — Med&X is outside the PDV system so all invoices go out at 0% with taxExempt:true via createFiscalInvoice's retry fallback.
 
 /**
  * Check if FIRA integration is configured
