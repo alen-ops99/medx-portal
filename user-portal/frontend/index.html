@@ -81868,6 +81868,20 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (companyField && !companyField.value) companyField.value = institution;
             },
 
+            // Idempotency key — stable per attempt, survives page reloads via sessionStorage so retries
+            // converge on the same key. Stripe uses it to collapse duplicate session creations.
+            _getIdempotencyKey() {
+                let key = sessionStorage.getItem('medx_plexus_idemp');
+                if (!key) {
+                    key = 'ipx-' + (crypto?.randomUUID?.() || String(Date.now()) + '-' + Math.random().toString(36).slice(2));
+                    sessionStorage.setItem('medx_plexus_idemp', key);
+                }
+                return key;
+            },
+            _clearIdempotencyKey() {
+                sessionStorage.removeItem('medx_plexus_idemp');
+            },
+
             // ISO 7064 Mod 11,10 check-digit validation for Croatian OIB (matches official algorithm)
             _isValidOIB(oib) {
                 if (!/^\d{11}$/.test(oib)) return false;
@@ -81963,11 +81977,13 @@ You can use variables like {first_name} that will be personalized for each recip
 
                 try {
                     // Use fetch directly (not UserPortal.api) so we can read JSON from error responses
+                    const idempKey = this._getIdempotencyKey();
                     const rawRes = await fetch('/api/plexus/register', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${UserPortal.token}`
+                            'Authorization': `Bearer ${UserPortal.token}`,
+                            'X-Idempotency-Key': idempKey
                         },
                         body: JSON.stringify(data)
                     });
@@ -82055,7 +82071,11 @@ You can use variables like {first_name} that will be personalized for each recip
 
                     const rawSession = await fetch('/api/plexus/checkout-session', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${UserPortal.token}` },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${UserPortal.token}`,
+                            'X-Idempotency-Key': this._getIdempotencyKey()
+                        },
                         body: JSON.stringify({ registration_id: registrationId })
                     });
                     const session = await rawSession.json();
@@ -82307,6 +82327,9 @@ You can use variables like {first_name} that will be personalized for each recip
 
             // Complete registration and update states
             async completeRegistration(apiResponse) {
+                // Registration successful — clear the idempotency key so a future registration uses a fresh one
+                this._clearIdempotencyKey();
+
                 // Set registered flag
                 localStorage.setItem('plexus_registered', 'true');
                 localStorage.setItem('plexus_interested', 'true');
@@ -82852,7 +82875,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 // Update total: subtract both points and coupon discounts
                 const baseTotal = this.calculateTotal();
                 const finalTotal = Math.max(0, baseTotal - pointsDiscount - couponDiscount);
-                if (totalEl) totalEl.textContent = `€${finalTotal.toFixed(0)}`;
+                if (totalEl) totalEl.textContent = `€${finalTotal.toFixed(2)}`;
             },
 
             // ===== INTEREST / MY EVENTS =====
