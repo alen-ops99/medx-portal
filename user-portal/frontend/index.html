@@ -77608,6 +77608,32 @@ You can use variables like {first_name} that will be personalized for each recip
         // Initialize UserPortal when page loads
         document.addEventListener('DOMContentLoaded', () => {
             UserPortal.init();
+
+            // Direct-link deep-link: ?event=<slug> opens the forum registration modal for that event.
+            // Used for registration invitations sent by email (e.g. ?event=forum-2026-day1).
+            try {
+                const p = new URLSearchParams(window.location.search);
+                const eventSlug = p.get('event');
+                if (eventSlug && typeof ForumPortal !== 'undefined') {
+                    // Wait until App.forumEvents has loaded (registerEvent resolves slug→id from there).
+                    let tries = 0;
+                    const waitAndOpen = () => {
+                        tries++;
+                        if (typeof App !== 'undefined' && Array.isArray(App.forumEvents) && App.forumEvents.length > 0) {
+                            ForumPortal.registerEvent(eventSlug, null);
+                            // Clean up the URL so a refresh doesn't re-trigger
+                            const url = new URL(window.location.href);
+                            url.searchParams.delete('event');
+                            window.history.replaceState({}, '', url.toString());
+                        } else if (tries < 40) {
+                            setTimeout(waitAndOpen, 250);
+                        }
+                    };
+                    setTimeout(waitAndOpen, 600); // let the portal finish its first render
+                }
+            } catch (err) {
+                console.warn('Direct-link handler failed:', err);
+            }
         });
 
         // Capture-phase click handler for home buttons (insurance against hero overlays)

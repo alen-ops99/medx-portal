@@ -17238,7 +17238,8 @@ President, Med&amp;X</textarea>
             exportPlexusRegistrations(format = 'csv') {
                 // C1: XLSX uses server-side generation for proper Excel formatting
                 if (format === 'xlsx') {
-                    window.open(`/api/admin/export/registrations/plexus-2026?format=xlsx`, '_blank');
+                    const token = localStorage.getItem('medx_token') || localStorage.getItem('token') || '';
+                    window.open(`/api/admin/export/registrations/plexus-2026?format=xlsx&token=${encodeURIComponent(token)}`, '_blank');
                     return;
                 }
                 const data = this.pxRegFiltered && this.pxRegFiltered.length > 0 ? this.pxRegFiltered : this.plexusRegistrations;
@@ -20723,6 +20724,7 @@ President, Med&amp;X</textarea>
                 try {
                     const regs = await this.api(`/api/admin/forum/events/${eventId}/registrations`);
                     const event = this.forumEvents.find(e => e.id === eventId);
+                    this._forumEventIdForExport = eventId;
                     document.getElementById('forumEventRegsTitle').textContent = `Registrations - ${event?.title || 'Event'}`;
 
                     const container = document.getElementById('forumEventRegsList');
@@ -20733,7 +20735,10 @@ President, Med&amp;X</textarea>
                         container.innerHTML = `
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
                                 <span style="font-size: 13px; color: var(--text-muted);">${regs.length} registered | ${regs.filter(r => r.checked_in).length} checked in</span>
-                                <button class="btn btn-secondary" style="padding:5px 12px;font-size:11px;" onclick="App.exportForumRegistrations()"><i class="fas fa-file-excel"></i> Export</button>
+                                <div style="display:flex; gap:6px;">
+                                    <button class="btn btn-primary" style="padding:5px 12px;font-size:11px;" onclick="App.exportForumRegistrations('xlsx')"><i class="fas fa-file-excel"></i> Excel (.xlsx)</button>
+                                    <button class="btn btn-secondary" style="padding:5px 12px;font-size:11px;" onclick="App.exportForumRegistrations('csv')"><i class="fas fa-file-csv"></i> CSV</button>
+                                </div>
                             </div>
                             <div style="overflow-x:auto;">
                             <table class="simple-table" style="width: 100%;">
@@ -20816,22 +20821,14 @@ President, Med&amp;X</textarea>
                 } catch(e) { Toast.error('Failed to delete'); }
             },
 
-            exportForumRegistrations() {
-                const regs = this._forumRegs || [];
-                if (!regs.length) { Toast.warning('No registrations to export'); return; }
-                const headers = ['Name','Email','Institution','Registered For','Dietary','Allergies','Guests','Amount Paid','Status','Checked In','Registered At'];
-                const rows = regs.map(r => {
-                    let pkg = '-';
-                    try { const items = r.package_items ? JSON.parse(r.package_items) : []; pkg = items.join('; '); } catch(e) {}
-                    return [(r.first_name||'')+' '+(r.last_name||''), r.email||'', r.institution||'', pkg, r.dietary||'', r.allergies||'', r.guest_count||0, r.amount_paid||0, r.checked_in?'Checked In':'Registered', r.checked_in_at||'', r.registered_at||''];
-                });
-                let csv = headers.join(',') + '\n' + rows.map(r => r.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
-                const blob = new Blob([csv], {type:'text/csv'});
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url; a.download = 'forum-registrations.csv'; a.click();
-                URL.revokeObjectURL(url);
-                Toast.success('Exported!');
+            exportForumRegistrations(format) {
+                format = format || 'xlsx';
+                const eventId = this._forumEventIdForExport;
+                if (!eventId) { Toast.warning('Open an event before exporting'); return; }
+                const token = localStorage.getItem('medx_token') || localStorage.getItem('token') || '';
+                // Server-side export: proper XLSX with sanitization + streaming. Falls back to CSV via same endpoint.
+                // Token goes via query param because window.open() can't set an Authorization header.
+                window.open(`/api/admin/export/forum-registrations/${encodeURIComponent(eventId)}?format=${encodeURIComponent(format)}&token=${encodeURIComponent(token)}`, '_blank');
             },
 
             async registerForForumEvent(id) {
