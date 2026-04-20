@@ -15628,23 +15628,6 @@ By applying to this program, I provide the following consents:
         });
     });
 
-    // VAT preview — called by the FE on billing-country change so Step 3 shows the correct breakdown
-    // Query params: amount (EUR, gross), country (ISO-3166 alpha-2), vat_id (optional EU VAT number)
-    app.get('/api/plexus/vat-preview', (req, res) => {
-        const amount = Math.max(0, parseFloat(req.query.amount) || 0);
-        const country = (req.query.country || '').toUpperCase();
-        const hasVatId = !!(req.query.vat_id && String(req.query.vat_id).trim().length > 3);
-        const breakdown = firaService.calculateVATForCountry(amount, country, hasVatId);
-        res.json({
-            brutto: breakdown.brutto,
-            netto: breakdown.netto,
-            vat_amount: breakdown.taxValue,
-            vat_rate: breakdown.rate,
-            vat_label: breakdown.label,
-            reason: breakdown.reason
-        });
-    });
-
     // Get plexus sessions (public — only published, with speaker names)
     app.get('/api/plexus/sessions', (req, res) => {
         const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");

@@ -59222,7 +59222,7 @@ textarea:focus:not(:focus-visible),
                                                             </div>
                                                             <div>
                                                                 <label style="font-size: 12px; font-weight: 600; color: var(--up-text-secondary); display: block; margin-bottom: 4px;">Country *</label>
-                                                                <input type="text" id="pxBillingCountry" class="auth-form-input" placeholder="Croatia" style="width: 100%;" oninput="PlexusPortal.updateRedeemSlider()">
+                                                                <input type="text" id="pxBillingCountry" class="auth-form-input" placeholder="Croatia" style="width: 100%;">
                                                             </div>
                                                         </div>
                                                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
@@ -59232,7 +59232,7 @@ textarea:focus:not(:focus-visible),
                                                             </div>
                                                             <div>
                                                                 <label style="font-size: 12px; font-weight: 600; color: var(--up-text-secondary); display: block; margin-bottom: 4px;">VAT Number</label>
-                                                                <input type="text" id="pxBillingVAT" class="auth-form-input" placeholder="HR + OIB (for EU companies)" style="width: 100%;" oninput="PlexusPortal.updateRedeemSlider()">
+                                                                <input type="text" id="pxBillingVAT" class="auth-form-input" placeholder="HR + OIB (for EU companies)" style="width: 100%;">
                                                             </div>
                                                         </div>
                                                         <div>
@@ -59311,11 +59311,6 @@ textarea:focus:not(:focus-visible),
                                                     <span style="font-size: 13px; color: var(--up-success, #22c55e);"><i class="fas fa-tag"></i> Coupon Discount</span>
                                                     <span style="font-size: 13px; font-weight: 600; color: var(--up-success, #22c55e);" id="pxCouponDiscountAmount">-€0</span>
                                                 </div>
-                                            </div>
-                                            <div id="pxVatBreakdownRow" style="display: none; padding: 8px 0; border-bottom: 1px solid var(--up-border, #e5e7eb); margin-bottom: 8px; font-size: 12px; color: var(--up-text-muted, #94a3b8);">
-                                                <div style="display: flex; justify-content: space-between;"><span>Net amount</span><span id="pxVatNet">€0.00</span></div>
-                                                <div style="display: flex; justify-content: space-between;"><span id="pxVatLabel">VAT</span><span id="pxVatAmount">€0.00</span></div>
-                                                <div id="pxVatReason" style="font-size: 11px; margin-top: 4px; font-style: italic;"></div>
                                             </div>
                                             <div class="px-package-summary-total">
                                                 <span>Total</span>
@@ -82855,35 +82850,6 @@ You can use variables like {first_name} that will be personalized for each recip
                 const baseTotal = this.calculateTotal();
                 const finalTotal = Math.max(0, baseTotal - pointsDiscount - couponDiscount);
                 if (totalEl) totalEl.textContent = `€${finalTotal.toFixed(2)}`;
-
-                // Refresh VAT breakdown whenever total moves
-                this.refreshVatPreview(finalTotal);
-            },
-
-            // Fetch VAT breakdown for the current billing country + amount; update the summary UI
-            async refreshVatPreview(amount) {
-                const breakdownRow = document.getElementById('pxVatBreakdownRow');
-                if (!breakdownRow) return;
-                if (!amount || amount <= 0) {
-                    breakdownRow.style.display = 'none';
-                    return;
-                }
-                const country = document.getElementById('pxBillingCountry')?.value?.trim() || '';
-                const vatId = document.getElementById('pxBillingVAT')?.value?.trim() || '';
-                try {
-                    const url = `/api/plexus/vat-preview?amount=${encodeURIComponent(amount)}&country=${encodeURIComponent(country)}&vat_id=${encodeURIComponent(vatId)}`;
-                    const res = await fetch(url);
-                    if (!res.ok) throw new Error('vat-preview unavailable');
-                    const data = await res.json();
-                    document.getElementById('pxVatNet').textContent = `€${data.netto.toFixed(2)}`;
-                    document.getElementById('pxVatLabel').textContent = `VAT (${data.vat_label})`;
-                    document.getElementById('pxVatAmount').textContent = `€${data.vat_amount.toFixed(2)}`;
-                    document.getElementById('pxVatReason').textContent = data.reason || '';
-                    breakdownRow.style.display = 'block';
-                } catch (err) {
-                    // Don't block the user — just hide the breakdown if the endpoint is unreachable
-                    breakdownRow.style.display = 'none';
-                }
             },
 
             // ===== INTEREST / MY EVENTS =====
