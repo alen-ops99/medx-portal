@@ -3267,6 +3267,13 @@ async function initializeApp() {
             VALUES (?, 'Annual Biomedical Forum 2026 — Day 2', 'Conference program featuring keynote lectures, panel discussions, and networking sessions in Zagreb, Croatia.', 'forum-2026-day2', 'large', '2026-05-26', '2026-05-26', 'Zagreb, Croatia', 0, 0, 'published')`, [uuidv4()]);
     }
 
+    // Normalize: Day 1, Day 2, and the Annual Forum must be free (competing seeders have previously
+    // marked them as paid €150 — this corrects any drift on every boot, which is idempotent).
+    // Titles are also re-asserted so email subjects match the event you're actually attending.
+    db.run(`UPDATE forum_events SET title = 'Annual Biomedical Forum 2026 — Day 1 (Split)', is_paid = 0, price = 0, status = 'published' WHERE slug = 'forum-2026-day1'`);
+    db.run(`UPDATE forum_events SET title = 'Annual Biomedical Forum 2026 — Day 2 (Zagreb)', is_paid = 0, price = 0, status = 'published' WHERE slug = 'forum-2026-day2'`);
+    db.run(`UPDATE forum_events SET title = 'Annual Biomedical Forum 2026', is_paid = 0, price = 0, status = 'published' WHERE slug = 'annual-forum-2026'`);
+
     // Plexus settings (admin-editable)
     db.run(`CREATE TABLE IF NOT EXISTS plexus_settings (
         id TEXT PRIMARY KEY DEFAULT 'default',
@@ -6809,27 +6816,46 @@ By applying to this program, I provide the following consents:
     });
 
     // Register for event (enhanced with name/email/institution + payment support)
-    app.post('/api/forum/events/:id/register', optionalAuth, (req, res) => {
+    app.post('/api/forum/events/:id/register', optionalAuth, async (req, res) => {
         try {
             const { name, email, institution } = req.body || {};
 
-            // Resolve member_id: use forum membership if logged in, otherwise use email
+            // Resolve member_id — must satisfy the FK on forum_members(id). For guests we upsert a user + forum_member row.
             let memberId = null;
+            let userId = null;
             if (req.user) {
-                const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
-                memberId = currentMember ? currentMember.id : req.user.id;
+                userId = req.user.id;
             } else if (email) {
-                // Find or identify by email for unauthenticated registrations
                 const existingUser = query.get(`SELECT id FROM users WHERE email = ?`, [email]);
-                memberId = existingUser ? existingUser.id : email;
+                if (existingUser) {
+                    userId = existingUser.id;
+                } else {
+                    // Create a guest user so FKs resolve (random password — they can reset later)
+                    userId = uuidv4();
+                    const tempHash = await bcrypt.hash(uuidv4(), 10);
+                    const [firstName, ...restName] = (name || '').split(' ');
+                    db.run(`INSERT INTO users (id, email, password_hash, first_name, last_name, institution, is_admin) VALUES (?, ?, ?, ?, ?, ?, 0)`,
+                        [userId, email, tempHash, firstName || null, restName.join(' ') || null, institution || null]);
+                }
             } else {
                 return res.status(400).json({ error: 'Please provide your email to register' });
             }
 
-            const event = query.get(`SELECT * FROM forum_events WHERE id = ?`, [req.params.id]);
+            // Find-or-create a forum_members row for this user
+            const existingMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [userId]);
+            if (existingMember) {
+                memberId = existingMember.id;
+            } else {
+                memberId = uuidv4();
+                db.run(`INSERT INTO forum_members (id, user_id, membership_status, institution) VALUES (?, ?, 'approved', ?)`,
+                    [memberId, userId, institution || null]);
+            }
+
+            // Accept either a UUID or a slug (e.g. 'forum-2026-day1') so email invitation links work
+            const event = query.get(`SELECT * FROM forum_events WHERE id = ? OR slug = ?`, [req.params.id, req.params.id]);
             if (!event) return res.status(404).json({ error: 'Event not found' });
 
-            const existing = query.get(`SELECT id FROM forum_event_registrations WHERE event_id = ? AND member_id = ?`, [req.params.id, memberId]);
+            const existing = query.get(`SELECT id FROM forum_event_registrations WHERE event_id = ? AND member_id = ?`, [event.id, memberId]);
             if (existing) return res.status(400).json({ error: 'Already registered' });
 
             if (event.capacity && event.registrations_count >= event.capacity) {
@@ -6854,9 +6880,34 @@ By applying to this program, I provide the following consents:
             }
 
             db.run(`INSERT INTO forum_event_registrations (id, event_id, member_id, name, email, institution, qr_code, payment_status, payment_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [id, req.params.id, memberId, name || null, email || null, institution || null, qrCode, paymentStatus, isPaid ? price : null]);
-            db.run(`UPDATE forum_events SET registrations_count = registrations_count + 1 WHERE id = ?`, [req.params.id]);
+                [id, event.id, memberId, name || null, email || null, institution || null, qrCode, paymentStatus, isPaid ? price : null]);
+            db.run(`UPDATE forum_events SET registrations_count = registrations_count + 1 WHERE id = ?`, [event.id]);
             saveDb();
+
+            // Send confirmation email (non-blocking — registration succeeds even if email fails)
+            if (email && !isPaid) {
+                const eventDate = event.start_date
+                    ? new Date(event.start_date + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+                    : '';
+                const venue = event.location_name || '';
+                const greetName = name ? name.split(' ')[0] : 'there';
+                const emailHtml = buildEmailTemplate('Registration confirmed', `
+                    <p>Hi ${greetName},</p>
+                    <p>You're registered for <strong>${event.title}</strong>.</p>
+                    <p>
+                        ${eventDate ? `<strong>Date:</strong> ${eventDate}<br>` : ''}
+                        ${venue ? `<strong>Location:</strong> ${venue}<br>` : ''}
+                        <strong>Reference:</strong> ${qrCode}
+                    </p>
+                    <p>Keep this reference — you'll need it for check-in on the day.</p>
+                    <p>Details and any schedule updates are posted in the Med&X portal at <a href="https://medx-user-portal.onrender.com">medx-user-portal.onrender.com</a>.</p>
+                    <p>Looking forward to seeing you there.</p>
+                    <p style="color: #94a3b8; font-size: 12px;">Med&X — Annual Biomedical Forum 2026</p>
+                `);
+                sendEmail(email, `You're registered — ${event.title}`, emailHtml).catch(err => {
+                    console.error('[Forum] Confirmation email failed (non-blocking):', err.message);
+                });
+            }
 
             res.json({ success: true, id, qr_code: qrCode, checkin_enabled: !!event.checkin_enabled, requires_payment: isPaid, price });
         } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }

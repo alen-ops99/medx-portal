@@ -9526,7 +9526,55 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.get('/api/admin/export/registrations/:confId', auth, adminOnly, (req, res) => {
+    // Forum event registrations export — CSV or XLSX
+    app.get('/api/admin/export/forum-registrations/:eventId', (req, res, next) => {
+        // Allow token via query param so window.open() in a new tab authenticates
+        if (req.query.token && !req.headers.authorization) {
+            req.headers.authorization = `Bearer ${req.query.token}`;
+        }
+        next();
+    }, auth, adminOnly, (req, res) => {
+        const event = query.get('SELECT id, title, slug FROM forum_events WHERE id = ? OR slug = ?', [req.params.eventId, req.params.eventId]);
+        if (!event) return res.status(404).json({ error: 'Forum event not found' });
+
+        const rows = query.all(`SELECT fer.name, fer.first_name, fer.last_name, fer.email, fer.institution, fer.qr_code, fer.payment_status, fer.payment_amount, fer.checked_in, fer.registered_at
+            FROM forum_event_registrations fer WHERE fer.event_id = ? ORDER BY fer.registered_at ASC`, [event.id]);
+
+        const headers = ['Name', 'Email', 'Institution', 'Reference / QR', 'Payment', 'Amount (€)', 'Checked In', 'Registered At'];
+        const dataRows = rows.map(r => [
+            r.name || `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+            r.email || '',
+            r.institution || '',
+            r.qr_code || '',
+            r.payment_status || '',
+            r.payment_amount || 0,
+            r.checked_in ? 'Yes' : 'No',
+            r.registered_at || ''
+        ]);
+
+        const slugForFilename = (event.slug || event.id).replace(/[^a-z0-9-]/gi, '-');
+
+        if (req.query.format === 'xlsx') {
+            const buf = generateXlsxBuffer(headers, dataRows, 'Forum Registrations');
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename="${slugForFilename}-registrations.xlsx"`);
+            return res.send(buf);
+        }
+
+        const csv = [headers.join(',')];
+        dataRows.forEach(r => csv.push(r.map(v => `"${sanitizeCsvCell(v).replace(/"/g, '""')}"`).join(',')));
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="${slugForFilename}-registrations.csv"`);
+        res.send(csv.join('\n'));
+    });
+
+    app.get('/api/admin/export/registrations/:confId', (req, res, next) => {
+        // Allow token via query param for direct window.open downloads
+        if (req.query.token && !req.headers.authorization) {
+            req.headers.authorization = `Bearer ${req.query.token}`;
+        }
+        next();
+    }, auth, adminOnly, (req, res) => {
         const rows = query.all(`SELECT u.first_name, u.last_name, u.email, u.phone, u.institution, u.country, t.name as ticket_type, r.status, r.payment_status, r.amount_paid, r.checked_in, r.created_at
             FROM registrations r JOIN users u ON r.user_id = u.id JOIN ticket_types t ON r.ticket_type_id = t.id WHERE r.conference_id = ?`, [req.params.confId]);
 
