@@ -70929,21 +70929,21 @@ The Med&amp;X Team" maxlength="5000"></textarea>
                             <div class="modal-body">
                                 <div class="form-group">
                                     <label>Event Title</label>
-                                    <input type="text" id="af26SettingsTitle" class="form-input" value="Annual Forum 2026" maxlength="200">
+                                    <input type="text" id="af26SettingsTitle" class="form-input" value="Annual Biomedical Forum 2026" maxlength="200">
                                 </div>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                                     <div class="form-group">
                                         <label>Start Date</label>
-                                        <input type="date" id="af26SettingsStartDate" class="form-input" value="2026-12-05" min="2025-01-01" max="2030-12-31">
+                                        <input type="date" id="af26SettingsStartDate" class="form-input" value="2026-05-25" min="2025-01-01" max="2030-12-31">
                                     </div>
                                     <div class="form-group">
                                         <label>End Date</label>
-                                        <input type="date" id="af26SettingsEndDate" class="form-input" value="2026-12-06" min="2025-01-01" max="2030-12-31">
+                                        <input type="date" id="af26SettingsEndDate" class="form-input" value="2026-05-27" min="2025-01-01" max="2030-12-31">
                                     </div>
                                 </div>
                                 <div class="form-group">
                                     <label>Location</label>
-                                    <input type="text" id="af26SettingsLocation" class="form-input" value="Zagreb, Croatia" maxlength="200">
+                                    <input type="text" id="af26SettingsLocation" class="form-input" value="Split &amp; Zagreb, Croatia" maxlength="200">
                                 </div>
                                 <div class="form-group">
                                     <label>Venue</label>
@@ -79381,8 +79381,8 @@ You can use variables like {first_name} that will be personalized for each recip
                 const plexusEl = document.getElementById('plexusCountdown');
                 if (plexusEl) plexusEl.textContent = plexusDiff + ' days';
 
-                // AF26 countdown
-                const af26Date = new Date('2026-12-05');
+                // AF26 (Annual Biomedical Forum) countdown — starts in Split on 25 May 2026
+                const af26Date = new Date('2026-05-25');
                 const af26Diff = Math.ceil((af26Date - now) / (1000 * 60 * 60 * 24));
                 const af26El = document.getElementById('af26Countdown');
                 if (af26El) af26El.textContent = af26Diff + ' days';
@@ -94182,7 +94182,7 @@ ${'='.repeat(70)}
 
             events: [
                 { id: 'plexus-2026', name: 'Plexus Conference 2026', date: 'December 4-5, 2026', location: 'Zagreb, Croatia', color: '#a78bfa', icon: 'fa-calendar-alt' },
-                { id: 'af26', name: 'Annual Forum 2026', date: 'December 5, 2026', location: 'Zagreb, Croatia', color: '#f59e0b', icon: 'fa-users' },
+                { id: 'af26', name: 'Annual Biomedical Forum 2026', date: 'May 25-27, 2026', location: 'Split & Zagreb, Croatia', color: '#f59e0b', icon: 'fa-users' },
                 { id: 'bb-zurich-2026', name: 'Building Bridges: Zurich', date: 'March 15, 2026', location: 'Zurich, Switzerland', color: '#3b82f6', icon: 'fa-globe-europe' }
             ],
 
@@ -95622,7 +95622,7 @@ ${'='.repeat(70)}
             projects: {
                 plexus: { name: 'Plexus Conference', desc: 'Dec 4-5 in Zagreb', icon: 'fa-users', color: '#0f172a', date: '2026-12-04' },
                 accelerator: { name: 'Med&X Accelerator', desc: 'Research internship program', icon: 'fa-rocket', color: '#C9A962', date: '2026-06-01' },
-                forum: { name: 'Biomedical Forum', desc: 'Senior leaders network', icon: 'fa-landmark', color: '#1e293b', date: '2026-12-06' },
+                forum: { name: 'Biomedical Forum', desc: 'Senior leaders network', icon: 'fa-landmark', color: '#1e293b', date: '2026-05-25' },
                 bridges: { name: 'Building Bridges', desc: 'Global networking events', icon: 'fa-globe-americas', color: '#f472b6', date: '2026-04-18' }
             },
 
@@ -95630,7 +95630,7 @@ ${'='.repeat(70)}
             // type: 'point' for single events, 'range' for periods
             timelineEvents: [
                 { id: 'plexus', parent: 'plexus', name: 'Plexus', color: '#0f172a', date: '2026-12-04', type: 'point' },
-                { id: 'forum', parent: 'forum', name: 'Forum', color: '#1e293b', date: '2026-12-06', type: 'point' },
+                { id: 'forum', parent: 'forum', name: 'Forum', color: '#1e293b', date: '2026-05-25', endDate: '2026-05-27', type: 'range' },
                 // Accelerator - application period as a range
                 { id: 'acc-apps', parent: 'accelerator', name: 'Applications', color: '#C9A962', date: '2026-02-01', endDate: '2026-04-01', type: 'range' },
                 { id: 'acc-program', parent: 'accelerator', name: 'Program', color: '#C9A962', date: '2026-06-01', endDate: '2026-08-31', type: 'range' },
@@ -104254,7 +104254,7 @@ ${'='.repeat(70)}
                 document.getElementById('af26SessionTitle').value = session?.title || '';
                 document.getElementById('af26SessionDescription').value = session?.description || '';
                 document.getElementById('af26SessionType').value = session?.session_type || 'session';
-                document.getElementById('af26SessionDate').value = session?.date || '2026-12-05';
+                document.getElementById('af26SessionDate').value = session?.date || '2026-05-25';
                 document.getElementById('af26SessionStartTime').value = session?.start_time || '09:00';
                 document.getElementById('af26SessionEndTime').value = session?.end_time || '10:00';
                 document.getElementById('af26SessionRoom').value = session?.room || '';
