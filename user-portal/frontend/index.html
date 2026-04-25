@@ -74280,6 +74280,25 @@ You can use variables like {first_name} that will be personalized for each recip
 
     <script>
         // =========================================
+        // MEDX EVENT DATES — single source of truth, hydrated from /api/plexus/settings
+        // Each consumer reads window.MEDX_DATES.<key> with the literal string as fallback
+        // so any code path that runs before the API resolves still gets a sane default.
+        // =========================================
+        window.MEDX_DATES = window.MEDX_DATES || {
+            plexus: {
+                start: '2026-12-04',
+                end: '2026-12-05',
+                startISO: '2026-12-04T08:00:00+01:00',
+                checkinAt: '2026-12-04T00:00:00',
+                liveAt: '2026-12-04T09:00:00',
+                day2EndAt: '2026-12-05T18:00:00',
+                endOfDay: '2026-12-05T23:59:59'
+            },
+            af26: { start: '2026-05-25', end: '2026-05-27' }
+        };
+        window.AF26_EVENT_START = window.MEDX_DATES.af26.start;
+
+        // =========================================
         // XSS PROTECTION UTILITY
         // =========================================
         function escapeHtml(str) {
@@ -79376,13 +79395,13 @@ You can use variables like {first_name} that will be personalized for each recip
                 const now = new Date();
 
                 // Plexus countdown
-                const plexusDate = new Date('2026-12-04');
+                const plexusDate = new Date(window.MEDX_DATES.plexus.start);
                 const plexusDiff = Math.ceil((plexusDate - now) / (1000 * 60 * 60 * 24));
                 const plexusEl = document.getElementById('plexusCountdown');
                 if (plexusEl) plexusEl.textContent = plexusDiff + ' days';
 
                 // AF26 (Annual Biomedical Forum) countdown — starts in Split on 25 May 2026
-                const af26Date = new Date('2026-05-25');
+                const af26Date = new Date(window.MEDX_DATES.af26.start);
                 const af26Diff = Math.ceil((af26Date - now) / (1000 * 60 * 60 * 24));
                 const af26El = document.getElementById('af26Countdown');
                 if (af26El) af26El.textContent = af26Diff + ' days';
@@ -80913,7 +80932,7 @@ You can use variables like {first_name} that will be personalized for each recip
 
             // === Live Date Gating ===
             initLiveDateGating() {
-                const conferenceDate = new Date('2026-12-04T08:00:00+01:00'); // CET
+                const conferenceDate = new Date(window.MEDX_DATES.plexus.startISO);
                 const now = new Date();
                 const preEl = document.getElementById('pxLivePreConference');
                 const activeEl = document.getElementById('pxLiveActive');
@@ -80959,7 +80978,7 @@ You can use variables like {first_name} that will be personalized for each recip
 
             initCheckinButtons() {
                 // Only show check-in card within 10 days of the event
-                const eventDate = new Date('2026-12-04T00:00:00');
+                const eventDate = new Date(window.MEDX_DATES.plexus.checkinAt);
                 const now = new Date();
                 const daysUntilEvent = (eventDate - now) / (1000 * 60 * 60 * 24);
                 const checkinCard = document.getElementById('pxCheckinCard');
@@ -81391,9 +81410,29 @@ You can use variables like {first_name} that will be personalized for each recip
             async loadPlexusSettings() {
                 try {
                     const res = await fetch('/api/plexus/settings');
-                    if (!res.ok) return;
+                    if (!res.ok) {
+                        this.showSettingsLoadWarning();
+                        return;
+                    }
                     const settings = await res.json();
-                    if (!settings || !settings.id) return;
+                    if (!settings || !settings.id) {
+                        this.showSettingsLoadWarning();
+                        return;
+                    }
+
+                    // Hydrate global date registry — every hardcoded Date constructor reads from this.
+                    if (settings.conference_start_date) {
+                        window.MEDX_DATES.plexus.start = settings.conference_start_date;
+                        window.MEDX_DATES.plexus.startISO = settings.conference_start_date + 'T08:00:00+01:00';
+                        window.MEDX_DATES.plexus.checkinAt = settings.conference_start_date + 'T00:00:00';
+                        window.MEDX_DATES.plexus.liveAt = settings.conference_start_date + 'T09:00:00';
+                    }
+                    if (settings.conference_end_date) {
+                        window.MEDX_DATES.plexus.end = settings.conference_end_date;
+                        window.MEDX_DATES.plexus.day2EndAt = settings.conference_end_date + 'T18:00:00';
+                        window.MEDX_DATES.plexus.endOfDay = settings.conference_end_date + 'T23:59:59';
+                    }
+                    window.dispatchEvent(new CustomEvent('medx-dates-ready', { detail: window.MEDX_DATES }));
 
                     // Apply pricing
                     if (settings.price_student_early) this.pricingOptions['student-early'].price = settings.price_student_early;
@@ -81421,8 +81460,19 @@ You can use variables like {first_name} that will be personalized for each recip
                         this.renderTestimonials();
                     }
                 } catch(e) {
-                    console.log('Could not load plexus settings, using defaults:', e.message);
+                    console.warn('Could not load plexus settings, using defaults:', e.message);
+                    this.showSettingsLoadWarning();
                 }
+            },
+
+            showSettingsLoadWarning() {
+                if (document.getElementById('plxSettingsWarn')) return;
+                const banner = document.createElement('div');
+                banner.id = 'plxSettingsWarn';
+                banner.setAttribute('role', 'status');
+                banner.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(180,30,30,0.92);color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 6px 20px rgba(0,0,0,0.25);max-width:90%;';
+                banner.innerHTML = '⚠ Conference info couldn\'t refresh — showing cached values. <a href="#" style="color:#ffd;text-decoration:underline;margin-left:8px;" onclick="location.reload();return false;">Reload</a>';
+                document.body.appendChild(banner);
             },
 
             // Load speakers from database
@@ -81634,7 +81684,7 @@ You can use variables like {first_name} that will be personalized for each recip
 
             // Countdown timer
             startCountdown() {
-                const targetDate = new Date('2026-12-04T09:00:00').getTime();
+                const targetDate = new Date(window.MEDX_DATES.plexus.liveAt).getTime();
 
                 const updateCountdown = () => {
                     const now = new Date().getTime();
@@ -84270,9 +84320,9 @@ You can use variables like {first_name} that will be personalized for each recip
                 }
             },
 
-            // Countdown timer to December 5, 2026
+            // Countdown timer to Plexus Day 2 closing
             startCountdown() {
-                const targetDate = new Date('2026-12-05T18:00:00').getTime();
+                const targetDate = new Date(window.MEDX_DATES.plexus.day2EndAt).getTime();
 
                 const updateCountdown = () => {
                     const now = new Date().getTime();
@@ -103278,7 +103328,10 @@ ${'='.repeat(70)}
             },
 
             updateAF26Countdown() {
-                const eventDate = new Date('2026-12-05');
+                const startStr = (window.AF26_EVENT_START && /^\d{4}-\d{2}-\d{2}/.test(window.AF26_EVENT_START))
+                    ? window.AF26_EVENT_START
+                    : '2026-05-25';
+                const eventDate = new Date(startStr + 'T00:00:00');
                 const today = new Date();
                 const diffTime = eventDate - today;
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -116164,7 +116217,7 @@ By applying to this program, I give the following consents:
 
             // Show post-event section after conference dates
             checkAndShowPostEvent() {
-                const conferenceEnd = new Date('2026-12-05T23:59:59');
+                const conferenceEnd = new Date(window.MEDX_DATES.plexus.endOfDay);
                 const now = new Date();
 
                 if (now > conferenceEnd) {
@@ -118740,7 +118793,7 @@ By applying to this program, I give the following consents:
                     plexusState.innerHTML = status === 'registered' ? '<i class="fas fa-check"></i> Registered' : 'Register';
                 }
                 if (plexusDetail) {
-                    const eventDate = new Date('2026-12-04');
+                    const eventDate = new Date(window.MEDX_DATES.plexus.start);
                     const daysLeft = Math.ceil((eventDate - new Date()) / 86400000);
                     plexusDetail.textContent = `${daysLeft} days left`;
                 }
@@ -120047,7 +120100,7 @@ By applying to this program, I give the following consents:
         // COUNTDOWN WIDGET
         // =========================================
         const CountdownWidget = {
-            targetDate: new Date('2026-12-04T09:00:00'),
+            get targetDate() { return new Date(window.MEDX_DATES.plexus.liveAt); },
             eventName: 'Plexus Conference 2026',
             intervalId: null,
 
