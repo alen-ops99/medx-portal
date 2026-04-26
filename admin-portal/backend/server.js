@@ -8544,7 +8544,7 @@ By applying to this program, I provide the following consents:
             [member.id, channel_id]);
 
         if (existing) {
-            db.run('UPDATE channel_read_status SET last_read_at = datetime("now") WHERE id = ?', [existing.id]);
+            db.run('UPDATE channel_read_status SET last_read_at = CURRENT_TIMESTAMP WHERE id = ?', [existing.id]);
         } else {
             db.run('INSERT INTO channel_read_status (id, user_id, channel_id) VALUES (?, ?, ?)',
                 [uuidv4(), member.id, channel_id]);
@@ -9461,7 +9461,7 @@ By applying to this program, I provide the following consents:
     });
 
     app.post('/api/admin/registrations/:id/checkin', auth, adminOnly, (req, res) => {
-        db.run('UPDATE registrations SET checked_in = 1, checked_in_at = datetime("now") WHERE id = ?', [req.params.id]);
+        db.run('UPDATE registrations SET checked_in = 1, checked_in_at = CURRENT_TIMESTAMP WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
     });
@@ -9473,7 +9473,7 @@ By applying to this program, I provide the following consents:
                 FROM registrations r JOIN users u ON r.user_id = u.id JOIN ticket_types t ON r.ticket_type_id = t.id WHERE r.id = ?`, [data.id]);
             if (!reg) return res.status(404).json({ error: 'Not found' });
             if (reg.checked_in) return res.json({ success: true, already_checked_in: true, registration: reg });
-            db.run('UPDATE registrations SET checked_in = 1, checked_in_at = datetime("now") WHERE id = ?', [data.id]);
+            db.run('UPDATE registrations SET checked_in = 1, checked_in_at = CURRENT_TIMESTAMP WHERE id = ?', [data.id]);
             saveDb();
             reg.checked_in = 1;
             res.json({ success: true, registration: reg });
@@ -10421,7 +10421,7 @@ By applying to this program, I provide the following consents:
                 if (conf) {
                     const ticket = query.get('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order LIMIT 1', [conf.id]);
                     try { db.run('ALTER TABLE registrations ADD COLUMN package_items TEXT'); } catch(e) {}
-                    db.run('INSERT OR IGNORE INTO registrations (id, conference_id, user_id, ticket_type_id, first_name, last_name, email, institution, country, status, payment_status, amount_paid, package_items, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,datetime("now"))',
+                    db.run('INSERT OR IGNORE INTO registrations (id, conference_id, user_id, ticket_type_id, first_name, last_name, email, institution, country, status, payment_status, amount_paid, package_items, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
                         [regId, conf.id, user.id, ticket?.id, first_name, last_name, email, institution, country, 'confirmed', 'pending', total_amount || 0, pkgJson]);
                 }
             } else if (event_type === 'gala') {
@@ -10451,10 +10451,10 @@ By applying to this program, I provide the following consents:
                     const promo = query.get("SELECT * FROM promo_codes WHERE UPPER(code) = UPPER(?) AND conference_id = 'forum-gala' AND is_active = 1", [coupon_code.trim()]);
                     if (promo) discAmt = promo.discount_type === 'fixed' ? promo.discount_value : Math.round((total_amount || 0) * promo.discount_value / 100 * 100) / 100;
                 }
-                db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, first_name, last_name, email, institution, status, package_items, dietary, allergies, guest_count, amount_paid, coupon_code, discount_amount, registered_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime("now"))',
+                db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, first_name, last_name, email, institution, status, package_items, dietary, allergies, guest_count, amount_paid, coupon_code, discount_amount, registered_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
                     [regId, forumEventId, user.id, first_name, last_name, email, institution || '', 'registered', pkgJson, req.body.dietary || '', req.body.allergies || '', req.body.guest_count || 0, total_amount || 0, coupon_code || '', discAmt]);
             } else if (event_type === 'bridges') {
-                db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,datetime("now"))',
+                db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
                     [regId, req.body.event_id || null, first_name, last_name, email, institution, 'confirmed']);
             }
 
@@ -11757,7 +11757,7 @@ By applying to this program, I provide the following consents:
             }
 
             // Update last login
-            db.run('UPDATE accelerator_applicants SET last_login = datetime("now") WHERE id = ?', [applicant.id]);
+            db.run('UPDATE accelerator_applicants SET last_login = CURRENT_TIMESTAMP WHERE id = ?', [applicant.id]);
             saveDb();
 
             // Generate JWT token
