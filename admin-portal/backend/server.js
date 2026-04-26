@@ -172,6 +172,7 @@ app.use(helmet({
                 "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com",
                 "https://unpkg.com"
             ],
+            "script-src-attr": ["'unsafe-inline'"],
             "style-src": [
                 "'self'", "'unsafe-inline'",
                 "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com",

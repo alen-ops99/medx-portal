@@ -68,6 +68,19 @@ check('CSP allows Stripe + jsdelivr + cdnjs', async () => {
     assert(v.includes('cdnjs.cloudflare.com'), 'cdnjs not in CSP allowlist');
 });
 
+// CSP must permit inline event handlers — the codebase has 1,400+ live `onclick=` attrs.
+// `script-src-attr 'none'` (helmet's default) silently blocks every one of them.
+// This is a regression catcher: if helmet upgrades or someone tightens the policy,
+// the smoke test fails before users hit dead buttons.
+check('CSP script-src-attr permits inline event handlers (PR #6 fix)', async () => {
+    for (const target of [PROD, ADMIN]) {
+        const v = (await get('/', target)).headers.get('content-security-policy') || '';
+        const m = v.match(/script-src-attr\s+([^;]+)/);
+        if (!m) continue; // unset → falls back to script-src which already allows 'unsafe-inline'
+        assert(!/'none'/.test(m[1]), `${target}: script-src-attr is 'none' — every inline onclick= is blocked. Add "script-src-attr": ["'unsafe-inline'"] to helmet config.`);
+    }
+});
+
 check('X-Frame-Options + X-Content-Type-Options present', async () => {
     const r = await get('/');
     assert(r.headers.get('x-frame-options'), 'X-Frame-Options missing');
@@ -183,14 +196,24 @@ check('no public /api/debug-* endpoint exposing env vars', async () => {
     console.log(`\n  MedX Production Smoke Test`);
     console.log(`  Target: ${PROD}`);
     console.log(`  Admin:  ${ADMIN}\n`);
+    // Render Free-tier cold-starts can yield half-buffered responses on the first hit
+    // (manifests as "Unexpected end of JSON input"). One retry after a short wait
+    // separates real regressions from cold-start flakes.
+    const runOnce = async (fn) => {
+        try { await fn(); return null; } catch (e) { return e; }
+    };
     for (const { name, fn } of tests) {
-        try {
-            await fn();
+        let err = await runOnce(fn);
+        if (err) {
+            await new Promise(r => setTimeout(r, 1500));
+            err = await runOnce(fn);
+        }
+        if (!err) {
             console.log(`  ✅  ${name}`);
             passed++;
-        } catch (e) {
+        } else {
             console.log(`  ❌  ${name}`);
-            console.log(`      → ${e.message}`);
+            console.log(`      → ${err.message}`);
             failed++;
         }
     }
