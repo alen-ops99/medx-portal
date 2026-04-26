@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
@@ -157,6 +158,49 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : true,
   credentials: true
 }));
+
+// Security headers via helmet — same posture as user-portal so the admin UI loads
+// the same CDN scripts (Chart.js, FontAwesome, html5-qrcode, jsQR).
+app.use(helmet({
+    contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+            "default-src": ["'self'"],
+            "script-src": [
+                "'self'", "'unsafe-inline'",
+                "https://js.stripe.com", "https://m.stripe.network", "https://m.stripe.com",
+                "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com",
+                "https://unpkg.com"
+            ],
+            "style-src": [
+                "'self'", "'unsafe-inline'",
+                "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com",
+                "https://cdn.jsdelivr.net"
+            ],
+            "font-src": ["'self'", "data:", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
+            "img-src": ["'self'", "data:", "blob:", "https:"],
+            "connect-src": [
+                "'self'",
+                "https://api.stripe.com", "https://m.stripe.network", "https://r.stripe.com",
+                "https://*.cloudinary.com",
+                "https://api.resend.com"
+            ],
+            "frame-src": [
+                "'self'",
+                "https://js.stripe.com", "https://hooks.stripe.com", "https://checkout.stripe.com"
+            ],
+            "form-action": ["'self'", "https://checkout.stripe.com"],
+            "frame-ancestors": ["'none'"],
+            "base-uri": ["'self'"],
+            "object-src": ["'none'"],
+            "upgrade-insecure-requests": []
+        }
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" }
+}));
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
