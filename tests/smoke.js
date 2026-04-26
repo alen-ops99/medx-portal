@@ -135,6 +135,24 @@ check('admin portal serves theme-fresh CSS (PR #3)', async () => {
     assert(t.includes('theme-fresh'), 'admin theme-fresh missing — pre-PR-#3 build?');
 });
 
+// ───────────────────────── Forgot-password flow ─────────────────────────
+check('POST /api/auth/forgot-password accepts email + returns generic success', async () => {
+    // Generic success for non-existent email (no info leak)
+    const r = await post('/api/auth/forgot-password', { email: 'definitely-not-a-real-user-2026@example.com' });
+    assert(r.status === 200, `expected 200, got ${r.status}`);
+    const d = await r.json();
+    assert(d.success === true, 'expected success:true');
+    // Should not reveal whether email exists
+    assert(!d.message?.toLowerCase().includes('not found'), 'leaked: server confirmed email does not exist');
+});
+
+check('GET /reset-password/<bad-token> shows expired-link page', async () => {
+    const r = await get('/reset-password/zzzz-this-token-does-not-exist');
+    assert(r.status === 200, `expected 200 (server-rendered error page), got ${r.status}`);
+    const t = await r.text();
+    assert(/Link Invalid|expired/i.test(t), 'expected "Link Invalid" or "expired" in error page');
+});
+
 // ───────────────────────── Debug-endpoint leak detector ─────────────────────────
 // If anyone re-introduces a public /api/test-* or /api/debug-* endpoint, this fails.
 check('no public /api/test-email leak', async () => {
