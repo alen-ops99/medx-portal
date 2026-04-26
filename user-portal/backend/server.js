@@ -16296,6 +16296,36 @@ By applying to this program, I provide the following consents:
         }
     });
 
+    // In-memory error ring buffer — admin-visible production observability.
+    // Keeps last 50 unhandled errors with request context. No external deps.
+    // For full-fledged monitoring, add Sentry later (this is the lightweight version).
+    const recentErrors = [];
+    const ERROR_RING_SIZE = 50;
+    const SENSITIVE_BODY_FIELDS = ['password', 'new_password', 'token', 'reset_token', 'verification_token', 'authorization', 'stripe_secret', 'fira_api_key'];
+
+    function redactBody(body) {
+        if (!body || typeof body !== 'object') return body;
+        const safe = {};
+        for (const k of Object.keys(body)) {
+            const lower = k.toLowerCase();
+            if (SENSITIVE_BODY_FIELDS.some(f => lower.includes(f))) {
+                safe[k] = '<redacted>';
+            } else if (typeof body[k] === 'string' && body[k].length > 200) {
+                safe[k] = body[k].slice(0, 200) + '…';
+            } else {
+                safe[k] = body[k];
+            }
+        }
+        return safe;
+    }
+
+    // Admin-only endpoint to view recent errors. Most-recent-first.
+    // Useful when production is acting up — no Render log access needed.
+    // MUST be registered before the /api/* 404 catch-all below.
+    app.get('/api/admin/errors/recent', auth, adminOnly, (req, res) => {
+        res.json({ count: recentErrors.length, errors: recentErrors.slice().reverse() });
+    });
+
     // API 404 handler — return JSON instead of HTML
     app.all('/api/*', (req, res) => {
         res.status(404).json({ error: 'API endpoint not found' });
@@ -16304,9 +16334,21 @@ By applying to this program, I provide the following consents:
     // Serve frontend
     app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../frontend/index.html')));
 
-    // Global error handler
+    // Global error handler — push into ring buffer + log. Must be registered LAST.
     app.use((err, req, res, next) => {
         console.error('Unhandled error:', err);
+        recentErrors.push({
+            ts: new Date().toISOString(),
+            method: req.method,
+            path: req.originalUrl,
+            user: req.user?.email || null,
+            ip: req.ip || req.headers['x-forwarded-for'] || null,
+            ua: (req.headers['user-agent'] || '').slice(0, 100),
+            body: redactBody(req.body),
+            message: err.message,
+            stack: (err.stack || '').split('\n').slice(0, 8).join('\n')
+        });
+        if (recentErrors.length > ERROR_RING_SIZE) recentErrors.shift();
         res.status(500).json({ error: 'Internal server error' });
     });
 
