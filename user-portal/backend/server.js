@@ -3274,6 +3274,15 @@ async function initializeApp() {
     db.run(`UPDATE forum_events SET title = 'Annual Biomedical Forum 2026 — Day 2 (Zagreb)', is_paid = 0, price = 0, status = 'published' WHERE slug = 'forum-2026-day2'`);
     db.run(`UPDATE forum_events SET title = 'Annual Biomedical Forum 2026', is_paid = 0, price = 0, status = 'published' WHERE slug = 'annual-forum-2026'`);
 
+    // Seed Forum Gala (May 27) — the FK target for paid gala registrations from invite links.
+    // Without this row, INSERT INTO forum_event_registrations fails with FOREIGN KEY constraint.
+    if (!query.get("SELECT id FROM forum_events WHERE slug = 'forum-2026-gala'")) {
+        const galaPrice = (query.get("SELECT price FROM forum_gala_settings WHERE id = 'default'")?.price) || 100;
+        db.run(`INSERT INTO forum_events (id, title, description, slug, event_scale, start_date, end_date, location_name, is_paid, price, status, is_published)
+            VALUES (?, 'Gala Dinner at the Annual Biomedical Forum 2026', 'Black-tie evening with awards ceremony at The Westin Zagreb.', 'forum-2026-gala', 'large', '2026-05-27', '2026-05-27', 'Crystal Ballroom, The Westin Zagreb', 1, ?, 'published', 1)`,
+            [uuidv4(), galaPrice]);
+    }
+
     // Plexus settings (admin-editable)
     db.run(`CREATE TABLE IF NOT EXISTS plexus_settings (
         id TEXT PRIMARY KEY DEFAULT 'default',
@@ -8326,7 +8335,7 @@ By applying to this program, I provide the following consents:
             [member.id, channel_id]);
 
         if (existing) {
-            db.run('UPDATE channel_read_status SET last_read_at = datetime("now") WHERE id = ?', [existing.id]);
+            db.run('UPDATE channel_read_status SET last_read_at = CURRENT_TIMESTAMP WHERE id = ?', [existing.id]);
         } else {
             db.run('INSERT INTO channel_read_status (id, user_id, channel_id) VALUES (?, ?, ?)',
                 [uuidv4(), member.id, channel_id]);
@@ -9000,7 +9009,7 @@ By applying to this program, I provide the following consents:
     });
 
     app.post('/api/admin/registrations/:id/checkin', auth, adminOnly, (req, res) => {
-        db.run('UPDATE registrations SET checked_in = 1, checked_in_at = datetime("now") WHERE id = ?', [req.params.id]);
+        db.run('UPDATE registrations SET checked_in = 1, checked_in_at = CURRENT_TIMESTAMP WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
     });
@@ -9012,7 +9021,7 @@ By applying to this program, I provide the following consents:
                 FROM registrations r JOIN users u ON r.user_id = u.id JOIN ticket_types t ON r.ticket_type_id = t.id WHERE r.id = ?`, [data.id]);
             if (!reg) return res.status(404).json({ error: 'Not found' });
             if (reg.checked_in) return res.json({ success: true, already_checked_in: true, registration: reg });
-            db.run('UPDATE registrations SET checked_in = 1, checked_in_at = datetime("now") WHERE id = ?', [data.id]);
+            db.run('UPDATE registrations SET checked_in = 1, checked_in_at = CURRENT_TIMESTAMP WHERE id = ?', [data.id]);
             saveDb();
             reg.checked_in = 1;
             res.json({ success: true, registration: reg });
@@ -12061,7 +12070,7 @@ By applying to this program, I provide the following consents:
             }
 
             // Update last login
-            db.run('UPDATE accelerator_applicants SET last_login = datetime("now") WHERE id = ?', [applicant.id]);
+            db.run('UPDATE accelerator_applicants SET last_login = CURRENT_TIMESTAMP WHERE id = ?', [applicant.id]);
             saveDb();
 
             // Generate JWT token
@@ -15743,11 +15752,39 @@ By applying to this program, I provide the following consents:
             } else if (event_type === 'forum') {
                 try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN coupon_code TEXT'); } catch(e) {}
                 try { db.run('ALTER TABLE forum_event_registrations ADD COLUMN discount_amount REAL DEFAULT 0'); } catch(e) {}
-                db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, status, coupon_code, registered_at) VALUES (?,?,?,?,?,datetime("now"))',
-                    [regId, req.body.event_id || null, user.id, 'registered', coupon_code || '']);
+
+                // Resolve forum_events row — FK on forum_event_registrations.event_id requires a real row.
+                // Forum Gala routes via slug 'forum-2026-gala'. Other items try event_id from body, then package match, then null.
+                const isGalaOnly = (package_items || []).length >= 1 && package_items.every(p => p && p.toLowerCase().includes('gala'));
+                let eventRow = null;
+                if (isGalaOnly) {
+                    eventRow = query.get(`SELECT id FROM forum_events WHERE slug = 'forum-2026-gala'`);
+                } else if (req.body.event_id) {
+                    eventRow = query.get(`SELECT id FROM forum_events WHERE id = ? OR slug = ?`, [req.body.event_id, req.body.event_id]);
+                }
+
+                // FK on member_id → forum_members(id). Lookup or create.
+                let memberId;
+                const existingMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [user.id]);
+                if (existingMember) {
+                    memberId = existingMember.id;
+                } else {
+                    memberId = uuidv4();
+                    db.run(`INSERT INTO forum_members (id, user_id, first_name, last_name, email, country, membership_status, institution) VALUES (?, ?, ?, ?, ?, ?, 'approved', ?)`,
+                        [memberId, user.id, first_name, last_name || null, email, country || null, institution || null]);
+                }
+
+                db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, first_name, last_name, email, institution, status, payment_status, coupon_code, registered_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
+                    [regId, eventRow?.id || null, memberId, first_name, last_name || null, email, institution || null, 'registered', 'pending', coupon_code || '']);
             } else if (event_type === 'bridges') {
-                db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,datetime("now"))',
-                    [regId, req.body.event_id || null, first_name, last_name, email, institution, 'confirmed']);
+                // bridges_registrations.event_id has FK to bridges_events(id) — null is allowed if no specific event
+                let bridgesEventId = null;
+                if (req.body.event_id) {
+                    const row = query.get(`SELECT id FROM bridges_events WHERE id = ?`, [req.body.event_id]);
+                    bridgesEventId = row?.id || null;
+                }
+                db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
+                    [regId, bridgesEventId, first_name, last_name || null, email, institution || null, 'confirmed']);
             }
 
             saveDb();
@@ -16001,10 +16038,10 @@ By applying to this program, I provide the following consents:
                 db.run('INSERT OR IGNORE INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status) VALUES (?,?,?,?,?,?,?)',
                     [regId, first_name, last_name, email, institution, 'approved', 'pending']);
             } else if (link.event_type === 'forum') {
-                db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, status, registered_at) VALUES (?,?,?,?,datetime("now"))',
+                db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, status, registered_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)',
                     [regId, link.event_id, user.id, 'registered']);
             } else if (link.event_type === 'bridges') {
-                db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,datetime("now"))',
+                db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
                     [regId, link.event_id, first_name, last_name, email, institution, 'confirmed']);
             }
 
