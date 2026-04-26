@@ -302,17 +302,6 @@ app.get('/api/admin/registrations-csv', auth, (req, res) => {
     }
 });
 
-// Test email endpoint (temporary)
-app.get('/api/test-email', async (req, res) => {
-    try {
-        const result = await sendEmail('juginovic.alen@gmail.com', 'Render SMTP Test ' + new Date().toISOString().slice(11,19),
-            '<h2 style="color:#c9a962;">SMTP Works on Render!</h2><p>This email was sent from the live Render deployment.</p>');
-        res.json({ result, smtp_user: process.env.SMTP_USER, smtp_host: process.env.SMTP_HOST, has_resend: !!process.env.RESEND_API_KEY });
-    } catch(e) {
-        res.json({ error: e.message, smtp_user: process.env.SMTP_USER });
-    }
-});
-
 // ========== INVITE SUCCESS/CANCEL PAGES ==========
 app.get('/invite-success', async (req, res) => {
     const sessionId = req.query.session_id;

@@ -135,6 +135,20 @@ check('admin portal serves theme-fresh CSS (PR #3)', async () => {
     assert(t.includes('theme-fresh'), 'admin theme-fresh missing — pre-PR-#3 build?');
 });
 
+// ───────────────────────── Debug-endpoint leak detector ─────────────────────────
+// If anyone re-introduces a public /api/test-* or /api/debug-* endpoint, this fails.
+check('no public /api/test-email leak', async () => {
+    const r = await get('/api/test-email');
+    assert(r.status === 404, `/api/test-email is still exposed (status ${r.status}) — debug endpoint left in production!`);
+});
+
+check('no public /api/debug-* endpoint exposing env vars', async () => {
+    for (const p of ['/api/debug', '/api/debug/email', '/api/debug/env', '/api/test', '/api/test-stripe']) {
+        const r = await get(p);
+        assert(r.status === 404, `${p} returned ${r.status} — possible debug endpoint leak`);
+    }
+});
+
 // ───────────────────────── Run ─────────────────────────
 (async () => {
     const start = Date.now();
