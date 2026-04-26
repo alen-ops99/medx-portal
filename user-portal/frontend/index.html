@@ -55971,6 +55971,9 @@ textarea:focus:not(:focus-visible),
             <div class="auth-form-group">
                 <label class="auth-form-label">Password</label>
                 <input type="password" id="userLoginPassword" class="auth-form-input" value="" placeholder="Your password" autocomplete="current-password">
+                <div style="text-align: right; margin-top: 6px;">
+                    <a href="#" id="userForgotPwLink" onclick="UserPortal.openForgotPassword(); return false;" style="color: #C9A962; font-size: 12px; font-weight: 500; text-decoration: none;">Forgot password?</a>
+                </div>
             </div>
             <button type="button" id="userLoginBtn" class="auth-btn" onclick="UserPortal.login()">Sign In</button>
             <button type="button" class="auth-btn" style="margin-top: 10px; background: #22c55e;" onclick="UserPortal.demoLogin()">Demo Login (Quick)</button>
@@ -76695,8 +76698,30 @@ You can use variables like {first_name} that will be personalized for each recip
                 this.openLoginModal();
             },
 
-            openForgotPassword() {
-                Toast.info('Password reset functionality will be implemented. For now, please contact info@medx.hr for assistance.');
+            async openForgotPassword() {
+                // Prefer the email already typed in the login form; otherwise prompt.
+                const emailInput = document.getElementById('userLoginEmail');
+                let email = (emailInput && emailInput.value || '').trim();
+                if (!email) {
+                    email = (prompt('Enter your account email and we\'ll send a reset link:') || '').trim();
+                }
+                if (!email) return;
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                    Toast.error('Please enter a valid email address.');
+                    return;
+                }
+                try {
+                    const res = await fetch('/api/auth/forgot-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                    });
+                    const data = await res.json();
+                    // Backend returns generic success either way (no enumeration)
+                    Toast.success(data.message || 'If an account with that email exists, a password reset link has been sent. Check your inbox.');
+                } catch (e) {
+                    Toast.error('Network error. Please try again or contact info@medx.hr.');
+                }
             },
 
             // Resend verification email
