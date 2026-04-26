@@ -18594,6 +18594,7 @@ President, Med&amp;X</textarea>
                 const container = document.getElementById('pxSponsorPipeline');
                 if (!container) return;
                 const sponsors = this.plexusSponsors || [];
+                if (!this.sponsorPipelineFilter) this.sponsorPipelineFilter = 'all';
                 const stages = [
                     { key: 'all', label: 'All' },
                     { key: 'prospect', label: 'Prospect' },
@@ -18629,8 +18630,9 @@ President, Med&amp;X</textarea>
                 if (!container) return;
 
                 let sponsors = this.plexusSponsors || [];
-                if (this.sponsorPipelineFilter !== 'all') {
-                    sponsors = sponsors.filter(s => (s.status || 'prospect') === this.sponsorPipelineFilter);
+                const activeFilter = this.sponsorPipelineFilter || 'all';
+                if (activeFilter !== 'all') {
+                    sponsors = sponsors.filter(s => (s.status || 'prospect') === activeFilter);
                 }
 
                 if (sponsors.length === 0 && this.plexusSponsors.length === 0) {
