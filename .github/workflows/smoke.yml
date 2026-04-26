@@ -1,0 +1,30 @@
+name: Smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # allow manual run from the Actions tab
+  schedule:
+    - cron: '0 7 * * *'  # 07:00 UTC daily — catches drift even when no one pushes
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # The smoke test has zero npm dependencies — uses fetch (Node 18+ built-in).
+      # No `npm install` step needed. Just run.
+      - name: Run production smoke test
+        run: npm run smoke
+        env:
+          # Override targets here if testing against staging in future:
+          # MEDX_BASE_URL: https://staging.medx-user-portal.onrender.com
+          NODE_NO_WARNINGS: '1'
