@@ -4076,6 +4076,17 @@ async function initializeApp() {
         legacyHeaders: false
     });
 
+    // Registration-mutating endpoints (creates DB rows + may send emails).
+    // Lenient enough for legit users with multiple form retries; tight enough
+    // to stop a basic spam loop in its tracks.
+    const registrationLimiter = rateLimit({
+        windowMs: 10 * 60 * 1000, // 10 minutes
+        max: 20,                   // 20 attempts per IP per window
+        message: { error: 'Too many registration attempts. Please try again in 10 minutes.' },
+        standardHeaders: true,
+        legacyHeaders: false
+    });
+
     app.post('/api/auth/register', authLimiter, async (req, res) => {
         try {
             const { email, password, first_name, last_name, institution, country } = req.body;
@@ -4191,7 +4202,7 @@ async function initializeApp() {
     });
 
     // Resend verification email
-    app.post('/api/resend-verification', async (req, res) => {
+    app.post('/api/resend-verification', authLimiter, async (req, res) => {
         try {
             const { email } = req.body;
             if (!email) {
@@ -6991,7 +7002,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Register for event (enhanced with name/email/institution + payment support)
-    app.post('/api/forum/events/:id/register', optionalAuth, async (req, res) => {
+    app.post('/api/forum/events/:id/register', registrationLimiter, optionalAuth, async (req, res) => {
         try {
             const { name, email, institution } = req.body || {};
 
@@ -15883,7 +15894,7 @@ By applying to this program, I provide the following consents:
         } catch(e) { res.json({ valid: false, error: 'Validation error' }); }
     });
 
-    app.post('/api/register-invite', async (req, res) => {
+    app.post('/api/register-invite', registrationLimiter, async (req, res) => {
         try {
             const { first_name, last_name, email, institution, country, event_type, event_name, package_items, guest_count, coupon_code, total_amount, dietary, allergies } = req.body;
             if (!email || !first_name) return res.status(400).json({ error: 'Name and email required' });
