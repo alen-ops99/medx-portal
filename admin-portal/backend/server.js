@@ -11110,7 +11110,8 @@ By applying to this program, I provide the following consents:
             saveDb();
         }
 
-        const portalUrl = `http://localhost:3000/?section=speaker&code=${encodeURIComponent(inviteCode)}`;
+        const baseUrl = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
+        const portalUrl = `${baseUrl}/?section=speaker&code=${encodeURIComponent(inviteCode)}`;
         const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
         const confName = conf?.name || 'Plexus 2026';
 
