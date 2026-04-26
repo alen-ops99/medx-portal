@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
@@ -225,6 +226,53 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
 
 app.use(cors({
     origin: [process.env.RENDER_EXTERNAL_URL, 'http://localhost:3000', 'http://localhost:3001'].filter(Boolean)
+}));
+
+// Security headers via helmet — keep CSP permissive enough to allow Stripe + CDN scripts
+// + the existing inline scripts/styles. unsafe-inline is unavoidable until the 5.4MB
+// inline JS is extracted to external files (separate refactor). Everything else is locked down.
+app.use(helmet({
+    contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+            "default-src": ["'self'"],
+            "script-src": [
+                "'self'", "'unsafe-inline'",
+                "https://js.stripe.com", "https://m.stripe.network", "https://m.stripe.com",
+                "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com",
+                "https://unpkg.com"
+            ],
+            "style-src": [
+                "'self'", "'unsafe-inline'",
+                "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com",
+                "https://cdn.jsdelivr.net"
+            ],
+            "font-src": [
+                "'self'", "data:",
+                "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"
+            ],
+            "img-src": ["'self'", "data:", "blob:", "https:"],
+            "connect-src": [
+                "'self'",
+                "https://api.stripe.com", "https://m.stripe.network", "https://r.stripe.com",
+                "https://*.cloudinary.com",
+                "https://api.resend.com"
+            ],
+            "frame-src": [
+                "'self'",
+                "https://js.stripe.com", "https://hooks.stripe.com", "https://checkout.stripe.com",
+                "https://m.stripe.network"
+            ],
+            "form-action": ["'self'", "https://checkout.stripe.com"],
+            "frame-ancestors": ["'none'"],
+            "base-uri": ["'self'"],
+            "object-src": ["'none'"],
+            "upgrade-insecure-requests": []
+        }
+    },
+    crossOriginEmbedderPolicy: false,        // disabled — would break CDN-loaded scripts/fonts without CORS headers
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }, // Stripe checkout opens popup
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" }
 }));
 
 // Stripe webhook needs raw body for signature verification
