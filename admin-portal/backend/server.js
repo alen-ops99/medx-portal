@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
@@ -157,6 +158,49 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : true,
   credentials: true
 }));
+
+// Security headers via helmet — same posture as user-portal so the admin UI loads
+// the same CDN scripts (Chart.js, FontAwesome, html5-qrcode, jsQR).
+app.use(helmet({
+    contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+            "default-src": ["'self'"],
+            "script-src": [
+                "'self'", "'unsafe-inline'",
+                "https://js.stripe.com", "https://m.stripe.network", "https://m.stripe.com",
+                "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com",
+                "https://unpkg.com"
+            ],
+            "style-src": [
+                "'self'", "'unsafe-inline'",
+                "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com",
+                "https://cdn.jsdelivr.net"
+            ],
+            "font-src": ["'self'", "data:", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
+            "img-src": ["'self'", "data:", "blob:", "https:"],
+            "connect-src": [
+                "'self'",
+                "https://api.stripe.com", "https://m.stripe.network", "https://r.stripe.com",
+                "https://*.cloudinary.com",
+                "https://api.resend.com"
+            ],
+            "frame-src": [
+                "'self'",
+                "https://js.stripe.com", "https://hooks.stripe.com", "https://checkout.stripe.com"
+            ],
+            "form-action": ["'self'", "https://checkout.stripe.com"],
+            "frame-ancestors": ["'none'"],
+            "base-uri": ["'self'"],
+            "object-src": ["'none'"],
+            "upgrade-insecure-requests": []
+        }
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" }
+}));
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -11005,6 +11049,15 @@ By applying to this program, I provide the following consents:
                 .replace(/\{\{institution\}\}/g, speaker.institution || '')
                 .replace(/\{\{conference\}\}/g, confName);
 
+            // Ensure invite_code exists so speakers can access their portal
+            let inviteCode = speaker.invite_code;
+            if (!inviteCode) {
+                inviteCode = generateSpeakerInviteCode();
+                db.run('UPDATE speakers SET invite_code = ? WHERE id = ?', [inviteCode, sid]);
+            }
+            const speakerPortalBase = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
+            const speakerPortalUrl = `${speakerPortalBase}/?section=speaker&code=${encodeURIComponent(inviteCode)}`;
+
             const emailHtml = `
                 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; color: #e2e8f0; padding: 32px; border-radius: 12px;">
                     <div style="text-align: center; margin-bottom: 24px;">
@@ -11013,6 +11066,10 @@ By applying to this program, I provide the following consents:
                     </div>
                     <div style="background: #1e293b; padding: 24px; border-radius: 8px; line-height: 1.7;">
                         ${personalizedBody.replace(/\n/g, '<br>')}
+                    </div>
+                    <div style="text-align: center; margin-top: 24px;">
+                        <a href="${speakerPortalUrl}" style="display: inline-block; background: linear-gradient(135deg, #c9a962, #b49650); color: #0f172a; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 15px;">Confirm &amp; Access Speaker Portal</a>
+                        <p style="margin: 12px 0 0; color: #64748b; font-size: 12px;">Your invite code: <strong style="color: #c9a962; font-family: monospace; letter-spacing: 1px;">${inviteCode}</strong></p>
                     </div>
                     <div style="text-align: center; margin-top: 24px; color: #64748b; font-size: 12px;">
                         <p>Med&X — Connecting Science with Impact</p>
@@ -11066,7 +11123,8 @@ By applying to this program, I provide the following consents:
             saveDb();
         }
 
-        const portalUrl = `http://localhost:3000/?section=speaker&code=${encodeURIComponent(inviteCode)}`;
+        const baseUrl = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
+        const portalUrl = `${baseUrl}/?section=speaker&code=${encodeURIComponent(inviteCode)}`;
         const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
         const confName = conf?.name || 'Plexus 2026';
 
@@ -16035,6 +16093,29 @@ By applying to this program, I provide the following consents:
         if (updated) {
             try { updated.key_dates = JSON.parse(updated.key_dates_json || '[]'); } catch(e) { updated.key_dates = []; }
             try { updated.testimonials = JSON.parse(updated.testimonials_json || '[]'); } catch(e) { updated.testimonials = []; }
+
+            // Sync ticket_types to match plexus_settings so /api/plexus/register charges
+            // exactly what the website displays. Without this sync, admin edits to prices
+            // are silent — visitors see plexus_settings but pay ticket_types.
+            // price_regular falls between early and late; we set it to the late price as a
+            // safe default (any admin who wants a separate "regular" tier can edit ticket_types directly).
+            try {
+                const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+                if (conf) {
+                    const sE = updated.price_student_early, sL = updated.price_student_late;
+                    const pE = updated.price_professional_early, pL = updated.price_professional_late;
+                    db.run(`UPDATE ticket_types SET price_early_bird = ?, price_regular = ?, price_late = ?
+                            WHERE conference_id = ? AND LOWER(name) LIKE '%student%'`,
+                        [sE, sL, sL, conf.id]);
+                    db.run(`UPDATE ticket_types SET price_early_bird = ?, price_regular = ?, price_late = ?
+                            WHERE conference_id = ? AND (LOWER(name) LIKE '%general%' OR LOWER(name) LIKE '%professional%' OR LOWER(name) LIKE '%attendee%')
+                            AND LOWER(name) NOT LIKE '%vip%' AND LOWER(name) NOT LIKE '%speaker%' AND LOWER(name) NOT LIKE '%volunteer%'`,
+                        [pE, pL, pL, conf.id]);
+                    saveDb();
+                }
+            } catch (syncErr) {
+                console.warn('[plexus] ticket_types sync failed (non-fatal):', syncErr.message);
+            }
         }
         res.json({ success: true, settings: updated });
     });

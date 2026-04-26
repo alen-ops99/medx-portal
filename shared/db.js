@@ -35,6 +35,12 @@ function createDatabase(Database, opts = {}) {
         }
     }
 
+    // Tracks the changes count of the most recent run() so callers can use
+    // db.getRowsModified() after a parameterized UPDATE — needed by the
+    // atomic promo-code claim pattern in both backends. libsql does not
+    // expose this method natively (sql.js did), so we polyfill it here.
+    let _lastRunChanges = 0;
+
     // sql.js-compatible facade
     const wrapper = {
         /**
@@ -43,10 +49,16 @@ function createDatabase(Database, opts = {}) {
          */
         run(sql, params) {
             if (params && params.length > 0) {
-                return rawDb.prepare(sql).run(...params);
+                const result = rawDb.prepare(sql).run(...params);
+                _lastRunChanges = (result && typeof result.changes === 'number') ? result.changes : 0;
+                return result;
             }
+            _lastRunChanges = 0; // exec() returns no changes count
             return rawDb.exec(sql);
         },
+
+        /** sql.js polyfill — count of rows modified by the most recent run() with params */
+        getRowsModified() { return _lastRunChanges; },
 
         /**
          * sql.js: db.prepare(sql) → { bind, step, getAsObject, free, run }
