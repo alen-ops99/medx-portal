@@ -11049,6 +11049,15 @@ By applying to this program, I provide the following consents:
                 .replace(/\{\{institution\}\}/g, speaker.institution || '')
                 .replace(/\{\{conference\}\}/g, confName);
 
+            // Ensure invite_code exists so speakers can access their portal
+            let inviteCode = speaker.invite_code;
+            if (!inviteCode) {
+                inviteCode = generateSpeakerInviteCode();
+                db.run('UPDATE speakers SET invite_code = ? WHERE id = ?', [inviteCode, sid]);
+            }
+            const speakerPortalBase = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
+            const speakerPortalUrl = `${speakerPortalBase}/?section=speaker&code=${encodeURIComponent(inviteCode)}`;
+
             const emailHtml = `
                 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; color: #e2e8f0; padding: 32px; border-radius: 12px;">
                     <div style="text-align: center; margin-bottom: 24px;">
@@ -11057,6 +11066,10 @@ By applying to this program, I provide the following consents:
                     </div>
                     <div style="background: #1e293b; padding: 24px; border-radius: 8px; line-height: 1.7;">
                         ${personalizedBody.replace(/\n/g, '<br>')}
+                    </div>
+                    <div style="text-align: center; margin-top: 24px;">
+                        <a href="${speakerPortalUrl}" style="display: inline-block; background: linear-gradient(135deg, #c9a962, #b49650); color: #0f172a; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 15px;">Confirm &amp; Access Speaker Portal</a>
+                        <p style="margin: 12px 0 0; color: #64748b; font-size: 12px;">Your invite code: <strong style="color: #c9a962; font-family: monospace; letter-spacing: 1px;">${inviteCode}</strong></p>
                     </div>
                     <div style="text-align: center; margin-top: 24px; color: #64748b; font-size: 12px;">
                         <p>Med&X — Connecting Science with Impact</p>
