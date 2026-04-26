@@ -1,0 +1,9 @@
+{
+  "name": "medx-portal",
+  "private": true,
+  "description": "Med&X portal — user + admin portals on Render",
+  "scripts": {
+    "smoke": "node tests/smoke.js",
+    "smoke:local": "MEDX_BASE_URL=http://localhost:2011 MEDX_ADMIN_URL=http://localhost:2012 node tests/smoke.js"
+  }
+}
