@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
@@ -225,6 +226,53 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
 
 app.use(cors({
     origin: [process.env.RENDER_EXTERNAL_URL, 'http://localhost:3000', 'http://localhost:3001'].filter(Boolean)
+}));
+
+// Security headers via helmet — keep CSP permissive enough to allow Stripe + CDN scripts
+// + the existing inline scripts/styles. unsafe-inline is unavoidable until the 5.4MB
+// inline JS is extracted to external files (separate refactor). Everything else is locked down.
+app.use(helmet({
+    contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+            "default-src": ["'self'"],
+            "script-src": [
+                "'self'", "'unsafe-inline'",
+                "https://js.stripe.com", "https://m.stripe.network", "https://m.stripe.com",
+                "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com",
+                "https://unpkg.com"
+            ],
+            "style-src": [
+                "'self'", "'unsafe-inline'",
+                "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com",
+                "https://cdn.jsdelivr.net"
+            ],
+            "font-src": [
+                "'self'", "data:",
+                "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"
+            ],
+            "img-src": ["'self'", "data:", "blob:", "https:"],
+            "connect-src": [
+                "'self'",
+                "https://api.stripe.com", "https://m.stripe.network", "https://r.stripe.com",
+                "https://*.cloudinary.com",
+                "https://api.resend.com"
+            ],
+            "frame-src": [
+                "'self'",
+                "https://js.stripe.com", "https://hooks.stripe.com", "https://checkout.stripe.com",
+                "https://m.stripe.network"
+            ],
+            "form-action": ["'self'", "https://checkout.stripe.com"],
+            "frame-ancestors": ["'none'"],
+            "base-uri": ["'self'"],
+            "object-src": ["'none'"],
+            "upgrade-insecure-requests": []
+        }
+    },
+    crossOriginEmbedderPolicy: false,        // disabled — would break CDN-loaded scripts/fonts without CORS headers
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }, // Stripe checkout opens popup
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" }
 }));
 
 // Stripe webhook needs raw body for signature verification
@@ -580,6 +628,7 @@ app.get('/invite/:data', (req, res) => {
             <form id="regForm" class="form-grid" onsubmit="submitReg(event)">
                 <input type="hidden" id="eventType" value="${escapeHtml(eventType)}">
                 <input type="hidden" id="eventName" value="${escapeHtml(eventInfo.name)}">
+                <input type="hidden" id="eventId" value="${escapeHtml(data.i || '')}">
                 <input type="hidden" id="packageItems" value='${escapeHtml(JSON.stringify(packageItems))}'>
                 <div class="form-row">
                     <div><label>First Name *</label><input type="text" id="firstName" required placeholder="First name"></div>
@@ -687,6 +736,7 @@ app.get('/invite/:data', (req, res) => {
             country: document.getElementById('country').value,
             event_type: document.getElementById('eventType').value,
             event_name: document.getElementById('eventName').value,
+            event_id: document.getElementById('eventId')?.value || undefined,
             package_items: JSON.parse(document.getElementById('packageItems').value || '[]'),
             dietary: document.getElementById('dietary').value === 'Other' ? document.getElementById('dietaryOther').value : document.getElementById('dietary').value,
             allergies: document.getElementById('allergies').value === 'Other' ? document.getElementById('allergyOther').value : document.getElementById('allergies').value,
@@ -15777,14 +15827,25 @@ By applying to this program, I provide the following consents:
                 db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, first_name, last_name, email, institution, status, payment_status, coupon_code, registered_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
                     [regId, eventRow?.id || null, memberId, first_name, last_name || null, email, institution || null, 'registered', 'pending', coupon_code || '']);
             } else if (event_type === 'bridges') {
-                // bridges_registrations.event_id has FK to bridges_events(id) — null is allowed if no specific event
+                // bridges_registrations.event_id is TEXT NOT NULL with FK to bridges_events(id).
+                // Resolve in priority: 1) body.event_id (from invite token), 2) next upcoming
+                // event, 3) any event. If none exist, skip the insert with a warning.
                 let bridgesEventId = null;
                 if (req.body.event_id) {
                     const row = query.get(`SELECT id FROM bridges_events WHERE id = ?`, [req.body.event_id]);
-                    bridgesEventId = row?.id || null;
+                    if (row) bridgesEventId = row.id;
                 }
-                db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
-                    [regId, bridgesEventId, first_name, last_name || null, email, institution || null, 'confirmed']);
+                if (!bridgesEventId) {
+                    const today = new Date().toISOString().slice(0, 10);
+                    bridgesEventId = query.get(`SELECT id FROM bridges_events WHERE event_date >= ? ORDER BY event_date ASC LIMIT 1`, [today])?.id
+                                   || query.get(`SELECT id FROM bridges_events ORDER BY event_date DESC LIMIT 1`)?.id;
+                }
+                if (bridgesEventId) {
+                    db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
+                        [regId, bridgesEventId, first_name, last_name || '', email, institution || null, 'confirmed']);
+                } else {
+                    console.warn('[register-invite] bridges: no bridges_events row exists, skipping insert for', email);
+                }
             }
 
             saveDb();
