@@ -21,6 +21,13 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # PR-time runs probe the LIVE production. New-feature tests added in the same
+    # PR that adds the feature naturally fail (deploy hasn't happened yet — the
+    # whole point of the PR is to ship the feature). Don't email about those —
+    # the schedule + manual runs are the source of truth for "is production OK".
+    # Set continue-on-error so PR runs report status without triggering failure
+    # emails. Schedule + workflow_dispatch runs still fail loudly.
+    continue-on-error: ${{ github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@v5
 
