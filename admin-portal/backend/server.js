@@ -8002,11 +8002,14 @@ By applying to this program, I provide the following consents:
     });
 
     // Admin: Publish event with notification
+    // Body: {is_published: 0|1} acts as setter. Empty body falls back to toggle (legacy admin UI).
     app.put('/api/admin/forum/events/:id/publish', auth, adminOnly, (req, res) => {
         const evt = query.get('SELECT * FROM forum_events WHERE id = ?', [req.params.id]);
         if (!evt) return res.status(404).json({ error: 'Event not found' });
 
-        const newPublished = evt.is_published ? 0 : 1;
+        const newPublished = (req.body && req.body.is_published !== undefined)
+            ? (req.body.is_published ? 1 : 0)
+            : (evt.is_published ? 0 : 1);
         db.run('UPDATE forum_events SET is_published = ?, status = ?, updated_at = datetime(\'now\') WHERE id = ?',
             [newPublished, newPublished ? 'published' : evt.status === 'published' ? 'planning' : evt.status, req.params.id]);
 
@@ -10646,18 +10649,22 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    // Admin: Publish single session
+    // Admin: Publish/unpublish single session
+    // Body: {is_published: 0|1}. If body omitted, defaults to publish (1) for legacy admin UI.
     app.put('/api/admin/plexus/sessions/:id/publish', auth, adminOnly, (req, res) => {
         const session = query.get('SELECT * FROM sessions WHERE id = ?', [req.params.id]);
         if (!session) return res.status(404).json({ error: 'Session not found' });
-        db.run('UPDATE sessions SET is_published = 1 WHERE id = ?', [req.params.id]);
-        createUserNotification({
-            userGroup: 'all', category: 'announcement', project: 'plexus',
-            title: 'Schedule Update', message: `New session added: ${session.title}`,
-            icon: 'fa-calendar-alt', iconClass: 'plexus', createdBy: req.user.id
-        });
+        const val = (req.body && req.body.is_published !== undefined) ? (req.body.is_published ? 1 : 0) : 1;
+        db.run('UPDATE sessions SET is_published = ? WHERE id = ?', [val, req.params.id]);
+        if (val === 1) {
+            createUserNotification({
+                userGroup: 'all', category: 'announcement', project: 'plexus',
+                title: 'Schedule Update', message: `New session added: ${session.title}`,
+                icon: 'fa-calendar-alt', iconClass: 'plexus', createdBy: req.user.id
+            });
+        }
         saveDb();
-        res.json({ success: true });
+        res.json({ success: true, is_published: val });
     });
 
     // Admin: Bulk publish sessions
