@@ -16035,6 +16035,29 @@ By applying to this program, I provide the following consents:
         if (updated) {
             try { updated.key_dates = JSON.parse(updated.key_dates_json || '[]'); } catch(e) { updated.key_dates = []; }
             try { updated.testimonials = JSON.parse(updated.testimonials_json || '[]'); } catch(e) { updated.testimonials = []; }
+
+            // Sync ticket_types to match plexus_settings so /api/plexus/register charges
+            // exactly what the website displays. Without this sync, admin edits to prices
+            // are silent — visitors see plexus_settings but pay ticket_types.
+            // price_regular falls between early and late; we set it to the late price as a
+            // safe default (any admin who wants a separate "regular" tier can edit ticket_types directly).
+            try {
+                const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+                if (conf) {
+                    const sE = updated.price_student_early, sL = updated.price_student_late;
+                    const pE = updated.price_professional_early, pL = updated.price_professional_late;
+                    db.run(`UPDATE ticket_types SET price_early_bird = ?, price_regular = ?, price_late = ?
+                            WHERE conference_id = ? AND LOWER(name) LIKE '%student%'`,
+                        [sE, sL, sL, conf.id]);
+                    db.run(`UPDATE ticket_types SET price_early_bird = ?, price_regular = ?, price_late = ?
+                            WHERE conference_id = ? AND (LOWER(name) LIKE '%general%' OR LOWER(name) LIKE '%professional%' OR LOWER(name) LIKE '%attendee%')
+                            AND LOWER(name) NOT LIKE '%vip%' AND LOWER(name) NOT LIKE '%speaker%' AND LOWER(name) NOT LIKE '%volunteer%'`,
+                        [pE, pL, pL, conf.id]);
+                    saveDb();
+                }
+            } catch (syncErr) {
+                console.warn('[plexus] ticket_types sync failed (non-fatal):', syncErr.message);
+            }
         }
         res.json({ success: true, settings: updated });
     });
