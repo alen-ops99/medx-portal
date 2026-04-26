@@ -628,6 +628,7 @@ app.get('/invite/:data', (req, res) => {
             <form id="regForm" class="form-grid" onsubmit="submitReg(event)">
                 <input type="hidden" id="eventType" value="${escapeHtml(eventType)}">
                 <input type="hidden" id="eventName" value="${escapeHtml(eventInfo.name)}">
+                <input type="hidden" id="eventId" value="${escapeHtml(data.i || '')}">
                 <input type="hidden" id="packageItems" value='${escapeHtml(JSON.stringify(packageItems))}'>
                 <div class="form-row">
                     <div><label>First Name *</label><input type="text" id="firstName" required placeholder="First name"></div>
@@ -735,6 +736,7 @@ app.get('/invite/:data', (req, res) => {
             country: document.getElementById('country').value,
             event_type: document.getElementById('eventType').value,
             event_name: document.getElementById('eventName').value,
+            event_id: document.getElementById('eventId')?.value || undefined,
             package_items: JSON.parse(document.getElementById('packageItems').value || '[]'),
             dietary: document.getElementById('dietary').value === 'Other' ? document.getElementById('dietaryOther').value : document.getElementById('dietary').value,
             allergies: document.getElementById('allergies').value === 'Other' ? document.getElementById('allergyOther').value : document.getElementById('allergies').value,
@@ -15825,14 +15827,25 @@ By applying to this program, I provide the following consents:
                 db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, first_name, last_name, email, institution, status, payment_status, coupon_code, registered_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
                     [regId, eventRow?.id || null, memberId, first_name, last_name || null, email, institution || null, 'registered', 'pending', coupon_code || '']);
             } else if (event_type === 'bridges') {
-                // bridges_registrations.event_id has FK to bridges_events(id) — null is allowed if no specific event
+                // bridges_registrations.event_id is TEXT NOT NULL with FK to bridges_events(id).
+                // Resolve in priority: 1) body.event_id (from invite token), 2) next upcoming
+                // event, 3) any event. If none exist, skip the insert with a warning.
                 let bridgesEventId = null;
                 if (req.body.event_id) {
                     const row = query.get(`SELECT id FROM bridges_events WHERE id = ?`, [req.body.event_id]);
-                    bridgesEventId = row?.id || null;
+                    if (row) bridgesEventId = row.id;
                 }
-                db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
-                    [regId, bridgesEventId, first_name, last_name || null, email, institution || null, 'confirmed']);
+                if (!bridgesEventId) {
+                    const today = new Date().toISOString().slice(0, 10);
+                    bridgesEventId = query.get(`SELECT id FROM bridges_events WHERE event_date >= ? ORDER BY event_date ASC LIMIT 1`, [today])?.id
+                                   || query.get(`SELECT id FROM bridges_events ORDER BY event_date DESC LIMIT 1`)?.id;
+                }
+                if (bridgesEventId) {
+                    db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
+                        [regId, bridgesEventId, first_name, last_name || '', email, institution || null, 'confirmed']);
+                } else {
+                    console.warn('[register-invite] bridges: no bridges_events row exists, skipping insert for', email);
+                }
             }
 
             saveDb();
