@@ -6038,11 +6038,306 @@
             outline: none;
             box-shadow: 0 0 0 3px rgba(201, 169, 98, 0.1);
         }
+
+        /* ============================================================
+           FRESH THEME OVERLAY (April 2026 visual refresh)
+           Activated by `body.theme-fresh`. Toggle via the ✨ button
+           in the sidebar. Preference persists in localStorage.
+           Removes the class to fall back to the classic theme below.
+           ============================================================ */
+        body.theme-fresh {
+            --bg-primary: #0b1220;
+            --bg-secondary: #131a2c;
+            --bg-tertiary: #1c2436;
+            --bg-hover: #2a3a55;
+            --accent-gold: #d4b366;
+            --accent-gold-dim: #a08a4f;
+            --text-primary: #e9eef9;
+            --text-secondary: #a3aec5;
+            --text-muted: #6b7689;
+            --border: #1f2940;
+            --border-light: #2c3651;
+            --border-color: #1f2940;
+            --input-bg: #131a2c;
+            --card-bg: #1c2436;
+        }
+        body.theme-fresh {
+            background: radial-gradient(ellipse at top, #0e1830 0%, #0b1220 60%) fixed;
+        }
+        body.theme-fresh .sidebar {
+            background: linear-gradient(180deg, #0a1020 0%, #0d1424 100%);
+            border-right: 1px solid #1a2238;
+        }
+        body.theme-fresh .nav-item {
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin: 2px 8px;
+            color: #c2cce3;
+            transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+            position: relative;
+        }
+        body.theme-fresh .nav-item:hover {
+            background: rgba(212, 179, 102, 0.08);
+            color: #fff;
+        }
+        body.theme-fresh .nav-item.active {
+            background: linear-gradient(135deg, rgba(212,179,102,0.18) 0%, rgba(212,179,102,0.04) 100%);
+            color: var(--accent-gold);
+            box-shadow: inset 3px 0 0 var(--accent-gold);
+        }
+        body.theme-fresh .nav-label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-muted);
+            padding: 14px 14px 6px 14px;
+        }
+        body.theme-fresh .card {
+            background: var(--bg-tertiary);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.15);
+        }
+        body.theme-fresh .card-header {
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding: 18px 22px;
+        }
+        body.theme-fresh .card-body {
+            padding: 22px;
+        }
+        body.theme-fresh .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+        body.theme-fresh .btn {
+            font-weight: 600;
+            letter-spacing: 0.005em;
+            border-radius: 8px;
+            min-height: 38px;
+            padding: 9px 18px;
+            transition: transform 0.15s, box-shadow 0.15s, background 0.15s, border-color 0.15s;
+            font-size: 13.5px;
+        }
+        body.theme-fresh .btn-primary {
+            background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-dim));
+            color: #0b1220;
+            border: none;
+            box-shadow: 0 1px 0 rgba(255,255,255,0.12) inset, 0 4px 12px rgba(212,179,102,0.22);
+        }
+        body.theme-fresh .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 8px 22px rgba(212,179,102,0.32);
+        }
+        body.theme-fresh .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--border-light);
+            color: var(--text-primary);
+        }
+        body.theme-fresh .btn-secondary:hover {
+            border-color: var(--accent-gold);
+            color: var(--accent-gold);
+            background: rgba(212,179,102,0.06);
+        }
+        body.theme-fresh .form-input,
+        body.theme-fresh .search-input,
+        body.theme-fresh input[type="text"]:not(.theme-toggle-btn input),
+        body.theme-fresh input[type="email"],
+        body.theme-fresh input[type="password"],
+        body.theme-fresh input[type="number"],
+        body.theme-fresh input[type="search"],
+        body.theme-fresh input[type="url"],
+        body.theme-fresh input[type="tel"],
+        body.theme-fresh select,
+        body.theme-fresh textarea {
+            background: var(--input-bg);
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 14px;
+            color: var(--text-primary);
+            transition: border-color 0.15s, box-shadow 0.15s;
+            min-height: 40px;
+        }
+        body.theme-fresh .form-input:focus,
+        body.theme-fresh .search-input:focus,
+        body.theme-fresh input:focus,
+        body.theme-fresh select:focus,
+        body.theme-fresh textarea:focus {
+            border-color: var(--accent-gold);
+            box-shadow: 0 0 0 3px rgba(212,179,102,0.14);
+            outline: none;
+        }
+        body.theme-fresh .form-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            letter-spacing: 0.02em;
+        }
+        body.theme-fresh .data-table {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        body.theme-fresh .data-table th {
+            background: rgba(255,255,255,0.02);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        body.theme-fresh .data-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            color: var(--text-primary);
+        }
+        body.theme-fresh .data-table tbody tr {
+            transition: background 0.15s;
+        }
+        body.theme-fresh .data-table tbody tr:hover {
+            background: rgba(212,179,102,0.04);
+        }
+        body.theme-fresh .data-table .status {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+        body.theme-fresh .data-table .status.paid {
+            background: rgba(34,197,94,0.12);
+            color: #4ade80;
+        }
+        body.theme-fresh .data-table .status.pending {
+            background: rgba(245,158,11,0.12);
+            color: #fbbf24;
+        }
+        body.theme-fresh .data-table .status.cancelled {
+            background: rgba(239,68,68,0.12);
+            color: #f87171;
+        }
+        body.theme-fresh .modal {
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.06);
+            box-shadow: 0 25px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,179,102,0.04);
+            background: var(--bg-tertiary);
+        }
+        body.theme-fresh .modal-header {
+            border-bottom: 1px solid var(--border);
+            padding: 20px 24px;
+        }
+        body.theme-fresh .modal-body {
+            padding: 24px;
+        }
+        body.theme-fresh .modal-footer {
+            border-top: 1px solid var(--border);
+            padding: 16px 24px;
+        }
+        body.theme-fresh .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: var(--accent-gold);
+        }
+        body.theme-fresh .stat-label {
+            font-size: 10.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+        }
+        body.theme-fresh .page-header h1,
+        body.theme-fresh .page-header h2 {
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+        body.theme-fresh .login-card {
+            border-radius: 20px;
+            background: linear-gradient(180deg, rgba(28,36,54,0.92), rgba(19,26,44,0.95));
+            border: 1px solid rgba(212,179,102,0.15);
+            box-shadow: 0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03);
+            padding: 44px 40px;
+        }
+        body.theme-fresh .quick-action-btn {
+            background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-dim));
+            color: #0b1220;
+            border: none;
+            box-shadow: 0 4px 12px rgba(212,179,102,0.22);
+        }
+        body.theme-fresh .quick-action-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 22px rgba(212,179,102,0.35);
+        }
+        body.theme-fresh .quick-action-dropdown {
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.06);
+            background: var(--bg-tertiary);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+        }
+        body.theme-fresh .quick-action-item:hover {
+            background: rgba(212,179,102,0.08);
+            color: var(--accent-gold);
+        }
+        body.theme-fresh .toast {
+            border-radius: 10px;
+            background: var(--bg-tertiary);
+            border: 1px solid rgba(255,255,255,0.06);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+        }
+
+        /* Theme toggle button (sidebar) */
+        .theme-toggle-btn {
+            background: transparent;
+            border: 1px solid var(--border-light, #475569);
+            color: var(--text-secondary, #94a3b8);
+            width: 36px;
+            height: 36px;
+            min-width: 36px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all 0.15s;
+        }
+        .theme-toggle-btn:hover {
+            background: rgba(212, 179, 102, 0.1);
+            color: var(--accent-gold, #c9a962);
+            border-color: var(--accent-gold, #c9a962);
+        }
+        body.theme-fresh .theme-toggle-btn {
+            background: linear-gradient(135deg, rgba(212,179,102,0.15), rgba(212,179,102,0.05));
+            border-color: var(--accent-gold);
+            color: var(--accent-gold);
+        }
     </style>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </head>
-<body>
+<body class="theme-fresh">
+    <script>
+        // Restore theme preference before render to avoid flash
+        try {
+            const saved = localStorage.getItem('medxAdminTheme');
+            if (saved === 'classic') document.body.classList.remove('theme-fresh');
+            else document.body.classList.add('theme-fresh');
+        } catch(e) {}
+        function toggleAdminTheme() {
+            const isFresh = document.body.classList.toggle('theme-fresh');
+            try { localStorage.setItem('medxAdminTheme', isFresh ? 'fresh' : 'classic'); } catch(e) {}
+            const btn = document.getElementById('themeToggleBtn');
+            if (btn) btn.title = isFresh ? 'Switch to classic theme' : 'Switch to fresh theme';
+        }
+    </script>
     <div class="toast-container" id="toastContainer"></div>
 
     <!-- CMD+K COMMAND PALETTE -->
@@ -6241,6 +6536,9 @@
                 </div>
                 <button class="quick-action-btn" onclick="App.toggleQuickAction(event)" title="Quick actions">
                     <i class="fas fa-plus"></i>
+                </button>
+                <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleAdminTheme()" title="Toggle theme (fresh ↔ classic)" aria-label="Toggle theme">
+                    <i class="fas fa-palette"></i>
                 </button>
                 <div class="quick-action-dropdown" id="quickActionDropdown">
                     <div class="quick-action-item" onclick="App.launchCustomShortcut()" id="customShortcutItem">
