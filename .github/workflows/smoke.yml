@@ -1,27 +1,35 @@
 name: Smoke
 
+# Triggers:
+# - On PRs: validates the codebase against current production (catches API
+#   contract changes that would break flows already deployed)
+# - Daily at 07:00 UTC: catches drift even when no one is pushing
+# - Manually via Actions tab: re-run after a Render deploy lands
+#
+# Deliberately NOT on push to main: races Render's deploy (CI runs in ~30s,
+# Render takes 2-5 min). Trying to test the new endpoint before deployment
+# completes produces noise. The PR trigger covers pre-merge; the daily cron
+# covers post-merge drift; manual dispatch covers immediate post-deploy verify.
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:  # allow manual run from the Actions tab
+  workflow_dispatch:
   schedule:
-    - cron: '0 7 * * *'  # 07:00 UTC daily — catches drift even when no one pushes
+    - cron: '0 7 * * *'
 
 jobs:
   smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '24'
 
       # The smoke test has zero npm dependencies — uses fetch (Node 18+ built-in).
-      # No `npm install` step needed. Just run.
+      # No `npm install` step needed.
       - name: Run production smoke test
         run: npm run smoke
         env:
