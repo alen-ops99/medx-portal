@@ -14,20 +14,15 @@ If anything fails: that's the regression. Fix it before doing anything else.
 
 ## What's currently shipped to production
 
-11 PRs merged April 25-26, 2026:
-- #1: Admin↔user propagation audit (B1-B6, Q1-Q3)
-- #2: Forum Gala registration HTTP 500 fix
-- #3: Admin portal fresh visual theme + classic toggle
-- #4: Forum direct-link path-style + script defer
-- #5: Plexus pricing sync (settings ↔ ticket_types)
-- #6: helmet + CSP + HSTS security hardening
-- #7: Speaker upload-link localhost fix
-- #8: Invite event_id forwarding + bridges hardening
-- #9: Speaker invite emails get auto CTA + code
-- #10: db.getRowsModified polyfill (promo code crash)
-- #11: production smoke test (`npm run smoke`)
+19 PRs merged April 25-26, 2026 + additional 4 from Phase B (#20-#23):
+- #1–#11: prior sweep (admin↔user sync, gala fix, forum links, theme, helmet/CSP, etc.)
+- #12–#19: forgot-password flow, rate limits, errors/recent endpoint, CI, etc.
+- #20: **URGENT** CSP `script-src-attr 'unsafe-inline'` — would have killed every onclick handler in the gala blast
+- #21: Admin UI fixes (sponsors data un-hide, System nav label auto-hide, project nav title, sequence step counter)
+- #22: Sponsors pipeline default to 'all' filter (completes #21's sponsor visibility fix)
+- #23: Relative asset paths fixed for path-style invite URLs (manifest + wordmark)
 
-See `tasks/audit-final-2026-04-26.md` for full bug-and-fix log.
+See `tasks/audit-final-2026-04-26.md` and `tasks/audit-2026-04-26-phase-b.md` for full bug-and-fix logs.
 
 ## Live URLs
 
