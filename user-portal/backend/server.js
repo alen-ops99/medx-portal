@@ -4229,6 +4229,133 @@ async function initializeApp() {
         }
     });
 
+    // Ensure reset_token columns exist (idempotent)
+    try { db.run('ALTER TABLE users ADD COLUMN reset_token TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE users ADD COLUMN reset_token_expires TEXT'); } catch(e) {}
+
+    // Forgot password — generates a reset token, emails the link.
+    // Returns success even if email isn't registered (don't leak account existence).
+    app.post('/api/auth/forgot-password', authLimiter, async (req, res) => {
+        try {
+            const { email } = req.body || {};
+            if (!email || typeof email !== 'string') return res.status(400).json({ error: 'Email is required' });
+
+            const user = query.get('SELECT id, first_name, email FROM users WHERE email = ?', [email]);
+
+            if (user) {
+                const token = crypto.randomBytes(32).toString('hex');
+                const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+                db.run('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?', [token, expires, user.id]);
+                saveDb();
+
+                const baseUrl = process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
+                const resetUrl = `${baseUrl}/reset-password/${token}`;
+                const emailHtml = buildEmailTemplate('Reset Your Password', `
+                    <p>Hi ${user.first_name || 'there'},</p>
+                    <p>We received a request to reset the password on your Med&amp;X account. Click the button below to choose a new password:</p>
+                    <div style="text-align: center; margin: 32px 0;">
+                        <a href="${resetUrl}" style="display: inline-block; background: #C9A962; color: #0f172a; text-decoration: none; padding: 14px 36px; border-radius: 8px; font-weight: 600; font-size: 16px;">Reset Password</a>
+                    </div>
+                    <p style="color: #64748b; font-size: 13px;">This link expires in 1 hour. If you didn't request a password reset, you can safely ignore this email.</p>
+                    <p style="color: #64748b; font-size: 13px; word-break: break-all;">${resetUrl}</p>
+                `);
+                sendEmail(email, 'Reset your Med&X password', emailHtml).catch(err => {
+                    console.error('Reset email failed for', email, err.message);
+                });
+                console.log(`[Auth] Password reset requested for ${email}`);
+            }
+            // Always return generic success to avoid leaking which emails are registered
+            res.json({ success: true, message: 'If an account with that email exists, a password reset link has been sent.' });
+        } catch (e) {
+            console.error('Forgot password error:', e);
+            res.status(500).json({ error: 'Failed to process request' });
+        }
+    });
+
+    // Reset password — server-rendered page that takes the token and shows a form.
+    // Form POSTs to /api/auth/reset-password (below) which actually updates the password.
+    app.get('/reset-password/:token', (req, res) => {
+        const token = req.params.token;
+        const user = query.get('SELECT id, email, reset_token_expires FROM users WHERE reset_token = ?', [token]);
+        const expired = user && user.reset_token_expires && new Date(user.reset_token_expires) < new Date();
+
+        if (!user || expired) {
+            return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Expired</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:system-ui;text-align:center;padding:20px;"><div style="max-width:400px;"><h1 style="color:#ef4444;margin-bottom:12px;">Link Invalid or Expired</h1><p style="color:#94a3b8;font-size:15px;margin-bottom:24px;">This password reset link is no longer valid. Reset links expire after 1 hour.</p><a href="/" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Back to Med&amp;X</a></div></body></html>`);
+        }
+        res.send(`<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Reset Password — Med&X</title>
+<style>
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;padding:20px;margin:0;}
+.card{max-width:420px;width:100%;background:rgba(255,255,255,0.03);border:1px solid rgba(201,169,98,0.2);border-radius:20px;padding:36px 32px;}
+.brand{text-align:center;font-size:24px;font-weight:700;color:#fff;margin-bottom:6px;letter-spacing:-0.5px;}
+.brand em{color:#c9a962;font-style:normal;}
+.subtitle{text-align:center;color:#94a3b8;font-size:14px;margin-bottom:28px;}
+h1{font-size:20px;font-weight:700;margin-bottom:8px;}
+p{color:#94a3b8;font-size:14px;line-height:1.6;margin-bottom:18px;}
+label{display:block;font-size:12px;font-weight:600;color:#94a3b8;margin:14px 0 6px;}
+input{width:100%;padding:12px 14px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;background:rgba(255,255,255,0.05);color:#fff;font-size:14px;font-family:inherit;box-sizing:border-box;}
+input:focus{outline:none;border-color:#c9a962;box-shadow:0 0 0 3px rgba(201,169,98,0.15);}
+button{width:100%;padding:14px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-top:18px;}
+button:disabled{opacity:0.6;cursor:wait;}
+.error{color:#ef4444;font-size:13px;margin-top:10px;display:none;}
+.success{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;padding:14px;border-radius:10px;font-size:14px;text-align:center;margin-top:18px;}
+.success a{color:#0f172a;font-weight:600;}
+</style></head>
+<body><div class="card">
+<div class="brand">med<em>&amp;</em>X</div><div class="subtitle">Set a new password</div>
+<form id="rpForm" onsubmit="submitReset(event)">
+<label for="newPw">New password</label>
+<input id="newPw" type="password" autocomplete="new-password" required minlength="8" placeholder="At least 8 characters">
+<label for="confirmPw">Confirm password</label>
+<input id="confirmPw" type="password" autocomplete="new-password" required minlength="8" placeholder="Re-enter the same password">
+<button type="submit" id="rpSubmit">Update password</button>
+<div class="error" id="rpError"></div>
+<div id="rpSuccess" style="display:none;" class="success">Password updated. <a href="/">Back to Med&amp;X</a></div>
+</form>
+</div>
+<script>
+async function submitReset(e){
+  e.preventDefault();
+  const pw=document.getElementById('newPw').value, cp=document.getElementById('confirmPw').value;
+  const err=document.getElementById('rpError'), btn=document.getElementById('rpSubmit'), ok=document.getElementById('rpSuccess');
+  err.style.display='none';
+  if(pw!==cp){err.textContent='Passwords do not match';err.style.display='block';return;}
+  if(pw.length<8){err.textContent='Password must be at least 8 characters';err.style.display='block';return;}
+  btn.disabled=true; btn.textContent='Updating...';
+  try{
+    const r=await fetch('/api/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:'${token}',new_password:pw})});
+    const d=await r.json();
+    if(d.success){document.getElementById('rpForm').querySelectorAll('input,button').forEach(el=>el.style.display='none');ok.style.display='block';}
+    else{err.textContent=d.error||'Failed to reset password';err.style.display='block';btn.disabled=false;btn.textContent='Update password';}
+  }catch(ex){err.textContent='Network error. Try again.';err.style.display='block';btn.disabled=false;btn.textContent='Update password';}
+}
+</script></body></html>`);
+    });
+
+    // Reset password endpoint — validates token, hashes new password, clears token.
+    app.post('/api/auth/reset-password', authLimiter, async (req, res) => {
+        try {
+            const { token, new_password } = req.body || {};
+            if (!token || !new_password) return res.status(400).json({ error: 'Token and new password are required' });
+            if (typeof new_password !== 'string' || new_password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+
+            const user = query.get('SELECT id, email, reset_token_expires FROM users WHERE reset_token = ?', [token]);
+            if (!user) return res.status(400).json({ error: 'Invalid or expired reset link' });
+            if (user.reset_token_expires && new Date(user.reset_token_expires) < new Date()) {
+                return res.status(400).json({ error: 'Reset link has expired. Please request a new one.' });
+            }
+
+            const newHash = await bcrypt.hash(new_password, 10);
+            db.run('UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL, email_verified = 1 WHERE id = ?', [newHash, user.id]);
+            saveDb();
+            console.log(`[Auth] Password reset completed for ${user.email}`);
+            res.json({ success: true, message: 'Password updated. You can now sign in.' });
+        } catch (e) {
+            console.error('Reset password error:', e);
+            res.status(500).json({ error: 'Failed to reset password' });
+        }
+    });
+
     app.get('/api/auth/me', auth, (req, res) => {
         const user = query.get('SELECT id, email, first_name, last_name, phone, institution, country, bio, photo_url, is_admin, is_public_profile FROM users WHERE id = ?', [req.user.id]);
         res.json(user);
