@@ -55168,9 +55168,10 @@ textarea:focus:not(:focus-visible),
 }
     </style>
 
-    <!-- PWA Manifest and Icons -->
-    <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="icon-192.png">
+    <!-- PWA Manifest and Icons — absolute paths so they resolve correctly
+         on path-style direct links like /forum/events/<slug> or /invite/<token>. -->
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icon-192.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Med&X">
@@ -55671,7 +55672,7 @@ textarea:focus:not(:focus-visible),
             <div class="splash-entry-orb splash-entry-orb-3"></div>
 
             <div class="splash-entry-content">
-                <div class="splash-entry-logo"><img src="assets/images/medx-logo.png" alt="Med&amp;X"></div>
+                <div class="splash-entry-logo"><img src="/assets/images/medx-logo.png" alt="Med&amp;X"></div>
                 <p class="splash-entry-subtitle">Where Medicine Meets Innovation</p>
                 <div class="splash-entry-divider"></div>
                 <p class="splash-entry-description">Access conferences, applications, networking, and your personalized Med&amp;X experience</p>
@@ -56461,7 +56462,7 @@ textarea:focus:not(:focus-visible),
                     </div>
                     <div class="welcome-splash-content">
                         <div class="welcome-logo-anim">
-                            <img src="assets/images/medx-logo.png" alt="Med&X" class="welcome-logo-img">
+                            <img src="/assets/images/medx-logo.png" alt="Med&X" class="welcome-logo-img">
                         </div>
                         <h1 class="welcome-splash-title">Welcome<span id="welcomeUserName"></span></h1>
                         <p class="welcome-splash-subtitle">Let's set up your personalized experience</p>
@@ -57360,7 +57361,7 @@ textarea:focus:not(:focus-visible),
                     <header class="hub-header">
                         <div class="hub-header-left">
                             <a href="#" class="hub-logo" onclick="UserPortal.showSection('dashboard'); return false;">
-                                <img src="assets/images/medx-logo.png" alt="Med&X" class="hub-logo-img">
+                                <img src="/assets/images/medx-logo.png" alt="Med&X" class="hub-logo-img">
                             </a>
                         </div>
                         <div class="hub-greeting">
@@ -58264,7 +58265,7 @@ textarea:focus:not(:focus-visible),
                     <footer class="hub-footer-minimal">
                         <div class="hub-footer-minimal-content">
                             <div class="hub-footer-minimal-brand">
-                                <img src="assets/images/medx-logo.png" alt="Med&X" style="height: 40px; width: auto; object-fit: contain;">
+                                <img src="/assets/images/medx-logo.png" alt="Med&X" style="height: 40px; width: auto; object-fit: contain;">
                             </div>
                             <p class="hub-footer-minimal-tagline">Advancing biomedicine through collaboration</p>
                             <div class="hub-footer-minimal-social">
@@ -67926,7 +67927,7 @@ textarea:focus:not(:focus-visible),
             <div class="resize-handle resize-handle-left" id="sidebarResizeHandle"></div>
             <div class="logo-row">
                 <div class="logo">
-                    <img src="assets/images/medx-logo.png" alt="Med&X" class="logo-img">
+                    <img src="/assets/images/medx-logo.png" alt="Med&X" class="logo-img">
                 </div>
                 <div class="clock-widget" onclick="App.toggleTimerDropdown(event)">
                     <div class="swiss-clock">
