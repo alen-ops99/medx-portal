@@ -135,6 +135,16 @@ check('admin portal serves theme-fresh CSS (PR #3)', async () => {
     assert(t.includes('theme-fresh'), 'admin theme-fresh missing — pre-PR-#3 build?');
 });
 
+// ───────────────────────── Admin observability ─────────────────────────
+check('GET /api/admin/errors/recent is registered (auth-gated in prod)', async () => {
+    // Production (no NODE_ENV=development): returns 401 without a token.
+    // Local dev: dev fallback auto-authenticates as admin → returns 200 with errors array.
+    // Either way means the endpoint EXISTS. 404 would mean we forgot to register it.
+    const r = await get('/api/admin/errors/recent');
+    assert(r.status !== 404, `endpoint missing — got 404 (route not registered?)`);
+    assert([200, 401, 403].includes(r.status), `unexpected status ${r.status}`);
+});
+
 // ───────────────────────── Forgot-password flow ─────────────────────────
 check('POST /api/auth/forgot-password accepts email + returns generic success', async () => {
     // Generic success for non-existent email (no info leak)
