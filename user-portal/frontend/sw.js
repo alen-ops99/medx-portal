@@ -1,5 +1,5 @@
 // Med&X Portal Service Worker
-const CACHE_NAME = 'medx-portal-v4';
+const CACHE_NAME = 'medx-portal-v5';
 const OFFLINE_URL = '/offline.html';
 
 // Assets to cache
@@ -45,6 +45,13 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
     // Skip non-GET requests
     if (event.request.method !== 'GET') return;
+
+    const url = new URL(event.request.url);
+
+    // Never cache API responses — admin edits must reach returning visitors immediately.
+    if (url.pathname.startsWith('/api/')) {
+        return;
+    }
 
     // For navigation requests (HTML pages), always go network-first
     if (event.request.mode === 'navigate' || event.request.destination === 'document') {
