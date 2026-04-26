@@ -13140,12 +13140,30 @@ President, Med&amp;X</textarea>
                     networkEl.style.display = this.userSections.includes('contacts') ? '' : 'none';
                 }
 
-                // Hide Organization label if both finances and pr-media are hidden
-                const orgLabel = document.querySelector('#sidebarNav .nav-label:last-of-type');
-                const orgDivider = orgLabel?.previousElementSibling;
-                const hasOrgSections = this.userSections.includes('finances') || this.userSections.includes('pr-media');
-                if (orgLabel) orgLabel.style.display = hasOrgSections ? '' : 'none';
-                if (orgDivider?.classList.contains('nav-divider')) orgDivider.style.display = hasOrgSections ? '' : 'none';
+                // Hide any nav-label group whose children are all filtered out.
+                // Group structure: <div class="nav-divider"></div><div class="nav-label">…</div>
+                // followed by zero-or-more <a class="nav-item" data-section="…"> until the next divider.
+                const nav = document.getElementById('sidebarNav');
+                if (nav) {
+                    const labels = Array.from(nav.querySelectorAll('.nav-label'));
+                    labels.forEach(label => {
+                        const divider = label.previousElementSibling?.classList.contains('nav-divider')
+                            ? label.previousElementSibling : null;
+                        let anyVisible = false;
+                        let n = label.nextElementSibling;
+                        while (n && !n.classList.contains('nav-divider') && !n.classList.contains('nav-label')) {
+                            // Skip the dynamic projectsList container — its children are filtered above
+                            if (n.id === 'projectsList') {
+                                if (Array.from(n.children).some(c => c.style.display !== 'none')) anyVisible = true;
+                            } else if (n.classList.contains('nav-item') && n.style.display !== 'none') {
+                                anyVisible = true;
+                            }
+                            n = n.nextElementSibling;
+                        }
+                        label.style.display = anyVisible ? '' : 'none';
+                        if (divider) divider.style.display = anyVisible ? '' : 'none';
+                    });
+                }
             },
 
             openManageSections() {
@@ -14976,6 +14994,18 @@ President, Med&amp;X</textarea>
                 this.currentView = projectId;
                 this.switchChatPanel('project', projectId);
 
+                // Update document.title — Plexus tabs override this further via showPlexusTab,
+                // but Forum/Accelerator/Bridges leave it stale otherwise.
+                const projectTitles = {
+                    plexus: 'Plexus Conference',
+                    accelerator: 'Med&X Accelerator',
+                    forum: 'Biomedical Forum',
+                    bridges: 'Building Bridges'
+                };
+                if (projectTitles[projectId]) {
+                    document.title = `Med&X Admin — ${projectTitles[projectId]}`;
+                }
+
                 // Load project-specific channels
                 this.loadProjectChannels(projectId);
 
@@ -16077,7 +16107,7 @@ President, Med&amp;X</textarea>
                             </div>
                             <div style="margin-bottom: 8px;">
                                 <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">
-                                    <span>Step ${completedSteps + 1} of ${steps.length}</span>
+                                    <span>${completedSteps >= steps.length ? `Complete (${steps.length}/${steps.length})` : `Step ${completedSteps + 1} of ${steps.length}`}</span>
                                     <span>${progress}%</span>
                                 </div>
                                 <div style="background: var(--bg-primary); border-radius: 4px; height: 6px; overflow: hidden;">
@@ -18515,6 +18545,7 @@ President, Med&amp;X</textarea>
                 try {
                     const sponsors = await this.api('/api/admin/plexus/sponsors') || [];
                     this.plexusSponsors = sponsors;
+                    this.sponsorTasks = this.sponsorTasks || {};
                     if (sponsors.length > 0) {
                         await Promise.all(sponsors.map(async (s) => {
                             try {
