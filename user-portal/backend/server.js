@@ -929,8 +929,11 @@ function optionalAuth(req, res, next) {
             if (user) { req.user = user; return next(); }
         } catch(e) { /* token invalid/expired */ }
     }
-    // Dev fallback — only in explicit development mode
-    if (process.env.NODE_ENV === 'development') {
+    // Dev fallback — only fires when a token was actually presented (signal that the
+    // caller wanted to be authed). Without this guard, every anonymous request to
+    // optionalAuth routes (e.g. /api/forum/events/:id/register) gets auto-promoted
+    // to Alen, which makes the anon-register branch unreachable in local dev.
+    if (process.env.NODE_ENV === 'development' && token) {
         const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
         req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
         return next();
