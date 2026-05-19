@@ -437,6 +437,12 @@ app.get('/invite-cancelled', (req, res) => {
 });
 
 // ========== STANDALONE INVITE REGISTRATION PAGE ==========
+// Revoked invite IDs — links whose `i` value appears here are permanently disabled,
+// regardless of their embedded expiry date. To revoke a link, add its UUID and redeploy.
+const REVOKED_INVITE_IDS = new Set([
+    '9799cb97-e3a7-493a-ac23-ee2910e8457b', // Annual Biomedical Forum 2026 / Gala Evening — revoked 2026-05-19
+]);
+
 // Serves a full server-rendered HTML page for VIP invite links.
 // Must be defined BEFORE express.static so it takes priority over the SPA.
 app.get('/invite/:data', (req, res) => {
@@ -449,6 +455,11 @@ app.get('/invite/:data', (req, res) => {
         const data = JSON.parse(Buffer.from(rawData, 'base64').toString());
         const eventType = data.e || 'plexus';
         const expiresAt = data.x;
+
+        // Check revocation — disabled invite links (see REVOKED_INVITE_IDS above)
+        if (data.i && REVOKED_INVITE_IDS.has(data.i)) {
+            return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Disabled</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Link Disabled</h1><p style="color:#94a3b8;">This invitation link is no longer active. Please contact the Med&amp;X team if you believe this is an error.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
+        }
 
         // Check expiry
         if (expiresAt && new Date(expiresAt) < new Date()) {
