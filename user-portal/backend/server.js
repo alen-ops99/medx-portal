@@ -645,14 +645,25 @@ app.get('/invite/:data', (req, res) => {
     <div class="container">
         <div class="logo"><img src="/assets/images/medx-logo.png" alt="Med&X" style="height:40px;filter:brightness(0) invert(1);" onerror="this.outerHTML='<span style=\\'font-size:28px;font-weight:700;color:#fff;\\'>med<em style=\\'color:#c9a962;font-style:normal;\\'>&amp;</em>X</span>'"></div>
         <div class="card">
-            <div class="event-badge"><i class="fas fa-envelope-open-text"></i> You're Invited</div>
+            <div class="event-badge"><i class="fas fa-envelope-open-text"></i> ${isVipInvite ? 'VIP Invitation' : "You're Invited"}</div>
             <h1>${escapeHtml(eventInfo.name)}</h1>
             <div class="event-meta">
                 ${eventInfo.date ? '<div style="margin-bottom:4px;"><i class="fas fa-calendar"></i>' + escapeHtml(String(eventInfo.date)) + '</div>' : ''}
+                ${eventType === 'gala' ? '<div style="margin-bottom:4px;"><i class="fas fa-clock"></i>Arrival from 7:00 PM &middot; Welcome drink</div>' : ''}
                 ${eventInfo.venue ? '<div><i class="fas fa-map-marker-alt"></i>' + escapeHtml(String(eventInfo.venue)) + '</div>' : ''}
+                ${eventType === 'gala' ? '<div style="margin-top:4px;"><i class="fas fa-tshirt"></i>Black Tie / Formal Evening Attire</div>' : ''}
             </div>
+            ${eventType === 'gala' ? `
+            <div style="background:linear-gradient(135deg,rgba(201,169,98,0.08),rgba(201,169,98,0.02));border:1px solid rgba(201,169,98,0.25);border-radius:14px;padding:16px;margin-bottom:20px;display:flex;gap:14px;align-items:center;">
+                <img src="/assets/gala/lord-smith-chancellor.jpg" alt="Lord Smith of Finsbury" style="width:64px;height:64px;border-radius:50%;object-fit:cover;object-position:center 22%;flex-shrink:0;border:2px solid #c9a962;" onerror="this.style.display='none'">
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#c9a962;margin-bottom:4px;">Featured Keynote Guest</div>
+                    <div style="font-size:16px;font-weight:600;color:#fff;line-height:1.2;">Lord Smith of Finsbury</div>
+                    <div style="font-size:13px;font-style:italic;color:#e8c97a;margin-top:2px;">Chancellor of the University of Cambridge</div>
+                </div>
+            </div>` : ''}
             ${packageHtml ? '<div class="items-section"><div class="items-label">Your Registration Includes:</div>' + packageHtml + '</div>' : ''}
-            ${eventInfo.price ? '<div class="price-row"><span class="price-label">Registration Fee</span><span class="price-value">&euro;' + eventInfo.price + '</span></div>' : ''}
+            ${isVipInvite ? '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:linear-gradient(135deg,rgba(168,85,247,0.12),rgba(168,85,247,0.04));border:1px solid rgba(168,85,247,0.3);border-radius:12px;margin-bottom:24px;"><span style="font-size:13px;color:#e9d5ff;font-weight:500;">VIP Guest &mdash; Complimentary Admission</span><span style="font-size:18px;font-weight:700;color:#a855f7;letter-spacing:1px;">FREE</span></div>' : (eventInfo.price ? '<div class="price-row"><span class="price-label">Registration Fee</span><span class="price-value">&euro;' + eventInfo.price + '</span></div>' : '')}
             <form id="regForm" class="form-grid" onsubmit="submitReg(event)">
                 <input type="hidden" id="eventType" value="${escapeHtml(eventType)}">
                 <input type="hidden" id="eventName" value="${escapeHtml(eventInfo.name)}">
@@ -3313,9 +3324,19 @@ async function initializeApp() {
     }
     // 2026 pricing migration: bump gala-only fee from €95 → €125 (only if still at legacy default)
     try {
-        const galaRow = query.get("SELECT price_gala_only FROM gala_settings WHERE id = 'default'");
+        const galaRow = query.get("SELECT price_gala_only, time, venue, title FROM gala_settings WHERE id = 'default'");
         if (galaRow && (galaRow.price_gala_only == null || Number(galaRow.price_gala_only) === 95 || Number(galaRow.price_gala_only) === 75)) {
             db.run("UPDATE gala_settings SET price_gala_only = 125 WHERE id = 'default'");
+        }
+        // 2026 event-detail seeding (only updates values still at legacy defaults; never overrides admin edits)
+        if (galaRow && (galaRow.time === '18:00' || galaRow.time == null)) {
+            db.run("UPDATE gala_settings SET time = 'Arrival from 7:00 PM · Welcome drink' WHERE id = 'default'");
+        }
+        if (galaRow && (galaRow.venue === 'Grand Ballroom, Zagreb' || galaRow.venue == null)) {
+            db.run("UPDATE gala_settings SET venue = 'Hotel Esplanade Zagreb' WHERE id = 'default'");
+        }
+        if (galaRow && (galaRow.title === 'Gala Evening 2026' || galaRow.title == null)) {
+            db.run("UPDATE gala_settings SET title = 'Plexus 2026 — Gala Evening' WHERE id = 'default'");
         }
     } catch(e) { /* non-fatal */ }
 
@@ -16311,6 +16332,37 @@ By applying to this program, I provide the following consents:
             // Send confirmation email: immediately for free events, deferred for paid (sent after Stripe payment)
             if (!checkoutUrl) {
                 await sendRegistrationConfirmation();
+
+                // Log free-event registrations to Google Sheets (VIP gala lands here)
+                try {
+                    const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
+                    if (sheetsWebhook) {
+                        const galaInviteRowSheet = (event_type === 'gala' && req.body.event_id)
+                            ? query.get('SELECT label, link_type FROM gala_invite_links WHERE id = ?', [req.body.event_id])
+                            : null;
+                        fetch(sheetsWebhook, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                timestamp: new Date().toISOString(),
+                                name: (first_name || '') + ' ' + (last_name || ''),
+                                email,
+                                institution: institution || '',
+                                country: country || '',
+                                event: event_name || event_type,
+                                event_type,
+                                items: (package_items || []).join(', '),
+                                guests: guest_count || 0,
+                                dietary: dietary || '',
+                                allergies: allergies || '',
+                                amount: 0,
+                                payment: event_type === 'gala' && galaInviteRowSheet?.link_type === 'vip' ? 'VIP (Free)' : 'Free',
+                                invite_label: galaInviteRowSheet?.label || '',
+                                registration_id: regId
+                            })
+                        }).catch(() => {});
+                    }
+                } catch(e) {}
 
                 // Forward free event registrations to admin portal now (paid events forwarded after Stripe webhook)
                 try {

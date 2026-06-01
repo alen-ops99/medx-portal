@@ -10449,49 +10449,82 @@ President, Med&amp;X</textarea>
 
                     <!-- Invite Links Tab -->
                     <div id="galaInvitesTab" style="display: none;">
-                        <div class="card">
-                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                                <div>
-                                    <h3 class="card-title">Create Gala Invite Link</h3>
-                                    <p style="color: var(--text-muted); font-size: 12px; margin-top: 4px;">Generate shareable links — generic (paid €125) or VIP (free).</p>
+                        <!-- TWO SEPARATE CARDS: Paid (€125) vs VIP (Free) -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+
+                            <!-- PAID CARD (€125, public participants) -->
+                            <div class="card" style="border: 1px solid rgba(201,169,98,0.35); background: linear-gradient(180deg, rgba(201,169,98,0.04), transparent);">
+                                <div class="card-header" style="border-bottom: 1px solid rgba(201,169,98,0.2);">
+                                    <h3 class="card-title" style="display:flex;align-items:center;gap:10px;">
+                                        <span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:rgba(201,169,98,0.18);color:#c9a962;"><i class="fas fa-credit-card"></i></span>
+                                        Paid Link &mdash; &euro;125
+                                    </h3>
+                                    <p style="color: var(--text-muted); font-size: 12px; margin-top: 6px;">Public participants. Recipient pays via Stripe, receives QR ticket by email.</p>
+                                </div>
+                                <div class="card-body">
+                                    <div class="form-group">
+                                        <label class="form-label">Label <span style="color:var(--text-muted);font-size:11px;">(internal)</span></label>
+                                        <input id="galaPaidLabel" type="text" class="form-input" placeholder="e.g. LinkedIn campaign, Newsletter blast">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Price Override <span style="color:var(--text-muted);font-size:11px;">(optional &mdash; e.g. &euro;75 for sponsors)</span></label>
+                                        <input id="galaPaidPrice" type="number" min="0" step="0.01" class="form-input" placeholder="Leave empty to use €125">
+                                    </div>
+                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                                        <div class="form-group">
+                                            <label class="form-label">Max Uses</label>
+                                            <input id="galaPaidMaxUses" type="number" min="1" class="form-input" placeholder="∞ unlimited">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Expires</label>
+                                            <input id="galaPaidExpires" type="date" class="form-input">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Notes</label>
+                                        <textarea id="galaPaidNotes" class="form-input" rows="2" placeholder="Internal notes"></textarea>
+                                    </div>
+                                    <button class="btn btn-primary" onclick="GalaAdmin.createInviteLink('generic')" style="width:100%;padding: 13px;margin-top:8px;">
+                                        <i class="fas fa-link"></i> Generate Paid Invite Link
+                                    </button>
+                                    <div id="galaPaidLinkResult" style="display: none; margin-top: 14px; padding: 12px 14px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 8px;"></div>
                                 </div>
                             </div>
-                            <div class="card-body">
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                                    <div class="form-group">
-                                        <label class="form-label">Link Type</label>
-                                        <select id="galaInviteType" class="form-input" onchange="GalaAdmin.toggleInvitePriceField()">
-                                            <option value="generic">Generic — Paid (€125)</option>
-                                            <option value="vip">VIP — Free</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Label <span style="color:var(--text-muted);font-size:11px;">(internal — what's this link for?)</span></label>
-                                        <input id="galaInviteLabel" type="text" class="form-input" placeholder="e.g. LinkedIn campaign, Cleveland Clinic delegates">
-                                    </div>
-                                    <div class="form-group" id="galaInvitePriceField">
-                                        <label class="form-label">Price Override <span style="color:var(--text-muted);font-size:11px;">(optional — leave empty to use gala default)</span></label>
-                                        <input id="galaInvitePrice" type="number" min="0" step="0.01" class="form-input" placeholder="e.g. 75 for sponsor pricing">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Max Uses <span style="color:var(--text-muted);font-size:11px;">(optional — empty = unlimited)</span></label>
-                                        <input id="galaInviteMaxUses" type="number" min="1" class="form-input" placeholder="e.g. 1 for a single-use VIP link">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Expires <span style="color:var(--text-muted);font-size:11px;">(optional)</span></label>
-                                        <input id="galaInviteExpires" type="date" class="form-input">
-                                    </div>
-                                    <div class="form-group" style="grid-column: 1 / -1;">
-                                        <label class="form-label">Notes <span style="color:var(--text-muted);font-size:11px;">(optional)</span></label>
-                                        <textarea id="galaInviteNotes" class="form-input" rows="2" placeholder="Internal notes about this invite link"></textarea>
-                                    </div>
+
+                            <!-- VIP CARD (Free, special guests) -->
+                            <div class="card" style="border: 1px solid rgba(168,85,247,0.35); background: linear-gradient(180deg, rgba(168,85,247,0.04), transparent);">
+                                <div class="card-header" style="border-bottom: 1px solid rgba(168,85,247,0.2);">
+                                    <h3 class="card-title" style="display:flex;align-items:center;gap:10px;">
+                                        <span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:rgba(168,85,247,0.18);color:#a855f7;"><i class="fas fa-star"></i></span>
+                                        VIP Link &mdash; Free
+                                    </h3>
+                                    <p style="color: var(--text-muted); font-size: 12px; margin-top: 6px;">Special guests. Free instant registration, skips Stripe, QR ticket emailed immediately.</p>
                                 </div>
-                                <div style="margin-top: 16px; display: flex; justify-content: flex-end;">
-                                    <button class="btn btn-primary" onclick="GalaAdmin.createInviteLink()" style="padding: 12px 28px;">
-                                        <i class="fas fa-plus"></i> Generate Invite Link
+                                <div class="card-body">
+                                    <div class="form-group">
+                                        <label class="form-label">Label <span style="color:var(--text-muted);font-size:11px;">(internal)</span></label>
+                                        <input id="galaVipLabel" type="text" class="form-input" placeholder="e.g. Keynote guests, Sponsors, Personal invitations">
+                                    </div>
+                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                                        <div class="form-group">
+                                            <label class="form-label">Max Uses</label>
+                                            <input id="galaVipMaxUses" type="number" min="1" class="form-input" placeholder="∞ unlimited">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Expires</label>
+                                            <input id="galaVipExpires" type="date" class="form-input">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Notes</label>
+                                        <textarea id="galaVipNotes" class="form-input" rows="2" placeholder="Internal notes"></textarea>
+                                    </div>
+                                    <div style="height: 67px;"></div>
+                                    <button class="btn btn-primary" onclick="GalaAdmin.createInviteLink('vip')" style="width:100%;padding: 13px;margin-top:8px;background:linear-gradient(135deg,#a855f7,#8b5cf6);">
+                                        <i class="fas fa-star"></i> Generate VIP Invite Link
                                     </button>
+                                    <div id="galaVipLinkResult" style="display: none; margin-top: 14px; padding: 12px 14px; background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: 8px;"></div>
                                 </div>
-                                <div id="galaInviteLinkResult" style="display: none; margin-top: 16px; padding: 14px 18px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 8px;"></div>
                             </div>
                         </div>
 
@@ -28714,7 +28747,6 @@ By applying to this program, I give the following consents:
                     if (invitesTab) invitesTab.style.display = 'block';
                     if (invitesBtn) invitesBtn.className = 'btn btn-primary';
                     this.loadInviteLinks();
-                    this.toggleInvitePriceField();
                 } else {
                     if (settingsTab) settingsTab.style.display = 'block';
                     if (settingsBtn) settingsBtn.className = 'btn btn-primary';
@@ -28723,26 +28755,22 @@ By applying to this program, I give the following consents:
 
             // ========== GALA INVITE LINKS ==========
 
-            toggleInvitePriceField() {
-                const type = document.getElementById('galaInviteType')?.value;
-                const priceField = document.getElementById('galaInvitePriceField');
-                if (!priceField) return;
-                // For VIP links, hide the price-override (always free); for generic, show it (optional)
-                priceField.style.display = (type === 'vip') ? 'none' : 'block';
-            },
+            async createInviteLink(type) {
+                // type: 'generic' (paid €125) or 'vip' (free)
+                type = type || 'generic';
+                const isVip = (type === 'vip');
+                const prefix = isVip ? 'galaVip' : 'galaPaid';
 
-            async createInviteLink() {
-                const type = document.getElementById('galaInviteType').value;
-                const label = document.getElementById('galaInviteLabel').value.trim();
-                const priceRaw = document.getElementById('galaInvitePrice').value;
-                const maxUsesRaw = document.getElementById('galaInviteMaxUses').value;
-                const expiresRaw = document.getElementById('galaInviteExpires').value;
-                const notes = document.getElementById('galaInviteNotes').value.trim();
+                const label = document.getElementById(prefix + 'Label').value.trim();
+                const priceRaw = isVip ? '' : document.getElementById('galaPaidPrice').value;
+                const maxUsesRaw = document.getElementById(prefix + 'MaxUses').value;
+                const expiresRaw = document.getElementById(prefix + 'Expires').value;
+                const notes = document.getElementById(prefix + 'Notes').value.trim();
 
                 const body = {
                     link_type: type,
                     label: label || null,
-                    price_override: (type === 'vip') ? 0 : (priceRaw ? Number(priceRaw) : null),
+                    price_override: isVip ? 0 : (priceRaw ? Number(priceRaw) : null),
                     max_uses: maxUsesRaw ? Number(maxUsesRaw) : null,
                     expires_at: expiresRaw || null,
                     notes: notes || null
@@ -28759,28 +28787,35 @@ By applying to this program, I give the following consents:
                         Toast.error(data.error || 'Failed to create invite link');
                         return;
                     }
-                    const result = document.getElementById('galaInviteLinkResult');
+                    const result = document.getElementById(prefix + 'LinkResult');
                     result.style.display = 'block';
-                    const isVip = data.invite.link_type === 'vip';
+                    const inputId = isVip ? 'newVipInviteUrl' : 'newPaidInviteUrl';
+                    const badgeColor = isVip ? '#a855f7' : '#10b981';
+                    const badgeLabel = isVip
+                        ? 'VIP invite link created (free admission)'
+                        : 'Paid invite link created (€' + (data.invite.price_override != null ? data.invite.price_override : '125') + ')';
+                    const flowDescription = isVip
+                        ? 'Send this URL to your VIP guest. They click → fill in details → <strong>instantly registered + QR ticket emailed</strong> (no payment).'
+                        : 'Send this URL to participants. They click → fill in details → <strong>pay via Stripe → QR ticket emailed after payment</strong>.';
                     result.innerHTML = `
-                        <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#10b981;letter-spacing:1px;margin-bottom:8px;">
-                            <i class="fas fa-check-circle"></i> Invite link created ${isVip ? '(VIP — free)' : '(Generic — €' + (data.invite.price_override != null ? data.invite.price_override : '125') + ')'}
+                        <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:${badgeColor};letter-spacing:1px;margin-bottom:8px;">
+                            <i class="fas fa-check-circle"></i> ${badgeLabel}
                         </div>
                         <div style="display:flex;gap:8px;align-items:center;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
-                            <input id="newInviteUrl" type="text" readonly value="${escapeHtml(data.invite.url)}" style="flex:1;background:transparent;border:none;color:var(--text-primary);font-family:monospace;font-size:13px;outline:none;">
-                            <button class="btn btn-primary" onclick="GalaAdmin.copyInviteUrl()" style="padding:6px 14px;font-size:12px;">
+                            <input id="${inputId}" type="text" readonly value="${escapeHtml(data.invite.url)}" style="flex:1;background:transparent;border:none;color:var(--text-primary);font-family:monospace;font-size:13px;outline:none;">
+                            <button class="btn btn-primary" onclick="GalaAdmin.copyInviteUrl('${inputId}')" style="padding:6px 14px;font-size:12px;">
                                 <i class="fas fa-copy"></i> Copy
                             </button>
                         </div>
-                        <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">Send this URL to recipients. They click → register → ${isVip ? 'instantly confirmed + QR ticket emailed' : 'pay via Stripe → QR ticket emailed after payment'}.</p>
+                        <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">${flowDescription}</p>
                     `;
-                    Toast.success('Invite link created');
-                    // Reset form
-                    document.getElementById('galaInviteLabel').value = '';
-                    document.getElementById('galaInvitePrice').value = '';
-                    document.getElementById('galaInviteMaxUses').value = '';
-                    document.getElementById('galaInviteExpires').value = '';
-                    document.getElementById('galaInviteNotes').value = '';
+                    Toast.success(isVip ? 'VIP invite link created' : 'Paid invite link created');
+                    // Reset the corresponding form
+                    document.getElementById(prefix + 'Label').value = '';
+                    if (!isVip) document.getElementById('galaPaidPrice').value = '';
+                    document.getElementById(prefix + 'MaxUses').value = '';
+                    document.getElementById(prefix + 'Expires').value = '';
+                    document.getElementById(prefix + 'Notes').value = '';
                     // Refresh list
                     this.loadInviteLinks();
                 } catch (err) {
@@ -28789,8 +28824,9 @@ By applying to this program, I give the following consents:
                 }
             },
 
-            copyInviteUrl() {
-                const input = document.getElementById('newInviteUrl');
+            copyInviteUrl(inputId) {
+                const id = inputId || 'newPaidInviteUrl';
+                const input = document.getElementById(id);
                 if (!input) return;
                 input.select();
                 try {
