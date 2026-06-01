@@ -485,6 +485,18 @@ app.get('/invite/:data', (req, res) => {
             }
         }
 
+        // Defensive VIP detection: also honor the `vip:true` and `t:'vip'` flags embedded in the URL payload.
+        // This catches cases where the DB lookup didn't find a row (cross-service DB sync delay, etc.) but the
+        // admin-generated link payload itself marks the invite as VIP.
+        if (eventType === 'gala' && (data.vip === true || data.t === 'vip')) {
+            isVipInvite = true;
+            inviteLinkPriceOverride = 0;
+        }
+        // Honor explicit price override in the URL payload (used by admin tools for sponsor pricing, etc.)
+        if (eventType === 'gala' && data.po != null && inviteLinkPriceOverride == null) {
+            inviteLinkPriceOverride = Number(data.po);
+        }
+
         // Check expiry (payload-embedded, used for legacy invites without DB record)
         if (expiresAt && new Date(expiresAt) < new Date()) {
             return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Expired</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Link Expired</h1><p style="color:#94a3b8;">This invitation link has expired.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&X</a></div></body></html>`);
