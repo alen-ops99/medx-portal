@@ -2854,6 +2854,43 @@ async function initializeApp() {
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN invoice_number TEXT'); } catch(e) {}
     // Track which shareable gala invite link a registrant came in through
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN invite_link_id TEXT'); } catch(e) {}
+    // Croatians Abroad — invite links + registrations (mirror of user-portal schema)
+    db.run(`CREATE TABLE IF NOT EXISTS croatians_abroad_invite_links (
+        id TEXT PRIMARY KEY,
+        label TEXT,
+        max_uses INTEGER,
+        used_count INTEGER DEFAULT 0,
+        expires_at TEXT,
+        revoked INTEGER DEFAULT 0,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        notes TEXT
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS croatians_abroad_registrations (
+        id TEXT PRIMARY KEY,
+        invite_link_id TEXT,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        institution TEXT,
+        country TEXT,
+        role TEXT,
+        dietary TEXT,
+        notes TEXT,
+        selected_conference INTEGER DEFAULT 0,
+        selected_bridges INTEGER DEFAULT 0,
+        selected_gala INTEGER DEFAULT 0,
+        conference_status TEXT,
+        bridges_status TEXT,
+        gala_status TEXT,
+        gala_payment_status TEXT,
+        gala_registration_id TEXT,
+        amount_paid REAL,
+        stripe_session_id TEXT,
+        invoice_number TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
     // Gala invite links table — admin-generated shareable URLs (generic paid + VIP free)
     db.run(`CREATE TABLE IF NOT EXISTS gala_invite_links (
         id TEXT PRIMARY KEY,
@@ -15619,6 +15656,68 @@ By applying to this program, I provide the following consents:
         db.run('UPDATE gala_invite_links SET revoked = 1 WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
+    });
+
+    // ========== CROATIANS ABROAD — admin invite link CRUD ==========
+
+    function buildCroatiansAbroadInviteUrlAdmin(req, row) {
+        const payload = {
+            e: 'croatians-abroad',
+            i: row.id,
+            x: row.expires_at || null,
+            n: 'Plexus 2026 — Croatians Abroad'
+        };
+        const b64 = Buffer.from(JSON.stringify(payload)).toString('base64')
+            .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        const userPortalUrl = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
+        return `${userPortalUrl}/invite/${b64}`;
+    }
+
+    app.post('/api/admin/croatians-abroad/invite-links', auth, adminOnly, (req, res) => {
+        const { label, max_uses, expires_at, notes } = req.body || {};
+        const id = require('crypto').randomUUID();
+        const maxUsesClean = (max_uses != null && max_uses !== '') ? Number(max_uses) : null;
+        db.run(
+            `INSERT INTO croatians_abroad_invite_links (id, label, max_uses, expires_at, created_by, notes)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [id, label || null, maxUsesClean, expires_at || null,
+             (req.user && req.user.email) || 'unknown', notes || null]
+        );
+        saveDb();
+        const row = query.get('SELECT * FROM croatians_abroad_invite_links WHERE id = ?', [id]);
+        row.url = buildCroatiansAbroadInviteUrlAdmin(req, row);
+        res.json({ success: true, invite: row });
+    });
+
+    app.get('/api/admin/croatians-abroad/invite-links', auth, adminOnly, (req, res) => {
+        const rows = query.all('SELECT * FROM croatians_abroad_invite_links ORDER BY created_at DESC');
+        rows.forEach(r => { r.url = buildCroatiansAbroadInviteUrlAdmin(req, r); });
+        res.json(rows);
+    });
+
+    app.delete('/api/admin/croatians-abroad/invite-links/:id', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT id FROM croatians_abroad_invite_links WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Invite link not found' });
+        db.run('UPDATE croatians_abroad_invite_links SET revoked = 1 WHERE id = ?', [req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    app.get('/api/admin/croatians-abroad/registrations', auth, adminOnly, (req, res) => {
+        const rows = query.all('SELECT * FROM croatians_abroad_registrations ORDER BY created_at DESC');
+        res.json(rows);
+    });
+
+    app.get('/api/admin/croatians-abroad/emails-by-event/:event', auth, adminOnly, (req, res) => {
+        const event = req.params.event;
+        const validCols = { conference: 'selected_conference', bridges: 'selected_bridges', gala: 'selected_gala' };
+        const col = validCols[event];
+        if (!col) return res.status(400).json({ error: "event must be one of: conference, bridges, gala" });
+        const rows = query.all(
+            `SELECT first_name, last_name, email, institution, country, role, created_at
+             FROM croatians_abroad_registrations WHERE ${col} = 1 ORDER BY created_at DESC`
+        );
+        res.json({ event, count: rows.length, emails: rows.map(r => r.email), registrants: rows });
     });
 
     // ========== GALA SCANNER — registration lookup by ID (for QR scanner) ==========

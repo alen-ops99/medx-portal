@@ -6620,6 +6620,11 @@
                     <span id="galaPendingCount" style="background: #f59e0b; color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
                 </a>
 
+                <a class="nav-item" data-section="croatians-abroad" onclick="App.showSection('croatians-abroad', this)">
+                    <i class="fas fa-globe-europe" style="color: #ef4444;"></i>
+                    <span>Croatians Abroad</span>
+                </a>
+
                 <div class="nav-divider"></div>
                 <div class="nav-label">System</div>
 
@@ -10545,6 +10550,104 @@ President, Med&amp;X</textarea>
                     </div>
                 </div>
 
+                <!-- CROATIANS ABROAD -->
+                <div class="section" id="section-croatians-abroad">
+                    <div class="back-link" onclick="App.showSection('dashboard')">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </div>
+                    <div class="page-header">
+                        <div>
+                            <h1 style="display:flex;align-items:center;gap:14px;">
+                                <i class="fas fa-globe-europe" style="color:#ef4444;"></i>
+                                Croatians Abroad
+                            </h1>
+                            <p style="color:var(--text-muted);">Personally-invited diaspora guests. One link → three events (Conference free, Bridges free, Gala paid).</p>
+                        </div>
+                    </div>
+
+                    <!-- Stats -->
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+                        <div class="card" style="padding:18px;"><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Total Registrations</div><div id="caStatTotal" style="font-size:28px;font-weight:700;color:var(--text-primary);margin-top:4px;">0</div></div>
+                        <div class="card" style="padding:18px;"><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Conference</div><div id="caStatConf" style="font-size:28px;font-weight:700;color:#a78bfa;margin-top:4px;">0</div></div>
+                        <div class="card" style="padding:18px;"><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Bridges</div><div id="caStatBridges" style="font-size:28px;font-weight:700;color:#f472b6;margin-top:4px;">0</div></div>
+                        <div class="card" style="padding:18px;"><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Gala (Paid)</div><div id="caStatGala" style="font-size:28px;font-weight:700;color:#C9A962;margin-top:4px;">0</div></div>
+                    </div>
+
+                    <!-- Create invite link -->
+                    <div class="card" style="border:1px solid rgba(239,68,68,0.3);background:linear-gradient(180deg,rgba(239,68,68,0.04),transparent);">
+                        <div class="card-header" style="border-bottom:1px solid rgba(239,68,68,0.2);">
+                            <h3 class="card-title" style="display:flex;align-items:center;gap:10px;">
+                                <span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:rgba(239,68,68,0.18);color:#ef4444;"><i class="fas fa-link"></i></span>
+                                Create Diaspora Invite Link
+                            </h3>
+                            <p style="color:var(--text-muted);font-size:12px;margin-top:6px;">Generate a shareable link to send to personally-invited diaspora guests. They will see all three events and can select any combination.</p>
+                        </div>
+                        <div class="card-body">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                                <div class="form-group">
+                                    <label class="form-label">Label <span style="color:var(--text-muted);font-size:11px;">(internal)</span></label>
+                                    <input id="caLabel" type="text" class="form-input" placeholder="e.g. LATAM batch 1, Australia outreach">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Max Uses <span style="color:var(--text-muted);font-size:11px;">(empty = unlimited)</span></label>
+                                    <input id="caMaxUses" type="number" min="1" class="form-input" placeholder="∞ unlimited">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Expires <span style="color:var(--text-muted);font-size:11px;">(optional)</span></label>
+                                    <input id="caExpires" type="date" class="form-input">
+                                </div>
+                                <div class="form-group" style="grid-column:1 / -1;">
+                                    <label class="form-label">Notes</label>
+                                    <textarea id="caNotes" class="form-input" rows="2" placeholder="Internal notes about this campaign"></textarea>
+                                </div>
+                            </div>
+                            <div style="margin-top:14px;display:flex;justify-content:flex-end;">
+                                <button class="btn btn-primary" onclick="CroatiansAbroadAdmin.createInviteLink()" style="padding:12px 28px;background:linear-gradient(135deg,#ef4444,#dc2626);">
+                                    <i class="fas fa-plus"></i> Generate Invite Link
+                                </button>
+                            </div>
+                            <div id="caLinkResult" style="display:none;margin-top:14px;padding:14px 18px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);border-radius:8px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Existing links -->
+                    <div class="card" style="margin-top:20px;">
+                        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                            <h3 class="card-title">Existing Invite Links</h3>
+                            <button class="btn btn-secondary" onclick="CroatiansAbroadAdmin.loadInviteLinks()" style="font-size:12px;">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
+                        </div>
+                        <div class="card-body" id="caInviteLinksList" style="padding:0;">
+                            <div style="text-align:center;padding:40px;color:var(--text-muted);">Loading…</div>
+                        </div>
+                    </div>
+
+                    <!-- Registrations + per-event email export -->
+                    <div class="card" style="margin-top:20px;">
+                        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+                            <h3 class="card-title">Registrations</h3>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button class="btn btn-secondary" onclick="CroatiansAbroadAdmin.exportEmails('conference')" style="font-size:12px;">
+                                    <i class="fas fa-envelope"></i> Export Conference emails
+                                </button>
+                                <button class="btn btn-secondary" onclick="CroatiansAbroadAdmin.exportEmails('bridges')" style="font-size:12px;">
+                                    <i class="fas fa-envelope"></i> Export Bridges emails
+                                </button>
+                                <button class="btn btn-secondary" onclick="CroatiansAbroadAdmin.exportEmails('gala')" style="font-size:12px;">
+                                    <i class="fas fa-envelope"></i> Export Gala emails
+                                </button>
+                                <button class="btn btn-secondary" onclick="CroatiansAbroadAdmin.loadRegistrations()" style="font-size:12px;">
+                                    <i class="fas fa-sync"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body" id="caRegistrationsList" style="padding:0;">
+                            <div style="text-align:center;padding:40px;color:var(--text-muted);">Loading…</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- TECH DASHBOARD -->
                 <div class="section" id="section-tech">
                     <div class="back-link" onclick="App.showSection('dashboard')">
@@ -13131,6 +13234,7 @@ President, Med&amp;X</textarea>
                 { id: 'dashboard', label: 'Home', icon: 'fa-home', color: '#c9a962', desc: 'Dashboard overview', alwaysOn: true },
                 { id: 'plexus', label: 'Plexus Conference', icon: 'fa-users', color: '#a78bfa', desc: 'Annual flagship conference' },
                 { id: 'gala', label: 'Gala Evening', icon: 'fa-glass-cheers', color: '#C9A962', desc: 'Plexus 2026 Gala — registrations, invite links, settings' },
+                { id: 'croatians-abroad', label: 'Croatians Abroad', icon: 'fa-globe-europe', color: '#ef4444', desc: 'Diaspora multi-event invitations (Conference + Bridges + Gala)' },
                 { id: 'accelerator', label: 'Med&X Accelerator', icon: 'fa-rocket', color: '#22d3ee', desc: 'Research internship program' },
                 { id: 'forum', label: 'Biomedical Forum', icon: 'fa-landmark', color: '#fb923c', desc: 'Senior leaders network' },
                 { id: 'bridges', label: 'Building Bridges', icon: 'fa-globe-americas', color: '#f472b6', desc: 'Global networking events' },
@@ -15056,6 +15160,10 @@ President, Med&amp;X</textarea>
                     this.currentView = 'gala';
                     this.switchChatPanel('team');
                     GalaAdmin.init();
+                } else if (sectionId === 'croatians-abroad') {
+                    this.currentView = 'croatians-abroad';
+                    this.switchChatPanel('team');
+                    if (typeof CroatiansAbroadAdmin !== 'undefined') CroatiansAbroadAdmin.init();
                 } else if (sectionId === 'tech') {
                     this.currentView = 'tech';
                     this.switchChatPanel('team');
@@ -29098,6 +29206,265 @@ By applying to this program, I give the following consents:
                 } catch (err) {
                     console.error('Failed to update gala status:', err);
                 }
+            }
+        };
+
+        // =========================================
+        // CROATIANS ABROAD ADMIN
+        // =========================================
+        const CroatiansAbroadAdmin = {
+            initialized: false,
+
+            async init() {
+                if (this.initialized) {
+                    this.loadInviteLinks();
+                    this.loadRegistrations();
+                    return;
+                }
+                this.initialized = true;
+                await Promise.all([this.loadInviteLinks(), this.loadRegistrations()]);
+            },
+
+            async createInviteLink() {
+                const label = document.getElementById('caLabel').value.trim();
+                const maxUsesRaw = document.getElementById('caMaxUses').value;
+                const expiresRaw = document.getElementById('caExpires').value;
+                const notes = document.getElementById('caNotes').value.trim();
+
+                const body = {
+                    label: label || null,
+                    max_uses: maxUsesRaw ? Number(maxUsesRaw) : null,
+                    expires_at: expiresRaw || null,
+                    notes: notes || null
+                };
+
+                try {
+                    const res = await fetch('/api/admin/croatians-abroad/invite-links', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+                        body: JSON.stringify(body)
+                    });
+                    const data = await res.json();
+                    if (!res.ok || !data.success) {
+                        Toast.error(data.error || 'Failed to create invite link');
+                        return;
+                    }
+                    const result = document.getElementById('caLinkResult');
+                    result.style.display = 'block';
+                    result.innerHTML = `
+                        <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#10b981;letter-spacing:1px;margin-bottom:8px;">
+                            <i class="fas fa-check-circle"></i> Diaspora invite link created
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+                            <input id="newCAUrl" type="text" readonly value="${escapeHtml(data.invite.url)}" style="flex:1;background:transparent;border:none;color:var(--text-primary);font-family:monospace;font-size:13px;outline:none;">
+                            <button class="btn btn-primary" onclick="CroatiansAbroadAdmin.copyUrl('newCAUrl')" style="padding:6px 14px;font-size:12px;">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                        </div>
+                        <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">Send this URL to personally-invited diaspora guests. They will see all three events on one page and can select any combination. Conference + Bridges are free pre-registrations; Gala goes through Stripe.</p>
+                    `;
+                    Toast.success('Invite link created');
+                    document.getElementById('caLabel').value = '';
+                    document.getElementById('caMaxUses').value = '';
+                    document.getElementById('caExpires').value = '';
+                    document.getElementById('caNotes').value = '';
+                    this.loadInviteLinks();
+                } catch (err) {
+                    console.error('CA create link failed:', err);
+                    Toast.error('Failed to create invite link');
+                }
+            },
+
+            copyUrl(inputId) {
+                const input = document.getElementById(inputId);
+                if (!input) return;
+                input.select();
+                try {
+                    document.execCommand('copy');
+                    Toast.success('Link copied to clipboard');
+                } catch (e) {
+                    navigator.clipboard?.writeText(input.value).then(() => Toast.success('Link copied'));
+                }
+            },
+
+            copyExistingUrl(url) {
+                navigator.clipboard?.writeText(url).then(() => Toast.success('Link copied'))
+                    .catch(() => {
+                        const t = document.createElement('textarea');
+                        t.value = url; document.body.appendChild(t); t.select();
+                        try { document.execCommand('copy'); Toast.success('Link copied'); } catch(e) {}
+                        document.body.removeChild(t);
+                    });
+            },
+
+            async loadInviteLinks() {
+                const container = document.getElementById('caInviteLinksList');
+                if (!container) return;
+                try {
+                    const res = await fetch('/api/admin/croatians-abroad/invite-links', {
+                        headers: { 'Authorization': `Bearer ${App.token}` }
+                    });
+                    if (!res.ok) {
+                        container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">Failed to load invite links</div>';
+                        return;
+                    }
+                    const links = await res.json();
+                    this.renderInviteLinks(links);
+                } catch (err) {
+                    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">Failed to load</div>';
+                }
+            },
+
+            renderInviteLinks(links) {
+                const container = document.getElementById('caInviteLinksList');
+                if (!container) return;
+                if (!links || links.length === 0) {
+                    container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted);"><i class="fas fa-link" style="font-size:48px;margin-bottom:16px;opacity:0.3;"></i><p>No diaspora invite links yet. Create one above.</p></div>`;
+                    return;
+                }
+                let html = `<table style="width:100%;border-collapse:collapse;">
+                    <thead><tr style="border-bottom:1px solid var(--border);">
+                        <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Label</th>
+                        <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Uses</th>
+                        <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Expires</th>
+                        <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Status</th>
+                        <th style="text-align:center;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Actions</th>
+                    </tr></thead><tbody>`;
+                links.forEach(l => {
+                    const usesText = l.max_uses != null ? `${l.used_count || 0} / ${l.max_uses}` : `${l.used_count || 0} / ∞`;
+                    const expiresText = l.expires_at ? new Date(l.expires_at).toLocaleDateString() : '—';
+                    const statusBadge = l.revoked
+                        ? '<span style="background:rgba(239,68,68,0.15);color:#ef4444;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;">Revoked</span>'
+                        : '<span style="background:rgba(16,185,129,0.15);color:#10b981;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;">Active</span>';
+                    const escUrl = (l.url || '').replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+                    html += `<tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:12px 16px;">
+                            <div style="font-weight:500;">${escapeHtml(l.label || 'Untitled')}</div>
+                            ${l.notes ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + escapeHtml(l.notes) + '</div>' : ''}
+                        </td>
+                        <td style="padding:12px 16px;font-size:13px;color:var(--text-secondary);">${usesText}</td>
+                        <td style="padding:12px 16px;font-size:13px;color:var(--text-secondary);">${expiresText}</td>
+                        <td style="padding:12px 16px;">${statusBadge}</td>
+                        <td style="padding:12px 16px;text-align:center;">
+                            <button class="btn btn-secondary" onclick="CroatiansAbroadAdmin.copyExistingUrl('${escUrl}')" style="padding:4px 10px;font-size:11px;margin-right:4px;" title="Copy URL"><i class="fas fa-copy"></i></button>
+                            ${!l.revoked ? `<button class="btn btn-secondary" onclick="CroatiansAbroadAdmin.revokeLink('${l.id}')" style="padding:4px 10px;font-size:11px;color:#ef4444;" title="Revoke"><i class="fas fa-ban"></i></button>` : ''}
+                        </td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            },
+
+            async revokeLink(id) {
+                if (!confirm('Revoke this diaspora invite link? Anyone who clicks it after this will see a "Link Disabled" page.')) return;
+                try {
+                    const res = await fetch(`/api/admin/croatians-abroad/invite-links/${id}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${App.token}` }
+                    });
+                    if (res.ok) {
+                        Toast.success('Invite link revoked');
+                        this.loadInviteLinks();
+                    } else {
+                        const data = await res.json();
+                        Toast.error(data.error || 'Failed to revoke');
+                    }
+                } catch (err) { Toast.error('Failed to revoke invite link'); }
+            },
+
+            async loadRegistrations() {
+                const container = document.getElementById('caRegistrationsList');
+                if (!container) return;
+                try {
+                    const res = await fetch('/api/admin/croatians-abroad/registrations', {
+                        headers: { 'Authorization': `Bearer ${App.token}` }
+                    });
+                    if (!res.ok) {
+                        container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">Failed to load</div>';
+                        return;
+                    }
+                    const regs = await res.json();
+                    this.renderRegistrations(regs);
+                } catch (err) {
+                    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">Failed to load</div>';
+                }
+            },
+
+            renderRegistrations(regs) {
+                const container = document.getElementById('caRegistrationsList');
+                if (!container) return;
+
+                // Update stats
+                const total = regs.length;
+                const conf = regs.filter(r => r.selected_conference).length;
+                const bridges = regs.filter(r => r.selected_bridges).length;
+                const gala = regs.filter(r => r.selected_gala && r.gala_payment_status === 'paid').length;
+                document.getElementById('caStatTotal').textContent = total;
+                document.getElementById('caStatConf').textContent = conf;
+                document.getElementById('caStatBridges').textContent = bridges;
+                document.getElementById('caStatGala').textContent = gala;
+
+                if (!regs.length) {
+                    container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted);"><i class="fas fa-users" style="font-size:48px;margin-bottom:16px;opacity:0.3;"></i><p>No registrations yet.</p></div>`;
+                    return;
+                }
+                let html = `<table style="width:100%;border-collapse:collapse;">
+                    <thead><tr style="border-bottom:1px solid var(--border);">
+                        <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Name</th>
+                        <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Email</th>
+                        <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Country</th>
+                        <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Events</th>
+                        <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Gala</th>
+                    </tr></thead><tbody>`;
+                regs.forEach(r => {
+                    const events = [];
+                    if (r.selected_conference) events.push('<span style="background:rgba(167,139,250,0.15);color:#a78bfa;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;">Conf</span>');
+                    if (r.selected_bridges) events.push('<span style="background:rgba(244,114,182,0.15);color:#f472b6;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;">Bridges</span>');
+                    if (r.selected_gala) events.push('<span style="background:rgba(201,169,98,0.15);color:#C9A962;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;">Gala</span>');
+                    const galaBadge = r.selected_gala
+                        ? (r.gala_payment_status === 'paid'
+                            ? '<span style="background:rgba(16,185,129,0.15);color:#10b981;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;">Paid</span>'
+                            : '<span style="background:rgba(245,158,11,0.15);color:#f59e0b;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;">Awaiting</span>')
+                        : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
+                    html += `<tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:12px 16px;">
+                            <div style="font-weight:500;">${escapeHtml(r.first_name)} ${escapeHtml(r.last_name || '')}</div>
+                            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${escapeHtml(r.institution || '')}${r.role ? ' · ' + escapeHtml(r.role) : ''}</div>
+                        </td>
+                        <td style="padding:12px 16px;font-size:13px;color:var(--text-secondary);">${escapeHtml(r.email)}</td>
+                        <td style="padding:12px 16px;font-size:13px;color:var(--text-secondary);">${escapeHtml(r.country || '—')}</td>
+                        <td style="padding:12px 16px;"><div style="display:flex;gap:4px;">${events.join('')}</div></td>
+                        <td style="padding:12px 16px;">${galaBadge}</td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            },
+
+            async exportEmails(event) {
+                try {
+                    const res = await fetch(`/api/admin/croatians-abroad/emails-by-event/${event}`, {
+                        headers: { 'Authorization': `Bearer ${App.token}` }
+                    });
+                    if (!res.ok) { Toast.error('Export failed'); return; }
+                    const data = await res.json();
+                    if (!data.count) { Toast.info('No registrants for this event yet'); return; }
+                    const csvLines = ['Email,First Name,Last Name,Institution,Country,Role,Registered'];
+                    data.registrants.forEach(r => {
+                        const safe = v => `"${(v || '').replace(/"/g, '""')}"`;
+                        csvLines.push([r.email, r.first_name, r.last_name, r.institution, r.country, r.role, r.created_at].map(safe).join(','));
+                    });
+                    const blob = new Blob([csvLines.join('\n')], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `croatians-abroad-${event}-emails-${new Date().toISOString().slice(0,10)}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    Toast.success(`${data.count} ${event} emails exported`);
+                } catch (err) { Toast.error('Export failed'); }
             }
         };
 

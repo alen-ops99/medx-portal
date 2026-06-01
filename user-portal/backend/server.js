@@ -617,6 +617,322 @@ app.get('/invite/:data', (req, res) => {
             return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Disabled</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Link Disabled</h1><p style="color:#94a3b8;">This invitation link is no longer active. Please contact the Med&amp;X team if you believe this is an error.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
         }
 
+        // ========== CROATIANS ABROAD — dedicated multi-event flow ==========
+        if (eventType === 'croatians-abroad') {
+            let caInvite = null;
+            try { if (data.i) caInvite = query.get('SELECT * FROM croatians_abroad_invite_links WHERE id = ?', [data.i]); } catch(e) {}
+            if (caInvite) {
+                if (caInvite.revoked) return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Link Disabled</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;padding:20px;"><div><h1 style="color:#ef4444;">Link Disabled</h1><p style="color:#94a3b8;">This invitation is no longer active.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
+                if (caInvite.expires_at && new Date(caInvite.expires_at) < new Date()) return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Link Expired</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;padding:20px;"><div><h1 style="color:#ef4444;">Link Expired</h1><p style="color:#94a3b8;">This invitation has expired.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
+                if (caInvite.max_uses != null && caInvite.used_count >= caInvite.max_uses) return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Link Used Up</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;padding:20px;"><div><h1 style="color:#ef4444;">Link No Longer Available</h1><p style="color:#94a3b8;">This invitation has reached its maximum number of uses.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
+            }
+
+            // Get live gala price for the Gala card on this page
+            const galaForCA = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
+            const galaPrice = (galaForCA && galaForCA.price_gala_only) ? Number(galaForCA.price_gala_only) : 125;
+
+            const caHtml = `<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plexus 2026 &mdash; Croatians Abroad</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { min-height:100vh; background:linear-gradient(160deg,#0f172a,#1e293b); font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif; color:#e2e8f0; padding:32px 16px; }
+    .container { max-width:640px; margin:0 auto; }
+    .logo { text-align:center; margin-bottom:24px; }
+    .logo span { font-size:28px; font-weight:700; color:#fff; letter-spacing:-0.5px; }
+    .logo span em { font-style:normal; color:#c9a962; }
+    .card { background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,98,0.2); border-radius:20px; padding:28px 26px; }
+    .badge { display:inline-block; font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#c9a962; margin-bottom:12px; padding:5px 12px; background:rgba(201,169,98,0.12); border-radius:20px; }
+    h1 { font-size:24px; font-weight:700; color:#fff; margin-bottom:6px; line-height:1.2; }
+    .lede { font-size:14px; color:#94a3b8; margin-bottom:24px; line-height:1.55; }
+    .section-label { font-size:11px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#c9a962; margin:20px 0 12px; }
+    .event-option { background:rgba(255,255,255,0.04); border:1.5px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px; margin-bottom:10px; display:flex; gap:14px; cursor:pointer; transition:all 0.2s; }
+    .event-option:hover { border-color:rgba(201,169,98,0.3); background:rgba(255,255,255,0.06); }
+    .event-option.selected { border-color:#c9a962; background:rgba(201,169,98,0.08); }
+    .event-option.disabled-but-checked { border-color:rgba(168,85,247,0.5); background:rgba(168,85,247,0.08); cursor:default; opacity:0.95; }
+    .event-checkbox { flex-shrink:0; width:22px; height:22px; border:2px solid rgba(255,255,255,0.2); border-radius:6px; display:flex; align-items:center; justify-content:center; margin-top:2px; }
+    .event-option.selected .event-checkbox { background:#c9a962; border-color:#c9a962; }
+    .event-option.disabled-but-checked .event-checkbox { background:#a855f7; border-color:#a855f7; }
+    .event-checkbox i { color:#0f172a; font-size:12px; display:none; }
+    .event-option.selected .event-checkbox i, .event-option.disabled-but-checked .event-checkbox i { display:block; color:#fff; }
+    .event-title-row { display:flex; justify-content:space-between; gap:10px; align-items:baseline; margin-bottom:4px; }
+    .event-name { font-size:15px; font-weight:600; color:#fff; }
+    .event-price { font-size:13px; font-weight:600; color:#c9a962; white-space:nowrap; }
+    .event-price.free { color:#22c55e; }
+    .event-meta { font-size:12px; color:#94a3b8; line-height:1.45; }
+    .event-note { font-size:11px; color:#cbd5e1; margin-top:6px; font-style:italic; }
+    .bundle-banner { display:none; background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.3); border-radius:10px; padding:10px 14px; font-size:12px; color:#e9d5ff; margin-top:10px; }
+    .bundle-banner.show { display:block; }
+    .keynote-card { background:linear-gradient(135deg,rgba(201,169,98,0.08),rgba(201,169,98,0.02)); border:1px solid rgba(201,169,98,0.25); border-radius:14px; padding:14px; margin-top:16px; display:flex; gap:12px; align-items:center; }
+    .keynote-card img { width:56px; height:56px; border-radius:50%; object-fit:cover; object-position:center 22%; border:2px solid #c9a962; flex-shrink:0; }
+    .keynote-card .kc-label { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:#c9a962; font-weight:700; margin-bottom:3px; }
+    .keynote-card .kc-name { font-size:14px; font-weight:600; color:#fff; line-height:1.2; }
+    .keynote-card .kc-role { font-size:12px; font-style:italic; color:#e8c97a; margin-top:2px; }
+    .form-grid { display:grid; gap:14px; margin-top:18px; }
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    label { display:block; font-size:11px; font-weight:600; color:#94a3b8; margin-bottom:5px; }
+    input, select, textarea { width:100%; padding:11px 13px; border:1px solid rgba(255,255,255,0.1); border-radius:9px; background:rgba(255,255,255,0.05); color:#fff; font-size:13.5px; font-family:inherit; }
+    input:focus, select:focus, textarea:focus { border-color:#c9a962; outline:none; box-shadow:0 0 0 3px rgba(201,169,98,0.1); }
+    input::placeholder, textarea::placeholder { color:#64748b; }
+    select option { background:#1e293b; color:#e2e8f0; }
+    textarea { resize:vertical; min-height:60px; }
+    .total-display { display:none; justify-content:space-between; align-items:center; padding:14px 16px; background:rgba(201,169,98,0.1); border-radius:10px; border:1px solid rgba(201,169,98,0.25); margin-top:14px; }
+    .total-display.show { display:flex; }
+    .total-display .label { font-size:13px; color:#94a3b8; }
+    .total-display .amount { font-size:22px; font-weight:700; color:#c9a962; }
+    .submit-btn { width:100%; padding:14px; background:linear-gradient(135deg,#c9a962,#b49650); color:#0f172a; border:none; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer; margin-top:16px; font-family:inherit; }
+    .submit-btn:disabled { opacity:0.5; cursor:not-allowed; }
+    .submit-btn.no-events { background:#475569; color:#94a3b8; }
+    .footer { text-align:center; margin-top:18px; font-size:11px; color:#64748b; }
+    .footer a { color:#c9a962; text-decoration:none; }
+    .success { text-align:center; padding:40px 20px; }
+    .success-icon { width:72px; height:72px; border-radius:50%; background:rgba(34,197,94,0.1); display:flex; align-items:center; justify-content:center; margin:0 auto 16px; }
+    @media(max-width:520px) { .form-row { grid-template-columns:1fr; } body { padding:20px 12px; } .card { padding:22px 18px; } }
+</style></head><body>
+<div class="container">
+    <div class="logo"><span>med<em>&amp;</em>X</span></div>
+    <div class="card" id="mainCard">
+        <div style="text-align:center;margin-bottom:18px;">
+            <div class="badge"><i class="fas fa-globe-europe"></i> Croatians Abroad &mdash; Personal Invitation</div>
+            <h1>Plexus 2026 &mdash; Welcome Home</h1>
+            <p class="lede">You are personally invited to join us at Plexus 2026 in Zagreb. Select the events you'd like to attend below. The Conference and Croatian Biomedical Bridges are complimentary; the Gala Evening is a paid ticket.</p>
+        </div>
+
+        <div class="section-label">Select Your Events</div>
+
+        <div class="event-option" id="evtConference" data-event="conference" onclick="toggleEvent('conference')">
+            <div class="event-checkbox"><i class="fas fa-check"></i></div>
+            <div style="flex:1;min-width:0;">
+                <div class="event-title-row">
+                    <span class="event-name">Plexus Conference</span>
+                    <span class="event-price free">FREE</span>
+                </div>
+                <div class="event-meta"><i class="fas fa-calendar" style="color:#c9a962;margin-right:5px;"></i>4 December 2026</div>
+                <div class="event-note">Programme to be announced &mdash; we will email you the full schedule.</div>
+            </div>
+        </div>
+
+        <div class="event-option" id="evtBridges" data-event="bridges" onclick="toggleEvent('bridges')">
+            <div class="event-checkbox"><i class="fas fa-check"></i></div>
+            <div style="flex:1;min-width:0;">
+                <div class="event-title-row">
+                    <span class="event-name">Croatian Biomedical Bridges</span>
+                    <span class="event-price free">FREE</span>
+                </div>
+                <div class="event-meta"><i class="fas fa-calendar" style="color:#c9a962;margin-right:5px;"></i>4 or 5 December 2026 &mdash; <em>date TBC</em></div>
+                <div class="event-note">Invitation-only pre-registration. We will confirm the exact date and venue closer to the event.</div>
+            </div>
+        </div>
+
+        <div class="event-option" id="evtGala" data-event="gala" onclick="toggleEvent('gala')">
+            <div class="event-checkbox"><i class="fas fa-check"></i></div>
+            <div style="flex:1;min-width:0;">
+                <div class="event-title-row">
+                    <span class="event-name">Plexus Gala Evening</span>
+                    <span class="event-price">&euro;${galaPrice}</span>
+                </div>
+                <div class="event-meta"><i class="fas fa-calendar" style="color:#c9a962;margin-right:5px;"></i>5 December 2026 &middot; Arrival 7:00 PM &middot; Welcome drink</div>
+                <div class="event-meta"><i class="fas fa-map-marker-alt" style="color:#c9a962;margin-right:5px;"></i>Hotel Esplanade Zagreb &middot; Black Tie</div>
+                <div class="event-note">Reserving the Gala automatically includes the Conference and Bridges at no extra cost.</div>
+            </div>
+        </div>
+
+        <div class="bundle-banner" id="bundleBanner">
+            <i class="fas fa-star" style="color:#a855f7;margin-right:6px;"></i><strong>Gala bundle:</strong> The Conference and Bridges are reserved for you at no additional charge.
+        </div>
+
+        <div class="keynote-card">
+            <img src="/assets/gala/lord-smith-chancellor.jpg" alt="Lord Smith of Finsbury" onerror="this.style.display='none'">
+            <div style="flex:1;min-width:0;">
+                <div class="kc-label">Featured Keynote Guest (Gala Evening)</div>
+                <div class="kc-name">Lord Smith of Finsbury</div>
+                <div class="kc-role">Chancellor of the University of Cambridge</div>
+            </div>
+        </div>
+
+        <form id="caForm" onsubmit="submitCA(event)">
+            <input type="hidden" id="caInviteId" value="${escapeHtml(data.i || '')}">
+            <div class="section-label" style="margin-top:24px;">Your Details</div>
+            <div class="form-grid">
+                <div class="form-row">
+                    <div><label>First Name *</label><input type="text" id="caFirstName" required placeholder="First name"></div>
+                    <div><label>Last Name *</label><input type="text" id="caLastName" required placeholder="Last name"></div>
+                </div>
+                <div><label>Email *</label><input type="email" id="caEmail" required placeholder="your@email.com"></div>
+                <div class="form-row">
+                    <div><label>Affiliation / Institution</label><input type="text" id="caInstitution" placeholder="University, hospital, company"></div>
+                    <div><label>Country of Residence</label><input type="text" id="caCountry" placeholder="e.g. United States"></div>
+                </div>
+                <div>
+                    <label>Role</label>
+                    <select id="caRole">
+                        <option value="">Select role…</option>
+                        <option>Physician</option>
+                        <option>Researcher / Scientist</option>
+                        <option>Professor / Faculty</option>
+                        <option>Postdoctoral Fellow</option>
+                        <option>Resident / Fellow (Medical)</option>
+                        <option>PhD Student</option>
+                        <option>Medical / Graduate Student</option>
+                        <option>Industry &mdash; Pharma / Biotech</option>
+                        <option>Industry &mdash; MedTech / Diagnostics</option>
+                        <option>Investor / Venture Capital</option>
+                        <option>Founder / Entrepreneur</option>
+                        <option>Hospital / Institution Leadership</option>
+                        <option>Policy / Government</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+                <div id="caDietaryWrap" style="display:none;">
+                    <label>Dietary Requirements <span style="font-size:11px;color:#64748b;">(for Bridges &amp; Gala catering)</span></label>
+                    <select id="caDietary">
+                        <option>No special requirements</option>
+                        <option>Vegetarian</option>
+                        <option>Vegan</option>
+                        <option>Gluten-free</option>
+                        <option>Pescatarian</option>
+                        <option>Halal</option>
+                        <option>Kosher</option>
+                        <option>Allergies &mdash; please describe in Notes</option>
+                        <option>Other &mdash; please describe in Notes</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Notes <span style="font-size:11px;color:#64748b;">(allergies, accessibility needs, anything we should know)</span></label>
+                    <textarea id="caNotes" placeholder="Optional"></textarea>
+                </div>
+            </div>
+
+            <div class="total-display" id="caTotalDisplay">
+                <span class="label">Gala Ticket</span>
+                <span class="amount">&euro;${galaPrice}</span>
+            </div>
+
+            <button type="submit" class="submit-btn no-events" id="caSubmitBtn" disabled>Select at least one event</button>
+        </form>
+
+        <div class="footer">
+            <p>By registering, you agree to Med&amp;X's <a href="/terms" target="_blank">Terms &amp; Conditions</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</p>
+            <p style="margin-top:6px;color:#475569;">Questions? <a href="mailto:laura.rodman@medx.hr">laura.rodman@medx.hr</a></p>
+        </div>
+    </div>
+</div>
+
+<script>
+const GALA_PRICE = ${galaPrice};
+const state = { conference: false, bridges: false, gala: false };
+
+function toggleEvent(evt) {
+    // If Gala is currently on, can't independently toggle Conference/Bridges (bundle locked)
+    if (state.gala && (evt === 'conference' || evt === 'bridges')) return;
+    state[evt] = !state[evt];
+    // Gala bundle rule — selecting Gala auto-includes the other two
+    if (evt === 'gala' && state.gala) {
+        state.conference = true;
+        state.bridges = true;
+    }
+    render();
+}
+
+function render() {
+    // Conference card
+    const conf = document.getElementById('evtConference');
+    conf.classList.toggle('selected', state.conference && !state.gala);
+    conf.classList.toggle('disabled-but-checked', state.gala && state.conference);
+
+    // Bridges card
+    const br = document.getElementById('evtBridges');
+    br.classList.toggle('selected', state.bridges && !state.gala);
+    br.classList.toggle('disabled-but-checked', state.gala && state.bridges);
+
+    // Gala card
+    const ga = document.getElementById('evtGala');
+    ga.classList.toggle('selected', state.gala);
+
+    // Bundle banner
+    document.getElementById('bundleBanner').classList.toggle('show', state.gala);
+
+    // Dietary field — visible if Bridges or Gala selected
+    document.getElementById('caDietaryWrap').style.display = (state.bridges || state.gala) ? 'block' : 'none';
+
+    // Total / submit button text
+    const total = document.getElementById('caTotalDisplay');
+    const btn = document.getElementById('caSubmitBtn');
+    const anySelected = state.conference || state.bridges || state.gala;
+    if (state.gala) {
+        total.classList.add('show');
+        btn.disabled = false;
+        btn.className = 'submit-btn';
+        btn.innerHTML = 'Proceed to Payment &mdash; &euro;' + GALA_PRICE;
+    } else if (anySelected) {
+        total.classList.remove('show');
+        btn.disabled = false;
+        btn.className = 'submit-btn';
+        btn.innerHTML = '<i class="fas fa-check-circle" style="margin-right:6px;"></i>Confirm Pre-Registration';
+    } else {
+        total.classList.remove('show');
+        btn.disabled = true;
+        btn.className = 'submit-btn no-events';
+        btn.textContent = 'Select at least one event';
+    }
+}
+
+async function submitCA(e) {
+    e.preventDefault();
+    const btn = document.getElementById('caSubmitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Processing…';
+    const body = {
+        invite_link_id: document.getElementById('caInviteId').value || null,
+        first_name: document.getElementById('caFirstName').value.trim(),
+        last_name: document.getElementById('caLastName').value.trim(),
+        email: document.getElementById('caEmail').value.trim(),
+        institution: document.getElementById('caInstitution').value.trim(),
+        country: document.getElementById('caCountry').value.trim(),
+        role: document.getElementById('caRole').value,
+        dietary: (state.bridges || state.gala) ? document.getElementById('caDietary').value : '',
+        notes: document.getElementById('caNotes').value.trim(),
+        selected_conference: state.conference ? 1 : 0,
+        selected_bridges: state.bridges ? 1 : 0,
+        selected_gala: state.gala ? 1 : 0
+    };
+    try {
+        const res = await fetch('/api/croatians-abroad/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const result = await res.json();
+        if (!result.success) {
+            btn.disabled = false;
+            render();
+            alert(result.error || 'Registration failed. Please try again.');
+            return;
+        }
+        if (result.checkout_url) {
+            btn.textContent = 'Redirecting to payment…';
+            window.location.href = result.checkout_url;
+            return;
+        }
+        document.getElementById('mainCard').innerHTML = '<div class="success">' +
+            '<div class="success-icon"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div>' +
+            '<h1 style="color:#22c55e;margin-bottom:8px;">You&apos;re pre-registered!</h1>' +
+            '<p style="color:#94a3b8;font-size:15px;margin-bottom:12px;line-height:1.5;">A confirmation has been sent to your email. We&apos;ll be in touch with the Conference programme and Bridges date as soon as they&apos;re finalised.</p>' +
+            '<p style="color:#64748b;font-size:13px;margin-bottom:22px;">We look forward to welcoming you home in Zagreb.</p>' +
+            '<a href="https://medx.hr" style="display:inline-block;padding:11px 22px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Visit Med&amp;X</a></div>';
+    } catch(err) {
+        btn.disabled = false;
+        render();
+        alert('Registration failed. Please check your connection.');
+    }
+}
+</script>
+</body></html>`;
+            return res.send(caHtml);
+        }
+
         // Database-backed gala invite link check (admin-generated shareable links)
         let galaInvite = null;
         let isVipInvite = false;
@@ -3516,6 +3832,52 @@ async function initializeApp() {
             db.run("UPDATE gala_settings SET title = 'Plexus 2026 — Gala Evening' WHERE id = 'default'");
         }
     } catch(e) { /* non-fatal */ }
+
+    // ========== CROATIANS ABROAD ==========
+    // Personally-invited diaspora guest flow. One link, three events selectable
+    // (Conference free, Bridges free pre-reg, Gala paid). Bundles Gala → also
+    // pre-registers Conference + Bridges. Separate table from gala_invite_links
+    // so we can track campaigns and tag invitees per-event for later updates.
+    db.run(`CREATE TABLE IF NOT EXISTS croatians_abroad_invite_links (
+        id TEXT PRIMARY KEY,
+        label TEXT,
+        max_uses INTEGER,
+        used_count INTEGER DEFAULT 0,
+        expires_at TEXT,
+        revoked INTEGER DEFAULT 0,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        notes TEXT
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS croatians_abroad_registrations (
+        id TEXT PRIMARY KEY,
+        invite_link_id TEXT,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        institution TEXT,
+        country TEXT,
+        role TEXT,
+        dietary TEXT,
+        notes TEXT,
+        -- Per-event selections (1 = selected by guest)
+        selected_conference INTEGER DEFAULT 0,
+        selected_bridges INTEGER DEFAULT 0,
+        selected_gala INTEGER DEFAULT 0,
+        -- Per-event status (set when registration is finalised)
+        conference_status TEXT,
+        bridges_status TEXT,
+        gala_status TEXT,
+        gala_payment_status TEXT,
+        -- Link to the main gala_registrations row for the Gala portion (so QR/check-in
+        -- works through the same scanner as other Gala paths)
+        gala_registration_id TEXT,
+        amount_paid REAL,
+        stripe_session_id TEXT,
+        invoice_number TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
 
     // Gala invite links — admin-generated shareable URLs (generic paid + VIP free)
     db.run(`CREATE TABLE IF NOT EXISTS gala_invite_links (
@@ -10476,6 +10838,130 @@ By applying to this program, I provide the following consents:
                 return res.json({ received: true });
             }
 
+            // ===== CROATIANS ABROAD — Gala payment confirmation =====
+            if (metadata.type === 'croatians-abroad-gala') {
+                const caRegId = metadata.ca_registration_id;
+                const galaRegId = metadata.gala_registration_id;
+                const caEmail = metadata.email || session.customer_details?.email;
+                console.log(`[Stripe] Croatians Abroad Gala payment confirmed for ${caRegId} / gala ${galaRegId}`);
+                try {
+                    const amount = session.amount_total ? session.amount_total / 100 : 0;
+                    // Idempotency: check current state before mutating
+                    const existingCA = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [caRegId]);
+                    if (!existingCA) {
+                        console.warn(`[Stripe] CA registration ${caRegId} not found`);
+                        return res.json({ received: true });
+                    }
+                    if (existingCA.gala_payment_status === 'paid') {
+                        console.log('[Stripe] CA gala already paid — duplicate webhook, skipping');
+                        return res.json({ received: true, duplicate: true });
+                    }
+
+                    // Generate invoice number
+                    const year = new Date().getFullYear();
+                    const count = query.get("SELECT COUNT(*) as c FROM gala_registrations WHERE invoice_number IS NOT NULL")?.c || 0;
+                    const invoiceNumber = `CA-GALA-${year}-${String(count + 1).padStart(4, '0')}`;
+
+                    // Update both tables
+                    db.run(`UPDATE croatians_abroad_registrations
+                            SET gala_status = 'confirmed', gala_payment_status = 'paid', amount_paid = ?, invoice_number = ?
+                            WHERE id = ?`,
+                        [amount, invoiceNumber, caRegId]);
+                    if (galaRegId) {
+                        db.run(`UPDATE gala_registrations
+                                SET status = 'confirmed', payment_status = 'paid', amount_paid = ?, invoice_number = ?
+                                WHERE id = ?`,
+                            [amount, invoiceNumber, galaRegId]);
+                    }
+                    // Increment invite-link used_count on successful payment
+                    if (metadata.invite_link_id) {
+                        db.run('UPDATE croatians_abroad_invite_links SET used_count = COALESCE(used_count,0) + 1 WHERE id = ?', [metadata.invite_link_id]);
+                    }
+                    saveDb();
+
+                    // Generate Gala QR for the gala_registrations row
+                    let qrDataUrl = '';
+                    try {
+                        const qrPayload = JSON.stringify({
+                            type: 'MEDX_MEMBER', regId: galaRegId, email: caEmail,
+                            name: (metadata.first_name || '') + ' ' + (metadata.last_name || ''),
+                            evt: 'gala', evtName: 'Plexus 2026 — Gala Evening',
+                            amt: amount, diet: metadata.dietary || ''
+                        });
+                        qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 220, margin: 2 });
+                    } catch(qrErr) { console.warn('CA gala QR generation failed:', qrErr.message); }
+
+                    const eventListHtml = `
+                        ${metadata.bundle_conference === '1' ? `<tr><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;">
+                            <strong style="color:#0f172a;">Plexus Conference</strong>
+                            <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (FREE)</span>
+                            <div style="color:#64748b;font-size:12px;margin-top:2px;">4 December 2026 &middot; Programme to follow</div></td></tr>` : ''}
+                        ${metadata.bundle_bridges === '1' ? `<tr><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;">
+                            <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
+                            <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (FREE)</span>
+                            <div style="color:#64748b;font-size:12px;margin-top:2px;">4 or 5 December 2026 &middot; date and venue to be confirmed</div></td></tr>` : ''}
+                        <tr><td style="padding:10px 14px;">
+                            <strong style="color:#0f172a;">Plexus Gala Evening</strong>
+                            <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">CONFIRMED &amp; PAID</span>
+                            <div style="color:#64748b;font-size:12px;margin-top:2px;">5 December 2026 &middot; Hotel Esplanade Zagreb &middot; from 7:00 PM</div></td></tr>`;
+
+                    // Confirmation email — payment receipt + bundle summary + QR
+                    try {
+                        await sendEmail(caEmail, 'Payment Confirmed — Plexus 2026 Gala Evening', buildEmailTemplate('Payment Confirmed', `
+                            <div style="text-align:center;margin-bottom:8px;">
+                                <div style="display:inline-block;background:#22c55e;color:#fff;font-size:13px;font-weight:600;padding:6px 20px;border-radius:20px;letter-spacing:0.5px;">PAYMENT CONFIRMED</div>
+                            </div>
+                            <p style="margin-top:18px;">Dear <strong>${metadata.first_name || 'guest'}</strong>,</p>
+                            <p>Your payment of <strong>&euro;${amount.toFixed(2)}</strong> for the <strong style="color:#C9A962;">Plexus 2026 Gala Evening</strong> has been received. Your ticket is below.</p>
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+                                <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Your Plexus 2026 Reservations</td></tr>
+                                ${eventListHtml}
+                            </table>
+                            <p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${invoiceNumber}</p>
+                            ${qrDataUrl ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;"><tr><td align="center">
+                                <table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:16px;padding:22px;text-align:center;">
+                                    <tr><td style="padding-bottom:10px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Gala Check-in QR Code</td></tr>
+                                    <tr><td><img src="${qrDataUrl}" alt="QR Code" width="200" height="200" style="display:block;margin:0 auto;border-radius:8px;" /></td></tr>
+                                    <tr><td style="padding-top:10px;font-size:12px;color:#94a3b8;">Present this code at the Gala entrance on 5 December</td></tr>
+                                </table>
+                            </td></tr></table>` : ''}
+                            <p>We will email you the <strong>Conference programme</strong> as soon as it is finalised${metadata.bundle_bridges === '1' ? ', and confirm the <strong>Bridges date and venue</strong> when those are set' : ''}.</p>
+                            <p style="margin-top:24px;">We look forward to welcoming you home in Zagreb.</p>
+                            <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
+                        `));
+                    } catch(emailErr) { console.warn('CA confirmation email failed:', emailErr.message); }
+
+                    // Log to Google Sheets
+                    try {
+                        const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
+                        if (sheetsWebhook) {
+                            fetch(sheetsWebhook, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    timestamp: new Date().toISOString(),
+                                    name: (metadata.first_name || '') + ' ' + (metadata.last_name || ''),
+                                    email: caEmail,
+                                    institution: metadata.institution || '', country: metadata.country || '', role: metadata.role || '',
+                                    event: 'Plexus 2026 — Croatians Abroad (Gala bundle)',
+                                    event_type: 'croatians-abroad',
+                                    items: [metadata.bundle_conference === '1' ? 'Conference' : null, metadata.bundle_bridges === '1' ? 'Bridges' : null, 'Gala'].filter(Boolean).join(' + '),
+                                    dietary: metadata.dietary || '',
+                                    amount, payment: 'Paid (Gala bundle)',
+                                    registration_id: caRegId,
+                                    invoice: invoiceNumber
+                                })
+                            }).catch(() => {});
+                        }
+                    } catch(e) {}
+
+                    return res.json({ received: true });
+                } catch (chErr) {
+                    console.error('[Stripe] Croatians Abroad Gala handler error:', chErr.message);
+                    return res.status(500).send('CA gala handler error');
+                }
+            }
+
             // ===== INVITE LINK PAYMENT (any event type) =====
             if (metadata.type && metadata.type.startsWith('invite-')) {
                 const invRegId = metadata.registration_id;
@@ -15952,6 +16438,79 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
+    // ========== CROATIANS ABROAD — admin invite link CRUD ==========
+
+    function buildCroatiansAbroadInviteUrl(req, row) {
+        const payload = {
+            e: 'croatians-abroad',
+            i: row.id,
+            x: row.expires_at || null,
+            n: 'Plexus 2026 — Croatians Abroad'
+        };
+        const b64 = Buffer.from(JSON.stringify(payload)).toString('base64')
+            .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        const baseUrl = process.env.PORTAL_URL || `${req.protocol}://${req.get('host')}`;
+        return `${baseUrl}/invite/${b64}`;
+    }
+
+    app.post('/api/admin/croatians-abroad/invite-links', auth, adminOnly, (req, res) => {
+        const { label, max_uses, expires_at, notes } = req.body || {};
+        const id = require('crypto').randomUUID();
+        const maxUsesClean = (max_uses != null && max_uses !== '') ? Number(max_uses) : null;
+        db.run(
+            `INSERT INTO croatians_abroad_invite_links (id, label, max_uses, expires_at, created_by, notes)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [id, label || null, maxUsesClean, expires_at || null,
+             (req.user && req.user.email) || 'unknown', notes || null]
+        );
+        saveDb();
+        const row = query.get('SELECT * FROM croatians_abroad_invite_links WHERE id = ?', [id]);
+        row.url = buildCroatiansAbroadInviteUrl(req, row);
+        res.json({ success: true, invite: row });
+    });
+
+    app.get('/api/admin/croatians-abroad/invite-links', auth, adminOnly, (req, res) => {
+        const rows = query.all(`SELECT * FROM croatians_abroad_invite_links ORDER BY created_at DESC`);
+        rows.forEach(r => { r.url = buildCroatiansAbroadInviteUrl(req, r); });
+        res.json(rows);
+    });
+
+    app.delete('/api/admin/croatians-abroad/invite-links/:id', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT id FROM croatians_abroad_invite_links WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Invite link not found' });
+        db.run('UPDATE croatians_abroad_invite_links SET revoked = 1 WHERE id = ?', [req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    app.post('/api/admin/croatians-abroad/invite-links/:id/revoke', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT id FROM croatians_abroad_invite_links WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Invite link not found' });
+        db.run('UPDATE croatians_abroad_invite_links SET revoked = 1 WHERE id = ?', [req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    // List all registrations + per-event emails for later bulk notifications
+    app.get('/api/admin/croatians-abroad/registrations', auth, adminOnly, (req, res) => {
+        const rows = query.all('SELECT * FROM croatians_abroad_registrations ORDER BY created_at DESC');
+        res.json(rows);
+    });
+
+    // Per-event email export — used when the Conference programme / Bridges date is finalised
+    // and we want to email everyone who pre-registered for that event.
+    app.get('/api/admin/croatians-abroad/emails-by-event/:event', auth, adminOnly, (req, res) => {
+        const event = req.params.event;
+        const validCols = { conference: 'selected_conference', bridges: 'selected_bridges', gala: 'selected_gala' };
+        const col = validCols[event];
+        if (!col) return res.status(400).json({ error: "event must be one of: conference, bridges, gala" });
+        const rows = query.all(
+            `SELECT first_name, last_name, email, institution, country, role, created_at
+             FROM croatians_abroad_registrations WHERE ${col} = 1 ORDER BY created_at DESC`
+        );
+        res.json({ event, count: rows.length, emails: rows.map(r => r.email), registrants: rows });
+    });
+
     // ========== GALA SCANNER (QR code lookup + check-in) ==========
 
     // Look up gala registration by registration ID (regId encoded in QR)
@@ -16297,6 +16856,181 @@ By applying to this program, I provide the following consents:
             if (promo.max_uses > 0 && promo.used_count >= promo.max_uses) return res.json({ valid: false, error: 'Code limit reached' });
             res.json({ valid: true, discount_type: promo.discount_type, discount_value: promo.discount_value });
         } catch(e) { res.json({ valid: false, error: 'Validation error' }); }
+    });
+
+    // ========== CROATIANS ABROAD — multi-event registration ==========
+    // Free-only sign-ups confirmed immediately; Gala goes through Stripe (same
+    // gala_registrations table reused for QR/check-in compatibility).
+    app.post('/api/croatians-abroad/register', registrationLimiter, async (req, res) => {
+        try {
+            const { invite_link_id, first_name, last_name, email, institution, country, role, dietary, notes,
+                    selected_conference, selected_bridges, selected_gala } = req.body || {};
+            if (!email || !first_name) return res.status(400).json({ error: 'Name and email required' });
+            const wantConf = !!Number(selected_conference);
+            const wantBridges = !!Number(selected_bridges);
+            const wantGala = !!Number(selected_gala);
+            if (!wantConf && !wantBridges && !wantGala) {
+                return res.status(400).json({ error: 'Please select at least one event' });
+            }
+
+            // Validate invite link (if provided)
+            let caInvite = null;
+            if (invite_link_id) {
+                caInvite = query.get('SELECT * FROM croatians_abroad_invite_links WHERE id = ?', [invite_link_id]);
+                if (caInvite) {
+                    if (caInvite.revoked) return res.status(403).json({ error: 'This invitation link is no longer active' });
+                    if (caInvite.expires_at && new Date(caInvite.expires_at) < new Date()) return res.status(403).json({ error: 'This invitation link has expired' });
+                    if (caInvite.max_uses != null && caInvite.used_count >= caInvite.max_uses) return res.status(403).json({ error: 'This invitation link has reached its maximum number of uses' });
+                }
+            }
+
+            // Apply bundling rule (Gala → also pre-register Conference + Bridges)
+            const finalConf = wantGala ? true : wantConf;
+            const finalBridges = wantGala ? true : wantBridges;
+            const finalGala = wantGala;
+
+            const regId = require('crypto').randomUUID();
+            let galaRegistrationId = null;
+
+            // If Gala selected, create a gala_registrations row too (status='awaiting_payment')
+            // so QR/check-in works through the existing Gala scanner once payment confirms.
+            if (finalGala) {
+                galaRegistrationId = require('crypto').randomUUID();
+                db.run(
+                    `INSERT INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status, dietary, requests)
+                     VALUES (?, ?, ?, ?, ?, 'awaiting_payment', 'pending', ?, ?)`,
+                    [galaRegistrationId, first_name, last_name || '', email, institution || '', dietary || null, notes || null]
+                );
+            }
+
+            db.run(
+                `INSERT INTO croatians_abroad_registrations
+                 (id, invite_link_id, first_name, last_name, email, institution, country, role, dietary, notes,
+                  selected_conference, selected_bridges, selected_gala,
+                  conference_status, bridges_status, gala_status, gala_payment_status, gala_registration_id)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [regId, invite_link_id || null, first_name, last_name || '', email, institution || '', country || '', role || '', dietary || '', notes || '',
+                 finalConf ? 1 : 0, finalBridges ? 1 : 0, finalGala ? 1 : 0,
+                 finalConf ? 'pre-registered' : null,
+                 finalBridges ? 'pre-registered' : null,
+                 finalGala ? 'awaiting_payment' : null,
+                 finalGala ? 'pending' : null,
+                 galaRegistrationId]
+            );
+            saveDb();
+
+            // Helper: build the event-list HTML used in confirmation emails
+            const eventListHtml = [
+                finalConf ? `<tr><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;">
+                    <strong style="color:#0f172a;">Plexus Conference</strong>
+                    <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED</span>
+                    <div style="color:#64748b;font-size:12px;margin-top:2px;">4 December 2026 &middot; Programme to be announced</div></td></tr>` : '',
+                finalBridges ? `<tr><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;">
+                    <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
+                    <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED</span>
+                    <div style="color:#64748b;font-size:12px;margin-top:2px;">4 or 5 December 2026 &middot; date and venue to be confirmed</div></td></tr>` : '',
+                finalGala ? `<tr><td style="padding:10px 14px;">
+                    <strong style="color:#0f172a;">Plexus Gala Evening</strong>
+                    <span style="color:#f59e0b;font-size:12px;font-weight:600;margin-left:8px;">AWAITING PAYMENT</span>
+                    <div style="color:#64748b;font-size:12px;margin-top:2px;">5 December 2026 &middot; Hotel Esplanade Zagreb &middot; from 7:00 PM</div></td></tr>` : ''
+            ].filter(Boolean).join('');
+
+            // ---------- PATH A: Free-only (no Gala) → confirm immediately ----------
+            if (!finalGala) {
+                try {
+                    await sendEmail(email, "You're pre-registered — Plexus 2026", buildEmailTemplate('Pre-Registration Confirmed', `
+                        <p>Dear <strong>${first_name}</strong>,</p>
+                        <p>Thank you for accepting our invitation. Your pre-registration for <strong>Plexus 2026</strong> is confirmed.</p>
+                        <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+                            <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Your Selections</td></tr>
+                            ${eventListHtml}
+                        </table>
+                        <p>We will email you the <strong>Conference programme</strong> as soon as it is finalised${finalBridges ? ', and confirm the <strong>Bridges date and venue</strong> when those are set' : ''}.</p>
+                        <p>If you would also like to join us at the <strong>Plexus Gala Evening</strong> on 5 December 2026 (Hotel Esplanade Zagreb, Lord Smith of Finsbury keynote), simply reply to this email and we will send you the ticket link.</p>
+                        <p style="margin-top:24px;">We look forward to welcoming you home in Zagreb.</p>
+                        <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
+                    `));
+                } catch(emailErr) { console.warn('CA pre-reg email failed:', emailErr.message); }
+
+                // Log to Google Sheets
+                try {
+                    const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
+                    if (sheetsWebhook) {
+                        fetch(sheetsWebhook, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                timestamp: new Date().toISOString(),
+                                name: first_name + ' ' + (last_name || ''),
+                                email, institution: institution || '', country: country || '', role: role || '',
+                                event: 'Plexus 2026 — Croatians Abroad',
+                                event_type: 'croatians-abroad',
+                                items: [finalConf ? 'Conference' : null, finalBridges ? 'Bridges' : null, finalGala ? 'Gala' : null].filter(Boolean).join(' + '),
+                                dietary: dietary || '', notes: notes || '',
+                                amount: 0, payment: 'Free (Pre-Registered)',
+                                invite_label: caInvite?.label || '',
+                                registration_id: regId
+                            })
+                        }).catch(() => {});
+                    }
+                } catch(e) {}
+
+                // Increment invite-link usage
+                if (caInvite) {
+                    db.run('UPDATE croatians_abroad_invite_links SET used_count = COALESCE(used_count,0) + 1 WHERE id = ?', [caInvite.id]);
+                    saveDb();
+                }
+                return res.json({ success: true, id: regId, status: 'pre-registered' });
+            }
+
+            // ---------- PATH B: Gala selected → Stripe Checkout ----------
+            if (!stripe) {
+                return res.status(500).json({ error: 'Payment processor not configured. Please contact info@medx.hr.' });
+            }
+            const galaSettingsRow = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
+            const galaPrice = galaSettingsRow?.price_gala_only || 125;
+            const baseUrl = process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
+            const session = await stripe.checkout.sessions.create({
+                mode: 'payment',
+                payment_method_types: ['card'],
+                line_items: [{
+                    price_data: {
+                        currency: 'eur',
+                        product_data: { name: 'Plexus 2026 Gala Evening — Croatians Abroad' },
+                        unit_amount: Math.round(galaPrice * 100)
+                    },
+                    quantity: 1
+                }],
+                metadata: {
+                    type: 'croatians-abroad-gala',
+                    ca_registration_id: regId,
+                    gala_registration_id: galaRegistrationId,
+                    invite_link_id: invite_link_id || '',
+                    email,
+                    first_name,
+                    last_name: last_name || '',
+                    institution: institution || '',
+                    country: country || '',
+                    role: role || '',
+                    dietary: dietary || '',
+                    notes: (notes || '').substring(0, 200),
+                    bundle_conference: finalConf ? '1' : '0',
+                    bundle_bridges: finalBridges ? '1' : '0'
+                },
+                customer_email: email,
+                success_url: `${baseUrl}/invite-success?session_id={CHECKOUT_SESSION_ID}`,
+                cancel_url: `${baseUrl}/invite-cancelled`
+            });
+            db.run('UPDATE croatians_abroad_registrations SET stripe_session_id = ? WHERE id = ?', [session.id, regId]);
+            db.run('UPDATE gala_registrations SET stripe_session_id = ? WHERE id = ?', [session.id, galaRegistrationId]);
+            saveDb();
+            // used_count for Gala path increments only on successful payment (in webhook below)
+            return res.json({ success: true, id: regId, checkout_url: session.url });
+
+        } catch (err) {
+            console.error('[Croatians Abroad] register error:', err.message);
+            return res.status(500).json({ error: 'Registration failed. Please try again or contact info@medx.hr.' });
+        }
     });
 
     app.post('/api/register-invite', registrationLimiter, async (req, res) => {
