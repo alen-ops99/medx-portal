@@ -663,7 +663,15 @@ app.get('/invite/:data', (req, res) => {
                 </div>
             </div>` : ''}
             ${packageHtml ? '<div class="items-section"><div class="items-label">Your Registration Includes:</div>' + packageHtml + '</div>' : ''}
-            ${isVipInvite ? '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:linear-gradient(135deg,rgba(168,85,247,0.12),rgba(168,85,247,0.04));border:1px solid rgba(168,85,247,0.3);border-radius:12px;margin-bottom:24px;"><span style="font-size:13px;color:#e9d5ff;font-weight:500;">VIP Guest &mdash; Complimentary Admission</span><span style="font-size:18px;font-weight:700;color:#a855f7;letter-spacing:1px;">FREE</span></div>' : (eventInfo.price ? '<div class="price-row"><span class="price-label">Registration Fee</span><span class="price-value">&euro;' + eventInfo.price + '</span></div>' : '')}
+            ${isVipInvite ? `
+            <div style="padding:18px 20px;background:linear-gradient(135deg,rgba(168,85,247,0.14),rgba(168,85,247,0.04));border:1px solid rgba(168,85,247,0.35);border-radius:14px;margin-bottom:24px;text-align:center;">
+                <div style="font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#a855f7;margin-bottom:8px;">
+                    <i class="fas fa-star" style="margin-right:6px;"></i>You are our complimentary guest
+                </div>
+                <div style="font-size:14px;color:#e9d5ff;line-height:1.5;">
+                    No payment required &mdash; please complete your details below to confirm your attendance and receive your QR ticket by email.
+                </div>
+            </div>` : (eventInfo.price ? '<div class="price-row"><span class="price-label">Registration Fee</span><span class="price-value">&euro;' + eventInfo.price + '</span></div>' : '')}
             <form id="regForm" class="form-grid" onsubmit="submitReg(event)">
                 <input type="hidden" id="eventType" value="${escapeHtml(eventType)}">
                 <input type="hidden" id="eventName" value="${escapeHtml(eventInfo.name)}">
@@ -688,6 +696,7 @@ app.get('/invite/:data', (req, res) => {
                         <option value="2">+2 Guests (+&euro;${eventInfo.price * 2})</option>
                     </select>
                 </div>` : ''}
+                ${isVipInvite ? '<input type="hidden" id="couponCode" value="">' : `
                 <div>
                     <label>Discount Code <span style="font-size:11px;color:#64748b;">(optional)</span></label>
                     <div style="display:flex;gap:8px;">
@@ -695,14 +704,14 @@ app.get('/invite/:data', (req, res) => {
                         <button type="button" onclick="applyCoupon()" id="applyBtn" style="padding:10px 18px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;white-space:nowrap;">Apply</button>
                     </div>
                     <div id="couponStatus" style="margin-top:6px;font-size:12px;display:none;"></div>
-                </div>
+                </div>`}
                 <input type="hidden" id="eventPrice" value="${eventInfo.price || 0}">
                 <input type="hidden" id="basePrice" value="${eventInfo.price || 0}">
                 <div id="totalDisplay" style="display:${eventInfo.price ? 'flex' : 'none'};justify-content:space-between;align-items:center;padding:14px 16px;background:rgba(201,169,98,0.12);border-radius:10px;border:1px solid rgba(201,169,98,0.2);">
                     <span style="font-size:14px;color:#94a3b8;">Total</span>
                     <span id="totalAmount" style="font-size:24px;font-weight:700;color:#c9a962;">&euro;${eventInfo.price || 0}</span>
                 </div>
-                <button type="submit" class="submit-btn" id="submitBtn">${eventInfo.price ? 'Proceed to Payment — &euro;' + eventInfo.price : 'Complete Registration'}</button>
+                <button type="submit" class="submit-btn" id="submitBtn"${isVipInvite ? ' style="background:linear-gradient(135deg,#a855f7,#8b5cf6);"' : ''}>${isVipInvite ? '<i class="fas fa-star" style="margin-right:6px;"></i>Confirm My Attendance' : (eventInfo.price ? 'Proceed to Payment — &euro;' + eventInfo.price : 'Complete Registration')}</button>
             </form>
             <div class="footer" style="margin-top:20px;">
                 <p style="margin-bottom:8px;">By registering, you agree to Med&amp;X's <a href="https://medx.hr/terms">Terms &amp; Conditions</a> and <a href="https://medx.hr/privacy">Privacy Policy</a>.</p>
@@ -10312,7 +10321,17 @@ By applying to this program, I provide the following consents:
                     if (invEventType === 'plexus') {
                         db.run("UPDATE registrations SET payment_status = 'paid', amount_paid = ? WHERE id = ?", [amount, invRegId]);
                     } else if (invEventType === 'gala') {
-                        db.run("UPDATE gala_registrations SET payment_status = 'paid', status = 'confirmed' WHERE id = ?", [invRegId]);
+                        // Idempotency guard + invite-link usage counting (only count on first successful payment)
+                        const existingGala = query.get('SELECT invite_link_id, status FROM gala_registrations WHERE id = ?', [invRegId]);
+                        if (existingGala && existingGala.status !== 'confirmed') {
+                            db.run("UPDATE gala_registrations SET payment_status = 'paid', status = 'confirmed', amount_paid = ? WHERE id = ?", [amount, invRegId]);
+                            if (existingGala.invite_link_id) {
+                                db.run('UPDATE gala_invite_links SET used_count = COALESCE(used_count,0) + 1 WHERE id = ?', [existingGala.invite_link_id]);
+                            }
+                        } else if (existingGala) {
+                            // Already confirmed (duplicate webhook) — still ensure amount_paid is set
+                            db.run("UPDATE gala_registrations SET amount_paid = COALESCE(amount_paid, ?) WHERE id = ?", [amount, invRegId]);
+                        }
                     } else if (invEventType === 'forum') {
                         db.run("UPDATE forum_event_registrations SET payment_status = 'paid', payment_amount = ? WHERE id = ?", [amount, invRegId]);
                     } else if (invEventType === 'bridges') {
@@ -16154,13 +16173,13 @@ By applying to this program, I provide the following consents:
                 }
 
                 const isVip = !!(galaInviteRow && galaInviteRow.link_type === 'vip');
-                // VIP → confirmed immediately, no Stripe; generic → pending payment (Stripe block below handles checkout)
-                const regStatus = isVip ? 'confirmed' : 'approved';
+                // VIP → confirmed immediately, no Stripe; generic → awaiting_payment until Stripe webhook fires
+                const regStatus = isVip ? 'confirmed' : 'awaiting_payment';
                 const payStatus = isVip ? 'vip-comp' : 'pending';
-                db.run('INSERT OR IGNORE INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status, invite_link_id) VALUES (?,?,?,?,?,?,?,?)',
-                    [regId, first_name, last_name, email, institution, regStatus, payStatus, galaInviteRow ? galaInviteRow.id : null]);
-                // Track usage on the invite link
-                if (galaInviteRow) {
+                db.run('INSERT OR IGNORE INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status, invite_link_id, dietary, requests) VALUES (?,?,?,?,?,?,?,?,?,?)',
+                    [regId, first_name, last_name, email, institution, regStatus, payStatus, galaInviteRow ? galaInviteRow.id : null, dietary || null, allergies || null]);
+                // Increment used_count only for VIP (instant); paid invites increment in the Stripe webhook after payment succeeds.
+                if (galaInviteRow && isVip) {
                     db.run('UPDATE gala_invite_links SET used_count = COALESCE(used_count,0) + 1 WHERE id = ?', [galaInviteRow.id]);
                 }
             } else if (event_type === 'forum') {
