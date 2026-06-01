@@ -2852,6 +2852,22 @@ async function initializeApp() {
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN user_id TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN stripe_session_id TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN invoice_number TEXT'); } catch(e) {}
+    // Track which shareable gala invite link a registrant came in through
+    try { db.run('ALTER TABLE gala_registrations ADD COLUMN invite_link_id TEXT'); } catch(e) {}
+    // Gala invite links table — admin-generated shareable URLs (generic paid + VIP free)
+    db.run(`CREATE TABLE IF NOT EXISTS gala_invite_links (
+        id TEXT PRIMARY KEY,
+        label TEXT,
+        link_type TEXT NOT NULL DEFAULT 'generic',
+        price_override REAL,
+        max_uses INTEGER,
+        used_count INTEGER DEFAULT 0,
+        expires_at TEXT,
+        revoked INTEGER DEFAULT 0,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        notes TEXT
+    )`);
     // Phase 8: Gala settings table
     db.run(`CREATE TABLE IF NOT EXISTS gala_settings (
         id TEXT PRIMARY KEY DEFAULT 'default',
@@ -15531,6 +15547,108 @@ By applying to this program, I provide the following consents:
     });
 
     // --- EVENT CHECK-IN ENDPOINTS ---
+
+    // ========== GALA INVITE LINKS (admin-generated shareable URLs) ==========
+
+    function buildGalaInviteUrlAdmin(req, row) {
+        const payload = {
+            e: 'gala',
+            i: row.id,
+            t: row.link_type,
+            x: row.expires_at || null,
+            n: 'Plexus 2026 — Gala Evening'
+        };
+        if (row.link_type === 'vip') payload.vip = true;
+        if (row.price_override != null) payload.po = row.price_override;
+        const b64 = Buffer.from(JSON.stringify(payload)).toString('base64')
+            .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        const userPortalUrl = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
+        return `${userPortalUrl}/invite/${b64}`;
+    }
+
+    app.post('/api/admin/gala/invite-links', auth, adminOnly, (req, res) => {
+        const { label, link_type, price_override, max_uses, expires_at, notes } = req.body || {};
+        const type = (link_type === 'vip') ? 'vip' : 'generic';
+        if (link_type && !['generic', 'vip'].includes(link_type)) {
+            return res.status(400).json({ error: "link_type must be 'generic' or 'vip'" });
+        }
+        const id = require('crypto').randomUUID();
+        const priceOverrideClean = (type === 'vip') ? 0 : (price_override != null && price_override !== '' ? Number(price_override) : null);
+        const maxUsesClean = (max_uses != null && max_uses !== '') ? Number(max_uses) : null;
+        db.run(
+            `INSERT INTO gala_invite_links (id, label, link_type, price_override, max_uses, expires_at, created_by, notes)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, label || null, type, priceOverrideClean, maxUsesClean, expires_at || null,
+             (req.user && req.user.email) || 'unknown', notes || null]
+        );
+        saveDb();
+        const row = query.get('SELECT * FROM gala_invite_links WHERE id = ?', [id]);
+        row.url = buildGalaInviteUrlAdmin(req, row);
+        res.json({ success: true, invite: row });
+    });
+
+    app.get('/api/admin/gala/invite-links', auth, adminOnly, (req, res) => {
+        const rows = query.all(`SELECT * FROM gala_invite_links ORDER BY created_at DESC`);
+        rows.forEach(r => { r.url = buildGalaInviteUrlAdmin(req, r); });
+        res.json(rows);
+    });
+
+    app.get('/api/admin/gala/invite-links/:id', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT * FROM gala_invite_links WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Invite link not found' });
+        row.url = buildGalaInviteUrlAdmin(req, row);
+        const registrations = query.all(
+            `SELECT id, first_name, last_name, email, institution, status, payment_status, amount_paid, checked_in, created_at
+             FROM gala_registrations WHERE invite_link_id = ? ORDER BY created_at DESC`,
+            [req.params.id]
+        );
+        res.json({ invite: row, registrations });
+    });
+
+    app.delete('/api/admin/gala/invite-links/:id', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT id FROM gala_invite_links WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Invite link not found' });
+        db.run('UPDATE gala_invite_links SET revoked = 1 WHERE id = ?', [req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    app.post('/api/admin/gala/invite-links/:id/revoke', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT id FROM gala_invite_links WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Invite link not found' });
+        db.run('UPDATE gala_invite_links SET revoked = 1 WHERE id = ?', [req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    // ========== GALA SCANNER — registration lookup by ID (for QR scanner) ==========
+
+    app.get('/api/admin/gala/scan/:regId', auth, adminOnly, (req, res) => {
+        const reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [req.params.regId]);
+        if (!reg) return res.status(404).json({ error: 'Registration not found', regId: req.params.regId });
+        let inviteLabel = null;
+        if (reg.invite_link_id) {
+            const inv = query.get('SELECT label, link_type FROM gala_invite_links WHERE id = ?', [reg.invite_link_id]);
+            if (inv) inviteLabel = `${inv.link_type === 'vip' ? '[VIP] ' : ''}${inv.label || 'Untitled invite'}`;
+        }
+        res.json({
+            id: reg.id,
+            name: `${reg.first_name} ${reg.last_name}`,
+            email: reg.email,
+            institution: reg.institution || '',
+            status: reg.status,
+            payment_status: reg.payment_status,
+            is_vip: reg.payment_status === 'vip-comp',
+            amount_paid: reg.amount_paid,
+            invoice_number: reg.invoice_number,
+            invite_label: inviteLabel,
+            dietary: reg.dietary || '',
+            requests: reg.requests || '',
+            checked_in: !!reg.checked_in,
+            checked_in_at: reg.checked_in_at || null,
+            created_at: reg.created_at
+        });
+    });
 
     // Gala check-in
     app.post('/api/admin/gala/checkin', auth, adminOnly, (req, res) => {
