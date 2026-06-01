@@ -436,6 +436,162 @@ app.get('/invite-cancelled', (req, res) => {
     res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Payment Cancelled</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:system-ui;text-align:center;padding:20px;"><div style="max-width:400px;"><h1 style="color:#f59e0b;margin-bottom:12px;">Payment Cancelled</h1><p style="color:#94a3b8;font-size:16px;margin-bottom:24px;">Your registration is saved but payment was not completed. You can try again or contact us.</p><a href="mailto:info@medx.hr" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Contact Med&X</a></div></body></html>`);
 });
 
+// ========== TERMS & PRIVACY (linked from invite pages) ==========
+
+const _legalPageShell = (title, bodyHtml) => `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title} — Med&amp;X</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: linear-gradient(160deg, #0f172a, #1e293b); color: #e2e8f0; min-height: 100vh; padding: 40px 20px; line-height: 1.7; }
+        .container { max-width: 760px; margin: 0 auto; background: rgba(255,255,255,0.03); border: 1px solid rgba(201,169,98,0.2); border-radius: 16px; padding: 48px 40px; }
+        h1 { font-size: 32px; font-weight: 700; color: #fff; margin-bottom: 8px; letter-spacing: -0.5px; }
+        .updated { font-size: 13px; color: #94a3b8; margin-bottom: 32px; font-style: italic; }
+        h2 { font-size: 19px; font-weight: 600; color: #c9a962; margin: 28px 0 10px; }
+        h3 { font-size: 15px; font-weight: 600; color: #e2e8f0; margin: 18px 0 6px; }
+        p, li { font-size: 14px; color: #cbd5e1; margin-bottom: 10px; }
+        ul, ol { margin-left: 22px; margin-bottom: 12px; }
+        a { color: #c9a962; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .footer-nav { margin-top: 40px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 12px; color: #64748b; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+        @media (max-width: 600px) { .container { padding: 28px 22px; } h1 { font-size: 26px; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        ${bodyHtml}
+        <div class="footer-nav">
+            <a href="/terms">Terms &amp; Conditions</a>
+            <span style="color:#475569;">·</span>
+            <a href="/privacy">Privacy Policy</a>
+            <span style="color:#475569;">·</span>
+            <a href="https://medx.hr">medx.hr</a>
+            <span style="color:#475569;">·</span>
+            <a href="mailto:info@medx.hr">info@medx.hr</a>
+        </div>
+    </div>
+</body>
+</html>`;
+
+app.get('/terms', (req, res) => {
+    res.send(_legalPageShell('Terms & Conditions', `
+        <h1>Terms &amp; Conditions</h1>
+        <div class="updated">Last updated: 1 June 2026</div>
+
+        <p>These terms govern registration for events organised by <strong>Med&amp;X</strong>, a Croatian non-profit organisation, including the Plexus Conference, the Plexus Gala Evening, the Annual Biomedical Forum, and other Med&amp;X-organised events.</p>
+
+        <h2>1. Registration and Payment</h2>
+        <p>By submitting a registration form, you confirm that the information you provide is accurate and that you accept these terms. Paid registrations are processed via Stripe; receipt of payment confirms your registration. Complimentary (VIP) registrations are confirmed at the moment of form submission.</p>
+
+        <h2>2. Refund Policy</h2>
+        <p>All registration fees are <strong>non-refundable</strong>. If you are unable to attend, you may transfer your place to another individual by emailing <a href="mailto:info@medx.hr">info@medx.hr</a> at least 14 days before the event, subject to Med&amp;X approval. In the event of cancellation by Med&amp;X, paid fees will be refunded in full within 30 days.</p>
+
+        <h2>3. Event Attendance</h2>
+        <ul>
+            <li>You will receive a personal QR-coded ticket by email after registration. The ticket is required for entry and must be presented (printed or on a mobile device) at the venue.</li>
+            <li>Tickets are personal and non-transferable except as set out in §2 above.</li>
+            <li>Dress code, programme timing and venue details are communicated in your confirmation email and on the official event invitation.</li>
+            <li>Med&amp;X reserves the right to refuse entry to anyone who fails to comply with venue rules, applicable law, or these terms.</li>
+        </ul>
+
+        <h2>4. Image and Recording Rights</h2>
+        <p>Med&amp;X may photograph or record portions of its events for promotional, educational, and archival purposes. By attending, you consent to your image being captured and used in Med&amp;X communications. If you do not wish to be photographed, please notify the organisers in writing in advance at <a href="mailto:info@medx.hr">info@medx.hr</a>.</p>
+
+        <h2>5. Code of Conduct</h2>
+        <p>Med&amp;X is committed to providing a respectful environment for all participants. Harassment, discrimination, or behaviour that disrupts the event will not be tolerated and may result in removal without refund.</p>
+
+        <h2>6. Health, Safety and Liability</h2>
+        <p>Attendees are responsible for their own health, safety, and personal belongings during the event. Med&amp;X is not liable for any loss, damage, injury, or expense incurred by attendees except where caused by gross negligence or wilful misconduct on the part of Med&amp;X.</p>
+
+        <h2>7. Force Majeure</h2>
+        <p>If Med&amp;X is prevented from holding the event by circumstances outside its reasonable control (including public-health restrictions, natural disasters, or government action), Med&amp;X may postpone or cancel the event. Registration fees may be applied to the rescheduled event or refunded at Med&amp;X's discretion.</p>
+
+        <h2>8. Data and Privacy</h2>
+        <p>The personal data you provide is processed in accordance with our <a href="/privacy">Privacy Policy</a>.</p>
+
+        <h2>9. Changes to These Terms</h2>
+        <p>Med&amp;X may amend these terms from time to time. The version in force is the one published on this page at the date of your registration.</p>
+
+        <h2>10. Governing Law</h2>
+        <p>These terms are governed by the laws of the Republic of Croatia. Any disputes arising shall be subject to the exclusive jurisdiction of the courts of Zagreb, Croatia.</p>
+
+        <h2>11. Contact</h2>
+        <p>For any questions about these terms, contact us at <a href="mailto:info@medx.hr">info@medx.hr</a>.</p>
+    `));
+});
+
+app.get('/privacy', (req, res) => {
+    res.send(_legalPageShell('Privacy Policy', `
+        <h1>Privacy Policy</h1>
+        <div class="updated">Last updated: 1 June 2026</div>
+
+        <p><strong>Med&amp;X</strong>, a Croatian non-profit organisation, is the controller of personal data collected through this portal. This policy explains what data we collect, why we collect it, how we use it, and your rights under the EU General Data Protection Regulation (GDPR) and the Croatian Personal Data Protection Act.</p>
+
+        <h2>1. Data We Collect</h2>
+        <p>When you register for a Med&amp;X event, we collect the personal data you submit through the registration form, which may include:</p>
+        <ul>
+            <li>Identity: first name, last name</li>
+            <li>Contact: email address, country</li>
+            <li>Professional affiliation: institution / employer</li>
+            <li>Event-specific information: dietary requirements, food allergies, number of accompanying guests</li>
+            <li>Billing information (paid registrations only): processed and stored by Stripe, our payment processor, in accordance with Stripe's own privacy policy. Med&amp;X does not store full card numbers.</li>
+            <li>Technical data: timestamp of registration, IP address (for fraud prevention), QR ticket identifier</li>
+        </ul>
+
+        <h2>2. Purposes and Legal Basis</h2>
+        <ul>
+            <li><strong>Performing the registration contract (GDPR Art. 6(1)(b)):</strong> processing your registration, sending your confirmation and QR ticket, managing attendance at the event.</li>
+            <li><strong>Legitimate interests (Art. 6(1)(f)):</strong> event organisation, internal reporting, fraud prevention, security of the portal.</li>
+            <li><strong>Consent (Art. 6(1)(a)):</strong> if you opt in to marketing communications, we will send occasional updates about Med&amp;X programmes and future events. You can withdraw consent at any time.</li>
+            <li><strong>Legal obligation (Art. 6(1)(c)):</strong> retention of financial records under Croatian tax and accounting law.</li>
+        </ul>
+
+        <h2>3. Who Has Access to Your Data</h2>
+        <p>Your data is accessed only by authorised Med&amp;X staff and, where strictly necessary, by trusted processors who help us run our operations:</p>
+        <ul>
+            <li><strong>Stripe</strong> &mdash; payment processing (paid registrations only)</li>
+            <li><strong>Resend</strong> &mdash; transactional email delivery (confirmations, tickets)</li>
+            <li><strong>Render</strong> &mdash; cloud hosting of this portal</li>
+            <li><strong>Turso</strong> &mdash; database hosting</li>
+            <li><strong>Google Workspace</strong> &mdash; spreadsheet record of registrations</li>
+            <li><strong>FIRA</strong> &mdash; Croatian fiscal-invoicing service (paid registrations only)</li>
+        </ul>
+        <p>All processors are bound by data-protection agreements and process personal data only on Med&amp;X's instructions. We do not sell your data to third parties.</p>
+
+        <h2>4. Retention</h2>
+        <p>Registration data is retained for the duration needed to deliver the event and for legitimate follow-up communications, then archived or deleted within the periods required by Croatian tax law (typically 11 years for financial records, and shorter for non-financial registration data).</p>
+
+        <h2>5. Your Rights</h2>
+        <p>Under the GDPR you have the right to:</p>
+        <ul>
+            <li>Access the personal data we hold about you</li>
+            <li>Request correction of inaccurate data</li>
+            <li>Request erasure of your data (subject to legal retention obligations)</li>
+            <li>Restrict or object to certain processing</li>
+            <li>Request data portability</li>
+            <li>Withdraw consent at any time (where consent is the legal basis)</li>
+            <li>Lodge a complaint with the Croatian Personal Data Protection Agency (AZOP, <a href="https://azop.hr">azop.hr</a>) if you believe your rights have been infringed</li>
+        </ul>
+        <p>To exercise any of these rights, contact us at <a href="mailto:info@medx.hr">info@medx.hr</a>. We will respond within 30 days.</p>
+
+        <h2>6. Cookies and Tracking</h2>
+        <p>This portal uses only the cookies strictly necessary for the registration flow (session, CSRF protection). We do not use third-party advertising cookies.</p>
+
+        <h2>7. International Transfers</h2>
+        <p>Some of our processors (e.g. Stripe, Google Workspace, Render) may transfer data outside the European Economic Area. All such transfers are protected by the EU Commission's Standard Contractual Clauses or by adequacy decisions.</p>
+
+        <h2>8. Changes to This Policy</h2>
+        <p>We may update this policy from time to time. The version in force at the time of your registration is the one shown on this page on that date.</p>
+
+        <h2>9. Contact</h2>
+        <p>For any privacy questions, write to us at <a href="mailto:info@medx.hr">info@medx.hr</a>.</p>
+    `));
+});
+
 // ========== STANDALONE INVITE REGISTRATION PAGE ==========
 // Revoked invite IDs — links whose `i` value appears here are permanently disabled,
 // regardless of their embedded expiry date. To revoke a link, add its UUID and redeploy.
@@ -726,7 +882,7 @@ app.get('/invite/:data', (req, res) => {
                 <button type="submit" class="submit-btn" id="submitBtn"${isVipInvite ? ' style="background:linear-gradient(135deg,#a855f7,#8b5cf6);"' : ''}>${isVipInvite ? '<i class="fas fa-star" style="margin-right:6px;"></i>Confirm My Attendance' : (eventInfo.price ? 'Proceed to Payment — &euro;' + eventInfo.price : 'Complete Registration')}</button>
             </form>
             <div class="footer" style="margin-top:20px;">
-                <p style="margin-bottom:8px;">By registering, you agree to Med&amp;X's <a href="https://medx.hr/terms">Terms &amp; Conditions</a> and <a href="https://medx.hr/privacy">Privacy Policy</a>.</p>
+                <p style="margin-bottom:8px;">By registering, you agree to Med&amp;X's <a href="/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
                 <p style="font-size:11px;color:#475569;">All registrations are non-refundable.</p>
                 <p style="font-size:11px;color:#475569;margin-top:8px;">For any questions, please contact Laura Rodman at <a href="mailto:laura.rodman@medx.hr" style="color:#c9a962;">laura.rodman@medx.hr</a></p>
                 <p style="font-size:11px;color:#475569;margin-top:8px;">We look forward to seeing you! &mdash; The Med&amp;X Team</p>
