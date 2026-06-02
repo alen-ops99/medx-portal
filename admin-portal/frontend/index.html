@@ -7495,6 +7495,37 @@ President, Med&amp;X</textarea>
                                 <i class="fas fa-rocket" style="margin-right: 8px;"></i> Save & Publish to Users
                             </button>
                         </div>
+                        <!-- Conference Identity (NEW): purple left border. Syncs to conferences table → user portal -->
+                        <div class="card" style="border-left: 3px solid rgba(167, 139, 250, 0.5);">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-info-circle" style="margin-right: 8px; color: #a78bfa;"></i>Conference Identity</h3>
+                                <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Edits propagate live to /api/conferences/plexus-2026 and the Croatians Abroad invite page.</p>
+                            </div>
+                            <div class="card-body">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                                    <div class="form-group" style="grid-column: 1 / -1;">
+                                        <label class="form-label">Conference Name</label>
+                                        <input type="text" class="form-input" id="pxSettingName" placeholder="Plexus Conference 2026">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Venue Name</label>
+                                        <input type="text" class="form-input" id="pxSettingVenueName" placeholder="Hotel Esplanade">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Venue City</label>
+                                        <input type="text" class="form-input" id="pxSettingVenueCity" placeholder="Zagreb">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Venue Country</label>
+                                        <input type="text" class="form-input" id="pxSettingVenueCountry" placeholder="Croatia">
+                                    </div>
+                                    <div class="form-group" style="grid-column: 1 / -1;">
+                                        <label class="form-label">Tagline / Description <span style="color:var(--text-muted);font-size:11px;">(short — shown on invite pages and the website)</span></label>
+                                        <textarea class="form-input" id="pxSettingDescription" rows="2" placeholder="Where young biomedical minds connect"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <!-- Pricing: green left border -->
                         <div class="card" style="border-left: 3px solid rgba(74, 222, 128, 0.5);">
                             <div class="card-header"><h3 class="card-title"><i class="fas fa-euro-sign" style="margin-right: 8px; color: #4ade80;"></i>Conference Pricing (EUR)</h3></div>
@@ -28661,6 +28692,11 @@ By applying to this program, I give the following consents:
                 setVal('pxSettingEarlyBirdDeadline', s.early_bird_deadline);
                 setVal('pxSettingAbstractDeadline', s.abstract_deadline);
                 setVal('pxSettingRegOpen', s.is_registration_open ? '1' : '0');
+                setVal('pxSettingName', s.conference_name);
+                setVal('pxSettingVenueName', s.venue_name);
+                setVal('pxSettingVenueCity', s.venue_city);
+                setVal('pxSettingVenueCountry', s.venue_country);
+                setVal('pxSettingDescription', s.conference_description);
             },
 
             renderKeyDatesEditor() {
@@ -28718,7 +28754,12 @@ By applying to this program, I give the following consents:
                     abstract_deadline: getVal('pxSettingAbstractDeadline'),
                     is_registration_open: getVal('pxSettingRegOpen') === '1',
                     key_dates_json: JSON.stringify(this.keyDates),
-                    testimonials_json: JSON.stringify(this.testimonials)
+                    testimonials_json: JSON.stringify(this.testimonials),
+                    conference_name: getVal('pxSettingName'),
+                    conference_description: getVal('pxSettingDescription'),
+                    venue_name: getVal('pxSettingVenueName'),
+                    venue_city: getVal('pxSettingVenueCity'),
+                    venue_country: getVal('pxSettingVenueCountry')
                 };
                 try {
                     const res = await fetch('/api/admin/plexus/settings', {

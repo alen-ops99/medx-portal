@@ -2982,6 +2982,23 @@ async function initializeApp() {
         is_registration_open INTEGER DEFAULT 1,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+    // Conference identity fields — synced bidirectionally with `conferences` table
+    try { db.run(`ALTER TABLE plexus_settings ADD COLUMN conference_name TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE plexus_settings ADD COLUMN conference_description TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE plexus_settings ADD COLUMN venue_name TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE plexus_settings ADD COLUMN venue_city TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE plexus_settings ADD COLUMN venue_country TEXT`); } catch(e) {}
+    // Seed plexus_settings from conferences table on first run so admin sees current values
+    try {
+        const ps = query.get("SELECT conference_name, venue_name FROM plexus_settings WHERE id = 'default'");
+        if (ps && !ps.conference_name) {
+            const cf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+            if (cf) {
+                db.run("UPDATE plexus_settings SET conference_name = ?, conference_description = ?, venue_name = ?, venue_city = ?, venue_country = ? WHERE id = 'default'",
+                    [cf.name || 'Plexus Conference 2026', cf.description || '', cf.venue_name || 'Hotel Esplanade', cf.venue_city || 'Zagreb', cf.venue_country || 'Croatia']);
+            }
+        }
+    } catch(e) {}
 
     // Seed default plexus settings if none exist
     const existingPlexusSettings = query.get("SELECT id FROM plexus_settings WHERE id = 'default'");
@@ -16296,7 +16313,8 @@ By applying to this program, I provide the following consents:
 
         const { price_student_early, price_student_late, price_professional_early, price_professional_late,
                 key_dates_json, testimonials_json, conference_start_date, conference_end_date,
-                early_bird_deadline, abstract_deadline, is_registration_open } = req.body;
+                early_bird_deadline, abstract_deadline, is_registration_open,
+                conference_name, conference_description, venue_name, venue_city, venue_country } = req.body;
         const fields = [];
         const values = [];
         if (price_student_early !== undefined) { fields.push('price_student_early = ?'); values.push(price_student_early); }
@@ -16310,6 +16328,11 @@ By applying to this program, I provide the following consents:
         if (early_bird_deadline !== undefined) { fields.push('early_bird_deadline = ?'); values.push(early_bird_deadline); }
         if (abstract_deadline !== undefined) { fields.push('abstract_deadline = ?'); values.push(abstract_deadline); }
         if (is_registration_open !== undefined) { fields.push('is_registration_open = ?'); values.push(is_registration_open ? 1 : 0); }
+        if (conference_name !== undefined) { fields.push('conference_name = ?'); values.push(conference_name); }
+        if (conference_description !== undefined) { fields.push('conference_description = ?'); values.push(conference_description); }
+        if (venue_name !== undefined) { fields.push('venue_name = ?'); values.push(venue_name); }
+        if (venue_city !== undefined) { fields.push('venue_city = ?'); values.push(venue_city); }
+        if (venue_country !== undefined) { fields.push('venue_country = ?'); values.push(venue_country); }
         if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
         fields.push("updated_at = ?"); values.push(new Date().toISOString());
         db.run(`UPDATE plexus_settings SET ${fields.join(', ')} WHERE id = 'default'`, values);
@@ -16340,6 +16363,34 @@ By applying to this program, I provide the following consents:
                 }
             } catch (syncErr) {
                 console.warn('[plexus] ticket_types sync failed (non-fatal):', syncErr.message);
+            }
+
+            // Sync conferences table from plexus_settings so the Croatians Abroad invite page
+            // (and any other consumer reading /api/conferences/:slug) reflects admin edits.
+            // Without this, plexus_settings.conference_start_date diverges from conferences.start_date.
+            try {
+                const confSync = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+                if (confSync) {
+                    const confFields = [];
+                    const confValues = [];
+                    if (updated.conference_start_date) { confFields.push('start_date = ?'); confValues.push(updated.conference_start_date); }
+                    if (updated.conference_end_date) { confFields.push('end_date = ?'); confValues.push(updated.conference_end_date); }
+                    if (updated.early_bird_deadline) { confFields.push('early_bird_deadline = ?'); confValues.push(updated.early_bird_deadline); }
+                    if (updated.abstract_deadline) { confFields.push('abstract_deadline = ?'); confValues.push(updated.abstract_deadline); }
+                    if (updated.conference_name) { confFields.push('name = ?'); confValues.push(updated.conference_name); }
+                    if (updated.conference_description != null) { confFields.push('description = ?'); confValues.push(updated.conference_description); }
+                    if (updated.venue_name) { confFields.push('venue_name = ?'); confValues.push(updated.venue_name); }
+                    if (updated.venue_city) { confFields.push('venue_city = ?'); confValues.push(updated.venue_city); }
+                    if (updated.venue_country) { confFields.push('venue_country = ?'); confValues.push(updated.venue_country); }
+                    confFields.push('registration_open = ?'); confValues.push(updated.is_registration_open ? 1 : 0);
+                    if (confFields.length) {
+                        confValues.push(confSync.id);
+                        db.run(`UPDATE conferences SET ${confFields.join(', ')} WHERE id = ?`, confValues);
+                        saveDb();
+                    }
+                }
+            } catch (cfErr) {
+                console.warn('[plexus] conferences sync failed (non-fatal):', cfErr.message);
             }
         }
         res.json({ success: true, settings: updated });
