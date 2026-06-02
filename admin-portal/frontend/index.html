@@ -6695,6 +6695,87 @@
                         </div>
                     </div>
 
+                    <!-- ===== PLEXUS 2026 LIVE OVERVIEW ===== -->
+                    <div id="plexus2026Overview" style="margin-bottom: 28px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+                            <h3 style="font-size: 14px; font-weight: 700; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
+                                <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:rgba(201,169,98,0.18);color:#C9A962;"><i class="fas fa-star"></i></span>
+                                Plexus 2026 &mdash; Live Overview
+                            </h3>
+                            <button class="btn btn-secondary" onclick="Plexus2026Overview.refresh()" style="font-size: 11px; padding: 5px 12px;" title="Refresh">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
+                        </div>
+
+                        <!-- Four flow cards -->
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 18px;">
+                            <!-- Gala Paid -->
+                            <div class="card" style="padding: 18px; border-left: 4px solid #C9A962; cursor: pointer;" onclick="App.showSection('gala')">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                    <div>
+                                        <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;">Gala &mdash; Paid (&euro;125)</div>
+                                        <div id="overviewGalaPaid" style="font-size: 32px; font-weight: 700; color: var(--text-primary); margin-top: 4px; line-height: 1;">—</div>
+                                        <div id="overviewGalaPaidPending" style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">…</div>
+                                    </div>
+                                    <i class="fas fa-credit-card" style="color: #C9A962; font-size: 22px;"></i>
+                                </div>
+                            </div>
+                            <!-- VIP -->
+                            <div class="card" style="padding: 18px; border-left: 4px solid #a855f7; cursor: pointer;" onclick="App.showSection('gala')">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                    <div>
+                                        <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;">Gala &mdash; VIP</div>
+                                        <div id="overviewGalaVip" style="font-size: 32px; font-weight: 700; color: var(--text-primary); margin-top: 4px; line-height: 1;">—</div>
+                                        <div id="overviewGalaVipNote" style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">complimentary guests</div>
+                                    </div>
+                                    <i class="fas fa-star" style="color: #a855f7; font-size: 22px;"></i>
+                                </div>
+                            </div>
+                            <!-- Croatians Abroad -->
+                            <div class="card" style="padding: 18px; border-left: 4px solid #ef4444; cursor: pointer;" onclick="App.showSection('croatians-abroad')">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                    <div>
+                                        <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;">Croatians Abroad</div>
+                                        <div id="overviewCATotal" style="font-size: 32px; font-weight: 700; color: var(--text-primary); margin-top: 4px; line-height: 1;">—</div>
+                                        <div id="overviewCABreakdown" style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">…</div>
+                                    </div>
+                                    <i class="fas fa-globe-europe" style="color: #ef4444; font-size: 22px;"></i>
+                                </div>
+                            </div>
+                            <!-- Total revenue -->
+                            <div class="card" style="padding: 18px; border-left: 4px solid #10b981;">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                    <div>
+                                        <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;">Revenue Confirmed</div>
+                                        <div id="overviewRevenue" style="font-size: 32px; font-weight: 700; color: var(--text-primary); margin-top: 4px; line-height: 1;">—</div>
+                                        <div id="overviewRevenueNote" style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">paid Gala tickets</div>
+                                    </div>
+                                    <i class="fas fa-coins" style="color: #10b981; font-size: 22px;"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quick actions: create a link of each type -->
+                        <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+                            <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; flex-shrink: 0;">Quick Actions</div>
+                            <button class="btn btn-secondary" onclick="App.showSection('gala'); setTimeout(()=>GalaAdmin.showTab('invites'),200);" style="padding: 7px 14px; font-size: 12px;">
+                                <i class="fas fa-credit-card" style="color:#C9A962;"></i> New Paid Gala Link
+                            </button>
+                            <button class="btn btn-secondary" onclick="App.showSection('gala'); setTimeout(()=>GalaAdmin.showTab('invites'),200);" style="padding: 7px 14px; font-size: 12px;">
+                                <i class="fas fa-star" style="color:#a855f7;"></i> New VIP Link
+                            </button>
+                            <button class="btn btn-secondary" onclick="App.showSection('croatians-abroad');" style="padding: 7px 14px; font-size: 12px;">
+                                <i class="fas fa-globe-europe" style="color:#ef4444;"></i> New Diaspora Link
+                            </button>
+                            <button class="btn btn-secondary" onclick="App.showSection('gala'); setTimeout(()=>GalaAdmin.showTab('settings'),200);" style="padding: 7px 14px; font-size: 12px;">
+                                <i class="fas fa-cog" style="color:var(--text-muted);"></i> Edit Event Details
+                            </button>
+                            <a href="https://medx-user-portal.onrender.com/api/gala/settings" target="_blank" rel="noopener" style="padding: 7px 14px; font-size: 12px; color:var(--text-muted); text-decoration:none; margin-left:auto;" title="Live settings JSON">
+                                <i class="fas fa-external-link-alt"></i> Live data feed
+                            </a>
+                        </div>
+                    </div>
+
                     <!-- Pinned Items (from any project) -->
                     <div id="pinnedItemsSection" style="display: none; margin-bottom: 24px;">
                         <div class="section-header" style="margin-bottom: 12px;">
@@ -13062,6 +13143,9 @@ President, Med&amp;X</textarea>
                 // Load portal pulse after sections are known
                 this.loadPortalStats();
 
+                // Boot the Plexus 2026 live overview widget (auto-refreshes every 60s while on dashboard)
+                if (typeof Plexus2026Overview !== 'undefined') Plexus2026Overview.init();
+
                 // Initialize dashboard charts
                 this.initDashboardCharts();
 
@@ -15194,6 +15278,10 @@ President, Med&amp;X</textarea>
                     // Switch chat panel to team chat mode
                     this.currentView = 'dashboard';
                     this.switchChatPanel('team');
+                    // Refresh live Plexus 2026 overview widget when visiting dashboard
+                    if (sectionId === 'dashboard' && typeof Plexus2026Overview !== 'undefined') {
+                        Plexus2026Overview.init();
+                    }
                 }
 
                 // Update browser history
@@ -29233,6 +29321,64 @@ By applying to this program, I give the following consents:
                     }
                 } catch (err) {
                     console.error('Failed to update gala status:', err);
+                }
+            }
+        };
+
+        // =========================================
+        // PLEXUS 2026 LIVE OVERVIEW (dashboard widget)
+        // =========================================
+        const Plexus2026Overview = {
+            initialized: false,
+            refreshTimer: null,
+
+            init() {
+                if (this.initialized) { this.refresh(); return; }
+                this.initialized = true;
+                this.refresh();
+                // Auto-refresh every 60s while user is on dashboard
+                this.refreshTimer = setInterval(() => {
+                    if (document.getElementById('section-dashboard')?.classList.contains('active')) {
+                        this.refresh();
+                    }
+                }, 60000);
+            },
+
+            async refresh() {
+                try {
+                    const [galaRes, caRes] = await Promise.all([
+                        fetch('/api/gala/registrations', { headers: { 'Authorization': `Bearer ${App.token}` } }),
+                        fetch('/api/admin/croatians-abroad/registrations', { headers: { 'Authorization': `Bearer ${App.token}` } })
+                    ]);
+                    const galaRegs = galaRes.ok ? await galaRes.json() : [];
+                    const caRegs = caRes.ok ? await caRes.json() : [];
+
+                    // Gala paid (status confirmed + payment paid, NOT VIP, NOT awaiting)
+                    const galaPaid = galaRegs.filter(r => r.payment_status === 'paid');
+                    // Gala VIP (vip-comp)
+                    const galaVip = galaRegs.filter(r => r.payment_status === 'vip-comp');
+                    // Gala awaiting payment (started Stripe, didn't finish)
+                    const galaAwaiting = galaRegs.filter(r => r.status === 'awaiting_payment');
+
+                    // Croatians Abroad
+                    const caTotal = caRegs.length;
+                    const caConf = caRegs.filter(r => r.selected_conference).length;
+                    const caBridges = caRegs.filter(r => r.selected_bridges).length;
+                    const caGalaPaid = caRegs.filter(r => r.selected_gala && r.gala_payment_status === 'paid').length;
+
+                    // Revenue confirmed (all confirmed gala payments)
+                    const revenue = galaPaid.reduce((sum, r) => sum + (Number(r.amount_paid) || 125), 0);
+
+                    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+                    set('overviewGalaPaid', galaPaid.length);
+                    set('overviewGalaPaidPending', galaAwaiting.length ? `${galaAwaiting.length} awaiting payment` : 'all paid');
+                    set('overviewGalaVip', galaVip.length);
+                    set('overviewCATotal', caTotal);
+                    set('overviewCABreakdown', caTotal ? `${caConf} Conf · ${caBridges} Bridges · ${caGalaPaid} Gala` : 'no registrations yet');
+                    set('overviewRevenue', '€' + Math.round(revenue).toLocaleString());
+                    set('overviewRevenueNote', galaPaid.length ? `from ${galaPaid.length} paid Gala ticket${galaPaid.length === 1 ? '' : 's'}` : 'paid Gala tickets');
+                } catch (err) {
+                    console.warn('Plexus2026Overview refresh failed:', err);
                 }
             }
         };
