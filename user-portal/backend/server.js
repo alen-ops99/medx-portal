@@ -629,13 +629,10 @@ app.get('/invite/:data', (req, res) => {
 
             // Get live gala price for the Gala card on this page
             const galaForCA = query.get("SELECT * FROM gala_settings WHERE id = 'default'") || {};
-            const galaPrice = (galaForCA && galaForCA.price_gala_only) ? Number(galaForCA.price_gala_only) : 125;
+            const galaPrice = (galaForCA && galaForCA.price_gala_only) ? Number(galaForCA.price_gala_only) : 140;
             const confForCA = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'") || {};
-            // Format a human date from YYYY-MM-DD, or empty string if not set
-            const fmtDate = (iso) => {
-                if (!iso) return '';
-                try { return new Date(iso).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); } catch(e) { return iso; }
-            };
+            // Variant: 'croatian' (default) or 'international' — payload v: takes precedence over DB row
+            const caVariant = (data.v === 'international' || (caInvite && caInvite.variant === 'international')) ? 'international' : 'croatian';
             const fmtShortDate = (iso) => {
                 if (!iso) return '';
                 try { return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); } catch(e) { return iso; }
@@ -651,12 +648,23 @@ app.get('/invite/:data', (req, res) => {
             const caKeynoteName = galaForCA.keynote_name || '';
             const caKeynoteRole = galaForCA.keynote_role || '';
             const caKeynoteImg = galaForCA.keynote_image_url || '';
-            // Bridges — TODO: read from bridges_events when admin sets it; for now, "date TBC"
-            const bridgesEventRow = query.get("SELECT * FROM bridges_events WHERE name LIKE '%Croatian%' OR name LIKE '%Bridges%' ORDER BY event_date DESC LIMIT 1") || {};
+            // Bridges — Zagreb on 4 or 5 Dec 2026; date confirmed via bridges_events row when admin sets it
+            const bridgesEventRow = query.get("SELECT * FROM bridges_events WHERE LOWER(city) LIKE '%zagreb%' AND (LOWER(name) LIKE '%croatian%' OR LOWER(name) LIKE '%bridges%') ORDER BY event_date DESC LIMIT 1") || {};
             const bridgesDateText = bridgesEventRow.event_date
-                ? fmtShortDate(bridgesEventRow.event_date)
-                : '4 or 5 December 2026 — date to be confirmed';
-            const bridgesVenue = bridgesEventRow.venue_name || '';
+                ? fmtShortDate(bridgesEventRow.event_date) + ' · Zagreb, Croatia'
+                : '4 or 5 December 2026 · Zagreb, Croatia';
+            // Variant-driven copy
+            const caBadge = caVariant === 'international' ? 'International Collaborators — Personal Invitation' : 'Croatians Abroad — Personal Invitation';
+            const caTitle = caVariant === 'international' ? 'Plexus 2026 — Building Bridges with Croatian Biomedicine' : 'Plexus 2026 — Welcome Home';
+            const caLede = caVariant === 'international'
+                ? 'You are personally invited to join us at Plexus 2026 in Zagreb. This invitation is for international colleagues interested in collaborating with Croatian biomedical institutions — leading hospitals, universities, research centres, and policymakers. Select any combination of the three events below.'
+                : 'You are personally invited to join us at Plexus 2026 in Zagreb. Select any combination of the three events below — your attendance at the Conference and Croatian Biomedical Bridges is fully included as our guest; the Gala Evening is a paid ticket.';
+            // Bridges card extra description varies by variant
+            const bridgesDesc = caVariant === 'international'
+                ? 'A dedicated forum bringing together representatives of Croatian medical schools, universities, hospitals, and policymakers — designed to open collaboration opportunities for international colleagues.'
+                : 'Representatives of Croatian medical schools, universities, hospitals, and policymakers will be present.';
+            // Conference card description (same for both variants — content is the same)
+            const confDesc = 'Covering the latest research, clinical advances, and emerging directions across multiple biomedical fields.';
 
             const caHtml = `<!DOCTYPE html>
 <html lang="en"><head>
@@ -722,9 +730,9 @@ app.get('/invite/:data', (req, res) => {
     <div class="logo"><img src="/assets/images/medx-logo.png" alt="Med&amp;X" style="height:40px;filter:brightness(0) invert(1);" onerror="this.outerHTML='<span style=\\'font-size:28px;font-weight:700;color:#fff;\\'>med<em style=\\'color:#c9a962;font-style:normal;\\'>&amp;</em>X</span>'"></div>
     <div class="card" id="mainCard">
         <div style="text-align:center;margin-bottom:18px;">
-            <div class="badge"><i class="fas fa-globe-europe"></i> Croatians Abroad &mdash; Personal Invitation</div>
-            <h1>Plexus 2026 &mdash; Welcome Home</h1>
-            <p class="lede">You are personally invited to join us at Plexus 2026 in Zagreb. Select the events you'd like to attend below. The Conference and Croatian Biomedical Bridges are complimentary; the Gala Evening is a paid ticket.</p>
+            <div class="badge"><i class="fas fa-globe-europe"></i> ${escapeHtml(caBadge)}</div>
+            <h1>${escapeHtml(caTitle)}</h1>
+            <p class="lede">${escapeHtml(caLede)}</p>
         </div>
 
         <div class="section-label">Select Your Events</div>
@@ -734,10 +742,10 @@ app.get('/invite/:data', (req, res) => {
             <div style="flex:1;min-width:0;">
                 <div class="event-title-row">
                     <span class="event-name">Plexus Conference</span>
-                    <span class="event-price free">FREE</span>
+                    <span class="event-price free">INCLUDED</span>
                 </div>
-                <div class="event-meta"><i class="fas fa-calendar" style="color:#c9a962;margin-right:5px;"></i>${escapeHtml(confDate)}</div>
-                <div class="event-note">Programme to be announced &mdash; we will email you the full schedule.</div>
+                <div class="event-meta"><i class="fas fa-calendar" style="color:#c9a962;margin-right:5px;"></i>${escapeHtml(confDate)} &middot; Zagreb, Croatia</div>
+                <div class="event-note">${escapeHtml(confDesc)} Programme to be announced &mdash; we will email you the full schedule.</div>
             </div>
         </div>
 
@@ -746,10 +754,10 @@ app.get('/invite/:data', (req, res) => {
             <div style="flex:1;min-width:0;">
                 <div class="event-title-row">
                     <span class="event-name">Croatian Biomedical Bridges</span>
-                    <span class="event-price free">FREE</span>
+                    <span class="event-price free">INCLUDED</span>
                 </div>
-                <div class="event-meta"><i class="fas fa-calendar" style="color:#c9a962;margin-right:5px;"></i>${escapeHtml(bridgesDateText)}${bridgesVenue ? ' &middot; ' + escapeHtml(bridgesVenue) : ''}</div>
-                <div class="event-note">${bridgesEventRow.event_date ? 'Invitation-only pre-registration. Full programme to follow.' : 'Invitation-only pre-registration. We will confirm the exact date and venue closer to the event.'}</div>
+                <div class="event-meta"><i class="fas fa-calendar" style="color:#c9a962;margin-right:5px;"></i>${escapeHtml(bridgesDateText)}</div>
+                <div class="event-note">${escapeHtml(bridgesDesc)}</div>
             </div>
         </div>
 
@@ -760,14 +768,10 @@ app.get('/invite/:data', (req, res) => {
                     <span class="event-name">Plexus Gala Evening</span>
                     <span class="event-price">&euro;${galaPrice}</span>
                 </div>
-                <div class="event-meta"><i class="fas fa-calendar" style="color:#c9a962;margin-right:5px;"></i>${escapeHtml(galaDate)}${galaTime ? ' &middot; ' + escapeHtml(galaTime) : ''}</div>
+                <div class="event-meta"><i class="fas fa-calendar" style="color:#c9a962;margin-right:5px;"></i>${escapeHtml(galaDate)} &middot; Zagreb, Croatia${galaTime ? ' &middot; ' + escapeHtml(galaTime) : ''}</div>
                 <div class="event-meta"><i class="fas fa-map-marker-alt" style="color:#c9a962;margin-right:5px;"></i>${escapeHtml(galaVenue)}${galaDressCode ? ' &middot; ' + escapeHtml(galaDressCode) : ''}</div>
-                <div class="event-note">Reserving the Gala automatically includes the Conference and Bridges at no extra cost.</div>
+                <div class="event-note">An exclusive evening for senior biomedical leaders &mdash; selectable independently of the Conference and Bridges.</div>
             </div>
-        </div>
-
-        <div class="bundle-banner" id="bundleBanner">
-            <i class="fas fa-star" style="color:#a855f7;margin-right:6px;"></i><strong>Gala bundle:</strong> The Conference and Bridges are reserved for you at no additional charge.
         </div>
 
         ${caKeynoteName ? `<div class="keynote-card">
@@ -852,34 +856,16 @@ const GALA_PRICE = ${galaPrice};
 const state = { conference: false, bridges: false, gala: false };
 
 function toggleEvent(evt) {
-    // If Gala is currently on, can't independently toggle Conference/Bridges (bundle locked)
-    if (state.gala && (evt === 'conference' || evt === 'bridges')) return;
+    // Each event is independently selectable — no auto-bundling.
     state[evt] = !state[evt];
-    // Gala bundle rule — selecting Gala auto-includes the other two
-    if (evt === 'gala' && state.gala) {
-        state.conference = true;
-        state.bridges = true;
-    }
     render();
 }
 
 function render() {
-    // Conference card
-    const conf = document.getElementById('evtConference');
-    conf.classList.toggle('selected', state.conference && !state.gala);
-    conf.classList.toggle('disabled-but-checked', state.gala && state.conference);
-
-    // Bridges card
-    const br = document.getElementById('evtBridges');
-    br.classList.toggle('selected', state.bridges && !state.gala);
-    br.classList.toggle('disabled-but-checked', state.gala && state.bridges);
-
-    // Gala card
-    const ga = document.getElementById('evtGala');
-    ga.classList.toggle('selected', state.gala);
-
-    // Bundle banner
-    document.getElementById('bundleBanner').classList.toggle('show', state.gala);
+    // Each event card highlighted only if explicitly selected
+    document.getElementById('evtConference').classList.toggle('selected', state.conference);
+    document.getElementById('evtBridges').classList.toggle('selected', state.bridges);
+    document.getElementById('evtGala').classList.toggle('selected', state.gala);
 
     // Dietary field — visible if Bridges or Gala selected
     document.getElementById('caDietaryWrap').style.display = (state.bridges || state.gala) ? 'block' : 'none';
@@ -1011,7 +997,7 @@ async function submitCA(e) {
                 eventInfo.name = gala.title || 'Gala Evening 2026';
                 eventInfo.date = gala.date || 'December 5, 2026';
                 eventInfo.venue = gala.venue || 'Hotel Esplanade, Zagreb';
-                eventInfo.price = gala.price_gala_only || 125;
+                eventInfo.price = gala.price_gala_only || 140;
                 // Live admin-editable fields (formerly hardcoded in the renderer below)
                 eventInfo.time = gala.time || '';
                 eventInfo.dress_code = gala.dress_code || '';
@@ -3848,11 +3834,11 @@ async function initializeApp() {
     if (!existingGalaSettings) {
         db.run("INSERT INTO gala_settings (id) VALUES ('default')");
     }
-    // 2026 pricing migration: bump gala-only fee from €95 → €125 (only if still at legacy default)
+    // 2026 pricing migration: gala-only fee €140 (only if still at a legacy default; never overrides admin edits)
     try {
         const galaRow = query.get("SELECT price_gala_only, time, venue, title FROM gala_settings WHERE id = 'default'");
-        if (galaRow && (galaRow.price_gala_only == null || Number(galaRow.price_gala_only) === 95 || Number(galaRow.price_gala_only) === 75)) {
-            db.run("UPDATE gala_settings SET price_gala_only = 125 WHERE id = 'default'");
+        if (galaRow && (galaRow.price_gala_only == null || Number(galaRow.price_gala_only) === 95 || Number(galaRow.price_gala_only) === 75 || Number(galaRow.price_gala_only) === 125)) {
+            db.run("UPDATE gala_settings SET price_gala_only = 140 WHERE id = 'default'");
         }
         // 2026 event-detail seeding (only updates values still at legacy defaults; never overrides admin edits)
         if (galaRow && (galaRow.time === '18:00' || galaRow.time == null)) {
@@ -3882,6 +3868,9 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         notes TEXT
     )`);
+    // Variant: 'croatian' (default — diaspora/Welcome Home) or 'international'
+    // (non-Croatian collaborators interested in working with Croatian institutions)
+    try { db.run(`ALTER TABLE croatians_abroad_invite_links ADD COLUMN variant TEXT DEFAULT 'croatian'`); } catch(e) {}
 
     db.run(`CREATE TABLE IF NOT EXISTS croatians_abroad_registrations (
         id TEXT PRIMARY KEY,
@@ -16488,11 +16477,13 @@ By applying to this program, I provide the following consents:
     // ========== CROATIANS ABROAD — admin invite link CRUD ==========
 
     function buildCroatiansAbroadInviteUrl(req, row) {
+        const variant = row.variant === 'international' ? 'international' : 'croatian';
         const payload = {
             e: 'croatians-abroad',
             i: row.id,
+            v: variant,
             x: row.expires_at || null,
-            n: 'Plexus 2026 — Croatians Abroad'
+            n: variant === 'international' ? 'Plexus 2026 — International Collaborators' : 'Plexus 2026 — Croatians Abroad'
         };
         const b64 = Buffer.from(JSON.stringify(payload)).toString('base64')
             .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -16501,14 +16492,15 @@ By applying to this program, I provide the following consents:
     }
 
     app.post('/api/admin/croatians-abroad/invite-links', auth, adminOnly, (req, res) => {
-        const { label, max_uses, expires_at, notes } = req.body || {};
+        const { label, max_uses, expires_at, notes, variant } = req.body || {};
         const id = require('crypto').randomUUID();
         const maxUsesClean = (max_uses != null && max_uses !== '') ? Number(max_uses) : null;
+        const variantClean = variant === 'international' ? 'international' : 'croatian';
         db.run(
-            `INSERT INTO croatians_abroad_invite_links (id, label, max_uses, expires_at, created_by, notes)
-             VALUES (?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO croatians_abroad_invite_links (id, label, max_uses, expires_at, created_by, notes, variant)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [id, label || null, maxUsesClean, expires_at || null,
-             (req.user && req.user.email) || 'unknown', notes || null]
+             (req.user && req.user.email) || 'unknown', notes || null, variantClean]
         );
         saveDb();
         const row = query.get('SELECT * FROM croatians_abroad_invite_links WHERE id = ?', [id]);
@@ -16931,9 +16923,9 @@ By applying to this program, I provide the following consents:
                 }
             }
 
-            // Apply bundling rule (Gala → also pre-register Conference + Bridges)
-            const finalConf = wantGala ? true : wantConf;
-            const finalBridges = wantGala ? true : wantBridges;
+            // Each event is independently selectable — no auto-bundling.
+            const finalConf = wantConf;
+            const finalBridges = wantBridges;
             const finalGala = wantGala;
 
             const regId = require('crypto').randomUUID();
@@ -17035,7 +17027,7 @@ By applying to this program, I provide the following consents:
                 return res.status(500).json({ error: 'Payment processor not configured. Please contact info@medx.hr.' });
             }
             const galaSettingsRow = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
-            const galaPrice = galaSettingsRow?.price_gala_only || 125;
+            const galaPrice = galaSettingsRow?.price_gala_only || 140;
             const baseUrl = process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
             const session = await stripe.checkout.sessions.create({
                 mode: 'payment',

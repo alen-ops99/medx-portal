@@ -2866,6 +2866,8 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         notes TEXT
     )`);
+    // Variant: 'croatian' (default — diaspora) or 'international' (non-Croatian collaborators)
+    try { db.run(`ALTER TABLE croatians_abroad_invite_links ADD COLUMN variant TEXT DEFAULT 'croatian'`); } catch(e) {}
     db.run(`CREATE TABLE IF NOT EXISTS croatians_abroad_registrations (
         id TEXT PRIMARY KEY,
         invite_link_id TEXT,
@@ -15685,11 +15687,13 @@ By applying to this program, I provide the following consents:
     // ========== CROATIANS ABROAD — admin invite link CRUD ==========
 
     function buildCroatiansAbroadInviteUrlAdmin(req, row) {
+        const variant = row.variant === 'international' ? 'international' : 'croatian';
         const payload = {
             e: 'croatians-abroad',
             i: row.id,
+            v: variant,
             x: row.expires_at || null,
-            n: 'Plexus 2026 — Croatians Abroad'
+            n: variant === 'international' ? 'Plexus 2026 — International Collaborators' : 'Plexus 2026 — Croatians Abroad'
         };
         const b64 = Buffer.from(JSON.stringify(payload)).toString('base64')
             .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -15698,14 +15702,15 @@ By applying to this program, I provide the following consents:
     }
 
     app.post('/api/admin/croatians-abroad/invite-links', auth, adminOnly, (req, res) => {
-        const { label, max_uses, expires_at, notes } = req.body || {};
+        const { label, max_uses, expires_at, notes, variant } = req.body || {};
         const id = require('crypto').randomUUID();
         const maxUsesClean = (max_uses != null && max_uses !== '') ? Number(max_uses) : null;
+        const variantClean = variant === 'international' ? 'international' : 'croatian';
         db.run(
-            `INSERT INTO croatians_abroad_invite_links (id, label, max_uses, expires_at, created_by, notes)
-             VALUES (?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO croatians_abroad_invite_links (id, label, max_uses, expires_at, created_by, notes, variant)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [id, label || null, maxUsesClean, expires_at || null,
-             (req.user && req.user.email) || 'unknown', notes || null]
+             (req.user && req.user.email) || 'unknown', notes || null, variantClean]
         );
         saveDb();
         const row = query.get('SELECT * FROM croatians_abroad_invite_links WHERE id = ?', [id]);

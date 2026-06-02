@@ -6713,7 +6713,7 @@
                             <div class="card" style="padding: 18px; border-left: 4px solid #C9A962; cursor: pointer;" onclick="App.showSection('gala')">
                                 <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                                     <div>
-                                        <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;">Gala &mdash; Paid (&euro;125)</div>
+                                        <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;">Gala &mdash; Paid (&euro;140)</div>
                                         <div id="overviewGalaPaid" style="font-size: 32px; font-weight: 700; color: var(--text-primary); margin-top: 4px; line-height: 1;">—</div>
                                         <div id="overviewGalaPaidPending" style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">…</div>
                                     </div>
@@ -10588,15 +10588,15 @@ President, Med&amp;X</textarea>
 
                     <!-- Invite Links Tab -->
                     <div id="galaInvitesTab" style="display: none;">
-                        <!-- TWO SEPARATE CARDS: Paid (€125) vs VIP (Free) -->
+                        <!-- TWO SEPARATE CARDS: Paid (€140) vs VIP (Free) -->
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
 
-                            <!-- PAID CARD (€125, public participants) -->
+                            <!-- PAID CARD (€140, public participants) -->
                             <div class="card" style="border: 1px solid rgba(201,169,98,0.35); background: linear-gradient(180deg, rgba(201,169,98,0.04), transparent);">
                                 <div class="card-header" style="border-bottom: 1px solid rgba(201,169,98,0.2);">
                                     <h3 class="card-title" style="display:flex;align-items:center;gap:10px;">
                                         <span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:rgba(201,169,98,0.18);color:#c9a962;"><i class="fas fa-credit-card"></i></span>
-                                        Paid Link &mdash; &euro;125
+                                        Paid Link &mdash; &euro;140
                                     </h3>
                                     <p style="color: var(--text-muted); font-size: 12px; margin-top: 6px;">Public participants. Recipient pays via Stripe, receives QR ticket by email.</p>
                                 </div>
@@ -10607,7 +10607,7 @@ President, Med&amp;X</textarea>
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Price Override <span style="color:var(--text-muted);font-size:11px;">(optional &mdash; e.g. &euro;75 for sponsors)</span></label>
-                                        <input id="galaPaidPrice" type="number" min="0" step="0.01" class="form-input" placeholder="Leave empty to use €125">
+                                        <input id="galaPaidPrice" type="number" min="0" step="0.01" class="form-input" placeholder="Leave empty to use €140">
                                     </div>
                                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                                         <div class="form-group">
@@ -10708,19 +10708,39 @@ President, Med&amp;X</textarea>
                     </div>
 
                     <!-- Create invite link -->
-                    <div class="card" style="border:1px solid rgba(239,68,68,0.3);background:linear-gradient(180deg,rgba(239,68,68,0.04),transparent);">
+                    <div class="card" id="caCreateCard" style="border:1px solid rgba(239,68,68,0.3);background:linear-gradient(180deg,rgba(239,68,68,0.04),transparent);">
                         <div class="card-header" style="border-bottom:1px solid rgba(239,68,68,0.2);">
                             <h3 class="card-title" style="display:flex;align-items:center;gap:10px;">
-                                <span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:rgba(239,68,68,0.18);color:#ef4444;"><i class="fas fa-link"></i></span>
-                                Create Diaspora Invite Link
+                                <span id="caCreateIcon" style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:rgba(239,68,68,0.18);color:#ef4444;"><i class="fas fa-globe-europe"></i></span>
+                                <span id="caCreateTitle">Create Diaspora Invite Link</span>
                             </h3>
-                            <p style="color:var(--text-muted);font-size:12px;margin-top:6px;">Generate a shareable link to send to personally-invited diaspora guests. They will see all three events and can select any combination.</p>
+                            <p id="caCreateLede" style="color:var(--text-muted);font-size:12px;margin-top:6px;">Generate a shareable link for personally-invited diaspora guests. They will see all three events and can select any combination independently.</p>
                         </div>
                         <div class="card-body">
+                            <!-- Variant toggle: Croatians Abroad (red) vs International Collaborators (blue) -->
+                            <div style="margin-bottom:16px;">
+                                <label class="form-label" style="margin-bottom:8px;">Audience</label>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                                    <label id="caVariantCroatianLabel" style="cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;padding:14px 16px;border:2px solid #ef4444;background:rgba(239,68,68,0.08);border-radius:10px;transition:all 0.15s;">
+                                        <input type="radio" name="caVariant" value="croatian" checked onchange="CroatiansAbroadAdmin.updateVariantUI()" style="display:none;">
+                                        <div style="display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text-primary);font-size:13px;">
+                                            <i class="fas fa-globe-europe" style="color:#ef4444;"></i> Croatians Abroad
+                                        </div>
+                                        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Diaspora — "Welcome Home" framing</div>
+                                    </label>
+                                    <label id="caVariantInternationalLabel" style="cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;padding:14px 16px;border:2px solid transparent;background:rgba(96,165,250,0.04);border-radius:10px;transition:all 0.15s;">
+                                        <input type="radio" name="caVariant" value="international" onchange="CroatiansAbroadAdmin.updateVariantUI()" style="display:none;">
+                                        <div style="display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text-primary);font-size:13px;">
+                                            <i class="fas fa-handshake" style="color:#60a5fa;"></i> International Collaborators
+                                        </div>
+                                        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Non-Croatians interested in collaboration</div>
+                                    </label>
+                                </div>
+                            </div>
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
                                 <div class="form-group">
                                     <label class="form-label">Label <span style="color:var(--text-muted);font-size:11px;">(internal)</span></label>
-                                    <input id="caLabel" type="text" class="form-input" placeholder="e.g. LATAM batch 1, Australia outreach">
+                                    <input id="caLabel" type="text" class="form-input" placeholder="e.g. LATAM batch 1, Cleveland Clinic delegates">
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Max Uses <span style="color:var(--text-muted);font-size:11px;">(empty = unlimited)</span></label>
@@ -10736,7 +10756,7 @@ President, Med&amp;X</textarea>
                                 </div>
                             </div>
                             <div style="margin-top:14px;display:flex;justify-content:flex-end;">
-                                <button class="btn btn-primary" onclick="CroatiansAbroadAdmin.createInviteLink()" style="padding:12px 28px;background:linear-gradient(135deg,#ef4444,#dc2626);">
+                                <button id="caCreateBtn" class="btn btn-primary" onclick="CroatiansAbroadAdmin.createInviteLink()" style="padding:12px 28px;background:linear-gradient(135deg,#ef4444,#dc2626);">
                                     <i class="fas fa-plus"></i> Generate Invite Link
                                 </button>
                             </div>
@@ -29032,7 +29052,7 @@ By applying to this program, I give the following consents:
             // ========== GALA INVITE LINKS ==========
 
             async createInviteLink(type) {
-                // type: 'generic' (paid €125) or 'vip' (free)
+                // type: 'generic' (paid €140) or 'vip' (free)
                 type = type || 'generic';
                 const isVip = (type === 'vip');
                 const prefix = isVip ? 'galaVip' : 'galaPaid';
@@ -29069,7 +29089,7 @@ By applying to this program, I give the following consents:
                     const badgeColor = isVip ? '#a855f7' : '#10b981';
                     const badgeLabel = isVip
                         ? 'VIP invite link created (free admission)'
-                        : 'Paid invite link created (€' + (data.invite.price_override != null ? data.invite.price_override : '125') + ')';
+                        : 'Paid invite link created (€' + (data.invite.price_override != null ? data.invite.price_override : '140') + ')';
                     const flowDescription = isVip
                         ? 'Send this URL to your VIP guest. They click → fill in details → <strong>instantly registered + QR ticket emailed</strong> (no payment).'
                         : 'Send this URL to participants. They click → fill in details → <strong>pay via Stripe → QR ticket emailed after payment</strong>.';
@@ -29165,7 +29185,7 @@ By applying to this program, I give the following consents:
                     const isVip = l.link_type === 'vip';
                     const typeBadge = isVip
                         ? '<span style="background:rgba(168,85,247,0.15);color:#a855f7;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;letter-spacing:0.5px;">VIP · Free</span>'
-                        : `<span style="background:rgba(201,169,98,0.15);color:#c9a962;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;letter-spacing:0.5px;">€${l.price_override != null ? l.price_override : '125'}</span>`;
+                        : `<span style="background:rgba(201,169,98,0.15);color:#c9a962;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;letter-spacing:0.5px;">€${l.price_override != null ? l.price_override : '140'}</span>`;
                     const usesText = l.max_uses != null ? `${l.used_count || 0} / ${l.max_uses}` : `${l.used_count || 0} / ∞`;
                     const expiresText = l.expires_at ? new Date(l.expires_at).toLocaleDateString() : '—';
                     const statusBadge = l.revoked
@@ -29419,7 +29439,7 @@ By applying to this program, I give the following consents:
                     const caGalaPaid = caRegs.filter(r => r.selected_gala && r.gala_payment_status === 'paid').length;
 
                     // Revenue confirmed (all confirmed gala payments)
-                    const revenue = galaPaid.reduce((sum, r) => sum + (Number(r.amount_paid) || 125), 0);
+                    const revenue = galaPaid.reduce((sum, r) => sum + (Number(r.amount_paid) || 140), 0);
 
                     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
                     set('overviewGalaPaid', galaPaid.length);
@@ -29451,13 +29471,45 @@ By applying to this program, I give the following consents:
                 await Promise.all([this.loadInviteLinks(), this.loadRegistrations()]);
             },
 
+            updateVariantUI() {
+                const sel = document.querySelector('input[name="caVariant"]:checked')?.value || 'croatian';
+                const card = document.getElementById('caCreateCard');
+                const icon = document.getElementById('caCreateIcon');
+                const title = document.getElementById('caCreateTitle');
+                const lede = document.getElementById('caCreateLede');
+                const btn = document.getElementById('caCreateBtn');
+                const cLab = document.getElementById('caVariantCroatianLabel');
+                const iLab = document.getElementById('caVariantInternationalLabel');
+                if (sel === 'international') {
+                    if (card) card.style.cssText = 'border:1px solid rgba(96,165,250,0.4);background:linear-gradient(180deg,rgba(96,165,250,0.05),transparent);';
+                    if (icon) icon.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:rgba(96,165,250,0.18);color:#60a5fa;';
+                    if (icon) icon.innerHTML = '<i class="fas fa-handshake"></i>';
+                    if (title) title.textContent = 'Create International Collaborators Invite Link';
+                    if (lede) lede.textContent = 'Generate a shareable link for non-Croatian colleagues interested in collaborating with Croatian biomedical institutions.';
+                    if (btn) btn.style.background = 'linear-gradient(135deg,#60a5fa,#3b82f6)';
+                    if (cLab) cLab.style.cssText = 'cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;padding:14px 16px;border:2px solid transparent;background:rgba(239,68,68,0.04);border-radius:10px;transition:all 0.15s;';
+                    if (iLab) iLab.style.cssText = 'cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;padding:14px 16px;border:2px solid #60a5fa;background:rgba(96,165,250,0.08);border-radius:10px;transition:all 0.15s;';
+                } else {
+                    if (card) card.style.cssText = 'border:1px solid rgba(239,68,68,0.3);background:linear-gradient(180deg,rgba(239,68,68,0.04),transparent);';
+                    if (icon) icon.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:rgba(239,68,68,0.18);color:#ef4444;';
+                    if (icon) icon.innerHTML = '<i class="fas fa-globe-europe"></i>';
+                    if (title) title.textContent = 'Create Diaspora Invite Link';
+                    if (lede) lede.textContent = 'Generate a shareable link for personally-invited diaspora guests. They will see all three events and can select any combination independently.';
+                    if (btn) btn.style.background = 'linear-gradient(135deg,#ef4444,#dc2626)';
+                    if (cLab) cLab.style.cssText = 'cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;padding:14px 16px;border:2px solid #ef4444;background:rgba(239,68,68,0.08);border-radius:10px;transition:all 0.15s;';
+                    if (iLab) iLab.style.cssText = 'cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;padding:14px 16px;border:2px solid transparent;background:rgba(96,165,250,0.04);border-radius:10px;transition:all 0.15s;';
+                }
+            },
+
             async createInviteLink() {
+                const variant = document.querySelector('input[name="caVariant"]:checked')?.value || 'croatian';
                 const label = document.getElementById('caLabel').value.trim();
                 const maxUsesRaw = document.getElementById('caMaxUses').value;
                 const expiresRaw = document.getElementById('caExpires').value;
                 const notes = document.getElementById('caNotes').value.trim();
 
                 const body = {
+                    variant,
                     label: label || null,
                     max_uses: maxUsesRaw ? Number(maxUsesRaw) : null,
                     expires_at: expiresRaw || null,
@@ -29551,12 +29603,17 @@ By applying to this program, I give the following consents:
                 let html = `<table style="width:100%;border-collapse:collapse;">
                     <thead><tr style="border-bottom:1px solid var(--border);">
                         <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Label</th>
+                        <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Audience</th>
                         <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Uses</th>
                         <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Expires</th>
                         <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Status</th>
                         <th style="text-align:center;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Actions</th>
                     </tr></thead><tbody>`;
                 links.forEach(l => {
+                    const isIntl = l.variant === 'international';
+                    const audienceBadge = isIntl
+                        ? '<span style="background:rgba(96,165,250,0.15);color:#60a5fa;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;letter-spacing:0.3px;"><i class="fas fa-handshake" style="margin-right:4px;"></i>International</span>'
+                        : '<span style="background:rgba(239,68,68,0.15);color:#ef4444;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;letter-spacing:0.3px;"><i class="fas fa-globe-europe" style="margin-right:4px;"></i>Croatian Diaspora</span>';
                     const usesText = l.max_uses != null ? `${l.used_count || 0} / ${l.max_uses}` : `${l.used_count || 0} / ∞`;
                     const expiresText = l.expires_at ? new Date(l.expires_at).toLocaleDateString() : '—';
                     const statusBadge = l.revoked
@@ -29568,6 +29625,7 @@ By applying to this program, I give the following consents:
                             <div style="font-weight:500;">${escapeHtml(l.label || 'Untitled')}</div>
                             ${l.notes ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + escapeHtml(l.notes) + '</div>' : ''}
                         </td>
+                        <td style="padding:12px 16px;">${audienceBadge}</td>
                         <td style="padding:12px 16px;font-size:13px;color:var(--text-secondary);">${usesText}</td>
                         <td style="padding:12px 16px;font-size:13px;color:var(--text-secondary);">${expiresText}</td>
                         <td style="padding:12px 16px;">${statusBadge}</td>
