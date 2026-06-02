@@ -2868,6 +2868,11 @@ async function initializeApp() {
     )`);
     // Variant: 'croatian' (default — diaspora) or 'international' (non-Croatian collaborators)
     try { db.run(`ALTER TABLE croatians_abroad_invite_links ADD COLUMN variant TEXT DEFAULT 'croatian'`); } catch(e) {}
+    // Per-event check-in tracking for Croatians Abroad
+    try { db.run(`ALTER TABLE croatians_abroad_registrations ADD COLUMN conference_checked_in INTEGER DEFAULT 0`); } catch(e) {}
+    try { db.run(`ALTER TABLE croatians_abroad_registrations ADD COLUMN conference_checked_in_at TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE croatians_abroad_registrations ADD COLUMN bridges_checked_in INTEGER DEFAULT 0`); } catch(e) {}
+    try { db.run(`ALTER TABLE croatians_abroad_registrations ADD COLUMN bridges_checked_in_at TEXT`); } catch(e) {}
     db.run(`CREATE TABLE IF NOT EXISTS croatians_abroad_registrations (
         id TEXT PRIMARY KEY,
         invite_link_id TEXT,
@@ -15770,6 +15775,138 @@ By applying to this program, I provide the following consents:
              FROM croatians_abroad_registrations WHERE ${col} = 1 ORDER BY created_at DESC`
         );
         res.json({ event, count: rows.length, emails: rows.map(r => r.email), registrants: rows });
+    });
+
+    // ========== UNIVERSAL EVENT CHECK-IN VERIFY (mirror of user-portal endpoint) ==========
+    app.post('/api/admin/checkin/verify', auth, adminOnly, (req, res) => {
+        const { event, code, mark } = req.body || {};
+        if (!event || !['gala', 'conference', 'bridges'].includes(event)) {
+            return res.status(400).json({ valid: false, error: "event must be 'gala', 'conference', or 'bridges'" });
+        }
+        if (!code) return res.status(400).json({ valid: false, error: 'code required' });
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code);
+        const codeClean = String(code).trim();
+        const now = new Date().toISOString();
+
+        if (event === 'gala') {
+            let reg = null;
+            if (isUuid) reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [codeClean]);
+            if (!reg) reg = query.get('SELECT * FROM gala_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
+            if (!reg) return res.json({ valid: false, event, code, reason: 'not_found', message: 'No Gala registration found.' });
+            const isPaid = reg.payment_status === 'paid';
+            const isVip = reg.payment_status === 'vip-comp';
+            if (!isPaid && !isVip) {
+                return res.json({
+                    valid: false, event, code, reason: 'not_paid',
+                    message: 'This person has not completed payment. Do NOT admit.',
+                    registrant: { name: `${reg.first_name} ${reg.last_name || ''}`.trim(), email: reg.email, institution: reg.institution || '' }
+                });
+            }
+            const already = !!reg.checked_in;
+            if (mark && !already) {
+                db.run('UPDATE gala_registrations SET checked_in = 1, checked_in_at = ? WHERE id = ?', [now, reg.id]);
+                saveDb();
+            }
+            return res.json({
+                valid: true, event, code, already_checked_in: already,
+                checked_in_at: already ? reg.checked_in_at : (mark ? now : null),
+                status_label: isPaid ? 'PAID' : 'VIP · COMPLIMENTARY',
+                status_color: isPaid ? '#22c55e' : '#a855f7',
+                registrant: {
+                    name: `${reg.first_name} ${reg.last_name || ''}`.trim(),
+                    email: reg.email, institution: reg.institution || '',
+                    dietary: reg.dietary || '', amount_paid: reg.amount_paid, invoice: reg.invoice_number || ''
+                }
+            });
+        }
+
+        let caReg = null;
+        if (isUuid) {
+            caReg = query.get(
+                `SELECT * FROM croatians_abroad_registrations WHERE id = ? OR gala_registration_id = ?`,
+                [codeClean, codeClean]
+            );
+        }
+        if (!caReg) caReg = query.get('SELECT * FROM croatians_abroad_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
+        if (!caReg) return res.json({ valid: false, event, code, reason: 'not_found', message: `No ${event} pre-registration found.` });
+
+        const selectedCol = event === 'conference' ? 'selected_conference' : 'selected_bridges';
+        const checkedInCol = event === 'conference' ? 'conference_checked_in' : 'bridges_checked_in';
+        const checkedInAtCol = event === 'conference' ? 'conference_checked_in_at' : 'bridges_checked_in_at';
+
+        if (!caReg[selectedCol]) {
+            return res.json({
+                valid: false, event, code, reason: 'not_registered_for_event',
+                message: `Not registered for the ${event === 'conference' ? 'Conference' : 'Bridges'} event.`,
+                registrant: { name: `${caReg.first_name} ${caReg.last_name || ''}`.trim(), email: caReg.email, institution: caReg.institution || '' }
+            });
+        }
+        const already = !!caReg[checkedInCol];
+        if (mark && !already) {
+            db.run(`UPDATE croatians_abroad_registrations SET ${checkedInCol} = 1, ${checkedInAtCol} = ? WHERE id = ?`, [now, caReg.id]);
+            saveDb();
+        }
+        return res.json({
+            valid: true, event, code,
+            already_checked_in: already,
+            checked_in_at: already ? caReg[checkedInAtCol] : (mark ? now : null),
+            status_label: 'PRE-REGISTERED', status_color: '#22c55e',
+            registrant: {
+                name: `${caReg.first_name} ${caReg.last_name || ''}`.trim(),
+                email: caReg.email, institution: caReg.institution || '',
+                country: caReg.country || '', role: caReg.role || '', dietary: caReg.dietary || ''
+            }
+        });
+    });
+
+    // ========== TEST QR EMAIL — admin sends themselves a working test QR ==========
+    app.post('/api/admin/checkin/test-email', auth, adminOnly, async (req, res) => {
+        try {
+            const email = (req.user && req.user.email) || req.body.email;
+            const first = (req.user && req.user.first_name) || 'Admin';
+            const last = (req.user && req.user.last_name) || 'Tester';
+            if (!email) return res.status(400).json({ error: 'No admin email on session' });
+            const testId = require('crypto').randomUUID();
+            db.run(
+                `INSERT INTO croatians_abroad_registrations
+                 (id, first_name, last_name, email, institution, country, role,
+                  selected_conference, selected_bridges, selected_gala,
+                  conference_status, bridges_status, notes)
+                 VALUES (?,?,?,?,?,?,?,1,1,0,'pre-registered','pre-registered','SCANNER TEST — safe to delete')`,
+                [testId, first, last, email, 'Med&X (Test)', 'Test', 'Admin']
+            );
+            saveDb();
+            const qrPayload = JSON.stringify({
+                type: 'MEDX_MEMBER', caRegId: testId, regId: testId,
+                email, name: `${first} ${last}`.trim(),
+                evt: 'croatians-abroad', evtName: 'Plexus 2026 — Scanner Test Ticket',
+                events: ['conference', 'bridges']
+            });
+            const qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 240, margin: 2 });
+            const html = `<div style="font-family:system-ui;max-width:560px;margin:0 auto;padding:24px;background:#f8fafc;">
+                <h2 style="color:#c9a962;margin:0 0 12px;">Scanner Test QR</h2>
+                <p>Hi ${first},</p>
+                <p>This is a <strong>test QR ticket</strong> for verifying the Event Check-in scanner.</p>
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;background:#fff;">
+                    <tr><td style="padding:10px 14px;font-size:13px;color:#334155;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-weight:600;">Valid scanner modes:</td></tr>
+                    <tr><td style="padding:10px 14px;font-size:13px;color:#334155;">✓ Plexus Conference &nbsp; ✓ Bridges &nbsp; ✗ Gala (not registered)</td></tr>
+                </table>
+                <div style="text-align:center;margin:22px 0;">
+                    <div style="display:inline-block;background:#fff;border:2px solid #e2e8f0;border-radius:14px;padding:20px;">
+                        <div style="font-size:10px;font-weight:700;color:#c9a962;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;">Test QR</div>
+                        <img src="${qrDataUrl}" alt="Test QR" width="220" height="220" style="display:block;" />
+                        <div style="font-size:11px;color:#94a3b8;margin-top:8px;">ID: ${testId.substring(0,8)}…</div>
+                    </div>
+                </div>
+                <p style="font-size:13px;color:#64748b;">Admin Portal → Event Check-in → pick Conference or Bridges → scan this QR → ✓ valid. Pick Gala → ✗ not registered.</p>
+                <p style="font-size:11px;color:#94a3b8;"><em>Tagged "SCANNER TEST — safe to delete" in your Croatians Abroad list.</em></p>
+            </div>`;
+            await sendEmail(email, 'Scanner Test QR — Plexus 2026', html);
+            res.json({ success: true, email, test_registration_id: testId });
+        } catch (err) {
+            console.error('Test QR email failed:', err);
+            res.status(500).json({ error: err.message || 'Failed to send test email' });
+        }
     });
 
     // ========== GALA SCANNER — registration lookup by ID (for QR scanner) ==========

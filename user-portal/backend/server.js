@@ -3894,6 +3894,13 @@ async function initializeApp() {
     // Variant: 'croatian' (default — diaspora/Welcome Home) or 'international'
     // (non-Croatian collaborators interested in working with Croatian institutions)
     try { db.run(`ALTER TABLE croatians_abroad_invite_links ADD COLUMN variant TEXT DEFAULT 'croatian'`); } catch(e) {}
+    // Per-event check-in tracking for Croatians Abroad registrations (Gala check-in
+    // lives on the linked gala_registrations row; Conference + Bridges check-in
+    // live here directly).
+    try { db.run(`ALTER TABLE croatians_abroad_registrations ADD COLUMN conference_checked_in INTEGER DEFAULT 0`); } catch(e) {}
+    try { db.run(`ALTER TABLE croatians_abroad_registrations ADD COLUMN conference_checked_in_at TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE croatians_abroad_registrations ADD COLUMN bridges_checked_in INTEGER DEFAULT 0`); } catch(e) {}
+    try { db.run(`ALTER TABLE croatians_abroad_registrations ADD COLUMN bridges_checked_in_at TEXT`); } catch(e) {}
 
     db.run(`CREATE TABLE IF NOT EXISTS croatians_abroad_registrations (
         id TEXT PRIMARY KEY,
@@ -10987,21 +10994,27 @@ By applying to this program, I provide the following consents:
                         `));
                     } catch(emailErr) { console.warn('CA confirmation email failed:', emailErr.message); }
 
-                    // Log to Google Sheets
+                    // Log to Google Sheets — `events` array routes to correct tab(s)
                     try {
                         const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
                         if (sheetsWebhook) {
+                            const events = [
+                                metadata.bundle_conference === '1' ? 'conference' : null,
+                                metadata.bundle_bridges === '1' ? 'bridges' : null,
+                                'gala'
+                            ].filter(Boolean);
                             fetch(sheetsWebhook, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
                                     timestamp: new Date().toISOString(),
+                                    events,
                                     name: (metadata.first_name || '') + ' ' + (metadata.last_name || ''),
                                     email: caEmail,
                                     institution: metadata.institution || '', country: metadata.country || '', role: metadata.role || '',
                                     event: 'Plexus 2026 — Croatians Abroad (Gala bundle)',
                                     event_type: 'croatians-abroad',
-                                    items: [metadata.bundle_conference === '1' ? 'Conference' : null, metadata.bundle_bridges === '1' ? 'Bridges' : null, 'Gala'].filter(Boolean).join(' + '),
+                                    items: events.join(' + '),
                                     dietary: metadata.dietary || '',
                                     amount, payment: 'Paid (Gala bundle)',
                                     registration_id: caRegId,
@@ -11138,14 +11151,15 @@ By applying to this program, I provide the following consents:
                             </div>`);
                     } catch(e) {}
 
-                    // Log to Google Sheets AFTER payment confirmed
+                    // Log to Google Sheets AFTER payment confirmed — `events` array routes to correct tab
                     try {
                         const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
                         if (sheetsWebhook) {
+                            const events = invEventType === 'gala' ? ['gala'] : invEventType === 'plexus' ? ['conference'] : [];
                             fetch(sheetsWebhook, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ timestamp: new Date().toISOString(), name: (metadata.first_name || '') + ' ' + (metadata.last_name || ''), email: invEmail, institution: '', event: metadata.event_name || invEventType, items: metadata.items || '', guests: metadata.guest_count || 0, dietary: metadata.dietary || '', allergies: metadata.allergies || '', amount, payment: 'Paid', coupon: metadata.coupon_code || '', discount: metadata.discount_amount || '0', registration_id: invRegId })
+                                body: JSON.stringify({ timestamp: new Date().toISOString(), events, name: (metadata.first_name || '') + ' ' + (metadata.last_name || ''), email: invEmail, institution: '', event: metadata.event_name || invEventType, event_type: invEventType, items: metadata.items || '', guests: metadata.guest_count || 0, dietary: metadata.dietary || '', allergies: metadata.allergies || '', amount, payment: 'Paid', coupon: metadata.coupon_code || '', discount: metadata.discount_amount || '0', registration_id: invRegId })
                             }).catch(() => {});
                         }
                     } catch(e) {}
@@ -16573,6 +16587,166 @@ By applying to this program, I provide the following consents:
         res.json({ event, count: rows.length, emails: rows.map(r => r.email), registrants: rows });
     });
 
+    // ========== UNIVERSAL EVENT CHECK-IN VERIFY ==========
+    // Single endpoint serving the Event Check-in scanner UI. Pick an event
+    // (gala / conference / bridges), scan a QR or paste a code, get back
+    // {valid, registrant, status, already_checked_in}. If mark=true and the
+    // registration is valid, marks them checked in for THAT event.
+    app.post('/api/admin/checkin/verify', auth, adminOnly, (req, res) => {
+        const { event, code, mark } = req.body || {};
+        if (!event || !['gala', 'conference', 'bridges'].includes(event)) {
+            return res.status(400).json({ valid: false, error: "event must be 'gala', 'conference', or 'bridges'" });
+        }
+        if (!code) return res.status(400).json({ valid: false, error: 'code required' });
+
+        // Code may be a UUID (regId / caRegId) OR an email (fallback for door staff)
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code);
+        const codeClean = String(code).trim();
+        const now = new Date().toISOString();
+
+        // ===== GALA =====
+        if (event === 'gala') {
+            // Try gala_registrations.id first, then email
+            let reg = null;
+            if (isUuid) reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [codeClean]);
+            if (!reg) reg = query.get('SELECT * FROM gala_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
+            if (!reg) return res.json({ valid: false, event, code, reason: 'not_found', message: 'No Gala registration found for this code.' });
+
+            const isPaid = reg.payment_status === 'paid';
+            const isVip = reg.payment_status === 'vip-comp';
+            const isAwaiting = reg.status === 'awaiting_payment' || reg.payment_status === 'pending';
+            if (!isPaid && !isVip) {
+                return res.json({
+                    valid: false, event, code, reason: 'not_paid',
+                    message: isAwaiting ? 'This person started checkout but has not paid. Do NOT admit unless payment is verified.' : 'Registration not confirmed.',
+                    registrant: { name: `${reg.first_name} ${reg.last_name || ''}`.trim(), email: reg.email, institution: reg.institution || '' }
+                });
+            }
+            const already = !!reg.checked_in;
+            if (mark && !already) {
+                db.run('UPDATE gala_registrations SET checked_in = 1, checked_in_at = ? WHERE id = ?', [now, reg.id]);
+                saveDb();
+            }
+            return res.json({
+                valid: true, event, code, already_checked_in: already, checked_in_at: already ? reg.checked_in_at : (mark ? now : null),
+                status_label: isPaid ? 'PAID' : 'VIP · COMPLIMENTARY',
+                status_color: isPaid ? '#22c55e' : '#a855f7',
+                registrant: {
+                    name: `${reg.first_name} ${reg.last_name || ''}`.trim(),
+                    email: reg.email,
+                    institution: reg.institution || '',
+                    dietary: reg.dietary || '',
+                    amount_paid: reg.amount_paid,
+                    invoice: reg.invoice_number || ''
+                }
+            });
+        }
+
+        // ===== CONFERENCE or BRIDGES (via Croatians Abroad registration) =====
+        // The QR for CA carries croatians_abroad_registrations.id. For CA Gala-bundle
+        // tickets the QR carries gala_registrations.id, so we also try gala_registration_id.
+        let caReg = null;
+        if (isUuid) {
+            caReg = query.get(
+                `SELECT * FROM croatians_abroad_registrations WHERE id = ? OR gala_registration_id = ?`,
+                [codeClean, codeClean]
+            );
+        }
+        if (!caReg) caReg = query.get('SELECT * FROM croatians_abroad_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
+        if (!caReg) {
+            return res.json({ valid: false, event, code, reason: 'not_found', message: `No ${event === 'conference' ? 'Conference' : 'Bridges'} pre-registration found for this code.` });
+        }
+
+        const selectedCol = event === 'conference' ? 'selected_conference' : 'selected_bridges';
+        const checkedInCol = event === 'conference' ? 'conference_checked_in' : 'bridges_checked_in';
+        const checkedInAtCol = event === 'conference' ? 'conference_checked_in_at' : 'bridges_checked_in_at';
+
+        if (!caReg[selectedCol]) {
+            return res.json({
+                valid: false, event, code, reason: 'not_registered_for_event',
+                message: `This person is NOT registered for the ${event === 'conference' ? 'Plexus Conference' : 'Croatian Biomedical Bridges'} event.`,
+                registrant: { name: `${caReg.first_name} ${caReg.last_name || ''}`.trim(), email: caReg.email, institution: caReg.institution || '' }
+            });
+        }
+
+        const already = !!caReg[checkedInCol];
+        if (mark && !already) {
+            db.run(`UPDATE croatians_abroad_registrations SET ${checkedInCol} = 1, ${checkedInAtCol} = ? WHERE id = ?`, [now, caReg.id]);
+            saveDb();
+        }
+        return res.json({
+            valid: true, event, code,
+            already_checked_in: already,
+            checked_in_at: already ? caReg[checkedInAtCol] : (mark ? now : null),
+            status_label: 'PRE-REGISTERED',
+            status_color: '#22c55e',
+            registrant: {
+                name: `${caReg.first_name} ${caReg.last_name || ''}`.trim(),
+                email: caReg.email,
+                institution: caReg.institution || '',
+                country: caReg.country || '',
+                role: caReg.role || '',
+                dietary: caReg.dietary || ''
+            }
+        });
+    });
+
+    // ========== TEST QR EMAIL — admin sends themselves a working QR to test the scanner ==========
+    app.post('/api/admin/checkin/test-email', auth, adminOnly, async (req, res) => {
+        try {
+            const email = (req.user && req.user.email) || req.body.email;
+            const first = (req.user && req.user.first_name) || 'Admin';
+            const last = (req.user && req.user.last_name) || 'Tester';
+            if (!email) return res.status(400).json({ error: 'No admin email on session' });
+
+            // Create a real CA registration row for the admin (selected: all 3 events)
+            // so the QR maps to a real DB record they can scan + see all three modes valid.
+            const testId = require('crypto').randomUUID();
+            db.run(
+                `INSERT INTO croatians_abroad_registrations
+                 (id, first_name, last_name, email, institution, country, role,
+                  selected_conference, selected_bridges, selected_gala,
+                  conference_status, bridges_status, notes)
+                 VALUES (?,?,?,?,?,?,?,1,1,0,'pre-registered','pre-registered','SCANNER TEST — safe to delete')`,
+                [testId, first, last, email, 'Med&X (Test)', 'Test', 'Admin']
+            );
+            saveDb();
+
+            // Generate QR encoding the caRegId — scanner can verify Conference + Bridges modes
+            const qrPayload = JSON.stringify({
+                type: 'MEDX_MEMBER', caRegId: testId, regId: testId,
+                email, name: `${first} ${last}`.trim(),
+                evt: 'croatians-abroad', evtName: 'Plexus 2026 — Scanner Test Ticket',
+                events: ['conference', 'bridges']
+            });
+            const qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 240, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
+
+            const html = buildEmailTemplate('Scanner Test QR', `
+                <p>Hi ${first},</p>
+                <p>This is a <strong>test QR ticket</strong> you can use to verify the Event Check-in scanner.</p>
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+                    <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Valid for these scanner modes:</td></tr>
+                    <tr><td style="padding:10px 14px;font-size:13px;color:#334155;">✓ Plexus Conference &nbsp;&nbsp; ✓ Croatian Biomedical Bridges</td></tr>
+                    <tr><td style="padding:6px 14px;font-size:13px;color:#94a3b8;">✗ Plexus Gala Evening &nbsp;&nbsp;<em style="font-size:11px;">(not registered — scanner will correctly reject this mode)</em></td></tr>
+                </table>
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;"><tr><td align="center">
+                    <table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:14px;padding:20px;text-align:center;">
+                        <tr><td style="padding-bottom:10px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Scanner Test QR Code</td></tr>
+                        <tr><td><img src="${qrDataUrl}" alt="Test QR" width="220" height="220" style="display:block;margin:0 auto;border-radius:8px;" /></td></tr>
+                        <tr><td style="padding-top:8px;font-size:11px;color:#94a3b8;">Registration ID: ${testId.substring(0, 8)}…</td></tr>
+                    </table>
+                </td></tr></table>
+                <p style="font-size:13px;color:#64748b;">To use: open the admin portal → Event Check-in → pick "Plexus Conference" or "Bridges" → scan this QR. Should show ✓ valid. Then pick "Plexus Gala Evening" → scan → should show ✗ not registered for this event.</p>
+                <p style="font-size:12px;color:#94a3b8;margin-top:18px;"><em>This test row is tagged with note 'SCANNER TEST — safe to delete' and can be removed from the Croatians Abroad registrations list any time.</em></p>
+            `);
+            await sendEmail(email, 'Scanner Test QR — Plexus 2026', html);
+            res.json({ success: true, email, test_registration_id: testId });
+        } catch (err) {
+            console.error('Test QR email failed:', err);
+            res.status(500).json({ error: err.message || 'Failed to send test email' });
+        }
+    });
+
     // ========== GALA SCANNER (QR code lookup + check-in) ==========
 
     // Look up gala registration by registration ID (regId encoded in QR)
@@ -16999,6 +17173,28 @@ By applying to this program, I provide the following consents:
 
             // ---------- PATH A: Free-only (no Gala) → confirm immediately ----------
             if (!finalGala) {
+                // Generate QR ticket for check-in at Conference / Bridges
+                let caQrDataUrl = '';
+                try {
+                    const caQrPayload = JSON.stringify({
+                        type: 'MEDX_MEMBER',
+                        caRegId: regId, regId,
+                        email, name: `${first_name} ${last_name || ''}`.trim(),
+                        evt: 'croatians-abroad', evtName: 'Plexus 2026',
+                        events: [finalConf ? 'conference' : null, finalBridges ? 'bridges' : null].filter(Boolean)
+                    });
+                    caQrDataUrl = await QRCode.toDataURL(caQrPayload, { width: 220, margin: 2 });
+                } catch(qrErr) { console.warn('CA free QR gen failed:', qrErr.message); }
+
+                const qrBlock = caQrDataUrl ? `
+                    <table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;"><tr><td align="center">
+                        <table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:14px;padding:20px;text-align:center;">
+                            <tr><td style="padding-bottom:10px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Your Check-in QR Code</td></tr>
+                            <tr><td><img src="${caQrDataUrl}" alt="QR Code" width="200" height="200" style="display:block;margin:0 auto;border-radius:8px;" /></td></tr>
+                            <tr><td style="padding-top:10px;font-size:12px;color:#94a3b8;">Present this QR at the entrance to each event you've pre-registered for</td></tr>
+                        </table>
+                    </td></tr></table>` : '';
+
                 try {
                     await sendEmail(email, "You're pre-registered — Plexus 2026", buildEmailTemplate('Pre-Registration Confirmed', `
                         <p>Dear <strong>${first_name}</strong>,</p>
@@ -17007,6 +17203,7 @@ By applying to this program, I provide the following consents:
                             <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Your Selections</td></tr>
                             ${eventListHtml}
                         </table>
+                        ${qrBlock}
                         <p>We will email you the <strong>Conference programme</strong> as soon as it is finalised${finalBridges ? ', and confirm the <strong>Bridges date and venue</strong> when those are set' : ''}.</p>
                         <p>If you would also like to join us at the <strong>Plexus Gala Evening</strong> on 5 December 2026 (Hotel Esplanade Zagreb, Lord Smith of Finsbury keynote), simply reply to this email and we will send you the ticket link.</p>
                         <p style="margin-top:24px;">We look forward to welcoming you home in Zagreb.</p>
@@ -17014,20 +17211,22 @@ By applying to this program, I provide the following consents:
                     `));
                 } catch(emailErr) { console.warn('CA pre-reg email failed:', emailErr.message); }
 
-                // Log to Google Sheets
+                // Log to Google Sheets — `events` array tells the Apps Script which tab(s) to write to
                 try {
                     const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
                     if (sheetsWebhook) {
+                        const events = [finalConf ? 'conference' : null, finalBridges ? 'bridges' : null, finalGala ? 'gala' : null].filter(Boolean);
                         fetch(sheetsWebhook, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 timestamp: new Date().toISOString(),
+                                events,                            // ← new: tab routing (['conference','bridges','gala'])
                                 name: first_name + ' ' + (last_name || ''),
                                 email, institution: institution || '', country: country || '', role: role || '',
                                 event: 'Plexus 2026 — Croatians Abroad',
                                 event_type: 'croatians-abroad',
-                                items: [finalConf ? 'Conference' : null, finalBridges ? 'Bridges' : null, finalGala ? 'Gala' : null].filter(Boolean).join(' + '),
+                                items: events.join(' + '),
                                 dietary: dietary || '', notes: notes || '',
                                 amount: 0, payment: 'Free (Pre-Registered)',
                                 invite_label: caInvite?.label || '',
@@ -17316,18 +17515,20 @@ By applying to this program, I provide the following consents:
             if (!checkoutUrl) {
                 await sendRegistrationConfirmation();
 
-                // Log free-event registrations to Google Sheets (VIP gala lands here)
+                // Log free-event registrations to Google Sheets (VIP gala lands here) — events array drives tab routing
                 try {
                     const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
                     if (sheetsWebhook) {
                         const galaInviteRowSheet = (event_type === 'gala' && req.body.event_id)
                             ? query.get('SELECT label, link_type FROM gala_invite_links WHERE id = ?', [req.body.event_id])
                             : null;
+                        const events = event_type === 'gala' ? ['gala'] : event_type === 'plexus' ? ['conference'] : [];
                         fetch(sheetsWebhook, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 timestamp: new Date().toISOString(),
+                                events,
                                 name: (first_name || '') + ' ' + (last_name || ''),
                                 email,
                                 institution: institution || '',
