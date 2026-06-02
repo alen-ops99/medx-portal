@@ -661,8 +661,8 @@ app.get('/invite/:data', (req, res) => {
                 : 'You are personally invited to join us at Plexus 2026 in Zagreb. Select any combination of the three events below — your attendance at the Conference and Croatian Biomedical Bridges is fully included as our guest; the Gala Evening is a paid ticket.';
             // Bridges card extra description varies by variant
             const bridgesDesc = caVariant === 'international'
-                ? 'A dedicated forum bringing together representatives of Croatian medical schools, universities, hospitals, and policymakers — designed to open collaboration opportunities for international colleagues.'
-                : 'Representatives of Croatian medical schools, universities, hospitals, and policymakers will be present.';
+                ? 'A networking event bringing together representatives of Croatian medical schools, universities, hospitals, and policymakers — designed to open collaboration opportunities for international colleagues. This is a pre-registration; we will email you the final date and venue as soon as they are confirmed.'
+                : 'A networking event where representatives of Croatian medical schools, universities, hospitals, and policymakers will be present. This is a pre-registration — we will email you the final date and venue as soon as they are confirmed.';
             // Conference card description (same for both variants — content is the same)
             const confDesc = 'Covering the latest research, clinical advances, and emerging directions across multiple biomedical fields.';
 
@@ -846,6 +846,7 @@ app.get('/invite/:data', (req, res) => {
 
         <div class="footer">
             <p>By registering, you agree to Med&amp;X's <a href="/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
+            <p style="margin-top:6px;color:#475569;">Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event.</p>
             <p style="margin-top:6px;color:#475569;">Questions? <a href="mailto:laura.rodman@medx.hr">laura.rodman@medx.hr</a></p>
         </div>
     </div>
@@ -1218,7 +1219,8 @@ async function submitCA(e) {
             </form>
             <div class="footer" style="margin-top:20px;">
                 <p style="margin-bottom:8px;">By registering, you agree to Med&amp;X's <a href="/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
-                <p style="font-size:11px;color:#475569;">All registrations are non-refundable.</p>
+                <p style="font-size:11px;color:#475569;">Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event.</p>
+                <p style="font-size:11px;color:#475569;margin-top:8px;">All registrations are non-refundable.</p>
                 <p style="font-size:11px;color:#475569;margin-top:8px;">For any questions, please contact Laura Rodman at <a href="mailto:laura.rodman@medx.hr" style="color:#c9a962;">laura.rodman@medx.hr</a></p>
                 <p style="font-size:11px;color:#475569;margin-top:8px;">We look forward to seeing you! &mdash; The Med&amp;X Team</p>
             </div>
