@@ -6776,6 +6776,9 @@
                             <button class="btn btn-secondary" onclick="EventCheckin.sendTestEmail()" style="padding: 7px 14px; font-size: 12px;" title="Send a test QR to your admin email so you can verify the scanner works">
                                 <i class="fas fa-envelope"></i> Send Test QR
                             </button>
+                            <button class="btn btn-secondary" onclick="EventCheckin.sendBundleTestEmail()" style="padding: 7px 14px; font-size: 12px;" title="Send a full 3-event Croatians Abroad bundle confirmation email (with real working Gala QR) to any address">
+                                <i class="fas fa-gift" style="color:#ef4444;"></i> Send Bundle Test
+                            </button>
                         </div>
                     </div>
 
@@ -29612,6 +29615,27 @@ By applying to this program, I give the following consents:
                     }
                 } catch (err) {
                     Toast.error('Failed to send test email');
+                }
+            },
+
+            async sendBundleTestEmail() {
+                const email = prompt('Send a full 3-event "Payment Confirmed" bundle email (Conference + Bridges + Gala paid, with working Gala QR) to which address?\\n\\nLeave blank to send to your admin email.', '');
+                if (email === null) return; // user clicked Cancel
+                const name = prompt('Optional: name to appear on the email + ticket (defaults to your admin name)', '') || undefined;
+                try {
+                    const res = await fetch('/api/admin/checkin/test-bundle-email', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+                        body: JSON.stringify({ email: email || undefined, name: name || undefined })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        Toast.success(`Bundle confirmation email sent to ${data.email} (invoice ${data.invoice_number})`);
+                    } else {
+                        Toast.error(data.error || 'Failed to send bundle test email');
+                    }
+                } catch (err) {
+                    Toast.error('Failed to send bundle test email');
                 }
             }
         };

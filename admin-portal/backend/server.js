@@ -15909,6 +15909,107 @@ By applying to this program, I provide the following consents:
         }
     });
 
+    // ========== TEST: SIMULATE PAID CA BUNDLE — emails YOU a real-looking Gala+Bridges+Conference confirmation with QR ==========
+    app.post('/api/admin/checkin/test-bundle-email', auth, adminOnly, async (req, res) => {
+        try {
+            const targetEmail = (req.body && req.body.email) ? String(req.body.email).trim() : ((req.user && req.user.email) || '');
+            if (!targetEmail) return res.status(400).json({ error: 'No email provided' });
+            const [bareFirst, bareLast] = (req.body.name || ((req.user && req.user.first_name) ? `${req.user.first_name} ${req.user.last_name || ''}`.trim() : 'Test Guest')).split(' ');
+            const first = bareFirst || 'Test';
+            const last = bareLast || 'Guest';
+            const institution = (req.user && req.user.institution) || 'Med&X (Test)';
+
+            const caRegId = require('crypto').randomUUID();
+            const galaRegId = require('crypto').randomUUID();
+            const amount = 140;
+            const year = new Date().getFullYear();
+            const invoiceNumber = `CA-GALA-TEST-${year}-${galaRegId.substring(0,4).toUpperCase()}`;
+
+            // Create the CA registration row (Conference + Bridges + Gala all selected, all confirmed)
+            db.run(
+                `INSERT INTO croatians_abroad_registrations
+                 (id, first_name, last_name, email, institution, country, role,
+                  selected_conference, selected_bridges, selected_gala,
+                  conference_status, bridges_status, gala_status, gala_payment_status,
+                  gala_registration_id, amount_paid, invoice_number, notes)
+                 VALUES (?,?,?,?,?,?,?,1,1,1,'pre-registered','pre-registered','confirmed','paid',?,?,?,?)`,
+                [caRegId, first, last, targetEmail, institution, 'Test', 'Test Guest',
+                 galaRegId, amount, invoiceNumber, 'BUNDLE TEST — safe to delete']
+            );
+            // Create the linked gala_registrations row (paid, confirmed — so the Gala QR validates ✓)
+            db.run(
+                `INSERT INTO gala_registrations
+                 (id, first_name, last_name, email, institution, status, payment_status,
+                  amount_paid, invoice_number, requests)
+                 VALUES (?,?,?,?,?, 'confirmed', 'paid', ?, ?, 'BUNDLE TEST — safe to delete')`,
+                [galaRegId, first, last, targetEmail, institution, amount, invoiceNumber]
+            );
+            saveDb();
+
+            // Generate the same Gala QR a real Stripe-confirmed bundle would create
+            let qrDataUrl = '';
+            try {
+                const qrPayload = JSON.stringify({
+                    type: 'MEDX_MEMBER',
+                    regId: galaRegId,
+                    caRegId,
+                    email: targetEmail,
+                    name: `${first} ${last}`,
+                    evt: 'gala',
+                    evtName: 'Plexus 2026 — Gala Evening',
+                    amt: amount,
+                    events: ['conference', 'bridges', 'gala']
+                });
+                qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 240, margin: 2 });
+            } catch(qrErr) { console.warn('Bundle test QR gen failed:', qrErr.message); }
+
+            // Build the same Payment Confirmed email a real CA bundle guest gets (matches the Stripe webhook template)
+            const eventListHtml = `
+                <tr><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;background:#fff;">
+                    <strong style="color:#0f172a;">Plexus Conference</strong>
+                    <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
+                    <div style="color:#64748b;font-size:12px;margin-top:2px;">4 December 2026 · Zagreb, Croatia · Programme to follow</div></td></tr>
+                <tr><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;background:#fff;">
+                    <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
+                    <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
+                    <div style="color:#64748b;font-size:12px;margin-top:2px;">4 or 5 December 2026 · Zagreb, Croatia · date to be confirmed</div></td></tr>
+                <tr><td style="padding:10px 14px;background:#fff;">
+                    <strong style="color:#0f172a;">Plexus Gala Evening</strong>
+                    <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">CONFIRMED & PAID</span>
+                    <div style="color:#64748b;font-size:12px;margin-top:2px;">5 December 2026 · Hotel Esplanade Zagreb · Arrival from 7:00 PM</div></td></tr>`;
+
+            const html = `<div style="font-family:system-ui;max-width:600px;margin:0 auto;padding:24px;background:#f8fafc;color:#1a1a1a;">
+                <div style="text-align:center;margin-bottom:14px;">
+                    <div style="display:inline-block;background:#22c55e;color:#fff;font-size:13px;font-weight:600;padding:6px 22px;border-radius:20px;letter-spacing:0.5px;">PAYMENT CONFIRMED</div>
+                </div>
+                <p style="margin-top:18px;">Dear <strong>${first}</strong>,</p>
+                <p>Your payment of <strong>€${amount.toFixed(2)}</strong> for the <strong style="color:#C9A962;">Plexus 2026 Gala Evening</strong> has been received. Your ticket is below.</p>
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+                    <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Your Plexus 2026 Reservations</td></tr>
+                    ${eventListHtml}
+                </table>
+                <p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${invoiceNumber}</p>
+                ${qrDataUrl ? `<div style="text-align:center;margin:22px 0;">
+                    <div style="display:inline-block;background:#fff;border:2px solid #e2e8f0;border-radius:14px;padding:22px;">
+                        <div style="font-size:10px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;">Gala Check-in QR Code</div>
+                        <img src="${qrDataUrl}" alt="QR Code" width="220" height="220" style="display:block;" />
+                        <div style="font-size:11px;color:#94a3b8;margin-top:8px;">Present this code at the Gala entrance on 5 December</div>
+                    </div>
+                </div>` : ''}
+                <p>We will email you the <strong>Conference programme</strong> as soon as it is finalised, and confirm the <strong>Bridges date and venue</strong> when those are set.</p>
+                <p style="margin-top:18px;">We look forward to welcoming you home in Zagreb.</p>
+                <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
+                <p style="font-size:12px;color:#94a3b8;"><strong>[BUNDLE TEST]</strong> This was generated by the admin test-bundle-email tool. The registration is tagged "BUNDLE TEST — safe to delete" and can be removed from your Croatians Abroad list any time. The QR is fully functional in the Event Check-in scanner — try scanning it in all three modes.</p>
+            </div>`;
+
+            await sendEmail(targetEmail, 'Payment Confirmed — Plexus 2026 Gala Evening (TEST)', html);
+            res.json({ success: true, email: targetEmail, ca_registration_id: caRegId, gala_registration_id: galaRegId, invoice_number: invoiceNumber });
+        } catch (err) {
+            console.error('Bundle test email failed:', err);
+            res.status(500).json({ error: err.message || 'Failed to send bundle test email' });
+        }
+    });
+
     // ========== GALA SCANNER — registration lookup by ID (for QR scanner) ==========
 
     app.get('/api/admin/gala/scan/:regId', auth, adminOnly, (req, res) => {
