@@ -2949,6 +2949,29 @@ async function initializeApp() {
     try { db.run(`ALTER TABLE gala_settings ADD COLUMN keynote_role TEXT`); } catch (e) {}
     try { db.run(`ALTER TABLE gala_settings ADD COLUMN keynote_image_url TEXT`); } catch (e) {}
 
+    // ONE-TIME TEST-DATA WIPE (mirror of user-portal migration) — clears fake Gala
+    // and Croatians Abroad registrations from pre-launch testing. Idempotent via
+    // app_state marker; will not re-run after first execution.
+    try {
+        db.run(`CREATE TABLE IF NOT EXISTS app_state (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`);
+        const wipeMarker = query.get("SELECT value FROM app_state WHERE key = 'gala_test_wipe_2026_06_02'");
+        if (!wipeMarker) {
+            const gCount = query.get("SELECT COUNT(*) as c FROM gala_registrations")?.c || 0;
+            const caCount = query.get("SELECT COUNT(*) as c FROM croatians_abroad_registrations")?.c || 0;
+            db.run("DELETE FROM gala_registrations");
+            db.run("DELETE FROM croatians_abroad_registrations");
+            db.run("UPDATE gala_invite_links SET used_count = 0");
+            try { db.run("UPDATE croatians_abroad_invite_links SET used_count = 0"); } catch(e) {}
+            db.run("INSERT INTO app_state (key, value, updated_at) VALUES ('gala_test_wipe_2026_06_02', ?, ?)",
+                [`gala_registrations:${gCount},croatians_abroad_registrations:${caCount}`, new Date().toISOString()]);
+            console.log(`[wipe] Pre-launch test data cleared: ${gCount} gala + ${caCount} croatians_abroad registrations removed; invite-link used_count reset to 0.`);
+        }
+    } catch(e) { console.warn('[wipe] Test-data wipe failed:', e.message); }
+
     // Seed default gala speakers and schedule if columns are empty
     const galaCheck = query.get("SELECT speakers_json FROM gala_settings WHERE id = 'default'");
     if (galaCheck && !galaCheck.speakers_json) {

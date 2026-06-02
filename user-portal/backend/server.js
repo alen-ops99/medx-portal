@@ -3840,6 +3840,27 @@ async function initializeApp() {
         if (galaRow && (galaRow.price_gala_only == null || Number(galaRow.price_gala_only) === 95 || Number(galaRow.price_gala_only) === 75 || Number(galaRow.price_gala_only) === 125)) {
             db.run("UPDATE gala_settings SET price_gala_only = 140 WHERE id = 'default'");
         }
+        // ONE-TIME TEST-DATA WIPE — clears all fake Gala + Croatians Abroad registrations
+        // accumulated during pre-launch testing. Runs exactly once via app_state marker.
+        // Keeps invite-link rows (admin campaigns) but resets their used_count to 0.
+        // SAFE: idempotent via marker — will not re-run after first execution.
+        db.run(`CREATE TABLE IF NOT EXISTS app_state (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`);
+        const wipeMarker = query.get("SELECT value FROM app_state WHERE key = 'gala_test_wipe_2026_06_02'");
+        if (!wipeMarker) {
+            const gCount = query.get("SELECT COUNT(*) as c FROM gala_registrations")?.c || 0;
+            const caCount = query.get("SELECT COUNT(*) as c FROM croatians_abroad_registrations")?.c || 0;
+            db.run("DELETE FROM gala_registrations");
+            db.run("DELETE FROM croatians_abroad_registrations");
+            db.run("UPDATE gala_invite_links SET used_count = 0");
+            try { db.run("UPDATE croatians_abroad_invite_links SET used_count = 0"); } catch(e) {}
+            db.run("INSERT INTO app_state (key, value, updated_at) VALUES ('gala_test_wipe_2026_06_02', ?, ?)",
+                [`gala_registrations:${gCount},croatians_abroad_registrations:${caCount}`, new Date().toISOString()]);
+            console.log(`[wipe] Pre-launch test data cleared: ${gCount} gala + ${caCount} croatians_abroad registrations removed; invite-link used_count reset to 0.`);
+        }
         // 2026 event-detail seeding (only updates values still at legacy defaults; never overrides admin edits)
         if (galaRow && (galaRow.time === '18:00' || galaRow.time == null)) {
             db.run("UPDATE gala_settings SET time = 'Arrival from 7:00 PM · Welcome drink' WHERE id = 'default'");
