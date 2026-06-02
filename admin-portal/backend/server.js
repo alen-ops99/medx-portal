@@ -2942,6 +2942,10 @@ async function initializeApp() {
     // Add speakers_json and schedule_json columns to gala_settings
     try { db.run(`ALTER TABLE gala_settings ADD COLUMN speakers_json TEXT`); } catch (e) {}
     try { db.run(`ALTER TABLE gala_settings ADD COLUMN schedule_json TEXT`); } catch (e) {}
+    // Featured Keynote (admin-editable, displayed on user-portal invite pages)
+    try { db.run(`ALTER TABLE gala_settings ADD COLUMN keynote_name TEXT`); } catch (e) {}
+    try { db.run(`ALTER TABLE gala_settings ADD COLUMN keynote_role TEXT`); } catch (e) {}
+    try { db.run(`ALTER TABLE gala_settings ADD COLUMN keynote_image_url TEXT`); } catch (e) {}
 
     // Seed default gala speakers and schedule if columns are empty
     const galaCheck = query.get("SELECT speakers_json FROM gala_settings WHERE id = 'default'");
@@ -15529,7 +15533,7 @@ By applying to this program, I provide the following consents:
 
         const { title, tagline, date, time, venue, dress_code, description, capacity,
                 price_gala_only, price_bundle, price_bundle_original, is_registration_open,
-                speakers_json, schedule_json } = req.body;
+                speakers_json, schedule_json, keynote_name, keynote_role, keynote_image_url } = req.body;
         const fields = [];
         const values = [];
         if (title !== undefined) { fields.push('title = ?'); values.push(title); }
@@ -15543,6 +15547,9 @@ By applying to this program, I provide the following consents:
         if (price_gala_only !== undefined) { fields.push('price_gala_only = ?'); values.push(price_gala_only); }
         if (price_bundle !== undefined) { fields.push('price_bundle = ?'); values.push(price_bundle); }
         if (price_bundle_original !== undefined) { fields.push('price_bundle_original = ?'); values.push(price_bundle_original); }
+        if (keynote_name !== undefined) { fields.push('keynote_name = ?'); values.push(keynote_name); }
+        if (keynote_role !== undefined) { fields.push('keynote_role = ?'); values.push(keynote_role); }
+        if (keynote_image_url !== undefined) { fields.push('keynote_image_url = ?'); values.push(keynote_image_url); }
         if (is_registration_open !== undefined) { fields.push('is_registration_open = ?'); values.push(is_registration_open ? 1 : 0); }
         if (speakers_json !== undefined) { fields.push('speakers_json = ?'); values.push(typeof speakers_json === 'string' ? speakers_json : JSON.stringify(speakers_json)); }
         if (schedule_json !== undefined) { fields.push('schedule_json = ?'); values.push(typeof schedule_json === 'string' ? schedule_json : JSON.stringify(schedule_json)); }

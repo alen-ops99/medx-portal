@@ -10433,6 +10433,28 @@ President, Med&amp;X</textarea>
                                         <input type="number" class="form-input" id="galaSettingPriceBundleOrig" step="0.01">
                                     </div>
                                 </div>
+                                <!-- Featured Keynote — admin-editable, appears on user-portal invite pages -->
+                                <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border);">
+                                    <h4 style="font-size: 13px; font-weight: 700; color: #C9A962; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px;">
+                                        <i class="fas fa-star" style="margin-right:6px;"></i>Featured Keynote Guest
+                                    </h4>
+                                    <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 16px;">Shown on every Gala invite page (Paid, VIP, and Croatians Abroad). Changes propagate live to all guests without redeploy.</p>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                                        <div class="form-group">
+                                            <label class="form-label">Keynote Name</label>
+                                            <input type="text" class="form-input" id="galaSettingKeynoteName" placeholder="e.g. Lord Smith of Finsbury">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Keynote Role / Title</label>
+                                            <input type="text" class="form-input" id="galaSettingKeynoteRole" placeholder="e.g. Chancellor of the University of Cambridge">
+                                        </div>
+                                        <div class="form-group" style="grid-column: 1 / -1;">
+                                            <label class="form-label">Keynote Image URL <span style="color:var(--text-muted);font-size:11px;">(use /assets/gala/&lt;file&gt;.jpg for portraits uploaded into the user-portal assets folder, or any full URL)</span></label>
+                                            <input type="text" class="form-input" id="galaSettingKeynoteImage" placeholder="/assets/gala/lord-smith-chancellor.jpg">
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
                                     <button class="btn btn-primary" onclick="GalaAdmin.saveSettings()">
                                         <i class="fas fa-save"></i> Save Settings
@@ -28778,6 +28800,9 @@ By applying to this program, I give the following consents:
                 setVal('galaSettingPriceOnly', s.price_gala_only);
                 setVal('galaSettingPriceBundle', s.price_bundle);
                 setVal('galaSettingPriceBundleOrig', s.price_bundle_original);
+                setVal('galaSettingKeynoteName', s.keynote_name);
+                setVal('galaSettingKeynoteRole', s.keynote_role);
+                setVal('galaSettingKeynoteImage', s.keynote_image_url);
             },
 
             async saveSettings() {
@@ -28795,6 +28820,9 @@ By applying to this program, I give the following consents:
                     price_gala_only: parseFloat(getVal('galaSettingPriceOnly')) || 95,
                     price_bundle: parseFloat(getVal('galaSettingPriceBundle')) || 174,
                     price_bundle_original: parseFloat(getVal('galaSettingPriceBundleOrig')) || 194,
+                    keynote_name: getVal('galaSettingKeynoteName'),
+                    keynote_role: getVal('galaSettingKeynoteRole'),
+                    keynote_image_url: getVal('galaSettingKeynoteImage'),
                 };
                 try {
                     const res = await fetch('/api/admin/gala/settings', {

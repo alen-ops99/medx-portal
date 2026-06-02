@@ -628,8 +628,35 @@ app.get('/invite/:data', (req, res) => {
             }
 
             // Get live gala price for the Gala card on this page
-            const galaForCA = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
+            const galaForCA = query.get("SELECT * FROM gala_settings WHERE id = 'default'") || {};
             const galaPrice = (galaForCA && galaForCA.price_gala_only) ? Number(galaForCA.price_gala_only) : 125;
+            const confForCA = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'") || {};
+            // Format a human date from YYYY-MM-DD, or empty string if not set
+            const fmtDate = (iso) => {
+                if (!iso) return '';
+                try { return new Date(iso).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); } catch(e) { return iso; }
+            };
+            const fmtShortDate = (iso) => {
+                if (!iso) return '';
+                try { return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); } catch(e) { return iso; }
+            };
+            // Conference date — use start_date from conferences table
+            const confDate = fmtShortDate(confForCA.start_date) || '4 December 2026';
+            // Gala date + time + venue + dress code — all from gala_settings
+            const galaDate = fmtShortDate(galaForCA.date) || '5 December 2026';
+            const galaTime = galaForCA.time || '';
+            const galaVenue = galaForCA.venue || 'Hotel Esplanade Zagreb';
+            const galaDressCode = galaForCA.dress_code || '';
+            // Keynote — from gala_settings.keynote_*
+            const caKeynoteName = galaForCA.keynote_name || '';
+            const caKeynoteRole = galaForCA.keynote_role || '';
+            const caKeynoteImg = galaForCA.keynote_image_url || '';
+            // Bridges — TODO: read from bridges_events when admin sets it; for now, "date TBC"
+            const bridgesEventRow = query.get("SELECT * FROM bridges_events WHERE name LIKE '%Croatian%' OR name LIKE '%Bridges%' ORDER BY event_date DESC LIMIT 1") || {};
+            const bridgesDateText = bridgesEventRow.event_date
+                ? fmtShortDate(bridgesEventRow.event_date)
+                : '4 or 5 December 2026 — date to be confirmed';
+            const bridgesVenue = bridgesEventRow.venue_name || '';
 
             const caHtml = `<!DOCTYPE html>
 <html lang="en"><head>
@@ -709,7 +736,7 @@ app.get('/invite/:data', (req, res) => {
                     <span class="event-name">Plexus Conference</span>
                     <span class="event-price free">FREE</span>
                 </div>
-                <div class="event-meta"><i class="fas fa-calendar" style="color:#c9a962;margin-right:5px;"></i>4 December 2026</div>
+                <div class="event-meta"><i class="fas fa-calendar" style="color:#c9a962;margin-right:5px;"></i>${escapeHtml(confDate)}</div>
                 <div class="event-note">Programme to be announced &mdash; we will email you the full schedule.</div>
             </div>
         </div>
@@ -721,8 +748,8 @@ app.get('/invite/:data', (req, res) => {
                     <span class="event-name">Croatian Biomedical Bridges</span>
                     <span class="event-price free">FREE</span>
                 </div>
-                <div class="event-meta"><i class="fas fa-calendar" style="color:#c9a962;margin-right:5px;"></i>4 or 5 December 2026 &mdash; <em>date TBC</em></div>
-                <div class="event-note">Invitation-only pre-registration. We will confirm the exact date and venue closer to the event.</div>
+                <div class="event-meta"><i class="fas fa-calendar" style="color:#c9a962;margin-right:5px;"></i>${escapeHtml(bridgesDateText)}${bridgesVenue ? ' &middot; ' + escapeHtml(bridgesVenue) : ''}</div>
+                <div class="event-note">${bridgesEventRow.event_date ? 'Invitation-only pre-registration. Full programme to follow.' : 'Invitation-only pre-registration. We will confirm the exact date and venue closer to the event.'}</div>
             </div>
         </div>
 
@@ -733,8 +760,8 @@ app.get('/invite/:data', (req, res) => {
                     <span class="event-name">Plexus Gala Evening</span>
                     <span class="event-price">&euro;${galaPrice}</span>
                 </div>
-                <div class="event-meta"><i class="fas fa-calendar" style="color:#c9a962;margin-right:5px;"></i>5 December 2026 &middot; Arrival 7:00 PM &middot; Welcome drink</div>
-                <div class="event-meta"><i class="fas fa-map-marker-alt" style="color:#c9a962;margin-right:5px;"></i>Hotel Esplanade Zagreb &middot; Black Tie</div>
+                <div class="event-meta"><i class="fas fa-calendar" style="color:#c9a962;margin-right:5px;"></i>${escapeHtml(galaDate)}${galaTime ? ' &middot; ' + escapeHtml(galaTime) : ''}</div>
+                <div class="event-meta"><i class="fas fa-map-marker-alt" style="color:#c9a962;margin-right:5px;"></i>${escapeHtml(galaVenue)}${galaDressCode ? ' &middot; ' + escapeHtml(galaDressCode) : ''}</div>
                 <div class="event-note">Reserving the Gala automatically includes the Conference and Bridges at no extra cost.</div>
             </div>
         </div>
@@ -743,14 +770,14 @@ app.get('/invite/:data', (req, res) => {
             <i class="fas fa-star" style="color:#a855f7;margin-right:6px;"></i><strong>Gala bundle:</strong> The Conference and Bridges are reserved for you at no additional charge.
         </div>
 
-        <div class="keynote-card">
-            <img src="/assets/gala/lord-smith-chancellor.jpg" alt="Lord Smith of Finsbury" onerror="this.style.display='none'">
+        ${caKeynoteName ? `<div class="keynote-card">
+            ${caKeynoteImg ? '<img src="' + escapeHtml(caKeynoteImg) + '" alt="' + escapeHtml(caKeynoteName) + '" onerror="this.style.display=\\'none\\'">' : ''}
             <div style="flex:1;min-width:0;">
                 <div class="kc-label">Featured Keynote Guest (Gala Evening)</div>
-                <div class="kc-name">Lord Smith of Finsbury</div>
-                <div class="kc-role">Chancellor of the University of Cambridge</div>
+                <div class="kc-name">${escapeHtml(caKeynoteName)}</div>
+                ${caKeynoteRole ? '<div class="kc-role">' + escapeHtml(caKeynoteRole) + '</div>' : ''}
             </div>
-        </div>
+        </div>` : ''}
 
         <form id="caForm" onsubmit="submitCA(event)">
             <input type="hidden" id="caInviteId" value="${escapeHtml(data.i || '')}">
@@ -985,6 +1012,12 @@ async function submitCA(e) {
                 eventInfo.date = gala.date || 'December 5, 2026';
                 eventInfo.venue = gala.venue || 'Hotel Esplanade, Zagreb';
                 eventInfo.price = gala.price_gala_only || 125;
+                // Live admin-editable fields (formerly hardcoded in the renderer below)
+                eventInfo.time = gala.time || '';
+                eventInfo.dress_code = gala.dress_code || '';
+                eventInfo.keynote_name = gala.keynote_name || '';
+                eventInfo.keynote_role = gala.keynote_role || '';
+                eventInfo.keynote_image_url = gala.keynote_image_url || '';
                 try {
                     const schedule = JSON.parse(gala.schedule_json || '[]');
                     eventInfo.schedule = schedule;
@@ -1133,17 +1166,17 @@ async function submitCA(e) {
             <h1>${escapeHtml(eventInfo.name)}</h1>
             <div class="event-meta">
                 ${eventInfo.date ? '<div style="margin-bottom:4px;"><i class="fas fa-calendar"></i>' + escapeHtml(String(eventInfo.date)) + '</div>' : ''}
-                ${eventType === 'gala' ? '<div style="margin-bottom:4px;"><i class="fas fa-clock"></i>Arrival from 7:00 PM &middot; Welcome drink</div>' : ''}
+                ${eventType === 'gala' && eventInfo.time ? '<div style="margin-bottom:4px;"><i class="fas fa-clock"></i>' + escapeHtml(String(eventInfo.time)) + '</div>' : ''}
                 ${eventInfo.venue ? '<div><i class="fas fa-map-marker-alt"></i>' + escapeHtml(String(eventInfo.venue)) + '</div>' : ''}
-                ${eventType === 'gala' ? '<div style="margin-top:4px;"><i class="fas fa-tshirt"></i>Black Tie / Formal Evening Attire</div>' : ''}
+                ${eventType === 'gala' && eventInfo.dress_code ? '<div style="margin-top:4px;"><i class="fas fa-tshirt"></i>' + escapeHtml(String(eventInfo.dress_code)) + '</div>' : ''}
             </div>
-            ${eventType === 'gala' ? `
+            ${eventType === 'gala' && eventInfo.keynote_name ? `
             <div style="background:linear-gradient(135deg,rgba(201,169,98,0.08),rgba(201,169,98,0.02));border:1px solid rgba(201,169,98,0.25);border-radius:14px;padding:16px;margin-bottom:20px;display:flex;gap:14px;align-items:center;">
-                <img src="/assets/gala/lord-smith-chancellor.jpg" alt="Lord Smith of Finsbury" style="width:64px;height:64px;border-radius:50%;object-fit:cover;object-position:center 22%;flex-shrink:0;border:2px solid #c9a962;" onerror="this.style.display='none'">
+                ${eventInfo.keynote_image_url ? '<img src="' + escapeHtml(eventInfo.keynote_image_url) + '" alt="' + escapeHtml(eventInfo.keynote_name) + '" style="width:64px;height:64px;border-radius:50%;object-fit:cover;object-position:center 22%;flex-shrink:0;border:2px solid #c9a962;" onerror="this.style.display=\\'none\\'">' : ''}
                 <div style="flex:1;min-width:0;">
                     <div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#c9a962;margin-bottom:4px;">Featured Keynote Guest</div>
-                    <div style="font-size:16px;font-weight:600;color:#fff;line-height:1.2;">Lord Smith of Finsbury</div>
-                    <div style="font-size:13px;font-style:italic;color:#e8c97a;margin-top:2px;">Chancellor of the University of Cambridge</div>
+                    <div style="font-size:16px;font-weight:600;color:#fff;line-height:1.2;">${escapeHtml(eventInfo.keynote_name)}</div>
+                    ${eventInfo.keynote_role ? '<div style="font-size:13px;font-style:italic;color:#e8c97a;margin-top:2px;">' + escapeHtml(eventInfo.keynote_role) + '</div>' : ''}
                 </div>
             </div>` : ''}
             ${packageHtml ? '<div class="items-section"><div class="items-label">Your Registration Includes:</div>' + packageHtml + '</div>' : ''}
@@ -3985,6 +4018,17 @@ async function initializeApp() {
     // Add speakers_json and schedule_json columns to gala_settings
     try { db.run(`ALTER TABLE gala_settings ADD COLUMN speakers_json TEXT`); } catch (e) {}
     try { db.run(`ALTER TABLE gala_settings ADD COLUMN schedule_json TEXT`); } catch (e) {}
+    // Featured Keynote (used on /invite/:data gala renderer + Croatians Abroad page)
+    try { db.run(`ALTER TABLE gala_settings ADD COLUMN keynote_name TEXT`); } catch (e) {}
+    try { db.run(`ALTER TABLE gala_settings ADD COLUMN keynote_role TEXT`); } catch (e) {}
+    try { db.run(`ALTER TABLE gala_settings ADD COLUMN keynote_image_url TEXT`); } catch (e) {}
+    // Seed sensible 2026 keynote defaults if still empty (idempotent — admin edits never overridden)
+    try {
+        const kRow = query.get("SELECT keynote_name, keynote_role, keynote_image_url FROM gala_settings WHERE id = 'default'");
+        if (kRow && !kRow.keynote_name) db.run("UPDATE gala_settings SET keynote_name = 'Lord Smith of Finsbury' WHERE id = 'default'");
+        if (kRow && !kRow.keynote_role) db.run("UPDATE gala_settings SET keynote_role = 'Chancellor of the University of Cambridge' WHERE id = 'default'");
+        if (kRow && !kRow.keynote_image_url) db.run("UPDATE gala_settings SET keynote_image_url = '/assets/gala/lord-smith-chancellor.jpg' WHERE id = 'default'");
+    } catch(e) {}
 
     // Seed default gala speakers and schedule if columns are empty
     const galaCheck = query.get("SELECT speakers_json FROM gala_settings WHERE id = 'default'");
@@ -16334,7 +16378,7 @@ By applying to this program, I provide the following consents:
     app.put('/api/gala/settings', auth, adminOnly, (req, res) => {
         const { title, tagline, date, time, venue, dress_code, description, capacity,
                 price_gala_only, price_bundle, price_bundle_original, is_registration_open,
-                speakers_json, schedule_json } = req.body;
+                speakers_json, schedule_json, keynote_name, keynote_role, keynote_image_url } = req.body;
         const fields = [];
         const values = [];
         if (title !== undefined) { fields.push('title = ?'); values.push(title); }
@@ -16351,6 +16395,9 @@ By applying to this program, I provide the following consents:
         if (is_registration_open !== undefined) { fields.push('is_registration_open = ?'); values.push(is_registration_open ? 1 : 0); }
         if (speakers_json !== undefined) { fields.push('speakers_json = ?'); values.push(typeof speakers_json === 'string' ? speakers_json : JSON.stringify(speakers_json)); }
         if (schedule_json !== undefined) { fields.push('schedule_json = ?'); values.push(typeof schedule_json === 'string' ? schedule_json : JSON.stringify(schedule_json)); }
+        if (keynote_name !== undefined) { fields.push('keynote_name = ?'); values.push(keynote_name); }
+        if (keynote_role !== undefined) { fields.push('keynote_role = ?'); values.push(keynote_role); }
+        if (keynote_image_url !== undefined) { fields.push('keynote_image_url = ?'); values.push(keynote_image_url); }
         if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
         fields.push("updated_at = ?"); values.push(new Date().toISOString());
         db.run(`UPDATE gala_settings SET ${fields.join(', ')} WHERE id = 'default'`, values);
