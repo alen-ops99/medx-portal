@@ -771,7 +771,7 @@ app.get('/invite/:data', (req, res) => {
         </div>
 
         ${caKeynoteName ? `<div class="keynote-card">
-            ${caKeynoteImg ? '<img src="' + escapeHtml(caKeynoteImg) + '" alt="' + escapeHtml(caKeynoteName) + '" onerror="this.style.display=\\'none\\'">' : ''}
+            ${caKeynoteImg ? `<img src="${escapeHtml(caKeynoteImg)}" alt="${escapeHtml(caKeynoteName)}" onerror="this.style.display='none'">` : ''}
             <div style="flex:1;min-width:0;">
                 <div class="kc-label">Featured Keynote Guest (Gala Evening)</div>
                 <div class="kc-name">${escapeHtml(caKeynoteName)}</div>
@@ -1172,7 +1172,7 @@ async function submitCA(e) {
             </div>
             ${eventType === 'gala' && eventInfo.keynote_name ? `
             <div style="background:linear-gradient(135deg,rgba(201,169,98,0.08),rgba(201,169,98,0.02));border:1px solid rgba(201,169,98,0.25);border-radius:14px;padding:16px;margin-bottom:20px;display:flex;gap:14px;align-items:center;">
-                ${eventInfo.keynote_image_url ? '<img src="' + escapeHtml(eventInfo.keynote_image_url) + '" alt="' + escapeHtml(eventInfo.keynote_name) + '" style="width:64px;height:64px;border-radius:50%;object-fit:cover;object-position:center 22%;flex-shrink:0;border:2px solid #c9a962;" onerror="this.style.display=\\'none\\'">' : ''}
+                ${eventInfo.keynote_image_url ? `<img src="${escapeHtml(eventInfo.keynote_image_url)}" alt="${escapeHtml(eventInfo.keynote_name)}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;object-position:center 22%;flex-shrink:0;border:2px solid #c9a962;" onerror="this.style.display='none'">` : ''}
                 <div style="flex:1;min-width:0;">
                     <div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#c9a962;margin-bottom:4px;">Featured Keynote Guest</div>
                     <div style="font-size:16px;font-weight:600;color:#fff;line-height:1.2;">${escapeHtml(eventInfo.keynote_name)}</div>
