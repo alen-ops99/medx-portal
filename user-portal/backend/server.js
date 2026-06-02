@@ -719,7 +719,7 @@ app.get('/invite/:data', (req, res) => {
     @media(max-width:520px) { .form-row { grid-template-columns:1fr; } body { padding:20px 12px; } .card { padding:22px 18px; } }
 </style></head><body>
 <div class="container">
-    <div class="logo"><span>med<em>&amp;</em>X</span></div>
+    <div class="logo"><img src="/assets/images/medx-logo.png" alt="Med&amp;X" style="height:40px;filter:brightness(0) invert(1);" onerror="this.outerHTML='<span style=\\'font-size:28px;font-weight:700;color:#fff;\\'>med<em style=\\'color:#c9a962;font-style:normal;\\'>&amp;</em>X</span>'"></div>
     <div class="card" id="mainCard">
         <div style="text-align:center;margin-bottom:18px;">
             <div class="badge"><i class="fas fa-globe-europe"></i> Croatians Abroad &mdash; Personal Invitation</div>
@@ -841,7 +841,7 @@ app.get('/invite/:data', (req, res) => {
         </form>
 
         <div class="footer">
-            <p>By registering, you agree to Med&amp;X's <a href="/terms" target="_blank">Terms &amp; Conditions</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</p>
+            <p>By registering, you agree to Med&amp;X's <a href="/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
             <p style="margin-top:6px;color:#475569;">Questions? <a href="mailto:laura.rodman@medx.hr">laura.rodman@medx.hr</a></p>
         </div>
     </div>
