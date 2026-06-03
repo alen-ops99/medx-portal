@@ -29599,43 +29599,102 @@ By applying to this program, I give the following consents:
                 }
             },
 
-            async sendTestEmail() {
-                if (!confirm('Send a test QR ticket to your admin email? You can use it to test the scanner.')) return;
-                try {
-                    const res = await fetch('/api/admin/checkin/test-email', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-                        body: '{}'
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        Toast.success(`Test QR sent to ${data.email}`);
-                    } else {
-                        Toast.error(data.error || 'Failed to send test email');
-                    }
-                } catch (err) {
-                    Toast.error('Failed to send test email');
-                }
+            sendTestEmail() { this.openTestModal('simple'); },
+            sendBundleTestEmail() { this.openTestModal('bundle'); },
+
+            openTestModal(mode) {
+                const existing = document.getElementById('testEmailModal');
+                if (existing) existing.remove();
+                const isBundle = mode === 'bundle';
+                const accent = isBundle ? '#ef4444' : '#22c55e';
+                const accentBg = isBundle ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.12)';
+                const overlay = document.createElement('div');
+                overlay.id = 'testEmailModal';
+                overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);';
+                overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+                overlay.innerHTML = `
+                    <div style="background:var(--bg-primary,#0f172a);border:1px solid var(--border);border-radius:18px;max-width:520px;width:100%;padding:0;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,0.5);">
+                        <div style="padding:22px 26px 18px;background:linear-gradient(180deg,${accentBg},transparent);border-bottom:1px solid var(--border);">
+                            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
+                                <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
+                                    <span style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:11px;background:${accent}1a;color:${accent};font-size:18px;flex-shrink:0;">
+                                        <i class="fas fa-${isBundle ? 'gift' : 'envelope'}"></i>
+                                    </span>
+                                    <div style="min-width:0;">
+                                        <h2 style="font-size:18px;color:var(--text-primary);margin:0;line-height:1.2;">${isBundle ? 'Send Full Bundle Test Email' : 'Send Scanner Test QR'}</h2>
+                                        <div style="font-size:11px;color:var(--text-muted);letter-spacing:1.2px;text-transform:uppercase;font-weight:600;margin-top:4px;">${isBundle ? '3 EVENTS · PAID GALA · €140' : '2 EVENTS · FREE PRE-REG'}</div>
+                                    </div>
+                                </div>
+                                <button onclick="document.getElementById('testEmailModal').remove();" style="background:rgba(255,255,255,0.04);border:none;width:30px;height:30px;border-radius:50%;cursor:pointer;color:var(--text-muted);font-size:13px;flex-shrink:0;"><i class="fas fa-times"></i></button>
+                            </div>
+                        </div>
+                        <div style="padding:18px 26px;">
+                            <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:18px;">
+                                <div style="font-size:11px;font-weight:700;color:${accent};text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">${isBundle ? 'What this does' : 'What this does'}</div>
+                                <p style="font-size:13px;color:var(--text-primary);margin:0;line-height:1.55;">
+                                    ${isBundle
+                                        ? "Simulates a <strong>paid Croatians Abroad bundle</strong>: creates a real registration with all 3 events (Conference + Bridges + Gala) marked as PAID for €140, then emails the recipient the same 'Payment Confirmed' template a real diaspora guest gets — with a fully working Gala QR code embedded."
+                                        : "Creates a minimal test registration for <strong>Conference + Bridges only</strong> (no Gala) and emails a small QR. Use this to verify the scanner's <strong>rejection path</strong>: scan in 'Gala' mode → ✗ NOT VALID; scan in 'Conference' or 'Bridges' mode → ✓ VALID."}
+                                </p>
+                            </div>
+                            <div class="form-group" style="margin-bottom:12px;">
+                                <label class="form-label">Send to email <span style="color:var(--text-muted);font-size:11px;">(leave empty = your admin email)</span></label>
+                                <input id="testEmailAddr" type="email" class="form-input" placeholder="e.g. ajuginovic@hms.harvard.edu" style="width:100%;">
+                            </div>
+                            <div class="form-group" style="margin-bottom:14px;">
+                                <label class="form-label">Name on ticket <span style="color:var(--text-muted);font-size:11px;">(optional)</span></label>
+                                <input id="testEmailName" type="text" class="form-input" placeholder="e.g. Alen Juginovic" style="width:100%;">
+                            </div>
+                            <div style="padding:10px 12px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:8px;margin-bottom:14px;">
+                                <p style="font-size:12px;color:#f59e0b;margin:0;line-height:1.45;">
+                                    <i class="fas fa-exclamation-triangle" style="margin-right:4px;"></i>
+                                    <strong>If no email arrives:</strong> RESEND_API_KEY (or SENDGRID_API_KEY) is not set on Render. The endpoint will report this clearly — check the toast message.
+                                </p>
+                            </div>
+                            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                                <button onclick="document.getElementById('testEmailModal').remove();" class="btn btn-secondary" style="padding:10px 18px;">Cancel</button>
+                                <button id="testEmailSendBtn" onclick="EventCheckin.submitTestEmail('${mode}')" class="btn btn-primary" style="padding:10px 22px;background:linear-gradient(135deg,${accent},${isBundle ? '#dc2626' : '#16a34a'});">
+                                    <i class="fas fa-paper-plane"></i> Send Email
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(overlay);
+                document.getElementById('testEmailAddr')?.focus();
             },
 
-            async sendBundleTestEmail() {
-                const email = prompt('Send a full 3-event "Payment Confirmed" bundle email (Conference + Bridges + Gala paid, with working Gala QR) to which address?\\n\\nLeave blank to send to your admin email.', '');
-                if (email === null) return; // user clicked Cancel
-                const name = prompt('Optional: name to appear on the email + ticket (defaults to your admin name)', '') || undefined;
+            async submitTestEmail(mode) {
+                const email = document.getElementById('testEmailAddr')?.value.trim();
+                const name = document.getElementById('testEmailName')?.value.trim();
+                const btn = document.getElementById('testEmailSendBtn');
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…'; }
+                const endpoint = mode === 'bundle' ? '/api/admin/checkin/test-bundle-email' : '/api/admin/checkin/test-email';
                 try {
-                    const res = await fetch('/api/admin/checkin/test-bundle-email', {
+                    const res = await fetch(endpoint, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
                         body: JSON.stringify({ email: email || undefined, name: name || undefined })
                     });
                     const data = await res.json();
                     if (data.success) {
-                        Toast.success(`Bundle confirmation email sent to ${data.email} (invoice ${data.invoice_number})`);
+                        Toast.success(`Email sent to ${data.email}${data.invoice_number ? ' · invoice ' + data.invoice_number : ''}`);
+                        document.getElementById('testEmailModal')?.remove();
                     } else {
-                        Toast.error(data.error || 'Failed to send bundle test email');
+                        // Surface the actual error so user sees mock-mode / provider issues clearly
+                        const errMsg = data.error || 'Failed to send email';
+                        if (data.mock) {
+                            alert('NO EMAIL PROVIDER CONFIGURED ON RENDER\\n\\nThe test registration was created in the database, but no email was actually sent because no email provider is set up.\\n\\nTO FIX: Open Render dashboard → medx-user-portal service → Environment tab → add a new env var:\\n\\n  Key: RESEND_API_KEY\\n  Value: (your Resend API key from resend.com)\\n\\nThen redeploy. Without this, NO emails will go out — not for tests, and not for real registrations either.');
+                        } else {
+                            alert('Could not send email:\\n\\n' + errMsg);
+                        }
+                        Toast.error('Email send failed — see alert for details');
                     }
                 } catch (err) {
-                    Toast.error('Failed to send bundle test email');
+                    Toast.error('Network error — see console');
+                    console.error('Test email request failed:', err);
+                } finally {
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Email'; }
                 }
             }
         };
