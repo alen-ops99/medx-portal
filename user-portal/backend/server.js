@@ -16620,9 +16620,16 @@ By applying to this program, I provide the following consents:
 
         // ===== GALA =====
         if (event === 'gala') {
-            // Try gala_registrations.id first, then email
+            // Try gala_registrations.id first, then via CA linkage, then email
             let reg = null;
             if (isUuid) reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [codeClean]);
+            // If code is actually a Croatians Abroad registration ID, follow the linkage to the gala row
+            if (!reg && isUuid) {
+                const caForGala = query.get('SELECT gala_registration_id FROM croatians_abroad_registrations WHERE id = ?', [codeClean]);
+                if (caForGala && caForGala.gala_registration_id) {
+                    reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [caForGala.gala_registration_id]);
+                }
+            }
             if (!reg) reg = query.get('SELECT * FROM gala_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
             if (!reg) return res.json({ valid: false, event, code, reason: 'not_found', message: 'No Gala registration found for this code.' });
 
@@ -16668,7 +16675,12 @@ By applying to this program, I provide the following consents:
         }
         if (!caReg) caReg = query.get('SELECT * FROM croatians_abroad_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
         if (!caReg) {
-            return res.json({ valid: false, event, code, reason: 'not_found', message: `No ${event === 'conference' ? 'Conference' : 'Bridges'} pre-registration found for this code.` });
+            // Debug — count rows so we can see if the DB is empty or the lookup is wrong
+            const totalCA = query.get("SELECT COUNT(*) as c FROM croatians_abroad_registrations")?.c || 0;
+            return res.json({ valid: false, event, code, reason: 'not_found',
+                message: `No ${event === 'conference' ? 'Conference' : 'Bridges'} pre-registration found for this code. (Searched ${totalCA} total CA registrations by id, gala_registration_id, and email.)`,
+                debug: { code_used: codeClean, is_uuid: isUuid, total_ca_rows: totalCA }
+            });
         }
 
         const selectedCol = event === 'conference' ? 'selected_conference' : 'selected_bridges';

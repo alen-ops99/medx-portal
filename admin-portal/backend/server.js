@@ -15803,8 +15803,15 @@ By applying to this program, I provide the following consents:
         if (event === 'gala') {
             let reg = null;
             if (isUuid) reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [codeClean]);
+            // If not found directly, the code might be a Croatians Abroad registration ID — follow the linkage
+            if (!reg && isUuid) {
+                const caForGala = query.get('SELECT gala_registration_id FROM croatians_abroad_registrations WHERE id = ?', [codeClean]);
+                if (caForGala && caForGala.gala_registration_id) {
+                    reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [caForGala.gala_registration_id]);
+                }
+            }
             if (!reg) reg = query.get('SELECT * FROM gala_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
-            if (!reg) return res.json({ valid: false, event, code, reason: 'not_found', message: 'No Gala registration found.' });
+            if (!reg) return res.json({ valid: false, event, code, reason: 'not_found', message: 'No Gala registration found for this code.' });
             const isPaid = reg.payment_status === 'paid';
             const isVip = reg.payment_status === 'vip-comp';
             if (!isPaid && !isVip) {
@@ -15840,7 +15847,13 @@ By applying to this program, I provide the following consents:
             );
         }
         if (!caReg) caReg = query.get('SELECT * FROM croatians_abroad_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
-        if (!caReg) return res.json({ valid: false, event, code, reason: 'not_found', message: `No ${event} pre-registration found.` });
+        if (!caReg) {
+            const totalCA = query.get("SELECT COUNT(*) as c FROM croatians_abroad_registrations")?.c || 0;
+            return res.json({ valid: false, event, code, reason: 'not_found',
+                message: `No ${event === 'conference' ? 'Conference' : 'Bridges'} pre-registration found for this code. (Searched ${totalCA} CA rows by id, gala_registration_id, and email.)`,
+                debug: { code_used: codeClean, is_uuid: isUuid, total_ca_rows: totalCA }
+            });
+        }
 
         const selectedCol = event === 'conference' ? 'selected_conference' : 'selected_bridges';
         const checkedInCol = event === 'conference' ? 'conference_checked_in' : 'bridges_checked_in';
