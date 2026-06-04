@@ -135,7 +135,13 @@ function buildEmailTemplate(title, bodyHtml) {
             <a href="https://www.linkedin.com/company/med-x-croatia/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 8px;">LinkedIn</a>
             <a href="https://www.instagram.com/medx.hr/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 8px;">Instagram</a>
         </div>
-        <div style="color: #64748b; font-size: 11px;">&copy; ${new Date().getFullYear()} Med&amp;X. All rights reserved.</div>
+        <div style="color: #64748b; font-size: 11px; line-height: 1.55;">
+            Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event.
+            <a href="https://medx-user-portal.onrender.com/privacy" style="color: #C9A962; text-decoration: none;">Privacy Policy</a>
+            &nbsp;·&nbsp;
+            <a href="https://medx-user-portal.onrender.com/terms" style="color: #C9A962; text-decoration: none;">Terms</a>
+        </div>
+        <div style="margin-top: 10px; color: #475569; font-size: 11px;">&copy; ${new Date().getFullYear()} Med&amp;X. All rights reserved.</div>
     </td></tr>
 </table>
 </td></tr>
@@ -15919,12 +15925,14 @@ By applying to this program, I provide the following consents:
                 <div style="text-align:center;margin:22px 0;">
                     <div style="display:inline-block;background:#fff;border:2px solid #e2e8f0;border-radius:14px;padding:20px;">
                         <div style="font-size:10px;font-weight:700;color:#c9a962;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;">Test QR</div>
-                        <img src="${qrDataUrl}" alt="Test QR" width="220" height="220" style="display:block;" />
+                        <img src="${qrDataUrl}" alt="Test QR" width="220" height="220" style="display:block;margin:0 auto;border-radius:8px;border:0;" />
                         <div style="font-size:11px;color:#94a3b8;margin-top:8px;">ID: ${testId.substring(0,8)}…</div>
                     </div>
                 </div>
                 <p style="font-size:13px;color:#64748b;">Admin Portal → Event Check-in → pick Conference or Bridges → scan this QR → ✓ valid. Pick Gala → ✗ not registered.</p>
                 <p style="font-size:11px;color:#94a3b8;"><em>Tagged "SCANNER TEST — safe to delete" in your Croatians Abroad list.</em></p>
+                <hr style="border:none;border-top:1px solid #e2e8f0;margin:18px 0;">
+                <p style="font-size:10px;color:#94a3b8;line-height:1.55;">Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event. <a href="https://medx-user-portal.onrender.com/privacy" style="color:#c9a962;text-decoration:none;">Privacy Policy</a> &nbsp;·&nbsp; <a href="https://medx-user-portal.onrender.com/terms" style="color:#c9a962;text-decoration:none;">Terms</a></p>
             </div>`;
             const sendResult = await sendEmail(email, 'Scanner Test QR — Plexus 2026', html);
             if (sendResult && sendResult.mock) {
@@ -16002,18 +16010,18 @@ By applying to this program, I provide the following consents:
 
             // Build the same Payment Confirmed email a real CA bundle guest gets (matches the Stripe webhook template)
             const eventListHtml = `
-                <tr><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;background:#fff;">
+                <tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;background:#fff;border-left:3px solid #a78bfa;">
                     <strong style="color:#0f172a;">Plexus Conference</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
-                    <div style="color:#64748b;font-size:12px;margin-top:2px;">4 December 2026 · Zagreb, Croatia · Programme to follow</div></td></tr>
-                <tr><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;background:#fff;">
+                    <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 · Zagreb · programme to follow</div></td></tr>
+                <tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;background:#fff;border-left:3px solid #f472b6;">
                     <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
-                    <div style="color:#64748b;font-size:12px;margin-top:2px;">4 or 5 December 2026 · Zagreb, Croatia · date to be confirmed</div></td></tr>
-                <tr><td style="padding:10px 14px;background:#fff;">
+                    <div style="color:#64748b;font-size:12px;margin-top:3px;">4 or 5 December 2026 · Zagreb · date to be confirmed</div></td></tr>
+                <tr><td style="padding:12px 14px;background:#fff;border-left:3px solid #c9a962;">
                     <strong style="color:#0f172a;">Plexus Gala Evening</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">CONFIRMED & PAID</span>
-                    <div style="color:#64748b;font-size:12px;margin-top:2px;">5 December 2026 · Hotel Esplanade Zagreb · Arrival from 7:00 PM</div></td></tr>`;
+                    <div style="color:#64748b;font-size:12px;margin-top:3px;">5 December 2026 · Hotel Esplanade Zagreb · arrival from 7:00 PM</div></td></tr>`;
 
             const html = `<div style="font-family:system-ui;max-width:600px;margin:0 auto;padding:24px;background:#f8fafc;color:#1a1a1a;">
                 <div style="text-align:center;margin-bottom:14px;">
@@ -16029,7 +16037,7 @@ By applying to this program, I provide the following consents:
                 ${qrDataUrl ? `<div style="text-align:center;margin:22px 0;">
                     <div style="display:inline-block;background:#fff;border:2px solid #e2e8f0;border-radius:14px;padding:22px;">
                         <div style="font-size:10px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;">Gala Check-in QR Code</div>
-                        <img src="${qrDataUrl}" alt="QR Code" width="220" height="220" style="display:block;" />
+                        <img src="${qrDataUrl}" alt="QR Code" width="220" height="220" style="display:block;margin:0 auto;border-radius:8px;border:0;" />
                         <div style="font-size:11px;color:#94a3b8;margin-top:8px;">Present this code at the Gala entrance on 5 December</div>
                     </div>
                 </div>` : ''}
@@ -16037,6 +16045,8 @@ By applying to this program, I provide the following consents:
                 <p style="margin-top:18px;">We look forward to welcoming you home in Zagreb.</p>
                 <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
                 <p style="font-size:12px;color:#94a3b8;"><strong>[BUNDLE TEST]</strong> This was generated by the admin test-bundle-email tool. The registration is tagged "BUNDLE TEST — safe to delete" and can be removed from your Croatians Abroad list any time. The QR is fully functional in the Event Check-in scanner — try scanning it in all three modes.</p>
+                <hr style="border:none;border-top:1px solid #e2e8f0;margin:18px 0;">
+                <p style="font-size:10px;color:#94a3b8;line-height:1.55;">Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event. <a href="https://medx-user-portal.onrender.com/privacy" style="color:#c9a962;text-decoration:none;">Privacy Policy</a> &nbsp;·&nbsp; <a href="https://medx-user-portal.onrender.com/terms" style="color:#c9a962;text-decoration:none;">Terms</a></p>
             </div>`;
 
             const sendResult = await sendEmail(targetEmail, 'Payment Confirmed — Plexus 2026 Gala Evening (TEST)', html);

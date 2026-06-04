@@ -200,7 +200,13 @@ function buildEmailTemplate(title, bodyHtml) {
             <span style="color: #334155;">|</span>
             <a href="https://www.instagram.com/medx.hr/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">Instagram</a>
         </div>
-        <div style="border-top: 1px solid #1e293b; padding-top: 12px; color: #64748b; font-size: 11px;">&copy; ${new Date().getFullYear()} Med&amp;X. All rights reserved.</div>
+        <div style="border-top: 1px solid #1e293b; padding-top: 12px; color: #64748b; font-size: 11px; line-height: 1.55;">
+            Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event.
+            <a href="https://medx-user-portal.onrender.com/privacy" style="color: #C9A962; text-decoration: none;">Privacy Policy</a>
+            &nbsp;·&nbsp;
+            <a href="https://medx-user-portal.onrender.com/terms" style="color: #C9A962; text-decoration: none;">Terms</a>
+        </div>
+        <div style="margin-top: 10px; color: #475569; font-size: 11px;">&copy; ${new Date().getFullYear()} Med&amp;X. All rights reserved.</div>
     </td></tr>
 </table>
 </td></tr>
@@ -366,6 +372,10 @@ app.get('/invite-success', async (req, res) => {
         <p style="color:#64748b;font-size:12px;margin:6px 0 0;">Check your spam folder if you don't see it within a few minutes.</p>
     </div>
     <a href="https://medx.hr" style="display:inline-block;padding:12px 24px;background:rgba(255,255,255,0.06);color:#c9a962;border:1px solid rgba(201,169,98,0.3);border-radius:10px;font-weight:600;text-decoration:none;margin-top:8px;">Visit Med&X →</a>
+    <div style="margin-top:28px;padding-top:18px;border-top:1px solid rgba(255,255,255,0.06);font-size:11px;color:#64748b;line-height:1.55;text-align:center;">
+        Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event.<br>
+        <a href="/privacy" style="color:#c9a962;text-decoration:none;">Privacy Policy</a> &nbsp;·&nbsp; <a href="/terms" style="color:#c9a962;text-decoration:none;">Terms</a>
+    </div>
 </div>
 <script>
 function downloadQR() {
@@ -433,7 +443,28 @@ function downloadQR() {
 });
 
 app.get('/invite-cancelled', (req, res) => {
-    res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Payment Cancelled</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:system-ui;text-align:center;padding:20px;"><div style="max-width:400px;"><h1 style="color:#f59e0b;margin-bottom:12px;">Payment Cancelled</h1><p style="color:#94a3b8;font-size:16px;margin-bottom:24px;">Your registration is saved but payment was not completed. You can try again or contact us.</p><a href="mailto:info@medx.hr" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Contact Med&X</a></div></body></html>`);
+    res.send(`<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Payment Cancelled — Plexus 2026</title></head>
+<body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif;text-align:center;padding:20px;margin:0;">
+    <div style="max-width:440px;width:100%;">
+        <div style="width:80px;height:80px;border-radius:50%;background:rgba(245,158,11,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <h1 style="color:#f59e0b;margin:0 0 8px;font-size:24px;">Payment Cancelled</h1>
+        <p style="color:#94a3b8;font-size:16px;margin-bottom:6px;line-height:1.55;">Your payment was not completed and no registration has been confirmed.</p>
+        <p style="color:#64748b;font-size:14px;margin-bottom:24px;">If this was unintentional, you can return to the invitation link and try again, or reach out below.</p>
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+            <a href="javascript:history.back()" style="display:inline-block;padding:12px 22px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">← Try Again</a>
+            <a href="mailto:laura.rodman@medx.hr" style="display:inline-block;padding:12px 22px;background:rgba(255,255,255,0.06);color:#c9a962;border:1px solid rgba(201,169,98,0.3);border-radius:10px;font-weight:600;text-decoration:none;">Contact Laura</a>
+        </div>
+        <div style="margin-top:28px;padding-top:18px;border-top:1px solid rgba(255,255,255,0.06);font-size:11px;color:#64748b;line-height:1.55;">
+            Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event.<br>
+            <a href="/privacy" style="color:#c9a962;text-decoration:none;">Privacy Policy</a> &nbsp;·&nbsp; <a href="/terms" style="color:#c9a962;text-decoration:none;">Terms</a>
+        </div>
+    </div>
+</body>
+</html>`);
 });
 
 // ========== TERMS & PRIVACY (linked from invite pages) ==========
@@ -683,28 +714,40 @@ app.get('/invite/:data', (req, res) => {
     h1 { font-size:24px; font-weight:700; color:#fff; margin-bottom:6px; line-height:1.2; }
     .lede { font-size:14px; color:#94a3b8; margin-bottom:24px; line-height:1.55; }
     .section-label { font-size:11px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#c9a962; margin:20px 0 12px; }
-    .event-option { background:rgba(255,255,255,0.04); border:1.5px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px; margin-bottom:10px; display:flex; gap:14px; cursor:pointer; transition:all 0.2s; }
-    .event-option:hover { border-color:rgba(201,169,98,0.3); background:rgba(255,255,255,0.06); }
-    .event-option.selected { border-color:#c9a962; background:rgba(201,169,98,0.08); }
-    .event-option.disabled-but-checked { border-color:rgba(168,85,247,0.5); background:rgba(168,85,247,0.08); cursor:default; opacity:0.95; }
-    .event-checkbox { flex-shrink:0; width:22px; height:22px; border:2px solid rgba(255,255,255,0.2); border-radius:6px; display:flex; align-items:center; justify-content:center; margin-top:2px; }
-    .event-option.selected .event-checkbox { background:#c9a962; border-color:#c9a962; }
-    .event-option.disabled-but-checked .event-checkbox { background:#a855f7; border-color:#a855f7; }
-    .event-checkbox i { color:#0f172a; font-size:12px; display:none; }
-    .event-option.selected .event-checkbox i, .event-option.disabled-but-checked .event-checkbox i { display:block; color:#fff; }
+    .event-option { background:rgba(255,255,255,0.04); border:1.5px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px; margin-bottom:10px; display:flex; gap:14px; cursor:pointer; transition:all 0.2s; position:relative; overflow:hidden; }
+    .event-option::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:transparent; transition:background 0.2s; }
+    .event-option:hover { border-color:rgba(201,169,98,0.3); background:rgba(255,255,255,0.06); transform:translateY(-1px); }
+    .event-option.evt-conf::before { background:rgba(167,139,250,0.5); }
+    .event-option.evt-bridges::before { background:rgba(244,114,182,0.5); }
+    .event-option.evt-gala::before { background:rgba(201,169,98,0.5); }
+    .event-option.evt-conf.selected { border-color:#a78bfa; background:rgba(167,139,250,0.06); }
+    .event-option.evt-conf.selected::before { background:#a78bfa; width:4px; }
+    .event-option.evt-bridges.selected { border-color:#f472b6; background:rgba(244,114,182,0.06); }
+    .event-option.evt-bridges.selected::before { background:#f472b6; width:4px; }
+    .event-option.evt-gala.selected { border-color:#c9a962; background:rgba(201,169,98,0.08); }
+    .event-option.evt-gala.selected::before { background:#c9a962; width:4px; }
+    .event-checkbox { flex-shrink:0; width:22px; height:22px; border:2px solid rgba(255,255,255,0.2); border-radius:6px; display:flex; align-items:center; justify-content:center; margin-top:2px; transition:all 0.2s; }
+    .event-option.evt-conf.selected .event-checkbox { background:#a78bfa; border-color:#a78bfa; }
+    .event-option.evt-bridges.selected .event-checkbox { background:#f472b6; border-color:#f472b6; }
+    .event-option.evt-gala.selected .event-checkbox { background:#c9a962; border-color:#c9a962; }
+    .event-checkbox i { color:#fff; font-size:12px; display:none; }
+    .event-option.selected .event-checkbox i { display:block; }
+    .event-icon { flex-shrink:0; width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:16px; margin-top:-2px; transition:transform 0.2s; }
+    .event-option.evt-conf .event-icon { background:rgba(167,139,250,0.12); color:#a78bfa; }
+    .event-option.evt-bridges .event-icon { background:rgba(244,114,182,0.12); color:#f472b6; }
+    .event-option.evt-gala .event-icon { background:rgba(201,169,98,0.12); color:#c9a962; }
+    .event-option:hover .event-icon { transform:scale(1.05); }
     .event-title-row { display:flex; justify-content:space-between; gap:10px; align-items:baseline; margin-bottom:4px; }
-    .event-name { font-size:15px; font-weight:600; color:#fff; }
+    .event-name { font-size:15.5px; font-weight:600; color:#fff; }
     .event-price { font-size:13px; font-weight:600; color:#c9a962; white-space:nowrap; }
     .event-price.free { color:#22c55e; }
     .event-meta { font-size:12px; color:#94a3b8; line-height:1.45; }
-    .event-note { font-size:11px; color:#cbd5e1; margin-top:6px; font-style:italic; }
-    .bundle-banner { display:none; background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.3); border-radius:10px; padding:10px 14px; font-size:12px; color:#e9d5ff; margin-top:10px; }
-    .bundle-banner.show { display:block; }
-    .keynote-card { background:linear-gradient(135deg,rgba(201,169,98,0.08),rgba(201,169,98,0.02)); border:1px solid rgba(201,169,98,0.25); border-radius:14px; padding:14px; margin-top:16px; display:flex; gap:12px; align-items:center; }
-    .keynote-card img { width:56px; height:56px; border-radius:50%; object-fit:cover; object-position:center 22%; border:2px solid #c9a962; flex-shrink:0; }
-    .keynote-card .kc-label { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:#c9a962; font-weight:700; margin-bottom:3px; }
-    .keynote-card .kc-name { font-size:14px; font-weight:600; color:#fff; line-height:1.2; }
-    .keynote-card .kc-role { font-size:12px; font-style:italic; color:#e8c97a; margin-top:2px; }
+    .event-note { font-size:11.5px; color:#cbd5e1; margin-top:6px; line-height:1.5; }
+    .keynote-card { background:linear-gradient(135deg,rgba(201,169,98,0.10),rgba(201,169,98,0.02)); border:1px solid rgba(201,169,98,0.28); border-radius:14px; padding:18px; margin-top:18px; display:flex; gap:16px; align-items:center; }
+    .keynote-card img { width:72px; height:72px; border-radius:50%; object-fit:cover; object-position:center 22%; border:2px solid #c9a962; flex-shrink:0; box-shadow:0 4px 14px rgba(0,0,0,0.25); }
+    .keynote-card .kc-label { font-size:9px; letter-spacing:2.5px; text-transform:uppercase; color:#c9a962; font-weight:700; margin-bottom:4px; }
+    .keynote-card .kc-name { font-size:15.5px; font-weight:600; color:#fff; line-height:1.2; }
+    .keynote-card .kc-role { font-size:12.5px; font-style:italic; color:#e8c97a; margin-top:3px; }
     .form-grid { display:grid; gap:14px; margin-top:18px; }
     .form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     label { display:block; font-size:11px; font-weight:600; color:#94a3b8; margin-bottom:5px; }
@@ -737,32 +780,35 @@ app.get('/invite/:data', (req, res) => {
 
         <div class="section-label">Select Your Events</div>
 
-        <div class="event-option" id="evtConference" data-event="conference" onclick="toggleEvent('conference')">
+        <div class="event-option evt-conf" id="evtConference" data-event="conference" onclick="toggleEvent('conference')">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
+            <div class="event-icon"><i class="fas fa-microscope"></i></div>
             <div style="flex:1;min-width:0;">
                 <div class="event-title-row">
                     <span class="event-name">Plexus Conference</span>
                     <span class="event-price free">INCLUDED</span>
                 </div>
-                <div class="event-meta"><i class="fas fa-calendar" style="color:#c9a962;margin-right:5px;"></i>${escapeHtml(confDate)} &middot; Zagreb, Croatia</div>
+                <div class="event-meta"><i class="fas fa-calendar" style="color:#a78bfa;margin-right:5px;"></i>${escapeHtml(confDate)} &middot; Zagreb, Croatia</div>
                 <div class="event-note">${escapeHtml(confDesc)} Programme to be announced &mdash; we will email you the full schedule.</div>
             </div>
         </div>
 
-        <div class="event-option" id="evtBridges" data-event="bridges" onclick="toggleEvent('bridges')">
+        <div class="event-option evt-bridges" id="evtBridges" data-event="bridges" onclick="toggleEvent('bridges')">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
+            <div class="event-icon"><i class="fas fa-handshake"></i></div>
             <div style="flex:1;min-width:0;">
                 <div class="event-title-row">
                     <span class="event-name">Croatian Biomedical Bridges</span>
                     <span class="event-price free">INCLUDED</span>
                 </div>
-                <div class="event-meta"><i class="fas fa-calendar" style="color:#c9a962;margin-right:5px;"></i>${escapeHtml(bridgesDateText)}</div>
+                <div class="event-meta"><i class="fas fa-calendar" style="color:#f472b6;margin-right:5px;"></i>${escapeHtml(bridgesDateText)}</div>
                 <div class="event-note">${escapeHtml(bridgesDesc)}</div>
             </div>
         </div>
 
-        <div class="event-option" id="evtGala" data-event="gala" onclick="toggleEvent('gala')">
+        <div class="event-option evt-gala" id="evtGala" data-event="gala" onclick="toggleEvent('gala')">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
+            <div class="event-icon"><i class="fas fa-glass-cheers"></i></div>
             <div style="flex:1;min-width:0;">
                 <div class="event-title-row">
                     <span class="event-name">Plexus Gala Evening</span>
@@ -10969,18 +11015,18 @@ By applying to this program, I provide the following consents:
                     } catch(qrErr) { console.warn('CA gala QR generation failed:', qrErr.message); }
 
                     const eventListHtml = `
-                        ${metadata.bundle_conference === '1' ? `<tr><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;">
+                        ${metadata.bundle_conference === '1' ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #a78bfa;">
                             <strong style="color:#0f172a;">Plexus Conference</strong>
-                            <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (FREE)</span>
-                            <div style="color:#64748b;font-size:12px;margin-top:2px;">4 December 2026 &middot; Programme to follow</div></td></tr>` : ''}
-                        ${metadata.bundle_bridges === '1' ? `<tr><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;">
+                            <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
+                            <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 &middot; Zagreb &middot; programme to follow</div></td></tr>` : ''}
+                        ${metadata.bundle_bridges === '1' ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #f472b6;">
                             <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
-                            <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (FREE)</span>
-                            <div style="color:#64748b;font-size:12px;margin-top:2px;">4 or 5 December 2026 &middot; date and venue to be confirmed</div></td></tr>` : ''}
-                        <tr><td style="padding:10px 14px;">
+                            <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
+                            <div style="color:#64748b;font-size:12px;margin-top:3px;">4 or 5 December 2026 &middot; Zagreb &middot; date and venue to be confirmed</div></td></tr>` : ''}
+                        <tr><td style="padding:12px 14px;border-left:3px solid #c9a962;">
                             <strong style="color:#0f172a;">Plexus Gala Evening</strong>
                             <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">CONFIRMED &amp; PAID</span>
-                            <div style="color:#64748b;font-size:12px;margin-top:2px;">5 December 2026 &middot; Hotel Esplanade Zagreb &middot; from 7:00 PM</div></td></tr>`;
+                            <div style="color:#64748b;font-size:12px;margin-top:3px;">5 December 2026 &middot; Hotel Esplanade Zagreb &middot; arrival from 7:00 PM</div></td></tr>`;
 
                     // Confirmation email — payment receipt + bundle summary + QR
                     try {
@@ -10998,7 +11044,7 @@ By applying to this program, I provide the following consents:
                             ${qrDataUrl ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;"><tr><td align="center">
                                 <table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:16px;padding:22px;text-align:center;">
                                     <tr><td style="padding-bottom:10px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Gala Check-in QR Code</td></tr>
-                                    <tr><td><img src="${qrDataUrl}" alt="QR Code" width="200" height="200" style="display:block;margin:0 auto;border-radius:8px;" /></td></tr>
+                                    <tr><td align="center" style="text-align:center;"><img src="${qrDataUrl}" alt="QR Code" width="200" height="200" style="display:block;margin:0 auto;border-radius:8px;border:0;" /></td></tr>
                                     <tr><td style="padding-top:10px;font-size:12px;color:#94a3b8;">Present this code at the Gala entrance on 5 December</td></tr>
                                 </table>
                             </td></tr></table>` : ''}
@@ -11139,7 +11185,7 @@ By applying to this program, I provide the following consents:
                         <p>Your payment of <strong>&euro;${amount.toFixed(2)}</strong> for <strong style="color:#C9A962;">${metadata.event_name || 'Med&X Event'}</strong> has been received.</p>
                         ${itemsList.length ? '<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;"><tr><td style="background:#f8fafc;padding:10px 16px;font-size:13px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Registered For</td></tr>' + itemsList.map(i => '<tr><td style="padding:10px 16px;font-size:14px;color:#334155;border-bottom:1px solid #f1f5f9;">&#10003; ' + i + '</td></tr>').join('') + '</table>' : ''}
                         ${guestCnt ? '<p>&#128101; <strong>+' + guestCnt + ' Guest' + (guestCnt > 1 ? 's' : '') + '</strong> included in your registration. Your guest(s) can use the same QR code for check-in.</p>' : ''}
-                        ${qrDataUrl ? '<table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;"><tr><td align="center"><table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:16px;padding:24px;text-align:center;"><tr><td style="padding-bottom:12px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Your Check-in QR Code</td></tr><tr><td><img src="' + qrDataUrl + '" alt="QR Code" width="180" height="180" style="display:block;margin:0 auto;border-radius:8px;" /></td></tr><tr><td style="padding-top:12px;font-size:12px;color:#94a3b8;">Present this code at the event entrance</td></tr></table></td></tr></table>' : ''}
+                        ${qrDataUrl ? '<table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;"><tr><td align="center"><table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:16px;padding:24px;text-align:center;"><tr><td style="padding-bottom:12px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Your Check-in QR Code</td></tr><tr><td align="center" style="text-align:center;"><img src="' + qrDataUrl + '" alt="QR Code" width="180" height="180" style="display:block;margin:0 auto;border-radius:8px;border:0;" /></td></tr><tr><td style="padding-top:12px;font-size:12px;color:#94a3b8;">Present this code at the event entrance</td></tr></table></td></tr></table>' : ''}
                         <p>We look forward to seeing you!</p>
                         <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;border-top:1px solid #e2e8f0;padding-top:16px;">
                             <tr><td style="font-size:13px;color:#64748b;">Questions? Contact <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></td></tr>
@@ -16833,18 +16879,18 @@ By applying to this program, I provide the following consents:
             } catch(qrErr) {}
 
             const eventListHtml = `
-                <tr><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;background:#fff;">
+                <tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;background:#fff;border-left:3px solid #a78bfa;">
                     <strong style="color:#0f172a;">Plexus Conference</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
-                    <div style="color:#64748b;font-size:12px;margin-top:2px;">4 December 2026 · Zagreb, Croatia · Programme to follow</div></td></tr>
-                <tr><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;background:#fff;">
+                    <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 · Zagreb · programme to follow</div></td></tr>
+                <tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;background:#fff;border-left:3px solid #f472b6;">
                     <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
-                    <div style="color:#64748b;font-size:12px;margin-top:2px;">4 or 5 December 2026 · Zagreb, Croatia · date to be confirmed</div></td></tr>
-                <tr><td style="padding:10px 14px;background:#fff;">
+                    <div style="color:#64748b;font-size:12px;margin-top:3px;">4 or 5 December 2026 · Zagreb · date to be confirmed</div></td></tr>
+                <tr><td style="padding:12px 14px;background:#fff;border-left:3px solid #c9a962;">
                     <strong style="color:#0f172a;">Plexus Gala Evening</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">CONFIRMED & PAID</span>
-                    <div style="color:#64748b;font-size:12px;margin-top:2px;">5 December 2026 · Hotel Esplanade Zagreb · Arrival from 7:00 PM</div></td></tr>`;
+                    <div style="color:#64748b;font-size:12px;margin-top:3px;">5 December 2026 · Hotel Esplanade Zagreb · arrival from 7:00 PM</div></td></tr>`;
 
             const sendResult = await sendEmail(targetEmail, 'Payment Confirmed — Plexus 2026 Gala Evening (TEST)', buildEmailTemplate('Payment Confirmed', `
                 <div style="text-align:center;margin-bottom:14px;">
@@ -16860,7 +16906,7 @@ By applying to this program, I provide the following consents:
                 ${qrDataUrl ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;"><tr><td align="center">
                     <table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:14px;padding:22px;text-align:center;">
                         <tr><td style="padding-bottom:10px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Gala Check-in QR Code</td></tr>
-                        <tr><td><img src="${qrDataUrl}" alt="QR Code" width="220" height="220" style="display:block;margin:0 auto;border-radius:8px;" /></td></tr>
+                        <tr><td align="center" style="text-align:center;"><img src="${qrDataUrl}" alt="QR Code" width="220" height="220" style="display:block;margin:0 auto;border-radius:8px;border:0;" /></td></tr>
                         <tr><td style="padding-top:10px;font-size:12px;color:#94a3b8;">Present this code at the Gala entrance on 5 December</td></tr>
                     </table>
                 </td></tr></table>` : ''}
@@ -17297,20 +17343,20 @@ By applying to this program, I provide the following consents:
             );
             saveDb();
 
-            // Helper: build the event-list HTML used in confirmation emails
+            // Helper: build the event-list HTML used in confirmation emails (with per-event color accents)
             const eventListHtml = [
-                finalConf ? `<tr><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;">
+                finalConf ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #a78bfa;">
                     <strong style="color:#0f172a;">Plexus Conference</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED</span>
-                    <div style="color:#64748b;font-size:12px;margin-top:2px;">4 December 2026 &middot; Programme to be announced</div></td></tr>` : '',
-                finalBridges ? `<tr><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;">
+                    <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 &middot; Zagreb &middot; programme to be announced</div></td></tr>` : '',
+                finalBridges ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #f472b6;">
                     <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED</span>
-                    <div style="color:#64748b;font-size:12px;margin-top:2px;">4 or 5 December 2026 &middot; date and venue to be confirmed</div></td></tr>` : '',
-                finalGala ? `<tr><td style="padding:10px 14px;">
+                    <div style="color:#64748b;font-size:12px;margin-top:3px;">4 or 5 December 2026 &middot; Zagreb &middot; date and venue to be confirmed</div></td></tr>` : '',
+                finalGala ? `<tr><td style="padding:12px 14px;border-left:3px solid #c9a962;">
                     <strong style="color:#0f172a;">Plexus Gala Evening</strong>
                     <span style="color:#f59e0b;font-size:12px;font-weight:600;margin-left:8px;">AWAITING PAYMENT</span>
-                    <div style="color:#64748b;font-size:12px;margin-top:2px;">5 December 2026 &middot; Hotel Esplanade Zagreb &middot; from 7:00 PM</div></td></tr>` : ''
+                    <div style="color:#64748b;font-size:12px;margin-top:3px;">5 December 2026 &middot; Hotel Esplanade Zagreb &middot; arrival from 7:00 PM</div></td></tr>` : ''
             ].filter(Boolean).join('');
 
             // ---------- PATH A: Free-only (no Gala) → confirm immediately ----------
@@ -17332,7 +17378,7 @@ By applying to this program, I provide the following consents:
                     <table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;"><tr><td align="center">
                         <table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:14px;padding:20px;text-align:center;">
                             <tr><td style="padding-bottom:10px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Your Check-in QR Code</td></tr>
-                            <tr><td><img src="${caQrDataUrl}" alt="QR Code" width="200" height="200" style="display:block;margin:0 auto;border-radius:8px;" /></td></tr>
+                            <tr><td align="center" style="text-align:center;"><img src="${caQrDataUrl}" alt="QR Code" width="200" height="200" style="display:block;margin:0 auto;border-radius:8px;border:0;" /></td></tr>
                             <tr><td style="padding-top:10px;font-size:12px;color:#94a3b8;">Present this QR at the entrance to each event you've pre-registered for</td></tr>
                         </table>
                     </td></tr></table>` : '';
@@ -17565,7 +17611,7 @@ By applying to this program, I provide the following consents:
                         <tr><td align="center">
                             <table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:16px;padding:24px;text-align:center;">
                                 <tr><td style="padding-bottom:12px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Your Check-in QR Code</td></tr>
-                                <tr><td><img src="${qrDataUrl}" alt="QR Code" width="180" height="180" style="display:block;margin:0 auto;border-radius:8px;" /></td></tr>
+                                <tr><td align="center" style="text-align:center;"><img src="${qrDataUrl}" alt="QR Code" width="180" height="180" style="display:block;margin:0 auto;border-radius:8px;border:0;" /></td></tr>
                                 <tr><td style="padding-top:12px;font-size:12px;color:#94a3b8;">Present this code at the event entrance</td></tr>
                             </table>
                         </td></tr>
