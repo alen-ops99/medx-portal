@@ -17096,8 +17096,14 @@ By applying to this program, I provide the following consents:
         res.status(500).json({ error: 'Internal server error' });
     });
 
-    // Serve frontend
-    app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../frontend/index.html')));
+    // Serve frontend (SPA fallback for client-side routes)
+    // Skip paths with file extensions so missing assets 404 properly instead of returning SPA HTML
+    app.get('*', (req, res) => {
+        if (path.extname(req.path)) {
+            return res.status(404).send('Not found');
+        }
+        res.sendFile(path.join(__dirname, '../frontend/index.html'));
+    });
 
     // Health check
     app.get('/health', (req, res) => res.json({ ok: true }));

@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /
+
+# Med&X event portal is invitation-only.
+# Tokenized URLs (e.g. /invite/...) must not be indexed.

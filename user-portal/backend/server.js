@@ -312,6 +312,12 @@ app.get('/api/admin/registrations-csv', auth, (req, res) => {
 // ========== INVITE SUCCESS/CANCEL PAGES ==========
 app.get('/invite-success', async (req, res) => {
     const sessionId = req.query.session_id;
+
+    // Direct hit without a Stripe checkout session — don't falsely claim success
+    if (!sessionId) {
+        return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>No Recent Payment Session — Med&X</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:system-ui;text-align:center;padding:20px;margin:0;"><div style="max-width:460px;width:100%;"><div style="width:64px;height:64px;border-radius:50%;background:rgba(245,158,11,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:28px;color:#f59e0b;">?</div><h1 style="color:#fff;font-size:22px;margin-bottom:12px;font-weight:600;">No recent payment session</h1><p style="color:#94a3b8;line-height:1.6;margin-bottom:8px;">We couldn't find a payment session associated with this page.</p><p style="color:#64748b;font-size:14px;line-height:1.6;margin-bottom:24px;">If you just completed a payment, your confirmation and QR code have been emailed to you — please check your inbox (and spam folder).</p><div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;"><a href="https://medx.hr" style="display:inline-block;padding:12px 22px;background:rgba(255,255,255,0.06);color:#c9a962;border-radius:10px;font-weight:600;text-decoration:none;border:1px solid rgba(201,169,98,0.2);">Visit Med&amp;X</a><a href="mailto:laura.rodman@medx.hr?subject=Question%20about%20Plexus%202026%20registration" style="display:inline-block;padding:12px 22px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Contact Laura</a></div><div style="margin-top:28px;padding-top:18px;border-top:1px solid rgba(255,255,255,0.06);font-size:11px;color:#64748b;line-height:1.55;"><a href="/privacy" style="color:#c9a962;text-decoration:none;">Privacy Policy</a> &nbsp;·&nbsp; <a href="/terms" style="color:#c9a962;text-decoration:none;">Terms</a></div></div></body></html>`);
+    }
+
     let qrDataUrl = '';
     let eventName = 'Med&X Event';
     let customerEmail = '';
@@ -17979,8 +17985,14 @@ By applying to this program, I provide the following consents:
         res.status(404).json({ error: 'API endpoint not found' });
     });
 
-    // Serve frontend
-    app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../frontend/index.html')));
+    // Serve frontend (SPA fallback for client-side routes)
+    // Skip paths with file extensions so missing assets 404 properly instead of returning 5.6MB SPA HTML
+    app.get('*', (req, res) => {
+        if (path.extname(req.path)) {
+            return res.status(404).send('Not found');
+        }
+        res.sendFile(path.join(__dirname, '../frontend/index.html'));
+    });
 
     // Global error handler — push into ring buffer + log. Must be registered LAST.
     app.use((err, req, res, next) => {
