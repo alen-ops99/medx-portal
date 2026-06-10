@@ -377,6 +377,15 @@ function adminOnly(req, res, next) {
     next();
 }
 
+// Record a consequential admin action. Best-effort — never throws into the request path.
+function logAudit(req, action, detail) {
+    try {
+        db.run('INSERT INTO audit_log (id, actor_id, actor_email, action, detail) VALUES (?,?,?,?,?)',
+            [require('crypto').randomUUID(), req.user?.id || null, req.user?.email || 'unknown', action, detail || null]);
+        saveDb();
+    } catch (e) { /* audit logging must never break the action */ }
+}
+
 async function initializeApp() {
     // Ensure DB directory exists
     const sharedDir = path.dirname(DB_PATH);
@@ -1350,6 +1359,14 @@ async function initializeApp() {
         title TEXT, body TEXT, url TEXT,
         sent INTEGER DEFAULT 0, sent_at TEXT, sent_count INTEGER,
         created_by TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // Audit log — who did what (for a multi-person team).
+    db.run(`CREATE TABLE IF NOT EXISTS audit_log (
+        id TEXT PRIMARY KEY,
+        actor_id TEXT, actor_email TEXT,
+        action TEXT, detail TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
     // Monthly reminder tracking
@@ -5492,6 +5509,7 @@ async function initializeApp() {
                 [id, name, parseInt(year), cleanSlug, description || null, start_date || null, end_date || null,
                  venue_name || null, venue_city || null, venue_country || null, parseInt(max_capacity) || 200]);
             saveDb();
+            logAudit(req, 'conference.create', `${name} (${year}) [${cleanSlug}]`);
             res.json({ success: true, id, slug: cleanSlug });
         } catch (e) { console.error('[Conf] create failed:', e.message); res.status(500).json({ error: e.message }); }
     });
@@ -5541,6 +5559,7 @@ async function initializeApp() {
             db.run('UPDATE conferences SET is_active = 0');
             db.run('UPDATE conferences SET is_active = 1 WHERE id = ?', [req.params.id]);
             saveDb();
+            logAudit(req, 'conference.activate', `Set live: ${c.name}`);
             res.json({ success: true, active: c.name });
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
@@ -11845,6 +11864,7 @@ By applying to this program, I provide the following consents:
                     pushQueued = true;
                 } catch (e) { console.warn('[Push] enqueue failed:', e.message); }
             }
+            logAudit(req, 'notification.send', `"${title}"${pushQueued ? ' (+push)' : ''} → ${user_group || 'all'}`);
             res.json({ success: true, id, push_queued: pushQueued });
         } catch (err) {
             res.status(500).json({ error: err.message });
@@ -15792,6 +15812,12 @@ By applying to this program, I provide the following consents:
         fields.push("updated_at = ?"); values.push(new Date().toISOString());
         db.run(`UPDATE gala_settings SET ${fields.join(', ')} WHERE id = 'default'`, values);
         saveDb();
+        // Audit price/registration changes specifically — the highest-consequence gala edits.
+        const changed = [];
+        if (price_gala_only !== undefined) changed.push('gala price €' + price_gala_only);
+        if (price_bundle !== undefined) changed.push('bundle €' + price_bundle);
+        if (is_registration_open !== undefined) changed.push('registration ' + (is_registration_open ? 'OPEN' : 'CLOSED'));
+        logAudit(req, 'gala.settings', changed.length ? changed.join(', ') : 'settings updated');
         const updated = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
         if (updated) {
             try { updated.speakers = JSON.parse(updated.speakers_json || '[]'); } catch(e) { updated.speakers = []; }
@@ -17161,6 +17187,7 @@ By applying to this program, I provide the following consents:
             const recipients = collectBulkRecipients(audience || 'all').slice(0, 2000);
             if (!recipients.length) return res.status(400).json({ error: 'No recipients for this audience.' });
 
+            logAudit(req, 'bulk_email.send', `"${subject}" → ${recipients.length} (${audience || 'all'})`);
             res.json({ success: true, queued: recipients.length, audience: audience || 'all' });
 
             // Background send (after responding). Plain text becomes simple HTML paragraphs.
@@ -17179,6 +17206,14 @@ By applying to this program, I provide the following consents:
                 console.log(`[Bulk] "${subject}" → ${sent} sent, ${failed} failed (audience ${audience || 'all'}).`);
             })().catch(e => console.error('[Bulk] send loop error:', e.message));
         } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Audit log feed (most recent admin actions).
+    app.get('/api/admin/audit-log', auth, adminOnly, (req, res) => {
+        try {
+            const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+            res.json(query.all('SELECT actor_email, action, detail, created_at FROM audit_log ORDER BY created_at DESC LIMIT ?', [limit]));
+        } catch (e) { res.json([]); }
     });
 
     // ==================== TECH DASHBOARD ====================
@@ -17329,6 +17364,7 @@ By applying to this program, I provide the following consents:
     app.get('/api/admin/tech/db-download', auth, adminOnly, techAuth, (req, res) => {
         try {
             if (!fs.existsSync(DB_PATH)) return res.status(404).json({ error: 'Database file not found' });
+            logAudit(req, 'tech.db_download', 'Downloaded full database file');
             res.setHeader('Content-Disposition', 'attachment; filename=medx_portal.db');
             res.setHeader('Content-Type', 'application/octet-stream');
             const stream = fs.createReadStream(DB_PATH);

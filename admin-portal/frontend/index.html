@@ -6656,6 +6656,11 @@
                     <span id="healthNavDot" style="width:9px;height:9px;border-radius:50%;margin-left:auto;display:none;"></span>
                 </a>
 
+                <a class="nav-item" data-section="audit" onclick="App.showSection('audit', this)">
+                    <i class="fas fa-clipboard-list" style="color: #94a3b8;"></i>
+                    <span>Audit Log</span>
+                </a>
+
                 <a class="nav-item" data-section="tech" onclick="App.showSection('tech', this)">
                     <i class="fas fa-server" style="color: #8b5cf6;"></i>
                     <span>Tech</span>
@@ -10887,6 +10892,19 @@ President, Med&amp;X</textarea>
                     </div>
                     <div id="confCreateForm" style="display:none;"></div>
                     <div id="confList"><div style="text-align:center;padding:30px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i></div></div>
+                </div>
+
+                <!-- AUDIT LOG -->
+                <div class="section" id="section-audit">
+                    <div class="back-link" onclick="App.showSection('dashboard')"><i class="fas fa-arrow-left"></i> Back to Dashboard</div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px;">
+                        <div>
+                            <h2 style="margin:0;font-size:22px;display:flex;align-items:center;gap:10px;"><i class="fas fa-clipboard-list" style="color:#94a3b8;"></i> Audit Log</h2>
+                            <p style="margin:6px 0 0;color:var(--text-muted);font-size:13px;">Who changed what — price changes, conference activation, announcements, bulk emails, DB downloads.</p>
+                        </div>
+                        <button class="btn btn-secondary" onclick="AuditApp.load()"><i class="fas fa-sync"></i> Refresh</button>
+                    </div>
+                    <div id="auditList"><div style="text-align:center;padding:30px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i></div></div>
                 </div>
 
                 <!-- SYSTEM HEALTH (PREFLIGHT) -->
@@ -15389,6 +15407,7 @@ President, Med&amp;X</textarea>
                     'gala': 'Gala Evening',
                     'conferences': 'Conferences',
                     'email-blast': 'Email Registrants',
+                    'audit': 'Audit Log',
                     'health': 'System Health',
                     'tech': 'Tech Dashboard',
                     'settings': 'Settings'
@@ -15470,6 +15489,10 @@ President, Med&amp;X</textarea>
                     this.currentView = 'email-blast';
                     this.switchChatPanel('team');
                     if (typeof BulkApp !== 'undefined') BulkApp.previewCount();
+                } else if (sectionId === 'audit') {
+                    this.currentView = 'audit';
+                    this.switchChatPanel('team');
+                    if (typeof AuditApp !== 'undefined') AuditApp.load();
                 } else if (sectionId === 'health') {
                     this.currentView = 'health';
                     this.switchChatPanel('team');
@@ -30233,6 +30256,31 @@ By applying to this program, I give the following consents:
                     URL.revokeObjectURL(url);
                     Toast.success(`${data.count} ${event} emails exported`);
                 } catch (err) { Toast.error('Export failed'); }
+            }
+        };
+
+        // ==================== AUDIT LOG ====================
+        const AuditApp = {
+            esc(s) { return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); },
+            ICONS: { 'conference.activate':'fa-bolt', 'conference.create':'fa-calendar-plus', 'gala.settings':'fa-glass-cheers', 'notification.send':'fa-bullhorn', 'bulk_email.send':'fa-envelope-open-text', 'tech.db_download':'fa-database' },
+            async load() {
+                const el = document.getElementById('auditList');
+                try {
+                    const res = await fetch('/api/admin/audit-log?limit=200', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    const rows = await res.json();
+                    if (!rows.length) { el.innerHTML = '<div class="card" style="padding:20px;color:var(--text-muted);">No actions logged yet. Consequential admin actions will appear here.</div>'; return; }
+                    el.innerHTML = '<div class="card" style="padding:0;overflow:hidden;">' + rows.map(r => {
+                        const icon = this.ICONS[r.action] || 'fa-circle-dot';
+                        const when = r.created_at ? new Date(r.created_at.replace(' ', 'T') + (/[Zz]|[+\-]\d\d:?\d\d$/.test(r.created_at) ? '' : 'Z')).toLocaleString() : '';
+                        return `<div style="display:flex;align-items:flex-start;gap:12px;padding:11px 14px;border-bottom:1px solid var(--border);">
+                            <span style="flex-shrink:0;width:26px;height:26px;border-radius:6px;background:rgba(148,163,184,0.15);color:#94a3b8;display:inline-flex;align-items:center;justify-content:center;font-size:12px;margin-top:1px;"><i class="fas ${icon}"></i></span>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-size:13.5px;color:var(--text-primary);"><strong>${this.esc(r.action)}</strong> ${r.detail ? '· ' + this.esc(r.detail) : ''}</div>
+                                <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">${this.esc(r.actor_email || 'unknown')} · ${when}</div>
+                            </div>
+                        </div>`;
+                    }).join('') + '</div>';
+                } catch (e) { el.innerHTML = '<div class="card" style="padding:16px;">Failed to load the audit log.</div>'; }
             }
         };
 
