@@ -12767,26 +12767,41 @@ President, Med&amp;X</textarea>
 
             try {
                 if (doCheckin) {
-                    // Check in
-                    let endpoint = '/api/plexus/checkin';
-                    if (type === 'forum') endpoint = '/api/admin/forum/checkin';
-                    else if (type === 'bridges') endpoint = '/api/admin/bridges/checkin';
-
-                    await fetch(endpoint, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                        body: JSON.stringify({ code: regId, registration_id: regId })
-                    });
+                    let resp, data;
+                    if (type === 'forum') {
+                        // Forum has its own check-in endpoint (not covered by the unified verifier)
+                        resp = await fetch('/api/admin/forum/checkin', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                            body: JSON.stringify({ code: regId, registration_id: regId })
+                        });
+                        data = await resp.json().catch(() => ({}));
+                        if (!resp.ok || data.success === false) throw new Error(data.error || data.message || 'Check-in failed');
+                    } else {
+                        // gala / conference / bridges all go through the unified verifier with mark:true,
+                        // which checks payment and writes the correct table (the old code sent gala to
+                        // /api/plexus/checkin and never inspected the response — silent failure at the door).
+                        const verifyEvent = (type === 'plexus' || type === 'conference') ? 'conference' : type;
+                        resp = await fetch('/api/admin/checkin/verify', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                            body: JSON.stringify({ event: verifyEvent, code: regId, mark: true })
+                        });
+                        data = await resp.json().catch(() => ({}));
+                        if (!resp.ok || !data.valid) throw new Error(data.message || 'Not valid for check-in');
+                    }
 
                     if (navigator.vibrate) navigator.vibrate(200);
-                    Toast.success('Checked in!');
+                    Toast.success(data.already_checked_in ? 'Already checked in' : 'Checked in!');
                 } else {
                     // Undo check-in
-                    await fetch('/api/checkin/undo', {
+                    const resp = await fetch('/api/checkin/undo', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                        body: JSON.stringify({ registration_id: regId, type: type })
+                        body: JSON.stringify({ id: regId, registration_id: regId, event: type, type: type })
                     });
+                    const data = await resp.json().catch(() => ({}));
+                    if (!resp.ok || data.success === false) throw new Error(data.error || 'Undo failed');
                     Toast.success('Check-in undone');
                 }
 

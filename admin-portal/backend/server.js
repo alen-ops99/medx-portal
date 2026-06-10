@@ -10590,22 +10590,45 @@ By applying to this program, I provide the following consents:
     });
 
     // Undo check-in
+    // Unified check-in undo. Accepts BOTH payload shapes the frontend sends:
+    //   { id, event }                 (global scanner)
+    //   { registration_id, type }     (profile card / forum list)
+    // Previously there were two routes with this same path; the first shadowed the second,
+    // so the gala case never ran and the global scanner's Undo always failed.
     app.post('/api/checkin/undo', auth, adminOnly, (req, res) => {
         try {
-            const { registration_id, type } = req.body;
-            if (!registration_id) return res.status(400).json({ error: 'Registration ID required' });
+            const id = req.body.id || req.body.registration_id;
+            const event = req.body.event || req.body.type || 'plexus';
+            if (!id) return res.status(400).json({ error: 'Registration ID required' });
 
-            // Keep checked_in_at so we know welcome email was already sent
-            if (type === 'forum') {
-                db.run('UPDATE forum_event_registrations SET checked_in = 0 WHERE id = ?', [registration_id]);
-            } else if (type === 'bridges') {
-                db.run('UPDATE bridges_registrations SET checked_in = 0 WHERE id = ?', [registration_id]);
-            } else {
-                db.run('UPDATE registrations SET checked_in = 0 WHERE id = ?', [registration_id]);
+            const tableMap = {
+                plexus: 'registrations', conference: 'registrations',
+                gala: 'gala_registrations',
+                forum: 'forum_event_registrations',
+                bridges: 'bridges_registrations',
+                'croatians-abroad': 'croatians_abroad_registrations'
+            };
+            const table = tableMap[event] || 'registrations';
+
+            const record = query.get(`SELECT * FROM ${table} WHERE id = ?`, [id]);
+            if (!record) return res.status(404).json({ error: 'Record not found' });
+            if (!record.checked_in) return res.json({ success: true, message: 'Already unchecked' });
+
+            // 5-minute safety window. checked_in_at is stored as a full ISO string ('...Z'),
+            // so parse it directly — the old code appended a second 'Z' and silently disabled
+            // the guard (NaN comparison). If unparseable, allow the undo rather than block staff.
+            if (record.checked_in_at) {
+                const t = new Date(record.checked_in_at).getTime();
+                if (!Number.isNaN(t) && (Date.now() - t > 5 * 60 * 1000)) {
+                    return res.status(403).json({ error: 'Undo window expired (5 min limit)' });
+                }
             }
+
+            db.run(`UPDATE ${table} SET checked_in = 0, checked_in_at = NULL WHERE id = ?`, [id]);
             saveDb();
-            res.json({ success: true });
+            res.json({ success: true, message: 'Check-in reversed' });
         } catch (error) {
+            console.error('Undo error:', error);
             res.status(500).json({ error: 'Failed to undo check-in' });
         }
     });
@@ -15904,10 +15927,33 @@ By applying to this program, I provide the following consents:
         }
         if (!caReg) caReg = query.get('SELECT * FROM croatians_abroad_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
         if (!caReg) {
+            // Fallback: standalone (non-diaspora) registrants live in their own tables, not
+            // croatians_abroad_registrations. Conference → registrations; Bridges → bridges_registrations.
+            // Without this, a paid Plexus conference invitee is rejected at the conference door.
+            const standaloneTable = event === 'conference' ? 'registrations' : 'bridges_registrations';
+            let sReg = null;
+            if (isUuid) { try { sReg = query.get(`SELECT * FROM ${standaloneTable} WHERE id = ?`, [codeClean]); } catch(e) {} }
+            if (!sReg) { try { sReg = query.get(`SELECT * FROM ${standaloneTable} WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1`, [codeClean]); } catch(e) {} }
+            if (sReg) {
+                const sAlready = !!sReg.checked_in;
+                if (mark && !sAlready) {
+                    db.run(`UPDATE ${standaloneTable} SET checked_in = 1, checked_in_at = ? WHERE id = ?`, [now, sReg.id]);
+                    saveDb();
+                }
+                return res.json({
+                    valid: true, event, code, already_checked_in: sAlready,
+                    checked_in_at: sAlready ? sReg.checked_in_at : (mark ? now : null),
+                    status_label: 'REGISTERED', status_color: '#22c55e',
+                    registrant: {
+                        name: `${sReg.first_name || ''} ${sReg.last_name || ''}`.trim() || sReg.email,
+                        email: sReg.email, institution: sReg.institution || '', dietary: sReg.dietary || ''
+                    }
+                });
+            }
             const totalCA = query.get("SELECT COUNT(*) as c FROM croatians_abroad_registrations")?.c || 0;
             return res.json({ valid: false, event, code, reason: 'not_found',
-                message: `No ${event === 'conference' ? 'Conference' : 'Bridges'} pre-registration found for this code. (Searched ${totalCA} CA rows by id, gala_registration_id, and email.)`,
-                debug: { code_used: codeClean, is_uuid: isUuid, total_ca_rows: totalCA }
+                message: `No ${event === 'conference' ? 'Conference' : 'Bridges'} registration found for this code.`,
+                debug: { code_used: codeClean, is_uuid: isUuid, total_ca_rows: totalCA, also_searched: standaloneTable }
             });
         }
 
@@ -16246,37 +16292,8 @@ By applying to this program, I provide the following consents:
         }
     });
 
-    // Undo check-in — reverse within 5-minute window
-    app.post('/api/checkin/undo', auth, adminOnly, (req, res) => {
-        const { id, event } = req.body;
-        if (!id || !event) return res.status(400).json({ error: 'Missing id or event' });
-
-        const tableMap = { plexus: 'registrations', gala: 'gala_registrations', forum: 'forum_members', bridges: 'bridges_registrations' };
-        const table = tableMap[event];
-        if (!table) return res.status(400).json({ error: 'Invalid event type' });
-
-        try {
-            const record = query.get(`SELECT * FROM ${table} WHERE id = ?`, [id]);
-            if (!record) return res.status(404).json({ error: 'Record not found' });
-            if (!record.checked_in) return res.json({ success: true, message: 'Already unchecked' });
-
-            // 5-minute safety window
-            if (record.checked_in_at) {
-                const checkinTime = new Date(record.checked_in_at + 'Z').getTime();
-                const now = Date.now();
-                if (now - checkinTime > 5 * 60 * 1000) {
-                    return res.status(403).json({ error: 'Undo window expired (5 min limit)' });
-                }
-            }
-
-            db.run(`UPDATE ${table} SET checked_in = 0, checked_in_at = NULL WHERE id = ?`, [id]);
-            saveDb();
-            res.json({ success: true, message: 'Check-in reversed' });
-        } catch (err) {
-            console.error('Undo error:', err);
-            res.status(500).json({ error: 'Undo failed' });
-        }
-    });
+    // (The second /api/checkin/undo route that used to live here was removed — it was
+    //  shadowed by the unified handler above, which now covers all event types incl. gala.)
 
     // Universal check-in — detects event type from QR data, cascades through all event tables
     app.post('/api/checkin', auth, adminOnly, (req, res) => {
