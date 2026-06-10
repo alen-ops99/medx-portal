@@ -6592,6 +6592,11 @@
                     <span>Conferences</span>
                 </a>
 
+                <a class="nav-item" data-section="email-blast" onclick="App.showSection('email-blast', this)">
+                    <i class="fas fa-envelope-open-text" style="color: #f472b6;"></i>
+                    <span>Email Registrants</span>
+                </a>
+
                 <div class="nav-divider"></div>
                 <div class="nav-label">Projects</div>
 
@@ -10835,6 +10840,36 @@ President, Med&amp;X</textarea>
                         <div class="card-body" id="caRegistrationsList" style="padding:0;">
                             <div style="text-align:center;padding:40px;color:var(--text-muted);">Loading…</div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- EMAIL REGISTRANTS (BULK) -->
+                <div class="section" id="section-email-blast">
+                    <div class="back-link" onclick="App.showSection('dashboard')"><i class="fas fa-arrow-left"></i> Back to Dashboard</div>
+                    <h2 style="margin:0 0 6px;font-size:22px;display:flex;align-items:center;gap:10px;"><i class="fas fa-envelope-open-text" style="color:#f472b6;"></i> Email Registrants</h2>
+                    <p style="margin:0 0 18px;color:var(--text-muted);font-size:13px;">Send an announcement to everyone registered for an event (e.g. final details the week before). Test rows are excluded automatically.</p>
+                    <div class="card" style="padding:18px;max-width:640px;">
+                        <div style="margin-bottom:12px;">
+                            <label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Audience</label>
+                            <select id="blastAudience" onchange="BulkApp.previewCount()" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);">
+                                <option value="all">Everyone (all events)</option>
+                                <option value="gala">Gala registrants</option>
+                                <option value="croatians-abroad">Croatians Abroad</option>
+                                <option value="conference">Conference registrants</option>
+                                <option value="bridges">Bridges registrants</option>
+                            </select>
+                            <div id="blastCount" style="font-size:12px;color:var(--text-muted);margin-top:6px;">…</div>
+                        </div>
+                        <div style="margin-bottom:12px;">
+                            <label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Subject</label>
+                            <input id="blastSubject" placeholder="e.g. Plexus 2026 — final details" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);">
+                        </div>
+                        <div style="margin-bottom:14px;">
+                            <label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Message</label>
+                            <textarea id="blastMessage" rows="7" placeholder="Plain text. Each empty line starts a new paragraph. Recipients are greeted by first name automatically." style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></textarea>
+                        </div>
+                        <button class="btn btn-primary" onclick="BulkApp.send()" id="blastSendBtn"><i class="fas fa-paper-plane"></i> Send to registrants</button>
+                        <div id="blastResult" style="margin-top:14px;"></div>
                     </div>
                 </div>
 
@@ -15353,6 +15388,7 @@ President, Med&amp;X</textarea>
                     'messages': 'Messages',
                     'gala': 'Gala Evening',
                     'conferences': 'Conferences',
+                    'email-blast': 'Email Registrants',
                     'health': 'System Health',
                     'tech': 'Tech Dashboard',
                     'settings': 'Settings'
@@ -15430,6 +15466,10 @@ President, Med&amp;X</textarea>
                     this.currentView = 'conferences';
                     this.switchChatPanel('team');
                     if (typeof ConfApp !== 'undefined') ConfApp.load();
+                } else if (sectionId === 'email-blast') {
+                    this.currentView = 'email-blast';
+                    this.switchChatPanel('team');
+                    if (typeof BulkApp !== 'undefined') BulkApp.previewCount();
                 } else if (sectionId === 'health') {
                     this.currentView = 'health';
                     this.switchChatPanel('team');
@@ -30193,6 +30233,41 @@ By applying to this program, I give the following consents:
                     URL.revokeObjectURL(url);
                     Toast.success(`${data.count} ${event} emails exported`);
                 } catch (err) { Toast.error('Export failed'); }
+            }
+        };
+
+        // ==================== BULK EMAIL TO REGISTRANTS ====================
+        const BulkApp = {
+            _count: 0,
+            async previewCount() {
+                const el = document.getElementById('blastCount');
+                const aud = document.getElementById('blastAudience')?.value || 'all';
+                if (el) el.textContent = 'Counting…';
+                try {
+                    const res = await fetch('/api/admin/bulk-email/count?audience=' + encodeURIComponent(aud), { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    const d = await res.json();
+                    this._count = d.count || 0;
+                    if (el) el.innerHTML = `<strong style="color:var(--text-primary);">${this._count}</strong> recipient${this._count === 1 ? '' : 's'} (test rows excluded)`;
+                } catch (e) { if (el) el.textContent = 'Could not count recipients'; }
+            },
+            async send() {
+                const audience = document.getElementById('blastAudience').value;
+                const subject = document.getElementById('blastSubject').value.trim();
+                const message = document.getElementById('blastMessage').value.trim();
+                const out = document.getElementById('blastResult');
+                const btn = document.getElementById('blastSendBtn');
+                if (!subject || !message) { Toast.warning('Subject and message are required'); return; }
+                if (!confirm(`Send "${subject}" to ${this._count} registrant(s)? This cannot be undone.`)) return;
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…'; }
+                try {
+                    const res = await fetch('/api/admin/bulk-email/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify({ audience, subject, message }) });
+                    const d = await res.json();
+                    if (d.success) {
+                        out.innerHTML = `<div class="card" style="padding:12px 16px;border-left:4px solid #22c55e;"><i class="fas fa-check-circle" style="color:#22c55e;"></i> Queued to ${d.queued} recipient(s). Sending in the background (~8/sec). Delivery depends on your email provider + verified sender domain.</div>`;
+                        document.getElementById('blastSubject').value = ''; document.getElementById('blastMessage').value = '';
+                    } else { out.innerHTML = `<div class="card" style="padding:12px 16px;border-left:4px solid #ef4444;">${(d.error || 'Send failed')}</div>`; }
+                } catch (e) { out.innerHTML = `<div class="card" style="padding:12px 16px;border-left:4px solid #ef4444;">Request failed: ${e.message}</div>`; }
+                finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send to registrants'; } }
             }
         };
 

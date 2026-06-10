@@ -17125,6 +17125,62 @@ By applying to this program, I provide the following consents:
         }
     });
 
+    // ==================== BULK EMAIL TO REGISTRANTS ====================
+    // Collect a deduped recipient list for an audience, excluding test-tagged rows.
+    function collectBulkRecipients(audience) {
+        const seen = new Set();
+        const out = [];
+        const add = (rows) => rows.forEach(r => {
+            const e = (r.email || '').trim().toLowerCase();
+            if (!e || seen.has(e)) return;
+            if (/TEST/i.test(`${r.requests || ''} ${r.notes || ''} ${r.invoice_number || ''}`)) return; // skip test rows
+            seen.add(e); out.push({ email: r.email.trim(), first_name: r.first_name || '' });
+        });
+        try {
+            if (audience === 'gala' || audience === 'all') add(query.all("SELECT first_name, email, requests, invoice_number FROM gala_registrations WHERE email IS NOT NULL AND email != ''"));
+            if (audience === 'croatians-abroad' || audience === 'all') add(query.all("SELECT first_name, email, notes, invoice_number FROM croatians_abroad_registrations WHERE email IS NOT NULL AND email != ''"));
+            if (audience === 'conference' || audience === 'all') add(query.all("SELECT first_name, email, invoice_number FROM registrations WHERE email IS NOT NULL AND email != ''"));
+            if (audience === 'bridges' || audience === 'all') add(query.all("SELECT first_name, email, requests FROM bridges_registrations WHERE email IS NOT NULL AND email != ''"));
+        } catch (e) { console.warn('[Bulk] collect failed:', e.message); }
+        return out;
+    }
+
+    // Preview the recipient count for an audience (no send).
+    app.get('/api/admin/bulk-email/count', auth, adminOnly, (req, res) => {
+        const audience = req.query.audience || 'all';
+        res.json({ audience, count: collectBulkRecipients(audience).length });
+    });
+
+    // Send a bulk email. Responds immediately with the recipient count and sends in the
+    // background (sequential, paced) so the HTTP request never times out. Personalizes "Dear
+    // <first name>". Skips test rows; dedupes by email. Capped at 2000 for safety.
+    app.post('/api/admin/bulk-email/send', auth, adminOnly, async (req, res) => {
+        try {
+            const { audience, subject, message } = req.body || {};
+            if (!subject || !message) return res.status(400).json({ error: 'subject and message are required' });
+            const recipients = collectBulkRecipients(audience || 'all').slice(0, 2000);
+            if (!recipients.length) return res.status(400).json({ error: 'No recipients for this audience.' });
+
+            res.json({ success: true, queued: recipients.length, audience: audience || 'all' });
+
+            // Background send (after responding). Plain text becomes simple HTML paragraphs.
+            (async () => {
+                const bodyHtml = String(message).split(/\n{2,}/).map(p => `<p>${p.replace(/\n/g, '<br>').replace(/</g, '&lt;')}</p>`).join('');
+                let sent = 0, failed = 0;
+                for (const r of recipients) {
+                    const greeting = r.first_name ? `<p>Dear ${String(r.first_name).replace(/</g, '&lt;')},</p>` : '';
+                    const html = buildEmailTemplate(subject, greeting + bodyHtml);
+                    try {
+                        const result = await sendEmail(r.email, subject, html);
+                        if (result && result.success !== false && !result.mock) sent++; else failed++;
+                    } catch (e) { failed++; }
+                    await new Promise(rs => setTimeout(rs, 120)); // ~8/sec pacing
+                }
+                console.log(`[Bulk] "${subject}" → ${sent} sent, ${failed} failed (audience ${audience || 'all'}).`);
+            })().catch(e => console.error('[Bulk] send loop error:', e.message));
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
     // ==================== TECH DASHBOARD ====================
     // These routes can stream the entire database, so they fail CLOSED: if TECH_PASSWORD
     // is unset in the environment the gate is disabled entirely (no default password —
