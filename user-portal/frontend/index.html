@@ -91359,6 +91359,7 @@ END:VCALENDAR`;
 
                     const resp = await fetch(`/api/speakers/${encodeURIComponent(speakerId)}/documents`, {
                         method: 'POST',
+                        headers: { 'x-speaker-code': this.speaker.inviteCode || '' },
                         body: formData
                     });
 
@@ -92590,7 +92591,9 @@ ${'='.repeat(70)}
                 if (!this.speaker) return;
                 const speakerId = this.speaker.backendId || this.speaker.speakerId;
                 try {
-                    const resp = await fetch(`/api/speakers/${encodeURIComponent(speakerId)}/documents`);
+                    const resp = await fetch(`/api/speakers/${encodeURIComponent(speakerId)}/documents`, {
+                        headers: { 'x-speaker-code': this.speaker.inviteCode || '' }
+                    });
                     if (resp.ok) {
                         const docs = await resp.json();
                         // Merge server docs into local tracking
@@ -92626,7 +92629,8 @@ ${'='.repeat(70)}
                 if (doc?.serverDocId) {
                     try {
                         await fetch(`/api/speakers/${encodeURIComponent(speakerId)}/documents/${doc.serverDocId}`, {
-                            method: 'DELETE'
+                            method: 'DELETE',
+                            headers: { 'x-speaker-code': this.speaker.inviteCode || '' }
                         });
                     } catch (err) {
                         console.error('Server delete failed:', err);

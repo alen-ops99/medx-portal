@@ -5314,20 +5314,13 @@ async function initializeApp() {
         legacyHeaders: false
     });
 
-    app.post('/api/auth/register', authLimiter, async (req, res) => {
-        try {
-            const { email, password, first_name, last_name, institution, country } = req.body;
-            if (query.get('SELECT id FROM users WHERE email = ?', [email])) {
-                return res.status(400).json({ error: 'Email exists' });
-            }
-            const id = uuidv4();
-            const hash = await bcrypt.hash(password, 10);
-            db.run(`INSERT INTO users (id, email, password_hash, first_name, last_name, institution, country)
-                VALUES (?, ?, ?, ?, ?, ?, ?)`, [id, email, hash, first_name, last_name, institution, country]);
-            saveDb();
-            const token = jwt.sign({ id, email, is_admin: 0 }, JWT_SECRET, { expiresIn: '7d' });
-            res.json({ success: true, token, user: { id, email, first_name, last_name, institution, country, is_admin: 0 }});
-        } catch (e) { console.error(e); res.status(500).json({ error: 'Registration failed' }); }
+    // Public self-registration is DISABLED on the admin backend. This portal is for
+    // pre-provisioned admins only (login rejects non-admins). The old endpoint minted a
+    // valid JWT for any anonymous caller, and because the admin API has ~180 routes gated
+    // by `auth` alone, that token was the entry point to a full privilege-escalation /
+    // data-exfiltration chain. New admins are created by an existing admin or DB seed.
+    app.post('/api/auth/register', authLimiter, (req, res) => {
+        return res.status(403).json({ error: 'Self-registration is disabled on the admin portal. Contact an administrator for access.' });
     });
 
     app.post('/api/auth/login', authLimiter, async (req, res) => {
@@ -16786,22 +16779,37 @@ By applying to this program, I provide the following consents:
     });
 
     // ==================== TECH DASHBOARD ====================
-    const TECH_PASSWORD = process.env.TECH_PASSWORD || 'tech123';
+    // These routes can stream the entire database, so they fail CLOSED: if TECH_PASSWORD
+    // is unset in the environment the gate is disabled entirely (no default password —
+    // the old 'tech123' default meant prod, which never set the var, was wide open).
+    const TECH_PASSWORD = process.env.TECH_PASSWORD || null;
+
+    // Constant-time string compare to avoid leaking the password via timing.
+    function safeEqual(a, b) {
+        const crypto = require('crypto');
+        const ba = Buffer.from(String(a || ''));
+        const bb = Buffer.from(String(b || ''));
+        if (ba.length !== bb.length) return false;
+        return crypto.timingSafeEqual(ba, bb);
+    }
 
     function techAuth(req, res, next) {
-        const pwd = req.headers['x-tech-password'];
-        if (pwd !== TECH_PASSWORD) return res.status(403).json({ error: 'Tech password required' });
+        if (!TECH_PASSWORD) return res.status(503).json({ error: 'Tech tools disabled — TECH_PASSWORD is not configured on the server.' });
+        if (!safeEqual(req.headers['x-tech-password'], TECH_PASSWORD)) {
+            return res.status(403).json({ error: 'Tech password required' });
+        }
         next();
     }
 
-    // Verify tech password
-    app.post('/api/admin/tech/verify-password', auth, (req, res) => {
+    // Verify tech password (admin-gated + throttled so it can't be used as a password oracle)
+    app.post('/api/admin/tech/verify-password', auth, adminOnly, authLimiter, (req, res) => {
         const { password } = req.body;
-        res.json({ success: password === TECH_PASSWORD });
+        if (!TECH_PASSWORD) return res.status(503).json({ success: false, error: 'Tech tools disabled — TECH_PASSWORD not configured.' });
+        res.json({ success: safeEqual(password, TECH_PASSWORD) });
     });
 
     // System info
-    app.get('/api/admin/tech/system-info', auth, techAuth, (req, res) => {
+    app.get('/api/admin/tech/system-info', auth, adminOnly, techAuth, (req, res) => {
         try {
             const dbStats = fs.existsSync(DB_PATH) ? fs.statSync(DB_PATH) : null;
             const tables = query.all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
@@ -16853,7 +16861,7 @@ By applying to this program, I provide the following consents:
     });
 
     // List all tables with row counts
-    app.get('/api/admin/tech/tables', auth, techAuth, (req, res) => {
+    app.get('/api/admin/tech/tables', auth, adminOnly, techAuth, (req, res) => {
         try {
             const tables = query.all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
             const result = tables.map(t => {
@@ -16873,7 +16881,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Get rows from a specific table
-    app.get('/api/admin/tech/tables/:name', auth, techAuth, (req, res) => {
+    app.get('/api/admin/tech/tables/:name', auth, adminOnly, techAuth, (req, res) => {
         try {
             // Validate table name against actual tables to prevent injection
             const validTables = query.all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").map(t => t.name);
@@ -16915,7 +16923,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Download database file
-    app.get('/api/admin/tech/db-download', auth, techAuth, (req, res) => {
+    app.get('/api/admin/tech/db-download', auth, adminOnly, techAuth, (req, res) => {
         try {
             if (!fs.existsSync(DB_PATH)) return res.status(404).json({ error: 'Database file not found' });
             res.setHeader('Content-Disposition', 'attachment; filename=medx_portal.db');
@@ -16929,7 +16937,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Export all data as JSON
-    app.get('/api/admin/tech/export-all', auth, techAuth, (req, res) => {
+    app.get('/api/admin/tech/export-all', auth, adminOnly, techAuth, (req, res) => {
         try {
             const tables = query.all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
             const dump = {};
@@ -16946,7 +16954,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Test Stripe connection
-    app.post('/api/admin/tech/test-stripe', auth, techAuth, async (req, res) => {
+    app.post('/api/admin/tech/test-stripe', auth, adminOnly, techAuth, async (req, res) => {
         try {
             let testStripe;
             try {
@@ -16970,7 +16978,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Test FIRA connection
-    app.post('/api/admin/tech/test-fira', auth, techAuth, async (req, res) => {
+    app.post('/api/admin/tech/test-fira', auth, adminOnly, techAuth, async (req, res) => {
         try {
             const firaKey = process.env.FIRA_API_KEY;
             if (!firaKey) return res.json({ success: false, message: 'FIRA_API_KEY not configured' });
@@ -17000,7 +17008,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Test email (SMTP)
-    app.post('/api/admin/tech/test-email', auth, techAuth, async (req, res) => {
+    app.post('/api/admin/tech/test-email', auth, adminOnly, techAuth, async (req, res) => {
         try {
             const result = await sendEmail(
                 req.user.email || 'juginovic.alen@gmail.com',

@@ -355,7 +355,7 @@ function escapeHtml(str) {
 }
 
 // Download registrations CSV log (admin only)
-app.get('/api/admin/registrations-csv', auth, (req, res) => {
+app.get('/api/admin/registrations-csv', auth, adminOnly, (req, res) => {
     const csvPath = path.join(__dirname, 'registrations-log.csv');
     if (fs.existsSync(csvPath)) {
         res.setHeader('Content-Type', 'text/csv');
@@ -5356,6 +5356,9 @@ async function submitReset(e){
             FROM registrations r JOIN conferences c ON r.conference_id = c.id JOIN ticket_types t ON r.ticket_type_id = t.id JOIN users u ON r.user_id = u.id
             WHERE r.id = ?`, [req.params.id]);
         if (!reg) return res.status(404).json({ error: 'Not found' });
+        if (reg.user_id !== req.user.id && !req.user.is_admin) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
         res.json(reg);
     });
 
@@ -5967,7 +5970,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Create new year/program
-    app.post('/api/accelerator/years', auth, (req, res) => {
+    app.post('/api/accelerator/years', auth, adminOnly, (req, res) => {
         const { year, name, description, application_deadline, program_start, program_end } = req.body;
         const id = uuidv4();
         db.run(`INSERT INTO accelerator_programs (id, name, year, description, application_deadline, program_start, program_end)
@@ -5978,7 +5981,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Update year/program
-    app.put('/api/accelerator/years/:year', auth, (req, res) => {
+    app.put('/api/accelerator/years/:year', auth, adminOnly, (req, res) => {
         const { name, description, application_deadline, program_start, program_end, is_active, is_accepting } = req.body;
         db.run(`UPDATE accelerator_programs SET name = COALESCE(?, name), description = COALESCE(?, description),
             application_deadline = COALESCE(?, application_deadline), program_start = COALESCE(?, program_start),
@@ -5998,7 +6001,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Add key date
-    app.post('/api/accelerator/years/:year/dates', auth, (req, res) => {
+    app.post('/api/accelerator/years/:year/dates', auth, adminOnly, (req, res) => {
         const { name, date_start, date_end, description, color, category } = req.body;
         const id = uuidv4();
         const sortOrder = query.get('SELECT COALESCE(MAX(sort_order), 0) + 1 as next FROM accelerator_key_dates WHERE year = ?', [req.params.year]);
@@ -6020,7 +6023,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Update key date
-    app.put('/api/accelerator/dates/:id', auth, (req, res) => {
+    app.put('/api/accelerator/dates/:id', auth, adminOnly, (req, res) => {
         const { name, date_start, date_end, description, color, sort_order, category } = req.body;
         db.run(`UPDATE accelerator_key_dates SET name = COALESCE(?, name), date_start = COALESCE(?, date_start),
             date_end = COALESCE(?, date_end), description = COALESCE(?, description), color = COALESCE(?, color),
@@ -6044,7 +6047,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Delete key date
-    app.delete('/api/accelerator/dates/:id', auth, (req, res) => {
+    app.delete('/api/accelerator/dates/:id', auth, adminOnly, (req, res) => {
         db.run('DELETE FROM accelerator_key_dates WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
@@ -6119,7 +6122,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Add/update institution details for a year
-    app.put('/api/accelerator/years/:year/institutions/:instId', auth, (req, res) => {
+    app.put('/api/accelerator/years/:year/institutions/:instId', auth, adminOnly, (req, res) => {
         const { program_type, available_spots, internship_duration, mentors, visa_requirements,
                 accommodation_info, stipend_info, requirements, contact_email, contact_person, is_active } = req.body;
 
@@ -6147,7 +6150,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Add new institution
-    app.post('/api/accelerator/institutions', auth, (req, res) => {
+    app.post('/api/accelerator/institutions', auth, adminOnly, (req, res) => {
         const { name, short_name, city, country, description, website_url, logo_url } = req.body;
         const id = uuidv4();
         const sortOrder = query.get('SELECT COALESCE(MAX(sort_order), 0) + 1 as next FROM accelerator_institutions');
@@ -6161,7 +6164,7 @@ By applying to this program, I provide the following consents:
     // ========== ACCELERATOR APPLICATIONS (ENHANCED) ==========
 
     // Get all applications for a year with filtering
-    app.get('/api/accelerator/years/:year/applications', auth, (req, res) => {
+    app.get('/api/accelerator/years/:year/applications', auth, adminOnly, (req, res) => {
         const { status, institution, search } = req.query;
         const program = query.get('SELECT id FROM accelerator_programs WHERE year = ?', [req.params.year]);
         if (!program) return res.json([]);
@@ -6181,7 +6184,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Get single application with all details
-    app.get('/api/accelerator/applications/:id/full', auth, (req, res) => {
+    app.get('/api/accelerator/applications/:id/full', auth, adminOnly, (req, res) => {
         const app = query.get('SELECT * FROM accelerator_applications WHERE id = ?', [req.params.id]);
         if (!app) return res.status(404).json({ error: 'Not found' });
 
@@ -6246,7 +6249,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Send message to candidate
-    app.post('/api/accelerator/applications/:id/message', auth, async (req, res) => {
+    app.post('/api/accelerator/applications/:id/message', auth, adminOnly, async (req, res) => {
         try {
             const { subject, content, message_type, send_email } = req.body;
             const id = uuidv4();
@@ -6283,7 +6286,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Update application validity status and notify
-    app.put('/api/accelerator/applications/:id/validity', auth, async (req, res) => {
+    app.put('/api/accelerator/applications/:id/validity', auth, adminOnly, async (req, res) => {
         try {
             const { validity_status, reason, notify } = req.body;
             db.run(`UPDATE accelerator_applications SET validity_status = ?, validity_notified_at = datetime('now') WHERE id = ?`,
@@ -6344,7 +6347,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Add evaluation criterion
-    app.post('/api/accelerator/years/:year/criteria', auth, (req, res) => {
+    app.post('/api/accelerator/years/:year/criteria', auth, adminOnly, (req, res) => {
         const { name, name_hr, max_points, weight, category } = req.body;
         const id = uuidv4();
         const sortOrder = query.get('SELECT COALESCE(MAX(sort_order), 0) + 1 as next FROM accelerator_evaluation_criteria WHERE year = ?', [req.params.year]);
@@ -6356,7 +6359,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Update evaluation criterion
-    app.put('/api/accelerator/criteria/:id', auth, (req, res) => {
+    app.put('/api/accelerator/criteria/:id', auth, adminOnly, (req, res) => {
         const { name, name_hr, max_points, weight, category, sort_order, is_active } = req.body;
         db.run(`UPDATE accelerator_evaluation_criteria SET name = COALESCE(?, name), name_hr = COALESCE(?, name_hr),
             max_points = COALESCE(?, max_points), weight = COALESCE(?, weight), category = COALESCE(?, category),
@@ -6367,7 +6370,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Delete evaluation criterion
-    app.delete('/api/accelerator/criteria/:id', auth, (req, res) => {
+    app.delete('/api/accelerator/criteria/:id', auth, adminOnly, (req, res) => {
         db.run('UPDATE accelerator_evaluation_criteria SET is_active = 0 WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
@@ -6376,7 +6379,7 @@ By applying to this program, I provide the following consents:
     // ========== ACCELERATOR EVALUATIONS/SCORING ==========
 
     // Save evaluation score for an application
-    app.post('/api/accelerator/applications/:appId/evaluate', auth, (req, res) => {
+    app.post('/api/accelerator/applications/:appId/evaluate', auth, adminOnly, (req, res) => {
         const { criterion_id, score, notes } = req.body;
         const existing = query.get('SELECT id FROM accelerator_evaluations WHERE application_id = ? AND criterion_id = ?',
             [req.params.appId, criterion_id]);
@@ -6397,7 +6400,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Batch evaluate (save multiple scores at once)
-    app.post('/api/accelerator/applications/:appId/evaluate-batch', auth, (req, res) => {
+    app.post('/api/accelerator/applications/:appId/evaluate-batch', auth, adminOnly, (req, res) => {
         const { evaluations } = req.body; // Array of { criterion_id, score, notes }
 
         evaluations.forEach(({ criterion_id, score, notes }) => {
@@ -6449,13 +6452,13 @@ By applying to this program, I provide the following consents:
     // ========== ACCELERATOR INTERVIEWERS ==========
 
     // Get interviewers for a year
-    app.get('/api/accelerator/years/:year/interviewers', auth, (req, res) => {
+    app.get('/api/accelerator/years/:year/interviewers', auth, adminOnly, (req, res) => {
         const interviewers = query.all('SELECT * FROM accelerator_interviewers WHERE year = ? AND is_active = 1', [req.params.year]);
         res.json(interviewers);
     });
 
     // Add interviewer
-    app.post('/api/accelerator/years/:year/interviewers', auth, (req, res) => {
+    app.post('/api/accelerator/years/:year/interviewers', auth, adminOnly, (req, res) => {
         const { name, email, institution, specialty } = req.body;
         const id = uuidv4();
         const accessToken = uuidv4(); // Token for external access
@@ -6467,7 +6470,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Update interviewer
-    app.put('/api/accelerator/interviewers/:id', auth, (req, res) => {
+    app.put('/api/accelerator/interviewers/:id', auth, adminOnly, (req, res) => {
         const { name, email, institution, specialty, is_active } = req.body;
         db.run(`UPDATE accelerator_interviewers SET name = COALESCE(?, name), email = COALESCE(?, email),
             institution = COALESCE(?, institution), specialty = COALESCE(?, specialty), is_active = COALESCE(?, is_active)
@@ -6477,7 +6480,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Delete interviewer
-    app.delete('/api/accelerator/interviewers/:id', auth, (req, res) => {
+    app.delete('/api/accelerator/interviewers/:id', auth, adminOnly, (req, res) => {
         db.run('UPDATE accelerator_interviewers SET is_active = 0 WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
@@ -6647,7 +6650,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Send magic link email to interviewer
-    app.post('/api/accelerator/interviewers/:id/send-link', auth, async (req, res) => {
+    app.post('/api/accelerator/interviewers/:id/send-link', auth, adminOnly, async (req, res) => {
         try {
             const interviewer = query.get('SELECT * FROM accelerator_interviewers WHERE id = ? AND is_active = 1', [req.params.id]);
             if (!interviewer) {
@@ -6695,7 +6698,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Regenerate access token for interviewer
-    app.post('/api/accelerator/interviewers/:id/regenerate-token', auth, (req, res) => {
+    app.post('/api/accelerator/interviewers/:id/regenerate-token', auth, adminOnly, (req, res) => {
         const newToken = uuidv4();
         db.run('UPDATE accelerator_interviewers SET access_token = ? WHERE id = ?', [newToken, req.params.id]);
         saveDb();
@@ -6705,7 +6708,7 @@ By applying to this program, I provide the following consents:
     // ========== APPLICANT REGISTRATIONS (Admin View) ==========
 
     // Get all applicant registrations for admin view
-    app.get('/api/accelerator/registrations', auth, (req, res) => {
+    app.get('/api/accelerator/registrations', auth, adminOnly, (req, res) => {
         const applicants = query.all(`
             SELECT a.id, a.email, a.first_name, a.last_name, a.phone,
                    a.current_institution, a.faculty, a.email_verified, a.created_at, a.last_login,
@@ -6725,7 +6728,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Get single applicant details
-    app.get('/api/accelerator/registrations/:id', auth, (req, res) => {
+    app.get('/api/accelerator/registrations/:id', auth, adminOnly, (req, res) => {
         const applicant = query.get('SELECT * FROM accelerator_applicants WHERE id = ?', [req.params.id]);
         if (!applicant) return res.status(404).json({ error: 'Applicant not found' });
 
@@ -6750,7 +6753,7 @@ By applying to this program, I provide the following consents:
     // ========== ACCELERATOR RANKING & PDF GENERATION ==========
 
     // Get PDF settings for a year
-    app.get('/api/accelerator/years/:year/pdf-settings', auth, (req, res) => {
+    app.get('/api/accelerator/years/:year/pdf-settings', auth, adminOnly, (req, res) => {
         const year = parseInt(req.params.year);
         let settings = query.get('SELECT * FROM accelerator_pdf_settings WHERE year = ?', [year]);
 
@@ -6773,7 +6776,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Update PDF settings for a year
-    app.put('/api/accelerator/years/:year/pdf-settings', auth, (req, res) => {
+    app.put('/api/accelerator/years/:year/pdf-settings', auth, adminOnly, (req, res) => {
         const year = parseInt(req.params.year);
         const { header_intro, header_title, article1_text, article2_text, article3_text,
                 signatory_name, signatory_title, signatory_role } = req.body;
@@ -6802,7 +6805,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Generate ranking list for a year and institution
-    app.get('/api/accelerator/years/:year/ranking', auth, (req, res) => {
+    app.get('/api/accelerator/years/:year/ranking', auth, adminOnly, (req, res) => {
         const { institution } = req.query;
         const program = query.get('SELECT id FROM accelerator_programs WHERE year = ?', [req.params.year]);
         if (!program) return res.json([]);
@@ -6825,7 +6828,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Update rankings (batch update rank positions)
-    app.post('/api/accelerator/years/:year/update-rankings', auth, (req, res) => {
+    app.post('/api/accelerator/years/:year/update-rankings', auth, adminOnly, (req, res) => {
         const program = query.get('SELECT id FROM accelerator_programs WHERE year = ?', [req.params.year]);
         if (!program) return res.status(404).json({ error: 'Year not found' });
 
@@ -6847,7 +6850,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Publish rankings - notify all applicants with their rank
-    app.post('/api/accelerator/years/:year/publish-rankings', auth, (req, res) => {
+    app.post('/api/accelerator/years/:year/publish-rankings', auth, adminOnly, (req, res) => {
         const year = parseInt(req.params.year);
         const program = query.get('SELECT id FROM accelerator_programs WHERE year = ?', [year]);
         if (!program) return res.status(404).json({ error: 'Year not found' });
@@ -6884,7 +6887,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Get application files grouped by applicant
-    app.get('/api/accelerator/files/grouped', auth, (req, res) => {
+    app.get('/api/accelerator/files/grouped', auth, adminOnly, (req, res) => {
         const year = parseInt(req.query.year) || new Date().getFullYear();
         const program = query.get('SELECT id FROM accelerator_programs WHERE year = ?', [year]);
 
@@ -6922,7 +6925,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Generate ranking PDF with dynamic columns from evaluation criteria
-    app.get('/api/accelerator/years/:year/ranking-pdf', auth, async (req, res) => {
+    app.get('/api/accelerator/years/:year/ranking-pdf', auth, adminOnly, async (req, res) => {
         try {
             const PDFDocument = require('pdfkit');
             const year = parseInt(req.params.year);
@@ -7101,7 +7104,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Generate cover page PDF with application summary
-    app.get('/api/accelerator/applications/:id/merge-docs', auth, async (req, res) => {
+    app.get('/api/accelerator/applications/:id/merge-docs', auth, adminOnly, async (req, res) => {
         try {
             const PDFDocument = require('pdfkit');
             const application = query.get(`
@@ -7191,8 +7194,13 @@ By applying to this program, I provide the following consents:
 
     // Download individual document
     app.get('/api/accelerator/documents/:docId/download', auth, (req, res) => {
-        const doc = query.get('SELECT * FROM accelerator_documents WHERE id = ?', [req.params.docId]);
+        const doc = query.get(`SELECT d.*, a.user_id as owner_id FROM accelerator_documents d
+            JOIN accelerator_applications a ON d.application_id = a.id
+            WHERE d.id = ?`, [req.params.docId]);
         if (!doc) return res.status(404).json({ error: 'Document not found' });
+        if (doc.owner_id !== req.user.id && !req.user.is_admin) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
 
         const filePath = path.join(uploadsDir, 'accelerator', doc.file_name);
         if (!fs.existsSync(filePath)) {
@@ -7202,8 +7210,13 @@ By applying to this program, I provide the following consents:
         res.download(filePath, doc.original_filename);
     });
 
-    // Get all documents for an application
+    // Get all documents for an application (owner or admin only)
     app.get('/api/accelerator/applications/:id/documents', auth, (req, res) => {
+        const appRow = query.get('SELECT user_id FROM accelerator_applications WHERE id = ?', [req.params.id]);
+        if (!appRow) return res.status(404).json({ error: 'Application not found' });
+        if (appRow.user_id !== req.user.id && !req.user.is_admin) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
         const docs = query.all(`
             SELECT id, document_type, original_filename, file_name, file_size, mime_type, uploaded_at, verified
             FROM accelerator_documents
@@ -7430,7 +7443,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Bulk update form configuration
-    app.put('/api/accelerator/form-config', auth, (req, res) => {
+    app.put('/api/accelerator/form-config', auth, adminOnly, (req, res) => {
         const { fields } = req.body;
         if (!fields || !Array.isArray(fields)) return res.status(400).json({ error: 'fields array required' });
 
@@ -7449,7 +7462,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Add new field to form configuration
-    app.post('/api/accelerator/form-config/field', auth, (req, res) => {
+    app.post('/api/accelerator/form-config/field', auth, adminOnly, (req, res) => {
         const { program_id, section_name, field_name, field_type, label, placeholder, is_required, options, sort_order, is_visible } = req.body;
         if (!section_name || !field_name) return res.status(400).json({ error: 'section_name and field_name required' });
 
@@ -7461,7 +7474,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Remove field from form configuration
-    app.delete('/api/accelerator/form-config/field/:id', auth, (req, res) => {
+    app.delete('/api/accelerator/form-config/field/:id', auth, adminOnly, (req, res) => {
         db.run('DELETE FROM accelerator_form_config WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
@@ -12322,10 +12335,14 @@ By applying to this program, I provide the following consents:
 
     // --- RESOURCES & CONTENT ---
 
-    // Get speakers (public - only published ones)
+    // Get speakers (public - only published ones; explicit columns — speakers rows also
+    // hold email, invite_code (login credential) and travel logistics that must not leak)
     app.get('/api/plexus/speakers', (req, res) => {
         const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
-        const speakers = query.all('SELECT * FROM speakers WHERE conference_id = ? AND is_confirmed = 1 AND is_published = 1 ORDER BY is_keynote DESC, sort_order', [conf.id]);
+        const speakers = query.all(`SELECT id, name, title, institution, bio, photo_url,
+            talk_title, talk_abstract, speaker_type, is_keynote, linkedin_url, twitter_url, sort_order
+            FROM speakers WHERE conference_id = ? AND is_confirmed = 1 AND is_published = 1
+            ORDER BY is_keynote DESC, sort_order`, [conf.id]);
         res.json(speakers);
     });
 
@@ -14456,7 +14473,7 @@ By applying to this program, I provide the following consents:
     }
 
     // Finance Dashboard
-    app.get('/api/finance/dashboard', auth, (req, res) => {
+    app.get('/api/finance/dashboard', auth, adminOnly, (req, res) => {
         const year = parseInt(req.query.year) || new Date().getFullYear();
 
         // Get latest bank balance
@@ -14504,12 +14521,12 @@ By applying to this program, I provide the following consents:
     });
 
     // Bank Balance
-    app.get('/api/finance/bank-balance', auth, (req, res) => {
+    app.get('/api/finance/bank-balance', auth, adminOnly, (req, res) => {
         const balances = query.all('SELECT * FROM finance_bank_balance ORDER BY date DESC, created_at DESC');
         res.json(balances);
     });
 
-    app.post('/api/finance/bank-balance', auth, (req, res) => {
+    app.post('/api/finance/bank-balance', auth, adminOnly, (req, res) => {
         const { balance, date, notes } = req.body;
         const id = uuidv4();
         db.run('INSERT INTO finance_bank_balance (id, balance, date, notes, created_by) VALUES (?, ?, ?, ?, ?)',
@@ -14518,19 +14535,19 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, id });
     });
 
-    app.delete('/api/finance/bank-balance/:id', auth, (req, res) => {
+    app.delete('/api/finance/bank-balance/:id', auth, adminOnly, (req, res) => {
         db.run('DELETE FROM finance_bank_balance WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
     });
 
     // Fiscal Years
-    app.get('/api/finance/years', auth, (req, res) => {
+    app.get('/api/finance/years', auth, adminOnly, (req, res) => {
         const years = query.all('SELECT * FROM finance_fiscal_years ORDER BY year DESC');
         res.json(years);
     });
 
-    app.post('/api/finance/years', auth, (req, res) => {
+    app.post('/api/finance/years', auth, adminOnly, (req, res) => {
         const { year } = req.body;
         const id = uuidv4();
         db.run('INSERT INTO finance_fiscal_years (id, year, status) VALUES (?, ?, ?)', [id, year, 'open']);
@@ -14538,7 +14555,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, id });
     });
 
-    app.put('/api/finance/years/:year', auth, (req, res) => {
+    app.put('/api/finance/years/:year', auth, adminOnly, (req, res) => {
         const { status, notes } = req.body;
         const year = parseInt(req.params.year);
 
@@ -14560,7 +14577,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Work Units
-    app.get('/api/finance/work-units', auth, (req, res) => {
+    app.get('/api/finance/work-units', auth, adminOnly, (req, res) => {
         const year = req.query.year ? parseInt(req.query.year) : null;
         const status = req.query.status;
 
@@ -14580,7 +14597,7 @@ By applying to this program, I provide the following consents:
         res.json(query.all(sql, params));
     });
 
-    app.post('/api/finance/work-units', auth, (req, res) => {
+    app.post('/api/finance/work-units', auth, adminOnly, (req, res) => {
         const { code, name, description, grant_source, fiscal_year, budget_total } = req.body;
         const id = uuidv4();
         db.run(`INSERT INTO finance_work_units (id, code, name, description, grant_source, fiscal_year, budget_total)
@@ -14590,7 +14607,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, id });
     });
 
-    app.get('/api/finance/work-units/:id', auth, (req, res) => {
+    app.get('/api/finance/work-units/:id', auth, adminOnly, (req, res) => {
         const wu = query.get('SELECT * FROM finance_work_units WHERE id = ?', [req.params.id]);
         if (!wu) return res.status(404).json({ error: 'Not found' });
 
@@ -14599,7 +14616,7 @@ By applying to this program, I provide the following consents:
         res.json({ ...wu, transactions });
     });
 
-    app.put('/api/finance/work-units/:id', auth, (req, res) => {
+    app.put('/api/finance/work-units/:id', auth, adminOnly, (req, res) => {
         const { code, name, description, grant_source, budget_total, status } = req.body;
         db.run(`UPDATE finance_work_units SET code = ?, name = ?, description = ?, grant_source = ?, budget_total = ?, status = ? WHERE id = ?`,
             [code, name, description, grant_source, budget_total, status, req.params.id]);
@@ -14607,7 +14624,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.delete('/api/finance/work-units/:id', auth, (req, res) => {
+    app.delete('/api/finance/work-units/:id', auth, adminOnly, (req, res) => {
         // Check if any transactions reference this work unit
         const count = query.get('SELECT COUNT(*) as c FROM finance_transactions WHERE work_unit_id = ?', [req.params.id]);
         if (count?.c > 0) {
@@ -14619,7 +14636,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Transactions
-    app.get('/api/finance/transactions', auth, (req, res) => {
+    app.get('/api/finance/transactions', auth, adminOnly, (req, res) => {
         const { year, type, project, work_unit_id, limit: limitParam, offset } = req.query;
         let sql = `SELECT t.*, wu.code as work_unit_code, wu.name as work_unit_name
             FROM finance_transactions t
@@ -14658,7 +14675,7 @@ By applying to this program, I provide the following consents:
         res.json(query.all(sql, params));
     });
 
-    app.post('/api/finance/transactions', auth, (req, res) => {
+    app.post('/api/finance/transactions', auth, adminOnly, (req, res) => {
         const { transaction_type, amount, date, description, project, work_unit_id, category, payment_method, reference, fiscal_year } = req.body;
         const id = uuidv4();
         const year = fiscal_year || new Date(date).getFullYear();
@@ -14677,7 +14694,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, id, transaction_number: transactionNumber });
     });
 
-    app.get('/api/finance/transactions/:id', auth, (req, res) => {
+    app.get('/api/finance/transactions/:id', auth, adminOnly, (req, res) => {
         const t = query.get(`SELECT t.*, wu.code as work_unit_code, wu.name as work_unit_name
             FROM finance_transactions t
             LEFT JOIN finance_work_units wu ON t.work_unit_id = wu.id
@@ -14686,7 +14703,7 @@ By applying to this program, I provide the following consents:
         res.json(t);
     });
 
-    app.put('/api/finance/transactions/:id', auth, (req, res) => {
+    app.put('/api/finance/transactions/:id', auth, adminOnly, (req, res) => {
         const existing = query.get('SELECT * FROM finance_transactions WHERE id = ?', [req.params.id]);
         if (!existing) return res.status(404).json({ error: 'Not found' });
 
@@ -14713,7 +14730,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.delete('/api/finance/transactions/:id', auth, (req, res) => {
+    app.delete('/api/finance/transactions/:id', auth, adminOnly, (req, res) => {
         const existing = query.get('SELECT * FROM finance_transactions WHERE id = ?', [req.params.id]);
         if (!existing) return res.status(404).json({ error: 'Not found' });
 
@@ -14728,7 +14745,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Invoices
-    app.get('/api/finance/invoices', auth, (req, res) => {
+    app.get('/api/finance/invoices', auth, adminOnly, (req, res) => {
         const { year, direction, status } = req.query;
         let sql = `SELECT i.*, wu.code as work_unit_code, wu.name as work_unit_name
             FROM finance_invoices i
@@ -14752,7 +14769,7 @@ By applying to this program, I provide the following consents:
         res.json(query.all(sql, params));
     });
 
-    app.post('/api/finance/invoices', auth, (req, res) => {
+    app.post('/api/finance/invoices', auth, adminOnly, (req, res) => {
         const { invoice_type, direction, party_name, party_address, party_oib, party_email,
             issue_date, due_date, fiscalized, notes, project, work_unit_id, fiscal_year, items } = req.body;
 
@@ -14801,7 +14818,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, id, invoice_number: invoiceNumber });
     });
 
-    app.get('/api/finance/invoices/:id', auth, (req, res) => {
+    app.get('/api/finance/invoices/:id', auth, adminOnly, (req, res) => {
         const invoice = query.get(`SELECT i.*, wu.code as work_unit_code, wu.name as work_unit_name
             FROM finance_invoices i
             LEFT JOIN finance_work_units wu ON i.work_unit_id = wu.id
@@ -14812,7 +14829,7 @@ By applying to this program, I provide the following consents:
         res.json({ ...invoice, items });
     });
 
-    app.put('/api/finance/invoices/:id', auth, (req, res) => {
+    app.put('/api/finance/invoices/:id', auth, adminOnly, (req, res) => {
         const { party_name, party_address, party_oib, party_email, issue_date, due_date,
             fiscalized, notes, project, work_unit_id, items } = req.body;
 
@@ -14855,7 +14872,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.delete('/api/finance/invoices/:id', auth, (req, res) => {
+    app.delete('/api/finance/invoices/:id', auth, adminOnly, (req, res) => {
         db.run('DELETE FROM finance_invoice_items WHERE invoice_id = ?', [req.params.id]);
         db.run('DELETE FROM finance_invoices WHERE id = ?', [req.params.id]);
         saveDb();
@@ -14871,7 +14888,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Mark invoice as paid
-    app.post('/api/finance/invoices/:id/mark-paid', auth, (req, res) => {
+    app.post('/api/finance/invoices/:id/mark-paid', auth, adminOnly, (req, res) => {
         const invoice = query.get('SELECT * FROM finance_invoices WHERE id = ?', [req.params.id]);
         if (!invoice) return res.status(404).json({ error: 'Not found' });
 
@@ -14900,7 +14917,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Generate invoice PDF
-    app.get('/api/finance/invoices/:id/pdf', auth, async (req, res) => {
+    app.get('/api/finance/invoices/:id/pdf', auth, adminOnly, async (req, res) => {
         const invoice = query.get('SELECT * FROM finance_invoices WHERE id = ?', [req.params.id]);
         if (!invoice) return res.status(404).json({ error: 'Not found' });
 
@@ -15006,7 +15023,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Payment Orders
-    app.get('/api/finance/payment-orders', auth, (req, res) => {
+    app.get('/api/finance/payment-orders', auth, adminOnly, (req, res) => {
         const { year, status } = req.query;
         let sql = `SELECT po.*, wu.code as work_unit_code, wu.name as work_unit_name
             FROM finance_payment_orders po
@@ -15026,7 +15043,7 @@ By applying to this program, I provide the following consents:
         res.json(query.all(sql, params));
     });
 
-    app.post('/api/finance/payment-orders', auth, (req, res) => {
+    app.post('/api/finance/payment-orders', auth, adminOnly, (req, res) => {
         const { recipient_name, recipient_iban, payment_type, amount, reference, date, description, project, work_unit_id, fiscal_year } = req.body;
         const id = uuidv4();
         const year = fiscal_year || new Date().getFullYear();
@@ -15040,7 +15057,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, id, order_number: orderNumber });
     });
 
-    app.get('/api/finance/payment-orders/:id', auth, (req, res) => {
+    app.get('/api/finance/payment-orders/:id', auth, adminOnly, (req, res) => {
         const po = query.get(`SELECT po.*, wu.code as work_unit_code, wu.name as work_unit_name
             FROM finance_payment_orders po
             LEFT JOIN finance_work_units wu ON po.work_unit_id = wu.id
@@ -15049,7 +15066,7 @@ By applying to this program, I provide the following consents:
         res.json(po);
     });
 
-    app.put('/api/finance/payment-orders/:id', auth, (req, res) => {
+    app.put('/api/finance/payment-orders/:id', auth, adminOnly, (req, res) => {
         const { recipient_name, recipient_iban, payment_type, amount, reference, date, execution_date, status, description, project, work_unit_id } = req.body;
         db.run(`UPDATE finance_payment_orders SET recipient_name = ?, recipient_iban = ?, payment_type = ?, amount = ?,
             reference = ?, date = ?, execution_date = ?, status = ?, description = ?, project = ?, work_unit_id = ? WHERE id = ?`,
@@ -15058,14 +15075,14 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.delete('/api/finance/payment-orders/:id', auth, (req, res) => {
+    app.delete('/api/finance/payment-orders/:id', auth, adminOnly, (req, res) => {
         db.run('DELETE FROM finance_payment_orders WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
     });
 
     // Travel Orders
-    app.get('/api/finance/travel-orders', auth, (req, res) => {
+    app.get('/api/finance/travel-orders', auth, adminOnly, (req, res) => {
         const { year, status, traveler_id } = req.query;
         let sql = `SELECT to1.*, wu.code as work_unit_code, wu.name as work_unit_name
             FROM finance_travel_orders to1
@@ -15090,7 +15107,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Get user's own travel orders
-    app.get('/api/finance/my-travel-orders', auth, (req, res) => {
+    app.get('/api/finance/my-travel-orders', auth, adminOnly, (req, res) => {
         // Get team member ID for current user
         const teamMember = query.get('SELECT id FROM team_members WHERE user_id = ?', [req.user.id]);
         if (!teamMember) return res.json([]);
@@ -15103,7 +15120,7 @@ By applying to this program, I provide the following consents:
         res.json(orders);
     });
 
-    app.post('/api/finance/travel-orders', auth, (req, res) => {
+    app.post('/api/finance/travel-orders', auth, adminOnly, (req, res) => {
         const { traveler_id, traveler_name, destination, purpose, planned_departure, planned_return, travel_method,
             notes, project, work_unit_id, fiscal_year, advance_amount } = req.body;
 
@@ -15121,7 +15138,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, id, order_number: orderNumber });
     });
 
-    app.get('/api/finance/travel-orders/:id', auth, (req, res) => {
+    app.get('/api/finance/travel-orders/:id', auth, adminOnly, (req, res) => {
         const order = query.get(`SELECT to1.*, wu.code as work_unit_code, wu.name as work_unit_name
             FROM finance_travel_orders to1
             LEFT JOIN finance_work_units wu ON to1.work_unit_id = wu.id
@@ -15132,7 +15149,7 @@ By applying to this program, I provide the following consents:
         res.json({ ...order, evidence });
     });
 
-    app.put('/api/finance/travel-orders/:id', auth, (req, res) => {
+    app.put('/api/finance/travel-orders/:id', auth, adminOnly, (req, res) => {
         const { destination, purpose, planned_departure, planned_return, actual_departure, actual_return,
             travel_method, kilometers, cost_transport, cost_accommodation, cost_daily_allowance, cost_other,
             traveler_notes, notes, project, work_unit_id } = req.body;
@@ -15151,7 +15168,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Travel order workflow
-    app.post('/api/finance/travel-orders/:id/submit', auth, (req, res) => {
+    app.post('/api/finance/travel-orders/:id/submit', auth, adminOnly, (req, res) => {
         const { actual_departure, actual_return, travel_method, kilometers,
             cost_transport, cost_accommodation, cost_daily_allowance, cost_other, traveler_notes } = req.body;
 
@@ -15167,7 +15184,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.post('/api/finance/travel-orders/:id/approve', auth, (req, res) => {
+    app.post('/api/finance/travel-orders/:id/approve', auth, adminOnly, (req, res) => {
         const order = query.get('SELECT * FROM finance_travel_orders WHERE id = ?', [req.params.id]);
         const reimbursement = order.cost_total - (order.advance_amount || 0);
 
@@ -15178,7 +15195,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, reimbursement_amount: reimbursement });
     });
 
-    app.post('/api/finance/travel-orders/:id/reject', auth, (req, res) => {
+    app.post('/api/finance/travel-orders/:id/reject', auth, adminOnly, (req, res) => {
         const { rejection_reason } = req.body;
         db.run(`UPDATE finance_travel_orders SET status = 'rejected', rejection_reason = ? WHERE id = ?`,
             [rejection_reason, req.params.id]);
@@ -15223,7 +15240,7 @@ By applying to this program, I provide the following consents:
     });
     const travelEvidenceUpload = multer({ storage: travelEvidenceStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 
-    app.post('/api/finance/travel-orders/:id/evidence', auth, travelEvidenceUpload.single('file'), (req, res) => {
+    app.post('/api/finance/travel-orders/:id/evidence', auth, adminOnly, travelEvidenceUpload.single('file'), (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
         const id = uuidv4();
@@ -15236,7 +15253,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, id, file_path: filePath });
     });
 
-    app.delete('/api/finance/travel-orders/:orderId/evidence/:evidenceId', auth, (req, res) => {
+    app.delete('/api/finance/travel-orders/:orderId/evidence/:evidenceId', auth, adminOnly, (req, res) => {
         const evidence = query.get('SELECT * FROM finance_travel_evidence WHERE id = ? AND travel_order_id = ?',
             [req.params.evidenceId, req.params.orderId]);
         if (evidence && evidence.file_path) {
@@ -15249,7 +15266,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Travel order PDF
-    app.get('/api/finance/travel-orders/:id/pdf', auth, (req, res) => {
+    app.get('/api/finance/travel-orders/:id/pdf', auth, adminOnly, (req, res) => {
         const order = query.get('SELECT * FROM finance_travel_orders WHERE id = ?', [req.params.id]);
         if (!order) return res.status(404).json({ error: 'Not found' });
 
@@ -15346,7 +15363,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Finance Settings
-    app.get('/api/finance/settings', auth, (req, res) => {
+    app.get('/api/finance/settings', auth, adminOnly, (req, res) => {
         const settings = {};
         query.all('SELECT setting_key, setting_value FROM finance_settings').forEach(s => {
             settings[s.setting_key] = s.setting_value;
@@ -15354,7 +15371,7 @@ By applying to this program, I provide the following consents:
         res.json(settings);
     });
 
-    app.put('/api/finance/settings', auth, (req, res) => {
+    app.put('/api/finance/settings', auth, adminOnly, (req, res) => {
         Object.entries(req.body).forEach(([key, value]) => {
             const existing = query.get('SELECT id FROM finance_settings WHERE setting_key = ?', [key]);
             if (existing) {
@@ -15369,7 +15386,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.post('/api/finance/settings', auth, (req, res) => {
+    app.post('/api/finance/settings', auth, adminOnly, (req, res) => {
         Object.entries(req.body).forEach(([key, value]) => {
             const existing = query.get('SELECT id FROM finance_settings WHERE setting_key = ?', [key]);
             if (existing) {
@@ -15385,7 +15402,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Finance Reports
-    app.get('/api/finance/reports/by-project', auth, (req, res) => {
+    app.get('/api/finance/reports/by-project', auth, adminOnly, (req, res) => {
         const year = parseInt(req.query.year) || new Date().getFullYear();
         const report = query.all(`
             SELECT project,
@@ -15400,7 +15417,7 @@ By applying to this program, I provide the following consents:
         res.json(report);
     });
 
-    app.get('/api/finance/reports/by-work-unit', auth, (req, res) => {
+    app.get('/api/finance/reports/by-work-unit', auth, adminOnly, (req, res) => {
         const year = parseInt(req.query.year) || new Date().getFullYear();
         const report = query.all(`
             SELECT wu.id, wu.code, wu.name, wu.budget_total, wu.budget_used,
@@ -15415,7 +15432,7 @@ By applying to this program, I provide the following consents:
         res.json(report);
     });
 
-    app.get('/api/finance/reports/monthly', auth, (req, res) => {
+    app.get('/api/finance/reports/monthly', auth, adminOnly, (req, res) => {
         const year = parseInt(req.query.year) || new Date().getFullYear();
         const report = query.all(`
             SELECT strftime('%Y-%m', date) as month,
@@ -15432,7 +15449,7 @@ By applying to this program, I provide the following consents:
     // ===== PR & MEDIA API ENDPOINTS =====
 
     // PR Dashboard
-    app.get('/api/pr/dashboard', auth, (req, res) => {
+    app.get('/api/pr/dashboard', auth, adminOnly, (req, res) => {
         const today = new Date().toISOString().split('T')[0];
         const thisMonth = today.substring(0, 7);
 
@@ -15499,7 +15516,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Content Calendar
-    app.get('/api/pr/calendar', auth, (req, res) => {
+    app.get('/api/pr/calendar', auth, adminOnly, (req, res) => {
         const { month, project, platform } = req.query;
         let sql = 'SELECT * FROM pr_content_calendar WHERE 1=1';
         const params = [];
@@ -15521,13 +15538,13 @@ By applying to this program, I provide the following consents:
         res.json(query.all(sql, params));
     });
 
-    app.get('/api/pr/calendar/:id', auth, (req, res) => {
+    app.get('/api/pr/calendar/:id', auth, adminOnly, (req, res) => {
         const item = query.get('SELECT * FROM pr_content_calendar WHERE id = ?', [req.params.id]);
         if (!item) return res.status(404).json({ error: 'Not found' });
         res.json(item);
     });
 
-    app.post('/api/pr/calendar', auth, (req, res) => {
+    app.post('/api/pr/calendar', auth, adminOnly, (req, res) => {
         const { project, platform, scheduled_date, scheduled_time, title, content_text, image_url, link_url, hashtags, campaign_id, status } = req.body;
         const id = uuidv4();
         db.run(`INSERT INTO pr_content_calendar (id, project, platform, scheduled_date, scheduled_time, title, content_text, image_url, link_url, hashtags, campaign_id, status, created_by)
@@ -15537,7 +15554,7 @@ By applying to this program, I provide the following consents:
         res.json({ id, success: true });
     });
 
-    app.put('/api/pr/calendar/:id', auth, (req, res) => {
+    app.put('/api/pr/calendar/:id', auth, adminOnly, (req, res) => {
         const { project, platform, scheduled_date, scheduled_time, title, content_text, image_url, link_url, hashtags, campaign_id, status } = req.body;
         db.run(`UPDATE pr_content_calendar SET project = ?, platform = ?, scheduled_date = ?, scheduled_time = ?, title = ?, content_text = ?, image_url = ?, link_url = ?, hashtags = ?, campaign_id = ?, status = ?, updated_at = datetime('now')
             WHERE id = ?`,
@@ -15546,14 +15563,14 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.post('/api/pr/calendar/:id/approve', auth, (req, res) => {
+    app.post('/api/pr/calendar/:id/approve', auth, adminOnly, (req, res) => {
         db.run(`UPDATE pr_content_calendar SET status = 'approved', approved_by = ?, approved_at = datetime('now') WHERE id = ?`,
             [req.user?.id || null, req.params.id]);
         saveDb();
         res.json({ success: true });
     });
 
-    app.post('/api/pr/calendar/:id/publish', auth, (req, res) => {
+    app.post('/api/pr/calendar/:id/publish', auth, adminOnly, (req, res) => {
         const item = query.get('SELECT * FROM pr_content_calendar WHERE id = ?', [req.params.id]);
         if (!item) return res.status(404).json({ error: 'Not found' });
 
@@ -15569,14 +15586,14 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, postId });
     });
 
-    app.delete('/api/pr/calendar/:id', auth, (req, res) => {
+    app.delete('/api/pr/calendar/:id', auth, adminOnly, (req, res) => {
         db.run('DELETE FROM pr_content_calendar WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
     });
 
     // Social Media Posts
-    app.get('/api/pr/posts', auth, (req, res) => {
+    app.get('/api/pr/posts', auth, adminOnly, (req, res) => {
         const { project, platform, limit } = req.query;
         let sql = 'SELECT * FROM pr_posts WHERE 1=1';
         const params = [];
@@ -15599,13 +15616,13 @@ By applying to this program, I provide the following consents:
         res.json(query.all(sql, params));
     });
 
-    app.get('/api/pr/posts/:id', auth, (req, res) => {
+    app.get('/api/pr/posts/:id', auth, adminOnly, (req, res) => {
         const post = query.get('SELECT * FROM pr_posts WHERE id = ?', [req.params.id]);
         if (!post) return res.status(404).json({ error: 'Not found' });
         res.json(post);
     });
 
-    app.post('/api/pr/posts', auth, (req, res) => {
+    app.post('/api/pr/posts', auth, adminOnly, (req, res) => {
         const { project, platform, post_type, content_text, image_url, link_url, external_post_id, published_at, likes, comments, shares, reach, impressions, campaign_id } = req.body;
         const id = uuidv4();
         const engagementRate = (reach > 0) ? ((likes + comments + shares) / reach * 100) : 0;
@@ -15616,7 +15633,7 @@ By applying to this program, I provide the following consents:
         res.json({ id, success: true });
     });
 
-    app.put('/api/pr/posts/:id', auth, (req, res) => {
+    app.put('/api/pr/posts/:id', auth, adminOnly, (req, res) => {
         const { likes, comments, shares, reach, impressions } = req.body;
         const engagementRate = (reach > 0) ? ((likes + comments + shares) / reach * 100) : 0;
         db.run(`UPDATE pr_posts SET likes = ?, comments = ?, shares = ?, reach = ?, impressions = ?, engagement_rate = ? WHERE id = ?`,
@@ -15625,14 +15642,14 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.delete('/api/pr/posts/:id', auth, (req, res) => {
+    app.delete('/api/pr/posts/:id', auth, adminOnly, (req, res) => {
         db.run('DELETE FROM pr_posts WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
     });
 
     // Newsletters
-    app.get('/api/pr/newsletters', auth, (req, res) => {
+    app.get('/api/pr/newsletters', auth, adminOnly, (req, res) => {
         const { status, project } = req.query;
         let sql = 'SELECT * FROM pr_newsletters WHERE 1=1';
         const params = [];
@@ -15650,13 +15667,13 @@ By applying to this program, I provide the following consents:
         res.json(query.all(sql, params));
     });
 
-    app.get('/api/pr/newsletters/:id', auth, (req, res) => {
+    app.get('/api/pr/newsletters/:id', auth, adminOnly, (req, res) => {
         const newsletter = query.get('SELECT * FROM pr_newsletters WHERE id = ?', [req.params.id]);
         if (!newsletter) return res.status(404).json({ error: 'Not found' });
         res.json(newsletter);
     });
 
-    app.post('/api/pr/newsletters', auth, (req, res) => {
+    app.post('/api/pr/newsletters', auth, adminOnly, (req, res) => {
         const { project, name, subject, preview_text, content_html, content_json, template, campaign_id } = req.body;
         const id = uuidv4();
         db.run(`INSERT INTO pr_newsletters (id, project, name, subject, preview_text, content_html, content_json, template, campaign_id, created_by)
@@ -15666,7 +15683,7 @@ By applying to this program, I provide the following consents:
         res.json({ id, success: true });
     });
 
-    app.put('/api/pr/newsletters/:id', auth, (req, res) => {
+    app.put('/api/pr/newsletters/:id', auth, adminOnly, (req, res) => {
         const { project, name, subject, preview_text, content_html, content_json, template, status, scheduled_for, campaign_id } = req.body;
         db.run(`UPDATE pr_newsletters SET project = ?, name = ?, subject = ?, preview_text = ?, content_html = ?, content_json = ?, template = ?, status = ?, scheduled_for = ?, campaign_id = ?, updated_at = datetime('now')
             WHERE id = ?`,
@@ -15675,7 +15692,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.post('/api/pr/newsletters/:id/send', auth, (req, res) => {
+    app.post('/api/pr/newsletters/:id/send', auth, adminOnly, (req, res) => {
         // Mark as sent (actual email sending would require integration)
         const subscribers = query.get('SELECT COUNT(*) as count FROM pr_subscribers WHERE status = ?', ['active']);
         db.run(`UPDATE pr_newsletters SET status = 'sent', sent_at = datetime('now'), recipient_count = ? WHERE id = ?`,
@@ -15684,14 +15701,14 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, recipientCount: subscribers?.count || 0 });
     });
 
-    app.delete('/api/pr/newsletters/:id', auth, (req, res) => {
+    app.delete('/api/pr/newsletters/:id', auth, adminOnly, (req, res) => {
         db.run('DELETE FROM pr_newsletters WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
     });
 
     // Subscribers
-    app.get('/api/pr/subscribers', auth, (req, res) => {
+    app.get('/api/pr/subscribers', auth, adminOnly, (req, res) => {
         const { status, project, search } = req.query;
         let sql = 'SELECT * FROM pr_subscribers WHERE 1=1';
         const params = [];
@@ -15713,7 +15730,7 @@ By applying to this program, I provide the following consents:
         res.json(query.all(sql, params));
     });
 
-    app.post('/api/pr/subscribers', auth, (req, res) => {
+    app.post('/api/pr/subscribers', auth, adminOnly, (req, res) => {
         const { email, first_name, last_name, subscribed_projects, language, source } = req.body;
         const id = uuidv4();
         try {
@@ -15727,7 +15744,7 @@ By applying to this program, I provide the following consents:
         }
     });
 
-    app.put('/api/pr/subscribers/:id', auth, (req, res) => {
+    app.put('/api/pr/subscribers/:id', auth, adminOnly, (req, res) => {
         const { email, first_name, last_name, subscribed_projects, language, status } = req.body;
         db.run(`UPDATE pr_subscribers SET email = ?, first_name = ?, last_name = ?, subscribed_projects = ?, language = ?, status = ?
             WHERE id = ?`,
@@ -15736,20 +15753,20 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.post('/api/pr/subscribers/:id/unsubscribe', auth, (req, res) => {
+    app.post('/api/pr/subscribers/:id/unsubscribe', auth, adminOnly, (req, res) => {
         db.run(`UPDATE pr_subscribers SET status = 'unsubscribed', unsubscribed_at = datetime('now') WHERE id = ?`, [req.params.id]);
         saveDb();
         res.json({ success: true });
     });
 
-    app.delete('/api/pr/subscribers/:id', auth, (req, res) => {
+    app.delete('/api/pr/subscribers/:id', auth, adminOnly, (req, res) => {
         db.run('DELETE FROM pr_subscribers WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
     });
 
     // Export subscribers as CSV
-    app.get('/api/pr/subscribers/export', auth, (req, res) => {
+    app.get('/api/pr/subscribers/export', auth, adminOnly, (req, res) => {
         const subscribers = query.all('SELECT * FROM pr_subscribers ORDER BY subscribed_at DESC');
         const csvHeader = 'Email,First Name,Last Name,Subscribed Projects,Language,Source,Status,Subscribed At\n';
         const csvRows = subscribers.map(s =>
@@ -15761,7 +15778,7 @@ By applying to this program, I provide the following consents:
         res.send(csvHeader + csvRows);
     });
 
-    app.post('/api/pr/subscribers/import', auth, (req, res) => {
+    app.post('/api/pr/subscribers/import', auth, adminOnly, (req, res) => {
         const { subscribers } = req.body;
         let imported = 0;
         let skipped = 0;
@@ -15802,7 +15819,7 @@ By applying to this program, I provide the following consents:
         limits: { fileSize: 10 * 1024 * 1024 }
     });
 
-    app.get('/api/pr/media', auth, (req, res) => {
+    app.get('/api/pr/media', auth, adminOnly, (req, res) => {
         const { project, category, search } = req.query;
         let sql = 'SELECT * FROM pr_media_assets WHERE 1=1';
         const params = [];
@@ -15824,13 +15841,13 @@ By applying to this program, I provide the following consents:
         res.json(query.all(sql, params));
     });
 
-    app.get('/api/pr/media/:id', auth, (req, res) => {
+    app.get('/api/pr/media/:id', auth, adminOnly, (req, res) => {
         const asset = query.get('SELECT * FROM pr_media_assets WHERE id = ?', [req.params.id]);
         if (!asset) return res.status(404).json({ error: 'Media not found' });
         res.json(asset);
     });
 
-    app.post('/api/pr/media', auth, prMediaUpload.single('file'), (req, res) => {
+    app.post('/api/pr/media', auth, adminOnly, prMediaUpload.single('file'), (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
         const { project, category, tags, alt_text, caption } = req.body;
@@ -15843,7 +15860,7 @@ By applying to this program, I provide the following consents:
         res.json({ id, success: true, file_path: `/uploads/pr-media/${req.file.filename}` });
     });
 
-    app.put('/api/pr/media/:id', auth, (req, res) => {
+    app.put('/api/pr/media/:id', auth, adminOnly, (req, res) => {
         const { project, category, tags, alt_text, caption } = req.body;
         db.run(`UPDATE pr_media_assets SET project = ?, category = ?, tags = ?, alt_text = ?, caption = ? WHERE id = ?`,
             [project || null, category, tags || null, alt_text || null, caption || null, req.params.id]);
@@ -15851,7 +15868,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.delete('/api/pr/media/:id', auth, (req, res) => {
+    app.delete('/api/pr/media/:id', auth, adminOnly, (req, res) => {
         const asset = query.get('SELECT file_path FROM pr_media_assets WHERE id = ?', [req.params.id]);
         if (asset && asset.file_path) {
             const filePath = path.join(__dirname, asset.file_path);
@@ -15863,7 +15880,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Campaigns
-    app.get('/api/pr/campaigns', auth, (req, res) => {
+    app.get('/api/pr/campaigns', auth, adminOnly, (req, res) => {
         const { status, project } = req.query;
         let sql = 'SELECT * FROM pr_campaigns WHERE 1=1';
         const params = [];
@@ -15881,7 +15898,7 @@ By applying to this program, I provide the following consents:
         res.json(query.all(sql, params));
     });
 
-    app.get('/api/pr/campaigns/:id', auth, (req, res) => {
+    app.get('/api/pr/campaigns/:id', auth, adminOnly, (req, res) => {
         const campaign = query.get('SELECT * FROM pr_campaigns WHERE id = ?', [req.params.id]);
         if (!campaign) return res.status(404).json({ error: 'Not found' });
 
@@ -15893,7 +15910,7 @@ By applying to this program, I provide the following consents:
         res.json({ ...campaign, content, posts, newsletters });
     });
 
-    app.post('/api/pr/campaigns', auth, (req, res) => {
+    app.post('/api/pr/campaigns', auth, adminOnly, (req, res) => {
         const { project, name, description, goal, start_date, end_date, budget, target_audience, platforms, kpis } = req.body;
         const id = uuidv4();
         db.run(`INSERT INTO pr_campaigns (id, project, name, description, goal, start_date, end_date, budget, target_audience, platforms, kpis, created_by)
@@ -15903,7 +15920,7 @@ By applying to this program, I provide the following consents:
         res.json({ id, success: true });
     });
 
-    app.put('/api/pr/campaigns/:id', auth, (req, res) => {
+    app.put('/api/pr/campaigns/:id', auth, adminOnly, (req, res) => {
         const { project, name, description, goal, start_date, end_date, status, budget, spent, target_audience, platforms, kpis } = req.body;
         db.run(`UPDATE pr_campaigns SET project = ?, name = ?, description = ?, goal = ?, start_date = ?, end_date = ?, status = ?, budget = ?, spent = ?, target_audience = ?, platforms = ?, kpis = ?, updated_at = datetime('now')
             WHERE id = ?`,
@@ -15912,14 +15929,14 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.delete('/api/pr/campaigns/:id', auth, (req, res) => {
+    app.delete('/api/pr/campaigns/:id', auth, adminOnly, (req, res) => {
         db.run('DELETE FROM pr_campaigns WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
     });
 
     // Analytics
-    app.get('/api/pr/analytics', auth, (req, res) => {
+    app.get('/api/pr/analytics', auth, adminOnly, (req, res) => {
         const { project, platform, from, to } = req.query;
         let sql = 'SELECT * FROM pr_analytics WHERE 1=1';
         const params = [];
@@ -15945,7 +15962,7 @@ By applying to this program, I provide the following consents:
         res.json(query.all(sql, params));
     });
 
-    app.post('/api/pr/analytics', auth, (req, res) => {
+    app.post('/api/pr/analytics', auth, adminOnly, (req, res) => {
         const { project, platform, date, followers, following, posts_count, engagement_rate, reach, impressions, profile_views, website_clicks, new_followers } = req.body;
         const id = uuidv4();
 
@@ -15966,7 +15983,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Templates
-    app.get('/api/pr/templates', auth, (req, res) => {
+    app.get('/api/pr/templates', auth, adminOnly, (req, res) => {
         const { type, platform, project } = req.query;
         let sql = 'SELECT * FROM pr_templates WHERE is_active = 1';
         const params = [];
@@ -15988,7 +16005,7 @@ By applying to this program, I provide the following consents:
         res.json(query.all(sql, params));
     });
 
-    app.post('/api/pr/templates', auth, (req, res) => {
+    app.post('/api/pr/templates', auth, adminOnly, (req, res) => {
         const { name, type, platform, project, content_template, image_template, variables } = req.body;
         const id = uuidv4();
         db.run(`INSERT INTO pr_templates (id, name, type, platform, project, content_template, image_template, variables, created_by)
@@ -15998,7 +16015,7 @@ By applying to this program, I provide the following consents:
         res.json({ id, success: true });
     });
 
-    app.put('/api/pr/templates/:id', auth, (req, res) => {
+    app.put('/api/pr/templates/:id', auth, adminOnly, (req, res) => {
         const { name, type, platform, project, content_template, image_template, variables, is_active } = req.body;
         db.run(`UPDATE pr_templates SET name = ?, type = ?, platform = ?, project = ?, content_template = ?, image_template = ?, variables = ?, is_active = ?
             WHERE id = ?`,
@@ -16007,20 +16024,20 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.post('/api/pr/templates/:id/use', auth, (req, res) => {
+    app.post('/api/pr/templates/:id/use', auth, adminOnly, (req, res) => {
         db.run('UPDATE pr_templates SET use_count = use_count + 1 WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
     });
 
-    app.delete('/api/pr/templates/:id', auth, (req, res) => {
+    app.delete('/api/pr/templates/:id', auth, adminOnly, (req, res) => {
         db.run('DELETE FROM pr_templates WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
     });
 
     // AI Generation History
-    app.get('/api/pr/ai-generations', auth, (req, res) => {
+    app.get('/api/pr/ai-generations', auth, adminOnly, (req, res) => {
         const { type, project } = req.query;
         let sql = 'SELECT * FROM pr_ai_generations WHERE 1=1';
         const params = [];
@@ -16038,7 +16055,7 @@ By applying to this program, I provide the following consents:
         res.json(query.all(sql, params));
     });
 
-    app.post('/api/pr/ai-generations', auth, (req, res) => {
+    app.post('/api/pr/ai-generations', auth, adminOnly, (req, res) => {
         const { type, prompt, result_text, result_image_path, project, platform, model } = req.body;
         const id = uuidv4();
         db.run(`INSERT INTO pr_ai_generations (id, type, prompt, result_text, result_image_path, project, platform, model, created_by)
@@ -16048,13 +16065,13 @@ By applying to this program, I provide the following consents:
         res.json({ id, success: true });
     });
 
-    app.post('/api/pr/ai-generations/:id/use', auth, (req, res) => {
+    app.post('/api/pr/ai-generations/:id/use', auth, adminOnly, (req, res) => {
         db.run('UPDATE pr_ai_generations SET used = 1 WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
     });
 
-    app.post('/api/pr/ai-generations/:id/rate', auth, (req, res) => {
+    app.post('/api/pr/ai-generations/:id/rate', auth, adminOnly, (req, res) => {
         const { rating } = req.body;
         db.run('UPDATE pr_ai_generations SET rating = ? WHERE id = ?', [rating, req.params.id]);
         saveDb();
@@ -17196,18 +17213,18 @@ By applying to this program, I provide the following consents:
     // --- SPEAKER PORTAL: AUTH & DOCUMENTS ---
 
     // Verify speaker invite code, return speaker record
-    app.post('/api/speakers/auth', (req, res) => {
+    app.post('/api/speakers/auth', authLimiter, (req, res) => {
         const { code } = req.body;
-        if (!code) return res.status(400).json({ error: 'Invite code required' });
+        if (!code || String(code).trim().length < 6) return res.status(400).json({ error: 'Invite code required' });
 
-        // Look up speaker by invite_code first (priority), then fall back to id or name
+        // Exact invite_code or speaker id only. The previous fuzzy name-LIKE fallback let
+        // anyone type part of a public speaker name and receive that speaker's invite_code.
         const speaker = query.get(
             `SELECT s.*, c.name as conference_name FROM speakers s
              LEFT JOIN conferences c ON s.conference_id = c.id
              WHERE UPPER(s.invite_code) = UPPER(?)
-                OR UPPER(s.id) = UPPER(?)
-                OR (UPPER(s.name) LIKE UPPER(?) AND s.is_confirmed = 1)`,
-            [code, code, `%${code}%`]
+                OR UPPER(s.id) = UPPER(?)`,
+            [code, code]
         );
 
         if (speaker) {
@@ -17231,8 +17248,39 @@ By applying to this program, I provide the following consents:
         res.status(404).json({ error: 'Invalid invite code' });
     });
 
+    // Speaker-document access: the speaker portal authenticates by invite code (no JWT),
+    // so these routes accept EITHER an x-speaker-code header matching this speaker's code,
+    // OR a logged-in user who is this speaker (email match) / an admin. The previous
+    // auth-only gating both let any attendee touch any speaker's files AND broke the
+    // code-based speaker flow in production (the SPA never sent a Bearer token here).
+    function speakerDocAuth(req, res, next) {
+        const speaker = query.get('SELECT id, email, invite_code FROM speakers WHERE id = ?', [req.params.id]);
+        if (!speaker) return res.status(404).json({ error: 'Speaker not found' });
+
+        const code = req.headers['x-speaker-code'];
+        if (code && speaker.invite_code &&
+            String(code).trim().toUpperCase() === String(speaker.invite_code).toUpperCase()) {
+            req.speaker = speaker;
+            return next();
+        }
+
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (token && token !== 'auto-login') {
+            try {
+                const decoded = jwt.verify(token, JWT_SECRET);
+                const user = query.get('SELECT id, email, is_admin FROM users WHERE id = ?', [decoded.id]);
+                if (user && (user.is_admin ||
+                    (speaker.email && user.email && speaker.email.toLowerCase() === user.email.toLowerCase()))) {
+                    req.user = user;
+                    return next();
+                }
+            } catch (e) { /* invalid token */ }
+        }
+        return res.status(403).json({ error: 'Access denied' });
+    }
+
     // List speaker's uploaded documents
-    app.get('/api/speakers/:id/documents', auth, (req, res) => {
+    app.get('/api/speakers/:id/documents', speakerDocAuth, (req, res) => {
         const docs = query.all(
             'SELECT * FROM speaker_documents WHERE speaker_id = ? ORDER BY uploaded_at DESC',
             [req.params.id]
@@ -17241,7 +17289,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Upload a document for a speaker
-    app.post('/api/speakers/:id/documents', auth, upload.single('file'), cloudUpload('speakers'), (req, res) => {
+    app.post('/api/speakers/:id/documents', speakerDocAuth, upload.single('file'), cloudUpload('speakers'), (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No file provided' });
 
         const speakerId = req.params.id;
@@ -17280,7 +17328,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Delete a speaker document
-    app.delete('/api/speakers/:id/documents/:docId', auth, (req, res) => {
+    app.delete('/api/speakers/:id/documents/:docId', speakerDocAuth, (req, res) => {
         const doc = query.get(
             'SELECT * FROM speaker_documents WHERE id = ? AND speaker_id = ?',
             [req.params.docId, req.params.id]
