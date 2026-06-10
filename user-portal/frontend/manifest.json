@@ -1,8 +1,8 @@
 {
-  "name": "MedX Check-in Scanner",
-  "short_name": "MedX Scanner",
-  "description": "Event check-in scanner for Med&X events",
-  "start_url": "/?mode=scanner",
+  "name": "Plexus 2026 — Med&X",
+  "short_name": "Plexus",
+  "description": "Your Plexus 2026 ticket, schedule, and event updates from Med&X.",
+  "start_url": "/?app=1",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#C9A962",
@@ -23,33 +23,20 @@
   ],
   "shortcuts": [
     {
-      "name": "Open Scanner",
-      "short_name": "Scanner",
-      "description": "Launch mobile check-in scanner",
-      "url": "/?mode=scanner",
-      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+      "name": "My Ticket",
+      "short_name": "Ticket",
+      "description": "Open my Plexus ticket & QR code",
+      "url": "/?app=1&view=ticket"
     },
     {
-      "name": "Plexus Day 1",
-      "short_name": "Day 1",
-      "description": "Scanner for Plexus Day 1",
-      "url": "/?mode=scanner&event=PLEXUS26-DAY1"
-    },
-    {
-      "name": "Plexus Day 2",
-      "short_name": "Day 2",
-      "description": "Scanner for Plexus Day 2",
-      "url": "/?mode=scanner&event=PLEXUS26-DAY2"
-    },
-    {
-      "name": "Gala Evening",
-      "short_name": "Gala",
-      "description": "Scanner for Gala Evening",
-      "url": "/?mode=scanner&event=PLEXUS26-GALA"
+      "name": "Schedule",
+      "short_name": "Schedule",
+      "description": "Conference schedule",
+      "url": "/?app=1&view=schedule"
     }
   ],
-  "categories": ["medical", "education", "productivity"],
+  "categories": ["medical", "education", "events"],
   "lang": "en-US",
   "scope": "/",
-  "id": "medx-checkin-scanner"
+  "id": "medx-plexus-attendee"
 }

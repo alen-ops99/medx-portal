@@ -1,0 +1,42 @@
+{
+  "name": "Med&X Staff — Admin & Scanner",
+  "short_name": "Med&X Staff",
+  "description": "Med&X staff app: event check-in scanner, registrations, and admin tools.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#C9A962",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Check-in Scanner",
+      "short_name": "Scanner",
+      "description": "Open the event check-in scanner",
+      "url": "/?section=health"
+    },
+    {
+      "name": "System Health",
+      "short_name": "Health",
+      "description": "Run the preflight system check",
+      "url": "/?section=health"
+    }
+  ],
+  "categories": ["medical", "productivity", "business"],
+  "lang": "en-US",
+  "scope": "/",
+  "id": "medx-staff-admin"
+}
