@@ -5474,6 +5474,77 @@ async function initializeApp() {
         res.json(query.all('SELECT * FROM conferences ORDER BY year DESC'));
     });
 
+    // ========== MULTI-YEAR CONFERENCE MANAGEMENT (admin) ==========
+    // Create a new conference year (e.g. Plexus 2027).
+    app.post('/api/admin/conferences', auth, adminOnly, (req, res) => {
+        try {
+            const { name, year, slug, description, start_date, end_date, venue_name, venue_city, venue_country, max_capacity } = req.body || {};
+            if (!name || !year) return res.status(400).json({ error: 'name and year are required' });
+            // Default slug from name; append the year only if the name doesn't already include it.
+            const base = slug || (String(name).includes(String(year)) ? name : `${name}-${year}`);
+            const cleanSlug = base.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+            if (query.get('SELECT id FROM conferences WHERE slug = ?', [cleanSlug])) {
+                return res.status(409).json({ error: 'A conference with that slug already exists: ' + cleanSlug });
+            }
+            const id = uuidv4();
+            db.run(`INSERT INTO conferences (id, name, year, slug, description, start_date, end_date, venue_name, venue_city, venue_country, max_capacity, is_active)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,0)`,
+                [id, name, parseInt(year), cleanSlug, description || null, start_date || null, end_date || null,
+                 venue_name || null, venue_city || null, venue_country || null, parseInt(max_capacity) || 200]);
+            saveDb();
+            res.json({ success: true, id, slug: cleanSlug });
+        } catch (e) { console.error('[Conf] create failed:', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Clone an existing conference's ticket types into another (so a new year starts pre-loaded).
+    app.post('/api/admin/conferences/:id/clone-tickets', auth, adminOnly, (req, res) => {
+        try {
+            const fromId = req.body && req.body.from_conference_id;
+            if (!fromId) return res.status(400).json({ error: 'from_conference_id is required' });
+            const target = query.get('SELECT id FROM conferences WHERE id = ?', [req.params.id]);
+            if (!target) return res.status(404).json({ error: 'Target conference not found' });
+            const tickets = query.all('SELECT * FROM ticket_types WHERE conference_id = ?', [fromId]);
+            let cloned = 0;
+            tickets.forEach(t => {
+                db.run(`INSERT INTO ticket_types (id, conference_id, name, name_hr, price_early_bird, price_regular, price_late, currency, includes_gala, sold_count, sort_order)
+                        VALUES (?,?,?,?,?,?,?,?,?,0,?)`,
+                    [uuidv4(), req.params.id, t.name, t.name_hr, t.price_early_bird, t.price_regular, t.price_late, t.currency || 'EUR', t.includes_gala || 0, t.sort_order || 0]);
+                cloned++;
+            });
+            saveDb();
+            res.json({ success: true, cloned });
+        } catch (e) { console.error('[Conf] clone failed:', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Edit a conference's details.
+    app.put('/api/admin/conferences/:id', auth, adminOnly, (req, res) => {
+        try {
+            const existing = query.get('SELECT * FROM conferences WHERE id = ?', [req.params.id]);
+            if (!existing) return res.status(404).json({ error: 'Not found' });
+            const b = req.body || {};
+            const pick = (k, fb) => (b[k] !== undefined ? b[k] : fb);
+            db.run(`UPDATE conferences SET name=?, year=?, description=?, start_date=?, end_date=?, venue_name=?, venue_city=?, venue_country=?, max_capacity=? WHERE id=?`,
+                [pick('name', existing.name), pick('year', existing.year), pick('description', existing.description),
+                 pick('start_date', existing.start_date), pick('end_date', existing.end_date), pick('venue_name', existing.venue_name),
+                 pick('venue_city', existing.venue_city), pick('venue_country', existing.venue_country),
+                 pick('max_capacity', existing.max_capacity), req.params.id]);
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Set the active conference (exactly one active at a time).
+    app.post('/api/admin/conferences/:id/activate', auth, adminOnly, (req, res) => {
+        try {
+            const c = query.get('SELECT id, name FROM conferences WHERE id = ?', [req.params.id]);
+            if (!c) return res.status(404).json({ error: 'Not found' });
+            db.run('UPDATE conferences SET is_active = 0');
+            db.run('UPDATE conferences SET is_active = 1 WHERE id = ?', [req.params.id]);
+            saveDb();
+            res.json({ success: true, active: c.name });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
     // ========== TICKET ROUTES ==========
     app.get('/api/conferences/:confId/tickets', (req, res) => {
         res.json(query.all('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order', [req.params.confId]));

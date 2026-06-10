@@ -6587,6 +6587,11 @@
                     <span>Home</span>
                 </a>
 
+                <a class="nav-item" data-section="conferences" onclick="App.showSection('conferences', this)">
+                    <i class="fas fa-calendar-plus" style="color: #38bdf8;"></i>
+                    <span>Conferences</span>
+                </a>
+
                 <div class="nav-divider"></div>
                 <div class="nav-label">Projects</div>
 
@@ -10831,6 +10836,22 @@ President, Med&amp;X</textarea>
                             <div style="text-align:center;padding:40px;color:var(--text-muted);">Loading…</div>
                         </div>
                     </div>
+                </div>
+
+                <!-- MULTI-YEAR CONFERENCES -->
+                <div class="section" id="section-conferences">
+                    <div class="back-link" onclick="App.showSection('dashboard')">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px;">
+                        <div>
+                            <h2 style="margin:0;font-size:22px;display:flex;align-items:center;gap:10px;"><i class="fas fa-calendar-plus" style="color:#38bdf8;"></i> Conferences</h2>
+                            <p style="margin:6px 0 0;color:var(--text-muted);font-size:13px;">Create future editions (Plexus 2027, 2028…), clone last year's tickets, and set which one is live for attendees.</p>
+                        </div>
+                        <button class="btn btn-primary" onclick="ConfApp.showCreate()"><i class="fas fa-plus"></i> New conference year</button>
+                    </div>
+                    <div id="confCreateForm" style="display:none;"></div>
+                    <div id="confList"><div style="text-align:center;padding:30px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i></div></div>
                 </div>
 
                 <!-- SYSTEM HEALTH (PREFLIGHT) -->
@@ -15331,6 +15352,7 @@ President, Med&amp;X</textarea>
                     'portal-content': 'Portal Content',
                     'messages': 'Messages',
                     'gala': 'Gala Evening',
+                    'conferences': 'Conferences',
                     'health': 'System Health',
                     'tech': 'Tech Dashboard',
                     'settings': 'Settings'
@@ -15404,6 +15426,10 @@ President, Med&amp;X</textarea>
                     this.currentView = 'croatians-abroad';
                     this.switchChatPanel('team');
                     if (typeof CroatiansAbroadAdmin !== 'undefined') CroatiansAbroadAdmin.init();
+                } else if (sectionId === 'conferences') {
+                    this.currentView = 'conferences';
+                    this.switchChatPanel('team');
+                    if (typeof ConfApp !== 'undefined') ConfApp.load();
                 } else if (sectionId === 'health') {
                     this.currentView = 'health';
                     this.switchChatPanel('team');
@@ -30167,6 +30193,105 @@ By applying to this program, I give the following consents:
                     URL.revokeObjectURL(url);
                     Toast.success(`${data.count} ${event} emails exported`);
                 } catch (err) { Toast.error('Export failed'); }
+            }
+        };
+
+        // ==================== MULTI-YEAR CONFERENCES ====================
+        const ConfApp = {
+            _list: [],
+            esc(s) { return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); },
+
+            async load() {
+                const el = document.getElementById('confList');
+                try {
+                    const res = await fetch('/api/conferences', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    this._list = await res.json();
+                    this.render();
+                } catch (e) { if (el) el.innerHTML = '<div class="card" style="padding:16px;">Failed to load conferences.</div>'; }
+            },
+
+            render() {
+                const el = document.getElementById('confList');
+                if (!el) return;
+                if (!this._list.length) { el.innerHTML = '<div class="card" style="padding:20px;color:var(--text-muted);">No conferences yet. Create your first edition above.</div>'; return; }
+                el.innerHTML = this._list.map(c => {
+                    const active = c.is_active === 1 || c.is_active === '1';
+                    return `<div class="card" style="padding:16px 18px;margin-bottom:12px;border-left:4px solid ${active ? '#22c55e' : 'var(--border)'};">
+                        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+                            <div>
+                                <div style="font-weight:700;font-size:16px;">${this.esc(c.name)} ${active ? '<span style="font-size:10px;font-weight:700;color:#22c55e;border:1px solid rgba(34,197,94,0.4);border-radius:20px;padding:2px 8px;margin-left:6px;">LIVE FOR ATTENDEES</span>' : ''}</div>
+                                <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${c.year || ''} · ${this.esc(c.venue_city || '—')} · ${this.esc(c.start_date || 'no date')} · <code style="font-size:11px;">${this.esc(c.slug)}</code></div>
+                            </div>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                ${!active ? `<button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="ConfApp.activate('${c.id}','${this.esc(c.name)}')"><i class="fas fa-bolt"></i> Set live</button>` : ''}
+                                <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="ConfApp.cloneTickets('${c.id}')"><i class="fas fa-copy"></i> Clone tickets…</button>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+            },
+
+            showCreate() {
+                const f = document.getElementById('confCreateForm');
+                if (!f) return;
+                if (f.style.display === 'block') { f.style.display = 'none'; return; }
+                f.style.display = 'block';
+                const yr = new Date().getFullYear() + 1;
+                f.innerHTML = `<div class="card" style="padding:18px;margin-bottom:16px;">
+                    <h3 style="margin:0 0 14px;font-size:15px;">New conference year</h3>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+                        <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Name</label><input id="confName" class="form-input" value="Plexus Conference ${yr}" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
+                        <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Year</label><input id="confYear" type="number" value="${yr}" class="form-input" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
+                        <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Start date</label><input id="confStart" type="date" class="form-input" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
+                        <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">End date</label><input id="confEnd" type="date" class="form-input" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
+                        <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Venue city</label><input id="confCity" class="form-input" value="Zagreb" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
+                        <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Venue name</label><input id="confVenue" class="form-input" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
+                    </div>
+                    <div style="margin-top:10px;"><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Description</label><textarea id="confDesc" class="form-input" rows="2" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></textarea></div>
+                    <div style="margin-top:14px;display:flex;gap:8px;"><button class="btn btn-primary" onclick="ConfApp.create()"><i class="fas fa-check"></i> Create</button><button class="btn btn-secondary" onclick="document.getElementById('confCreateForm').style.display='none';">Cancel</button></div>
+                </div>`;
+            },
+
+            async create() {
+                const body = {
+                    name: document.getElementById('confName').value.trim(),
+                    year: parseInt(document.getElementById('confYear').value),
+                    start_date: document.getElementById('confStart').value || undefined,
+                    end_date: document.getElementById('confEnd').value || undefined,
+                    venue_city: document.getElementById('confCity').value.trim() || undefined,
+                    venue_name: document.getElementById('confVenue').value.trim() || undefined,
+                    description: document.getElementById('confDesc').value.trim() || undefined
+                };
+                if (!body.name || !body.year) { Toast.warning('Name and year required'); return; }
+                try {
+                    const res = await fetch('/api/admin/conferences', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify(body) });
+                    const data = await res.json();
+                    if (data.success) { Toast.success('Created ' + body.name); document.getElementById('confCreateForm').style.display = 'none'; this.load(); }
+                    else Toast.error(data.error || 'Create failed');
+                } catch (e) { Toast.error('Create failed'); }
+            },
+
+            async activate(id, name) {
+                if (!confirm('Make "' + name + '" the LIVE conference for attendees? This changes what the public portal shows for active-conference views.')) return;
+                try {
+                    const res = await fetch('/api/admin/conferences/' + id + '/activate', { method: 'POST', headers: { 'Authorization': `Bearer ${App.token}` } });
+                    const data = await res.json();
+                    if (data.success) { Toast.success(name + ' is now live'); this.load(); } else Toast.error(data.error || 'Failed');
+                } catch (e) { Toast.error('Failed'); }
+            },
+
+            async cloneTickets(targetId) {
+                const sources = this._list.filter(c => c.id !== targetId);
+                if (!sources.length) { Toast.info('No other conference to clone tickets from.'); return; }
+                const list = sources.map((c, i) => `${i + 1}. ${c.name}`).join('\n');
+                const pick = prompt('Clone ticket types INTO this conference FROM which one?\n\n' + list + '\n\nEnter a number:');
+                const idx = parseInt(pick) - 1;
+                if (isNaN(idx) || !sources[idx]) return;
+                try {
+                    const res = await fetch('/api/admin/conferences/' + targetId + '/clone-tickets', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify({ from_conference_id: sources[idx].id }) });
+                    const data = await res.json();
+                    if (data.success) Toast.success('Cloned ' + data.cloned + ' ticket type(s)'); else Toast.error(data.error || 'Clone failed');
+                } catch (e) { Toast.error('Clone failed'); }
             }
         };
 
