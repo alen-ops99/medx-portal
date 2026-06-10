@@ -6628,6 +6628,12 @@
                 <div class="nav-divider"></div>
                 <div class="nav-label">System</div>
 
+                <a class="nav-item" data-section="health" onclick="App.showSection('health', this)">
+                    <i class="fas fa-heart-pulse" style="color: #22c55e;"></i>
+                    <span>System Health</span>
+                    <span id="healthNavDot" style="width:9px;height:9px;border-radius:50%;margin-left:auto;display:none;"></span>
+                </a>
+
                 <a class="nav-item" data-section="tech" onclick="App.showSection('tech', this)">
                     <i class="fas fa-server" style="color: #8b5cf6;"></i>
                     <span>Tech</span>
@@ -10806,6 +10812,24 @@ President, Med&amp;X</textarea>
                             <div style="text-align:center;padding:40px;color:var(--text-muted);">Loading…</div>
                         </div>
                     </div>
+                </div>
+
+                <!-- SYSTEM HEALTH (PREFLIGHT) -->
+                <div class="section" id="section-health">
+                    <div class="back-link" onclick="App.showSection('dashboard')">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px;">
+                        <div>
+                            <h2 style="margin:0;font-size:22px;display:flex;align-items:center;gap:10px;">
+                                <i class="fas fa-heart-pulse" style="color:#22c55e;"></i> System Health
+                            </h2>
+                            <p style="margin:6px 0 0;color:var(--text-muted);font-size:13px;">Preflight check across every flow that can go wrong — run it before the event and any time something seems off.</p>
+                        </div>
+                        <button class="btn btn-primary" onclick="HealthApp.run()" id="healthRunBtn"><i class="fas fa-sync"></i> Run checks</button>
+                    </div>
+                    <div id="healthOverall"></div>
+                    <div id="healthResults"></div>
                 </div>
 
                 <!-- TECH DASHBOARD -->
@@ -15281,6 +15305,7 @@ President, Med&amp;X</textarea>
                     'portal-content': 'Portal Content',
                     'messages': 'Messages',
                     'gala': 'Gala Evening',
+                    'health': 'System Health',
                     'tech': 'Tech Dashboard',
                     'settings': 'Settings'
                 };
@@ -15353,6 +15378,10 @@ President, Med&amp;X</textarea>
                     this.currentView = 'croatians-abroad';
                     this.switchChatPanel('team');
                     if (typeof CroatiansAbroadAdmin !== 'undefined') CroatiansAbroadAdmin.init();
+                } else if (sectionId === 'health') {
+                    this.currentView = 'health';
+                    this.switchChatPanel('team');
+                    if (typeof HealthApp !== 'undefined') HealthApp.run();
                 } else if (sectionId === 'tech') {
                     this.currentView = 'tech';
                     this.switchChatPanel('team');
@@ -30085,6 +30114,80 @@ By applying to this program, I give the following consents:
                     URL.revokeObjectURL(url);
                     Toast.success(`${data.count} ${event} emails exported`);
                 } catch (err) { Toast.error('Export failed'); }
+            }
+        };
+
+        // ==================== SYSTEM HEALTH (PREFLIGHT) ====================
+        const HealthApp = {
+            STYLE: {
+                ok:   { color: '#22c55e', bg: 'rgba(34,197,94,0.10)', border: 'rgba(34,197,94,0.35)', icon: 'fa-check-circle', label: 'OK' },
+                warn: { color: '#f59e0b', bg: 'rgba(245,158,11,0.10)', border: 'rgba(245,158,11,0.35)', icon: 'fa-exclamation-triangle', label: 'CHECK' },
+                fail: { color: '#ef4444', bg: 'rgba(239,68,68,0.10)', border: 'rgba(239,68,68,0.40)', icon: 'fa-times-circle', label: 'FAIL' }
+            },
+            esc(s) { return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); },
+
+            async run() {
+                const btn = document.getElementById('healthRunBtn');
+                const overall = document.getElementById('healthOverall');
+                const results = document.getElementById('healthResults');
+                if (!results) return;
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running…'; }
+                overall.innerHTML = '';
+                results.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin" style="font-size:24px;"></i><p style="margin-top:12px;">Running preflight checks…</p></div>';
+                try {
+                    const res = await fetch('/api/admin/system-health', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    const data = await res.json();
+                    this.render(data);
+                } catch (err) {
+                    results.innerHTML = `<div class="card" style="padding:20px;border-left:4px solid #ef4444;">Failed to run health checks: ${this.esc(err.message)}</div>`;
+                    overall.innerHTML = '';
+                } finally {
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync"></i> Run checks'; }
+                }
+            },
+
+            render(data) {
+                const s = this.STYLE[data.overall] || this.STYLE.ok;
+                const verdict = data.overall === 'ok' ? 'All systems go' : data.overall === 'warn' ? 'Ready, with items to review' : 'Action needed before go-live';
+                // Nav dot
+                const dot = document.getElementById('healthNavDot');
+                if (dot) { dot.style.display = 'inline-block'; dot.style.background = s.color; }
+                // Overall banner
+                document.getElementById('healthOverall').innerHTML = `
+                    <div class="card" style="padding:18px 20px;margin-bottom:18px;border-left:4px solid ${s.color};background:${s.bg};">
+                        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+                            <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:50%;background:${s.color};color:#fff;font-size:22px;"><i class="fas ${s.icon}"></i></span>
+                            <div style="flex:1;min-width:200px;">
+                                <div style="font-size:18px;font-weight:700;color:var(--text-primary);">${verdict}</div>
+                                <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+                                    <span style="color:#22c55e;font-weight:600;">${data.counts.ok || 0} OK</span> ·
+                                    <span style="color:#f59e0b;font-weight:600;">${data.counts.warn || 0} to check</span> ·
+                                    <span style="color:#ef4444;font-weight:600;">${data.counts.fail || 0} failing</span>
+                                    &nbsp;·&nbsp; ${new Date(data.generated_at).toLocaleString()}
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                // Groups
+                document.getElementById('healthResults').innerHTML = (data.groups || []).map(gp => {
+                    const rows = (gp.checks || []).map(c => {
+                        const cs = this.STYLE[c.status] || this.STYLE.ok;
+                        return `<div style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);">
+                            <span style="flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;background:${cs.bg};color:${cs.color};font-size:13px;margin-top:1px;"><i class="fas ${cs.icon}"></i></span>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-weight:600;color:var(--text-primary);font-size:14px;">${this.esc(c.name)}
+                                    <span style="font-size:10px;font-weight:700;letter-spacing:0.5px;color:${cs.color};margin-left:6px;">${cs.label}</span></div>
+                                ${c.detail ? `<div style="font-size:12.5px;color:var(--text-secondary,#94a3b8);margin-top:3px;">${this.esc(c.detail)}</div>` : ''}
+                                ${c.fix ? `<div style="font-size:12px;color:${cs.color};margin-top:4px;"><i class="fas fa-wrench" style="font-size:10px;opacity:0.8;"></i> ${this.esc(c.fix)}</div>` : ''}
+                            </div>
+                        </div>`;
+                    }).join('');
+                    return `<div class="card" style="padding:0;margin-bottom:16px;overflow:hidden;">
+                        <div style="padding:12px 16px;background:rgba(255,255,255,0.03);border-bottom:1px solid var(--border);font-weight:700;font-size:13px;letter-spacing:0.3px;">${this.esc(gp.group)}</div>
+                        ${rows}
+                    </div>`;
+                }).join('');
             }
         };
 

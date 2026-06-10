@@ -16832,6 +16832,128 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
+    // ==================== SYSTEM HEALTH (PREFLIGHT) ====================
+    // One endpoint that runs a battery of read-only checks across every flow that can go
+    // wrong before/during the event — like a cockpit preflight. Each check returns
+    // { name, status: 'ok'|'warn'|'fail', detail, fix } and is wrapped so one failing
+    // check never breaks the whole report. adminOnly (no techAuth) so staff can run it freely.
+    app.get('/api/admin/system-health', auth, adminOnly, (req, res) => {
+        const groups = [];
+        const today = new Date().toISOString().slice(0, 10);
+        const PLACEHOLDER_IBANS = new Set(['HR1234567890123456789', 'HR12345678901', '']);
+        // safe(fn) runs a check, turning any throw into a 'fail' rather than crashing the report
+        const safe = (name, fn) => {
+            try { const r = fn() || {}; return { name, status: r.status || 'ok', detail: r.detail || '', fix: r.fix || '' }; }
+            catch (e) { return { name, status: 'fail', detail: 'Check errored: ' + e.message, fix: 'This usually means a missing table/column — investigate in Tech → DB.' }; }
+        };
+        const has = (k) => !!(process.env[k] && String(process.env[k]).trim());
+        const tableExists = (t) => !!query.get("SELECT name FROM sqlite_master WHERE type='table' AND name = ?", [t]);
+        const count = (sql, p = []) => { try { return query.get(sql, p)?.c ?? 0; } catch (e) { return -1; } };
+
+        // ---- Integrations & config ----
+        groups.push({ group: 'Integrations & Configuration', checks: [
+            safe('Email provider', () => has('RESEND_API_KEY') || has('SENDGRID_API_KEY') || (has('SMTP_HOST') && has('SMTP_USER'))
+                ? { detail: has('RESEND_API_KEY') ? 'Resend configured' : has('SENDGRID_API_KEY') ? 'SendGrid configured' : 'SMTP configured' }
+                : { status: 'fail', detail: 'No email provider configured — confirmation/QR emails will NOT send.', fix: 'Set RESEND_API_KEY (or SENDGRID_API_KEY) in Render env.' }),
+            safe('Sender address (EMAIL_FROM)', () => {
+                const f = process.env.EMAIL_FROM || '';
+                if (!f) return { status: 'warn', detail: 'EMAIL_FROM not set — using the resend.dev shared sender (delivers only to the Resend account owner).', fix: 'Set EMAIL_FROM once a sender domain is verified.' };
+                if (/resend\.dev/.test(f)) return { status: 'warn', detail: 'Using ' + f + ' — Resend shared sender only delivers to the account owner inbox.', fix: 'Verify medx.hr / medx.events as a sender domain, then set EMAIL_FROM to it.' };
+                return { detail: f };
+            }),
+            safe('Stripe payments', () => has('STRIPE_SECRET_KEY')
+                ? { detail: 'Secret key set' + (has('STRIPE_WEBHOOK_SECRET') ? ' + webhook secret set' : ' (⚠ no webhook secret)'), status: has('STRIPE_WEBHOOK_SECRET') ? 'ok' : 'warn', fix: has('STRIPE_WEBHOOK_SECRET') ? '' : 'Set STRIPE_WEBHOOK_SECRET so paid registrations get fulfilled.' }
+                : { status: 'warn', detail: 'No Stripe key on the admin service (payments run on the user portal — check there).', fix: '' }),
+            safe('FIRA fiscal invoicing', () => has('FIRA_API_KEY')
+                ? { detail: 'Configured' }
+                : { status: 'warn', detail: 'FIRA_API_KEY not set — paid registrations get no fiscal invoice.', fix: 'Set FIRA_API_KEY if Croatian fiscalization is required.' }),
+            safe('Tech tools password', () => has('TECH_PASSWORD')
+                ? { detail: 'Set (DB-export tools enabled)' }
+                : { status: 'warn', detail: 'TECH_PASSWORD not set — the DB-export tech tools are disabled (safe default).', fix: 'Set TECH_PASSWORD in Render env to enable them.' }),
+            safe('Bank transfer IBAN', () => {
+                const iban = (process.env.MEDX_IBAN || '').replace(/\s+/g, '');
+                if (!iban) return { status: 'warn', detail: 'MEDX_IBAN not set — bank-transfer instructions are hidden (guests can only pay by card).', fix: 'Set MEDX_IBAN to the real Med&X account.' };
+                if (PLACEHOLDER_IBANS.has(iban) || !/^[A-Z]{2}[0-9A-Z]{13,32}$/.test(iban)) return { status: 'fail', detail: 'MEDX_IBAN looks like a placeholder/invalid (' + iban.slice(0, 6) + '…) — bank-transfer instructions are hidden.', fix: 'Set a valid Croatian IBAN (HR + 19 digits).' };
+                return { detail: iban.slice(0, 4) + '…' + iban.slice(-4) };
+            }),
+            safe('Cloud database (Turso)', () => has('TURSO_DATABASE_URL')
+                ? { detail: 'Turso sync configured' }
+                : { status: 'warn', detail: 'No TURSO_DATABASE_URL — running on a local DB file (expected only in dev).', fix: 'Production should have TURSO_DATABASE_URL set.' }),
+        ]});
+
+        // ---- Database & schema ----
+        groups.push({ group: 'Database & Schema', checks: [
+            safe('Database reachable', () => { query.get('SELECT 1 as x'); return { detail: 'Responding to queries' }; }),
+            safe('Core tables present', () => {
+                const need = ['users','conferences','ticket_types','gala_registrations','croatians_abroad_registrations','registrations','bridges_events','gala_settings','app_state'];
+                const missing = need.filter(t => !tableExists(t));
+                return missing.length ? { status: 'fail', detail: 'Missing tables: ' + missing.join(', '), fix: 'Schema did not fully initialize — check boot logs.' } : { detail: need.length + ' core tables present' };
+            }),
+        ]});
+
+        // ---- Event readiness ----
+        groups.push({ group: 'Event Readiness', checks: [
+            safe('Plexus 2026 conference', () => {
+                const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+                if (!conf) return { status: 'fail', detail: 'No plexus-2026 conference row.', fix: 'Create it in Plexus settings.' };
+                return { detail: (conf.name || 'plexus-2026') + (conf.is_active === 0 ? ' (⚠ not active)' : ' · active'), status: conf.is_active === 0 ? 'warn' : 'ok' };
+            }),
+            safe('Conference ticket pricing', () => {
+                const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+                if (!conf) return { status: 'warn', detail: 'No conference to price.' };
+                const t = query.get('SELECT COUNT(*) as c, MAX(COALESCE(price_regular, price_early_bird, 0)) as maxp FROM ticket_types WHERE conference_id = ?', [conf.id]);
+                if (!t || !t.c) return { status: 'warn', detail: 'No ticket types defined for the conference.', fix: 'Add ticket types with prices.' };
+                return { detail: t.c + ' ticket type(s)' };
+            }),
+            safe('Gala settings & price', () => {
+                const g = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
+                if (!g) return { status: 'fail', detail: 'No gala_settings row.', fix: 'Open Gala → Settings and save once.' };
+                const price = Number(g.price_gala_only);
+                if (!price) return { status: 'warn', detail: 'Gala price is 0/unset.', fix: 'Set the gala-only price in Gala → Settings.' };
+                const open = g.is_registration_open === 1 || g.is_registration_open === '1' || g.is_registration_open === true;
+                return { detail: '€' + price + ' · registration ' + (open ? 'OPEN' : 'CLOSED'), status: open ? 'ok' : 'warn', fix: open ? '' : 'Reopen registration in Gala → Settings when ready.' };
+            }),
+            safe('Upcoming Bridges event', () => {
+                const c = count("SELECT COUNT(*) as c FROM bridges_events WHERE event_date >= ?", [today]);
+                return c > 0 ? { detail: c + ' upcoming' } : { status: 'warn', detail: 'No upcoming Bridges event (date >= today).', fix: 'Create the Plexus Bridges day in Building Bridges.' };
+            }),
+            safe('Croatians Abroad invite links', () => {
+                if (!tableExists('croatians_abroad_invite_links')) return { status: 'warn', detail: 'No invite-links table yet.' };
+                const c = count("SELECT COUNT(*) as c FROM croatians_abroad_invite_links WHERE COALESCE(revoked,0) = 0");
+                return c > 0 ? { detail: c + ' active link(s)' } : { status: 'warn', detail: 'No active Croatians Abroad invite links.', fix: 'Create one in Croatians Abroad if that flow is in use.' };
+            }),
+        ]});
+
+        // ---- Data sanity ----
+        groups.push({ group: 'Data Sanity', checks: [
+            safe('Paid gala rows missing amount', () => {
+                const c = count("SELECT COUNT(*) as c FROM gala_registrations WHERE payment_status = 'paid' AND (amount_paid IS NULL OR amount_paid = 0)");
+                return c > 0 ? { status: 'warn', detail: c + ' paid gala row(s) have no amount_paid — revenue will under-count.', fix: 'Set their amount in Gala registrations.' } : { detail: 'All paid gala rows have an amount' };
+            }),
+            safe('Leftover test/demo rows', () => {
+                const g = count("SELECT COUNT(*) as c FROM gala_registrations WHERE COALESCE(requests,'') LIKE '%TEST%' OR COALESCE(invoice_number,'') LIKE '%TEST%'");
+                const ca = count("SELECT COUNT(*) as c FROM croatians_abroad_registrations WHERE COALESCE(notes,'') LIKE '%TEST%'");
+                const tot = (g > 0 ? g : 0) + (ca > 0 ? ca : 0);
+                return tot > 0 ? { status: 'warn', detail: tot + ' test-tagged registration(s) still present (Send Test QR / Bundle Test).', fix: 'Delete them before go-live so dashboards/exports are clean.' } : { detail: 'No test-tagged rows' };
+            }),
+            safe('Orphan awaiting-payment rows', () => {
+                const c = count("SELECT COUNT(*) as c FROM gala_registrations WHERE status = 'awaiting_payment'");
+                return c > 0 ? { status: 'warn', detail: c + ' gala row(s) stuck at awaiting_payment (abandoned checkouts).', fix: 'Informational — safe to leave or clean up periodically.' } : { detail: 'No abandoned-checkout rows' };
+            }),
+        ]});
+
+        // Roll up an overall status
+        let worst = 'ok';
+        groups.forEach(gp => gp.checks.forEach(c => {
+            if (c.status === 'fail') worst = 'fail';
+            else if (c.status === 'warn' && worst !== 'fail') worst = 'warn';
+        }));
+        const counts = { ok: 0, warn: 0, fail: 0 };
+        groups.forEach(gp => gp.checks.forEach(c => { counts[c.status] = (counts[c.status] || 0) + 1; }));
+
+        res.json({ overall: worst, counts, generated_at: new Date().toISOString(), groups });
+    });
+
     // ==================== TECH DASHBOARD ====================
     // These routes can stream the entire database, so they fail CLOSED: if TECH_PASSWORD
     // is unset in the environment the gate is disabled entirely (no default password —
