@@ -13208,6 +13208,9 @@ President, Med&amp;X</textarea>
                 // Online/offline listeners for check-in queue
                 window.addEventListener('online', () => this.flushCheckinQueue());
                 window.addEventListener('offline', () => this.updateFabBadge());
+                // Resume any queue left from a previous session, and show the banner.
+                this.updateOfflineBanner();
+                if (navigator.onLine) setTimeout(() => this.flushCheckinQueue(), 1500);
 
                 // Update user info
                 const initials = (this.user.first_name?.[0] || '') + (this.user.last_name?.[0] || '');
@@ -19681,7 +19684,17 @@ President, Med&amp;X</textarea>
                         resultDiv.innerHTML = `<i class="fas fa-times-circle"></i> ${escapeHtml(result.error || 'Not found')}`;
                     }
                 } catch (err) {
-                    if (resultDiv) {
+                    // Network/offline failure → QUEUE the scan locally instead of dropping it.
+                    // The queue auto-flushes on reconnect (the 'online' listener) or via Retry.
+                    const offline = !navigator.onLine || /Failed to fetch|NetworkError|Load failed/i.test(err && err.message || '');
+                    if (offline) {
+                        this.queueCheckin(code);
+                        if (input) input.value = '';
+                        if (resultDiv) {
+                            resultDiv.className = 'checkin-result already';
+                            resultDiv.innerHTML = '<i class="fas fa-cloud-arrow-up"></i> Offline — check-in QUEUED. It will sync automatically when you reconnect.';
+                        }
+                    } else if (resultDiv) {
                         resultDiv.className = 'checkin-result error';
                         resultDiv.innerHTML = '<i class="fas fa-times-circle"></i> Check-in failed. Please try again.';
                     }
@@ -20458,10 +20471,13 @@ President, Med&amp;X</textarea>
             },
 
             // --- Offline Queue ---
-            queueCheckin(code) {
+            queueCheckin(code, event) {
                 const queue = JSON.parse(localStorage.getItem('checkinQueue') || '[]');
-                queue.push({ code, timestamp: Date.now() });
-                localStorage.setItem('checkinQueue', JSON.stringify(queue));
+                // De-dupe: don't queue the same code+event twice.
+                if (!queue.some(q => q.code === code && (q.event || '') === (event || ''))) {
+                    queue.push({ code, event: event || null, timestamp: Date.now() });
+                    localStorage.setItem('checkinQueue', JSON.stringify(queue));
+                }
                 this.updateOfflineBanner();
                 this.updateFabBadge();
             },
@@ -20473,10 +20489,15 @@ President, Med&amp;X</textarea>
                 const remaining = [];
                 for (const item of queue) {
                     try {
-                        await this.api('/api/checkin', {
-                            method: 'POST',
-                            body: JSON.stringify({ code: item.code })
-                        });
+                        if (item.event) {
+                            // Replay through the payment-gated verify endpoint with the original mode.
+                            await this.api('/api/admin/checkin/verify', {
+                                method: 'POST',
+                                body: JSON.stringify({ event: item.event, code: item.code, mark: true })
+                            });
+                        } else {
+                            await this.api('/api/checkin', { method: 'POST', body: JSON.stringify({ code: item.code }) });
+                        }
                     } catch (err) {
                         remaining.push(item);
                     }
@@ -20486,7 +20507,7 @@ President, Med&amp;X</textarea>
                 this.updateFabBadge();
 
                 if (remaining.length === 0 && queue.length > 0) {
-                    // All flushed — refresh stats
+                    if (typeof Toast !== 'undefined') Toast.success(`Synced ${queue.length} queued check-in${queue.length === 1 ? '' : 's'}`);
                     this.loadGlobalCheckinStats();
                     this.loadGlobalRecentCheckins();
                 }
@@ -29638,7 +29659,16 @@ By applying to this program, I give the following consents:
                     const data = await res.json();
                     this.showResult(data);
                 } catch (err) {
-                    Toast.error('Verification request failed');
+                    // Offline at the door → queue this scan with its event mode so it replays
+                    // through the payment-gated verify endpoint when the connection returns.
+                    const offline = !navigator.onLine || /Failed to fetch|NetworkError|Load failed/i.test(err && err.message || '');
+                    if (offline && this.markMode) {
+                        App.queueCheckin(code, this.event);
+                        this.showResult({ valid: true, queued: true, registrant: {}, status_label: 'QUEUED OFFLINE', status_color: '#f59e0b',
+                            message: 'Offline — saved. Syncs automatically when you reconnect.' });
+                    } else {
+                        Toast.error('Verification request failed');
+                    }
                 }
             },
 
