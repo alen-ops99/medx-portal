@@ -376,6 +376,13 @@ function escapeHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// CSV formula-injection guard: a leading =,+,-,@ (or tab/CR) makes Excel/Sheets execute the
+// cell as a formula. Prefix with a single quote to neutralize. Mirrors the admin backend.
+function sanitizeCsvCell(value) {
+    const s = (value === null || value === undefined) ? '' : String(value);
+    return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+}
+
 // Download registrations CSV log (admin only)
 app.get('/api/admin/registrations-csv', auth, adminOnly, (req, res) => {
     const csvPath = path.join(__dirname, 'registrations-log.csv');
@@ -1562,7 +1569,15 @@ app.get('/qr/:id.png', async (req, res) => {
 });
 
 app.use(express.static(path.join(__dirname, '../frontend')));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// User-uploaded files: force download + nosniff so a stored .svg/.html/.xml can't execute
+// inline as same-origin script (multer trusts the client MIME, so the content is untrusted).
+// Images embedded via <img src> still render; only top-level navigation is neutralized.
+app.use('/uploads', (req, res, next) => {
+    res.setHeader('Content-Disposition', 'attachment');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    next();
+}, express.static(path.join(__dirname, 'uploads')));
 
 // Create uploads directory
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -10143,7 +10158,7 @@ By applying to this program, I provide the following consents:
                 a.status,
                 a.decision || '',
                 a.submitted_at || ''
-            ].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(','));
+            ].map(v => `"${sanitizeCsvCell(v).replace(/"/g, '""')}"`).join(','));
         });
 
         res.setHeader('Content-Type', 'text/csv');
@@ -10235,7 +10250,7 @@ By applying to this program, I provide the following consents:
 
         const headers = ['First Name','Last Name','Email','Phone','Institution','Country','Ticket','Status','Payment','Amount','Checked In','Date'];
         const csv = [headers.join(',')];
-        rows.forEach(r => csv.push([r.first_name, r.last_name, r.email, r.phone, r.institution, r.country, r.ticket_type, r.status, r.payment_status, r.amount_paid, r.checked_in ? 'Yes' : 'No', r.created_at].map(v => `"${(v||'').toString().replace(/"/g,'""')}"`).join(',')));
+        rows.forEach(r => csv.push([r.first_name, r.last_name, r.email, r.phone, r.institution, r.country, r.ticket_type, r.status, r.payment_status, r.amount_paid, r.checked_in ? 'Yes' : 'No', r.created_at].map(v => `"${sanitizeCsvCell(v).replace(/"/g,'""')}"`).join(',')));
 
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename="registrations.csv"`);

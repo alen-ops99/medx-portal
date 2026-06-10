@@ -30070,7 +30070,8 @@ By applying to this program, I give the following consents:
                     if (!data.count) { Toast.info('No registrants for this event yet'); return; }
                     const csvLines = ['Email,First Name,Last Name,Institution,Country,Role,Registered'];
                     data.registrants.forEach(r => {
-                        const safe = v => `"${(v || '').replace(/"/g, '""')}"`;
+                        // Neutralize CSV formula injection (leading =,+,-,@) then quote-escape.
+                        const safe = v => { const s = (v || '').toString(); const c = /^[=+\-@\t\r]/.test(s) ? "'" + s : s; return `"${c.replace(/"/g, '""')}"`; };
                         csvLines.push([r.email, r.first_name, r.last_name, r.institution, r.country, r.role, r.created_at].map(safe).join(','));
                     });
                     const blob = new Blob([csvLines.join('\n')], { type: 'text/csv' });

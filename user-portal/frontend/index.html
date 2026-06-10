@@ -74310,6 +74310,17 @@ You can use variables like {first_name} that will be personalized for each recip
             return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
         }
 
+        // Sanitize a user-supplied URL for use in an href. escapeHtml alone does NOT stop a
+        // javascript:/data:/vbscript: scheme from executing on click — only http(s)/mailto/tel
+        // and protocol-relative or relative URLs are allowed; anything else becomes '#'.
+        function safeUrl(url) {
+            if (!url) return '#';
+            const s = String(url).trim();
+            if (/^(https?:|mailto:|tel:|\/|#|\.)/i.test(s) && !/^\s*javascript:/i.test(s)) return s;
+            if (/^[^:]+\.[^:]/.test(s) && !s.includes(':')) return s; // bare domain like medx.hr
+            return '#';
+        }
+
         // =========================================
         // SAFE JSON/LOCALSTORAGE UTILITIES
         // =========================================
@@ -101701,7 +101712,7 @@ ${'='.repeat(70)}
                         ${p.title ? `<div style="font-weight: 600; margin-bottom: 8px; font-size: 16px;">${this.escapeHtml(p.title)}</div>` : ''}
                         <div style="font-size: 14px; line-height: 1.6; margin-bottom: 12px; white-space: pre-wrap;">${this.escapeHtml(p.content)}</div>
                         ${p.link_url ? `
-                            <a href="${this.escapeHtml(p.link_url)}" target="_blank" style="display: block; padding: 12px; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 12px; text-decoration: none; color: inherit; border: 1px solid var(--border);">
+                            <a href="${escapeHtml(safeUrl(p.link_url))}" target="_blank" rel="noopener noreferrer nofollow" style="display: block; padding: 12px; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 12px; text-decoration: none; color: inherit; border: 1px solid var(--border);">
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <i class="fas fa-link" style="color: var(--forum);"></i>
                                     <span style="color: var(--forum); word-break: break-all;">${this.escapeHtml(p.link_url)}</span>
@@ -122351,7 +122362,7 @@ By applying to this program, I give the following consents:
                     <div style="padding: 16px;">
                         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
                             <button style="background: rgba(255,255,255,0.1); border: none; color: #fff; width: 32px; height: 32px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;" onclick="NotificationSystem.renderAdminMessages()"><i class="fas fa-arrow-left"></i></button>
-                            <h4 style="margin: 0; font-size: 15px; font-weight: 600; color: #fff;">${msg.title || 'Admin Message'}</h4>
+                            <h4 style="margin: 0; font-size: 15px; font-weight: 600; color: #fff;">${escapeHtml(msg.title || 'Admin Message')}</h4>
                         </div>
                         <div style="background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.2); border-radius: 12px; padding: 16px; margin-bottom: 16px;">
                             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
@@ -122359,7 +122370,7 @@ By applying to this program, I give the following consents:
                                 <span style="font-size: 12px; font-weight: 600; color: #a78bfa;">Med&X Admin</span>
                                 <span style="font-size: 11px; color: rgba(255,255,255,0.3); margin-left: auto;">${new Date(msg.created_at).toLocaleString()}</span>
                             </div>
-                            <div style="font-size: 14px; color: rgba(255,255,255,0.85); line-height: 1.6; white-space: pre-wrap;">${msg.content}</div>
+                            <div style="font-size: 14px; color: rgba(255,255,255,0.85); line-height: 1.6; white-space: pre-wrap;">${escapeHtml(msg.content || '')}</div>
                         </div>
                         <div style="display: flex; gap: 8px;">
                             <input type="text" id="adminMsgReply" placeholder="Type a reply..." style="flex: 1; padding: 10px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #fff; font-size: 13px; outline: none;" onkeypress="if(event.key==='Enter') NotificationSystem.replyToAdmin('${msg.id}')">

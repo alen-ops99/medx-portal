@@ -16180,6 +16180,12 @@ By applying to this program, I provide the following consents:
         const guest = query.get('SELECT * FROM gala_registrations WHERE id = ? OR email = ?', [code, code]);
         if (!guest) return res.status(404).json({ error: 'Gala guest not found' });
         if (guest.checked_in) return res.json({ success: true, already_checked_in: true, attendee: guest, event: 'gala' });
+        // Payment gate — matches /api/admin/checkin/verify. Without it, an unpaid/awaiting
+        // guest could be admitted to the €150 dinner.
+        if (guest.payment_status !== 'paid' && guest.payment_status !== 'vip-comp') {
+            return res.json({ success: false, valid: false, reason: 'not_paid', event: 'gala',
+                message: 'This person has not completed payment. Do NOT admit.', attendee: guest });
+        }
 
         db.run("UPDATE gala_registrations SET checked_in = 1, checked_in_at = datetime('now') WHERE id = ?", [guest.id]);
         saveDb();
