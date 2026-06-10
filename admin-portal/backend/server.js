@@ -11281,8 +11281,17 @@ By applying to this program, I provide the following consents:
                 emailHtml
             );
 
-            db.run(`UPDATE speakers SET invitation_status = 'sent', invitation_sent_at = datetime('now') WHERE id = ?`, [sid]);
-            results.push({ id: sid, name: speaker.name, status: 'sent', mock: emailResult.mock || false });
+            // Only mark 'sent' if the email actually went out. sendEmail returns
+            // {success:false}/{mock:true} instead of throwing, so the old code marked every
+            // speaker 'sent' even when no email left the building — admins thought invites
+            // were delivered when they weren't.
+            const delivered = emailResult && emailResult.success !== false && !emailResult.mock;
+            if (delivered) {
+                db.run(`UPDATE speakers SET invitation_status = 'sent', invitation_sent_at = datetime('now') WHERE id = ?`, [sid]);
+            } else {
+                db.run(`UPDATE speakers SET invitation_status = 'failed' WHERE id = ?`, [sid]);
+            }
+            results.push({ id: sid, name: speaker.name, status: delivered ? 'sent' : 'failed', mock: emailResult.mock || false, error: delivered ? undefined : (emailResult.error || 'no email provider configured') });
         }
 
         saveDb();
@@ -15988,10 +15997,12 @@ By applying to this program, I provide the following consents:
     // ========== TEST QR EMAIL — admin sends themselves a working test QR ==========
     app.post('/api/admin/checkin/test-email', auth, adminOnly, async (req, res) => {
         try {
-            const email = (req.user && req.user.email) || req.body.email;
+            // Honor the address typed in the modal; fall back to the admin's own email.
+            // (Was the reverse, so a typed recipient was silently ignored.)
+            const email = (req.body.email && req.body.email.trim()) || (req.user && req.user.email);
             const first = (req.user && req.user.first_name) || 'Admin';
             const last = (req.user && req.user.last_name) || 'Tester';
-            if (!email) return res.status(400).json({ error: 'No admin email on session' });
+            if (!email) return res.status(400).json({ error: 'No recipient email provided' });
             const testId = require('crypto').randomUUID();
             db.run(
                 `INSERT INTO croatians_abroad_registrations
@@ -16799,10 +16810,17 @@ By applying to this program, I provide the following consents:
     });
 
     app.put('/api/admin/plexus/rooms/:id', auth, adminOnly, (req, res) => {
-        const { name, floor, capacity, equipment, description, photo_url } = req.body;
+        const existing = query.get('SELECT * FROM venue_rooms WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Room not found' });
+        const b = req.body || {};
+        // Preserve any field the edit form did not send (absent key = "not edited"), so editing
+        // one field no longer NULLs description/photo_url just because the form omitted them.
+        const pick = (key, fallback) => (b[key] !== undefined ? b[key] : fallback);
         db.run(`UPDATE venue_rooms SET name = ?, floor = ?, capacity = ?, equipment = ?, description = ?, photo_url = ?
             WHERE id = ?`,
-            [name, floor || null, capacity || 0, equipment || null, description || null, photo_url || null, req.params.id]);
+            [pick('name', existing.name), pick('floor', existing.floor), pick('capacity', existing.capacity),
+             pick('equipment', existing.equipment), pick('description', existing.description),
+             pick('photo_url', existing.photo_url), req.params.id]);
         saveDb();
         res.json({ success: true });
     });

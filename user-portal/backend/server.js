@@ -16504,6 +16504,19 @@ By applying to this program, I provide the following consents:
     app.post('/api/networking/meetings', auth, (req, res) => {
         const { attendee_id, date, time, duration, type, topic, note } = req.body;
         if (!attendee_id || !date || !time) return res.status(400).json({ error: 'attendee_id, date, and time required' });
+        if (attendee_id === req.user.id) return res.status(400).json({ error: 'You cannot schedule a meeting with yourself' });
+        // Validate the attendee exists and is an accepted connection (matches DM gating) —
+        // previously any attendee_id was accepted, including non-existent users.
+        const attendee = query.get('SELECT id FROM users WHERE id = ?', [attendee_id]);
+        if (!attendee) return res.status(404).json({ error: 'Attendee not found' });
+        if (!req.user.is_admin) {
+            const connected = query.get(
+                `SELECT id FROM networking_connections WHERE status = 'accepted'
+                 AND ((requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?))`,
+                [req.user.id, attendee_id, attendee_id, req.user.id]
+            );
+            if (!connected) return res.status(403).json({ error: 'You can only schedule meetings with your accepted connections.' });
+        }
         const id = uuidv4();
         db.run('INSERT INTO networking_meetings (id, organizer_id, attendee_id, date, time, duration, type, topic, note) VALUES (?,?,?,?,?,?,?,?,?)',
             [id, req.user.id, attendee_id, date, time, duration || 30, type || 'video', topic || null, note || null]);
@@ -16528,6 +16541,10 @@ By applying to this program, I provide the following consents:
         if (!['confirmed', 'cancelled', 'completed'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
         db.run('UPDATE networking_meetings SET status = ? WHERE id = ? AND (organizer_id = ? OR attendee_id = ?)',
             [status, req.params.id, req.user.id, req.user.id]);
+        // Report the truth: 0 rows changed = not a participant or unknown id (was always success).
+        if (db.getRowsModified && db.getRowsModified() === 0) {
+            return res.status(404).json({ error: 'Meeting not found or you are not a participant' });
+        }
         saveDb();
         res.json({ success: true });
     });
@@ -16544,8 +16561,21 @@ By applying to this program, I provide the following consents:
         const receiver = query.get('SELECT id FROM users WHERE id = ?', [receiver_id]);
         if (!receiver) return res.status(404).json({ error: 'Recipient not found' });
 
-        const id = uuidv4();
         const senderId = req.user?.id ?? 'unknown';
+        // Require an ACCEPTED connection between the two (either direction). Without this,
+        // any user could DM any other user — used to harvest emails via GET /api/messages and
+        // to spam push notifications. Admins are exempt.
+        if (!req.user?.is_admin && senderId !== receiver_id) {
+            const connected = query.get(
+                `SELECT id FROM networking_connections
+                 WHERE status = 'accepted'
+                   AND ((requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?))`,
+                [senderId, receiver_id, receiver_id, senderId]
+            );
+            if (!connected) return res.status(403).json({ error: 'You can only message your accepted connections.' });
+        }
+
+        const id = uuidv4();
         try {
             db.run(
                 `INSERT INTO direct_messages (id, sender_id, receiver_id, content) VALUES (?, ?, ?, ?)`,
@@ -16579,7 +16609,7 @@ By applying to this program, I provide the following consents:
             const conversations = query.all(
                 `SELECT dm.*,
                     CASE WHEN dm.sender_id = ? THEN dm.receiver_id ELSE dm.sender_id END AS partner_id,
-                    u.first_name AS partner_first_name, u.last_name AS partner_last_name, u.email AS partner_email
+                    u.first_name AS partner_first_name, u.last_name AS partner_last_name
                 FROM direct_messages dm
                 LEFT JOIN users u ON u.id = CASE WHEN dm.sender_id = ? THEN dm.receiver_id ELSE dm.sender_id END
                 WHERE dm.id IN (
@@ -18115,7 +18145,9 @@ By applying to this program, I provide the following consents:
 
             const link = query.get('SELECT * FROM registration_links WHERE token = ? AND is_active = 1', [req.params.token]);
             if (!link) return res.status(404).json({ error: 'Invalid or expired link' });
-            if (new Date(link.expires_at) < new Date()) return res.status(410).json({ error: 'This registration link has expired' });
+            // Null guard: a link with no expiry never expires. Without it, new Date(null)=1970
+            // made every no-expiry link permanently "expired".
+            if (link.expires_at && new Date(link.expires_at) < new Date()) return res.status(410).json({ error: 'This registration link has expired' });
             if (link.max_uses > 0 && link.uses >= link.max_uses) return res.status(410).json({ error: 'This registration link has reached its limit' });
 
             let pkgItems = null;
@@ -18145,7 +18177,7 @@ By applying to this program, I provide the following consents:
 
             const link = query.get('SELECT * FROM registration_links WHERE token = ? AND is_active = 1', [req.params.token]);
             if (!link) return res.status(404).json({ error: 'Invalid or expired link' });
-            if (new Date(link.expires_at) < new Date()) return res.status(410).json({ error: 'Link expired' });
+            if (link.expires_at && new Date(link.expires_at) < new Date()) return res.status(410).json({ error: 'Link expired' });
             if (link.max_uses > 0 && link.uses >= link.max_uses) return res.status(410).json({ error: 'Link limit reached' });
 
             const { first_name, last_name, email, institution, country, phone } = req.body;
