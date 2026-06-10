@@ -15998,8 +15998,9 @@ By applying to this program, I provide the following consents:
     app.post('/api/admin/checkin/test-email', auth, adminOnly, async (req, res) => {
         try {
             // Honor the address typed in the modal; fall back to the admin's own email.
-            // (Was the reverse, so a typed recipient was silently ignored.)
-            const email = (req.body.email && req.body.email.trim()) || (req.user && req.user.email);
+            // (Was the reverse, so a typed recipient was silently ignored.) String() guards
+            // against a non-string body value throwing on .trim().
+            const email = (req.body.email && String(req.body.email).trim()) || (req.user && req.user.email);
             const first = (req.user && req.user.first_name) || 'Admin';
             const last = (req.user && req.user.last_name) || 'Tester';
             if (!email) return res.status(400).json({ error: 'No recipient email provided' });
