@@ -328,6 +328,11 @@ function watchSharedDb() {
     console.log('[Sync] Using shared local DB file');
 }
 
+// Dev-auth fallback enabled ONLY in true local dev (NODE_ENV=development AND no Turso).
+// Production always has TURSO_DATABASE_URL, so a stray NODE_ENV=development can never open
+// the no-token admin bypass in prod.
+const DEV_AUTH_ENABLED = process.env.NODE_ENV === 'development' && !process.env.TURSO_DATABASE_URL;
+
 // Auth middleware - verifies JWT token
 function auth(req, res, next) {
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -338,8 +343,8 @@ function auth(req, res, next) {
             if (user) { req.user = user; return next(); }
         } catch(e) { /* token invalid/expired */ }
     }
-    // Dev fallback — only in explicit development mode
-    if (process.env.NODE_ENV === 'development') {
+    // Dev fallback — only in true local development (see DEV_AUTH_ENABLED)
+    if (DEV_AUTH_ENABLED) {
         const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
         req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
         return next();
@@ -356,8 +361,8 @@ function optionalAuth(req, res, next) {
             if (user) { req.user = user; return next(); }
         } catch(e) { /* token invalid/expired */ }
     }
-    // Dev fallback — only in explicit development mode
-    if (process.env.NODE_ENV === 'development') {
+    // Dev fallback — only in true local development (see DEV_AUTH_ENABLED)
+    if (DEV_AUTH_ENABLED) {
         const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
         req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
         return next();

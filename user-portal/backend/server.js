@@ -1717,6 +1717,11 @@ function tokenPredatesPasswordChange(user, iatSeconds) {
     return iatSeconds * 1000 < changedMs - 10000;
 }
 
+// Dev-auth fallback (auto-login as Alen) is enabled ONLY in true local development:
+// NODE_ENV=development AND no Turso cloud DB configured. Production always has TURSO_DATABASE_URL,
+// so a stray NODE_ENV=development in prod can never silently open the no-token admin bypass.
+const DEV_AUTH_ENABLED = process.env.NODE_ENV === 'development' && !process.env.TURSO_DATABASE_URL;
+
 function auth(req, res, next) {
     const token = req.headers.authorization?.replace('Bearer ', '');
     if (token && token !== 'auto-login') {
@@ -1727,7 +1732,7 @@ function auth(req, res, next) {
         } catch(e) { /* token invalid/expired */ }
     }
     // Dev fallback — only in explicit development mode
-    if (process.env.NODE_ENV === 'development') {
+    if (DEV_AUTH_ENABLED) {
         const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
         req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
         return next();
@@ -1748,7 +1753,7 @@ function optionalAuth(req, res, next) {
     // caller wanted to be authed). Without this guard, every anonymous request to
     // optionalAuth routes (e.g. /api/forum/events/:id/register) gets auto-promoted
     // to Alen, which makes the anon-register branch unreachable in local dev.
-    if (process.env.NODE_ENV === 'development' && token) {
+    if (DEV_AUTH_ENABLED && token) {
         const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
         req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
         return next();
@@ -3648,6 +3653,10 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (work_unit_id) REFERENCES finance_work_units(id)
     )`);
+    // `status` exists in the admin CREATE but was omitted here; this backend INSERTs into it
+    // (e.g. the Stripe webhook finance records), which would throw on a user-portal-first
+    // fresh DB. ALTER to match the admin schema (idempotent — ignored if already present).
+    try { db.run("ALTER TABLE finance_transactions ADD COLUMN status TEXT DEFAULT 'completed'"); } catch(e) {}
 
     // Sequence numbers for auto-numbering documents
     db.run(`CREATE TABLE IF NOT EXISTS finance_sequences (
