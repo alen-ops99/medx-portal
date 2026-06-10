@@ -17971,10 +17971,11 @@ President, Med&amp;X</textarea>
             },
 
             exportPlexusRegistrations(format = 'csv') {
-                // C1: XLSX uses server-side generation for proper Excel formatting
+                // C1: XLSX uses server-side generation for proper Excel formatting.
+                // Use the authenticated Blob download (Authorization header) instead of
+                // window.open(?token=) which leaked the admin JWT into logs/history/Referer.
                 if (format === 'xlsx') {
-                    const token = localStorage.getItem('medx_token') || localStorage.getItem('token') || '';
-                    window.open(`/api/admin/export/registrations/plexus-2026?format=xlsx&token=${encodeURIComponent(token)}`, '_blank');
+                    this.downloadFile('/api/admin/export/registrations/plexus-2026?format=xlsx', 'plexus-2026-registrations.xlsx');
                     return;
                 }
                 const data = this.pxRegFiltered && this.pxRegFiltered.length > 0 ? this.pxRegFiltered : this.plexusRegistrations;
@@ -21563,10 +21564,9 @@ President, Med&amp;X</textarea>
                 format = format || 'xlsx';
                 const eventId = this._forumEventIdForExport;
                 if (!eventId) { Toast.warning('Open an event before exporting'); return; }
-                const token = localStorage.getItem('medx_token') || localStorage.getItem('token') || '';
-                // Server-side export: proper XLSX with sanitization + streaming. Falls back to CSV via same endpoint.
-                // Token goes via query param because window.open() can't set an Authorization header.
-                window.open(`/api/admin/export/forum-registrations/${encodeURIComponent(eventId)}?format=${encodeURIComponent(format)}&token=${encodeURIComponent(token)}`, '_blank');
+                // Authenticated Blob download (Authorization header) — no token in the URL.
+                const ext = format === 'csv' ? 'csv' : 'xlsx';
+                App.downloadFile(`/api/admin/export/forum-registrations/${encodeURIComponent(eventId)}?format=${encodeURIComponent(format)}`, `forum-registrations.${ext}`);
             },
 
             async registerForForumEvent(id) {

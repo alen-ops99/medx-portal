@@ -9749,13 +9749,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Forum event registrations export — CSV or XLSX
-    app.get('/api/admin/export/forum-registrations/:eventId', (req, res, next) => {
-        // Allow token via query param so window.open() in a new tab authenticates
-        if (req.query.token && !req.headers.authorization) {
-            req.headers.authorization = `Bearer ${req.query.token}`;
-        }
-        next();
-    }, auth, adminOnly, (req, res) => {
+    app.get('/api/admin/export/forum-registrations/:eventId', auth, adminOnly, (req, res) => {
         const event = query.get('SELECT id, title, slug FROM forum_events WHERE id = ? OR slug = ?', [req.params.eventId, req.params.eventId]);
         if (!event) return res.status(404).json({ error: 'Forum event not found' });
 
@@ -9790,13 +9784,7 @@ By applying to this program, I provide the following consents:
         res.send(csv.join('\n'));
     });
 
-    app.get('/api/admin/export/registrations/:confId', (req, res, next) => {
-        // Allow token via query param for direct window.open downloads
-        if (req.query.token && !req.headers.authorization) {
-            req.headers.authorization = `Bearer ${req.query.token}`;
-        }
-        next();
-    }, auth, adminOnly, (req, res) => {
+    app.get('/api/admin/export/registrations/:confId', auth, adminOnly, (req, res) => {
         const rows = query.all(`SELECT u.first_name, u.last_name, u.email, u.phone, u.institution, u.country, t.name as ticket_type, r.status, r.payment_status, r.amount_paid, r.checked_in, r.created_at
             FROM registrations r JOIN users u ON r.user_id = u.id JOIN ticket_types t ON r.ticket_type_id = t.id WHERE r.conference_id = ?`, [req.params.confId]);
 
@@ -14033,13 +14021,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Travel order PDF
-    app.get('/api/finance/travel-orders/:id/pdf', (req, res, next) => {
-        // Allow token via query param for direct downloads (PDF opened in new tab)
-        if (req.query.token && !req.headers.authorization) {
-            req.headers.authorization = `Bearer ${req.query.token}`;
-        }
-        next();
-    }, auth, adminOnly, (req, res) => {
+    app.get('/api/finance/travel-orders/:id/pdf', auth, adminOnly, (req, res) => {
         const order = query.get('SELECT * FROM finance_travel_orders WHERE id = ?', [req.params.id]);
         if (!order) return res.status(404).json({ error: 'Not found' });
 
@@ -16309,11 +16291,13 @@ By applying to this program, I provide the following consents:
         let parsed = {};
         try { parsed = JSON.parse(code); } catch (e) { parsed = { id: code }; }
 
-        const eventType = parsed.event || parsed.type || '';
-        const id = parsed.id || parsed.reg_id || parsed.registration_id || code;
+        // Current ticket QRs encode evt + regId/caRegId (camelCase). The old extraction only
+        // read event/type + id/reg_id/registration_id, so it couldn't parse any live ticket.
+        const eventType = parsed.event || parsed.type || parsed.evt || '';
+        const id = parsed.id || parsed.reg_id || parsed.registration_id || parsed.regId || parsed.caRegId || code;
 
         // Extract rich QR info (v2 format)
-        const qrInfo = parsed.v >= 2 ? { name: parsed.n, ticket_type: parsed.t, event: parsed.e } : null;
+        const qrInfo = parsed.v >= 2 ? { name: parsed.n, ticket_type: parsed.t, event: parsed.e } : (parsed.name ? { name: parsed.name } : null);
 
         // Helper: check-in for a specific table
         const checkinFor = (table, lookupSql, lookupParams, eventName) => {
