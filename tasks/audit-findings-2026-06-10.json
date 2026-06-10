@@ -1,0 +1,1705 @@
+[
+ {
+  "severity": "critical",
+  "category": "email",
+  "file": "user-portal/backend/server.js",
+  "line": 11053,
+  "title": "All QR ticket emails embed the code as a base64 data: URI image \u2014 Gmail/Outlook strip these, so guests get a broken square instead of their Gala ticket",
+  "evidence": "L11020 `qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 220, margin: 2 });` then L11053 `<img src=\"${qrDataUrl}\" alt=\"QR Code\" width=\"200\" ...>`. Same pattern at every ticket-email site: L11183/11194 (invite payments), L17380/17387 (CA free path), L17598/17620 (register-invite incl. VIP gala), L16800/16884 (test emails), and admin BE L15916/16008. sendEmail() (L54-135) posts only `{ from, to, subject, html }` to Resend / `content` to SendGrid / `{from,to,subject,html}` to nodemailer \u2014 no ",
+  "impact": "Gmail (web/iOS/Android), Outlook.com and Yahoo do not render data: URI images in HTML email; only Apple Mail/Thunderbird do. The majority of EUR 140 Gala guests and all CA/VIP/invite registrants will open their 'Payment Confirmed \u2014 your ticket is below' email and see a blank/broken box where the che",
+  "suggested_fix": "Stop inlining data: URIs. Either (a) attach the QR PNG (Resend supports `attachments: [{filename, content: base64}]`; reference via cid or as a normal attachment), or (b) add a route like GET /ticket/qr/:regId.png that renders the QR server-side and reference it as a hosted https URL in the <img>, plus print the registration ID / a 'View my ticket' link as text fallback. Test in real Gmail, not Ap",
+  "finder": "email-qr-scanner",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "critical",
+  "category": "security",
+  "file": ".gitignore",
+  "line": 4,
+  "title": "Committed shared/medx_portal.db is publicly downloadable from GitHub with bcrypt password hashes (3 admin accounts) and registrant PII",
+  "evidence": ".gitignore: `*.db` then `!shared/medx_portal.db` explicitly un-ignores it; `git ls-files` shows shared/medx_portal.db tracked (last commit 40e6d4f). GitHub API returns \"private\": false for alen-ops99/medx-portal. Read-only sqlite query on the committed file: 28 users (all with bcrypt password_hash, 3 with is_admin=1), 22 registrations, 10 gala_registrations.",
+  "impact": "Anyone can clone the public repo and download the database: emails, names, registrations, and bcrypt hashes for 3 admin accounts of the live admin portal. Weak admin passwords are offline-crackable, leading to full admin-portal takeover (registrations, payments view, email sending). Also permanent g",
+  "suggested_fix": "Remove the `!shared/medx_portal.db` exception, `git rm --cached shared/medx_portal.db`, purge it from history (git filter-repo/BFG) and force-push, rotate all admin passwords, and consider making the repo private. Verify no other secrets in history.",
+  "finder": "data-integrity",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "critical",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 6240,
+  "title": "Privilege escalation: Accelerator admin operations (evaluate, message, validity, form-config, criteria, rankings) gated by auth only in the public user-portal",
+  "evidence": "In user-portal these admin operations carry only `auth`, while the admin-portal applies `adminOnly`: evaluate L6240 `app.post('/api/accelerator/applications/:appId/evaluate', auth, ...)` (admin uses `auth, adminOnly` at L6567); evaluate-batch L6261 (admin L6588 adminOnly); message-to-candidate L6110 `app.post('/api/accelerator/applications/:id/message', auth, ...)` (admin L6437 adminOnly, and it sends email to the candidate); validity L6147; criteria create/update/delete L6208/6220/6231; form-co",
+  "impact": "Any registered non-admin user of the live public portal can score/rank candidates, flip validity, send official Med&X emails to applicants, rewrite the application form schema, and publish rankings \u2014 full takeover of the selection process and outbound applicant communications.",
+  "suggested_fix": "Append `adminOnly` to every one of these routes in user-portal/backend/server.js to match the admin-portal. Audit the two files for accelerator route-gating parity (the dual-file pattern is the root cause).",
+  "finder": "gap:Accelerator subsystem \u2014 IDOR + applicant identity + magic-link interview tokens (whole subsystem, never access-control-audited)",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "critical",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 6569,
+  "title": "IDOR: full applicant directory (emails, phones, names) exposed to any authenticated user via /accelerator/registrations",
+  "evidence": "L6569 `app.get('/api/accelerator/registrations', auth, (req, res) => { const applicants = query.all(`SELECT a.id, a.email, a.first_name, a.last_name, a.phone, a.current_institution, a.faculty, a.email_verified, a.created_at, a.last_login ... FROM accelerator_applicants a ...`)`. Gating: `auth` only, no `adminOnly`, no scoping. Sibling L6589 `/registrations/:id` returns the entire `accelerator_applicants` row (only password_hash/verification_token/reset_token stripped) plus all their applications",
+  "impact": "Any logged-in public-portal user can pull the complete applicant roster with emails and phone numbers in one call, and dump any single applicant's full record. Mass PII / GDPR exposure with no enumeration needed.",
+  "suggested_fix": "Add `adminOnly` to both /registrations and /registrations/:id in the user-portal (and confirm admin-portal copies are admin-gated).",
+  "finder": "gap:Accelerator subsystem \u2014 IDOR + applicant identity + magic-link interview tokens (whole subsystem, never access-control-audited)",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "critical",
+  "category": "security",
+  "file": "admin-portal/backend/server.js",
+  "line": 16888,
+  "title": "Anonymous full-DB exfiltration: public self-register mints a non-admin JWT that passes `auth`, and tech db-download/export-all are gated only by `auth`+`techAuth` (no `adminOnly`) behind default TECH_PASSWORD 'tech123'",
+  "evidence": "L16759 `const TECH_PASSWORD = process.env.TECH_PASSWORD || 'tech123';` and TECH_PASSWORD is NOT declared in render.yaml (only JWT_SECRET/NODE_ENV/Turso/Stripe are), so prod almost certainly runs the default. L16888 `app.get('/api/admin/tech/db-download', auth, techAuth, (req,res)=>{ ... const stream = fs.createReadStream(DB_PATH); stream.pipe(res); })` streams the entire local libsql replica (shared/db.js confirms the local DB_PATH file is a full Turso embedded-replica copy). L16902 `/api/admin/",
+  "impact": "End-to-end unauthenticated chain reachable in prod: (1) POST /api/auth/register on the admin backend to mint a valid non-admin JWT; (2) GET /api/admin/tech/db-download (or /export-all) with that Bearer token + header `x-tech-password: tech123`. Result: full download of the shared Turso DB \u2014 bcrypt p",
+  "suggested_fix": "Add `adminOnly` to every /api/admin/tech/* route (and verify-password). Remove the 'tech123' fallback \u2014 fail closed if TECH_PASSWORD is unset, and set a strong TECH_PASSWORD in Render. Reconsider exposing a public `/api/auth/register` on the admin backend at all (it should not mint admin-portal-usable tokens for arbitrary self-registrants).",
+  "finder": "gap:Tech dashboard auth surface \u2014 full-DB exfiltration endpoints behind a default-password header + JWT-in-query",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "critical",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 12194,
+  "title": "Public speakers endpoints SELECT * leak each speaker's email, invite_code (login credential) and internal logistics notes",
+  "evidence": "L12192-12195 (unauthenticated): app.get('/api/plexus/speakers', (req, res) => { ... const speakers = query.all('SELECT * FROM speakers WHERE conference_id = ? AND is_confirmed = 1 AND is_published = 1 ORDER BY is_keynote DESC, sort_order', [conf.id]); res.json(speakers); }). The speakers table is widened by ALTERs to include sensitive columns: L4284 `ALTER TABLE speakers ADD COLUMN email TEXT`, L4285 `ALTER TABLE speakers ADD COLUMN invite_code TEXT`, plus L4281 notes / L4279-4280 flight_details",
+  "impact": "Anyone (no login) hitting the public speaker list receives every published speaker's private email (PII) plus their invite_code, which is the credential that authenticates into the speaker portal (/api/speakers/auth). This is a combined PII leak and auth-bypass: an attacker can impersonate any confi",
+  "suggested_fix": "Replace SELECT * with an explicit allow-list of public columns (name,title,institution,bio,photo_url,talk_title,talk_abstract,is_keynote,linkedin_url,twitter_url,sort_order) in all four public speaker endpoints across both backends. Never select invite_code/email/notes/*_details/*_assigned_to on unauthenticated routes.",
+  "finder": "gap:Abstract & speaker submission subsystem \u2014 conference academic core (uploads, reviews, reviewer assignment) never audited",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 6045,
+  "title": "User-portal accelerator admin surface is behind plain `auth`, not `adminOnly` \u2014 any registered user reads all applicants' PII (DOB/OIB), tampers with scores, and publishes rankings",
+  "evidence": "All accelerator management routes take only `auth` (any logged-in user), e.g. L6025 `app.get('/api/accelerator/years/:year/applications', auth, ...)`, L6045 `app.get('/api/accelerator/applications/:id/full', auth, (req,res)=>{ const app = query.get('SELECT * FROM accelerator_applications WHERE id = ?', [req.params.id]); ... app.evaluations = ...; res.json(app); })` (no ownership/admin check at all), L6240 `evaluate`, L6569 `registrations`, L6711 `publish-rankings`. The SAME functions in admin-po",
+  "impact": "Any user who self-registers and verifies email (registration is open at L4845) can GET /api/accelerator/applications/:id/full to read every applicant's full PII including date_of_birth, oib (Croatian national ID), home address, evaluations and interview scores; list all applicants (registrations L65",
+  "suggested_fix": "Add `adminOnly` after `auth` to every accelerator management route in user-portal (years/dates/institutions/criteria/interviewers CRUD, years/:year/applications, applications/:id/full, evaluate, evaluate-batch, registrations, registrations/:id, ranking, update-rankings, publish-rankings, files/grouped, ranking-pdf, merge-docs) to match the admin-portal gating, or remove these admin routes from the",
+  "finder": "security-auth",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "CONFIRMED. The finding accurately describes a broken-access-control gap in the public user-portal backend.\n\nVerified facts:\n- `auth` (user-portal/backend/server.js L1520-1536) only verifies the JWT and loads the user row; it performs NO admin check. The dev-fallback that auto-promotes to Alen fires only when NODE_ENV==='development', so in prod any logged-in user passes.\n- `adminOnly` exists (L156"
+   },
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "VERIFIED in user-portal/backend/server.js. The `auth` middleware (L1520-1536) only verifies a JWT resolves to an existing row in the `users` table and attaches `req.user`; it performs NO admin check. `adminOnly` (L1561) is the separate is_admin gate. All accelerator management routes use only `auth`: years/:year/applications (L6025), applications/:id/full (L6045 \u2014 `SELECT *` + returns documents/ev"
+   }
+  ]
+ },
+ {
+  "severity": "high",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 14373,
+  "title": "User-portal finance module (/api/finance/*) is `auth`-only \u2014 any registered user reads NGO bank balance and creates/approves/pays travel & payment orders",
+  "evidence": "Every finance route uses only `auth`: L14373 `app.get('/api/finance/bank-balance', auth, (req,res)=>{ const balances = query.all('SELECT * FROM finance_bank_balance ...'); res.json(balances); })`; L15036 `app.post('/api/finance/travel-orders/:id/approve', auth, (req,res)=>{ ... UPDATE finance_travel_orders SET status='approved' ... })`; L15055 `.../:id/pay`, L14378 POST bank-balance, L14621 POST invoices. No `adminOnly` and no in-handler role check on any of them.",
+  "impact": "Any logged-in user-portal account (open registration) can read the NGO's bank balance, all transactions and invoices, and create/approve/reject/pay travel and payment orders \u2014 a confidentiality breach of financial data plus an integrity/authorization hole over the organization's reimbursement workfl",
+  "suggested_fix": "Gate all /api/finance/* routes with `adminOnly` (or a dedicated finance role). For self-service routes like /api/finance/my-travel-orders keep `auth` but scope queries to req.user.id; approve/pay/reject and all read-all endpoints must require admin.",
+  "finder": "security-auth",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "Confirmed against /Users/alen/Documents/Claude_Code_Projects/MedX/user-portal/backend/server.js. Every /api/finance/* route is registered with only the `auth` middleware (verified the full list L14325-15300+, including bank-balance GET L14373/POST L14378, transactions, invoices L14597/14621, and travel-order approve L15036 / reject L15047 / pay L15055). The `auth` middleware (L1520-1536) only requ"
+   },
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "CONFIRMED authorization defect. All ~48 /api/finance/* routes in user-portal/backend/server.js use only `auth` with no `adminOnly` and no in-handler role check. Verified specific handlers: GET/POST/DELETE /api/finance/bank-balance (L14373/14378/14387), travel-orders/:id/approve (L15036), /reject (L15047), /pay (L15055 \u2014 inserts an expense transaction and mutates finance_work_units.budget_used). Th"
+   }
+  ]
+ },
+ {
+  "severity": "high",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 15618,
+  "title": "User-portal PR module (/api/pr/*) is `auth`-only \u2014 any registered user can export the full newsletter subscriber list (PII) and mark newsletters sent",
+  "evidence": "L15618 `app.get('/api/pr/subscribers/export', auth, (req,res)=>{ const subscribers = query.all('SELECT * FROM pr_subscribers ORDER BY subscribed_at DESC'); ... res.send(csvHeader + csvRows); })` \u2014 emits every subscriber's email/first/last name as CSV behind plain `auth`. Sibling routes L15560 GET subscribers, L15544 POST newsletters/:id/send, L15630 import are all `auth`-only too.",
+  "impact": "Any self-registered user can download the entire marketing subscriber database (names + emails \u2014 a GDPR-relevant PII set) and trigger/mark newsletter sends. No admin gate.",
+  "suggested_fix": "Add `adminOnly` to all /api/pr/* routes to match their admin-grade nature.",
+  "finder": "security-auth",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "Confirmed by reading the code. The `auth` middleware (user-portal/backend/server.js L1520-1536) only verifies a JWT maps to an existing user and sets req.user \u2014 it does NOT check is_admin. A distinct `adminOnly` middleware (L1561-1564) exists and is applied as `auth, adminOnly` 179 times across the file for admin-grade routes. Every `/api/pr/*` route (L15301-15923) uses `auth` ONLY; there is no pr"
+   },
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "Confirmed against the code. In user-portal/backend/server.js the `auth` middleware (L1520) only verifies a JWT and that the user row exists; it checks neither is_admin nor email_verified. `adminOnly` (L1561) exists and is correctly applied to /api/admin/forum/* routes, but every /api/pr/* route (L15301-15923) including GET /api/pr/subscribers/export (L15618, CSV of email/first_name/last_name), GET"
+   }
+  ]
+ },
+ {
+  "severity": "high",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 301,
+  "title": "/api/admin/registrations-csv is `auth`-only despite the `admin` path \u2014 any logged-in user downloads the master registrations log with dietary/allergy PII",
+  "evidence": "L300-306: `// Download registrations CSV log (admin only)` then `app.get('/api/admin/registrations-csv', auth, (req, res) => { const csvPath = path.join(__dirname, 'registrations-log.csv'); ... res.send(fs.readFileSync(csvPath, 'utf8')); })`. The comment and path say admin-only but the middleware is just `auth`, never `adminOnly`.",
+  "impact": "Any registered user can download the full registrations log CSV which (per the invite/register flows) includes attendee names, emails, payment status, dietary requirements and allergies \u2014 sensitive PII exposed to every authenticated account.",
+  "suggested_fix": "Change the middleware to `auth, adminOnly`.",
+  "finder": "security-auth",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "Confirmed broken access control. user-portal/backend/server.js L301 registers GET /api/admin/registrations-csv with only `auth`, while the comment says \"admin only\" and every other /api/admin/* route in the same file uses `auth, adminOnly` (L8005+), proving omission. auth (L1520) accepts any valid user JWT with no admin check (dev fallback is NODE_ENV-gated); adminOnly exists at L1561; no app.use-"
+   },
+   {
+    "isReal": true,
+    "severity": "medium",
+    "reasoning": "Verified accurate against code. user-portal/backend/server.js L301: `app.get('/api/admin/registrations-csv', auth, ...)` uses only the `auth` middleware (L1520), which validates a JWT for any existing user but does NOT check is_admin. The `adminOnly` check (L1561, verifying req.user.is_admin) exists and is applied to dozens of other /api/admin/* routes (e.g. forum routes L8005+) but is omitted her"
+   }
+  ]
+ },
+ {
+  "severity": "high",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 363,
+  "title": "Reflected XSS on /invite-success: Stripe metadata (event_name, email, items) rendered unescaped into HTML and an inline <script> / /invite-success interpolates Stripe-session user data into HTML and <script> without escaping (reflected XSS)",
+  "evidence": "L338 `eventName = meta.event_name || 'Med&X Event';` L335 `customerEmail = meta.email || session.customer_details?.email`. Rendered raw: L363 `Your registration for <strong ...>${eventName}</strong> is confirmed.`; L377 `' to <strong>' + customerEmail + '</strong>'`; L354 itemsList `'\u2713 ' + i` (no escaping). Also inline script L407 `const title = 'Med&X \u2014 ${eventName.replace(/'/g, \"\\\\'\")}';` (escapes only single-quotes, not </script> or backslash). The metadata is set verbatim from request body i",
+  "impact": "An unauthenticated attacker POSTs /api/register-invite with a malicious event_name/email/package item (e.g. </strong><img src=x onerror=...> or a </script> breakout), receives a Stripe session, then sends a victim the link /invite-success?session_id=cs_xxx (no payment needed). On open, attacker Java",
+  "suggested_fix": "Wrap every interpolated metadata value (eventName, customerEmail, each itemsList item) in the existing escapeHtml() (L295) when building the HTML body, and for the inline <script> at L407 emit the value via JSON.stringify (or a JS-string escaper that also neutralizes </script> and backslash) instead of a single-quote-only replace. Better: render these values into data-* attributes / textContent cl",
+  "finder": "injection-xss",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "Confirmed against the code. /invite-success (public GET, user-portal/backend/server.js L313) renders Stripe session metadata into HTML without escaping: L363 interpolates ${eventName} raw inside <strong>, L354 maps itemsList entries raw ('\u2713 ' + i), L377 concatenates customerEmail raw, and the inline <script> at L407 only escapes single quotes (not </script> or backslash). The escapeHtml() helper a"
+   },
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "Verified accurate and exploitable end-to-end against the real deployment. (1) Injection point /api/register-invite (server.js L17491) is unauthenticated (only registrationLimiter); event_name/email/package_items come verbatim from req.body (L17493). (2) Those values are written verbatim into Stripe session metadata at L17691, gated only by server-computed price>0 (L17684) \u2014 event_type=gala (EUR140"
+   }
+  ]
+ },
+ {
+  "severity": "high",
+  "category": "payments",
+  "file": "user-portal/backend/server.js",
+  "line": 17665,
+  "title": "Unvalidated guest_count enables \u20ac0 price \u2192 payment bypass in /api/register-invite",
+  "evidence": "L17665 `let price = basePrice * (1 + (parseInt(guest_count) || 0));` \u2014 guest_count comes straight from the unauthenticated request body with no floor/clamp. Sending guest_count=-1 makes price = basePrice*0 = 0, so the L17684 `if (price > 0)` block is skipped (no Stripe checkout), checkoutUrl stays null, and L17709 `if (!checkoutUrl)` fires the FREE confirmation path: sendRegistrationConfirmation() (QR + 'You're Registered!' email) + admin sync. For event_type='plexus' the registration row was al",
+  "impact": "Anyone can POST directly to the public /api/register-invite endpoint (it is rate-limited but has no auth) with a negative guest_count to obtain a 'confirmed' Plexus registration + QR confirmation email while bypassing Stripe entirely. For gala the row stays awaiting_payment (scanner would reject) bu",
+  "suggested_fix": "Clamp guest_count server-side: `const guests = Math.max(0, Math.min(2, parseInt(guest_count)||0));` and use that for both pricing and storage. Additionally, reject the request (or keep status='pending') when computed price <= 0 for an event whose base price is > 0, rather than silently treating it as a free registration.",
+  "finder": "invite-flow",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "data",
+  "file": "user-portal/backend/server.js",
+  "line": 17536,
+  "title": "Abandoned checkouts create orphan awaiting_payment rows; INSERT OR IGNORE never dedupes / \u20ac0-price-override gala links and 100%-discount coupons strand registrants in 'awaiting_payment': confirmation email sent, but scanner says 'Do NOT admit'",
+  "evidence": "Every invite registration mints a fresh uuid as the primary key, so `INSERT OR IGNORE` can never collide/dedupe: gala L17536 `INSERT OR IGNORE INTO gala_registrations (id,...)` with regId=uuidv4(); plexus L17517; CA L17329-17349 inserts BOTH a croatians_abroad_registrations row and a gala_registrations row (status='awaiting_payment') on every attempt. A user who abandons Stripe and retries, or registers the same email twice, leaves accumulating awaiting_payment/pending orphans. Generic gala max_",
+  "impact": "gala_registrations / croatians_abroad_registrations / registrations fill with duplicate unpaid rows that inflate admin counts, check-in lists and exports, and make 'is this person registered/paid' ambiguous. A personal (max_uses=1) generic link can also yield several concurrent awaiting_payment rows",
+  "suggested_fix": "Before inserting, look up an existing row by (email,event) and reuse/update it instead of inserting a new uuid; or add a UNIQUE(email,event_id) constraint and use real upsert. Periodically prune awaiting_payment rows older than the Stripe session lifetime. Move the max_uses gate onto a row count of created registrations, not paid used_count.",
+  "finder": "invite-flow",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "payments",
+  "file": "user-portal/backend/server.js",
+  "line": 10928,
+  "title": "points-purchase webhook branch has no idempotency guard \u2014 Stripe retry double-credits points and double-bills FIRA",
+  "evidence": "The points-purchase branch (L10928-10968) reads rewards and immediately does `newBalance = (rewards.points_balance||0)+points; UPDATE member_rewards SET points_balance=?...` then `INSERT INTO rewards_history` and creates a FIRA invoice `PTS-${Date.now()}` \u2014 with NO prior check that this session was already processed. Every other webhook branch (accelerator L10641, gala L10749, forum L10843, CA-gala L10984, plexus L11262) has an explicit `if (status==='paid') return res.json({duplicate:true})` gu",
+  "impact": "Stripe redelivers checkout.session.completed on any non-2xx or timeout (and the branch awaits a no-timeout FIRA fetch that can hang). A redelivered points-purchase event credits the buyer's points balance a second (third, ...) time and issues a second FIRA fiscal invoice with a new PTS-<timestamp> n",
+  "suggested_fix": "Before mutating, check for prior processing keyed on session.id (e.g. a processed_stripe_sessions table or a rewards_history row whose reason embeds session.id) and return {received:true,duplicate:true} if found; only then credit points and create the FIRA invoice.",
+  "finder": "payments",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "payments",
+  "file": "user-portal/backend/server.js",
+  "line": 17709,
+  "title": "register-invite: a PAID invite registration whose Stripe checkout fails to create is silently fulfilled as FREE (valid QR + confirmation email, no payment)",
+  "evidence": "In /api/register-invite, the Stripe call is wrapped: `try { const session = await stripe.checkout.sessions.create({...}); checkoutUrl = session.url; } catch(stripeErr){ console.log('[Stripe] Checkout creation failed:', stripeErr.message); }` (L17685-17704). Then `if (!checkoutUrl) { await sendRegistrationConfirmation(); ... fetch(adminUrl+'/api/public/register-invite'...) }` (L17709-17755) \u2014 the free path runs whenever checkoutUrl is null, with no check that price was 0.",
+  "impact": "If stripe.checkout.sessions.create throws (transient Stripe outage, rate-limit, bad param) or `stripe` is unset, a paid gala/plexus/forum invite registration falls through to the free branch: the guest receives a working MEDX_MEMBER check-in QR and a 'Registration Confirmed' email, is logged to Goog",
+  "suggested_fix": "Track whether the event required payment (price>0). If a checkout was required but checkoutUrl is null, return a 502/error to the client and do NOT send the confirmation/QR, do NOT log to Sheets/admin as free; surface a retry.",
+  "finder": "payments",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "payments",
+  "file": "user-portal/backend/server.js",
+  "line": 11110,
+  "title": "Stripe webhook invite-* branch has no idempotency for plexus/forum/bridges and awaits FIRA + two emails inline \u2014 duplicate fiscal invoices/emails/Sheets rows on redelivery; real errors are swallowed with 200",
+  "evidence": "L11110-11111: `if (invEventType === 'plexus') { db.run(\"UPDATE registrations SET payment_status = 'paid'...\") }` \u2014 no already-paid check (only the gala sub-branch guards at L11114-11122). Then `await firaService.createFiscalInvoice` (L11135), `await sendEmail(invEmail, ...)` (L11200), `await sendEmail('laura.rodman@medx.hr', ...)` (L11207), Sheets post (L11225), admin-portal sync (L11163) \u2014 all re-run per delivery. L11232-11235: `catch(dbErr) { console.error(...) } return res.json({ received: tr",
+  "impact": "Stripe delivers webhooks at-least-once and retries on slow responses; the awaited FIRA + 2 Resend calls (no fetch timeouts) make a slow response likely on Render free tier. Each redelivery for an invite-plexus/forum/bridges payment creates a duplicate FIRA fiscal invoice (a real Croatian tax-complia",
+  "suggested_fix": "Add the same idempotency guard the gala sub-branch has (check payment_status before mutating, return `{received:true, duplicate:true}`), respond to Stripe immediately after the DB update, and run FIRA/emails/Sheets after `res.json()` (or in a setImmediate). Return 500 only for genuinely retryable failures, before any side effects.",
+  "finder": "email-qr-scanner",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "bug",
+  "file": "admin-portal/backend/server.js",
+  "line": 10543,
+  "title": "Duplicate /api/checkin/undo route \u2014 the first handler shadows the second, so the global scanner's Undo button always fails and gala undo writes to the wrong table / Duplicate /api/checkin/undo routes: the richer implementation (gala support + 5-minute window) is dead code, and the global scanner's Undo button always 400s",
+  "evidence": "Two registrations on the same path: L10543 `app.post('/api/checkin/undo', ...)` expecting `{ registration_id, type }` (and its else-branch updates `registrations` for any type other than forum/bridges \u2014 no gala case), and L16216 a second `app.post('/api/checkin/undo', ...)` expecting `{ id, event }` with a proper tableMap incl. gala and a 5-min window. Express dispatches to the first only. The global scanner UI sends the second handler's shape: index.html L20365-20368 `body: JSON.stringify({ id:",
+  "impact": "On event night, tapping Undo after a mistaken scan on the universal check-in screen always shows 'Undo failed'. Even if the payload matched, a gala undo would UPDATE the `registrations` table instead of `gala_registrations` (silent no-op). The carefully built 5-minute-window undo handler at L16216 i",
+  "suggested_fix": "Delete one of the two handlers and unify on a single payload shape ({id, event} with the tableMap including gala). Grep both frontends for /api/checkin/undo callers (index.html L12785 sends {registration_id, type}; L20365 sends {id, event}) and align them.",
+  "finder": "email-qr-scanner",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "bug",
+  "file": "admin-portal/backend/server.js",
+  "line": 16256,
+  "title": "Legacy universal scanner cannot read any current ticket QR: backend parses only id/reg_id/registration_id (QRs use camelCase regId) and the frontend hijacks userId-bearing QRs into a member-profile view",
+  "evidence": "L16255-16256: `const eventType = parsed.event || parsed.type || ''; const id = parsed.id || parsed.reg_id || parsed.registration_id || code;` \u2014 every live QR payload is `{type:'MEDX_MEMBER', regId, caRegId?, userId?, ...}` (user BE L11014, L11181, L17373, L17595), so `type` becomes 'MEDX_MEMBER' (matches no branch) and `id` falls back to the entire JSON string \u2192 all table lookups miss \u2192 404 'No matching registration found'. /api/plexus/checkin has the same parse at L10483. Frontend index.html L2",
+  "impact": "The admin SPA contains multiple scanner UIs. Only the new 'Event Check-in' overlay (which correctly extracts `p.caRegId || p.regId || p.email`, index.html L29550) works with the QRs guests actually hold. Staff who open the older universal/per-event check-in tab on event day get 'No matching registra",
+  "suggested_fix": "Add `parsed.regId || parsed.caRegId` to the id extraction in /api/checkin (L16256) and /api/plexus/checkin (L10483), and in the global-scanner frontend only divert to the member-profile view when `parsed.userId && !parsed.regId`. Better: retire the legacy scanner tabs and route all staff to the unified Event Check-in overlay.",
+  "finder": "email-qr-scanner",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "bug",
+  "file": "admin-portal/backend/server.js",
+  "line": 15848,
+  "title": "Unified scanner 'conference' mode only searches Croatians Abroad rows \u2014 paid Plexus invite registrants are rejected at the conference door by every scanner path",
+  "evidence": "After the gala branch, conference/bridges verification looks up only `croatians_abroad_registrations` (L15850-15855, identical in user BE L16721-16728): `caReg = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ? OR gala_registration_id = ?', ...)` then email fallback against the same table. Invite-flow Plexus payers are written to `registrations` (user BE L17517) and their QR carries `evt:'plexus', regId:<registrations.id>` (L11181); the verify endpoint never consults `registr",
+  "impact": "A guest who paid for the Plexus Conference through an invite link scans their QR in 'Plexus Conference' mode and gets 'NOT VALID \u2014 No Conference pre-registration found for this code. (Searched N CA rows\u2026)'. Their QR also fails /api/plexus/checkin and /api/checkin (regId parse gap, separate finding),",
+  "suggested_fix": "In the verify conference branch, after the CA miss, fall back to `SELECT * FROM registrations WHERE id = ? (or email = ?)` joined to the plexus-2026 conference and honor its checked_in column. Apply identically in both server.js files (dual-file pattern).",
+  "finder": "email-qr-scanner",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "email",
+  "file": "user-portal/backend/server.js",
+  "line": 11202,
+  "title": "Email send failures are invisible in all production flows: sendEmail never throws, callers ignore success:false, mock mode reports success, and the webhook logs 'Confirmation email sent' unconditionally",
+  "evidence": "sendEmail returns `{ success: false, error }` instead of throwing (L79, L100, L106, L129) and `{ success: true, mock: true }` with no provider (L135; admin BE L98-99). Every production caller wraps it in try/catch and never reads the result, e.g. L11199-11202: `await sendEmail(invEmail, ...); console.log(`[Stripe] Confirmation email sent to ${invEmail}`);` \u2014 the 'sent' log prints even when Resend returned 403. No email status column, no retry queue, no admin surface. Only the two test endpoints ",
+  "impact": "When a guest's ticket email fails (today: every recipient except the verified inbox, due to the known Resend domain blocker; later: any bounce/outage), the payment completes, logs claim the email was sent, and nobody finds out until the guest complains or shows up ticketless. The try/catch + console",
+  "suggested_fix": "Persist send outcome per registration (e.g. `confirmation_email_status`, `error`) by checking the returned object at the payment-critical call sites; log mock mode as a WARN not success; add an admin view/retry for failed ticket emails. Make the post-payment email path re-runnable (resend-ticket endpoint).",
+  "finder": "email-qr-scanner",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "data",
+  "file": "admin-portal/backend/server.js",
+  "line": 15989,
+  "title": "Send Test QR / Bundle Test create real registrations (bundle = 'paid' EUR 140 gala row) that every dashboard, stat and export counts as live data / Test-email endpoints insert REAL paid \u20ac140 gala + CA rows that the Live Overview counts as revenue, and neither admin UI offers any way to delete them",
+  "evidence": "test-bundle-email inserts a croatians_abroad_registrations row with `gala_payment_status='paid', amount_paid=140, invoice_number='CA-GALA-TEST-\u2026'` (L15974-15983) plus a gala_registrations row `'confirmed','paid'` (L15985-15991); test-email inserts a CA row (L15901-15908). The only marker is free text in notes/requests ('BUNDLE TEST \u2014 safe to delete'). No query anywhere filters it: /api/checkin/stats counts all rows (L16147 `SELECT COUNT(*) as total ... FROM gala_registrations`), gala registratio",
+  "impact": "Each test click silently inflates gala paid-guest counts, EUR revenue summaries, catering/dietary exports, and check-in totals until someone manually deletes the row. The fake CA-GALA-TEST invoice numbers also appear next to real CA-GALA invoices in lists. With both portals exposing the same tools, ",
+  "suggested_fix": "Add an `is_test INTEGER DEFAULT 0` column set by the test endpoints, exclude `is_test=1` from stats/lists/exports (or at minimum `WHERE notes NOT LIKE '%TEST \u2014 safe to delete%'`), and/or auto-delete test rows older than 24h at boot.",
+  "finder": "email-qr-scanner",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "data",
+  "file": "user-portal/backend/server.js",
+  "line": 3910,
+  "title": "Boot-time delete-ALL wipe of gala + Croatians Abroad registrations is permanently live in both backends, marker-gated only and non-transactional",
+  "evidence": "U:3907-3915 `if (!wipeMarker) { ... db.run(\"DELETE FROM gala_registrations\"); db.run(\"DELETE FROM croatians_abroad_registrations\"); db.run(\"UPDATE gala_invite_links SET used_count = 0\"); ... db.run(\"INSERT INTO app_state (key, value, ...) VALUES ('gala_test_wipe_2026_06_02', ...)\") }` \u2014 WHERE-less deletes, marker INSERT only after all statements succeed, whole block in `catch(e) { /* non-fatal */ }` (U:3942). Mirrored at A:2972-2995 (v2 marker at U:3920/A:2984). In U the block also references ga",
+  "impact": "The wipe runs whenever its app_state marker row is absent. If the Turso DB is ever restored from a pre-2026-06-02 backup, app_state is truncated, or either backend is pointed at a recreated DB after real tables sync in, the next boot silently destroys ALL live Gala and Croatians Abroad registrations",
+  "suggested_fix": "Delete both wipe blocks from both server.js files now that the markers exist in prod (the code is dead weight kept loaded). If a future wipe is ever needed, scope it with a WHERE on test rows, write the marker FIRST or in the same transaction, and require an explicit env flag.",
+  "finder": "data-integrity",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "payments",
+  "file": "user-portal/backend/server.js",
+  "line": 10995,
+  "title": "Croatians Abroad gala payments get no FIRA fiscal invoice and no finance income record",
+  "evidence": "The `metadata.type === 'croatians-abroad-gala'` webhook branch (U:10971-11093) updates croatians_abroad_registrations + gala_registrations, increments the invite link, generates a QR, sends emails and logs to Google Sheets, then `return res.json({ received: true })` \u2014 it never calls `firaService.createFiscalInvoice(...)` nor `createFinanceIncomeRecord(...)`. The parallel `gala-ticket` branch does both (U:10762 FIRA `FISKALNI_RA\u010cUN`, U:10787 finance record).",
+  "impact": "Every EUR 140 Croatians Abroad gala card payment (a live Plexus 2026 flow) is fiscally uninvoiced \u2014 a Croatian fiscalization compliance gap \u2014 and missing from the finance_transactions ledger, so admin finance totals understate gala revenue. Only an internal CA-GALA-... string is stored.",
+  "suggested_fix": "Add the same firaService.createFiscalInvoice (FISKALNI_RA\u010cUN, KARTICA) call and createFinanceIncomeRecord call to the croatians-abroad-gala branch, using session.amount_total/100 and the registrant billing details from metadata. Backfill FIRA invoices for any CA gala payments already taken.",
+  "finder": "data-integrity",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "payments",
+  "file": "render.yaml",
+  "line": 40,
+  "title": "Placeholder IBAN HR1234567890123456789 is pinned in render.yaml and code fallback for bank-transfer payment instructions",
+  "evidence": "render.yaml: `- key: MEDX_IBAN  value: HR1234567890123456789` (with MEDX_VAT_ID: HR12345678901 similarly fake). Code uses the same placeholder as fallback: U:10370/U:10440 `iban: process.env.MEDX_IBAN || 'HR1234567890123456789'`, and U:10400 always advertises `payment_methods: { card: ..., bank_transfer: true }`.",
+  "impact": "Conference registrants who choose bank transfer are shown an invalid, made-up IBAN on payment instructions/invoices. Transfers will be rejected by banks (IBAN check digits invalid) or, worse, silently fail \u2014 registrations stay unpaid with no way to complete. The blueprint value also overwrites any i",
+  "suggested_fix": "Set the real Med&X IBAN/VAT in Render env (sync: false like the other secrets) and remove the literal placeholder values from render.yaml; hide the bank_transfer option entirely while MEDX_IBAN is unset/placeholder.",
+  "finder": "data-integrity",
+  "confidence": "medium",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "data",
+  "file": "admin-portal/backend/server.js",
+  "line": 10595,
+  "title": "Admin mirror /api/public/register-invite double-inserts every invite registration into the SHARED Turso DB (gala/plexus/forum/bridges), creating ghost 'pending' duplicates that poison email-based check-in",
+  "evidence": "A:10582 `const regId = uuidv4();` then A:10595-10596 `db.run('INSERT OR IGNORE INTO gala_registrations (id, ... status, payment_status) VALUES (?,...)', [regId, ..., 'approved', 'pending'])`. The user portal calls this after EVERY free/VIP registration (U:17748 `await fetch(adminUrl + '/api/public/register-invite', { body: JSON.stringify(req.body) })`) and after EVERY paid Stripe registration (U:11163, inside the webhook). Both backends share one Turso DB, so this 'sync' (a relic of the old two-",
+  "impact": "Every gala VIP and every paid \u20ac140 gala invite registrant gets TWO gala_registrations rows: the real one (paid/vip-comp) plus an admin-mirror duplicate (approved/pending, created seconds later). The duplicate inflates GalaAdmin totals and, worse, the check-in verify email fallback (A:15819 `ORDER BY",
+  "suggested_fix": "Since both portals share one DB, delete the cross-portal forwarding (U:17748, U:11163) and the /api/public/register-invite endpoint, or make the mirror a no-op when the registration_id already exists (pass regId through and INSERT OR IGNORE on the SAME id).",
+  "finder": "admin-correctness",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "Confirmed in code. Admin /api/public/register-invite (admin-portal/backend/server.js:10567-10636) unconditionally inserts a NEW row with a fresh uuidv4() into gala_registrations (status 'approved', payment_status 'pending' hardcoded at 10595-10596), and parallel inserts for registrations (10591), forum_event_registrations (10621), and bridges_registrations (10624). INSERT OR IGNORE only guards the"
+   },
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "Fully verified in code. Admin /api/public/register-invite (admin server.js:10567) mints a fresh uuidv4 (10582) and INSERT OR IGNORE into gala_registrations with 'approved'/'pending' (10595-10596), plus parallel inserts into registrations (10591), forum_event_registrations (10621) and bridges_registrations (10624). gala_registrations has only id PRIMARY KEY and no UNIQUE(email) in either schema (us"
+   }
+  ]
+ },
+ {
+  "severity": "high",
+  "category": "bug",
+  "file": "admin-portal/frontend/index.html",
+  "line": 12771,
+  "title": "Gala check-in from the QR profile card silently fails but reports success: profileToggleCheckin has no 'gala' endpoint case and never checks res.ok",
+  "evidence": "FE 12771-12773: `let endpoint = '/api/plexus/checkin'; if (type === 'forum') ...; else if (type === 'bridges') ...` \u2014 no 'gala' branch, yet the profile card renders `checkinBtn('gala', r.id, ...)` for paid/VIP gala rows. /api/plexus/checkin only queries `registrations` (A:10506-10514) so a gala_registrations id returns 404; the FE fetch (12775) never checks res.ok and unconditionally runs `Toast.success('Checked in!')` (12782) and paints the green 'Checked In' button.",
+  "impact": "Gala QR codes contain userId, so the global FAB scanner routes every gala scan into this profile card (FE 20283). Door staff tapping 'Check In Now' see success, but gala_registrations.checked_in is never set \u2014 check-in counts stay wrong and duplicate-entry protection never engages. The undo path is ",
+  "suggested_fix": "Add a 'gala' case posting to /api/admin/checkin/verify {event:'gala', code:regId, mark:true} (which enforces payment), check res.ok / result.success before showing success, and add a gala branch to the undo endpoint.",
+  "finder": "admin-correctness",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "Confirmed end-to-end by reading the code. FE admin-portal/frontend/index.html:12760-12782: profileToggleCheckin has endpoint branches only for 'forum' and 'bridges'; type 'gala' falls through to '/api/plexus/checkin', the fetch never checks res.ok (fetch does not reject on HTTP 404), and Toast.success('Checked in!') plus the green 'Checked In' repaint run unconditionally. Line 12644 renders checki"
+   },
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "Fully verified. (1) profileToggleCheckin (admin FE 12760-12791) has no 'gala' endpoint case \u2014 type 'gala' posts to /api/plexus/checkin \u2014 and never checks res.ok/result.success; fetch() doesn't throw on 404, so it unconditionally shows Toast.success('Checked in!') and paints the green button. (2) The gala card in the QR profile renders checkinBtn('gala', r.id, ...) for paid/VIP rows (FE 12644). (3)"
+   }
+  ]
+ },
+ {
+  "severity": "high",
+  "category": "data",
+  "file": "admin-portal/backend/server.js",
+  "line": 4826,
+  "title": "Boot 'placeholder cleanup' migration deletes ANY bridges event in Zagreb/Split/Rijeka/Osijek plus all its registrations on every admin cold start \u2014 will destroy the real Plexus 2026 Zagreb Bridges event the moment it is created",
+  "evidence": "A:4826-4835: `const placeholderCities = ['Zagreb', 'Split', 'Rijeka', 'Osijek']; const hasPlaceholders = query.get('SELECT id FROM bridges_events WHERE city IN (...)'); if (hasPlaceholders) { db.run('DELETE FROM bridges_registrations WHERE event_id IN (SELECT id FROM bridges_events WHERE city IN ...)'); db.run('DELETE FROM bridges_events WHERE city IN ...'); }` then re-inserts Zurich/DC/Boston. The check is city-based only and runs unguarded at every boot (no app_state marker).",
+  "impact": "The flagship 'Croatian Biomedical Bridges' event is in Zagreb (Dec 4/5 2026) \u2014 the CA invite page even looks for it (`WHERE LOWER(city) LIKE '%zagreb%'`, U:689) to display the confirmed date. As soon as an admin creates that event, the next Render cold start of the admin portal silently deletes the ",
+  "suggested_fix": "Gate the migration with an app_state marker (like the gala wipes) so it can never run twice, or key the deletion on the specific placeholder event IDs/names rather than cities.",
+  "finder": "admin-correctness",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "Confirmed by direct code read. admin-portal/backend/server.js lines 4823-4850 sit inside initializeApp() (called unconditionally at line 17134 on every boot/cold start). The migration keys purely on city IN ('Zagreb','Split','Rijeka','Osijek') with no app_state marker \u2014 unlike the gala wipes at lines 2965-2992 which use exactly that guard pattern \u2014 so it re-arms whenever any bridges event in those"
+   },
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "VERIFIED against code. The migration at admin-portal/backend/server.js:4826-4850 is exactly as described: it checks `bridges_events WHERE city IN ('Zagreb','Split','Rijeka','Osijek')` and, if any match, DELETEs all their bridges_registrations and the events, then re-inserts Zurich/DC/Boston. It sits inside initializeApp() (line 329), invoked at module load (line 17134), so it re-runs on every proc"
+   }
+  ]
+ },
+ {
+  "severity": "high",
+  "category": "data",
+  "file": "admin-portal/backend/server.js",
+  "line": 5199,
+  "title": "Gala seed re-creates 8 fake guests (incl. real names Primorac, Radman) every time gala_registrations is empty \u2014 the June 2026 test wipes emptied the table, so the fakes are back in prod stats",
+  "evidence": "A:5199-5215: `let galaExists = query.get(\"SELECT id FROM gala_registrations LIMIT 1\"); if (!galaExists) { ... INSERT 8 named guests ('Dragan Primorac', 'Miroslav Radman', ... status 'confirmed'/'pending') }`. This guard runs on every boot. The marker-gated wipes (A:2976/2988, U:3910/3924) DELETE all gala_registrations \u2014 so on the same or next admin boot the table is empty and the seed re-inserts the fakes. The wipe runs once (marker), the seed runs forever.",
+  "impact": "Live prod gala list shows 8 fabricated guests: GalaAdmin 'Paid' stat counts the 5 status='confirmed' rows (FE 29015 counts status==='confirmed' as paid), sidebar pending badge shows 3, exports and check-in search are polluted, and scanning 'dragan.primorac@stcatherine.hr' at the door surfaces a real",
+  "suggested_fix": "Delete the gala seed block (and gate all sample-data seeds behind NODE_ENV!=='production' or an app_state marker), then remove the 8 rows from prod.",
+  "finder": "admin-correctness",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "Confirmed at every level. The seed block at admin-portal/backend/server.js:5199-5219 inserts 8 fabricated gala guests (including real public figures Dragan Primorac and Miroslav Radman, 5 marked status='confirmed') whenever gala_registrations is empty. It runs unconditionally in initializeApp() on every boot \u2014 no NODE_ENV gate, no marker, not nested in any new-DB-only block (verified by indentatio"
+   },
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "Verified accurate against the code. admin-portal/backend/server.js:5199-5219 unconditionally seeds 8 hardcoded gala_registrations rows whenever the table is empty (`if (!galaExists)`), with NO NODE_ENV guard and NO app_state marker. It runs inside initializeApp() (invoked unconditionally at line 17134) with Turso sync active (lines 336-339), so it writes to the shared production DB. The seeded gue"
+   }
+  ]
+ },
+ {
+  "severity": "high",
+  "category": "bug",
+  "file": "admin-portal/frontend/index.html",
+  "line": 29001,
+  "title": "GalaAdmin.saveSettings replaces this.settings with the bare form object, so a subsequent 'Save Speakers & Schedule' wipes all gala speakers and schedule to []",
+  "evidence": "FE 29001 (saveSettings success): `this.settings = data;` \u2014 `data` (28976-28992) has no `speakers`/`schedule` keys. saveSpeakersAndSchedule (29292-29295) then sends `speakers_json: JSON.stringify(this.settings?.speakers || [])` \u2192 `'[]'`, and the backend overwrites speakers_json/schedule_json (A:15619-15620). addSpeaker/addScheduleItem (29256-29281) likewise rebuild a fresh 1-item array on the clobbered object, and updateSpeaker silently no-ops.",
+  "impact": "The routine sequence 'edit general gala settings \u2192 Save \u2192 then touch the speakers/schedule editor \u2192 Save' silently erases every gala speaker and schedule item from the DB. The user-facing gala invite page reads schedule_json (U:17445 area, U:1060-1063), so public content disappears with no warning.",
+  "suggested_fix": "Merge instead of replace: `this.settings = { ...this.settings, ...data }` (or re-run loadSettings() after a successful save).",
+  "finder": "admin-correctness",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "Confirmed against the code; could not refute. admin-portal/frontend/index.html line 29001: saveSettings() on success does `this.settings = data` where `data` (28976-28992) is only the 15 general-form fields with no speakers/schedule keys, discarding the arrays loadSettings (28937-28947) had populated from GET /api/admin/gala/settings (backend parses speakers_json/schedule_json into them at admin s"
+   },
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "Verified line-by-line. (1) FE 29001 assigns the bare form object (28976-28992, no speakers/schedule keys) to this.settings after a general-settings save, even though the backend PUT response (A:15625-15630) returns the full merged settings that could have been used. (2) saveSpeakersAndSchedule (FE 29287-29300) then serializes this.settings?.speakers||[] \u2192 '[]', and the admin backend PUT (A:15619-1"
+   }
+  ]
+ },
+ {
+  "severity": "high",
+  "category": "payments",
+  "file": "user-portal/backend/server.js",
+  "line": 10370,
+  "title": "Bank-transfer registrants are shown a placeholder IBAN (HR1234567890123456789)",
+  "evidence": "server.js:10370 `iban: process.env.MEDX_IBAN || 'HR1234567890123456789'` (same fallback again at 10440 for GET /api/plexus/registration/:id/invoice). render.yaml sets the env var to the SAME placeholder: `- key: MEDX_IBAN  value: HR1234567890123456789` (plus MEDX_VAT_ID: HR12345678901). Frontend displays it verbatim: index.html:82526 `document.getElementById('pxBankIBAN').textContent = bt.iban || '\u2014'`. The confirmation email (server.js:10344) says \"Please transfer \u20acX to our bank account using re",
+  "impact": "A Plexus registrant who chooses bank transfer in POST /api/plexus/register (server.js:10099) is instructed to wire money to a fake IBAN. Payment never arrives (or bounces), registration stays 'pending', and the user believes they paid. The code fallback also silently masks any future env-var misconf",
+  "suggested_fix": "Set the real Med&X IBAN/SWIFT/VAT in the Render dashboard AND in render.yaml. Remove the placeholder fallbacks: if MEDX_IBAN is unset, disable the bank-transfer option (return 503 for that method) instead of inventing an account. Add the full bank details (IBAN, recipient, reference) to the confirmation email. Effort: S.",
+  "finder": "user-frontend",
+  "confidence": "medium",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "Every citation verified against the code: server.js:10370 and :10440 fall back to placeholder IBAN 'HR1234567890123456789'; render.yaml:40-41 pins the same placeholder as a managed blueprint value (while real secrets use sync:false, suggesting the IBAN was never set in the dashboard); the local .env also holds the placeholder; frontend index.html:82526 displays bt.iban verbatim; the confirmation e"
+   },
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "VERIFIED. server.js:10370 and :10440 fall back to placeholder IBAN 'HR1234567890123456789'; render.yaml (lines 40-49) sets MEDX_IBAN to that same placeholder as a literal blueprint value (plus placeholder MEDX_VAT_ID), and backend .env/.env.example also contain it \u2014 no real IBAN exists anywhere in the repo, and a blueprint-managed literal value would overwrite even a manual dashboard fix on the ne"
+   }
+  ]
+ },
+ {
+  "severity": "high",
+  "category": "bug",
+  "file": "user-portal/frontend/index.html",
+  "line": 102239,
+  "title": "`this.API_BASE` is never defined \u2014 3 fetches go to \"undefined/api/...\" (forum file-message send broken)",
+  "evidence": "index.html:102239 `await fetch(`${this.API_BASE}/api/forum/groups/${this.currentGroupId}/messages`, { method: 'POST', ...`. grep for `API_BASE *=` across the whole 123k-line file returns ZERO definitions; the only other uses are the same bug at 102473 (admin forum media gallery) and 103577 (prospects preview). The URL resolves to /<current-path>/undefined/api/... which matches no route (backend's catch-all at server.js:17990 is GET-only, so the POST 404s).",
+  "impact": "Sending a forum group message with a file attachment fails every time (user-facing, fails with no successful request possible); the admin forum media gallery and prospects preview inside the embedded admin app also never load. The defensive pattern elsewhere (index.html:79580 `typeof API_BASE !== 'u",
+  "suggested_fix": "Replace `${this.API_BASE}/api/...` with `/api/...` (same-origin, matching every other fetch in the file) at lines 102239, 102473, 103577. Effort: S.",
+  "finder": "user-frontend",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "high",
+    "reasoning": "Confirmed, and worse than reported. `this.API_BASE` has zero definitions in user-portal/frontend/index.html (no App property, no assignment, no global; the typeof-guarded ternaries at 79580/79662/79683 prove the global doesn't exist). The three fetches (102239, 102473, 103577) therefore POST to relative URL \"undefined/api/...\" \u2192 /undefined/api/..., which matches no backend route (app.all('/api/*')"
+   },
+   {
+    "isReal": true,
+    "severity": "medium",
+    "reasoning": "Claim verified and slightly understated. `API_BASE` has zero definitions in the user-portal SPA (only 3 `typeof`-guarded uses elsewhere prove the global doesn't exist); the 3 `this.API_BASE` fetches (index.html:102239, 102473, 103577) sit inside the embedded admin `App` object (defined line 95686) which has no such property, so URLs resolve to `/undefined/api/...`. That path matches neither the ba"
+   }
+  ]
+ },
+ {
+  "severity": "high",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 6965,
+  "title": "IDOR: Accelerator application package PDF (name, email, GPA, scores, motivation letter) downloadable for any id",
+  "evidence": "L6965 `app.get('/api/accelerator/applications/:id/merge-docs', auth, async (req, res) => {...})` builds a PDF from `SELECT a.* FROM accelerator_applications a ... WHERE a.id = ?` with no ownership/admin check, printing `Full Name: ${first_name} ${last_name}`, `Email: ${email}`, GPA, objective/interview/total scores and the motivation letter (admin-portal mirror L7364, evidence L7395-7411). Contrast the package route L5681 / admin L6003 which DOES check `if (app.user_id !== req.user.id && !req.us",
+  "impact": "Any authenticated user can render a confidential per-candidate PDF (PII + internal scores) for any application UUID.",
+  "suggested_fix": "Add the same ownership/admin guard used in the /package route, or `adminOnly`, to /merge-docs in both backends.",
+  "finder": "gap:Accelerator subsystem \u2014 IDOR + applicant identity + magic-link interview tokens (whole subsystem, never access-control-audited)",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "security",
+  "file": "admin-portal/backend/server.js",
+  "line": 7453,
+  "title": "Missing ownership check on document download /documents/:docId/download (contrast with checked sibling) / Broken document download/listing: routes reference non-existent columns file_name and verified",
+  "evidence": "L7453 `app.get('/api/accelerator/documents/:docId/download', auth, (req, res) => { const doc = query.get('SELECT * FROM accelerator_documents WHERE id = ?', [req.params.docId]); ... res.download(filePath, doc.original_filename); })` \u2014 no ownership/admin check. The sibling at L5942 `/documents/:docId` DOES check `if (doc.user_id !== req.user.id && !req.user.is_admin) return res.status(403)`. Same unchecked route in user-portal L7054. (Note: this route is also currently broken \u2014 see the file_name ",
+  "impact": "Any authenticated user could download any applicant's uploaded documents (transcripts, ID scans, recommendation letters) by docId, bypassing the ownership enforcement that the parallel route applies.",
+  "suggested_fix": "Join to accelerator_applications and enforce `doc.user_id === req.user.id || req.user.is_admin` (or `adminOnly`), mirroring L5942, in both backends.",
+  "finder": "gap:Accelerator subsystem \u2014 IDOR + applicant identity + magic-link interview tokens (whole subsystem, never access-control-audited)",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "security",
+  "file": "admin-portal/backend/server.js",
+  "line": 6709,
+  "title": "Magic-link interviewer tokens: no expiry/rotation/rate-limit, token in URL, and list leaks real candidate names",
+  "evidence": "L6709 `app.get('/api/accelerator/interview-access/:token', (req,res) => {...})` validates only `access_token = ? AND is_active = 1` \u2014 the `accelerator_interviewers` schema (L678-688) has `access_token` with NO expiry column. Token (uuidv4) is placed in the URL query at L6861 `const magicLink = `${baseUrl}/evaluate?token=${interviewer.access_token}``. The list query L6722-6732 returns `a.first_name, a.last_name` for every valid candidate, defeating the candidate_id anonymization used elsewhere (G",
+  "impact": "A magic link leaked via forwarded email, browser history, referrer, or server/proxy logs (token is in the query string) grants permanent, non-expiring read of every valid applicant's real name and the ability to inject interview scores into arbitrary applications. uuidv4 entropy is fine, but there i",
+  "suggested_fix": "Add an expires_at to accelerator_interviewers, enforce it; deliver the token in a POST body / one-time exchange rather than a GET query; validate application_id belongs to interviewer.year in the score route; add rate-limiting; return candidate_id only (not first/last name) in the list.",
+  "finder": "gap:Accelerator subsystem \u2014 IDOR + applicant identity + magic-link interview tokens (whole subsystem, never access-control-audited)",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 7574,
+  "title": "IDOR: GET /api/forum/groups/:id/messages returns any group's private chat to any authenticated user (no membership check)",
+  "evidence": "L7574-7585: `app.get('/api/forum/groups/:id/messages', auth, (req, res) => { ... const messages = query.all(`SELECT fgm.*, ... FROM forum_group_messages fgm ... WHERE fgm.group_id = ? ORDER BY fgm.created_at ASC LIMIT 100`, [req.params.id]); res.json(messages); ...` \u2014 the handler does NO currentMember lookup and NO forum_group_members membership check. Contrast the sibling write route POST L7590-7597 which gates on `forum_members ... membership_status='approved'` (L7592) AND `forum_group_members",
+  "impact": "Broken access control / IDOR. Any logged-in user can read the full private message history of every forum group. Group IDs are trivially enumerable: GET /api/forum/groups (L7519, also `auth`-only, no approved-member gate) returns every active group with its id. An attacker lists groups, then dumps e",
+  "suggested_fix": "Mirror the POST handler's gating: resolve currentMember (forum_members approved) and verify forum_group_members membership for req.params.id before returning messages; otherwise 403.",
+  "finder": "gap:Forum subsystem (30 tables) \u2014 user-generated content stored XSS + group/conversation access-control IDOR",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "security",
+  "file": "admin-portal/backend/server.js",
+  "line": 16763,
+  "title": "Tech password check has no rate limiting and uses non-constant-time comparison; verify-password is an unthrottled password oracle for any authenticated user",
+  "evidence": "techAuth L16761-16765: `const pwd = req.headers['x-tech-password']; if (pwd !== TECH_PASSWORD) return res.status(403)...` \u2014 plain `!==` (non-constant-time) and no rate limiter. verify-password L16768-16771: `app.get? app.post('/api/admin/tech/verify-password', auth, (req,res)=>{ const {password}=req.body; res.json({ success: password === TECH_PASSWORD }); })` \u2014 gated by `auth` only (no techAuth, no adminOnly, no rate limit), returns a boolean oracle of whether the guess is correct. The only rate",
+  "impact": "Even if TECH_PASSWORD is changed to a real secret, any holder of an admin-portal JWT (including a self-registered non-admin via L5271) can brute-force it without throttling via verify-password or by hammering the tech routes with x-tech-password guesses. The `===`/`!==` comparison is also timing-obs",
+  "suggested_fix": "Apply a strict rate limiter (and/or lockout) to techAuth and verify-password, gate verify-password with adminOnly, and use `crypto.timingSafeEqual` for the password comparison.",
+  "finder": "gap:Tech dashboard auth surface \u2014 full-DB exfiltration endpoints behind a default-password header + JWT-in-query",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "security",
+  "file": "admin-portal/backend/server.js",
+  "line": 9745,
+  "title": "Admin 7-day JWT accepted in `?token=` query param on export/PDF routes \u2014 leaks bearer token into server access logs, browser history, and Referer headers",
+  "evidence": "Three admin routes copy the URL query token into the auth header before `auth`,`adminOnly`: L9702-9708 `/api/admin/export/forum-registrations/:eventId`, L9743-9749 `/api/admin/export/registrations/:confId`, and L13957-13963 `/api/finance/travel-orders/:id/pdf`, each doing `if (req.query.token && !req.headers.authorization) { req.headers.authorization = `Bearer ${req.query.token}`; }`. The admin frontend actively puts the token in the URL via window.open: index.html L17962 `window.open(`/api/admi",
+  "impact": "Full-privilege admin JWTs (7-day expiry) are written to the URL, so they land in Render/proxy access logs, the admin's browser history, and any outbound Referer header \u2014 anyone with log access or shared-browser access can replay a valid admin token to export all registrant PII or hit any adminOnly r",
+  "suggested_fix": "Stop passing the admin JWT in URLs. For downloads, fetch with the Authorization header and trigger a Blob download (as downloadPdf already does), or issue a short-lived single-use download token distinct from the session JWT. Remove the `req.query.token`->Authorization shim from all three routes.",
+  "finder": "gap:Tech dashboard auth surface \u2014 full-DB exfiltration endpoints behind a default-password header + JWT-in-query",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 17117,
+  "title": "IDOR: any authenticated user can list any speaker's uploaded documents; files themselves are world-readable via static /uploads",
+  "evidence": "L17117-17123: app.get('/api/speakers/:id/documents', auth, (req, res) => { const docs = query.all('SELECT * FROM speaker_documents WHERE speaker_id = ? ORDER BY uploaded_at DESC', [req.params.id]); res.json(docs); }). Gate is only `auth` (any logged-in user) \u2014 no check that the speaker belongs to req.user, no reviewer/admin role. It returns each doc's stored `filename` and `original_name`. Files are served unauthenticated by L1391 `app.use('/uploads', express.static(path.join(__dirname, 'uploads",
+  "impact": "Any registered user can enumerate and download every speaker's private uploads (CVs, unpublished presentations, contracts/photos) for any speaker id. Speaker ids are themselves disclosed by the public speakers list (finding above), so no guessing is needed. Confidentiality breach of speaker material",
+  "suggested_fix": "Require that req.user owns/is linked to the speaker (or has admin/reviewer role) before returning documents. Stop serving uploads/speakers via blanket express.static; gate file delivery behind an authenticated download route that re-checks ownership (as admin-portal L15524 already does with adminOnly).",
+  "finder": "gap:Abstract & speaker submission subsystem \u2014 conference academic core (uploads, reviews, reviewer assignment) never audited",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 17126,
+  "title": "IDOR write/delete: any authenticated user can overwrite or delete any speaker's documents",
+  "evidence": "L17126 app.post('/api/speakers/:id/documents', auth, upload.single('file'), cloudUpload('speakers'), ...) \u2014 only `auth`, no ownership check on req.params.id; and L17140-17149 it deletes any pre-existing doc of the same type for that speaker before inserting the attacker's file: `const existing = query.get('SELECT * FROM speaker_documents WHERE speaker_id = ? AND type = ?', [speakerId, docType]); if (existing) { ... fs.unlinkSync(oldPath); db.run('DELETE FROM speaker_documents WHERE id = ?', [exi",
+  "impact": "Any logged-in user can replace a speaker's real presentation/CV with their own file (the same-type replacement logic destroys the legitimate file on disk and DB row) or outright delete a speaker's documents. Enables sabotage/defacement of conference speaker materials and tampering with what gets pre",
+  "suggested_fix": "Add an ownership/role guard (req.user linked to the speaker, or admin) on both the upload and delete routes before any disk/DB mutation.",
+  "finder": "gap:Abstract & speaker submission subsystem \u2014 conference academic core (uploads, reviews, reviewer assignment) never audited",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 17081,
+  "title": "Unauthenticated /api/speakers/auth does fuzzy LIKE name matching and returns the full speaker record (invite_code, email) or registrant PII",
+  "evidence": "L17081-17113: app.post('/api/speakers/auth', (req, res) => { ... const speaker = query.get(`SELECT s.*, c.name ... WHERE UPPER(s.invite_code) = UPPER(?) OR UPPER(s.id) = UPPER(?) OR (UPPER(s.name) LIKE UPPER(?) AND s.is_confirmed = 1)`, [code, code, `%${code}%`]); if (speaker) return res.json({ success: true, speaker }); ...). No auth, no rate limiting. The third clause matches any substring of a speaker's (publicly listed) name and returns `s.*` \u2014 which includes invite_code and email. The fallb",
+  "impact": "A speaker can be authenticated by submitting a fragment of their public name (e.g. a last name), and the response leaks the full record including the invite_code credential and email. The registration branch lets a guessable confirmation_code reveal an attendee's name, email and registration details",
+  "suggested_fix": "Authenticate only on exact invite_code match (drop the name-LIKE and id clauses), return only non-sensitive speaker fields, add rate limiting, and never echo invite_code/email/confirmation_code in the response.",
+  "finder": "gap:Abstract & speaker submission subsystem \u2014 conference academic core (uploads, reviews, reviewer assignment) never audited",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "high",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 5115,
+  "title": "Password reset does not invalidate existing JWT sessions (broken account-takeover recovery) / Password reset silently sets email_verified=1, bypassing the unverified-login block",
+  "evidence": "Reset writes only the password/flags: L5115 `db.run('UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL, email_verified = 1 WHERE id = ?', [newHash, user.id]);`. The auth middleware validates statelessly with no token-version/jti: L1524-1526 `const decoded = jwt.verify(token, JWT_SECRET); const user = query.get(\"SELECT id, email, is_admin FROM users WHERE id = ?\", [decoded.id]); if (user) { req.user = user; return next(); }`. JWT_SECRET is a static env var (L219) ",
+  "impact": "Resetting a password does not revoke any previously-issued JWT. If an attacker has stolen/phished a victim's token, the standard recovery action (victim resets password) does NOT log the attacker out \u2014 the stolen 7-day token keeps full account access until natural expiry. The only mutation that revo",
+  "suggested_fix": "Add a `token_version` (or `password_changed_at`) column to users; include it in the JWT payload at sign time and compare it in the auth/optionalAuth middleware, rejecting tokens whose version is older than the stored value. Bump it on every password reset and authenticated password change so all prior tokens become invalid immediately.",
+  "finder": "gap:Account lifecycle \u2014 password reset & email verification edge cases (no session invalidation, verified-flag side effect, enumeration)",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 5215,
+  "title": "IDOR: GET /api/registrations/:id returns another user's name/email/institution with no ownership check",
+  "evidence": "L5215 `app.get('/api/registrations/:id', auth, (req,res)=>{ const reg = query.get(`SELECT r.*, ... u.first_name, u.last_name, u.email, u.institution FROM registrations r ... JOIN users u ON r.user_id = u.id WHERE r.id = ?`, [req.params.id]); if(!reg) return 404; res.json(reg); })` \u2014 query filters only on `r.id`, never `r.user_id = req.user.id` or admin. (Contrast L5326 connections/respond which correctly scopes `AND requestee_id = req.user.id`.)",
+  "impact": "Any authenticated user who learns/guesses a registration id can read another attendee's joined user PII (name, email, institution) and payment details. Mitigated by registration ids being UUIDs (hard to enumerate), but still a missing authorization check on a PII endpoint.",
+  "suggested_fix": "Add `AND (r.user_id = ? OR <admin>)` ownership scoping; return 403/404 when the requester neither owns the registration nor is admin.",
+  "finder": "security-auth",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "config",
+  "file": "user-portal/backend/server.js",
+  "line": 1530,
+  "title": "NODE_ENV==='development' auth fallback auto-authenticates every request as Alen's admin in BOTH backends \u2014 one env misconfiguration opens the entire admin surface",
+  "evidence": "user-portal L1529-1534: `// Dev fallback \u2014 only in explicit development mode` then `if (process.env.NODE_ENV === 'development') { const user = query.get(\"... WHERE email = 'juginovic.alen@gmail.com'\"); req.user = user || { id:'default', ..., is_admin:true }; return next(); }`. Identical block in admin-portal/backend/server.js L296-301. With no token at all, any request is promoted to the admin user.",
+  "impact": "render.yaml currently sets NODE_ENV=production for both services, so this is dormant in prod. But if NODE_ENV is ever set to 'development' on a redeploy/clone, every endpoint (including all admin routes) becomes anonymously admin-accessible with zero credentials. A single misconfigured env var is a ",
+  "suggested_fix": "Remove the tokenless dev auto-admin fallback, or gate it behind a separate explicit flag that can never be set in the Render config (and assert NODE_ENV==='production' at boot, failing closed otherwise).",
+  "finder": "security-auth",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "medium",
+    "reasoning": "Confirmed verbatim. user-portal/backend/server.js L1529-1535 and admin-portal/backend/server.js L295-301 both contain a tokenless fallback in auth(): if NODE_ENV==='development', any request with NO Authorization header gets req.user = Alen's row or a synthetic {is_admin:true} object, which passes adminOnly (it only checks req.user?.is_admin). The admin-portal's optionalAuth (L313-318) applies the"
+   }
+  ]
+ },
+ {
+  "severity": "medium",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 10015,
+  "title": "CSV formula injection in user-portal exports (sanitizeCsvCell guard exists in admin-portal but was never added to user-portal)",
+  "evidence": "User-portal CSV builders only quote-double, never neutralize formula prefixes: L10015 `[r.first_name, r.last_name, r.email, ... ].map(v => `\"${(v||'').toString().replace(/\"/g,'\"\"')}\"`)`; same pattern at L9923 (accelerator_applications.csv), L12842 (plexus-volunteers), L15620 (subscribers), and L17759 registrations-log.csv append `[ ... first_name+' '+last_name, email, institution, event_name, package_items, dietary, allergies ...].map(v => '\"'+String(v).replace(/\"/g,'\"\"')+'\"')`. The admin-portal",
+  "impact": "These fields come from unauthenticated/self-service registration input (name, institution, dietary, allergies, package items). A registrant supplying a value like =HYPERLINK(\"http://evil\",\"click\") or =cmd|'/c calc'!A1 gets it stored verbatim; when an admin opens the exported CSV in Excel/Google Shee",
+  "suggested_fix": "Port the admin-portal sanitizeCsvCell() (prefix any cell starting with = + - @ tab or CR with an apostrophe) into user-portal/backend/server.js and apply it inside every .map(v => ...) CSV cell builder (L9923, L10015, L12842, L15620) and the registrations-log.csv append at L17759.",
+  "finder": "injection-xss",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 1425,
+  "title": "Stored XSS via uploaded SVG/HTML: multer trusts client-declared MIME, keeps original extension, and /uploads is served inline by express.static / Stored-XSS vector in speaker/abstract uploads: client-controlled MIME passes the filter, original extension is preserved, files served inline from /uploads",
+  "evidence": "fileFilter validates only the attacker-controlled declared mimetype: L1425 `fileFilter: (req, file, cb) => { if (ALLOWED_MIME_TYPES.includes(file.mimetype)) return cb(null, true); ...}`. Stored filename preserves the original extension: L1412 `cb(null, `${uuidv4()}${path.extname(file.originalname)}`)`. Uploads are served inline (no Content-Disposition) at L1391 `app.use('/uploads', express.static(path.join(__dirname, 'uploads')));` (admin identical at L213). Several upload routes write to local ",
+  "impact": "Any authenticated user uploads a file named payload.svg (or .html) while declaring Content-Type: image/png (which is in the allowlist). The filter passes, the file is stored as <uuid>.svg, and it is retrievable at /uploads/<type>/<uuid>.svg where express.static sets Content-Type image/svg+xml (or te",
+  "suggested_fix": "Validate the real file type by magic-bytes (e.g. file-type) not the declared mimetype; whitelist the stored extension against the resolved type; explicitly reject .svg/.html/.xml. For the static mount, serve uploads through a controlled route that forces Content-Disposition: attachment and a safe Content-Type (or add express.static option setHeaders to set Content-Disposition: attachment and X-Con",
+  "finder": "injection-xss",
+  "confidence": "medium",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 1029,
+  "title": "Unsigned invite token lets anyone render an official 'complimentary VIP' / arbitrary-price Gala page on the real domain",
+  "evidence": "L1029-1036: `if (eventType === 'gala' && (data.vip === true || data.t === 'vip')) { isVipInvite = true; inviteLinkPriceOverride = 0; }` and `if (eventType === 'gala' && data.po != null && inviteLinkPriceOverride == null) inviteLinkPriceOverride = Number(data.po);`. The base64 payload is unsigned (decoded at L648) so anyone can mint `{e:'gala',vip:true}` or `{e:'gala',po:1}` and the page at L1204/L1222-1230 renders the purple 'You are our complimentary guest \u2014 No payment required' VIP block (or a",
+  "impact": "Phishing / brand-integrity: an attacker can hand victims a link on the genuine Med&X domain that looks like an official free VIP gala invitation or a discounted price. NOTE: this does NOT yield a free ticket \u2014 at registration the server re-derives VIP/price strictly from the gala_invite_links DB row",
+  "suggested_fix": "Drop the token-trusting VIP/price fallbacks (L1029-1036); derive VIP status and price solely from the gala_invite_links row resolved via data.i, exactly as the registration path already does. If legacy unsigned links must keep working, HMAC-sign the payload and verify the signature before honoring vip/po/x.",
+  "finder": "invite-flow",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "email",
+  "file": "user-portal/backend/server.js",
+  "line": 17790,
+  "title": "HTML/content injection into staff and registrant confirmation emails via unescaped registration fields",
+  "evidence": "register-invite forwards attacker-controlled fields raw into email HTML. Laura notification: L17784 subject `New Registration: ${first_name} ${last_name} \u2014 ${event_name || event_type}` and L17790 `<p><strong>Event:</strong> ${event_name || event_type}</p>`; registrant confirmation: L17606 `<strong style=\"color:#C9A962;\">${event_name || 'Med&X Event'}</strong>`. event_name/first_name/last_name are taken verbatim from the public POST body (L17493) with no escaping, while the page itself escapes vi",
+  "impact": "A malicious registrant can inject arbitrary HTML/links into the notification email delivered to laura.rodman@medx.hr (and into the registrant confirmation), producing a legitimate-looking Med&X email containing attacker content/links \u2014 a spoofing/phishing vector originating from the trusted sender.",
+  "suggested_fix": "Run all user-supplied values (first_name, last_name, event_name, institution, items, dietary, allergies) through escapeHtml() before interpolating into any email template, in both the immediate and webhook send paths.",
+  "finder": "invite-flow",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 17308,
+  "title": "Invitation-only events accept registrations from anyone \u2014 invite link not required server-side",
+  "evidence": "CA register: L17308 `if (invite_link_id) { caInvite = query.get(...) }` \u2014 when invite_link_id is omitted, caInvite stays null and the flow proceeds with no gating (only email+first_name+\u22651 event required, L17298-17304). Likewise /api/register-invite never requires a valid invite link for free paths (bridges/plexus/forum); it even auto-creates a portal user with is_public_profile=1 for the supplied email (L17505) with no email verification.",
+  "impact": "The 'personal invitation' gating exists only in the shared URL, not on the API. Anyone who knows the endpoint can script free Conference/Bridges/CA pre-registrations, spam Laura's inbox + the Google Sheet, and seed the public members directory with fake verified-looking profiles for arbitrary email ",
+  "suggested_fix": "Require a valid, non-revoked, non-expired invite_link_id (or signed token) for the CA and invite registration endpoints; reject when absent. Do not auto-create users with is_public_profile=1 from an unauthenticated registration, and require email verification before a profile becomes public.",
+  "finder": "invite-flow",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "payments",
+  "file": "user-portal/backend/server.js",
+  "line": 17032,
+  "title": "Gala/CA invoice numbers from COUNT(*)+1 collide under concurrent payments / Invoice numbers derived from COUNT(*)+1 and written before payment \u2014 duplicate invoice numbers under concurrency",
+  "evidence": "Gala checkout: L17032 `const count = query.get(\"SELECT COUNT(*) as c FROM gala_registrations WHERE invoice_number IS NOT NULL\")?.c || 0;` \u2192 L17033 `GALA26-${String(count+1).padStart(4,'0')}`. Identical pattern in the CA-gala webhook: L10991-10992 `... COUNT(*) as c ...` \u2192 `CA-GALA-${year}-${String(count+1)...}`. Two checkouts/payments racing read the same count and produce the same invoice number.",
+  "impact": "Duplicate human-facing invoice numbers and, because these numbers are passed to firaService.createFiscalInvoice() (L10762, L11135), duplicate/colliding FIRA fiscal invoice numbers \u2014 a Croatian fiscalization data-integrity problem and reconciliation hazard.",
+  "suggested_fix": "Use the existing finance_sequences atomic counter (as createFinanceIncomeRecord does at L11400) or a dedicated sequence table with an atomic UPDATE...RETURNING, instead of COUNT(*)+1, for all invoice-number generation.",
+  "finder": "invite-flow",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "bug",
+  "file": "user-portal/backend/server.js",
+  "line": 333,
+  "title": "/invite-success shows 'Payment Successful!' + valid-looking QR for any retrievable Stripe session, without checking payment_status",
+  "evidence": "L333 `const session = await stripe.checkout.sessions.retrieve(sessionId);` then the page is built from session.metadata only \u2014 there is no check of `session.payment_status === 'paid'` or `session.status === 'complete'`, and no lookup confirming a paid registration in our DB. L362 unconditionally renders `Payment Successful!` and L347-348 generate a check-in QR from the metadata regardless of payment state.",
+  "impact": "A user who starts but abandons a checkout and captures their session_id can load a page that falsely claims success and shows a QR. Reachability is limited (session ids are unguessable and normally only revealed after a completed redirect) and the QR would not pass server-side check-in for an unpaid",
+  "suggested_fix": "Gate the success rendering on `session.payment_status === 'paid'` and/or look up the registration row by metadata.registration_id and confirm payment_status='paid' before showing success and generating a QR; otherwise show a neutral 'payment pending/not found' page.",
+  "finder": "invite-flow",
+  "confidence": "medium",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "payments",
+  "file": "user-portal/backend/server.js",
+  "line": 10619,
+  "title": "Webhook handles only checkout.session.completed \u2014 refunds and expirations are ignored, so a refunded guest keeps a valid ticket",
+  "evidence": "The handler body is gated entirely by `if (event.type === 'checkout.session.completed') {...}` (L10619); there is no branch for `charge.refunded`, `charge.dispute.created`, or `checkout.session.expired` anywhere in the route (L10601-11382).",
+  "impact": "When a Gala/Conference payment is refunded in Stripe, the portal never learns: payment_status stays 'paid', status 'confirmed', the MEDX_MEMBER QR keeps validating at the scanner, and the finance_transactions income record (created via createFinanceIncomeRecord) remains \u2014 overstating revenue and adm",
+  "suggested_fix": "Add charge.refunded / checkout.session.expired branches that flip payment_status to 'refunded'/'expired', invalidate the QR/check-in, and write an offsetting finance record. Register these event types in the Stripe webhook config.",
+  "finder": "payments",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "payments",
+  "file": "user-portal/backend/server.js",
+  "line": 17678,
+  "title": "Promo-code use is consumed at checkout-creation (before payment) and incremented non-atomically in register-invite / Promo code used_count is consumed when the Stripe checkout SESSION is created, not when payment completes \u2014 abandoned checkouts burn limited-use coupons",
+  "evidence": "register-invite applies the coupon then `db.run(\"UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ?\", [promo.id]); saveDb();` (L17678-17679) \u2014 inside the price>0 branch that runs BEFORE Stripe checkout, and with no `AND (max_uses IS NULL OR used_count < max_uses)` guard or getRowsModified check (contrast the plexus path L10224 which is atomic). The validity check at L17674 is a separate read.",
+  "impact": "Two concurrent register-invite requests both pass the `used_count < max_uses` read and both increment, exceeding a limited coupon's cap. And because the increment fires when the checkout session is created, every user who opens checkout and abandons permanently burns one coupon use without paying \u2014 ",
+  "suggested_fix": "Make the increment atomic (`WHERE id=? AND (max_uses IS NULL OR used_count<max_uses)` + getRowsModified guard) and move the actual use-count increment into the webhook on confirmed payment, not into checkout-session creation.",
+  "finder": "payments",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "security",
+  "file": "admin-portal/backend/server.js",
+  "line": 10567,
+  "title": "Admin /api/public/register-invite is unauthenticated and unthrottled \u2014 anyone can inject confirmed registrations",
+  "evidence": "`app.post('/api/public/register-invite', async (req, res) => {...})` (L10567) has no auth/adminOnly middleware and no rate limiter; it find-or-creates a user and inserts into registrations/gala_registrations/forum_event_registrations/bridges_registrations with status 'confirmed'/'approved' straight from request body (L10586-10626). It is the same shared Turso DB the user portal writes to.",
+  "impact": "Any external caller can POST arbitrary names/emails and create confirmed bridges/plexus registrations (and forum/gala rows) with no payment and no rate limit, polluting the live registration tables and check-in lists, and creating user rows. The user-portal's equivalent /api/register-invite is at le",
+  "suggested_fix": "Require a shared secret/HMAC header from the user portal (or restrict by source) on this sync endpoint, and add the registrationLimiter; reject anonymous public callers.",
+  "finder": "payments",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "data",
+  "file": "user-portal/backend/server.js",
+  "line": 11089,
+  "title": "Google Sheets webhook posts are fire-and-forget with errors fully swallowed \u2014 registrations can vanish from the sheet with zero trace",
+  "evidence": "All five call sites use `fetch(sheetsWebhook, {...}).catch(() => {});` inside a `try{...}catch(e){}` \u2014 L11072-11089 (CA gala webhook), L11225-11229 (invite webhook), L17413-17429 (CA free), L17720-17741 and L17772-17776 (register-invite). No status check on the response, no logging, no retry, no fetch timeout.",
+  "impact": "Fire-and-forget is correct for keeping the Stripe webhook fast (good), but if the Apps Script URL is rotated, quota-limited, or returns 4xx/5xx, registrations silently stop appearing in the sheet the team works from \u2014 discovered only by reconciling against the DB. Non-2xx responses (Apps Script erro",
+  "suggested_fix": "Keep it async but log failures: `.then(r => { if (!r.ok) console.error('[Sheets] webhook HTTP', r.status, regId); }).catch(e => console.error('[Sheets] webhook failed', regId, e.message))`, and add the row to the existing local CSV failsafe when the post fails so reconciliation is possible.",
+  "finder": "email-qr-scanner",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "ux",
+  "file": "user-portal/backend/server.js",
+  "line": 17747,
+  "title": "Free/VIP invite registration response blocks up to ~45s pinging the sleeping admin portal before replying to the guest",
+  "evidence": "L17747-17753 (inside POST /api/register-invite, before `res.json`): `try { await fetch(adminUrl + '/health', { signal: AbortSignal.timeout(30000) }); } catch(e) {}` followed by `await fetch(adminUrl + '/api/public/register-invite', {..., signal: AbortSignal.timeout(15000) });` \u2014 plus the awaited guest confirmation email (L17710) and awaited Laura failsafe email (L17784).",
+  "impact": "Both Render services are on the free tier and sleep after 15 min. A VIP Gala or free-event registrant submits the form and stares at a spinner for the admin portal's full cold start (the 30s health ping exists precisely to wake it) plus the sync call and two Resend round-trips \u2014 easily 30-50s. Users",
+  "suggested_fix": "Respond to the client right after the local DB insert, then run admin-sync + Sheets + emails detached (setImmediate / fire-and-forget with logging). The admin portal already tolerates late sync since paid events sync from the webhook.",
+  "finder": "email-qr-scanner",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "ux",
+  "file": "user-portal/backend/server.js",
+  "line": 11193,
+  "title": "Ticket emails tell parties 'your guests can use the same QR code' but check-in is a single boolean \u2014 the second person scanning a shared QR is flagged 'ALREADY CHECKED IN' and staff can't see the party size",
+  "evidence": "L11193 email copy: `'+ guestCnt + ' Guest\u2026 included in your registration. Your guest(s) can use the same QR code for check-in.'` (same at L17612). The verify endpoint stores one flag: L16699-16701 `if (mark && !already) { db.run('UPDATE gala_registrations SET checked_in = 1...') }` and returns `already_checked_in: true` on the next scan; the registrant payload (L16707-16714) includes dietary/amount but no guest_count, and gala_registrations has no party-size column in the invite flow.",
+  "impact": "Any registration with guest_count > 0 (paid invite gala tickets support +N guests): the host scans in, then their guests arriving at the door with the same QR show the red-flag 'ALREADY CHECKED IN at HH:MM' screen. Door staff have no on-screen indication that N+1 people are legitimately covered by t",
+  "suggested_fix": "Carry guest_count into gala_registrations (it's already in Stripe metadata), return it in the verify response, and replace the boolean with a counter (`checked_in_count` vs `party_size`) so the scanner shows '2 of 3 checked in'.",
+  "finder": "email-qr-scanner",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "email",
+  "file": "admin-portal/backend/server.js",
+  "line": 11208,
+  "title": "Speaker invitations are marked 'sent' even when the email send failed, and both newsletter 'send' endpoints send no email at all",
+  "evidence": "Speaker invite: L11202-11209 `const emailResult = await sendEmail(...); db.run(\"UPDATE speakers SET invitation_status = 'sent'...\"); results.push({ ..., status: 'sent', mock: emailResult.mock || false });` \u2014 `emailResult.success === false` is never checked. Newsletters: L11811-11834 /api/admin/newsletters/:id/send only sets status='sent' + creates an in-portal notification; L14688-14694 /api/pr/newsletters/:id/send has the comment `// Mark as sent (actual email sending would require integration)",
+  "impact": "Admins see invited speakers as 'sent' (with sent_at timestamps) when Resend rejected the send \u2014 invitations silently never reach keynote candidates. The PR newsletter UI reports 'sent to N subscribers' while zero emails leave the system; once status='sent' the endpoint refuses re-sends (L11815), loc",
+  "suggested_fix": "For speakers, set invitation_status='failed' and surface the error when `!emailResult.success || emailResult.mock`. For newsletters, either wire an actual subscriber send loop through sendEmail (batched) or rename the action/status to 'published in-portal' so nobody believes an email campaign went out.",
+  "finder": "email-qr-scanner",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "bug",
+  "file": "admin-portal/backend/server.js",
+  "line": 16231,
+  "title": "Minor check-in nits in admin-portal backend (batched): dead 5-min undo window has a broken timestamp parse; bundle-test name split drops middle names; same debug leak and non-atomic mark as user portal",
+  "evidence": "(1) L16231 (the currently-shadowed undo handler): `const checkinTime = new Date(record.checked_in_at + 'Z').getTime();` \u2014 rows written by the verify endpoint already end in 'Z' (ISO), so this yields Invalid Date/NaN and `now - NaN > 5*60*1000` is false, meaning the 5-minute window would never expire for those rows once the route-shadowing bug is fixed. (2) L15962 `const [bareFirst, bareLast] = (req.body.name || ...).split(' ')` \u2014 'Ana Maria Horvat' becomes first='Ana', last='Maria', dropping the",
+  "impact": "Hygiene-level today; item (1) becomes a live correctness bug the moment the duplicate /api/checkin/undo route is removed, silently disabling the undo time limit for verify-written check-ins.",
+  "suggested_fix": "Only append 'Z' when the stored timestamp lacks one (`record.checked_in_at.endsWith('Z') ? record.checked_in_at : record.checked_in_at + 'Z'`); split names as first token + rest; mirror the user-portal cleanups for debug field and conditional UPDATE.",
+  "finder": "email-qr-scanner",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "data",
+  "file": "user-portal/backend/server.js",
+  "line": 10693,
+  "title": "finance_transactions.status column exists only in admin's CREATE \u2014 user backend INSERTs into a column it never creates (no ALTER anywhere)",
+  "evidence": "U's CREATE (U:3431-3447) has no `status` column and grep shows zero `ALTER TABLE finance_transactions` in either file; A's CREATE has `status TEXT DEFAULT 'completed'` (A:2104). Yet U INSERTs `(... fiscal_year, status)` at U:10693 (accelerator webhook) and U:11416, and A at A:14407.",
+  "impact": "Works today only because the admin portal happened to create the table first (verified in the repo's shared DB). On any fresh/recreated DB where the user portal boots first, the column never exists and the Stripe webhook's finance INSERT throws AFTER the application is already marked paid \u2014 webhook ",
+  "suggested_fix": "Add `try { db.run(\"ALTER TABLE finance_transactions ADD COLUMN status TEXT DEFAULT 'completed'\") } catch(e) {}` to BOTH backends' boot migrations (and add status to U's CREATE) so either boot order self-heals.",
+  "finder": "data-integrity",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "data",
+  "file": "user-portal/backend/server.js",
+  "line": 10647,
+  "title": "Zero SQL transactions: payment webhooks perform mark-paid \u2192 FIRA \u2192 sequence bump \u2192 finance INSERT as separate auto-commits with permanent partial-write outcomes",
+  "evidence": "grep finds no BEGIN/COMMIT/ROLLBACK in either server.js. Worst windows: (1) accelerator webhook \u2014 U:10647 `UPDATE accelerator_applications SET status='paid'...` then U:10688 finance_sequences UPDATE then U:10693 finance INSERT; any failure after 10647 returns 500, but the Stripe retry exits at the idempotency guard U:10641 (`payment_status === 'paid'`), so the finance record is never created. (2) CA webhook \u2014 CA row marked paid (U:10995) before the linked gala row (U:11000); a crash between leav",
+  "impact": "Paid registrations can permanently lose their finance ledger rows or leave a paid guest flagged unpaid at the door; idempotency guards convert transient mid-sequence failures into unrecoverable inconsistencies rather than retries.",
+  "suggested_fix": "Wrap each webhook's DB mutations in a single transaction (db.run('BEGIN')/COMMIT with rollback on error, or libsql transaction API), and write the idempotency flag LAST. Use atomic `UPDATE ... SET current_value = current_value + 1` + RETURNING for sequences.",
+  "finder": "data-integrity",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "medium",
+    "reasoning": "Could not refute. Verified: (a) no BEGIN/COMMIT/ROLLBACK or libsql transaction/batch API anywhere in either backend \u2014 shared/db.js is a sync shim where every db.run auto-commits independently (and forwards writes to Turso primary, making mid-handler network failures realistic); (b) accelerator webhook (user server.js 10641-10698): mark-paid at 10647 commits before the sequence bump (10681-10689) a"
+   }
+  ]
+ },
+ {
+  "severity": "medium",
+  "category": "data",
+  "file": "user-portal/backend/server.js",
+  "line": 17329,
+  "title": "Gala/CA rows are inserted before Stripe checkout with no expired-session cleanup \u2014 abandoned checkouts permanently pollute registration tables",
+  "evidence": "U:17327-17349 inserts a gala_registrations row ('awaiting_payment') and a croatians_abroad_registrations row BEFORE `stripe.checkout.sessions.create` (U:17448). The only DELETEs against these tables anywhere in either backend are the two boot wipes (U:3910/3924, A:2976/2988); there is no `checkout.session.expired` webhook handler (grep: none) and no cleanup job.",
+  "impact": "Every abandoned/cancelled checkout leaves permanent ghost rows in gala_registrations and croatians_abroad_registrations, inflating admin counts, exports, and capacity math. This is precisely what already forced the two emergency boot wipes (gala_test_wipe markers) \u2014 the root cause is still in place ",
+  "suggested_fix": "Handle Stripe's checkout.session.expired event (or a periodic job) to delete/flag rows still 'awaiting_payment' with a stripe_session_id older than 24h; alternatively create the rows only in the webhook from session metadata.",
+  "finder": "data-integrity",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "medium",
+    "reasoning": "Every cited fact checks out: gala_registrations ('awaiting_payment') and croatians_abroad_registrations rows are inserted at U:17327-17349 before stripe.checkout.sessions.create (U:17448), and the invite-based gala flow repeats the pattern (U:17536 insert, U:17687 checkout). The webhook handles only checkout.session.completed (U:10619); grep confirms no checkout.session.expired handler in either b"
+   }
+  ]
+ },
+ {
+  "severity": "medium",
+  "category": "data",
+  "file": "admin-portal/backend/server.js",
+  "line": 10621,
+  "title": "forum_event_registrations dietary/accommodation data split across different column names depending on which portal wrote the row",
+  "evidence": "User-portal RSVP writes `dietary_requirements, dietary_notes, accommodation, special_requests` (U:8996, columns added via U:2452-2462 ALTERs). Admin's cross-portal /api/public/register-invite writes `dietary, allergies, guest_count, amount_paid, package_items` (A:10621, columns lazy-ALTERed in-route A:10609-10612). The repo's shared DB confirms U's CREATE won and both column families coexist.",
+  "impact": "The same fact (a guest's dietary needs) lives in `dietary` for invite-link registrants but `dietary_requirements`/`dietary_notes` for portal RSVPs. Any admin view/export reading one column family shows blank dietary data for the other population \u2014 catering lists for future forum events are silently ",
+  "suggested_fix": "Pick one canonical column set, migrate data with one UPDATE ... SET dietary = COALESCE(dietary, dietary_requirements) pass at boot, and make both write paths use the same columns.",
+  "finder": "data-integrity",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "medium",
+    "reasoning": "Confirmed after attempting refutation from every angle. The two write paths both exist exactly as cited and both are live: user-portal /api/af26/register (U:8996, wired from the user SPA at frontend:88047) writes dietary_requirements/dietary_notes/accommodation/special_requests into forum_event_registrations, while admin /api/public/register-invite's forum branch (A:10621, lazy ALTERs A:10609-1061"
+   }
+  ]
+ },
+ {
+  "severity": "medium",
+  "category": "security",
+  "file": "admin-portal/backend/server.js",
+  "line": 16106,
+  "title": "Legacy check-in endpoints (/api/checkin, /api/admin/gala/checkin) mark gala guests checked-in with NO payment_status check \u2014 unpaid/awaiting_payment guests admitted",
+  "evidence": "A:16106-16110: `const guest = query.get('SELECT * FROM gala_registrations WHERE id = ? OR email = ?', [code, code]); ... db.run(\"UPDATE gala_registrations SET checked_in = 1 ...\")` \u2014 no payment_status/vip check. Universal /api/checkin does the same (A:16273-16274 and cascade at 16289). The unified verify endpoint (A:15821-15828) correctly rejects non-paid; these older endpoints, still wired to the global FAB scanner (FE 20303 posts to '/api/checkin'), do not.",
+  "impact": "An admin typing an email or reg id into the global scanner's manual tab checks in a guest whose Stripe checkout was abandoned (status 'awaiting_payment', payment 'pending') with a green 'Checked in successfully!' \u2014 bypassing the \u20ac140 payment gate that /api/admin/checkin/verify enforces. Three scanne",
+  "suggested_fix": "Make /api/checkin and /api/admin/gala/checkin enforce payment_status IN ('paid','vip-comp') for gala rows (mirror the verify endpoint), or remove the legacy endpoints and point all scanner UIs at /api/admin/checkin/verify.",
+  "finder": "admin-correctness",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "medium",
+    "reasoning": "CONFIRMED at the backend, but the claimed exploit path is wrong, so severity drops from high to medium. Verified by direct read: /api/admin/gala/checkin (admin-portal/backend/server.js:16102-16113) and universal /api/checkin (16248-16293; gala branch 16273-16274, cascade 16289) set checked_in=1 on gala_registrations with no payment_status check, while /api/admin/checkin/verify (15821-15828) reject"
+   },
+   {
+    "isReal": true,
+    "severity": "low",
+    "reasoning": "Backend claim verified: /api/admin/gala/checkin (admin server.js:16102-16113) and /api/checkin (16248-16293, gala branch 16274 + cascade 16289) mark gala_registrations checked_in with no payment_status check, while /api/admin/checkin/verify (15799-15846) enforces paid/vip-comp. Unpaid rows exist pre-Stripe (user server.js:17330 inserts status='awaiting_payment', payment_status='pending'). However,"
+   }
+  ]
+ },
+ {
+  "severity": "medium",
+  "category": "payments",
+  "file": "admin-portal/frontend/index.html",
+  "line": 28986,
+  "title": "Gala settings save silently rewrites cleared/zero price fields to stale legacy defaults (95/174/194) \u2014 user portal would charge \u20ac95 instead of \u20ac140",
+  "evidence": "FE 28986-28988: `price_gala_only: parseFloat(getVal('galaSettingPriceOnly')) || 95, price_bundle: ... || 174, price_bundle_original: ... || 194` and 28983 `capacity: parseInt(...) || 150`. An empty or 0 input falls back to the pre-migration \u20ac95 price (prod price is 140, enforced by the boot migration U:3895 only while the value is a known legacy default).",
+  "impact": "If an admin clears the price field (or enters 0) and saves, gala_settings.price_gala_only becomes 95; the user portal charges exactly this via Stripe (U:17651-17652 `basePrice = gala?.price_gala_only`; U:17446) \u2014 silently underselling every subsequent \u20ac140 ticket. PlexusSettingsAdmin has the same pa",
+  "suggested_fix": "Validate inputs (reject empty/NaN with a Toast instead of substituting defaults) and update the fallback constants to current prices if kept.",
+  "finder": "admin-correctness",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "medium",
+    "reasoning": "Confirmed end-to-end. FE admin-portal/frontend/index.html:28986-28988 saves price_gala_only as parseFloat(...)||95 (and ||174/||194, capacity ||150 at 28983); the input (line 10543) is type=number with no min/required and save is a raw fetch, so empty or 0 becomes 95 silently. The admin backend PUT (admin-portal/backend/server.js:15587-15625) has zero value validation and writes it to the shared g"
+   }
+  ]
+ },
+ {
+  "severity": "medium",
+  "category": "data",
+  "file": "admin-portal/frontend/index.html",
+  "line": 29744,
+  "title": "Live Overview 'Revenue Confirmed' invents \u20ac140 for any paid row missing amount_paid and counts test/ghost rows \u2014 figure is not reconciled to Stripe",
+  "evidence": "FE 29744: `const revenue = galaPaid.reduce((sum, r) => sum + (Number(r.amount_paid) || 140), 0);` over all `payment_status === 'paid'` rows from `SELECT * FROM gala_registrations` (A:15641). Rows manually marked paid without an amount, discounted payments recorded as 0, and BUNDLE TEST rows all contribute either their amount or a fabricated 140.",
+  "impact": "The headline revenue card can overstate (null/0 amounts counted as \u20ac140, test rows included) or understate (price changes) real Stripe receipts; admins make capacity/finance decisions from an invented number.",
+  "suggested_fix": "Compute revenue server-side as SUM(amount_paid) WHERE payment_status='paid' AND amount_paid IS NOT NULL (excluding test-tagged rows), and surface rows with missing amounts as a data-quality warning instead of defaulting them.",
+  "finder": "admin-correctness",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "medium",
+    "reasoning": "Confirmed with one sub-claim weakened. The cited code is verbatim accurate (admin-portal/frontend/index.html:29744 sums Number(r.amount_paid) || 140 over all payment_status='paid' rows from an unfiltered SELECT * FROM gala_registrations at admin-portal/backend/server.js:15640). The strongest part is test-row contamination: the 'Send Bundle Test' tool in BOTH backends (user-portal server.js 16868-1"
+   }
+  ]
+ },
+ {
+  "severity": "medium",
+  "category": "security",
+  "file": "admin-portal/backend/server.js",
+  "line": 9704,
+  "title": "Export endpoints accept the admin JWT as a ?token= query parameter, leaking it into logs, browser history and Referer headers",
+  "evidence": "A:9704-9706 (and identically A:9745-9747, plus travel-order PDF at ~A:13957): `if (req.query.token && !req.headers.authorization) { req.headers.authorization = `Bearer ${req.query.token}`; }` so window.open() downloads authenticate via the URL.",
+  "impact": "The 7-day admin JWT lands in Render request logs, proxy logs, browser history and any Referer leak from the download page; replaying it grants full admin API access (registrations, exports, invite links).",
+  "suggested_fix": "Replace query-param JWTs with short-lived single-purpose download tokens, or fetch the export via XHR with the Authorization header and trigger a Blob download client-side (as CroatiansAbroadAdmin.exportEmails already does).",
+  "finder": "admin-correctness",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "medium",
+    "reasoning": "Confirmed at all three cited locations in admin-portal/backend/server.js (9704-9706, 9745-9747, 13959-13961): req.query.token is copied into the Authorization header ahead of the standard auth middleware. The frontend actively exercises this for two export flows (index.html:17962 and :21554) via window.open with the localStorage session JWT in the URL, and that JWT is the full-privilege admin toke"
+   }
+  ]
+ },
+ {
+  "severity": "medium",
+  "category": "security",
+  "file": "admin-portal/frontend/index.html",
+  "line": 30040,
+  "title": "Croatians Abroad email export builds CSV client-side with no formula-injection sanitization, bypassing the backend's sanitizeCsvCell standard",
+  "evidence": "FE 30038-30041: `const safe = v => `\"${(v || '').replace(/\"/g, '\"\"')}\"`;` \u2014 only doubles quotes; values beginning with = + - @ are written verbatim into the downloaded CSV. Fields (first_name, institution, role\u2026) are self-submitted by anyone holding a public invite link (U:17294 /api/croatians-abroad/register). The backend exports correctly prefix-escape these (A:9578-9583).",
+  "impact": "A registrant entering e.g. `=HYPERLINK(...)` or `=cmd|...` as their institution gets a live formula in the spreadsheet Laura opens in Excel \u2014 classic CSV-injection against the organizing team.",
+  "suggested_fix": "Apply the same leading-character guard as the backend (`/^[=+\\-@\\t\\r]/ \u2192 prepend \"'\"`) in CroatiansAbroadAdmin.exportEmails before quoting.",
+  "finder": "admin-correctness",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "medium",
+    "reasoning": "Confirmed accurate after attempting refutation. The client-side export at admin-portal/frontend/index.html:30040-30041 uses `const safe = v => `\"${(v || '').replace(/\"/g, '\"\"')}\"`;` which only doubles quotes and writes values starting with =,+,-,@ verbatim. The data source chain is fully attacker-reachable and unsanitized: the public endpoint POST /api/croatians-abroad/register (user-portal/backen"
+   }
+  ]
+ },
+ {
+  "severity": "medium",
+  "category": "bug",
+  "file": "admin-portal/backend/server.js",
+  "line": 15850,
+  "title": "EventCheckin 'Conference'/'Bridges' modes only search croatians_abroad_registrations \u2014 paid Plexus conference registrants and bridges_registrations rows are rejected as 'not found'",
+  "evidence": "A:15848-15861: for event 'conference'/'bridges' the verify endpoint queries only `croatians_abroad_registrations` (by id, gala_registration_id, then email) and otherwise returns 'No Conference pre-registration found ... (Searched N CA rows ...)'. Conference attendees who registered via the plexus flow live in `registrations` (U:17517) and bridges invitees in `bridges_registrations` (U:17584) \u2014 neither table is consulted.",
+  "impact": "At the conference/bridges door, the recommended Plexus-2026 scanner validates ONLY diaspora-bundle guests; every regular ticket holder scans as NOT VALID, forcing staff onto the legacy scanners (which have the payment-bypass and false-success bugs above).",
+  "suggested_fix": "Extend the conference branch to also search `registrations` (paid/confirmed) and the bridges branch to search `bridges_registrations`, returning the appropriate checked_in column per table.",
+  "finder": "admin-correctness",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "medium",
+    "reasoning": "Confirmed against the code. The admin verify endpoint (admin-portal/backend/server.js:15799-15891) searches the general gala_registrations table for gala mode, but for 'conference'/'bridges' modes (15848-15861) it queries ONLY croatians_abroad_registrations (by id, gala_registration_id, then email) and returns 'not_found' otherwise \u2014 neither `registrations` (where plexus conference registrants are"
+   }
+  ]
+ },
+ {
+  "severity": "medium",
+  "category": "ux",
+  "file": "user-portal/frontend/index.html",
+  "line": 5,
+  "title": "Viewport `user-scalable=no` blocks pinch-zoom portal-wide",
+  "evidence": "index.html:5 `<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, user-scalable=no\">`.",
+  "impact": "Android Chrome/WebView honors user-scalable=no by default, so attendees cannot zoom dense content (schedules, QR codes, forms) \u2014 a WCAG 1.4.4 failure on the page every event participant uses. iOS ignores it, so behavior is also inconsistent across platforms.",
+  "suggested_fix": "Change to `content=\"width=device-width, initial-scale=1.0\"`. If the intent was preventing iOS input-focus zoom, set form-control font-size to 16px instead. Effort: S.",
+  "finder": "user-frontend",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "medium",
+    "reasoning": "Confirmed and could not be refuted. user-portal/frontend/index.html:5 contains user-scalable=no verbatim, the live production site serves the identical tag, and no JS in the 5.4MB SPA rewrites the viewport meta, so the zoom block applies to the entire attendee-facing portal. The admin portal's viewport tag (line 5) correctly omits user-scalable=no, showing the restriction is an inconsistency rathe"
+   }
+  ]
+ },
+ {
+  "severity": "medium",
+  "category": "ux",
+  "file": "user-portal/frontend/index.html",
+  "line": 67909,
+  "title": "REDESIGN WIN 1: Strip the embedded duplicate admin app out of the public 5.4MB SPA",
+  "evidence": "A complete second admin application ships to every attendee: `<div class=\"login-page\" id=\"loginPage\">` (67277) + `<div class=\"app\" id=\"mainApp\">` (67909) with 11 admin sections (68082\u201373079: finances, communications, automations, checkin-scanner, speaker-management...), its own router `App.showSection` (97887) and the broken-by-design session handling `localStorage.removeItem('medx_token')` on every load (120942). Meanwhile admin-portal/frontend/index.html (1.8MB) is the real admin SPA already d",
+  "impact": "Every visitor downloads 849KB (wire, brotli \u2014 measured live) and the phone parses 5.6MB of HTML/CSS/JS including an admin app they can never use (admin sessions are force-killed on load). It also doubles routing complexity (#plexus resolves in both `App.showSection` and `UserPortal.showSection` rout",
+  "suggested_fix": "Delete #loginPage/#mainApp, the admin sections, the App router, the #admin entry hook (120943) and admin-only JS from the user SPA; admins use the existing admin portal. This is the single biggest transfer/parse/complexity win available with zero user-visible design change. Effort: L.",
+  "finder": "user-frontend",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "perf",
+  "file": "user-portal/frontend/sw.js",
+  "line": 13,
+  "title": "sw.js hygiene: stale FA 6.4.0 precache, dead offline.html, 740KB icon precache, 5.6MB document double-cached per navigation",
+  "evidence": "(1) sw.js:13 precaches `font-awesome/6.4.0/css/all.min.css` but the page loads 6.5.1 (index.html:26) \u2014 every install downloads CSS that is never hit, and the runtime cache-first path can't fix it because line 77 `response.type !== 'basic'` skips caching cross-origin responses. (2) sw.js:3 `const OFFLINE_URL = '/offline.html'` is never used and the URL 404s live (verified). (3) sw.js:11 precaches icon-512.png (740,848 bytes on disk) on every install. (4) Lines 57-66: every navigation does `cache.",
+  "impact": "Wasted install bandwidth (~770KB+ per device), wrong icon-font version available offline, misleading dead code (adding offline.html to ASSETS_TO_CACHE as-is would make every SW install fail since cache.addAll is all-or-nothing), Cache Storage churn writing 11MB per session on phones, and invite toke",
+  "suggested_fix": "Bump FA precache URL to 6.5.1 (or drop it \u2014 opaque cross-origin precache is fragile); delete OFFLINE_URL or ship a real tiny offline.html; precache icon-192 only; skip `cache.put` for /invite/* navigations; compress icon-512 (see image finding). Bump CACHE_NAME when done. Effort: S.",
+  "finder": "user-frontend",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "medium",
+    "reasoning": "Confirmed all four sub-claims against code and live site; refutation attempts failed. (1) sw.js:13 precaches FA 6.4.0 but index.html loads only 6.5.1 (lines 26, 83524); sw.js:77 'response.type !== basic' blocks runtime caching of the cross-origin 6.5.1 CSS, so the 6.4.0 precache is never hit \u2014 pure wasted install download. (2) OFFLINE_URL (sw.js:3) is declared once and never used; no offline.html "
+   }
+  ]
+ },
+ {
+  "severity": "medium",
+  "category": "perf",
+  "file": "user-portal/frontend/index.html",
+  "line": 80378,
+  "title": "2.7MB of oversized and dead images: 897KB chat avatar, 740KB PWA icon, ~1MB unreferenced world maps",
+  "evidence": "alan-avatar.png is 897,563 bytes and is used only as a tiny chat avatar: index.html:80378/80395 `<div class=\"alan-message-avatar\"><img src=\"alan-avatar.png\" alt=\"Alan\"></div>`. icon-512.png is 740,848 bytes (icon-192 is 26KB) and is SW-precached on every install (sw.js:11). assets/bb-world-map.png (831,247B), world-map-base.png (192,333B), world-map-simple.png are referenced by filename NOWHERE in either SPA or either backend (grep verified; `.bb-world-map-section` at index.html:34557 is a plain",
+  "impact": "Every user opening the Alan assistant downloads 897KB for a ~40px avatar; every PWA install downloads 740KB of icon; ~1MB of dead files sit in the served static dir. None of this is design-visible \u2014 pure waste.",
+  "suggested_fix": "Re-export alan-avatar as 128px webp (~5-10KB); compress icon-512.png to a proper 512px PNG (~30-50KB); delete the three world-map PNGs. Zero design change. Effort: S.",
+  "finder": "user-frontend",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "medium",
+    "reasoning": "Every sub-claim verified against the repo. (1) alan-avatar.png is 897,563 bytes and 1024x1024 px, referenced only at user-portal/frontend/index.html:80378 and :80395 inside the Alan chat JS templates, rendered in a 32x32px container (.alan-message-avatar, index.html:8028-8040) \u2014 ~900KB downloaded for a 32px avatar the first time the assistant renders a bot message. (2) icon-512.png is 740,848 byte"
+   }
+  ]
+ },
+ {
+  "severity": "medium",
+  "category": "ux",
+  "file": "user-portal/frontend/index.html",
+  "line": 57590,
+  "title": "Landing carousel shows expired deadline ('Apply by April 1, 2026' under an 'Applications Open' badge) and a 2,500+ attendee claim contradicting the live cap of 200",
+  "evidence": "index.html:57587-57590: badge `Applications Open` + `<p class=\"featured-desc\">Research internships at Harvard, Yale, Mayo Clinic, and more. Apply by April 1, 2026.</p>` \u2014 over two months past as of 2026-06-10. index.html:57574: `Join 2,500+ researchers and clinicians from 30+ countries. December 4-5, Zagreb.` while the live /api/conferences/active returns max attendees 200 (Hotel Esplanade Zagreb). All carousel copy is hardcoded in the HTML.",
+  "impact": "First thing every bare-root visitor sees is a stale call-to-action for a closed program and an attendance figure 12x the venue cap \u2014 credibility damage on an invitation-driven, senior-audience event, and a 'Register Now' funnel built on numbers that can't be true.",
+  "suggested_fix": "Drive carousel slides (badge, deadline, description) from the conferences/settings API the backend already exposes, or at minimum remove hardcoded dates/attendance numbers. Hide the Accelerator slide when its deadline passes. Effort: S-M.",
+  "finder": "user-frontend",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "medium",
+    "reasoning": "Confirmed against both code and the live site, with two corrections. The cited copy is real and live: user-portal/frontend/index.html:57585-57590 hardcodes an 'Applications Open' badge with 'Apply by April 1, 2026' (~10 weeks expired on 2026-06-10) plus an 'Apply Now' CTA, and line 57574 claims 'Join 2,500+ researchers... December 4-5, Zagreb' while the live /api/conferences/active returns max_cap"
+   }
+  ]
+ },
+ {
+  "severity": "medium",
+  "category": "security",
+  "file": "admin-portal/backend/server.js",
+  "line": 6846,
+  "title": "Interviewer management (send-link, regenerate-token, assignments) reachable by any authenticated user",
+  "evidence": "L6846 `app.post('/api/accelerator/interviewers/:id/send-link', auth, ...)` auto-generates a token if missing and emails a magic link to interviewer.email; L6898 `app.post('/api/accelerator/interviewers/:id/regenerate-token', auth, ...)` overwrites `access_token` with a new uuid; L6906 `app.get('/api/accelerator/interviewers/:id/assignments', auth, ...)` returns `app.first_name, app.last_name, app.current_institution`. All `auth` only, no `adminOnly`. Same in user-portal L6511/L6559.",
+  "impact": "Any logged-in user can trigger official evaluator emails, and can rotate an interviewer's access_token at will \u2014 instantly invalidating the link an evaluator is actively using (denial of service against the evaluation workflow), and can read applicant names via assignments.",
+  "suggested_fix": "Add `adminOnly` to send-link, regenerate-token, and assignments routes in both backends.",
+  "finder": "gap:Accelerator subsystem \u2014 IDOR + applicant identity + magic-link interview tokens (whole subsystem, never access-control-audited)",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 7559,
+  "title": "IDOR: GET /api/forum/groups/:id/members discloses any group's member roster to any authenticated user (no membership check)",
+  "evidence": "L7559-7569: `app.get('/api/forum/groups/:id/members', auth, (req, res) => { const members = query.all(` SELECT fm.id, fm.photo_url, u.first_name, u.last_name, fm.specialty, fm.institution, fgm.joined_at FROM forum_group_members fgm JOIN forum_members fm ... WHERE fgm.group_id = ? ...`, [req.params.id]); res.json(members); ...` \u2014 no currentMember resolution and no membership gating, same omission pattern as the messages route.",
+  "impact": "Any logged-in user can enumerate the full membership roster (names, specialty, institution, photo, join date) of every forum group without being a member or even an approved forum member. Member-directory privacy bypass.",
+  "suggested_fix": "Add the same approved-member + forum_group_members membership check used by POST /api/forum/groups/:id/messages before returning the roster.",
+  "finder": "gap:Forum subsystem (30 tables) \u2014 user-generated content stored XSS + group/conversation access-control IDOR",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "security",
+  "file": "user-portal/frontend/index.html",
+  "line": 7691,
+  "title": "Stored XSS via javascript: scheme in forum post link_url (escapeHtml does not block dangerous URL schemes)",
+  "evidence": "renderForumPosts (user SPA, ~L101691-101697): `${p.link_url ? `<a href=\"${this.escapeHtml(p.link_url)}\" target=\"_blank\" ...><span ...>${this.escapeHtml(p.link_url)}</span></a>` : ''}`. escapeHtml (L74308-74311) only encodes & < > \" ' \u2014 it does NOT strip schemes, so a stored value `javascript:alert(document.cookie)` survives into the href and fires on click. Backend POST /api/forum/posts (user-portal/backend/server.js L7657-7662) inserts link_url with no scheme validation: `const { title, content",
+  "impact": "An approved forum member can publish a post whose link_url is a javascript: URL; the feed renders it as a clickable link with no moderation gate, and any member or admin who clicks it executes attacker JS in their authenticated origin (cookie/JWT theft, actions-as-victim). Click-required stored XSS.",
+  "suggested_fix": "Validate/normalize link_url scheme on insert (allow only http/https) and/or at render reject anything not matching ^https?:// before placing it in href.",
+  "finder": "gap:Forum subsystem (30 tables) \u2014 user-generated content stored XSS + group/conversation access-control IDOR",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 7590,
+  "title": "Forum group-message file upload reuses MIME-trusting multer + extension-preserving filename (HTML/SVG stored XSS)",
+  "evidence": "POST /api/forum/groups/:id/messages uses `upload.single('file')` (L7590) \u2014 the shared `upload` multer (L1422-1429) whose fileFilter only inspects the client-supplied MIME string: `fileFilter: (req, file, cb) => { if (ALLOWED_MIME_TYPES.includes(file.mimetype)) return cb(null, true); ... }` (L1425-1427), and whose filename keeps the attacker's extension: `filename: (req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname)}`)` (L1412). Files are served statically from `/uploads` (L",
+  "impact": "An approved group member can upload a file named e.g. `x.html` (or `x.svg`) while declaring mimetype `image/png`; the filter passes, the file is saved as `<uuid>.html`/`.svg` and served same-origin with an HTML/SVG Content-Type. The attachment link in group chat then opens executable markup in the v",
+  "suggested_fix": "Validate real file content (magic bytes) not the client MIME, force a safe extension/Content-Type for uploads, and serve user uploads with Content-Disposition: attachment (or from a separate sandbox origin).",
+  "finder": "gap:Forum subsystem (30 tables) \u2014 user-generated content stored XSS + group/conversation access-control IDOR",
+  "confidence": "medium",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "security",
+  "file": "admin-portal/backend/server.js",
+  "line": 296,
+  "title": "NODE_ENV=development fallback in `auth`/`optionalAuth` grants full admin with no token at all",
+  "evidence": "L296-300 inside `auth`: `if (process.env.NODE_ENV === 'development') { const user = query.get(\"...email='juginovic.alen@gmail.com'\"); req.user = user || { id:'default', email:'juginovic.alen@gmail.com', is_admin:true }; return next(); }` \u2014 same block duplicated in optionalAuth (L314-318). If the real Alen row is absent it even fabricates `is_admin:true`. render.yaml pins `NODE_ENV: production` (L66) for the admin service, which currently neutralizes this in prod.",
+  "impact": "Latent privilege-escalation / auth-bypass on config drift: if NODE_ENV is ever unset, mis-set, or the service is run outside render.yaml, every `auth`-gated route (including the tech db-download/export-all behind only the default tech password) becomes reachable with no token whatsoever. Also note J",
+  "suggested_fix": "Remove the auto-admin/no-token dev fallback from auth/optionalAuth (require a real token even in dev, e.g. via a seeded dev login), or gate it behind an explicit separate flag that can never be true in a deployed environment.",
+  "finder": "gap:Tech dashboard auth surface \u2014 full-DB exfiltration endpoints behind a default-password header + JWT-in-query",
+  "confidence": "medium",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 16247,
+  "title": "Any authenticated user can direct-message any user (no connection/relationship gating) and trigger a push",
+  "evidence": "POST /api/messages only validates the recipient exists, never that the two users are connected: L16252-16254 `const receiver = query.get('SELECT id FROM users WHERE id = ?', [receiver_id]); if (!receiver) return res.status(404)...`, then inserts the row (L16259) and fires `sendPushToUser(receiver_id, {...})` (L16269). There is no check against networking_connections.status='accepted'.",
+  "impact": "Any logged-in user who knows/guesses a target user id can send unsolicited DMs to anyone (including users with is_public_profile=0 who never appear in Discover) and spam them with web-push notifications. The frontend only surfaces messaging behind connections, but the API does not enforce it \u2014 a har",
+  "suggested_fix": "Before inserting, require an accepted networking_connections row between req.user.id and receiver_id (or an explicit allow-DMs flag). Return 403 otherwise, and rate-limit per sender.",
+  "finder": "gap:Networking & direct-messaging privacy (connections, meetings, profiles) \u2014 user journey never tested for IDOR/visibility",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "data",
+  "file": "user-portal/backend/server.js",
+  "line": 16291,
+  "title": "GET /api/messages leaks conversation partner's email regardless of profile privacy (email-harvest when chained with open DM)",
+  "evidence": "The conversation-list query selects the partner's email: L16291 `u.first_name AS partner_first_name, u.last_name AS partner_last_name, u.email AS partner_email`. Email is exposed for every conversation partner even if their profile is private.",
+  "impact": "Combined with the unrestricted POST /api/messages above, an attacker can message any user id, then call GET /api/messages and read that user's email in `partner_email` \u2014 de-anonymizing/harvesting the email of any user (including is_public_profile=0). No other networking endpoint exposes email (Disco",
+  "suggested_fix": "Drop `u.email AS partner_email` from the SELECT (the SPA only uses it as a display fallback). Surface email only for accepted connections, if at all.",
+  "finder": "gap:Networking & direct-messaging privacy (connections, meetings, profiles) \u2014 user journey never tested for IDOR/visibility",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "bug",
+  "file": "user-portal/backend/server.js",
+  "line": 16213,
+  "title": "POST /api/networking/meetings does not validate attendee_id exists or that users are connected",
+  "evidence": "L16214-16218 `const { attendee_id, date, time, ... } = req.body; if (!attendee_id || !date || !time) return res.status(400)...; db.run('INSERT INTO networking_meetings (id, organizer_id, attendee_id, ...) VALUES (?,?,?,...)', [id, req.user.id, attendee_id, ...])`. No SELECT to confirm attendee_id is a real user or a connection of the organizer.",
+  "impact": "Any authenticated user can create a meeting row pointing at an arbitrary or non-existent attendee_id. A valid target then sees an unsolicited meeting in GET /api/networking/meetings (L16224), and a bogus id silently creates an orphan row (data-integrity). Unlike POST /api/messages (validates receive",
+  "suggested_fix": "Validate attendee_id resolves to an existing user and (ideally) to an accepted connection before insert; otherwise return 404/403.",
+  "finder": "gap:Networking & direct-messaging privacy (connections, meetings, profiles) \u2014 user journey never tested for IDOR/visibility",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "bug",
+  "file": "user-portal/backend/server.js",
+  "line": 5307,
+  "title": "Legacy POST /api/connections/request inserts with zero validation (requestee, self, duplicate, untrimmed message)",
+  "evidence": "L5308 `db.run('INSERT INTO connections (id, requester_id, requestee_id, message) VALUES (?, ?, ?, ?)', [uuidv4(), req.user.id, req.body.user_id, req.body.message]);` \u2014 no check that req.body.user_id is a real user, not the caller themselves, and no duplicate-request guard.",
+  "impact": "This legacy `connections` table endpoint (parallel to the newer `networking_connections` at L16157, which does check for existing rows) lets a user spam duplicate requests, request a connection to themselves, or create orphan rows pointing at a missing/null user_id. The two parallel connection syste",
+  "suggested_fix": "Mirror the newer endpoint: require user_id present, reject self-requests, dedupe against existing rows, and validate the requestee exists before insert.",
+  "finder": "gap:Networking & direct-messaging privacy (connections, meetings, profiles) \u2014 user journey never tested for IDOR/visibility",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "security",
+  "file": "user-portal/frontend/index.html",
+  "line": 122350,
+  "title": "Admin-message detail/list view renders message content and title via innerHTML without escaping (HTML-injection sink)",
+  "evidence": "NotificationSystem renders message bodies unescaped into innerHTML: L122350 `<div ... white-space: pre-wrap;\">${msg.content}</div>`, plus titles at L122313 `...>${m.title || 'Admin Message'}</span>` and L122342 `...>${msg.title || 'Admin Message'}</h4>` and preview at L122316 `${m.content ? m.content.substring(0,80) : ''}`. None use escapeHtml. By contrast, the user-to-user Network chat paths DO escape (L88779/L88312/L88314 use `.replace(/</g,'&lt;').replace(/>/g,'&gt;')`), so the primary direct",
+  "impact": "Any content reaching this view that originates from a user (e.g., a user's reply echoed back, or user-derived fields the admin side stores into these messages) executes as HTML/script in the recipient's session. direct_messages.content is stored only `.trim()`-ed (server L16261), so markup survives ",
+  "suggested_fix": "Wrap msg.content and msg.title in the existing escapeHtml() before interpolating (matching the Network chat paths), or set textContent instead of innerHTML for these fields.",
+  "finder": "gap:Networking & direct-messaging privacy (connections, meetings, profiles) \u2014 user journey never tested for IDOR/visibility",
+  "confidence": "medium",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "bug",
+  "file": "user-portal/backend/server.js",
+  "line": 12343,
+  "title": "Abstract review workflow is non-functional: reviewers can be assigned but no endpoint exists to submit scores/comments/recommendation",
+  "evidence": "assign-reviewer only ever INSERTs an empty review row: L12343-12349 app.post('/api/admin/plexus/abstracts/:id/assign-reviewer', auth, adminOnly, ...) `INSERT INTO abstract_reviews (id, abstract_id, reviewer_id, assigned_at) VALUES (?, ?, ?, datetime('now'))`. Across BOTH backends the only other references to abstract_reviews are the schema (L2961), the admin list SELECT (user L12336 / admin L10688) and this same INSERT (admin L10695). There is no UPDATE anywhere, so score_relevance/score_overall",
+  "impact": "The conference peer-review feature cannot be used: an assigned reviewer has no API to read their assignment or enter scores/comments, and admins can never see completed reviews. The 'reviews' shown in the admin abstract list are always empty stubs. This is a missing core flow, not just polish.",
+  "suggested_fix": "Add an authenticated reviewer endpoint (gated to the assigned reviewer_id) to fetch assigned abstracts and PUT scores/comments/recommendation, setting is_complete/completed_at; validate reviewer_id and make (abstract_id, reviewer_id) unique on assignment.",
+  "finder": "gap:Abstract & speaker submission subsystem \u2014 conference academic core (uploads, reviews, reviewer assignment) never audited",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "medium",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 4961,
+  "title": "User enumeration via resend-verification and registration endpoints",
+  "evidence": "resend-verification returns three distinguishable responses by account state: unknown email -> L4969 `'If an account with that email exists, a verification email has been sent.'`; existing+verified -> L4972 `'Email is already verified. You can sign in.'`; existing+unverified -> L4991 `'Verification email sent. Please check your inbox.'`. Registration also leaks existence: L4856-4857 `if (query.get('SELECT id FROM users WHERE email = ?', [email])) { return res.status(400).json({ error: 'Email exi",
+  "impact": "An attacker can submit candidate emails to /api/resend-verification (or /api/auth/register) and read the response to learn whether an address is registered and whether it is already verified, building a list of valid Med&X accounts to target with phishing/credential-stuffing. authLimiter throttles b",
+  "suggested_fix": "Make resend-verification always return the same generic body regardless of whether the account exists or is already verified (send the email or silently no-op server-side). For registration, return a generic 200 and email the existing user a 'you already have an account' notice instead of the distinguishable 'Email exists' 400, or at minimum keep messaging consistent with forgot-password.",
+  "finder": "gap:Account lifecycle \u2014 password reset & email verification edge cases (no session invalidation, verified-flag side effect, enumeration)",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "low",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 1039,
+  "title": "Invite-flow lifecycle low-severity batch: legacy-token gating gaps, cosmetic variant forgery, unknown event_type, negative-guest display",
+  "evidence": "(a) Legacy/forged gala tokens with no resolvable DB `i` get NO DB revoke/expiry/max_uses \u2014 only the client-forgeable token `x` (L1039 `if (expiresAt && new Date(expiresAt) < new Date())`) and the hardcoded REVOKED_INVITE_IDS set (L635), which requires a code redeploy to revoke a link. (b) CA variant is client-controlled and cosmetic only: L672 `(data.v === 'international' || ...)` \u2014 a 'croatian' recipient can force 'international' copy or vice-versa (no price/event change; pricing identical, gal",
+  "impact": "Minor integrity/UX issues: revocation of non-DB links is slow (redeploy) and token-expiry is forgeable for legacy links (no money risk since gala always re-prices server-side); forgeable variant copy and orphan user/email side effects for bogus event types are low-impact abuse/noise.",
+  "suggested_fix": "Sign invite payloads (HMAC) so x/variant/event_type cannot be tampered; move link revocation to a DB flag checked for all links instead of a hardcoded redeploy-gated set; ignore registrations whose event_type matches no known branch (skip user creation + emails); clamp guest_count before display.",
+  "finder": "invite-flow",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "low",
+  "category": "payments",
+  "file": "user-portal/backend/server.js",
+  "line": 10759,
+  "title": "Stale legacy Gala fallback price (95) in checkout and webhook while the real price is 140",
+  "evidence": "Gala webhook: `const amount = galaReg.amount_paid || (galaReg.pricing === 'bundle' ? 174 : 95);` (L10759) and gala checkout `const price = reg.pricing === 'bundle' ? (settings?.price_bundle||174) : (settings?.price_gala_only||95);` (L17026-17028). Per gala_settings seed and the CA flow (L17446 uses `|| 140`), the current single-ticket price is 140.",
+  "impact": "If gala_settings is ever missing/reset, or a gala_registrations row has a null amount_paid, the FIRA fiscal invoice, finance income record, and the customer confirmation email all record EUR 95 instead of 140 \u2014 under-charging/under-reporting. Inconsistent fallbacks (95 here, 140 in the CA path) make",
+  "suggested_fix": "Use a single source of truth for the gala price (gala_settings) with one consistent fallback (140) across all three sites; ideally fail loudly rather than silently substituting a legacy amount.",
+  "finder": "payments",
+  "confidence": "medium",
+  "verdicts": []
+ },
+ {
+  "severity": "low",
+  "category": "payments",
+  "file": "user-portal/backend/fira-service.js",
+  "line": 170,
+  "title": "FIRA taxExempt retry reallocates per-line price incorrectly and matches errors on English substrings",
+  "evidence": "On VAT rejection the retry does `firaOrder.lineItems.forEach(item => { item.taxRate = 0; item.price = firaOrder.brutto / (firaOrder.lineItems.length || 1); });` (L170) \u2014 every line's unit price is overwritten with the whole-order brutto divided by line count. The retry is only triggered by `errorBody.includes('not in the PDV system') || errorBody.includes('taxes while')` (L168).",
+  "impact": "For any multi-line order (e.g. a ticket plus an add-on built by buildLineItems), each line's price is wrong even though the total still sums to brutto, so the fiscal invoice line items misrepresent what was sold. The substring-based error detection is brittle: if FIRA changes its error wording or lo",
+  "suggested_fix": "Recompute each line's netto from its own brutto with taxRate 0 (price = item._brutto) instead of an equal split; detect the VAT-exempt condition on a structured status/error code rather than English substrings.",
+  "finder": "payments",
+  "confidence": "medium",
+  "verdicts": []
+ },
+ {
+  "severity": "low",
+  "category": "bug",
+  "file": "user-portal/backend/server.js",
+  "line": 68,
+  "title": "Minor email/check-in nits in user-portal backend (batched): SendGrid From ignores EMAIL_FROM and defaults to a personal Gmail; stale 95/174 gala fallback prices; debug internals shown to door staff; non-atomic check-in mark; mixed checked_in_at formats",
+  "evidence": "(1) L68 SendGrid branch: `from: { email: process.env.SMTP_USER || 'juginovic.alen@gmail.com', name: 'Med&X' }` \u2014 EMAIL_FROM is only honored by the Resend branch, so enabling SENDGRID_API_KEY silently changes the sender to a personal Gmail. (2) L10759 gala-ticket webhook fallback `(galaReg.pricing === 'bundle' ? 174 : 95)` \u2014 pre-dates the EUR 140 price; wrong receipt amount if amount_paid is ever null. (3) L16730-16734 verify not_found returns `debug: { code_used, is_uuid, total_ca_rows }` and a ",
+  "impact": "Hygiene-level: wrong/unprofessional sender identity if SendGrid is ever enabled, a wrong-amount receipt edge case, confusing debug text for door volunteers, a cosmetic double-success on simultaneous scans, and inconsistent timestamps.",
+  "suggested_fix": "Use EMAIL_FROM in the SendGrid branch; read fallback prices from gala_settings; strip the debug field (or gate on a ?debug flag); make the UPDATE conditional (`AND checked_in = 0`) and re-read; standardize on ISO timestamps everywhere.",
+  "finder": "email-qr-scanner",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "low",
+  "category": "data",
+  "file": "user-portal/backend/server.js",
+  "line": 16336,
+  "title": "direct_messages.read_at exists only in user portal's CREATE; admin's CREATE+ALTER set never adds it, but user portal UPDATEs it",
+  "evidence": "U CREATE has `read_at TEXT` (U:3846); A CREATE (A:3093-3105) has no read_at and A's migration ALTERs (A:3107-3112) add sender_type/receiver_type/title/attachment_url/is_read/updated_at but not read_at. U:16336 runs `UPDATE direct_messages SET read_at = CURRENT_TIMESTAMP WHERE sender_id = ? AND receiver_id = ? AND read_at IS NULL`.",
+  "impact": "If the admin portal ever creates direct_messages first on a fresh DB, the user portal's mark-as-read UPDATE throws on every message-open, breaking read receipts/unread counts in the messaging UI. Latent boot-order divergence (current shared DB has U's version).",
+  "suggested_fix": "Add `try { db.run('ALTER TABLE direct_messages ADD COLUMN read_at TEXT') } catch(e) {}` to both backends next to the existing direct_messages ALTER block.",
+  "finder": "data-integrity",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "low",
+    "reasoning": "Every cited fact verified: user portal CREATE (server.js:3846) has read_at TEXT; admin CREATE (admin server.js:3093-3105) lacks it; admin's ALTER block (3107-3112) adds six other columns but not read_at; grep confirms NO 'ADD COLUMN read_at' exists in either backend (user portal's own ALTER block at 4338-4343 also lacks it). U:16336 UPDATEs read_at inside GET /api/messages/:userId's try block, so "
+   }
+  ]
+ },
+ {
+  "severity": "low",
+  "category": "bug",
+  "file": "user-portal/backend/server.js",
+  "line": 3966,
+  "title": "Croatians Abroad check-in ALTERs run BEFORE the table CREATE in both backends \u2014 fresh DB gets a one-boot window with no check-in columns",
+  "evidence": "U:3966-3969 `try { db.run(\"ALTER TABLE croatians_abroad_registrations ADD COLUMN conference_checked_in ...\") } catch(e) {}` (and 3 more) precede the `CREATE TABLE IF NOT EXISTS croatians_abroad_registrations` at U:3971, whose column list lacks all four check-in columns. Mirrored in admin: ALTERs A:2878-2881 before CREATE A:2882.",
+  "impact": "On a truly fresh DB the ALTERs no-op into catch{} (table absent), then the CREATE runs without conference/bridges check-in columns; scanner check-in writes on CA rows fail until a second boot of either backend heals it. Latent today, but it makes both backends' \"self-heal\" guarantee order-fragile an",
+  "suggested_fix": "Move the four ALTER statements to after the CREATE TABLE statement in both files (or add the columns to the CREATE body).",
+  "finder": "data-integrity",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "low",
+    "reasoning": "Verified in both files: the four croatians_abroad_registrations check-in ALTERs (user-portal/backend/server.js:3966-3969; admin-portal/backend/server.js:2878-2881) execute before the CREATE TABLE IF NOT EXISTS (U:3971, A:2882), and the CREATE bodies lack all four columns. shared/db.js confirms db.run is synchronous (libsql exec), so on a fresh DB the ALTERs throw 'no such table' into catch(e){} an"
+   }
+  ]
+ },
+ {
+  "severity": "low",
+  "category": "bug",
+  "file": "user-portal/backend/server.js",
+  "line": 17819,
+  "title": "Registration links with NULL expires_at are permanently rejected as expired (new Date(null) = 1970), plus UTC date('now') boundary on forum upcoming/past filters",
+  "evidence": "U:17819 and U:17849 `if (new Date(link.expires_at) < new Date()) return res.status(410).json({ error: 'This registration link has expired' });` \u2014 no null guard, and `new Date(null)` is the 1970 epoch, so any registration_links row with NULL expiry always 410s (the gala/CA invite checks guard correctly, e.g. U:17312 `caInvite.expires_at && ...`). Currently latent because the admin generator always sets a default 30-day expiry (A:16995). Related time nit: U:7740-7741 upcoming/past filters use `fe.",
+  "impact": "Any registration link created without an expiry (e.g., via the constraint-free lazy CREATE variants or manual insert) is dead on arrival with a misleading 'expired' message; forum event lists are off by up to 2h around midnight.",
+  "suggested_fix": "Guard with `if (link.expires_at && new Date(link.expires_at) < new Date())` in both routes; use a Europe/Zagreb-aware date for upcoming/past filters.",
+  "finder": "data-integrity",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "low",
+    "reasoning": "Verified against the code. (1) user-portal/backend/server.js:17819 and :17849 both run `new Date(link.expires_at) < new Date()` with no null guard; new Date(null) is the 1970 epoch, so a NULL expires_at row would permanently 410 as 'expired'. The sibling invite-link validators in the same file guard correctly (e.g., :17312 `caInvite.expires_at && ...`), so the inconsistency is real. However, the o"
+   }
+  ]
+ },
+ {
+  "severity": "low",
+  "category": "config",
+  "file": "user-portal/backend/server 2.js",
+  "line": 0,
+  "title": "Leftover duplicate files in repo: 'server 2.js' code copies, four stale medx_portal N.db databases, backup DBs and WAL/SHM next to the live shared DB",
+  "evidence": "Finder-style duplicates present: user-portal/backend/server 2.js (849KB, Apr 26) + medx_portal 2.db; admin-portal/backend/server 2.js (891KB) + medx_portal 2.db / 3.db / 4.db (Jan 26); tests/smoke 2.js; shared/ holds medx_portal.db.pre_audit_2026-04-22, medx_portal_admin_backup.db, medx_portal_user_backup.db plus live -wal/-shm. Also schema-hygiene nits in code: registration_links has 3 divergent lazy CREATEs (token TEXT UNIQUE NOT NULL at A:16997 vs no NOT NULLs at A:17041/U:17811/U:17841 \u2014 whi",
+  "impact": "Stale code copies invite confusion about which file is live (the dual-server pattern already requires editing two files); old .db files contain test PII and bloat the working tree; divergent lazy CREATE constraints make fresh-DB schemas dependent on request ordering.",
+  "suggested_fix": "Delete the ' 2.js'/' N.db' duplicates and pre-audit/backup DBs (after confirming they're not the only copy), add `* 2.js` and `*-wal`/`*-shm` to .gitignore, and consolidate each table to a single CREATE definition shared by both backends.",
+  "finder": "data-integrity",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "low",
+    "reasoning": "Verified every claim directly. Filesystem: 'server 2.js' exists in both backends (849KB/891KB, Apr 26), 'medx_portal 2.db' in user backend, 'medx_portal 2/3/4.db' (Jan 26) in admin backend, 'tests/smoke 2.js', and shared/ holds medx_portal.db.pre_audit_2026-04-22 + admin/user backup DBs next to the live DB. Code: all cited CREATE lines are exact \u2014 registration_links has 4 lazy CREATEs with A:16997"
+   }
+  ]
+ },
+ {
+  "severity": "low",
+  "category": "data",
+  "file": "admin-portal/frontend/index.html",
+  "line": 28881,
+  "title": "Editing a venue room from the admin UI silently NULLs its description and photo_url (form drops fields, backend does a full overwrite)",
+  "evidence": "FE 28877-28881 (editRoom): `body: JSON.stringify({ name, floor, capacity, equipment })` \u2014 no description/photo_url. Backend PUT (A:16745-16747): `UPDATE venue_rooms SET name = ?, floor = ?, capacity = ?, equipment = ?, description = ?, photo_url = ? ...` with `description || null, photo_url || null` \u2192 undefined becomes NULL.",
+  "impact": "Any rename/capacity tweak wipes the room's description and photo. This is the exact undefined\u2192NULL overwrite class the gala/plexus settings endpoints avoid with `!== undefined` guards.",
+  "suggested_fix": "Use COALESCE(?, description) style updates (as the bridges PUT at A:15232 does) or add `!== undefined` guards.",
+  "finder": "admin-correctness",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "low",
+    "reasoning": "Mechanism verified exactly as cited: editRoom (admin FE index.html:28881) PUTs only {name, floor, capacity, equipment}, and the backend PUT /api/admin/plexus/rooms/:id (admin BE server.js:16743-16750) overwrites all six columns with `description || null, photo_url || null`, turning undefined into NULL. However, the impact is overstated: (1) the admin UI never collects description/photo_url for roo"
+   }
+  ]
+ },
+ {
+  "severity": "low",
+  "category": "email",
+  "file": "admin-portal/backend/server.js",
+  "line": 15896,
+  "title": "'Send Scanner Test QR' ignores the recipient email typed in the modal \u2014 backend prefers req.user.email over req.body.email",
+  "evidence": "A:15896: `const email = (req.user && req.user.email) || req.body.email;` \u2014 req.user is always set (route is behind auth), so the body email is dead. The modal explicitly collects one: FE 29641 'Send to email (leave empty = your admin email)' and submits `{ email: email || undefined }` (29677). The bundle endpoint has the correct precedence (A:15960 body first).",
+  "impact": "Sending a simple scanner-test QR to a colleague (e.g., Laura at the door) silently sends it to the logged-in admin instead; the success toast even reports the wrong address as confirmation. Volunteers never receive their test QR.",
+  "suggested_fix": "Flip the precedence to match the bundle endpoint: `const email = (req.body.email || '').trim() || req.user.email;`.",
+  "finder": "admin-correctness",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "low",
+    "reasoning": "Confirmed. admin-portal/backend/server.js:15896 has `const email = (req.user && req.user.email) || req.body.email;` behind `auth, adminOnly`; the auth middleware (lines 286-302) only proceeds after loading `req.user` via `SELECT id, email, is_admin FROM users`, so req.user.email is always a non-null DB value and req.body.email is unreachable. The modal (frontend index.html 29641/29677) explicitly "
+   }
+  ]
+ },
+ {
+  "severity": "low",
+  "category": "ux",
+  "file": "admin-portal/frontend/index.html",
+  "line": 20393,
+  "title": "Offline check-in queue is dead code \u2014 queueCheckin() is never called, so offline scans are dropped despite the offline banner/badge UI",
+  "evidence": "`grep queueCheckin` over the whole 30,924-line file matches only the definition at 20393; no call site exists. performCheckin's catch (20350-20355) just shows 'Check-in failed. Please try again.' The supporting machinery \u2014 flushCheckinQueue on 'online' (13147 area), offline banner (20427), FAB badge (20437) \u2014 all read a localStorage queue that nothing ever populates.",
+  "impact": "The scanner advertises offline resilience (banner: queued count, auto-flush on reconnect) but at a venue with flaky Wi-Fi every scan during an outage is silently lost; staff believe check-ins are queued when they are not.",
+  "suggested_fix": "Call this.queueCheckin(code) in performCheckin's catch branch when navigator.onLine is false (and dedupe replays), or remove the dead offline UI entirely.",
+  "finder": "admin-correctness",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "low",
+    "reasoning": "Factual core verified: queueCheckin (admin-portal/frontend/index.html:20393) has zero call sites in the whole file; nothing else writes the 'checkinQueue' localStorage key, so flushCheckinQueue (20401), the 'online' listener (13147), offline banner (19899/20427), Retry button (19902), and FAB badge (20437) all consume a permanently empty queue. No service worker or background sync exists in the ad"
+   }
+  ]
+ },
+ {
+  "severity": "low",
+  "category": "ux",
+  "file": "admin-portal/frontend/index.html",
+  "line": 29015,
+  "title": "Admin FE polish batch: VIPs counted in 'Paid' stat, stale settings on tab revisit, silent zeroed dashboard on auth failure, no double-submit guards, wrong service named in mock-mode alert, fragile hand-rolled onclick escaping",
+  "evidence": "(1) 29015 `paid = ...filter(r => r.payment_status === 'paid' || r.status === 'confirmed')` \u2014 vip-comp rows (status 'confirmed') inflate the 'Paid' card. (2) 28913-28916 GalaAdmin.init when already initialized reloads registrations but never settings \u2192 another admin's edits invisible until full reload. (3) 29727-29728 Live Overview maps !res.ok to [] \u2192 expired token renders 0 registrations / \u20ac0 with no error. (4) 29060 createInviteLink and 29806 (CA) have no button-disable \u2192 double-click creates ",
+  "impact": "Individually minor: misleading stats, stale views, silent failures, duplicate invite links from double-clicks, and admin confusion when following the wrong env-var instructions.",
+  "suggested_fix": "Count vip-comp separately; reload settings on section re-entry; surface non-OK fetches as Toast errors; disable buttons during in-flight POSTs; correct the service name in the alert; route all dynamic onclick data through escapeHtml/data-attributes.",
+  "finder": "admin-correctness",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "low",
+    "reasoning": "Verified each sub-claim against admin-portal/frontend/index.html, both backend server.js files, and render.yaml. CONFIRMED: (2) GalaAdmin.init (28913-28917) skips loadSettings() on re-entry, so settings go stale until full page reload; (3) Live Overview (29727-29728) maps !res.ok to [] with no error surface and the SPA has no global 401 handler, so an expired token silently renders 0 registrations"
+   }
+  ]
+ },
+ {
+  "severity": "low",
+  "category": "ux",
+  "file": "user-portal/frontend/index.html",
+  "line": 76388,
+  "title": "REDESIGN WIN 2: Bare-root and ?invite= visitors get the full 5.4MB generic portal instead of a lightweight event/ticket entry",
+  "evidence": "An invitee who trims their invite URL to the root domain downloads the whole SPA (849KB wire / 5.6MB parsed, cache-control max-age=0 so revalidated every visit) just to see a generic splash + marketing carousel + 'Get Started' \u2014 nothing about their invitation or ticket. Legacy `?invite=` links are worse: the SPA fully loads, then init() (76387\u201376389) calls showDirectInviteForm which is just `window.location.href = '/invite/' + encodedData` (122808) \u2014 a redirect to a 17KB server-rendered page. Th",
+  "impact": "The highest-stakes audience (paying Gala/Plexus invitees, often on phones, often older/senior guests) gets the slowest, least relevant entry point; on a slow connection the root is multi-second dead air before the splash even renders.",
+  "suggested_fix": "Make the root a small static event landing (~15KB, like the existing landing/index.html which is 13.8KB) with three actions: 'I have an invitation' (paste/scan link), 'My ticket / sign in' (loads the SPA on demand), and event info. Handle ?invite= with a server-side 302 to /invite/:data before any HTML is served. Effort: M.",
+  "finder": "user-frontend",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "low",
+    "reasoning": "Every factual claim verified against code and live site: root serves the 5.64MB SPA (ETag 560e80 = 5,639,808 bytes; 848,643 bytes wire; cache-control: public, max-age=0 confirmed via live header probe); init() at user-portal/frontend/index.html:76384-76389 handles ?invite= purely client-side by calling showDirectInviteForm, which at ~122807 is just window.location.href = '/invite/' + encodedData; "
+   }
+  ]
+ },
+ {
+  "severity": "low",
+  "category": "ux",
+  "file": "user-portal/frontend/manifest.json",
+  "line": 5,
+  "title": "REDESIGN WIN 3: PWA manifest turns the attendee portal into the staff scanner app \u2014 should become a 'My Ticket' app",
+  "evidence": "manifest.json:2-5 `\"name\": \"MedX Check-in Scanner\" ... \"start_url\": \"/?mode=scanner\"` with shortcuts only for staff scanning (Day1/Day2/Gala scanners), yet it is linked from the main portal page every attendee sees (index.html:55173) and the iOS title is 'Med&X Check-in' (index.html:23). `?mode=scanner` auto-opens the embedded admin scanner section on launch (index.html:108821+ `if (params.get('mode') === 'scanner') ... App.showSection`).",
+  "impact": "Any attendee who taps 'Install app' / 'Add to Home Screen' gets an app named 'MedX Scanner' that boots into the staff check-in scanner UI (which then fails auth) \u2014 instead of their ticket. The one PWA feature attendees actually need at the venue door \u2014 showing their QR with no signal \u2014 does not exis",
+  "suggested_fix": "Split manifests: portal manifest (name 'Med&X Portal', start_url '/', shortcut 'My Ticket') served at /manifest.json; scanner manifest only on a /scanner entry page for staff. Add an offline ticket view: cache the logged-in user's QR data URL in localStorage/Cache Storage so the QR renders offline. Effort: M (manifest split S, offline ticket M).",
+  "finder": "user-frontend",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "low",
+    "reasoning": "Partially confirmed, headline impact refuted. CONFIRMED: the attendee portal's live manifest.json (verified in repo and at https://medx-user-portal.onrender.com/manifest.json) is named \"MedX Check-in Scanner\"/\"MedX Scanner\" with start_url \"/?mode=scanner\", id \"medx-checkin-scanner\", and staff-only shortcuts (Day1/Day2/Gala scanners); it is linked from the page every attendee loads (index.html:5517"
+   }
+  ]
+ },
+ {
+  "severity": "low",
+  "category": "ux",
+  "file": "user-portal/backend/server.js",
+  "line": 760,
+  "title": "Server-rendered invite/success/cancel page polish batch (iOS input zoom, history.back() to dead Stripe session, roundRect QR download failure, no viewport on 3 error pages)",
+  "evidence": "(1) server.js:760 invite-form inputs `font-size:13.5px` \u2014 below 16px, so iOS Safari auto-zooms on focus and the user must pinch back after every field. (2) server.js:464 cancel page 'Try Again' is `<a href=\"javascript:history.back()\">` which returns to the expired Stripe Checkout, not the invite form. (3) server.js:426 downloadQR uses `ctx.roundRect(...)` with no try/catch \u2014 TypeError on Safari <16 / older Android, the Download QR button silently does nothing. (4) The CA-invite Link Disabled/Exp",
+  "impact": "Minor friction at the most conversion-sensitive moments of the paid flow (form fill, payment retry, ticket download), on the devices invitees actually use.",
+  "suggested_fix": "Set invite-form input font-size to 16px; make 'Try Again' link to the original /invite/:data URL (the server has it \u2014 embed it in success_url/cancel_url metadata); polyfill or path-draw the rounded rect and wrap downloadQR in try/catch with a fallback plain QR download; add the viewport meta to the three error pages. Effort: S.",
+  "finder": "user-frontend",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "low",
+    "reasoning": "Verified all four sub-claims against /Users/alen/Documents/Claude_Code_Projects/MedX/user-portal/backend/server.js. (1) Line 760 has `font-size:13.5px` on input/select/textarea in the CA-invite payment form (line 1186's other invite form is 14px, also sub-16); iOS Safari auto-zoom on focus is real and not suppressed by the page's viewport meta. (2) Line 464 is exactly `<a href=\"javascript:history."
+   }
+  ]
+ },
+ {
+  "severity": "low",
+  "category": "perf",
+  "file": "user-portal/backend/server.js",
+  "line": 1390,
+  "title": "No long-lived caching for any static asset (express.static default max-age=0) and no preconnect for the two render-blocking CDN stylesheets",
+  "evidence": "server.js:1390 `app.use(express.static(path.join(__dirname, '../frontend')));` \u2014 no maxAge option, so everything (icons, images, sw.js, the SPA) ships `cache-control: public, max-age=0` (confirmed live on all 14 smoke probes). index.html:25-26 load Google Fonts CSS and font-awesome 6.5.1 CSS as render-blocking stylesheets with no `<link rel=\"preconnect\">` to fonts.googleapis.com/fonts.gstatic.com/cdnjs.cloudflare.com. Scripts are fine (qrcode/html2canvas/jsQR are defer, Stripe is async) \u2014 first ",
+  "impact": "Every repeat visit revalidates every asset (extra RTTs on phones; ETag 304s prevent re-download but not the round trips), and first text paint waits on two cold CDN connections. Real but modest \u2014 Cloudflare + brotli (5.6MB\u2192849KB measured) already do the heavy lifting.",
+  "suggested_fix": "`express.static(..., { maxAge: '30d', setHeaders: ... })` with max-age=0 kept only for index.html and sw.js; add preconnect hints for the three CDN origins (or inline the ~20 FA glyphs actually used and self-host the Inter woff2s). Effort: S.",
+  "finder": "user-frontend",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "low",
+  "category": "config",
+  "file": "user-portal/index.html",
+  "line": 6,
+  "title": "Dead 105KB user-portal/index.html (old 'Project Management' build) is a wrong-file-edit hazard",
+  "evidence": "user-portal/index.html:6 `<title>Med&X Portal - Project Management</title>` (105,322 bytes, dated Jan 29, loads FA 6.4.0). render.yaml sets `rootDir: user-portal/backend` and the backend serves static from `../frontend` (server.js:1390), so this file at user-portal/ root is never served by anything.",
+  "impact": "An editor (human or agent) grepping for 'index.html' under user-portal/ can land in this dead file and 'fix' the wrong app \u2014 a realistic hazard in a repo where the real file is 5.4MB and tooling is told to avoid opening it.",
+  "suggested_fix": "Delete user-portal/index.html (it is a stale standalone build, fully superseded by user-portal/frontend/index.html). Effort: S.",
+  "finder": "user-frontend",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "low",
+    "reasoning": "Every factual claim verifies: user-portal/index.html is 105,322 bytes (Jan 29), line 6 titled 'Med&X Portal - Project Management', loads FA 6.4.0. It is unreachable in production: render.yaml rootDir is user-portal/backend, server.js:1390 serves static from ../frontend, and the SPA fallback (server.js:17994) sends ../frontend/index.html. Repo-wide grep finds zero references to it; the only nearby "
+   }
+  ]
+ },
+ {
+  "severity": "low",
+  "category": "config",
+  "file": "user-portal/frontend/index.html",
+  "line": 12,
+  "title": "index.html head nit batch: og:image 404s (broken share previews), qrcode.min.js lacks SRI, no /favicon.ico",
+  "evidence": "(1) index.html:12 `<meta property=\"og:image\" content=\"/og-image.png\">` + `twitter:card summary_large_image` (13) \u2014 /og-image.png does not exist in frontend/ and returns 404 live, so WhatsApp/LinkedIn/iMessage previews of the portal link (the link sent to invitees) render with no image. (2) index.html:27 `<script src=\"...qrcode@1.5.1/build/qrcode.min.js\" crossorigin=\"anonymous\" defer>` has no integrity attribute while its two jsdelivr siblings on lines 28-29 both carry sha384 SRI \u2014 a CDN compromi",
+  "impact": "Degraded link sharing for an invitation-driven event, one inconsistent supply-chain gap, and minor log noise.",
+  "suggested_fix": "Ship a real 1200x630 og-image.png (event branding); add the sha384 integrity hash to qrcode.min.js; drop a small favicon.ico. Effort: S.",
+  "finder": "user-frontend",
+  "confidence": "high",
+  "verdicts": [
+   {
+    "isReal": true,
+    "severity": "low",
+    "reasoning": "All three claims verified. (1) index.html:12 declares og:image=/og-image.png; the file exists nowhere in the repo and the live site returns 404 (the SPA catch-all in user-portal/backend/server.js explicitly 404s extension-bearing paths, so no fallback). Share previews for invitee links render imageless; additionally the relative URL would be invalid per OG spec even if the file existed. (2) index."
+   }
+  ]
+ },
+ {
+  "severity": "low",
+  "category": "security",
+  "file": "admin-portal/backend/server.js",
+  "line": 11968,
+  "title": "applicantAuth trusts JWT claims without re-loading the applicant; no login rate-limiting",
+  "evidence": "L11968 `applicantAuth` sets `req.applicant = decoded` directly from the JWT (L11980) and never re-checks the applicant still exists/is verified/active in the DB, so a deleted or revoked applicant keeps full access for the 7-day token lifetime (token L11945). Separately, `/api/applicant/login` (L11922) has no rate-limiting / lockout, enabling password brute-force. Positive note (not a bug): the applicantAuth-gated data routes \u2014 /applications L12020, PUT /applications/:id L12083, submit L12120, up",
+  "impact": "Minor: revoked applicants retain access until token expiry; login endpoint is brute-forceable. The core applicant ownership model is otherwise sound.",
+  "suggested_fix": "Re-fetch the applicant row in applicantAuth and reject if missing/unverified; add rate-limiting/lockout to /api/applicant/login (and /register to prevent email-bombing via the verification send).",
+  "finder": "gap:Accelerator subsystem \u2014 IDOR + applicant identity + magic-link interview tokens (whole subsystem, never access-control-audited)",
+  "confidence": "medium",
+  "verdicts": []
+ },
+ {
+  "severity": "low",
+  "category": "security",
+  "file": "user-portal/backend/server.js",
+  "line": 7620,
+  "title": "Forum read routes ungated for non-forum-members (posts feed, groups list, connections-less reads)",
+  "evidence": "GET /api/forum/posts (L7620) and GET /api/forum/groups (L7519) require only `auth` (any JWT) with no `membership_status='approved'` check, unlike write routes (e.g. L7654, L7541) which gate on approved membership. A user who never applied/was approved to the Forum can read the members-only feed and full group list. (Write paths are correctly gated, and forum_messages/forum_conversations DM tables exist in schema (L2115/L2130) but expose NO user route, so private DMs are not reachable \u2014 noted as ",
+  "impact": "Members-only forum content (post feed, group catalog) is visible to any registered account regardless of forum approval status; minor confidentiality/scope creep, and the enumeration primitive that the higher-severity group-messages IDOR depends on.",
+  "suggested_fix": "If the Forum is intended members-only, add the approved-member gate to these GET routes (consistent with the write routes); otherwise document that read access is intentionally open to all authenticated users.",
+  "finder": "gap:Forum subsystem (30 tables) \u2014 user-generated content stored XSS + group/conversation access-control IDOR",
+  "confidence": "medium",
+  "verdicts": []
+ },
+ {
+  "severity": "low",
+  "category": "bug",
+  "file": "user-portal/backend/server.js",
+  "line": 16235,
+  "title": "PUT /api/networking/meetings/:id reports success even when no row is updated (non-participant / unknown id)",
+  "evidence": "L16238-16241 `db.run('UPDATE networking_meetings SET status = ? WHERE id = ? AND (organizer_id = ? OR attendee_id = ?)', [status, req.params.id, req.user.id, req.user.id]); saveDb(); res.json({ success: true });`. The ownership predicate is enforced in SQL (so a non-participant cannot actually change the row \u2014 no IDOR), but the response is an unconditional success regardless of rows affected.",
+  "impact": "A non-participant who cancels/confirms someone else's meeting, or any caller passing a non-existent meeting id, receives `{success:true}` while nothing changed \u2014 a misleading false-positive that can confuse the UI and mask bugs. Contrast with PUT /api/networking/connections/:id (L16196), which does ",
+  "suggested_fix": "Fetch the row first and 404 if the caller is not a participant, or check getRowsModified()===0 and return 404; only then return success.",
+  "finder": "gap:Networking & direct-messaging privacy (connections, meetings, profiles) \u2014 user journey never tested for IDOR/visibility",
+  "confidence": "high",
+  "verdicts": []
+ },
+ {
+  "severity": "low",
+  "category": "bug",
+  "file": "user-portal/backend/server.js",
+  "line": 5224,
+  "title": "Duplicate legacy abstract routes diverge from the canonical Plexus routes (no deadline/conference validation)",
+  "evidence": "Two parallel abstract APIs exist. Legacy: L5224 app.post('/api/abstracts', auth, ...) inserts directly with no conference-existence check and no deadline check; L5240 GET /api/abstracts/my; L5249 POST /api/abstracts/:id/withdraw. Canonical Plexus: the submit route at ~L11690 enforces the deadline (L11701-11704 `if (new Date() > new Date(conf.abstract_deadline)) return res.status(400)...`) and notifies PR; L11742 GET /api/plexus/my-abstracts; L11770 POST /api/plexus/abstracts/:id/withdraw. Owners",
+  "impact": "The legacy POST /api/abstracts bypasses the submission-deadline and conference validation that the canonical route enforces, so an abstract can be created after the deadline / against an arbitrary conference_id if that endpoint is reachable. Dual divergent routes are a maintenance hazard (a fix to o",
+  "suggested_fix": "Remove the legacy /api/abstracts trio (or make them thin aliases that delegate to the Plexus handlers) so deadline/conference validation is enforced uniformly.",
+  "finder": "gap:Abstract & speaker submission subsystem \u2014 conference academic core (uploads, reviews, reviewer assignment) never audited",
+  "confidence": "medium",
+  "verdicts": []
+ },
+ {
+  "severity": "low",
+  "category": "config",
+  "file": "admin-portal/backend/server.js",
+  "line": 755,
+  "title": "Admin portal has no password-reset flow; admins depend on the user portal over the shared DB",
+  "evidence": "The admin backend declares the reset columns but registers no route to use them: schema L753-756 `email_verified INTEGER ...`, `verification_token TEXT`, `reset_token TEXT`, `reset_token_expires TEXT`. Grep for app.post/app.get forgot/reset/password in admin-portal/backend/server.js returns only L16768 `/api/admin/tech/verify-password` (unrelated). Admin login requires `is_admin` (L5294-5295). The only working forgot/reset routes live in the user portal (user L5004, L5102) against the same share",
+  "impact": "An admin who forgets their password must use the user-portal forgot-password page; there is no admin-side reset. Because both backends share one Turso DB and the user-portal reset looks up by reset_token in the shared users table, this functions, but it is non-obvious operational coupling: the admin",
+  "suggested_fix": "Document the cross-portal reset dependency, or add a thin admin forgot/reset route (reusing the same shared-DB token columns) so admin account recovery does not silently depend on the user portal being deployed and reachable.",
+  "finder": "gap:Account lifecycle \u2014 password reset & email verification edge cases (no session invalidation, verified-flag side effect, enumeration)",
+  "confidence": "high",
+  "verdicts": []
+ }
+]
