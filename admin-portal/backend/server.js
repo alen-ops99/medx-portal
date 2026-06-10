@@ -7500,7 +7500,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Download individual document
-    app.get('/api/accelerator/documents/:docId/download', auth, (req, res) => {
+    app.get('/api/accelerator/documents/:docId/download', auth, adminOnly, (req, res) => {
         const doc = query.get('SELECT * FROM accelerator_documents WHERE id = ?', [req.params.docId]);
         if (!doc) return res.status(404).json({ error: 'Document not found' });
 
@@ -7513,7 +7513,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Get all documents for an application
-    app.get('/api/accelerator/applications/:id/documents', auth, (req, res) => {
+    app.get('/api/accelerator/applications/:id/documents', auth, adminOnly, (req, res) => {
         const docs = query.all(`
             SELECT id, document_type, original_filename, file_name, file_size, mime_type, uploaded_at, verified
             FROM accelerator_documents

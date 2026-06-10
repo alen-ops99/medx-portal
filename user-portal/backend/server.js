@@ -1691,13 +1691,24 @@ function watchSharedDb() {
 }
 
 // Auth middleware
+// Returns true if a token issued at `iatSeconds` predates the user's last password change
+// (i.e. the session should be considered revoked).
+function tokenPredatesPasswordChange(user, iatSeconds) {
+    if (!user || !user.password_changed_at || !iatSeconds) return false;
+    const changedMs = new Date(user.password_changed_at).getTime();
+    if (Number.isNaN(changedMs)) return false;
+    // 10s skew tolerance: JWT iat is floored to whole seconds, so a login token issued in
+    // the same second as the reset must not be wrongly rejected.
+    return iatSeconds * 1000 < changedMs - 10000;
+}
+
 function auth(req, res, next) {
     const token = req.headers.authorization?.replace('Bearer ', '');
     if (token && token !== 'auto-login') {
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            const user = query.get("SELECT id, email, is_admin FROM users WHERE id = ?", [decoded.id]);
-            if (user) { req.user = user; return next(); }
+            const user = query.get("SELECT id, email, is_admin, password_changed_at FROM users WHERE id = ?", [decoded.id]);
+            if (user && !tokenPredatesPasswordChange(user, decoded.iat)) { req.user = user; return next(); }
         } catch(e) { /* token invalid/expired */ }
     }
     // Dev fallback — only in explicit development mode
@@ -1714,8 +1725,8 @@ function optionalAuth(req, res, next) {
     if (token && token !== 'auto-login') {
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            const user = query.get("SELECT id, email, is_admin FROM users WHERE id = ?", [decoded.id]);
-            if (user) { req.user = user; return next(); }
+            const user = query.get("SELECT id, email, is_admin, password_changed_at FROM users WHERE id = ?", [decoded.id]);
+            if (user && !tokenPredatesPasswordChange(user, decoded.iat)) { req.user = user; return next(); }
         } catch(e) { /* token invalid/expired */ }
     }
     // Dev fallback — only fires when a token was actually presented (signal that the
@@ -1760,6 +1771,9 @@ async function initializeApp() {
     // Email verification columns (migration — safe to re-run)
     try { db.run('ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0'); } catch (e) { /* column may already exist */ }
     try { db.run('ALTER TABLE users ADD COLUMN verification_token TEXT'); } catch (e) { /* column may already exist */ }
+    // Set on password change/reset; auth rejects JWTs issued before this time so a reset
+    // (or password change) invalidates all existing sessions — account-recovery hardening.
+    try { db.run('ALTER TABLE users ADD COLUMN password_changed_at TEXT'); } catch (e) { /* column may already exist */ }
 
     db.run(`CREATE TABLE IF NOT EXISTS conferences (
         id TEXT PRIMARY KEY, name TEXT NOT NULL, year INTEGER, slug TEXT UNIQUE,
@@ -5286,7 +5300,8 @@ async function submitReset(e){
             }
 
             const newHash = await bcrypt.hash(new_password, 10);
-            db.run('UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL, email_verified = 1 WHERE id = ?', [newHash, user.id]);
+            // password_changed_at invalidates any JWT issued before now (see auth middleware)
+            db.run('UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL, email_verified = 1, password_changed_at = ? WHERE id = ?', [newHash, new Date().toISOString(), user.id]);
             saveDb();
             console.log(`[Auth] Password reset completed for ${user.email}`);
             res.json({ success: true, message: 'Password updated. You can now sign in.' });
@@ -7745,6 +7760,13 @@ By applying to this program, I provide the following consents:
     // Get group members
     app.get('/api/forum/groups/:id/members', auth, (req, res) => {
         try {
+            // Only group members (or admins) may see the group's roster.
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
+            if (!currentMember && !req.user.is_admin) return res.status(403).json({ error: 'Forum membership required' });
+            if (!req.user.is_admin) {
+                const isMember = query.get(`SELECT id FROM forum_group_members WHERE group_id = ? AND member_id = ?`, [req.params.id, currentMember.id]);
+                if (!isMember) return res.status(403).json({ error: 'Group membership required' });
+            }
             const members = query.all(`
                 SELECT fm.id, fm.photo_url, u.first_name, u.last_name, fm.specialty, fm.institution, fgm.joined_at
                 FROM forum_group_members fgm
@@ -7760,6 +7782,14 @@ By applying to this program, I provide the following consents:
     // Get group messages
     app.get('/api/forum/groups/:id/messages', auth, (req, res) => {
         try {
+            // Mirror the POST handler's gating: only approved forum members who belong to
+            // this group may read its private chat (was readable by any authenticated user).
+            const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
+            if (!currentMember && !req.user.is_admin) return res.status(403).json({ error: 'Forum membership required' });
+            if (!req.user.is_admin) {
+                const isMember = query.get(`SELECT id FROM forum_group_members WHERE group_id = ? AND member_id = ?`, [req.params.id, currentMember.id]);
+                if (!isMember) return res.status(403).json({ error: 'Group membership required' });
+            }
             const messages = query.all(`
                 SELECT fgm.*, u.first_name || ' ' || u.last_name as sender_name
                 FROM forum_group_messages fgm
