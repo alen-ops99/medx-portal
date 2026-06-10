@@ -3015,29 +3015,43 @@ async function initializeApp() {
             value TEXT,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         )`);
+        // Scoped to TEST-TAGGED rows only (see user-portal server.js for rationale) — a
+        // blanket DELETE would erase real paid guests on a fresh DB / marker-less replica.
+        const TEST_GALA_WHERE = "WHERE COALESCE(requests,'') LIKE '%TEST%' OR COALESCE(invoice_number,'') LIKE '%TEST%'";
+        const TEST_CA_WHERE = "WHERE COALESCE(notes,'') LIKE '%TEST%' OR COALESCE(invoice_number,'') LIKE '%TEST%'";
         const wipeMarker = query.get("SELECT value FROM app_state WHERE key = 'gala_test_wipe_2026_06_02'");
         if (!wipeMarker) {
-            const gCount = query.get("SELECT COUNT(*) as c FROM gala_registrations")?.c || 0;
-            const caCount = query.get("SELECT COUNT(*) as c FROM croatians_abroad_registrations")?.c || 0;
-            db.run("DELETE FROM gala_registrations");
-            db.run("DELETE FROM croatians_abroad_registrations");
-            db.run("UPDATE gala_invite_links SET used_count = 0");
-            try { db.run("UPDATE croatians_abroad_invite_links SET used_count = 0"); } catch(e) {}
+            const gCount = query.get(`SELECT COUNT(*) as c FROM gala_registrations ${TEST_GALA_WHERE}`)?.c || 0;
+            const caCount = query.get(`SELECT COUNT(*) as c FROM croatians_abroad_registrations ${TEST_CA_WHERE}`)?.c || 0;
+            db.run(`DELETE FROM gala_registrations ${TEST_GALA_WHERE}`);
+            db.run(`DELETE FROM croatians_abroad_registrations ${TEST_CA_WHERE}`);
             db.run("INSERT INTO app_state (key, value, updated_at) VALUES ('gala_test_wipe_2026_06_02', ?, ?)",
                 [`gala_registrations:${gCount},croatians_abroad_registrations:${caCount}`, new Date().toISOString()]);
-            console.log(`[wipe] Pre-launch test data cleared: ${gCount} gala + ${caCount} croatians_abroad registrations removed; invite-link used_count reset to 0.`);
+            console.log(`[wipe] Test-tagged data cleared: ${gCount} gala + ${caCount} croatians_abroad rows.`);
         }
         const wipeMarkerV2 = query.get("SELECT value FROM app_state WHERE key = 'gala_test_wipe_2026_06_03_v2'");
         if (!wipeMarkerV2) {
-            const gCount2 = query.get("SELECT COUNT(*) as c FROM gala_registrations")?.c || 0;
-            const caCount2 = query.get("SELECT COUNT(*) as c FROM croatians_abroad_registrations")?.c || 0;
-            db.run("DELETE FROM gala_registrations");
-            db.run("DELETE FROM croatians_abroad_registrations");
-            db.run("UPDATE gala_invite_links SET used_count = 0");
-            try { db.run("UPDATE croatians_abroad_invite_links SET used_count = 0"); } catch(e) {}
+            const gCount2 = query.get(`SELECT COUNT(*) as c FROM gala_registrations ${TEST_GALA_WHERE}`)?.c || 0;
+            const caCount2 = query.get(`SELECT COUNT(*) as c FROM croatians_abroad_registrations ${TEST_CA_WHERE}`)?.c || 0;
+            db.run(`DELETE FROM gala_registrations ${TEST_GALA_WHERE}`);
+            db.run(`DELETE FROM croatians_abroad_registrations ${TEST_CA_WHERE}`);
             db.run("INSERT INTO app_state (key, value, updated_at) VALUES ('gala_test_wipe_2026_06_03_v2', ?, ?)",
                 [`gala_registrations:${gCount2},croatians_abroad_registrations:${caCount2}`, new Date().toISOString()]);
-            console.log(`[wipe v2] Re-cleared test data: ${gCount2} gala + ${caCount2} croatians_abroad registrations removed.`);
+            console.log(`[wipe v2] Test-tagged data cleared: ${gCount2} gala + ${caCount2} croatians_abroad rows.`);
+        }
+        // Retire the old auto-seeded demo gala guests (8 fake VIPs incl. real public-figure
+        // names that re-appeared on the live dashboard after each wipe). One-time, marker-gated.
+        // Deletes only the exact seed rows (seed sentinel created_at + known emails) so a real
+        // future registrant sharing an email is never touched.
+        const galaSeedMarker = query.get("SELECT value FROM app_state WHERE key = 'gala_demo_seed_v1'");
+        if (!galaSeedMarker) {
+            const SEED_GALA_EMAILS = ['dragan.primorac@stcatherine.hr','miroslav.radman@inserm.fr','sarah.mitchell@hms.harvard.edu','michael.chen@mdanderson.org','elena.rossi@novartis.com','ana.kovacevic@mef.hr','hmueller@charite.de','ytanaka@keio.jp'];
+            try {
+                const ph = SEED_GALA_EMAILS.map(() => '?').join(',');
+                db.run(`DELETE FROM gala_registrations WHERE created_at = '2026-01-20' AND email IN (${ph})`, SEED_GALA_EMAILS);
+            } catch(e) { console.warn('[gala demo cleanup]', e.message); }
+            db.run("INSERT INTO app_state (key, value, updated_at) VALUES ('gala_demo_seed_v1', 'cleaned', ?)", [new Date().toISOString()]);
+            console.log('[gala] Demo guest seed retired.');
         }
     } catch(e) { console.warn('[wipe] Test-data wipe failed:', e.message); }
 
@@ -4868,9 +4882,18 @@ async function initializeApp() {
 
     // ========================================
     // MIGRATE: Replace Croatian placeholder Bridges events with real events
+    // ONE-TIME via marker. Without the marker this re-ran on every cold start and would
+    // DELETE a real future Zagreb/Split Bridges event (and its registrations) — e.g. the
+    // Plexus Croatians-Abroad Bridges day once an admin creates it.
     // ========================================
+    db.run(`CREATE TABLE IF NOT EXISTS app_state (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)`);
+    const bridgesMigrationDone = query.get("SELECT value FROM app_state WHERE key = 'bridges_placeholder_migration_done'");
+    // Only ever run on a truly un-migrated legacy DB: marker unset AND none of the real
+    // replacement events present yet. Once Zurich/DC/Boston exist (or the marker is set),
+    // this never deletes again — so a real future Zagreb/Split Bridges event is safe.
+    const realBridgesExist = query.get("SELECT id FROM bridges_events WHERE city IN ('Zurich','Washington DC','Boston') LIMIT 1");
     const placeholderCities = ['Zagreb', 'Split', 'Rijeka', 'Osijek'];
-    const hasPlaceholders = query.get(
+    const hasPlaceholders = !bridgesMigrationDone && !realBridgesExist && query.get(
         `SELECT id FROM bridges_events WHERE city IN (${placeholderCities.map(() => '?').join(',')})`,
         placeholderCities
     );
@@ -4891,8 +4914,12 @@ async function initializeApp() {
                 [uuidv4(), e.name, e.city, e.venue_name, e.venue_address, e.event_date, e.event_time, e.end_time, e.description, e.capacity, e.registration_deadline, e.contact_email, e.status, e.is_published]);
         });
 
+        db.run("INSERT OR REPLACE INTO app_state (key, value, updated_at) VALUES ('bridges_placeholder_migration_done', '1', ?)", [new Date().toISOString()]);
         saveDb();
         console.log('Migrated: Replaced Croatian placeholder Bridges events with real events (Zurich, Washington DC, Boston)');
+    } else if (!bridgesMigrationDone) {
+        // Nothing to migrate on this DB — still set the marker so the destructive city-delete never runs later.
+        db.run("INSERT OR REPLACE INTO app_state (key, value, updated_at) VALUES ('bridges_placeholder_migration_done', '1', ?)", [new Date().toISOString()]);
     }
 
     // ========================================
@@ -5166,6 +5193,9 @@ async function initializeApp() {
     // ========================================
     let pendingExists = query.get("SELECT id FROM refund_requests LIMIT 1");
     if (!pendingExists) {
+      // Demo dashboard data. Wrapped so a placeholder FK violation (these reference
+      // non-existent registration ids) can't abort the whole boot on a fresh DB.
+      try {
         const confRow = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
         const cid = confRow ? confRow.id : 'conf-placeholder';
 
@@ -5190,6 +5220,7 @@ async function initializeApp() {
 
         saveDb();
         console.log('Pending items seeded');
+      } catch (e) { console.warn('[seed] Pending-items demo seed skipped:', e.message); }
     }
 
     // ========================================
@@ -5197,6 +5228,7 @@ async function initializeApp() {
     // ========================================
     let chatMsgExists = query.get("SELECT id FROM chat_messages LIMIT 1");
     if (!chatMsgExists) {
+      try {
         const generalCh = query.get("SELECT id FROM chat_channels WHERE name = 'general'");
         const plexusCh = query.get("SELECT id FROM chat_channels WHERE name = 'plexus-program'") || query.get("SELECT id FROM chat_channels WHERE name LIKE '%plexus%' LIMIT 1");
         const accCh = query.get("SELECT id FROM chat_channels WHERE name LIKE '%accelerator%' LIMIT 1") || query.get("SELECT id FROM chat_channels WHERE name LIKE '%applic%' LIMIT 1");
@@ -5237,32 +5269,11 @@ async function initializeApp() {
             saveDb();
             console.log('Chat messages seeded');
         }
+      } catch (e) { console.warn('[seed] Chat-messages demo seed skipped:', e.message); }
     }
 
-    // ========================================
-    // SEED GALA REGISTRATIONS
-    // ========================================
-    let galaExists = query.get("SELECT id FROM gala_registrations LIMIT 1");
-    if (!galaExists) {
-        const galaGuests = [
-            { first: 'Dragan', last: 'Primorac', email: 'dragan.primorac@stcatherine.hr', inst: 'St. Catherine Hospital', title: 'Prof. MD PhD', dietary: 'none', pricing: 'vip', status: 'confirmed' },
-            { first: 'Miroslav', last: 'Radman', email: 'miroslav.radman@inserm.fr', inst: 'MedILS', title: 'Prof.', dietary: 'vegetarian', pricing: 'vip', status: 'confirmed' },
-            { first: 'Sarah', last: 'Mitchell', email: 'sarah.mitchell@hms.harvard.edu', inst: 'Harvard Medical School', title: 'MD PhD', dietary: 'gluten-free', pricing: 'speaker', status: 'confirmed' },
-            { first: 'Michael', last: 'Chen', email: 'michael.chen@mdanderson.org', inst: 'MD Anderson', title: 'Prof. MD', dietary: 'none', pricing: 'speaker', status: 'confirmed' },
-            { first: 'Elena', last: 'Rossi', email: 'elena.rossi@novartis.com', inst: 'Novartis', title: 'PhD', dietary: 'vegan', pricing: 'sponsor', status: 'pending' },
-            { first: 'Ana', last: 'Kovacevic', email: 'ana.kovacevic@mef.hr', inst: 'Zagreb Medical School', title: 'MD', dietary: 'none', pricing: 'general', status: 'pending' },
-            { first: 'Hans', last: 'Mueller', email: 'hmueller@charite.de', inst: 'Charite Berlin', title: 'Prof. MD PhD', dietary: 'none', pricing: 'general', status: 'confirmed' },
-            { first: 'Yuki', last: 'Tanaka', email: 'ytanaka@keio.jp', inst: 'Keio University', title: 'PhD', dietary: 'pescatarian', pricing: 'general', status: 'pending' }
-        ];
-
-        galaGuests.forEach(g => {
-            db.run(`INSERT INTO gala_registrations (id, first_name, last_name, email, institution, title, dietary, pricing, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '2026-01-20')`,
-                [uuidv4(), g.first, g.last, g.email, g.inst, g.title, g.dietary, g.pricing, g.status]);
-        });
-
-        saveDb();
-        console.log('Gala registrations seeded');
-    }
+    // (Gala demo-guest cleanup moved up to the early test-data-wipe block so it always runs,
+    //  independent of the failure-prone demo seeds between here and there.)
 
     // ========================================
     // SEED ACCELERATOR APPLICATIONS

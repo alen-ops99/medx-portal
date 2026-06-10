@@ -4042,31 +4042,31 @@ async function initializeApp() {
             value TEXT,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         )`);
+        // These wipes already ran in production (markers present). They are scoped to
+        // TEST-TAGGED rows only — a blanket DELETE here would erase real paid guests if it
+        // ever ran against a fresh DB or a Turso replica that lost the marker. Real
+        // registrations never carry these tags.
+        const TEST_GALA_WHERE = "WHERE COALESCE(requests,'') LIKE '%TEST%' OR COALESCE(invoice_number,'') LIKE '%TEST%' OR COALESCE(invoice_number,'') LIKE '%CA-GALA-TEST%'";
+        const TEST_CA_WHERE = "WHERE COALESCE(notes,'') LIKE '%TEST%' OR COALESCE(invoice_number,'') LIKE '%TEST%'";
         const wipeMarker = query.get("SELECT value FROM app_state WHERE key = 'gala_test_wipe_2026_06_02'");
         if (!wipeMarker) {
-            const gCount = query.get("SELECT COUNT(*) as c FROM gala_registrations")?.c || 0;
-            const caCount = query.get("SELECT COUNT(*) as c FROM croatians_abroad_registrations")?.c || 0;
-            db.run("DELETE FROM gala_registrations");
-            db.run("DELETE FROM croatians_abroad_registrations");
-            db.run("UPDATE gala_invite_links SET used_count = 0");
-            try { db.run("UPDATE croatians_abroad_invite_links SET used_count = 0"); } catch(e) {}
+            const gCount = query.get(`SELECT COUNT(*) as c FROM gala_registrations ${TEST_GALA_WHERE}`)?.c || 0;
+            const caCount = query.get(`SELECT COUNT(*) as c FROM croatians_abroad_registrations ${TEST_CA_WHERE}`)?.c || 0;
+            db.run(`DELETE FROM gala_registrations ${TEST_GALA_WHERE}`);
+            db.run(`DELETE FROM croatians_abroad_registrations ${TEST_CA_WHERE}`);
             db.run("INSERT INTO app_state (key, value, updated_at) VALUES ('gala_test_wipe_2026_06_02', ?, ?)",
                 [`gala_registrations:${gCount},croatians_abroad_registrations:${caCount}`, new Date().toISOString()]);
-            console.log(`[wipe] Pre-launch test data cleared: ${gCount} gala + ${caCount} croatians_abroad registrations removed; invite-link used_count reset to 0.`);
+            console.log(`[wipe] Test-tagged data cleared: ${gCount} gala + ${caCount} croatians_abroad rows.`);
         }
-        // SECOND WIPE — runs again on next deploy to clear ghost test rows accumulated from
-        // repeated 'Send Bundle Test' clicks since the first wipe ran. Marker key has _v2 suffix.
         const wipeMarkerV2 = query.get("SELECT value FROM app_state WHERE key = 'gala_test_wipe_2026_06_03_v2'");
         if (!wipeMarkerV2) {
-            const gCount2 = query.get("SELECT COUNT(*) as c FROM gala_registrations")?.c || 0;
-            const caCount2 = query.get("SELECT COUNT(*) as c FROM croatians_abroad_registrations")?.c || 0;
-            db.run("DELETE FROM gala_registrations");
-            db.run("DELETE FROM croatians_abroad_registrations");
-            db.run("UPDATE gala_invite_links SET used_count = 0");
-            try { db.run("UPDATE croatians_abroad_invite_links SET used_count = 0"); } catch(e) {}
+            const gCount2 = query.get(`SELECT COUNT(*) as c FROM gala_registrations ${TEST_GALA_WHERE}`)?.c || 0;
+            const caCount2 = query.get(`SELECT COUNT(*) as c FROM croatians_abroad_registrations ${TEST_CA_WHERE}`)?.c || 0;
+            db.run(`DELETE FROM gala_registrations ${TEST_GALA_WHERE}`);
+            db.run(`DELETE FROM croatians_abroad_registrations ${TEST_CA_WHERE}`);
             db.run("INSERT INTO app_state (key, value, updated_at) VALUES ('gala_test_wipe_2026_06_03_v2', ?, ?)",
                 [`gala_registrations:${gCount2},croatians_abroad_registrations:${caCount2}`, new Date().toISOString()]);
-            console.log(`[wipe v2] Re-cleared test data: ${gCount2} gala + ${caCount2} croatians_abroad registrations removed.`);
+            console.log(`[wipe v2] Test-tagged data cleared: ${gCount2} gala + ${caCount2} croatians_abroad rows.`);
         }
         // 2026 event-detail seeding (only updates values still at legacy defaults; never overrides admin edits)
         if (galaRow && (galaRow.time === '18:00' || galaRow.time == null)) {
