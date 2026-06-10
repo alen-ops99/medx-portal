@@ -59,9 +59,14 @@ async function sendEmail(to, subject, htmlContent, attachments) {
     // Option 0: SendGrid (works on Render, no domain verification needed)
     if (process.env.SENDGRID_API_KEY) {
         try {
+            // Honor EMAIL_FROM ("Med&X <noreply@medx.hr>") instead of a hardcoded personal
+            // Gmail. Parse the address out of the "Name <email>" form; fall back to SMTP_USER.
+            const fromMatch = /<([^>]+)>/.exec(fromAddress);
+            const sgFromEmail = (fromMatch && fromMatch[1]) || process.env.SMTP_USER || 'onboarding@resend.dev';
+            const sgFromName = fromAddress.replace(/<[^>]*>/, '').trim() || 'Med&X';
             const sgBody = {
                 personalizations: [{ to: [{ email: to }] }],
-                from: { email: process.env.SMTP_USER || 'juginovic.alen@gmail.com', name: 'Med&X' },
+                from: { email: sgFromEmail, name: sgFromName },
                 subject,
                 content: [{ type: 'text/html', value: htmlContent }]
             };
@@ -11375,7 +11380,7 @@ By applying to this program, I provide the following consents:
                                     registration_id: caRegId,
                                     invoice: invoiceNumber
                                 })
-                            }).catch(() => {});
+                            }).catch(err => console.warn('[Sync] external POST (Sheets/admin) failed:', err.message));
                         }
                     } catch(e) {}
 
@@ -11504,7 +11509,7 @@ By applying to this program, I provide the following consents:
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ timestamp: new Date().toISOString(), events, name: (metadata.first_name || '') + ' ' + (metadata.last_name || ''), email: invEmail, institution: '', event: metadata.event_name || invEventType, event_type: invEventType, items: metadata.items || '', guests: metadata.guest_count || 0, dietary: metadata.dietary || '', allergies: metadata.allergies || '', amount, payment: 'Paid', coupon: metadata.coupon_code || '', discount: metadata.discount_amount || '0', registration_id: invRegId })
-                            }).catch(() => {});
+                            }).catch(err => console.warn('[Sync] external POST (Sheets/admin) failed:', err.message));
                         }
                     } catch(e) {}
                 } catch(dbErr) {
@@ -17792,7 +17797,7 @@ By applying to this program, I provide the following consents:
                                 invite_label: caInvite?.label || '',
                                 registration_id: regId
                             })
-                        }).catch(() => {});
+                        }).catch(err => console.warn('[Sync] external POST (Sheets/admin) failed:', err.message));
                     }
                 } catch(e) {}
 
@@ -18103,7 +18108,7 @@ By applying to this program, I provide the following consents:
                                 invite_label: galaInviteRowSheet?.label || '',
                                 registration_id: regId
                             })
-                        }).catch(() => {});
+                        }).catch(err => console.warn('[Sync] external POST (Sheets/admin) failed:', err.message));
                     }
                 } catch(e) {}
 
@@ -18132,7 +18137,7 @@ By applying to this program, I provide the following consents:
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ timestamp: new Date().toISOString(), name: first_name + ' ' + last_name, email, institution: institution || '', event: event_name || event_type, items: (package_items || []).join(', '), guests: guest_count || 0, dietary: dietary || '', allergies: allergies || '', amount: 0, payment: 'Free', registration_id: regId })
-                        }).catch(() => {});
+                        }).catch(err => console.warn('[Sync] external POST (Sheets/admin) failed:', err.message));
                     }
                 } catch(e) {}
             }
