@@ -339,7 +339,7 @@ function auth(req, res, next) {
     if (token && token !== 'auto-login') {
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            const user = query.get("SELECT id, email, is_admin FROM users WHERE id = ?", [decoded.id]);
+            const user = query.get("SELECT id, email, is_admin, is_staff FROM users WHERE id = ?", [decoded.id]);
             if (user) { req.user = user; return next(); }
         } catch(e) { /* token invalid/expired */ }
     }
@@ -357,7 +357,7 @@ function optionalAuth(req, res, next) {
     if (token && token !== 'auto-login') {
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            const user = query.get("SELECT id, email, is_admin FROM users WHERE id = ?", [decoded.id]);
+            const user = query.get("SELECT id, email, is_admin, is_staff FROM users WHERE id = ?", [decoded.id]);
             if (user) { req.user = user; return next(); }
         } catch(e) { /* token invalid/expired */ }
     }
@@ -375,6 +375,13 @@ function optionalAuth(req, res, next) {
 function adminOnly(req, res, next) {
     if (!req.user?.is_admin) return res.status(403).json({ error: 'Admin only' });
     next();
+}
+
+// Allows full admins AND scanner staff. Used for check-in/scanner + read-only ops views.
+// Everything NOT wrapped in this stays adminOnly, so staff can't reach settings/finance/delete.
+function staffOrAdmin(req, res, next) {
+    if (req.user?.is_admin || req.user?.is_staff) return next();
+    return res.status(403).json({ error: 'Staff or admin access required' });
 }
 
 // Record a consequential admin action. Best-effort — never throws into the request path.
@@ -405,6 +412,9 @@ async function initializeApp() {
         bio TEXT, photo_url TEXT, is_admin INTEGER DEFAULT 0, is_public_profile INTEGER DEFAULT 1,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+    // Role separation: is_staff = scanner + read-only access (no settings/finance/delete).
+    // Existing is_admin users keep full super-admin access; is_staff is an explicit, narrower grant.
+    try { db.run('ALTER TABLE users ADD COLUMN is_staff INTEGER DEFAULT 0'); } catch (e) { /* may exist */ }
 
     db.run(`CREATE TABLE IF NOT EXISTS conferences (
         id TEXT PRIMARY KEY, name TEXT NOT NULL, year INTEGER, slug TEXT UNIQUE,
@@ -5376,11 +5386,11 @@ async function initializeApp() {
             if (!user || !(await bcrypt.compare(password, user.password_hash))) {
                 return res.status(401).json({ error: 'Invalid credentials' });
             }
-            if (!user.is_admin) {
+            if (!user.is_admin && !user.is_staff) {
                 return res.status(403).json({ error: 'Admin access only. Please use the user portal.' });
             }
             const token = jwt.sign({ id: user.id, email: user.email, is_admin: user.is_admin }, JWT_SECRET, { expiresIn: '7d' });
-            res.json({ success: true, token, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name, institution: user.institution, is_admin: user.is_admin }});
+            res.json({ success: true, token, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name, institution: user.institution, is_admin: user.is_admin, is_staff: user.is_staff || 0 }});
         } catch (e) { console.error(e); res.status(500).json({ error: 'Login failed' }); }
     });
 
@@ -10617,7 +10627,7 @@ By applying to this program, I provide the following consents:
     // --- CHECK-IN (Admin/Staff) ---
 
     // Check in attendee by QR code — accepts { code } or { qr_data, registration_id }
-    app.post('/api/plexus/checkin', auth, adminOnly, (req, res) => {
+    app.post('/api/plexus/checkin', auth, staffOrAdmin, (req, res) => {
         const { qr_data, registration_id, code } = req.body;
 
         let regId = registration_id;
@@ -10691,7 +10701,7 @@ By applying to this program, I provide the following consents:
     //   { registration_id, type }     (profile card / forum list)
     // Previously there were two routes with this same path; the first shadowed the second,
     // so the gala case never ran and the global scanner's Undo always failed.
-    app.post('/api/checkin/undo', auth, adminOnly, (req, res) => {
+    app.post('/api/checkin/undo', auth, staffOrAdmin, (req, res) => {
         try {
             const id = req.body.id || req.body.registration_id;
             const event = req.body.event || req.body.type || 'plexus';
@@ -15992,7 +16002,7 @@ By applying to this program, I provide the following consents:
     });
 
     // ========== UNIVERSAL EVENT CHECK-IN VERIFY (mirror of user-portal endpoint) ==========
-    app.post('/api/admin/checkin/verify', auth, adminOnly, (req, res) => {
+    app.post('/api/admin/checkin/verify', auth, staffOrAdmin, (req, res) => {
         const { event, code, mark } = req.body || {};
         if (!event || !['gala', 'conference', 'bridges'].includes(event)) {
             return res.status(400).json({ valid: false, error: "event must be 'gala', 'conference', or 'bridges'" });
@@ -16279,7 +16289,7 @@ By applying to this program, I provide the following consents:
 
     // ========== GALA SCANNER — registration lookup by ID (for QR scanner) ==========
 
-    app.get('/api/admin/gala/scan/:regId', auth, adminOnly, (req, res) => {
+    app.get('/api/admin/gala/scan/:regId', auth, staffOrAdmin, (req, res) => {
         const reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [req.params.regId]);
         if (!reg) return res.status(404).json({ error: 'Registration not found', regId: req.params.regId });
         let inviteLabel = null;
@@ -16307,7 +16317,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Gala check-in
-    app.post('/api/admin/gala/checkin', auth, adminOnly, (req, res) => {
+    app.post('/api/admin/gala/checkin', auth, staffOrAdmin, (req, res) => {
         const { code } = req.body;
         if (!code) return res.status(400).json({ error: 'No code provided' });
 
@@ -16327,7 +16337,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Forum check-in
-    app.post('/api/admin/forum/checkin', auth, adminOnly, (req, res) => {
+    app.post('/api/admin/forum/checkin', auth, staffOrAdmin, (req, res) => {
         const { code } = req.body;
         if (!code) return res.status(400).json({ error: 'No code provided' });
 
@@ -16341,7 +16351,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Bridges check-in
-    app.post('/api/admin/bridges/checkin', auth, adminOnly, (req, res) => {
+    app.post('/api/admin/bridges/checkin', auth, staffOrAdmin, (req, res) => {
         const { code } = req.body;
         if (!code) return res.status(400).json({ error: 'No code provided' });
 
@@ -16355,7 +16365,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Check-in stats — aggregated counts across all event tables
-    app.get('/api/checkin/stats', auth, adminOnly, (req, res) => {
+    app.get('/api/checkin/stats', auth, staffOrAdmin, (req, res) => {
         try {
             const plexus = query.get('SELECT COUNT(*) as total, COALESCE(SUM(checked_in), 0) as checked_in FROM registrations') || { total: 0, checked_in: 0 };
             const gala = query.get('SELECT COUNT(*) as total, COALESCE(SUM(checked_in), 0) as checked_in FROM gala_registrations') || { total: 0, checked_in: 0 };
@@ -16375,7 +16385,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Recent check-ins — last 10 across all events
-    app.get('/api/checkin/recent', auth, adminOnly, (req, res) => {
+    app.get('/api/checkin/recent', auth, staffOrAdmin, (req, res) => {
         try {
             const rows = query.all(`
                 SELECT id, first_name, last_name, email, checked_in_at, 'plexus' as event FROM registrations WHERE checked_in = 1 AND checked_in_at IS NOT NULL
@@ -16397,7 +16407,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Search attendees — cross-table name/email search
-    app.get('/api/checkin/search', auth, adminOnly, (req, res) => {
+    app.get('/api/checkin/search', auth, staffOrAdmin, (req, res) => {
         const q = (req.query.q || '').trim();
         if (!q || q.length < 2) return res.json([]);
         const like = `%${q}%`;
@@ -16430,7 +16440,7 @@ By applying to this program, I provide the following consents:
     //  shadowed by the unified handler above, which now covers all event types incl. gala.)
 
     // Universal check-in — detects event type from QR data, cascades through all event tables
-    app.post('/api/checkin', auth, adminOnly, (req, res) => {
+    app.post('/api/checkin', auth, staffOrAdmin, (req, res) => {
         const { code } = req.body;
         if (!code) return res.status(400).json({ error: 'No code provided' });
 
@@ -16954,7 +16964,7 @@ By applying to this program, I provide the following consents:
     // wrong before/during the event — like a cockpit preflight. Each check returns
     // { name, status: 'ok'|'warn'|'fail', detail, fix } and is wrapped so one failing
     // check never breaks the whole report. adminOnly (no techAuth) so staff can run it freely.
-    app.get('/api/admin/system-health', auth, adminOnly, (req, res) => {
+    app.get('/api/admin/system-health', auth, staffOrAdmin, (req, res) => {
         const groups = [];
         const today = new Date().toISOString().slice(0, 10);
         const PLACEHOLDER_IBANS = new Set(['HR1234567890123456789', 'HR12345678901', '']);
@@ -17214,6 +17224,49 @@ By applying to this program, I provide the following consents:
             const limit = Math.min(parseInt(req.query.limit) || 100, 500);
             res.json(query.all('SELECT actor_email, action, detail, created_at FROM audit_log ORDER BY created_at DESC LIMIT ?', [limit]));
         } catch (e) { res.json([]); }
+    });
+
+    // ==================== TEAM ACCESS (super-admin only) ====================
+    app.get('/api/admin/team', auth, adminOnly, (req, res) => {
+        try {
+            res.json(query.all("SELECT id, email, first_name, last_name, is_admin, is_staff FROM users WHERE is_admin = 1 OR is_staff = 1 ORDER BY is_admin DESC, email"));
+        } catch (e) { res.json([]); }
+    });
+
+    // Create or update a team member with a role. role: 'admin' (full) | 'staff' (scanner+view).
+    app.post('/api/admin/team/grant', auth, adminOnly, async (req, res) => {
+        try {
+            const { email, password, first_name, last_name, role } = req.body || {};
+            if (!email || !['admin', 'staff'].includes(role)) return res.status(400).json({ error: 'email and a valid role (admin|staff) are required' });
+            const isAdmin = role === 'admin' ? 1 : 0;
+            const isStaff = role === 'staff' ? 1 : 0;
+            let user = query.get('SELECT id FROM users WHERE email = ?', [email]);
+            if (user) {
+                db.run('UPDATE users SET is_admin = ?, is_staff = ? WHERE id = ?', [isAdmin, isStaff, user.id]);
+            } else {
+                if (!password || password.length < 6) return res.status(400).json({ error: 'A password (6+ chars) is required for a new team member' });
+                const id = uuidv4();
+                const hash = await bcrypt.hash(password, 10);
+                db.run('INSERT INTO users (id, email, password_hash, first_name, last_name, is_admin, is_staff) VALUES (?,?,?,?,?,?,?)',
+                    [id, email, hash, first_name || null, last_name || null, isAdmin, isStaff]);
+            }
+            saveDb();
+            logAudit(req, 'team.grant', `${email} → ${role}`);
+            res.json({ success: true });
+        } catch (e) { console.error('[Team] grant failed:', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Revoke all admin/staff access for an account.
+    app.post('/api/admin/team/revoke', auth, adminOnly, (req, res) => {
+        try {
+            const { email } = req.body || {};
+            if (!email) return res.status(400).json({ error: 'email required' });
+            if (email === req.user.email) return res.status(400).json({ error: 'You cannot revoke your own access.' });
+            db.run('UPDATE users SET is_admin = 0, is_staff = 0 WHERE email = ?', [email]);
+            saveDb();
+            logAudit(req, 'team.revoke', email);
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
     // ==================== TECH DASHBOARD ====================

@@ -6661,6 +6661,11 @@
                     <span>Audit Log</span>
                 </a>
 
+                <a class="nav-item" data-section="team" onclick="App.showSection('team', this)">
+                    <i class="fas fa-users-gear" style="color: #fbbf24;"></i>
+                    <span>Team Access</span>
+                </a>
+
                 <a class="nav-item" data-section="tech" onclick="App.showSection('tech', this)">
                     <i class="fas fa-server" style="color: #8b5cf6;"></i>
                     <span>Tech</span>
@@ -10894,6 +10899,24 @@ President, Med&amp;X</textarea>
                     <div id="confList"><div style="text-align:center;padding:30px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i></div></div>
                 </div>
 
+                <!-- TEAM ACCESS -->
+                <div class="section" id="section-team">
+                    <div class="back-link" onclick="App.showSection('dashboard')"><i class="fas fa-arrow-left"></i> Back to Dashboard</div>
+                    <h2 style="margin:0 0 6px;font-size:22px;display:flex;align-items:center;gap:10px;"><i class="fas fa-users-gear" style="color:#fbbf24;"></i> Team Access</h2>
+                    <p style="margin:0 0 18px;color:var(--text-muted);font-size:13px;"><strong>Admin</strong> = full access. <strong>Scanner staff</strong> = check-in tools + System Health only (no settings, finance, deletions). Add volunteers as staff so they can scan at the door without full access.</p>
+                    <div class="card" style="padding:18px;max-width:620px;margin-bottom:18px;">
+                        <h3 style="margin:0 0 12px;font-size:15px;">Add or update a team member</h3>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                            <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Email</label><input id="teamEmail" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
+                            <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">First name</label><input id="teamFirst" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
+                            <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Role</label><select id="teamRole" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"><option value="staff">Scanner staff</option><option value="admin">Full admin</option></select></div>
+                            <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Password <span style="color:var(--text-muted);">(new members only)</span></label><input id="teamPass" type="text" placeholder="6+ chars" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
+                        </div>
+                        <button class="btn btn-primary" style="margin-top:14px;" onclick="TeamApp.grant()"><i class="fas fa-user-plus"></i> Save member</button>
+                    </div>
+                    <div id="teamList"><div style="text-align:center;padding:24px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i></div></div>
+                </div>
+
                 <!-- AUDIT LOG -->
                 <div class="section" id="section-audit">
                     <div class="back-link" onclick="App.showSection('dashboard')"><i class="fas fa-arrow-left"></i> Back to Dashboard</div>
@@ -13272,12 +13295,34 @@ President, Med&amp;X</textarea>
                 document.getElementById('globalQRBtn').style.display = 'none';
             },
 
+            // Scanner-only staff (is_staff && !is_admin): hide every super-admin nav item so they
+            // only see what they can use. The backend also enforces this — this is just UX.
+            applyRoleRestrictions() {
+                const u = this.user || {};
+                const staffOnly = (u.is_staff && !u.is_admin);
+                if (!staffOnly) return;
+                document.body.classList.add('role-staff');
+                // Keep: Home + System Health + the global QR scanner. Hide the rest.
+                const allow = new Set(['health']);
+                document.querySelectorAll('.nav-item[data-section]').forEach(a => {
+                    const sec = a.getAttribute('data-section');
+                    if (!allow.has(sec)) a.style.display = 'none';
+                });
+                // Hide the dynamic projects list + the My Network button for staff.
+                const pl = document.getElementById('projectsList'); if (pl) pl.style.display = 'none';
+                const ns = document.getElementById('networkSection'); if (ns) ns.style.display = 'none';
+                // Surface the scanner prominently — the global QR button.
+                const fab = document.getElementById('globalQRBtn'); if (fab) fab.style.display = 'flex';
+                if (typeof Toast !== 'undefined') Toast.info('Signed in as scanner staff — check-in tools only.');
+            },
+
             async showApp() {
                 document.getElementById('loginPage').style.display = 'none';
                 document.getElementById('mainApp').classList.add('active');
                 // QR FAB starts hidden; shown only when navigating to Plexus section
                 document.getElementById('globalQRBtn').style.display = 'none';
                 this.updateFabBadge();
+                this.applyRoleRestrictions();
 
                 // Online/offline listeners for check-in queue
                 window.addEventListener('online', () => this.flushCheckinQueue());
@@ -15408,6 +15453,7 @@ President, Med&amp;X</textarea>
                     'conferences': 'Conferences',
                     'email-blast': 'Email Registrants',
                     'audit': 'Audit Log',
+                    'team': 'Team Access',
                     'health': 'System Health',
                     'tech': 'Tech Dashboard',
                     'settings': 'Settings'
@@ -15493,6 +15539,10 @@ President, Med&amp;X</textarea>
                     this.currentView = 'audit';
                     this.switchChatPanel('team');
                     if (typeof AuditApp !== 'undefined') AuditApp.load();
+                } else if (sectionId === 'team') {
+                    this.currentView = 'team';
+                    this.switchChatPanel('team');
+                    if (typeof TeamApp !== 'undefined') TeamApp.load();
                 } else if (sectionId === 'health') {
                     this.currentView = 'health';
                     this.switchChatPanel('team');
@@ -30256,6 +30306,47 @@ By applying to this program, I give the following consents:
                     URL.revokeObjectURL(url);
                     Toast.success(`${data.count} ${event} emails exported`);
                 } catch (err) { Toast.error('Export failed'); }
+            }
+        };
+
+        // ==================== TEAM ACCESS ====================
+        const TeamApp = {
+            esc(s) { return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); },
+            async load() {
+                const el = document.getElementById('teamList');
+                try {
+                    const res = await fetch('/api/admin/team', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    const rows = await res.json();
+                    el.innerHTML = '<div class="card" style="padding:0;overflow:hidden;">' + (rows.length ? rows.map(r => {
+                        const isAdmin = r.is_admin === 1 || r.is_admin === '1';
+                        const badge = isAdmin ? '<span style="font-size:10px;font-weight:700;color:#22c55e;border:1px solid rgba(34,197,94,0.4);border-radius:20px;padding:2px 8px;">ADMIN</span>' : '<span style="font-size:10px;font-weight:700;color:#fbbf24;border:1px solid rgba(251,191,36,0.4);border-radius:20px;padding:2px 8px;">SCANNER STAFF</span>';
+                        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);">
+                            <div><div style="font-weight:600;font-size:14px;">${this.esc((r.first_name || '') + ' ' + (r.last_name || '')) || this.esc(r.email)} ${badge}</div><div style="font-size:12px;color:var(--text-muted);">${this.esc(r.email)}</div></div>
+                            <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="TeamApp.revoke('${this.esc(r.email)}')"><i class="fas fa-user-slash"></i> Revoke</button>
+                        </div>`;
+                    }).join('') : '<div style="padding:18px;color:var(--text-muted);">No team members yet.</div>') + '</div>';
+                } catch (e) { el.innerHTML = '<div class="card" style="padding:16px;">Failed to load the team.</div>'; }
+            },
+            async grant() {
+                const email = document.getElementById('teamEmail').value.trim();
+                const first_name = document.getElementById('teamFirst').value.trim();
+                const role = document.getElementById('teamRole').value;
+                const password = document.getElementById('teamPass').value;
+                if (!email) { Toast.warning('Email required'); return; }
+                try {
+                    const res = await fetch('/api/admin/team/grant', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify({ email, first_name, role, password: password || undefined }) });
+                    const d = await res.json();
+                    if (d.success) { Toast.success('Saved ' + email + ' as ' + role); document.getElementById('teamEmail').value=''; document.getElementById('teamFirst').value=''; document.getElementById('teamPass').value=''; this.load(); }
+                    else Toast.error(d.error || 'Failed');
+                } catch (e) { Toast.error('Failed'); }
+            },
+            async revoke(email) {
+                if (!confirm('Revoke all admin/staff access for ' + email + '?')) return;
+                try {
+                    const res = await fetch('/api/admin/team/revoke', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify({ email }) });
+                    const d = await res.json();
+                    if (d.success) { Toast.success('Revoked ' + email); this.load(); } else Toast.error(d.error || 'Failed');
+                } catch (e) { Toast.error('Failed'); }
             }
         };
 
