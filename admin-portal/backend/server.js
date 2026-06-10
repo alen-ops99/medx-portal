@@ -3017,6 +3017,10 @@ async function initializeApp() {
         )`);
         // Scoped to TEST-TAGGED rows only (see user-portal server.js for rationale) — a
         // blanket DELETE would erase real paid guests on a fresh DB / marker-less replica.
+        // Ensure referenced columns exist first (fresh-DB base tables may lack invoice_number).
+        try { db.run('ALTER TABLE gala_registrations ADD COLUMN invoice_number TEXT'); } catch(e) {}
+        try { db.run('ALTER TABLE croatians_abroad_registrations ADD COLUMN invoice_number TEXT'); } catch(e) {}
+        try { db.run('ALTER TABLE croatians_abroad_registrations ADD COLUMN notes TEXT'); } catch(e) {}
         const TEST_GALA_WHERE = "WHERE COALESCE(requests,'') LIKE '%TEST%' OR COALESCE(invoice_number,'') LIKE '%TEST%'";
         const TEST_CA_WHERE = "WHERE COALESCE(notes,'') LIKE '%TEST%' OR COALESCE(invoice_number,'') LIKE '%TEST%'";
         const wipeMarker = query.get("SELECT value FROM app_state WHERE key = 'gala_test_wipe_2026_06_02'");
@@ -15934,7 +15938,9 @@ By applying to this program, I provide the following consents:
                     status_label: 'REGISTERED', status_color: '#22c55e',
                     registrant: {
                         name: `${sReg.first_name || ''} ${sReg.last_name || ''}`.trim() || sReg.email,
-                        email: sReg.email, institution: sReg.institution || '', dietary: sReg.dietary || ''
+                        email: sReg.email, institution: sReg.institution || '',
+                        // registrations/bridges_registrations store dietary_requirements (not dietary)
+                        dietary: sReg.dietary_requirements || sReg.dietary || ''
                     }
                 });
             }

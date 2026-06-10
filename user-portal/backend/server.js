@@ -4095,6 +4095,12 @@ async function initializeApp() {
         // TEST-TAGGED rows only — a blanket DELETE here would erase real paid guests if it
         // ever ran against a fresh DB or a Turso replica that lost the marker. Real
         // registrations never carry these tags.
+        // Ensure the columns the WHERE clauses reference exist FIRST — on a fresh DB the
+        // base CREATE TABLE lacks invoice_number (its ALTER runs later), which would make
+        // the wipe throw 'no such column' and skip the demo cleanup below.
+        try { db.run('ALTER TABLE gala_registrations ADD COLUMN invoice_number TEXT'); } catch(e) {}
+        try { db.run('ALTER TABLE croatians_abroad_registrations ADD COLUMN invoice_number TEXT'); } catch(e) {}
+        try { db.run('ALTER TABLE croatians_abroad_registrations ADD COLUMN notes TEXT'); } catch(e) {}
         const TEST_GALA_WHERE = "WHERE COALESCE(requests,'') LIKE '%TEST%' OR COALESCE(invoice_number,'') LIKE '%TEST%' OR COALESCE(invoice_number,'') LIKE '%CA-GALA-TEST%'";
         const TEST_CA_WHERE = "WHERE COALESCE(notes,'') LIKE '%TEST%' OR COALESCE(invoice_number,'') LIKE '%TEST%'";
         const wipeMarker = query.get("SELECT value FROM app_state WHERE key = 'gala_test_wipe_2026_06_02'");
@@ -15205,8 +15211,20 @@ By applying to this program, I provide the following consents:
     });
 
     // Get user's own travel orders
-    app.get('/api/finance/my-travel-orders', auth, adminOnly, (req, res) => {
-        // Get team member ID for current user
+    // Travel-order self-service access: the assigned traveler OR an admin. Lets a non-admin
+    // team member view/submit/attach evidence to their OWN order without exposing others'
+    // (the blanket adminOnly sweep had wrongly locked these traveler routes).
+    function travelOrderAccess(req, res, next) {
+        if (req.user?.is_admin) return next();
+        const tm = query.get('SELECT id FROM team_members WHERE user_id = ?', [req.user.id]);
+        const order = query.get('SELECT traveler_id FROM finance_travel_orders WHERE id = ?', [req.params.id]);
+        if (!order) return res.status(404).json({ error: 'Not found' });
+        if (!tm || order.traveler_id !== tm.id) return res.status(403).json({ error: 'Access denied' });
+        next();
+    }
+
+    app.get('/api/finance/my-travel-orders', auth, (req, res) => {
+        // Self-scoped: returns only the caller's own travel orders.
         const teamMember = query.get('SELECT id FROM team_members WHERE user_id = ?', [req.user.id]);
         if (!teamMember) return res.json([]);
 
@@ -15236,7 +15254,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, id, order_number: orderNumber });
     });
 
-    app.get('/api/finance/travel-orders/:id', auth, adminOnly, (req, res) => {
+    app.get('/api/finance/travel-orders/:id', auth, travelOrderAccess, (req, res) => {
         const order = query.get(`SELECT to1.*, wu.code as work_unit_code, wu.name as work_unit_name
             FROM finance_travel_orders to1
             LEFT JOIN finance_work_units wu ON to1.work_unit_id = wu.id
@@ -15266,7 +15284,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Travel order workflow
-    app.post('/api/finance/travel-orders/:id/submit', auth, adminOnly, (req, res) => {
+    app.post('/api/finance/travel-orders/:id/submit', auth, travelOrderAccess, (req, res) => {
         const { actual_departure, actual_return, travel_method, kilometers,
             cost_transport, cost_accommodation, cost_daily_allowance, cost_other, traveler_notes } = req.body;
 
@@ -15338,7 +15356,7 @@ By applying to this program, I provide the following consents:
     });
     const travelEvidenceUpload = multer({ storage: travelEvidenceStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 
-    app.post('/api/finance/travel-orders/:id/evidence', auth, adminOnly, travelEvidenceUpload.single('file'), (req, res) => {
+    app.post('/api/finance/travel-orders/:id/evidence', auth, travelOrderAccess, travelEvidenceUpload.single('file'), (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
         const id = uuidv4();
