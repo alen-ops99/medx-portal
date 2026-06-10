@@ -1343,6 +1343,15 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    // Shared push outbox — this portal enqueues; the user portal (which holds VAPID +
+    // subscriptions) drains and actually sends the web-push. Dual-file table definition.
+    db.run(`CREATE TABLE IF NOT EXISTS push_outbox (
+        id TEXT PRIMARY KEY,
+        title TEXT, body TEXT, url TEXT,
+        sent INTEGER DEFAULT 0, sent_at TEXT, sent_count INTEGER,
+        created_by TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
     // Monthly reminder tracking
     db.run(`CREATE TABLE IF NOT EXISTS monthly_reminders_sent (
         id TEXT PRIMARY KEY,
@@ -11741,7 +11750,7 @@ By applying to this program, I provide the following consents:
     // Send a user notification from admin
     app.post('/api/admin/notifications/send', auth, adminOnly, (req, res) => {
         try {
-            const { user_id, user_group, category, project, title, message, link, icon, icon_class, notification_type, target_tier, expires_at, placement } = req.body;
+            const { user_id, user_group, category, project, title, message, link, icon, icon_class, notification_type, target_tier, expires_at, placement, send_push } = req.body;
             if (!title) return res.status(400).json({ error: 'Title is required' });
             const id = createUserNotification({
                 userId: user_id, userGroup: user_group || 'all',
@@ -11754,7 +11763,18 @@ By applying to this program, I provide the following consents:
                 expiresAt: expires_at || null,
                 placement: placement || 'panel'
             });
-            res.json({ success: true, id });
+            // Optionally enqueue a web-push broadcast. Both portals share one DB; the user
+            // portal (which holds VAPID + subscriptions) drains push_outbox and sends.
+            let pushQueued = false;
+            if (send_push) {
+                try {
+                    db.run('INSERT INTO push_outbox (id, title, body, url, created_by) VALUES (?,?,?,?,?)',
+                        [uuidv4(), title, message || '', link || '/?app=1', req.user.id]);
+                    saveDb();
+                    pushQueued = true;
+                } catch (e) { console.warn('[Push] enqueue failed:', e.message); }
+            }
+            res.json({ success: true, id, push_queued: pushQueued });
         } catch (err) {
             res.status(500).json({ error: err.message });
         }

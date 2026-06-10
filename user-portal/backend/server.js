@@ -187,6 +187,44 @@ async function sendPushToUser(userId, payload) {
     }
 }
 
+// Broadcast a push to every subscribed device. Used to drain the shared push_outbox that the
+// admin portal writes to (admin has no VAPID/web-push, so the user portal does the sending).
+async function sendPushToAll(payload) {
+    if (!process.env.VAPID_PUBLIC_KEY) return 0;
+    let sent = 0;
+    try {
+        const subs = query.all('SELECT * FROM push_subscriptions');
+        const message = JSON.stringify(payload);
+        for (const sub of subs) {
+            try {
+                await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, message);
+                sent++;
+            } catch (err) {
+                if (err.statusCode === 410 || err.statusCode === 404) { db.run('DELETE FROM push_subscriptions WHERE id = ?', [sub.id]); saveDb(); }
+            }
+        }
+    } catch (err) { console.error('Push broadcast error:', err.message); }
+    return sent;
+}
+
+// Drain the shared push_outbox: admin enqueues announcements here; we send + mark sent.
+let _outboxBusy = false;
+async function drainPushOutbox() {
+    if (_outboxBusy || !process.env.VAPID_PUBLIC_KEY) return;
+    _outboxBusy = true;
+    try {
+        let rows = [];
+        try { rows = query.all("SELECT * FROM push_outbox WHERE COALESCE(sent,0) = 0 ORDER BY created_at ASC LIMIT 20"); } catch (e) { return; }
+        for (const r of rows) {
+            const n = await sendPushToAll({ title: r.title || 'Med&X', body: r.body || '', url: r.url || '/?app=1' });
+            db.run("UPDATE push_outbox SET sent = 1, sent_at = ?, sent_count = ? WHERE id = ?", [new Date().toISOString(), n, r.id]);
+            saveDb();
+            console.log(`[Push] Broadcast "${r.title}" to ${n} device(s).`);
+        }
+    } catch (e) { console.error('[Push] outbox drain failed:', e.message); }
+    finally { _outboxBusy = false; }
+}
+
 // Branded email template builder — wraps content in Med&X styled HTML
 const MEDX_LOGO_URL = 'https://medx-user-portal.onrender.com/assets/images/medx-logo.png';
 
@@ -4604,6 +4642,14 @@ async function initializeApp() {
         p256dh TEXT NOT NULL,
         auth TEXT NOT NULL,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // Shared push outbox: the admin portal (no VAPID) enqueues here; this portal drains + sends.
+    db.run(`CREATE TABLE IF NOT EXISTS push_outbox (
+        id TEXT PRIMARY KEY,
+        title TEXT, body TEXT, url TEXT,
+        sent INTEGER DEFAULT 0, sent_at TEXT, sent_count INTEGER,
+        created_by TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
     db.run(`CREATE TABLE IF NOT EXISTS member_rewards (
@@ -18397,6 +18443,12 @@ By applying to this program, I provide the following consents:
         if (process.env.TURSO_DATABASE_URL) {
             setInterval(() => { db.sync(); }, 60000);
             console.log('[Turso] Periodic sync every 60s');
+        }
+
+        // Drain the push outbox every 45s (admin enqueues announcements; we send them).
+        if (process.env.VAPID_PUBLIC_KEY) {
+            setInterval(() => { drainPushOutbox(); }, 45 * 1000);
+            console.log('[Push] Outbox drain every 45s');
         }
     });
 }

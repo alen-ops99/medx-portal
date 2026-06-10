@@ -10166,6 +10166,13 @@ President, Med&amp;X</textarea>
                             <input type="text" id="notifLink" class="form-control" placeholder="e.g., #plexus/registration" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary);">
                         </div>
 
+                        <!-- Push toggle: also send a phone push (reaches users with the app closed) -->
+                        <label style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg-primary);cursor:pointer;">
+                            <input type="checkbox" id="notifSendPush" style="width:18px;height:18px;cursor:pointer;">
+                            <span><span style="font-weight:600;font-size:13px;color:var(--text-primary);"><i class="fas fa-bell" style="color:#C9A962;"></i> Also send a push notification</span>
+                            <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px;">Buzzes the phone of every attendee who installed the app — use for date/venue changes, speaker reveals.</span></span>
+                        </label>
+
                         <!-- Quick Templates -->
                         <div style="margin-bottom: 16px;">
                             <label style="display: block; font-size: 12px; font-weight: 600; margin-bottom: 8px; color: var(--text-secondary);">Quick Templates</label>
@@ -27186,6 +27193,7 @@ By applying to this program, I give the following consents:
                 const target_tier = document.getElementById('notifTargetTier').value;
                 const placement = document.getElementById('notifPlacement').value;
                 const expires_at = document.getElementById('notifExpiry').value || undefined;
+                const send_push = !!(document.getElementById('notifSendPush') && document.getElementById('notifSendPush').checked);
 
                 if (!title) {
                     Toast.warning('Title is required');
@@ -27196,14 +27204,13 @@ By applying to this program, I give the following consents:
                     const resp = await fetch('/api/admin/notifications/send', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-                        body: JSON.stringify({ title, message, category, user_group, project: project || undefined, icon, icon_class: category, link: link || undefined, notification_type, target_tier, expires_at, placement })
+                        body: JSON.stringify({ title, message, category, user_group, project: project || undefined, icon, icon_class: category, link: link || undefined, notification_type, target_tier, expires_at, placement, send_push })
                     });
                     const data = await resp.json();
                     if (data.success) {
                         this.hideSendForm();
                         this.load();
-                        // Show success toast if available
-                        Toast.success('Notification sent!');
+                        Toast.success(data.push_queued ? 'Notification sent + push queued to phones!' : 'Notification sent!');
                     } else {
                         Toast.error('Error: ' + (data.error || 'Unknown error'));
                     }
