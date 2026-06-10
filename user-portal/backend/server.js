@@ -244,6 +244,28 @@ function buildEmailTemplate(title, bodyHtml) {
 const QR_BASE_URL = process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com';
 function qrImageUrl(regId) { return `${QR_BASE_URL}/qr/${regId}.png`; }
 
+// Bank-transfer details for invoices. Returns null (→ "contact us for payment details")
+// unless a REAL IBAN is configured. The old code fell back to a placeholder IBAN
+// (HR1234567890123456789, also pinned in render.yaml), so a real payer could wire money
+// to a non-existent account. A valid Croatian IBAN is 21 chars and the placeholder is
+// explicitly rejected.
+const PLACEHOLDER_IBANS = new Set(['HR1234567890123456789', 'HR12345678901', '']);
+function getBankDetails(reference, amount) {
+    const iban = (process.env.MEDX_IBAN || '').replace(/\s+/g, '');
+    if (!iban || PLACEHOLDER_IBANS.has(iban) || !/^[A-Z]{2}[0-9A-Z]{13,32}$/.test(iban)) {
+        return null; // not configured / still a placeholder — do not show a fake account
+    }
+    return {
+        iban,
+        bank_name: process.env.MEDX_BANK_NAME || 'Zagrebačka banka d.d.',
+        swift: process.env.MEDX_SWIFT || '',
+        recipient: process.env.MEDX_COMPANY_NAME || 'Med&X',
+        reference,
+        amount,
+        currency: 'EUR'
+    };
+}
+
 async function qrPngAttachment(payload) {
     try {
         const png = await QRCode.toBuffer(JSON.stringify(payload), { width: 560, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
@@ -10517,18 +10539,12 @@ By applying to this program, I provide the following consents:
                 console.warn('Plexus registration email failed:', emailErr.message);
             }
 
-            // Build bank transfer details from environment
-            const bankDetails = price > 0 ? {
-                iban: process.env.MEDX_IBAN || 'HR1234567890123456789',
-                bank_name: process.env.MEDX_BANK_NAME || 'Zagrebačka banka d.d.',
-                swift: process.env.MEDX_SWIFT || 'ZABAHR2X',
-                recipient: process.env.MEDX_COMPANY_NAME || 'Med&X',
-                reference: invoiceNumber,
-                amount: price,
-                currency: 'EUR',
-                vat_breakdown: vatBreakdown,
-                due_date: invoiceRecord?.due_date || null
-            } : null;
+            // Build bank transfer details from environment (null if no real IBAN configured)
+            const bankDetails = price > 0 ? (() => {
+                const bd = getBankDetails(invoiceNumber, price);
+                if (bd) { bd.vat_breakdown = vatBreakdown; bd.due_date = invoiceRecord?.due_date || null; }
+                return bd;
+            })() : null;
 
             res.json({
                 success: true,
@@ -10588,15 +10604,7 @@ By applying to this program, I provide the following consents:
                 } catch (e) { /* ignore parse errors */ }
             }
 
-            const bankDetails = reg.amount_paid > 0 ? {
-                iban: process.env.MEDX_IBAN || 'HR1234567890123456789',
-                bank_name: process.env.MEDX_BANK_NAME || 'Zagrebačka banka d.d.',
-                swift: process.env.MEDX_SWIFT || 'ZABAHR2X',
-                recipient: process.env.MEDX_COMPANY_NAME || 'Med&X',
-                reference: reg.invoice_number,
-                amount: reg.amount_paid,
-                currency: 'EUR'
-            } : null;
+            const bankDetails = reg.amount_paid > 0 ? getBankDetails(reg.invoice_number, reg.amount_paid) : null;
 
             res.json({
                 registration: {
@@ -10766,6 +10774,29 @@ By applying to this program, I provide the following consents:
         } catch (err) {
             console.error('[Stripe] Webhook signature verification failed:', err.message);
             return res.status(400).json({ error: `Webhook Error: ${err.message}` });
+        }
+
+        // Global idempotency guard. Stripe re-delivers the same event (same event.id) on
+        // timeout/5xx, and fulfillment here writes registrations + FIRA invoices + emails +
+        // Sheets rows. Without this, a single retry double-charged FIRA and double-emailed.
+        // event.id is stable across retries; record it and short-circuit duplicates.
+        try {
+            db.run(`CREATE TABLE IF NOT EXISTS processed_stripe_events (event_id TEXT PRIMARY KEY, type TEXT, processed_at TEXT DEFAULT CURRENT_TIMESTAMP)`);
+            const seen = query.get('SELECT event_id FROM processed_stripe_events WHERE event_id = ?', [event.id]);
+            if (seen) {
+                console.log(`[Stripe] Duplicate webhook ${event.id} (${event.type}) — already processed, skipping.`);
+                return res.json({ received: true, duplicate: true });
+            }
+            // Reserve the id now (synchronously, before any await) so a near-simultaneous
+            // retry can't slip past the check above.
+            db.run('INSERT INTO processed_stripe_events (event_id, type) VALUES (?, ?)', [event.id, event.type]);
+        } catch (e) {
+            // PRIMARY KEY violation = another delivery already reserved it → treat as duplicate.
+            if (String(e.message || '').toUpperCase().includes('CONSTRAINT')) {
+                console.log(`[Stripe] Concurrent duplicate webhook ${event.id} — skipping.`);
+                return res.json({ received: true, duplicate: true });
+            }
+            console.warn('[Stripe] Idempotency bookkeeping failed (continuing):', e.message);
         }
 
         if (event.type === 'checkout.session.completed') {
@@ -17788,73 +17819,85 @@ By applying to this program, I provide the following consents:
                 } catch(e) { console.log('Confirmation email failed:', e.message); }
             }
 
+            // Always calculate price server-side from DB (never trust client total_amount).
+            // Computed OUTSIDE the stripe block so we know whether payment is required even
+            // when Stripe is unavailable — a paid registration must never be fulfilled free.
+            let basePrice = 0;
+            if (event_type === 'gala') {
+                // If this is an admin-generated gala invite link, honor link-level price override (VIP → 0, custom → custom)
+                const galaInviteRowForPrice = req.body.event_id ? query.get('SELECT * FROM gala_invite_links WHERE id = ?', [req.body.event_id]) : null;
+                if (galaInviteRowForPrice && galaInviteRowForPrice.price_override != null) {
+                    basePrice = Number(galaInviteRowForPrice.price_override);
+                } else if (galaInviteRowForPrice && galaInviteRowForPrice.link_type === 'vip') {
+                    basePrice = 0;
+                } else {
+                    const gala = query.get("SELECT price_gala_only FROM gala_settings WHERE id = 'default'");
+                    basePrice = gala?.price_gala_only || 0;
+                }
+            } else if (event_type === 'plexus') {
+                const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+                if (conf) {
+                    const ticket = query.get('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order LIMIT 1', [conf.id]);
+                    const today = new Date().toISOString().split('T')[0];
+                    basePrice = ticket ? (today <= conf.early_bird_deadline ? ticket.price_early_bird : today <= conf.regular_deadline ? ticket.price_regular : ticket.price_late) : 0;
+                }
+            } else if (event_type === 'forum') {
+                const fgs = query.get("SELECT price FROM forum_gala_settings WHERE id = 'default'");
+                basePrice = fgs?.price || 0;
+            }
+            // Clamp guest_count to a sane non-negative range — a negative value previously
+            // drove price to 0 and turned a paid ticket into a free one.
+            const safeGuests = Math.max(0, Math.min(20, parseInt(guest_count) || 0));
+            let price = basePrice * (1 + safeGuests);
+            let discountAmount = 0;
+            let appliedCoupon = '';
+
+            // Validate and apply coupon code server-side
+            if (coupon_code) {
+                const confId = event_type === 'forum' ? 'forum-gala' : event_type === 'gala' ? 'gala' : null;
+                if (confId) {
+                    const promo = query.get("SELECT * FROM promo_codes WHERE UPPER(code) = UPPER(?) AND conference_id = ? AND is_active = 1", [coupon_code.trim(), confId]);
+                    if (promo && (!promo.valid_until || new Date(promo.valid_until) >= new Date()) && (!promo.max_uses || promo.used_count < promo.max_uses)) {
+                        discountAmount = promo.discount_type === 'fixed' ? promo.discount_value : Math.round(price * promo.discount_value / 100 * 100) / 100;
+                        price = Math.max(0, price - discountAmount);
+                        appliedCoupon = promo.code;
+                        db.run("UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ?", [promo.id]);
+                        saveDb();
+                    }
+                }
+            }
+
+            const paymentRequired = price > 0;
+
             // If paid event, create Stripe checkout session (email sent AFTER payment succeeds)
             let checkoutUrl = null;
-            if (stripe) {
-                // Always calculate price server-side from DB (never trust client total_amount)
-                let basePrice = 0;
-                if (event_type === 'gala') {
-                    // If this is an admin-generated gala invite link, honor link-level price override (VIP → 0, custom → custom)
-                    const galaInviteRowForPrice = req.body.event_id ? query.get('SELECT * FROM gala_invite_links WHERE id = ?', [req.body.event_id]) : null;
-                    if (galaInviteRowForPrice && galaInviteRowForPrice.price_override != null) {
-                        basePrice = Number(galaInviteRowForPrice.price_override);
-                    } else if (galaInviteRowForPrice && galaInviteRowForPrice.link_type === 'vip') {
-                        basePrice = 0;
-                    } else {
-                        const gala = query.get("SELECT price_gala_only FROM gala_settings WHERE id = 'default'");
-                        basePrice = gala?.price_gala_only || 0;
-                    }
-                } else if (event_type === 'plexus') {
-                    const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
-                    if (conf) {
-                        const ticket = query.get('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order LIMIT 1', [conf.id]);
-                        const today = new Date().toISOString().split('T')[0];
-                        basePrice = ticket ? (today <= conf.early_bird_deadline ? ticket.price_early_bird : today <= conf.regular_deadline ? ticket.price_regular : ticket.price_late) : 0;
-                    }
-                } else if (event_type === 'forum') {
-                    const fgs = query.get("SELECT price FROM forum_gala_settings WHERE id = 'default'");
-                    basePrice = fgs?.price || 0;
+            if (paymentRequired) {
+                if (!stripe) {
+                    console.error('[Stripe] Paid registration but Stripe not configured — refusing to fulfill for free.');
+                    return res.status(503).json({ error: 'Online payment is temporarily unavailable. Your spot is not yet confirmed — please contact info@medx.hr to complete payment.' });
                 }
-                let price = basePrice * (1 + (parseInt(guest_count) || 0));
-                let discountAmount = 0;
-                let appliedCoupon = '';
-
-                // Validate and apply coupon code server-side
-                if (coupon_code) {
-                    const confId = event_type === 'forum' ? 'forum-gala' : event_type === 'gala' ? 'gala' : null;
-                    if (confId) {
-                        const promo = query.get("SELECT * FROM promo_codes WHERE UPPER(code) = UPPER(?) AND conference_id = ? AND is_active = 1", [coupon_code.trim(), confId]);
-                        if (promo && (!promo.valid_until || new Date(promo.valid_until) >= new Date()) && (!promo.max_uses || promo.used_count < promo.max_uses)) {
-                            discountAmount = promo.discount_type === 'fixed' ? promo.discount_value : Math.round(price * promo.discount_value / 100 * 100) / 100;
-                            price = Math.max(0, price - discountAmount);
-                            appliedCoupon = promo.code;
-                            db.run("UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ?", [promo.id]);
-                            saveDb();
-                        }
+                try {
+                    const baseUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+                    const session = await stripe.checkout.sessions.create({
+                        mode: 'payment',
+                        payment_method_types: ['card'],
+                        line_items: [{ price_data: { currency: 'eur', product_data: { name: event_name || 'Med&X Event Registration' }, unit_amount: Math.round(price * 100) }, quantity: 1 }],
+                        metadata: { registration_id: regId, type: 'invite-' + event_type, email, first_name, last_name: last_name || '', event_name: event_name || 'Med&X Event', items: (package_items || []).join(', '), guest_count: String(safeGuests), dietary: dietary || '', allergies: allergies || '', coupon_code: appliedCoupon, discount_amount: String(discountAmount) },
+                        customer_email: email,
+                        success_url: `${baseUrl}/invite-success?session_id={CHECKOUT_SESSION_ID}`,
+                        cancel_url: `${baseUrl}/invite-cancelled`
+                    });
+                    checkoutUrl = session.url;
+                    // Update registration to track payment
+                    if (event_type === 'plexus') {
+                        db.run('UPDATE registrations SET amount_paid = ?, payment_status = ? WHERE id = ?', [price, 'pending', regId]);
                     }
-                }
-
-                if (price > 0) {
-                    try {
-                        const baseUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-                        const session = await stripe.checkout.sessions.create({
-                            mode: 'payment',
-                            payment_method_types: ['card'],
-                            line_items: [{ price_data: { currency: 'eur', product_data: { name: event_name || 'Med&X Event Registration' }, unit_amount: Math.round(price * 100) }, quantity: 1 }],
-                            metadata: { registration_id: regId, type: 'invite-' + event_type, email, first_name, last_name: last_name || '', event_name: event_name || 'Med&X Event', items: (package_items || []).join(', '), guest_count: String(guest_count || 0), dietary: dietary || '', allergies: allergies || '', coupon_code: appliedCoupon, discount_amount: String(discountAmount) },
-                            customer_email: email,
-                            success_url: `${baseUrl}/invite-success?session_id={CHECKOUT_SESSION_ID}`,
-                            cancel_url: `${baseUrl}/invite-cancelled`
-                        });
-                        checkoutUrl = session.url;
-                        // Update registration to track payment
-                        if (event_type === 'plexus') {
-                            db.run('UPDATE registrations SET amount_paid = ?, payment_status = ? WHERE id = ?', [price, 'pending', regId]);
-                        }
-                        saveDb();
-                    } catch(stripeErr) {
-                        console.log('[Stripe] Checkout creation failed:', stripeErr.message);
-                    }
+                    saveDb();
+                } catch(stripeErr) {
+                    console.error('[Stripe] Checkout creation failed:', stripeErr.message);
+                    // Do NOT fall through to the free-confirmation path — that would hand out a
+                    // valid ticket without payment. Surface the failure so the guest can retry.
+                    return res.status(502).json({ error: 'We could not start the payment process. Your spot is not yet confirmed — please try again in a moment or contact info@medx.hr.' });
                 }
             }
 

@@ -82521,14 +82521,22 @@ You can use variables like {first_name} that will be personalized for each recip
 
                 // Populate bank transfer details
                 const bt = res.bank_transfer;
-                if (bt) {
+                if (bt && bt.iban) {
                     document.getElementById('pxBankRecipient').textContent = bt.recipient || 'Med&X';
-                    document.getElementById('pxBankIBAN').textContent = bt.iban || '—';
+                    document.getElementById('pxBankIBAN').textContent = bt.iban;
                     document.getElementById('pxBankSWIFT').textContent = bt.swift || '—';
                     document.getElementById('pxBankName').textContent = bt.bank_name || '—';
                     document.getElementById('pxBankAmount').textContent = `€${(bt.amount || 0).toFixed(2)}`;
                     document.getElementById('pxBankReference').textContent = bt.reference || '—';
                     document.getElementById('pxBankDueDate').textContent = bt.due_date || '—';
+                } else {
+                    // No bank account configured — never show a placeholder IBAN; point the
+                    // payer to email so they still get correct details.
+                    const ibanEl = document.getElementById('pxBankIBAN');
+                    if (ibanEl) ibanEl.innerHTML = 'Email <a href="mailto:info@medx.hr" style="color:#C9A962;">info@medx.hr</a> for payment details';
+                    ['pxBankRecipient','pxBankSWIFT','pxBankName','pxBankDueDate'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+                    const refEl = document.getElementById('pxBankReference'); if (refEl) refEl.textContent = res.invoice_number || '—';
+                    const amtEl = document.getElementById('pxBankAmount'); if (amtEl) amtEl.textContent = `€${(res.amount || 0).toFixed(2)}`;
                 }
 
                 // Populate invoice summary

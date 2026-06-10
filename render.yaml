@@ -36,9 +36,11 @@ services:
         sync: false
       - key: FIRA_API_URL
         value: https://app.fira.finance
-      # Bank transfer details
+      # Bank transfer details — set REAL values in the Render dashboard.
+      # MEDX_IBAN/MEDX_VAT_ID must be the real account/VAT id; if unset or left as a
+      # placeholder the portal hides bank-transfer instructions rather than show a fake IBAN.
       - key: MEDX_IBAN
-        value: HR1234567890123456789
+        sync: false
       - key: MEDX_BANK_NAME
         value: "Zagrebačka banka d.d."
       - key: MEDX_SWIFT
@@ -46,7 +48,7 @@ services:
       - key: MEDX_COMPANY_NAME
         value: "Med&X"
       - key: MEDX_VAT_ID
-        value: HR12345678901
+        sync: false
       # Turso cloud database (persistent SQLite)
       - key: TURSO_DATABASE_URL
         sync: false
