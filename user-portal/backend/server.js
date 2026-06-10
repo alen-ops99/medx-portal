@@ -11379,23 +11379,9 @@ By applying to this program, I provide the following consents:
                         }
                     }
 
-                    // Also update on admin portal
-                    const adminUrl = process.env.ADMIN_PORTAL_URL || 'https://medx-admin-portal.onrender.com';
-                    try {
-                        fetch(adminUrl + '/api/public/register-invite', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                first_name: metadata.first_name, last_name: metadata.last_name, email: invEmail,
-                                event_type: invEventType, event_name: metadata.event_name,
-                                package_items: metadata.items ? metadata.items.split(', ').filter(Boolean) : [],
-                                guest_count: parseInt(metadata.guest_count || '0'),
-                                total_amount: amount, dietary: metadata.dietary, allergies: metadata.allergies,
-                                coupon_code: metadata.coupon_code || '', discount_amount: parseFloat(metadata.discount_amount || '0'),
-                                payment_completed: true
-                            })
-                        }).catch(() => {});
-                    } catch(e) {}
+                    // NOTE: No admin-portal forward. Shared Turso DB — the payment-status
+                    // UPDATE above is already visible to admin. The old forward to the admin
+                    // mirror INSERTed a second ghost row with a fresh id.
 
                     // Generate QR and send confirmation email NOW (payment is done)
                     const user = query.get('SELECT id FROM users WHERE email = ?', [invEmail]);
@@ -17981,16 +17967,10 @@ By applying to this program, I provide the following consents:
                     }
                 } catch(e) {}
 
-                // Forward free event registrations to admin portal now (paid events forwarded after Stripe webhook)
-                try {
-                    try { await fetch(adminUrl + '/health', { signal: AbortSignal.timeout(30000) }); } catch(e) {}
-                    await fetch(adminUrl + '/api/public/register-invite', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(req.body),
-                        signal: AbortSignal.timeout(15000)
-                    });
-                } catch(e) { console.log('[Sync] Admin sync failed (non-blocking):', e.message); }
+                // NOTE: No cross-portal forward. Both portals share ONE Turso DB, so the
+                // row inserted above is already visible to the admin portal. The old forward
+                // to admin /api/public/register-invite double-inserted a second ghost row AND
+                // blocked the guest's response up to ~45s waking the sleeping admin service.
             }
 
             // FAILSAFE 1: Log to local CSV file (always works, no external deps)

@@ -28988,6 +28988,16 @@ By applying to this program, I give the following consents:
 
             async saveSettings() {
                 const getVal = (id) => document.getElementById(id)?.value || '';
+                const prev = this.settings || {};
+                // Price fields: fall back to the CURRENT stored value (not a hardcoded legacy
+                // default like 95/174/194) so a momentarily-empty input never silently rewrites
+                // a real price. A genuine 0 is preserved because '0' is a non-empty string.
+                const numOrPrev = (id, key) => {
+                    const raw = getVal(id);
+                    if (raw === '') return prev[key] != null ? prev[key] : 0;
+                    const n = parseFloat(raw);
+                    return Number.isNaN(n) ? (prev[key] != null ? prev[key] : 0) : n;
+                };
                 const data = {
                     title: getVal('galaSettingTitle'),
                     tagline: getVal('galaSettingTagline'),
@@ -28998,9 +29008,9 @@ By applying to this program, I give the following consents:
                     capacity: parseInt(getVal('galaSettingCapacity')) || 150,
                     is_registration_open: getVal('galaSettingRegOpen') === '1',
                     description: getVal('galaSettingDescription'),
-                    price_gala_only: parseFloat(getVal('galaSettingPriceOnly')) || 95,
-                    price_bundle: parseFloat(getVal('galaSettingPriceBundle')) || 174,
-                    price_bundle_original: parseFloat(getVal('galaSettingPriceBundleOrig')) || 194,
+                    price_gala_only: numOrPrev('galaSettingPriceOnly', 'price_gala_only'),
+                    price_bundle: numOrPrev('galaSettingPriceBundle', 'price_bundle'),
+                    price_bundle_original: numOrPrev('galaSettingPriceBundleOrig', 'price_bundle_original'),
                     keynote_name: getVal('galaSettingKeynoteName'),
                     keynote_role: getVal('galaSettingKeynoteRole'),
                     keynote_image_url: getVal('galaSettingKeynoteImage'),
@@ -29013,7 +29023,9 @@ By applying to this program, I give the following consents:
                     });
                     if (res.ok) {
                         Toast.success('Gala settings saved');
-                        this.settings = data;
+                        // MERGE, don't replace — replacing dropped speakers/schedule, so a
+                        // subsequent "Save Speakers & Schedule" persisted empty arrays.
+                        this.settings = { ...this.settings, ...data };
                     } else {
                         alert('Failed to save settings');
                     }

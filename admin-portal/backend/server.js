@@ -10638,6 +10638,12 @@ By applying to this program, I provide the following consents:
     // Admin: Get all registrations
     // Public invite registration (no auth — called from invite page on user portal)
     app.post('/api/public/register-invite', async (req, res) => {
+        // DEPRECATED no-op. Both portals share ONE Turso DB, so the user portal's own insert
+        // is already visible here — this mirror used to INSERT a SECOND ghost row for every
+        // invite registration. It was also unauthenticated + unthrottled (spam-injection
+        // surface). The user portal no longer calls it; kept as a safe no-op for any stale caller.
+        return res.json({ received: true, deprecated: true });
+        /* eslint-disable no-unreachable */
         try {
             const { first_name, last_name, email, institution, country, event_type, event_name, package_items, guest_count, coupon_code, total_amount, dietary, allergies } = req.body;
             if (!email || !first_name) return res.status(400).json({ error: 'Name and email required' });
