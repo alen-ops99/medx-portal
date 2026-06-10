@@ -11234,6 +11234,35 @@ By applying to this program, I provide the following consents:
                     }
                     saveDb();
 
+                    // FIRA fiscal invoice + finance income record — CA-gala payments were
+                    // previously fulfilled with NO fiscal invoice and NO income record (the
+                    // standalone-gala branch has both; this one was missing them).
+                    const caGuestName = `${metadata.first_name || ''} ${metadata.last_name || ''}`.trim();
+                    try {
+                        const firaResult = await firaService.createFiscalInvoice({
+                            invoiceNumber,
+                            ticketName: 'Plexus 2026 — Gala Evening (Croatians Abroad)',
+                            ticketPrice: amount,
+                            addons: [],
+                            billing: {
+                                name: caGuestName, company: metadata.institution || '',
+                                address: '', city: '', zip: '', country: 'HR', oib: '', vatNumber: '',
+                                email: caEmail || ''
+                            },
+                            invoiceType: 'FISKALNI_RAČUN', paymentType: 'KARTICA'
+                        });
+                        console.log(`[Stripe→FIRA] CA gala fiscal invoice created: ${firaResult?.invoiceNumber || 'N/A'}`);
+                    } catch (firaErr) {
+                        console.error('[Stripe→FIRA] CA gala fiscal invoice failed (non-blocking):', firaErr.message);
+                    }
+                    try {
+                        createFinanceIncomeRecord(
+                            { first_name: metadata.first_name, last_name: metadata.last_name, ticket_name: 'Gala (Croatians Abroad)' },
+                            amount, 'card', invoiceNumber,
+                            { project: 'gala-2026', category: 'gala-ticket', descPrefix: 'Gala 2026 (CA)' }
+                        );
+                    } catch (finErr) { console.error('[Stripe] CA gala finance record failed (non-blocking):', finErr.message); }
+
                     // Gala QR ticket — hosted image URL in the email body + PNG attachment
                     // (carries BOTH ids so the scanner verifies in gala AND conference/bridges modes)
                     const galaQrAtts = await qrPngAttachment({
