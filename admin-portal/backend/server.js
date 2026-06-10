@@ -16942,6 +16942,58 @@ By applying to this program, I provide the following consents:
             }),
         ]});
 
+        // ---- Accelerator & Abstracts ----
+        groups.push({ group: 'Accelerator & Abstracts', checks: [
+            safe('Accelerator program configured', () => {
+                if (!tableExists('accelerator_programs')) return { status: 'warn', detail: 'No accelerator_programs table.' };
+                const p = query.get("SELECT * FROM accelerator_programs WHERE is_active = 1 ORDER BY year DESC LIMIT 1");
+                if (!p) return { status: 'warn', detail: 'No active accelerator program (off-season, or not set up yet).', fix: 'Create/activate a program year in Accelerator if applications should be running.' };
+                const nm = p.name || 'Program';
+                const label = (p.year && !String(nm).includes(String(p.year))) ? nm + ' ' + p.year : nm;
+                return { detail: label + ' · active' };
+            }),
+            safe('Application window', () => {
+                if (!tableExists('accelerator_programs')) return { status: 'ok', detail: 'n/a' };
+                const p = query.get("SELECT is_accepting, application_deadline, name, year FROM accelerator_programs WHERE is_active = 1 ORDER BY year DESC LIMIT 1");
+                if (!p) return { status: 'ok', detail: 'No active program' };
+                const accepting = p.is_accepting === 1 || p.is_accepting === '1' || p.is_accepting === true;
+                const dl = p.application_deadline;
+                const deadlinePassed = dl && /^\d{4}-\d{2}-\d{2}/.test(dl) && dl.slice(0, 10) < today;
+                if (accepting && deadlinePassed) return { status: 'warn', detail: 'Still accepting applications but the deadline (' + dl.slice(0, 10) + ') has passed — inconsistent.', fix: 'Close applications or extend the deadline in Accelerator.' };
+                if (accepting) return { detail: 'Open' + (dl ? ' · deadline ' + dl.slice(0, 10) : '') };
+                return { status: 'ok', detail: 'Closed' };
+            }),
+            safe('Document storage persistence', () => {
+                // accelerator docs (passports/transcripts) upload to disk unless Cloudinary is set;
+                // Render free-tier disk is EPHEMERAL — files vanish on every redeploy/restart.
+                const docs = count("SELECT COUNT(*) as c FROM accelerator_documents");
+                if (has('CLOUDINARY_URL')) return { detail: 'Cloudinary configured — uploads persist' + (docs > 0 ? ' (' + docs + ' docs)' : '') };
+                if (docs > 0) return { status: 'fail', detail: docs + ' accelerator document(s) stored on EPHEMERAL disk — they are lost on every redeploy/restart.', fix: 'Set CLOUDINARY_URL so uploaded passports/transcripts persist.' };
+                return { status: 'warn', detail: 'No CLOUDINARY_URL — accelerator uploads would go to ephemeral disk (lost on redeploy).', fix: 'Set CLOUDINARY_URL before applicants upload documents.' };
+            }),
+            safe('Host institutions', () => {
+                if (!tableExists('accelerator_institutions')) return { status: 'ok', detail: 'n/a' };
+                const c = count("SELECT COUNT(*) as c FROM accelerator_institutions WHERE COALESCE(is_active,1) = 1");
+                return c > 0 ? { detail: c + ' active institution(s)' } : { status: 'warn', detail: 'No active host institutions configured.', fix: 'Add institutions in Accelerator if the program is running.' };
+            }),
+            safe('Evaluation criteria', () => {
+                if (!tableExists('accelerator_evaluation_criteria') || !tableExists('accelerator_applications')) return { status: 'ok', detail: 'n/a' };
+                const apps = count("SELECT COUNT(*) as c FROM accelerator_applications");
+                const crit = count("SELECT COUNT(*) as c FROM accelerator_evaluation_criteria");
+                if (apps > 0 && crit === 0) return { status: 'warn', detail: apps + ' application(s) but no evaluation criteria defined — reviewers cannot score.', fix: 'Define scoring criteria in Accelerator before evaluation.' };
+                return { detail: crit + ' criteria · ' + (apps < 0 ? 0 : apps) + ' application(s)' };
+            }),
+            safe('Abstracts awaiting review', () => {
+                if (!tableExists('abstracts')) return { status: 'ok', detail: 'n/a' };
+                const total = count("SELECT COUNT(*) as c FROM abstracts WHERE COALESCE(is_withdrawn,0) = 0");
+                if (total <= 0) return { detail: 'No abstracts submitted yet' };
+                const pending = count("SELECT COUNT(*) as c FROM abstracts WHERE COALESCE(is_withdrawn,0) = 0 AND (decision IS NULL OR decision = '')");
+                return pending > 0
+                    ? { status: 'warn', detail: pending + ' of ' + total + ' abstract(s) still awaiting a decision.', fix: 'Review pending abstracts in the Plexus → Abstracts area.' }
+                    : { detail: 'All ' + total + ' abstract(s) decided' };
+            }),
+        ]});
+
         // Roll up an overall status
         let worst = 'ok';
         groups.forEach(gp => gp.checks.forEach(c => {
