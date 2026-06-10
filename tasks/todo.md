@@ -41,42 +41,39 @@ Completeness critic looks for under-audited areas → follow-up finders.
 Full audit output: tasks/audit-findings-2026-06-10.json (108 confirmed findings:
 6 critical, 35 high, 44 medium, 23 low).
 
-## PROGRESS — paused 2026-06-10 (Alen switching accounts, will resume)
+## PROGRESS — 2026-06-10 (resumed after account switch; ALL 6 CRITICALS + most HIGHS done)
 
-### 7 commits made locally on main, NOT YET PUSHED (Alen deploys on Render):
-- 269f36b  Stop tracking shared SQLite DB in public repo (.gitignore + git rm --cached)
-- d4ba74e  QR ticket emails: hosted /qr/:id.png + PNG attachment (Gmail/Outlook strip data: URIs)
-- fa730f5  Security: adminOnly on ~130 routes (accelerator/finance/PR/CSV), IDOR checks,
-           speaker leak, admin self-register disabled, tech tools fail-closed
-- 2018e29  Data safety: boot wipes scoped to TEST rows; bridges placeholder migration gated;
-           gala demo seed retired; fresh-DB boot no longer crashes (FK seeds wrapped)
-- b640e6b  Scanner: merged duplicate undo route (+gala), standalone-conference door fallback,
-           profile-card gala check-in silent-fail fixed
-- 8de660e  Payments: Stripe webhook idempotency (event.id), no free fulfillment on payment
-           failure, guest_count clamp, no placeholder IBAN (+render.yaml sync:false)
-- 5cff401  /invite-success XSS escaping + real payment-status check; forum API_BASE undefined fix
+### 14 commits on main, NOT YET PUSHED (Alen deploys on Render):
+269f36b DB out of public repo · d4ba74e QR emails hosted+attached · fa730f5 ~130 routes adminOnly
++ IDOR + admin self-register off + tech fail-closed · 2018e29 boot-wipe data-safety + fresh-DB boot
+· b640e6b scanner undo/standalone/profile-card · 8de660e payments idempotency/gate/IBAN · 5cff401
+invite-success XSS+payment-check+API_BASE · 8b303ee forum-chat IDOR + accel doc gating + reset
+invalidates sessions (password_changed_at) · dc4b7ca ghost dup registrations + gala settings
+data-loss + stale prices · 751a74f dashboard revenue accuracy + email-fail visibility · 88df4dc
+legacy scanner reads regId + no JWT in download URLs · 68ee4e2 CA-gala FIRA+finance · a2d8294
+fixed 3 self-review regressions (travel-order over-gating, wipe column order, scanner dietary col).
+
+### VERIFICATION: ran an 11-agent adversarial review of the full diff → found 3 regressions,
+all fixed + re-verified. Runtime battery green: authz 403/200 correct (incl. applicant routes
+NOT over-gated), QR PNG renders, speaker secrets hidden, scanner 6/6, payment gate, session
+invalidation, mirror no-op (0 rows), fresh-DB boot clean, traveler self-service restored.
 
 ### NEXT STEP WHEN RESUMING:
-1. `git push origin main` (Alen authorized commit-to-main; confirm before push if unsure).
-2. Alen: Manual Deploy BOTH services on Render; set real MEDX_IBAN + MEDX_VAT_ID env vars;
-   set a strong TECH_PASSWORD; rotate the shared RESEND_API_KEY (shared in chat earlier).
-3. SEPARATE (history): the public-repo DB blob is still in git history → purge with
-   git filter-repo/BFG + force-push, AND rotate the 3 admin-account passwords (offline-crackable).
+1. `git push origin main` (Alen authorized commit-to-main).
+2. Alen: Manual Deploy BOTH services on Render; set real MEDX_IBAN + MEDX_VAT_ID; set a strong
+   TECH_PASSWORD; rotate the shared RESEND_API_KEY (shared in chat earlier).
+3. SEPARATE (history): public-repo DB blob still in git history → purge with filter-repo/BFG +
+   force-push, AND rotate the 3 admin-account passwords (offline-crackable).
 
-### REMAINING AUDIT FINDINGS not yet fixed (from audit-findings JSON), by priority:
-HIGH: [19] email send failures swallowed everywhere (sendEmail never throws; callers ignore
-  success:false) — ops visibility; [22] CA-gala payments get no FIRA invoice/finance record;
-  [24] admin mirror /api/public/register-invite double-inserts (ghost 'pending' rows);
-  [28] GalaAdmin.saveSettings wipes speakers/schedule to []; [33][34] more forum/doc IDOR;
-  [36] admin JWT accepted in ?token= query param (log/referer leak); [40] password reset
-  doesn't invalidate existing sessions; [10b] CA-bundle confirmation email field injection.
-MEDIUM (44) + LOW (23): see JSON. Notables: [42] NODE_ENV=development auth auto-admin
-  (prod is production so dormant, but fragile); [44] SVG/HTML upload stored-XSS via /uploads;
-  [52] admin /api/public/register-invite unauthenticated+unthrottled; [63] gala settings save
-  rewrites cleared price to stale 95/174/194; [64] dashboard revenue invents €140 for blank rows;
-  [68] viewport user-scalable=no; [69][97][98] redesign wins (strip embedded admin app from
-  5.4MB SPA; lightweight ticket page for bare-root/invite visitors; PWA = 'My Ticket' app);
-  [70][71] sw.js + 2.7MB dead images; [72] expired 'Apply by Apr 1' carousel copy.
+### REMAINING (lower priority — not launch-blocking), from audit-findings JSON:
+HIGH still open: [6709] interviewer magic-link tokens have no expiry/rotation (accelerator,
+  off-season).
+MEDIUM (44) + LOW (23): mostly polish. Notables: [42] NODE_ENV=development auth auto-admin
+  (dormant in prod, fragile); [44] SVG/HTML upload stored-XSS via /uploads (add type allowlist +
+  Content-Disposition); [52] now moot (mirror is a no-op); [68] viewport user-scalable=no;
+  [69][97][98] REDESIGN WINS (strip embedded admin app from 5.4MB SPA; lightweight ticket page
+  for bare-root/invite visitors; PWA = 'My Ticket'); [70][71] sw.js hygiene + 2.7MB dead images;
+  [72] expired 'Apply by Apr 1 2026' carousel copy. Full list: tasks/audit-findings-2026-06-10.json.
 
 ### Local test harness (recreate when resuming):
 - Backends boot on isolated DB via DATABASE_PATH=/tmp/medx_test.db; high ports (4310/4311
