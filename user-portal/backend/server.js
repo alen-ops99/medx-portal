@@ -11264,7 +11264,7 @@ By applying to this program, I provide the following consents:
 
                     // Confirmation email — payment receipt + bundle summary + QR
                     try {
-                        await sendEmail(caEmail, 'Payment Confirmed — Plexus 2026 Gala Evening', buildEmailTemplate('Payment Confirmed', `
+                        const caSend = await sendEmail(caEmail, 'Payment Confirmed — Plexus 2026 Gala Evening', buildEmailTemplate('Payment Confirmed', `
                             <div style="text-align:center;margin-bottom:8px;">
                                 <div style="display:inline-block;background:#22c55e;color:#fff;font-size:13px;font-weight:600;padding:6px 20px;border-radius:20px;letter-spacing:0.5px;">PAYMENT CONFIRMED</div>
                             </div>
@@ -11280,7 +11280,12 @@ By applying to this program, I provide the following consents:
                             <p style="margin-top:24px;">We look forward to welcoming you home in Zagreb.</p>
                             <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
                         `), galaQrAtts);
-                    } catch(emailErr) { console.warn('CA confirmation email failed:', emailErr.message); }
+                        // sendEmail returns {success:false}/{mock:true} instead of throwing, so the
+                        // catch alone would miss a Resend rejection. Log loudly — guest PAID but got no ticket.
+                        if (!caSend || caSend.success === false || caSend.mock) {
+                            console.error(`[Stripe][EMAIL-FAIL] PAID CA-gala guest ${caEmail} (reg ${galaRegId}, invoice ${invoiceNumber}) did NOT receive their ticket email:`, caSend && caSend.mock ? 'mock mode (no provider configured)' : (caSend && caSend.error) || 'unknown');
+                        }
+                    } catch(emailErr) { console.error(`[Stripe][EMAIL-FAIL] PAID CA-gala guest ${caEmail} (reg ${galaRegId}) ticket email threw:`, emailErr.message); }
 
                     // Log to Google Sheets — `events` array routes to correct tab(s)
                     try {
@@ -11404,10 +11409,14 @@ By applying to this program, I provide the following consents:
                             <tr><td style="font-size:13px;color:#64748b;">Questions? Contact <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></td></tr>
                         </table>`;
                     try {
-                        await sendEmail(invEmail, `Payment Confirmed: ${metadata.event_name || 'Med&X Event'}`,
+                        const invSend = await sendEmail(invEmail, `Payment Confirmed: ${metadata.event_name || 'Med&X Event'}`,
                             buildEmailTemplate('Payment Confirmed', invEmailBody), invQrAtts);
-                        console.log(`[Stripe] Confirmation email sent to ${invEmail}`);
-                    } catch(emailErr) { console.log('[Stripe] Invite confirmation email failed:', emailErr.message); }
+                        if (!invSend || invSend.success === false || invSend.mock) {
+                            console.error(`[Stripe][EMAIL-FAIL] PAID invite guest ${invEmail} (reg ${invRegId}) did NOT receive their ticket email:`, invSend && invSend.mock ? 'mock mode (no provider configured)' : (invSend && invSend.error) || 'unknown');
+                        } else {
+                            console.log(`[Stripe] Confirmation email sent to ${invEmail}`);
+                        }
+                    } catch(emailErr) { console.error(`[Stripe][EMAIL-FAIL] PAID invite guest ${invEmail} (reg ${invRegId}) ticket email threw:`, emailErr.message); }
 
                     // Notify Laura about the paid registration
                     try {

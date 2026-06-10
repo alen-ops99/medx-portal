@@ -29754,21 +29754,27 @@ By applying to this program, I give the following consents:
                     const galaRegs = galaRes.ok ? await galaRes.json() : [];
                     const caRegs = caRes.ok ? await caRes.json() : [];
 
+                    // Exclude test rows (Send Test QR / Bundle Test) from all live numbers.
+                    const isTest = (r) => /TEST/i.test(`${r.requests || ''} ${r.notes || ''} ${r.invoice_number || ''}`);
+                    const galaReal = galaRegs.filter(r => !isTest(r));
+                    const caReal = caRegs.filter(r => !isTest(r));
+
                     // Gala paid (status confirmed + payment paid, NOT VIP, NOT awaiting)
-                    const galaPaid = galaRegs.filter(r => r.payment_status === 'paid');
+                    const galaPaid = galaReal.filter(r => r.payment_status === 'paid');
                     // Gala VIP (vip-comp)
-                    const galaVip = galaRegs.filter(r => r.payment_status === 'vip-comp');
+                    const galaVip = galaReal.filter(r => r.payment_status === 'vip-comp');
                     // Gala awaiting payment (started Stripe, didn't finish)
-                    const galaAwaiting = galaRegs.filter(r => r.status === 'awaiting_payment');
+                    const galaAwaiting = galaReal.filter(r => r.status === 'awaiting_payment');
 
                     // Croatians Abroad
-                    const caTotal = caRegs.length;
-                    const caConf = caRegs.filter(r => r.selected_conference).length;
-                    const caBridges = caRegs.filter(r => r.selected_bridges).length;
-                    const caGalaPaid = caRegs.filter(r => r.selected_gala && r.gala_payment_status === 'paid').length;
+                    const caTotal = caReal.length;
+                    const caConf = caReal.filter(r => r.selected_conference).length;
+                    const caBridges = caReal.filter(r => r.selected_bridges).length;
+                    const caGalaPaid = caReal.filter(r => r.selected_gala && r.gala_payment_status === 'paid').length;
 
-                    // Revenue confirmed (all confirmed gala payments)
-                    const revenue = galaPaid.reduce((sum, r) => sum + (Number(r.amount_paid) || 140), 0);
+                    // Revenue confirmed: sum ACTUAL amounts only — never fabricate a price for a
+                    // paid row that is missing amount_paid (the old `|| 140` invented revenue).
+                    const revenue = galaPaid.reduce((sum, r) => sum + (Number(r.amount_paid) || 0), 0);
 
                     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
                     set('overviewGalaPaid', galaPaid.length);
