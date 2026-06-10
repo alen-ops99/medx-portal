@@ -10594,10 +10594,10 @@ President, Med&amp;X</textarea>
 
                     <!-- Invite Links Tab -->
                     <div id="galaInvitesTab" style="display: none;">
-                        <!-- TWO SEPARATE CARDS: Paid (€140) vs VIP (Free) -->
+                        <!-- TWO SEPARATE CARDS: Paid (€150 early bird) vs VIP (Free) -->
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
 
-                            <!-- PAID CARD (€140, public participants) -->
+                            <!-- PAID CARD (€150 early bird, public participants) -->
                             <div class="card" style="border: 1px solid rgba(201,169,98,0.35); background: linear-gradient(180deg, rgba(201,169,98,0.04), transparent);">
                                 <div class="card-header" style="border-bottom: 1px solid rgba(201,169,98,0.2);">
                                     <h3 class="card-title" style="display:flex;align-items:center;gap:10px;">
@@ -10613,7 +10613,7 @@ President, Med&amp;X</textarea>
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Price Override <span style="color:var(--text-muted);font-size:11px;">(optional &mdash; e.g. &euro;75 for sponsors)</span></label>
-                                        <input id="galaPaidPrice" type="number" min="0" step="0.01" class="form-input" placeholder="Leave empty to use €140">
+                                        <input id="galaPaidPrice" type="number" min="0" step="0.01" class="form-input" placeholder="Leave empty to use €150">
                                     </div>
                                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                                         <div class="form-group">
@@ -29058,7 +29058,7 @@ By applying to this program, I give the following consents:
             // ========== GALA INVITE LINKS ==========
 
             async createInviteLink(type) {
-                // type: 'generic' (paid €140) or 'vip' (free)
+                // type: 'generic' (paid €150 early bird) or 'vip' (free)
                 type = type || 'generic';
                 const isVip = (type === 'vip');
                 const prefix = isVip ? 'galaVip' : 'galaPaid';
@@ -29622,7 +29622,7 @@ By applying to this program, I give the following consents:
                                     </span>
                                     <div style="min-width:0;">
                                         <h2 style="font-size:18px;color:var(--text-primary);margin:0;line-height:1.2;">${isBundle ? 'Send Full Bundle Test Email' : 'Send Scanner Test QR'}</h2>
-                                        <div style="font-size:11px;color:var(--text-muted);letter-spacing:1.2px;text-transform:uppercase;font-weight:600;margin-top:4px;">${isBundle ? '3 EVENTS · PAID GALA · €140' : '2 EVENTS · FREE PRE-REG'}</div>
+                                        <div style="font-size:11px;color:var(--text-muted);letter-spacing:1.2px;text-transform:uppercase;font-weight:600;margin-top:4px;">${isBundle ? '3 EVENTS · PAID GALA · €150' : '2 EVENTS · FREE PRE-REG'}</div>
                                     </div>
                                 </div>
                                 <button onclick="document.getElementById('testEmailModal').remove();" style="background:rgba(255,255,255,0.04);border:none;width:30px;height:30px;border-radius:50%;cursor:pointer;color:var(--text-muted);font-size:13px;flex-shrink:0;"><i class="fas fa-times"></i></button>
@@ -29633,7 +29633,7 @@ By applying to this program, I give the following consents:
                                 <div style="font-size:11px;font-weight:700;color:${accent};text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">${isBundle ? 'What this does' : 'What this does'}</div>
                                 <p style="font-size:13px;color:var(--text-primary);margin:0;line-height:1.55;">
                                     ${isBundle
-                                        ? "Simulates a <strong>paid Croatians Abroad bundle</strong>: creates a real registration with all 3 events (Conference + Bridges + Gala) marked as PAID for €140, then emails the recipient the same 'Payment Confirmed' template a real diaspora guest gets — with a fully working Gala QR code embedded."
+                                        ? "Simulates a <strong>paid Croatians Abroad bundle</strong>: creates a real registration with all 3 events (Conference + Bridges + Gala) marked as PAID for €150, then emails the recipient the same 'Payment Confirmed' template a real diaspora guest gets — with a fully working Gala QR code embedded."
                                         : "Creates a minimal test registration for <strong>Conference + Bridges only</strong> (no Gala) and emails a small QR. Use this to verify the scanner's <strong>rejection path</strong>: scan in 'Gala' mode → ✗ NOT VALID; scan in 'Conference' or 'Bridges' mode → ✓ VALID."}
                                 </p>
                             </div>

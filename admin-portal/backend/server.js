@@ -46,19 +46,28 @@ function generateXlsxBuffer(headers, rows, sheetName = 'Sheet1') {
 }
 
 // Email configuration — supports Resend API (recommended for cloud hosting) or SMTP fallback
-async function sendEmail(to, subject, htmlContent) {
+// attachments: optional array of { filename, content: Buffer, type? } — converted per provider below
+async function sendEmail(to, subject, htmlContent, attachments) {
     const fromAddress = process.env.EMAIL_FROM || 'Med&X <onboarding@resend.dev>';
+    const atts = Array.isArray(attachments) ? attachments.filter(a => a && a.filename && a.content) : [];
 
     // Option 1: Resend API (HTTP-based, works on all hosting platforms)
     if (process.env.RESEND_API_KEY) {
         try {
+            const resendBody = { from: fromAddress, to, subject, html: htmlContent };
+            if (atts.length) {
+                resendBody.attachments = atts.map(a => ({
+                    filename: a.filename,
+                    content: Buffer.from(a.content).toString('base64')
+                }));
+            }
             const response = await fetch('https://api.resend.com/emails', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ from: fromAddress, to, subject, html: htmlContent })
+                body: JSON.stringify(resendBody)
             });
             const data = await response.json();
             if (!response.ok) {
@@ -85,7 +94,11 @@ async function sendEmail(to, subject, htmlContent) {
                 socketTimeout: 10000,
                 auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
             });
-            await transporter.sendMail({ from: fromAddress, to, subject, html: htmlContent });
+            const mailOpts = { from: fromAddress, to, subject, html: htmlContent };
+            if (atts.length) {
+                mailOpts.attachments = atts.map(a => ({ filename: a.filename, content: a.content }));
+            }
+            await transporter.sendMail(mailOpts);
             console.log(`[Email Sent via SMTP] To: ${to}, Subject: ${subject}`);
             return { success: true };
         } catch (err) {
@@ -149,6 +162,39 @@ function buildEmailTemplate(title, bodyHtml) {
 </body>
 </html>`;
 }
+// ---- Hosted ticket-QR helpers (mirror of user-portal; the /qr/:id.png route lives there) ----
+// Emails reference a hosted QR URL instead of a data: URI because Gmail/Outlook strip data: URIs.
+// The PNG is also attached so the ticket survives image-blocking clients.
+const QR_BASE_URL = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
+function qrImageUrl(regId) { return `${QR_BASE_URL}/qr/${regId}.png`; }
+
+async function qrPngAttachment(payload) {
+    try {
+        const png = await QRCode.toBuffer(JSON.stringify(payload), { width: 560, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
+        return [{ filename: 'plexus-ticket-qr.png', content: png, type: 'image/png' }];
+    } catch (e) {
+        console.warn('QR attachment generation failed:', e.message);
+        return [];
+    }
+}
+
+function buildTicketQrBlock(regId, opts = {}) {
+    const label = opts.label || 'Your Check-in QR Code';
+    const caption = opts.caption || 'Present this code at the event entrance';
+    return `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:26px 0;"><tr><td align="center">
+        <table cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e6dfc8;border-radius:18px;overflow:hidden;box-shadow:0 3px 14px rgba(15,23,42,0.07);">
+            <tr><td style="background:linear-gradient(90deg,#b8922e,#C9A962,#dfc070,#C9A962,#b8922e);height:4px;font-size:0;line-height:0;">&nbsp;</td></tr>
+            <tr><td style="padding:22px 34px 6px;text-align:center;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2.5px;">${label}</td></tr>
+            <tr><td align="center" style="padding:10px 34px 6px;text-align:center;">
+                <img src="${qrImageUrl(regId)}" alt="Check-in QR code" width="220" height="220" style="display:block;margin:0 auto;border:0;" />
+            </td></tr>
+            <tr><td style="padding:0 34px 4px;text-align:center;font-size:12px;color:#94a3b8;letter-spacing:2px;font-family:'Courier New',monospace;">${String(regId).substring(0, 8).toUpperCase()}</td></tr>
+            <tr><td style="padding:6px 34px 22px;text-align:center;font-size:12px;color:#64748b;line-height:1.6;">${caption}<br><span style="color:#94a3b8;">Your QR is also attached to this email — save it to your phone.</span></td></tr>
+        </table>
+    </td></tr></table>`;
+}
+
 // Generate a speaker invite code: SPK-XXXX-2026
 function generateSpeakerInviteCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I/O/0/1 to avoid confusion
@@ -15913,7 +15959,7 @@ By applying to this program, I provide the following consents:
                 evt: 'croatians-abroad', evtName: 'Plexus 2026 — Scanner Test Ticket',
                 events: ['conference', 'bridges']
             });
-            const qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 240, margin: 2 });
+            const testQrAtts = await qrPngAttachment(JSON.parse(qrPayload));
             const html = `<div style="font-family:system-ui;max-width:560px;margin:0 auto;padding:24px;background:#f8fafc;">
                 <h2 style="color:#c9a962;margin:0 0 12px;">Scanner Test QR</h2>
                 <p>Hi ${first},</p>
@@ -15922,19 +15968,13 @@ By applying to this program, I provide the following consents:
                     <tr><td style="padding:10px 14px;font-size:13px;color:#334155;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-weight:600;">Valid scanner modes:</td></tr>
                     <tr><td style="padding:10px 14px;font-size:13px;color:#334155;">✓ Plexus Conference &nbsp; ✓ Bridges &nbsp; ✗ Gala (not registered)</td></tr>
                 </table>
-                <div style="text-align:center;margin:22px 0;">
-                    <div style="display:inline-block;background:#fff;border:2px solid #e2e8f0;border-radius:14px;padding:20px;">
-                        <div style="font-size:10px;font-weight:700;color:#c9a962;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;">Test QR</div>
-                        <img src="${qrDataUrl}" alt="Test QR" width="220" height="220" style="display:block;margin:0 auto;border-radius:8px;border:0;" />
-                        <div style="font-size:11px;color:#94a3b8;margin-top:8px;">ID: ${testId.substring(0,8)}…</div>
-                    </div>
-                </div>
+                ${buildTicketQrBlock(testId, { label: 'Test QR', caption: 'Scan from the admin Event Check-in view' })}
                 <p style="font-size:13px;color:#64748b;">Admin Portal → Event Check-in → pick Conference or Bridges → scan this QR → ✓ valid. Pick Gala → ✗ not registered.</p>
                 <p style="font-size:11px;color:#94a3b8;"><em>Tagged "SCANNER TEST — safe to delete" in your Croatians Abroad list.</em></p>
                 <hr style="border:none;border-top:1px solid #e2e8f0;margin:18px 0;">
                 <p style="font-size:10px;color:#94a3b8;line-height:1.55;">Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event. <a href="https://medx-user-portal.onrender.com/privacy" style="color:#c9a962;text-decoration:none;">Privacy Policy</a> &nbsp;·&nbsp; <a href="https://medx-user-portal.onrender.com/terms" style="color:#c9a962;text-decoration:none;">Terms</a></p>
             </div>`;
-            const sendResult = await sendEmail(email, 'Scanner Test QR — Plexus 2026', html);
+            const sendResult = await sendEmail(email, 'Scanner Test QR — Plexus 2026', html, testQrAtts);
             if (sendResult && sendResult.mock) {
                 return res.status(500).json({
                     error: 'NO EMAIL PROVIDER CONFIGURED — registration was created (visible in Croatians Abroad), but no email was sent. Set RESEND_API_KEY (or SENDGRID_API_KEY) in Render env vars and redeploy.',
@@ -15966,7 +16006,7 @@ By applying to this program, I provide the following consents:
 
             const caRegId = require('crypto').randomUUID();
             const galaRegId = require('crypto').randomUUID();
-            const amount = 140;
+            const amount = Number(query.get("SELECT price_gala_only FROM gala_settings WHERE id = 'default'")?.price_gala_only) || 150;
             const year = new Date().getFullYear();
             const invoiceNumber = `CA-GALA-TEST-${year}-${galaRegId.substring(0,4).toUpperCase()}`;
 
@@ -15992,21 +16032,17 @@ By applying to this program, I provide the following consents:
             saveDb();
 
             // Generate the same Gala QR a real Stripe-confirmed bundle would create
-            let qrDataUrl = '';
-            try {
-                const qrPayload = JSON.stringify({
-                    type: 'MEDX_MEMBER',
-                    regId: galaRegId,
-                    caRegId,
-                    email: targetEmail,
-                    name: `${first} ${last}`,
-                    evt: 'gala',
-                    evtName: 'Plexus 2026 — Gala Evening',
-                    amt: amount,
-                    events: ['conference', 'bridges', 'gala']
-                });
-                qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 240, margin: 2 });
-            } catch(qrErr) { console.warn('Bundle test QR gen failed:', qrErr.message); }
+            const bundleQrAtts = await qrPngAttachment({
+                type: 'MEDX_MEMBER',
+                regId: galaRegId,
+                caRegId,
+                email: targetEmail,
+                name: `${first} ${last}`,
+                evt: 'gala',
+                evtName: 'Plexus 2026 — Gala Evening',
+                amt: amount,
+                events: ['conference', 'bridges', 'gala']
+            });
 
             // Build the same Payment Confirmed email a real CA bundle guest gets (matches the Stripe webhook template)
             const eventListHtml = `
@@ -16034,13 +16070,7 @@ By applying to this program, I provide the following consents:
                     ${eventListHtml}
                 </table>
                 <p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${invoiceNumber}</p>
-                ${qrDataUrl ? `<div style="text-align:center;margin:22px 0;">
-                    <div style="display:inline-block;background:#fff;border:2px solid #e2e8f0;border-radius:14px;padding:22px;">
-                        <div style="font-size:10px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;">Gala Check-in QR Code</div>
-                        <img src="${qrDataUrl}" alt="QR Code" width="220" height="220" style="display:block;margin:0 auto;border-radius:8px;border:0;" />
-                        <div style="font-size:11px;color:#94a3b8;margin-top:8px;">Present this code at the Gala entrance on 5 December</div>
-                    </div>
-                </div>` : ''}
+                ${buildTicketQrBlock(galaRegId, { label: 'Gala Check-in QR Code', caption: 'Present this code at the Gala entrance on 5 December' })}
                 <p>We will email you the <strong>Conference programme</strong> as soon as it is finalised, and confirm the <strong>Bridges date and venue</strong> when those are set.</p>
                 <p style="margin-top:18px;">We look forward to welcoming you home in Zagreb.</p>
                 <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
@@ -16049,7 +16079,7 @@ By applying to this program, I provide the following consents:
                 <p style="font-size:10px;color:#94a3b8;line-height:1.55;">Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event. <a href="https://medx-user-portal.onrender.com/privacy" style="color:#c9a962;text-decoration:none;">Privacy Policy</a> &nbsp;·&nbsp; <a href="https://medx-user-portal.onrender.com/terms" style="color:#c9a962;text-decoration:none;">Terms</a></p>
             </div>`;
 
-            const sendResult = await sendEmail(targetEmail, 'Payment Confirmed — Plexus 2026 Gala Evening (TEST)', html);
+            const sendResult = await sendEmail(targetEmail, 'Payment Confirmed — Plexus 2026 Gala Evening (TEST)', html, bundleQrAtts);
             if (sendResult && sendResult.mock) {
                 return res.status(500).json({
                     error: 'NO EMAIL PROVIDER CONFIGURED — the registration was created in the database (you can see it in Croatians Abroad), but no email was actually sent. Set RESEND_API_KEY (or SENDGRID_API_KEY) in Render env vars for the medx-admin-portal service and redeploy.',

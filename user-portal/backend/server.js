@@ -51,24 +51,35 @@ if (firaService.isConfigured()) {
 const app = express();
 
 // Email configuration — supports Resend API (recommended for cloud hosting) or SMTP fallback
-async function sendEmail(to, subject, htmlContent) {
+// attachments: optional array of { filename, content: Buffer, type? } — converted per provider below
+async function sendEmail(to, subject, htmlContent, attachments) {
     const fromAddress = process.env.EMAIL_FROM || 'Med&X <onboarding@resend.dev>';
+    const atts = Array.isArray(attachments) ? attachments.filter(a => a && a.filename && a.content) : [];
 
     // Option 0: SendGrid (works on Render, no domain verification needed)
     if (process.env.SENDGRID_API_KEY) {
         try {
+            const sgBody = {
+                personalizations: [{ to: [{ email: to }] }],
+                from: { email: process.env.SMTP_USER || 'juginovic.alen@gmail.com', name: 'Med&X' },
+                subject,
+                content: [{ type: 'text/html', value: htmlContent }]
+            };
+            if (atts.length) {
+                sgBody.attachments = atts.map(a => ({
+                    content: Buffer.from(a.content).toString('base64'),
+                    filename: a.filename,
+                    type: a.type || 'application/octet-stream',
+                    disposition: 'attachment'
+                }));
+            }
             const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    personalizations: [{ to: [{ email: to }] }],
-                    from: { email: process.env.SMTP_USER || 'juginovic.alen@gmail.com', name: 'Med&X' },
-                    subject,
-                    content: [{ type: 'text/html', value: htmlContent }]
-                })
+                body: JSON.stringify(sgBody)
             });
             if (response.ok || response.status === 202) {
                 console.log(`[Email Sent via SendGrid] To: ${to}, Subject: ${subject}`);
@@ -86,13 +97,20 @@ async function sendEmail(to, subject, htmlContent) {
     // Option 1: Resend API (HTTP-based, works on all hosting platforms)
     if (process.env.RESEND_API_KEY) {
         try {
+            const resendBody = { from: fromAddress, to, subject, html: htmlContent };
+            if (atts.length) {
+                resendBody.attachments = atts.map(a => ({
+                    filename: a.filename,
+                    content: Buffer.from(a.content).toString('base64')
+                }));
+            }
             const response = await fetch('https://api.resend.com/emails', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ from: fromAddress, to, subject, html: htmlContent })
+                body: JSON.stringify(resendBody)
             });
             const data = await response.json();
             if (!response.ok) {
@@ -121,7 +139,11 @@ async function sendEmail(to, subject, htmlContent) {
             });
             // Gmail SMTP requires FROM to match the authenticated user
             const smtpFrom = `Med&X <${process.env.SMTP_USER}>`;
-            await transporter.sendMail({ from: smtpFrom, to, subject, html: htmlContent });
+            const mailOpts = { from: smtpFrom, to, subject, html: htmlContent };
+            if (atts.length) {
+                mailOpts.attachments = atts.map(a => ({ filename: a.filename, content: a.content }));
+            }
+            await transporter.sendMail(mailOpts);
             console.log(`[Email Sent via SMTP] To: ${to}, Subject: ${subject}`);
             return { success: true };
         } catch (err) {
@@ -213,6 +235,41 @@ function buildEmailTemplate(title, bodyHtml) {
 </table>
 </body>
 </html>`;
+}
+
+// ---- Hosted ticket-QR helpers ----
+// Confirmation emails reference GET /qr/<registrationId>.png instead of an inline data: URI,
+// because Gmail and Outlook strip data: URIs (guests saw a broken image instead of their ticket).
+// The same PNG is also attached to the email so the ticket survives image-blocking clients.
+const QR_BASE_URL = process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com';
+function qrImageUrl(regId) { return `${QR_BASE_URL}/qr/${regId}.png`; }
+
+async function qrPngAttachment(payload) {
+    try {
+        const png = await QRCode.toBuffer(JSON.stringify(payload), { width: 560, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
+        return [{ filename: 'plexus-ticket-qr.png', content: png, type: 'image/png' }];
+    } catch (e) {
+        console.warn('QR attachment generation failed:', e.message);
+        return [];
+    }
+}
+
+// Ticket-style QR card used by every confirmation email (email-client-safe tables only)
+function buildTicketQrBlock(regId, opts = {}) {
+    const label = opts.label || 'Your Check-in QR Code';
+    const caption = opts.caption || 'Present this code at the event entrance';
+    return `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:26px 0;"><tr><td align="center">
+        <table cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e6dfc8;border-radius:18px;overflow:hidden;box-shadow:0 3px 14px rgba(15,23,42,0.07);">
+            <tr><td style="background:linear-gradient(90deg,#b8922e,#C9A962,#dfc070,#C9A962,#b8922e);height:4px;font-size:0;line-height:0;">&nbsp;</td></tr>
+            <tr><td style="padding:22px 34px 6px;text-align:center;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2.5px;">${label}</td></tr>
+            <tr><td align="center" style="padding:10px 34px 6px;text-align:center;">
+                <img src="${qrImageUrl(regId)}" alt="Check-in QR code" width="220" height="220" style="display:block;margin:0 auto;border:0;" />
+            </td></tr>
+            <tr><td style="padding:0 34px 4px;text-align:center;font-size:12px;color:#94a3b8;letter-spacing:2px;font-family:'Courier New',monospace;">${String(regId).substring(0, 8).toUpperCase()}</td></tr>
+            <tr><td style="padding:6px 34px 22px;text-align:center;font-size:12px;color:#64748b;line-height:1.6;">${caption}<br><span style="color:#94a3b8;">Your QR is also attached to this email — save it to your phone.</span></td></tr>
+        </table>
+    </td></tr></table>`;
 }
 
 const PORT = process.env.PORT || 3000;
@@ -666,7 +723,7 @@ app.get('/invite/:data', (req, res) => {
 
             // Get live gala price for the Gala card on this page
             const galaForCA = query.get("SELECT * FROM gala_settings WHERE id = 'default'") || {};
-            const galaPrice = (galaForCA && galaForCA.price_gala_only) ? Number(galaForCA.price_gala_only) : 140;
+            const galaPrice = (galaForCA && galaForCA.price_gala_only) ? Number(galaForCA.price_gala_only) : 150;
             const confForCA = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'") || {};
             // Variant: 'croatian' (default) or 'international' — payload v: takes precedence over DB row
             const caVariant = (data.v === 'international' || (caInvite && caInvite.variant === 'international')) ? 'international' : 'croatian';
@@ -1050,7 +1107,7 @@ async function submitCA(e) {
                 eventInfo.name = gala.title || 'Gala Evening 2026';
                 eventInfo.date = gala.date || 'December 5, 2026';
                 eventInfo.venue = gala.venue || 'Hotel Esplanade, Zagreb';
-                eventInfo.price = gala.price_gala_only || 140;
+                eventInfo.price = gala.price_gala_only || 150;
                 // Live admin-editable fields (formerly hardcoded in the renderer below)
                 eventInfo.time = gala.time || '';
                 eventInfo.dress_code = gala.dress_code || '';
@@ -1384,6 +1441,88 @@ async function submitCA(e) {
     } catch(e) {
         console.error('Invite page error:', e.message, e.stack);
         res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Invitation Not Valid</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;padding:20px;"><div style="max-width:480px;"><div style="width:64px;height:64px;border-radius:50%;background:rgba(239,68,68,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:28px;color:#ef4444;">!</div><h1 style="color:#fff;font-size:24px;margin-bottom:12px;font-weight:600;">Invitation link not valid</h1><p style="color:#94a3b8;line-height:1.6;margin-bottom:8px;">This invitation link appears to be invalid or has expired.</p><p style="color:#64748b;font-size:14px;line-height:1.6;margin-bottom:24px;">If you believe this is a mistake, please contact us with the original email and we'll resend you a working link.</p><div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;"><a href="https://medx.hr" style="display:inline-block;padding:12px 24px;background:rgba(255,255,255,0.06);color:#c9a962;border-radius:10px;font-weight:600;text-decoration:none;border:1px solid rgba(201,169,98,0.2);">Visit Med&amp;X</a><a href="mailto:laura.rodman@medx.hr?subject=Invalid%20invitation%20link%20-%20Plexus%202026" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Contact Laura</a></div></div><!-- debug: ${escapeHtml(e.message)} --></body></html>`);
+    }
+});
+
+// Hosted QR ticket image — confirmation emails embed this URL instead of a data: URI
+// (Gmail and Outlook strip data: URIs, which silently broke ticket QRs in those clients).
+// :id is an unguessable registration UUID — same security model as the invite tokens themselves.
+app.get('/qr/:id.png', async (req, res) => {
+    try {
+        const id = String(req.params.id || '').trim();
+        if (!/^[0-9a-fA-F-]{16,64}$/.test(id)) return res.status(404).json({ error: 'Not found' });
+
+        let payload = null;
+
+        // 1) Croatians Abroad registration — matched by its own id OR by the linked gala-side id,
+        //    so the same QR verifies in all three scanner modes (conference / bridges / gala)
+        let ca = null;
+        try { ca = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ? OR gala_registration_id = ?', [id, id]); } catch(e) {}
+        if (ca) {
+            const events = [
+                ca.selected_conference ? 'conference' : null,
+                ca.selected_bridges ? 'bridges' : null,
+                ca.selected_gala ? 'gala' : null
+            ].filter(Boolean);
+            payload = {
+                type: 'MEDX_MEMBER',
+                caRegId: ca.id,
+                regId: ca.gala_registration_id || ca.id,
+                email: ca.email,
+                name: `${ca.first_name} ${ca.last_name || ''}`.trim(),
+                evt: ca.selected_gala ? 'gala' : 'croatians-abroad',
+                evtName: ca.selected_gala ? 'Plexus 2026 — Gala Evening' : 'Plexus 2026',
+                events
+            };
+            if (ca.amount_paid) payload.amt = ca.amount_paid;
+            if (ca.dietary) payload.diet = ca.dietary;
+        }
+
+        // 2) Standalone Gala registration (paid or VIP invite, no CA bundle)
+        if (!payload) {
+            let g = null;
+            try { g = query.get('SELECT * FROM gala_registrations WHERE id = ?', [id]); } catch(e) {}
+            if (g) {
+                payload = {
+                    type: 'MEDX_MEMBER', regId: g.id, email: g.email,
+                    name: `${g.first_name} ${g.last_name || ''}`.trim(),
+                    evt: 'gala', evtName: 'Plexus 2026 — Gala Evening'
+                };
+                if (g.dietary) payload.diet = g.dietary;
+            }
+        }
+
+        // 3) Conference / Forum / Bridges invite registrations
+        if (!payload) {
+            const lookups = [
+                { sql: 'SELECT * FROM registrations WHERE id = ?', evt: 'plexus', evtName: 'Plexus Conference 2026' },
+                { sql: 'SELECT * FROM forum_event_registrations WHERE id = ?', evt: 'forum', evtName: 'Med&X Forum' },
+                { sql: 'SELECT * FROM bridges_registrations WHERE id = ?', evt: 'bridges', evtName: 'Croatia Building Bridges' }
+            ];
+            for (const l of lookups) {
+                let row = null;
+                try { row = query.get(l.sql, [id]); } catch(e) {}
+                if (row) {
+                    payload = {
+                        type: 'MEDX_MEMBER', regId: row.id, email: row.email,
+                        name: `${row.first_name} ${row.last_name || ''}`.trim(),
+                        evt: l.evt, evtName: l.evtName
+                    };
+                    if (row.user_id) payload.userId = row.user_id;
+                    break;
+                }
+            }
+        }
+
+        if (!payload) return res.status(404).json({ error: 'Not found' });
+
+        const png = await QRCode.toBuffer(JSON.stringify(payload), { width: 560, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
+        res.set('Content-Type', 'image/png');
+        res.set('Cache-Control', 'public, max-age=3600');
+        res.send(png);
+    } catch (e) {
+        console.error('QR endpoint error:', e.message);
+        res.status(500).json({ error: 'QR generation failed' });
     }
 });
 
@@ -3888,11 +4027,11 @@ async function initializeApp() {
     if (!existingGalaSettings) {
         db.run("INSERT INTO gala_settings (id) VALUES ('default')");
     }
-    // 2026 pricing migration: gala-only fee €140 (only if still at a legacy default; never overrides admin edits)
+    // 2026 pricing migration: gala-only early-bird fee €150 (only if still at a legacy default; never overrides admin edits)
     try {
         const galaRow = query.get("SELECT price_gala_only, time, venue, title FROM gala_settings WHERE id = 'default'");
-        if (galaRow && (galaRow.price_gala_only == null || Number(galaRow.price_gala_only) === 95 || Number(galaRow.price_gala_only) === 75 || Number(galaRow.price_gala_only) === 125)) {
-            db.run("UPDATE gala_settings SET price_gala_only = 140 WHERE id = 'default'");
+        if (galaRow && (galaRow.price_gala_only == null || [95, 75, 125, 140].includes(Number(galaRow.price_gala_only)))) {
+            db.run("UPDATE gala_settings SET price_gala_only = 150 WHERE id = 'default'");
         }
         // ONE-TIME TEST-DATA WIPE — clears all fake Gala + Croatians Abroad registrations
         // accumulated during pre-launch testing. Runs exactly once via app_state marker.
@@ -11008,17 +11147,19 @@ By applying to this program, I provide the following consents:
                     }
                     saveDb();
 
-                    // Generate Gala QR for the gala_registrations row
-                    let qrDataUrl = '';
-                    try {
-                        const qrPayload = JSON.stringify({
-                            type: 'MEDX_MEMBER', regId: galaRegId, email: caEmail,
-                            name: (metadata.first_name || '') + ' ' + (metadata.last_name || ''),
-                            evt: 'gala', evtName: 'Plexus 2026 — Gala Evening',
-                            amt: amount, diet: metadata.dietary || ''
-                        });
-                        qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 220, margin: 2 });
-                    } catch(qrErr) { console.warn('CA gala QR generation failed:', qrErr.message); }
+                    // Gala QR ticket — hosted image URL in the email body + PNG attachment
+                    // (carries BOTH ids so the scanner verifies in gala AND conference/bridges modes)
+                    const galaQrAtts = await qrPngAttachment({
+                        type: 'MEDX_MEMBER', caRegId, regId: galaRegId, email: caEmail,
+                        name: (metadata.first_name || '') + ' ' + (metadata.last_name || ''),
+                        evt: 'gala', evtName: 'Plexus 2026 — Gala Evening',
+                        events: [
+                            metadata.bundle_conference === '1' ? 'conference' : null,
+                            metadata.bundle_bridges === '1' ? 'bridges' : null,
+                            'gala'
+                        ].filter(Boolean),
+                        amt: amount, diet: metadata.dietary || ''
+                    });
 
                     const eventListHtml = `
                         ${metadata.bundle_conference === '1' ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #a78bfa;">
@@ -11047,17 +11188,11 @@ By applying to this program, I provide the following consents:
                                 ${eventListHtml}
                             </table>
                             <p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${invoiceNumber}</p>
-                            ${qrDataUrl ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;"><tr><td align="center">
-                                <table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:16px;padding:22px;text-align:center;">
-                                    <tr><td style="padding-bottom:10px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Gala Check-in QR Code</td></tr>
-                                    <tr><td align="center" style="text-align:center;"><img src="${qrDataUrl}" alt="QR Code" width="200" height="200" style="display:block;margin:0 auto;border-radius:8px;border:0;" /></td></tr>
-                                    <tr><td style="padding-top:10px;font-size:12px;color:#94a3b8;">Present this code at the Gala entrance on 5 December</td></tr>
-                                </table>
-                            </td></tr></table>` : ''}
+                            ${buildTicketQrBlock(galaRegId, { label: 'Gala Check-in QR Code', caption: 'Present this code at the Gala entrance on 5 December' })}
                             <p>We will email you the <strong>Conference programme</strong> as soon as it is finalised${metadata.bundle_bridges === '1' ? ', and confirm the <strong>Bridges date and venue</strong> when those are set' : ''}.</p>
                             <p style="margin-top:24px;">We look forward to welcoming you home in Zagreb.</p>
                             <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
-                        `));
+                        `), galaQrAtts);
                     } catch(emailErr) { console.warn('CA confirmation email failed:', emailErr.message); }
 
                     // Log to Google Sheets — `events` array routes to correct tab(s)
@@ -11179,8 +11314,7 @@ By applying to this program, I provide the following consents:
                     const user = query.get('SELECT id FROM users WHERE email = ?', [invEmail]);
                     const itemsList = metadata.items ? metadata.items.split(', ').filter(Boolean) : [];
                     const qrData = JSON.stringify({ type: 'MEDX_MEMBER', userId: user?.id || invRegId, email: invEmail, name: (metadata.first_name || '') + ' ' + (metadata.last_name || ''), regId: invRegId, evt: metadata.type.replace('invite-', ''), evtName: metadata.event_name || 'Med&X Event', items: itemsList, guests: parseInt(metadata.guest_count || '0'), diet: metadata.dietary || '', allrg: metadata.allergies || '', amt: session.amount_total ? session.amount_total / 100 : 0 });
-                    let qrDataUrl = '';
-                    try { qrDataUrl = await QRCode.toDataURL(qrData, { width: 200, margin: 2 }); } catch(e) {}
+                    const invQrAtts = await qrPngAttachment(JSON.parse(qrData));
 
                     const guestCnt = parseInt(metadata.guest_count || '0');
                     const invEmailBody = `
@@ -11191,14 +11325,14 @@ By applying to this program, I provide the following consents:
                         <p>Your payment of <strong>&euro;${amount.toFixed(2)}</strong> for <strong style="color:#C9A962;">${metadata.event_name || 'Med&X Event'}</strong> has been received.</p>
                         ${itemsList.length ? '<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;"><tr><td style="background:#f8fafc;padding:10px 16px;font-size:13px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Registered For</td></tr>' + itemsList.map(i => '<tr><td style="padding:10px 16px;font-size:14px;color:#334155;border-bottom:1px solid #f1f5f9;">&#10003; ' + i + '</td></tr>').join('') + '</table>' : ''}
                         ${guestCnt ? '<p>&#128101; <strong>+' + guestCnt + ' Guest' + (guestCnt > 1 ? 's' : '') + '</strong> included in your registration. Your guest(s) can use the same QR code for check-in.</p>' : ''}
-                        ${qrDataUrl ? '<table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;"><tr><td align="center"><table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:16px;padding:24px;text-align:center;"><tr><td style="padding-bottom:12px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Your Check-in QR Code</td></tr><tr><td align="center" style="text-align:center;"><img src="' + qrDataUrl + '" alt="QR Code" width="180" height="180" style="display:block;margin:0 auto;border-radius:8px;border:0;" /></td></tr><tr><td style="padding-top:12px;font-size:12px;color:#94a3b8;">Present this code at the event entrance</td></tr></table></td></tr></table>' : ''}
+                        ${buildTicketQrBlock(invRegId)}
                         <p>We look forward to seeing you!</p>
                         <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;border-top:1px solid #e2e8f0;padding-top:16px;">
                             <tr><td style="font-size:13px;color:#64748b;">Questions? Contact <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></td></tr>
                         </table>`;
                     try {
                         await sendEmail(invEmail, `Payment Confirmed: ${metadata.event_name || 'Med&X Event'}`,
-                            buildEmailTemplate('Payment Confirmed', invEmailBody));
+                            buildEmailTemplate('Payment Confirmed', invEmailBody), invQrAtts);
                         console.log(`[Stripe] Confirmation email sent to ${invEmail}`);
                     } catch(emailErr) { console.log('[Stripe] Invite confirmation email failed:', emailErr.message); }
 
@@ -14729,7 +14863,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Issue invoice (change status from draft to issued)
-    app.post('/api/finance/invoices/:id/issue', auth, (req, res) => {
+    app.post('/api/finance/invoices/:id/issue', auth, adminOnly, (req, res) => {
         db.run('UPDATE finance_invoices SET status = ?, issue_date = COALESCE(issue_date, date(?)) WHERE id = ?',
             ['issued', 'now', req.params.id]);
         saveDb();
@@ -15052,7 +15186,7 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
-    app.post('/api/finance/travel-orders/:id/pay', auth, (req, res) => {
+    app.post('/api/finance/travel-orders/:id/pay', auth, adminOnly, (req, res) => {
         const order = query.get('SELECT * FROM finance_travel_orders WHERE id = ?', [req.params.id]);
         if (!order) return res.status(404).json({ error: 'Not found' });
 
@@ -16797,7 +16931,7 @@ By applying to this program, I provide the following consents:
                 evt: 'croatians-abroad', evtName: 'Plexus 2026 — Scanner Test Ticket',
                 events: ['conference', 'bridges']
             });
-            const qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 240, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
+            const testQrAtts = await qrPngAttachment(JSON.parse(qrPayload));
 
             const html = buildEmailTemplate('Scanner Test QR', `
                 <p>Hi ${first},</p>
@@ -16807,17 +16941,11 @@ By applying to this program, I provide the following consents:
                     <tr><td style="padding:10px 14px;font-size:13px;color:#334155;">✓ Plexus Conference &nbsp;&nbsp; ✓ Croatian Biomedical Bridges</td></tr>
                     <tr><td style="padding:6px 14px;font-size:13px;color:#94a3b8;">✗ Plexus Gala Evening &nbsp;&nbsp;<em style="font-size:11px;">(not registered — scanner will correctly reject this mode)</em></td></tr>
                 </table>
-                <table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;"><tr><td align="center">
-                    <table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:14px;padding:20px;text-align:center;">
-                        <tr><td style="padding-bottom:10px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Scanner Test QR Code</td></tr>
-                        <tr><td><img src="${qrDataUrl}" alt="Test QR" width="220" height="220" style="display:block;margin:0 auto;border-radius:8px;" /></td></tr>
-                        <tr><td style="padding-top:8px;font-size:11px;color:#94a3b8;">Registration ID: ${testId.substring(0, 8)}…</td></tr>
-                    </table>
-                </td></tr></table>
+                ${buildTicketQrBlock(testId, { label: 'Scanner Test QR Code', caption: 'Scan from the admin Event Check-in view' })}
                 <p style="font-size:13px;color:#64748b;">To use: open the admin portal → Event Check-in → pick "Plexus Conference" or "Bridges" → scan this QR. Should show ✓ valid. Then pick "Plexus Gala Evening" → scan → should show ✗ not registered for this event.</p>
                 <p style="font-size:12px;color:#94a3b8;margin-top:18px;"><em>This test row is tagged with note 'SCANNER TEST — safe to delete' and can be removed from the Croatians Abroad registrations list any time.</em></p>
             `);
-            const sendResult = await sendEmail(email, 'Scanner Test QR — Plexus 2026', html);
+            const sendResult = await sendEmail(email, 'Scanner Test QR — Plexus 2026', html, testQrAtts);
             if (sendResult && sendResult.mock) {
                 return res.status(500).json({
                     error: 'NO EMAIL PROVIDER CONFIGURED on Render — the registration was created (visible in Croatians Abroad) but no email was sent. Set RESEND_API_KEY (or SENDGRID_API_KEY) in Render → medx-user-portal → Environment → Save Changes → redeploy.',
@@ -16850,7 +16978,7 @@ By applying to this program, I provide the following consents:
 
             const caRegId = require('crypto').randomUUID();
             const galaRegId = require('crypto').randomUUID();
-            const amount = 140;
+            const amount = Number(query.get("SELECT price_gala_only FROM gala_settings WHERE id = 'default'")?.price_gala_only) || 150;
             const year = new Date().getFullYear();
             const invoiceNumber = `CA-GALA-TEST-${year}-${galaRegId.substring(0,4).toUpperCase()}`;
 
@@ -16873,16 +17001,12 @@ By applying to this program, I provide the following consents:
             );
             saveDb();
 
-            let qrDataUrl = '';
-            try {
-                const qrPayload = JSON.stringify({
-                    type: 'MEDX_MEMBER', regId: galaRegId, caRegId,
-                    email: targetEmail, name: `${first} ${last}`,
-                    evt: 'gala', evtName: 'Plexus 2026 — Gala Evening', amt: amount,
-                    events: ['conference', 'bridges', 'gala']
-                });
-                qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 240, margin: 2 });
-            } catch(qrErr) {}
+            const bundleQrAtts = await qrPngAttachment({
+                type: 'MEDX_MEMBER', regId: galaRegId, caRegId,
+                email: targetEmail, name: `${first} ${last}`,
+                evt: 'gala', evtName: 'Plexus 2026 — Gala Evening', amt: amount,
+                events: ['conference', 'bridges', 'gala']
+            });
 
             const eventListHtml = `
                 <tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;background:#fff;border-left:3px solid #a78bfa;">
@@ -16909,19 +17033,13 @@ By applying to this program, I provide the following consents:
                     ${eventListHtml}
                 </table>
                 <p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${invoiceNumber}</p>
-                ${qrDataUrl ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;"><tr><td align="center">
-                    <table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:14px;padding:22px;text-align:center;">
-                        <tr><td style="padding-bottom:10px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Gala Check-in QR Code</td></tr>
-                        <tr><td align="center" style="text-align:center;"><img src="${qrDataUrl}" alt="QR Code" width="220" height="220" style="display:block;margin:0 auto;border-radius:8px;border:0;" /></td></tr>
-                        <tr><td style="padding-top:10px;font-size:12px;color:#94a3b8;">Present this code at the Gala entrance on 5 December</td></tr>
-                    </table>
-                </td></tr></table>` : ''}
+                ${buildTicketQrBlock(galaRegId, { label: 'Gala Check-in QR Code', caption: 'Present this code at the Gala entrance on 5 December' })}
                 <p>We will email you the <strong>Conference programme</strong> as soon as it is finalised, and confirm the <strong>Bridges date and venue</strong> when those are set.</p>
                 <p style="margin-top:18px;">We look forward to welcoming you home in Zagreb.</p>
                 <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
                 <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
                 <p style="font-size:11px;color:#94a3b8;"><em>[BUNDLE TEST] Generated by admin test-bundle-email tool. Registration tagged "BUNDLE TEST — safe to delete" in your Croatians Abroad list. The QR is fully functional in the Event Check-in scanner.</em></p>
-            `));
+            `), bundleQrAtts);
             if (sendResult && sendResult.mock) {
                 return res.status(500).json({
                     error: 'NO EMAIL PROVIDER CONFIGURED on Render — the test registration was created in the database but no email was sent. Set RESEND_API_KEY (or SENDGRID_API_KEY) in Render → medx-user-portal → Environment, then redeploy.',
@@ -17443,7 +17561,7 @@ By applying to this program, I provide the following consents:
                 return res.status(500).json({ error: 'Payment processor not configured. Please contact info@medx.hr.' });
             }
             const galaSettingsRow = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
-            const galaPrice = galaSettingsRow?.price_gala_only || 140;
+            const galaPrice = galaSettingsRow?.price_gala_only || 150;
             const baseUrl = process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
             const session = await stripe.checkout.sessions.create({
                 mode: 'payment',
@@ -17592,11 +17710,7 @@ By applying to this program, I provide the following consents:
 
             // Helper: generate QR + send confirmation email (called after payment or immediately for free events)
             async function sendRegistrationConfirmation() {
-                const qrData = JSON.stringify({ type: 'MEDX_MEMBER', userId: user.id, email, name: first_name + ' ' + last_name, regId, evt: event_type, evtName: event_name || 'Med&X Event', items: package_items || [], guests: guest_count || 0, diet: dietary || '', allrg: allergies || '', amt: total_amount || 0 });
-                let qrDataUrl = '';
-                try {
-                    qrDataUrl = await QRCode.toDataURL(qrData, { width: 200, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
-                } catch(qrErr) { console.log('QR generation failed:', qrErr.message); }
+                const regQrAtts = await qrPngAttachment({ type: 'MEDX_MEMBER', userId: user.id, email, name: first_name + ' ' + last_name, regId, evt: event_type, evtName: event_name || 'Med&X Event', items: package_items || [], guests: guest_count || 0, diet: dietary || '', allrg: allergies || '', amt: total_amount || 0 });
 
                 const regEmailBody = `
                     <div style="text-align:center;margin-bottom:8px;">
@@ -17612,16 +17726,7 @@ By applying to this program, I provide the following consents:
                     ${guest_count ? '<p>&#128101; <strong>+' + guest_count + ' Guest' + (guest_count > 1 ? 's' : '') + '</strong> included in your registration. Your guest(s) can use the same QR code for check-in.</p>' : ''}
                     ${dietary && dietary !== 'No special requirements' ? '<p><strong>Dietary:</strong> ' + dietary + '</p>' : ''}
                     ${allergies && allergies !== 'None' ? '<p><strong>Allergies:</strong> ' + allergies + '</p>' : ''}
-                    ${qrDataUrl ? `
-                    <table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;">
-                        <tr><td align="center">
-                            <table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:16px;padding:24px;text-align:center;">
-                                <tr><td style="padding-bottom:12px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Your Check-in QR Code</td></tr>
-                                <tr><td align="center" style="text-align:center;"><img src="${qrDataUrl}" alt="QR Code" width="180" height="180" style="display:block;margin:0 auto;border-radius:8px;border:0;" /></td></tr>
-                                <tr><td style="padding-top:12px;font-size:12px;color:#94a3b8;">Present this code at the event entrance</td></tr>
-                            </table>
-                        </td></tr>
-                    </table>` : ''}
+                    ${buildTicketQrBlock(regId)}
                     <p>We look forward to seeing you!</p>
                     <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;border-top:1px solid #e2e8f0;padding-top:16px;">
                         <tr><td style="font-size:13px;color:#64748b;">
@@ -17631,7 +17736,7 @@ By applying to this program, I provide the following consents:
                     </table>`;
                 try {
                     await sendEmail(email, `Registration Confirmed: ${event_name || 'Med&X Event'}`,
-                        buildEmailTemplate('Registration Confirmed', regEmailBody));
+                        buildEmailTemplate('Registration Confirmed', regEmailBody), regQrAtts);
                 } catch(e) { console.log('Confirmation email failed:', e.message); }
             }
 
