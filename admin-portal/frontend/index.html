@@ -10826,8 +10826,12 @@ President, Med&amp;X</textarea>
                             </h2>
                             <p style="margin:6px 0 0;color:var(--text-muted);font-size:13px;">Preflight check across every flow that can go wrong — run it before the event and any time something seems off.</p>
                         </div>
-                        <button class="btn btn-primary" onclick="HealthApp.run()" id="healthRunBtn"><i class="fas fa-sync"></i> Run checks</button>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <button class="btn btn-secondary" onclick="HealthApp.sendTestEmail()" id="healthTestEmailBtn" title="Send a delivery + QR-rendering test email to yourself (no registration created)"><i class="fas fa-paper-plane"></i> Send test email</button>
+                            <button class="btn btn-primary" onclick="HealthApp.run()" id="healthRunBtn"><i class="fas fa-sync"></i> Run checks</button>
+                        </div>
                     </div>
+                    <div id="healthTestEmailResult" style="margin-bottom:14px;"></div>
                     <div id="healthOverall"></div>
                     <div id="healthResults"></div>
                 </div>
@@ -30125,6 +30129,29 @@ By applying to this program, I give the following consents:
                 fail: { color: '#ef4444', bg: 'rgba(239,68,68,0.10)', border: 'rgba(239,68,68,0.40)', icon: 'fa-times-circle', label: 'FAIL' }
             },
             esc(s) { return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); },
+
+            async sendTestEmail() {
+                const btn = document.getElementById('healthTestEmailBtn');
+                const out = document.getElementById('healthTestEmailResult');
+                const to = prompt('Send a test email (with sample QR) to which address?', (App.user && App.user.email) || '');
+                if (to === null) return;
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…'; }
+                try {
+                    const res = await fetch('/api/admin/health/test-email', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+                        body: JSON.stringify({ email: to.trim() || undefined })
+                    });
+                    const data = await res.json();
+                    const ok = data.ok;
+                    const color = ok ? '#22c55e' : '#f59e0b';
+                    out.innerHTML = `<div class="card" style="padding:12px 16px;border-left:4px solid ${color};"><i class="fas ${ok ? 'fa-check-circle' : 'fa-exclamation-triangle'}" style="color:${color};"></i> ${this.esc(data.message || (ok ? 'Sent' : 'Could not send'))}</div>`;
+                } catch (err) {
+                    out.innerHTML = `<div class="card" style="padding:12px 16px;border-left:4px solid #ef4444;">Request failed: ${this.esc(err.message)}</div>`;
+                } finally {
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send test email'; }
+                }
+            },
 
             async run() {
                 const btn = document.getElementById('healthRunBtn');

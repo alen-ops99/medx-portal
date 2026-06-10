@@ -17006,6 +17006,34 @@ By applying to this program, I provide the following consents:
         res.json({ overall: worst, counts, generated_at: new Date().toISOString(), groups });
     });
 
+    // Health: send a delivery + rendering test email (NO DB rows created). Proves the whole
+    // pipeline end-to-end — provider auth, the branded template, the hosted QR image AND the
+    // PNG attachment — and surfaces mock/failure clearly. Used by the System Health panel.
+    app.post('/api/admin/health/test-email', auth, adminOnly, async (req, res) => {
+        try {
+            const to = (req.body && req.body.email && String(req.body.email).trim()) || (req.user && req.user.email);
+            if (!to) return res.status(400).json({ error: 'No recipient email' });
+            const sampleId = require('crypto').randomUUID();
+            const qrAtts = await qrPngAttachment({ type: 'MEDX_MEMBER', regId: sampleId, email: to, name: 'Preflight Test', evt: 'gala', evtName: 'Plexus 2026 — Preflight Test' });
+            const html = buildEmailTemplate('Email System Test', `
+                <p>This is a <strong>preflight test email</strong> from the Med&amp;X admin portal — it confirms the email pipeline works end to end.</p>
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+                    <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">What this verifies</td></tr>
+                    <tr><td style="padding:10px 14px;font-size:13px;color:#334155;line-height:1.7;">&#10003; Provider authentication &amp; delivery<br>&#10003; Branded Med&amp;X template renders<br>&#10003; QR ticket shows (hosted image + attachment below)</td></tr>
+                </table>
+                ${buildTicketQrBlock(sampleId, { label: 'Sample Check-in QR', caption: 'This is a sample ticket QR — it confirms QR rendering works.' })}
+                <p style="font-size:12px;color:#94a3b8;"><em>No registration was created. Safe to ignore/delete this email.</em></p>
+            `, );
+            const result = await sendEmail(to, 'Med&X — Email System Test (preflight)', html, qrAtts);
+            if (result && result.mock) return res.status(200).json({ ok: false, mock: true, to, message: 'No email provider configured — nothing was actually sent. Set RESEND_API_KEY (or SENDGRID_API_KEY) in Render.' });
+            if (result && result.success === false) return res.status(200).json({ ok: false, to, message: 'Provider rejected the send: ' + (result.error || 'unknown') + (/* common cause */ ' (often: EMAIL_FROM not verified — resend.dev only delivers to the account owner).') });
+            return res.json({ ok: true, to, message: 'Test email sent to ' + to + '. Check the inbox (and spam) — the QR should render and a PNG be attached.' });
+        } catch (e) {
+            console.error('[Health] test-email failed:', e.message);
+            return res.status(500).json({ ok: false, error: e.message });
+        }
+    });
+
     // ==================== TECH DASHBOARD ====================
     // These routes can stream the entire database, so they fail CLOSED: if TECH_PASSWORD
     // is unset in the environment the gate is disabled entirely (no default password —
