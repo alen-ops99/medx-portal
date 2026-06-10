@@ -407,9 +407,14 @@ app.get('/invite-success', async (req, res) => {
     let guestCount = 0;
 
     // Try to get session details from Stripe for QR generation
+    let paymentConfirmed = false;
     if (sessionId && stripe) {
         try {
             const session = await stripe.checkout.sessions.retrieve(sessionId);
+            // Only treat as a success if Stripe actually collected payment. Retrieving a
+            // session is not proof of payment — an unpaid/expired session would otherwise
+            // render a green "Payment Successful!" page with a QR.
+            paymentConfirmed = session.payment_status === 'paid' || (session.amount_total || 0) === 0;
             const meta = session.metadata || {};
             customerEmail = meta.email || session.customer_details?.email || '';
             firstName = meta.first_name || session.customer_details?.name?.split(' ')[0] || 'Guest';
@@ -428,9 +433,17 @@ app.get('/invite-success', async (req, res) => {
         } catch(e) { console.log('Success page Stripe lookup failed:', e.message); }
     }
 
+    // If the session exists but payment wasn't actually collected, show a neutral
+    // "pending" page rather than a green success with a QR.
+    if (sessionId && stripe && !paymentConfirmed) {
+        return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Payment Pending — Med&X</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:system-ui;text-align:center;padding:20px;margin:0;"><div style="max-width:460px;width:100%;"><div style="width:64px;height:64px;border-radius:50%;background:rgba(245,158,11,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:28px;color:#f59e0b;">⏳</div><h1 style="color:#fff;font-size:22px;margin-bottom:12px;font-weight:600;">Payment not yet confirmed</h1><p style="color:#94a3b8;line-height:1.6;margin-bottom:8px;">We haven't received confirmation of payment for this session. If you completed the payment, your confirmation and QR code will arrive by email shortly.</p><p style="color:#64748b;font-size:14px;line-height:1.6;margin-bottom:24px;">If you cancelled or the payment failed, your spot is not yet reserved — please try again or contact us.</p><div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;"><a href="https://medx.hr" style="display:inline-block;padding:12px 22px;background:rgba(255,255,255,0.06);color:#c9a962;border-radius:10px;font-weight:600;text-decoration:none;border:1px solid rgba(201,169,98,0.2);">Visit Med&amp;X</a><a href="mailto:laura.rodman@medx.hr?subject=Plexus%202026%20payment" style="display:inline-block;padding:12px 22px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Contact Laura</a></div><div style="margin-top:28px;padding-top:18px;border-top:1px solid rgba(255,255,255,0.06);font-size:11px;color:#64748b;"><a href="/privacy" style="color:#c9a962;text-decoration:none;">Privacy Policy</a> &nbsp;·&nbsp; <a href="/terms" style="color:#c9a962;text-decoration:none;">Terms</a></div></div></body></html>`);
+    }
+
+    // Escape all Stripe-metadata-derived values before rendering — these originate from the
+    // registration request body (attacker-controllable) and land on the official domain.
     const itemsHtml = itemsList.length ? '<div style="text-align:left;background:rgba(255,255,255,0.05);border-radius:10px;padding:14px 18px;margin:16px 0;">' +
         '<div style="font-size:11px;font-weight:600;color:#c9a962;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Registered For</div>' +
-        itemsList.map(i => '<div style="padding:4px 0;color:#e2e8f0;font-size:14px;">✓ ' + i + '</div>').join('') + '</div>' : '';
+        itemsList.map(i => '<div style="padding:4px 0;color:#e2e8f0;font-size:14px;">✓ ' + escapeHtml(i) + '</div>').join('') + '</div>' : '';
 
     res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Registration Complete — Med&X</title></head>
 <body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:system-ui;text-align:center;padding:20px;margin:0;">
@@ -439,7 +452,7 @@ app.get('/invite-success', async (req, res) => {
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
     </div>
     <h1 style="color:#22c55e;margin-bottom:8px;font-size:24px;">Payment Successful!</h1>
-    <p style="color:#94a3b8;font-size:16px;margin-bottom:4px;">Your registration for <strong style="color:#c9a962;">${eventName}</strong> is confirmed.</p>
+    <p style="color:#94a3b8;font-size:16px;margin-bottom:4px;">Your registration for <strong style="color:#c9a962;">${escapeHtml(eventName)}</strong> is confirmed.</p>
     ${amount ? '<p style="color:#64748b;font-size:14px;">Amount paid: <strong style="color:#e2e8f0;">€' + amount.toFixed(2) + '</strong></p>' : ''}
     ${itemsHtml}
     ${guestCount ? '<div style="background:rgba(201,169,98,0.1);border:1px solid rgba(201,169,98,0.2);border-radius:10px;padding:12px;margin:12px 0;"><p style="color:#c9a962;font-size:14px;margin:0;">👥 <strong>+' + guestCount + ' Guest' + (guestCount > 1 ? 's' : '') + '</strong> included in your registration</p><p style="color:#94a3b8;font-size:12px;margin:6px 0 0;">Your guest(s) can use the same QR code for check-in.</p></div>' : ''}
@@ -453,7 +466,7 @@ app.get('/invite-success', async (req, res) => {
         </button>
     </div>` : ''}
     <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:10px;padding:14px;margin:16px 0;">
-        <p style="color:#22c55e;font-size:14px;margin:0;">📧 A confirmation email with your QR code has been sent${customerEmail ? ' to <strong>' + customerEmail + '</strong>' : ''}.</p>
+        <p style="color:#22c55e;font-size:14px;margin:0;">📧 A confirmation email with your QR code has been sent${customerEmail ? ' to <strong>' + escapeHtml(customerEmail) + '</strong>' : ''}.</p>
         <p style="color:#64748b;font-size:12px;margin:6px 0 0;">Check your spam folder if you don't see it within a few minutes.</p>
     </div>
     <a href="https://medx.hr" style="display:inline-block;padding:12px 24px;background:rgba(255,255,255,0.06);color:#c9a962;border:1px solid rgba(201,169,98,0.3);border-radius:10px;font-weight:600;text-decoration:none;margin-top:8px;">Visit Med&X →</a>

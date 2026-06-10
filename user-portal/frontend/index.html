@@ -102248,7 +102248,7 @@ ${'='.repeat(70)}
                     formData.append('message', message || '');
                     if (file) formData.append('file', file);
 
-                    await fetch(`${this.API_BASE}/api/forum/groups/${this.currentGroupId}/messages`, {
+                    await fetch(`/api/forum/groups/${this.currentGroupId}/messages`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${this.token}` },
                         body: formData
@@ -102482,7 +102482,7 @@ ${'='.repeat(70)}
                         formData.append('caption', caption || '');
                         if (this.currentFolderId) formData.append('folder_id', this.currentFolderId);
 
-                        const galleryRes = await fetch(`${this.API_BASE}/api/admin/forum/media`, {
+                        const galleryRes = await fetch(`/api/admin/forum/media`, {
                             method: 'POST',
                             headers: { 'Authorization': `Bearer ${this.token}` },
                             body: formData
@@ -103586,7 +103586,7 @@ ${'='.repeat(70)}
                     const formData = new FormData();
                     formData.append('file', file);
 
-                    const response = await fetch(`${this.API_BASE}/api/admin/forum/prospects/preview`, {
+                    const response = await fetch(`/api/admin/forum/prospects/preview`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${this.token}` },
                         body: formData
