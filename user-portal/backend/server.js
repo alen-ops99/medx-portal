@@ -11012,7 +11012,10 @@ By applying to this program, I provide the following consents:
 
                     // 2. Create FIRA fiscal invoice
                     const ticketLabel = galaReg.pricing === 'bundle' ? 'Plexus + Gala Bundle' : 'Gala Evening Only';
-                    const amount = galaReg.amount_paid || (galaReg.pricing === 'bundle' ? 174 : 95);
+                    // Fallback reads the live gala price (constant is last-resort) — the old
+                    // hardcoded 95/174 were stale once the gala-only price moved to €150.
+                    const galaPriceRow = query.get("SELECT price_gala_only, price_bundle FROM gala_settings WHERE id = 'default'") || {};
+                    const amount = galaReg.amount_paid || (galaReg.pricing === 'bundle' ? (galaPriceRow.price_bundle || 174) : (galaPriceRow.price_gala_only || 150));
 
                     try {
                         const firaResult = await firaService.createFiscalInvoice({
@@ -11651,6 +11654,33 @@ By applying to this program, I provide the following consents:
                 console.error('[Stripe] Failed to process webhook:', dbErr.message);
                 return res.status(500).send('Internal error');
             }
+        }
+
+        // Refunds / expirations were previously ignored entirely (a refunded guest kept a
+        // valid QR). We surface them LOUDLY for manual action rather than auto-cancelling:
+        // registrations don't store the payment_intent, so reliable correlation isn't possible
+        // here, and a wrong auto-cancel would reject a paying guest at the door (worse than the
+        // gap). An admin gets a clear log line + email to revoke the specific ticket.
+        if (event.type === 'charge.refunded' || event.type === 'charge.dispute.created') {
+            const ch = event.data.object || {};
+            const who = ch.billing_details?.email || ch.receipt_email || 'unknown';
+            const amt = ((ch.amount_refunded || ch.amount || 0) / 100).toFixed(2);
+            console.warn(`[Stripe][REFUND] ${event.type} for ${who} — €${amt} (payment_intent ${ch.payment_intent || 'n/a'}). ACTION: find this guest's gala/CA registration and set payment_status away from 'paid' so the scanner rejects their QR at the door.`);
+            try {
+                await sendEmail('laura.rodman@medx.hr', `⚠️ Stripe ${event.type} — revoke a Plexus ticket`,
+                    buildEmailTemplate('Refund / Chargeback', `<p>A Stripe <strong>${event.type}</strong> just came in.</p>
+                    <p><strong>Guest:</strong> ${escapeHtml(who)}<br><strong>Amount:</strong> €${amt}<br><strong>payment_intent:</strong> ${escapeHtml(ch.payment_intent || 'n/a')}</p>
+                    <p>Please open the admin portal → Gala / Croatians Abroad, find this registration, and change its payment status so the door scanner no longer admits them.</p>`));
+            } catch(e) { console.warn('[Stripe][REFUND] notify email failed:', e.message); }
+            return res.json({ received: true });
+        }
+
+        if (event.type === 'checkout.session.expired') {
+            // Abandoned checkout — informational only. Orphan awaiting_payment rows are left
+            // for the admin's test-data cleanup; we just log so they're not invisible.
+            const s = event.data.object || {};
+            console.log(`[Stripe] checkout.session.expired ${s.id} (${s.customer_details?.email || s.customer_email || 'no email'}) — abandoned, no ticket issued.`);
+            return res.json({ received: true });
         }
 
         res.json({ received: true });
@@ -17330,7 +17360,7 @@ By applying to this program, I provide the following consents:
             const settings = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
             const price = reg.pricing === 'bundle'
                 ? (settings?.price_bundle || 174)
-                : (settings?.price_gala_only || 95);
+                : (settings?.price_gala_only || 150);
 
             // Generate invoice number
             const year = new Date().getFullYear();
