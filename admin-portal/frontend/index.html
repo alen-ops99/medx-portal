@@ -18292,7 +18292,7 @@ President, Med&amp;X</textarea>
                 const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email || 'Registrant';
                 const initials = (name.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2) || '?').toUpperCase();
                 const email = r.email || '';
-                const paid = (r.payment_status === 'paid' || r.payment_status === 'vip-comp');
+                const paid = (r.payment_status === 'paid' || r.payment_status === 'vip-comp' || r.gala_payment_status === 'paid');
                 const checked = r.checked_in == 1 || r.checked_in === true;
                 // Build a "row" only when the value exists, so the card never shows empty fields.
                 const row = (label, val, opt = {}) => (val == null || val === '' ) ? '' :
@@ -30462,13 +30462,15 @@ By applying to this program, I give the following consents:
                     container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted);"><i class="fas fa-users" style="font-size:48px;margin-bottom:16px;opacity:0.3;"></i><p>No registrations yet.</p></div>`;
                     return;
                 }
-                let html = `<table style="width:100%;border-collapse:collapse;">
+                this.registrations = regs;
+                let html = `<table class="data-table" style="width:100%;border-collapse:collapse;">
                     <thead><tr style="border-bottom:1px solid var(--border);">
                         <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Name</th>
                         <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Email</th>
                         <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Country</th>
                         <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Events</th>
                         <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Gala</th>
+                        <th style="text-align:center;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Actions</th>
                     </tr></thead><tbody>`;
                 regs.forEach(r => {
                     const events = [];
@@ -30489,10 +30491,19 @@ By applying to this program, I give the following consents:
                         <td style="padding:12px 16px;font-size:13px;color:var(--text-secondary);">${escapeHtml(r.country || '—')}</td>
                         <td style="padding:12px 16px;"><div style="display:flex;gap:4px;">${events.join('')}</div></td>
                         <td style="padding:12px 16px;">${galaBadge}</td>
+                        <td style="padding:12px 16px;text-align:center;white-space:nowrap;">
+                            <button class="btn btn-secondary" style="padding:4px 9px;font-size:12px;margin-right:4px;" title="Details" onclick="CroatiansAbroadAdmin.viewGuest('${r.id}')"><i class="fas fa-id-card"></i></button>
+                            <button class="btn btn-secondary contact-btn" style="padding:4px 9px;font-size:12px;" title="Email ${escapeHtml(r.email || '')}" onclick="App.emailPerson('${(r.email||'').replace(/'/g,'')}','Plexus 2026 — Croatians Abroad')"><i class="fas fa-envelope"></i></button>
+                        </td>
                     </tr>`;
                 });
                 html += '</tbody></table>';
                 container.innerHTML = html;
+            },
+
+            viewGuest(id) {
+                const r = (this.registrations || []).find(x => x.id === id);
+                if (r) App.showRegistrantDetail(r, { context: 'Plexus 2026 — Croatians Abroad', kind: 'Croatians Abroad', type: 'croatians-abroad' });
             },
 
             async exportEmails(event) {
