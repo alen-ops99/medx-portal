@@ -4257,9 +4257,25 @@
             color: var(--warning);
         }
 
-        .data-table .status.cancelled {
+        .data-table .status.cancelled,
+        .data-table .status.rejected {
             background: rgba(239, 68, 68, 0.15);
             color: var(--danger);
+        }
+        /* These statuses were used in rows but had no color (rendered as flat/unfinished pills). */
+        .data-table .status.confirmed {
+            background: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+        }
+        .data-table .status.approved {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--success);
+        }
+        /* Consistent pill shape + a touch more weight for all statuses. */
+        .data-table .status {
+            border-radius: 20px;
+            font-weight: 600;
+            text-transform: capitalize;
         }
 
         .data-table .actions {
@@ -6231,7 +6247,8 @@
             transition: background 0.15s;
         }
         body.theme-fresh .data-table tbody tr:hover {
-            background: rgba(212,179,102,0.04);
+            background: rgba(212,179,102,0.07);
+            box-shadow: inset 2px 0 0 rgba(201,169,98,0.5);
         }
         body.theme-fresh .data-table .status {
             display: inline-flex;
