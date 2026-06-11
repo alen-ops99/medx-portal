@@ -17283,17 +17283,22 @@ By applying to this program, I provide the following consents:
 
     // ==================== REGISTRANT QUICK ACTIONS ====================
     // Map a registrant "type" to its table + the columns these actions touch.
+    // noteCol MUST be a dedicated admin-only column, never a guest-submitted field
+    // (gala.requests / CA.notes / bridges.special_requests are the GUEST's own text —
+    // writing admin notes there would silently destroy what the attendee submitted).
+    // gala already ships an `admin_notes` column; the rest get `admin_note` via ALTER below.
     const REG_TABLES = {
-        gala:        { table: 'gala_registrations',            noteCol: 'requests', evt: 'gala',    evtName: 'Plexus 2026 — Gala Evening' },
+        gala:        { table: 'gala_registrations',            noteCol: 'admin_notes', evt: 'gala',    evtName: 'Plexus 2026 — Gala Evening' },
         conference:  { table: 'registrations',                 noteCol: 'admin_note', evt: 'plexus', evtName: 'Plexus Conference 2026' },
         plexus:      { table: 'registrations',                 noteCol: 'admin_note', evt: 'plexus', evtName: 'Plexus Conference 2026' },
-        'croatians-abroad': { table: 'croatians_abroad_registrations', noteCol: 'notes', evt: 'gala', evtName: 'Plexus 2026 — Croatians Abroad' },
-        bridges:     { table: 'bridges_registrations',         noteCol: 'requests', evt: 'bridges', evtName: 'Croatia Building Bridges' },
+        'croatians-abroad': { table: 'croatians_abroad_registrations', noteCol: 'admin_note', evt: 'gala', evtName: 'Plexus 2026 — Croatians Abroad' },
+        bridges:     { table: 'bridges_registrations',         noteCol: 'admin_note', evt: 'bridges', evtName: 'Croatia Building Bridges' },
     };
     function regTarget(type, id) {
         const m = REG_TABLES[type];
         if (!m) return null;
-        try { db.run(`ALTER TABLE ${m.table} ADD COLUMN admin_note TEXT`); } catch(e) {}
+        // Ensure the note target column exists (no-op/caught if it already does).
+        try { db.run(`ALTER TABLE ${m.table} ADD COLUMN ${m.noteCol} TEXT`); } catch(e) {}
         const row = query.get(`SELECT * FROM ${m.table} WHERE id = ?`, [id]);
         return row ? { ...m, row } : null;
     }
@@ -17303,7 +17308,20 @@ By applying to this program, I provide the following consents:
         const t = regTarget(req.params.type, req.params.id);
         if (!t) return res.status(404).json({ error: 'Registrant not found' });
         try {
-            db.run(`UPDATE ${t.table} SET payment_status = 'paid', status = COALESCE(NULLIF(status,''),'confirmed') WHERE id = ?`, [req.params.id]);
+            // Each registrant table tracks "paid" differently (registrations.payment_status,
+            // croatians_abroad.gala_payment_status, gala/bridges only have a `status`).
+            // Build the UPDATE from columns that actually exist so it never 500s on a
+            // table that lacks payment_status. Column names come from this fixed allowlist
+            // intersected with the live schema — never from user input.
+            const cols = new Set(query.all(`PRAGMA table_info(${t.table})`).map(c => c.name));
+            const sets = [];
+            for (const c of ['payment_status', 'gala_payment_status']) if (cols.has(c)) sets.push(`${c} = 'paid'`);
+            // Advance the generic status from any "not yet confirmed" state to 'confirmed' (for
+            // gala/bridges this IS the paid signal, since they have no payment column). Leave
+            // terminal states like cancelled/rejected untouched so this never resurrects them.
+            if (cols.has('status')) sets.push(`status = CASE WHEN LOWER(COALESCE(status,'')) IN ('','pending','registered','unpaid','submitted','unconfirmed') THEN 'confirmed' ELSE status END`);
+            if (!sets.length) return res.status(400).json({ error: 'This registrant type has no payment column to mark.' });
+            db.run(`UPDATE ${t.table} SET ${sets.join(', ')} WHERE id = ?`, [req.params.id]);
             saveDb();
             logAudit(req, 'registrant.mark_paid', `${t.row.email || req.params.id} (${req.params.type})`);
             res.json({ success: true });

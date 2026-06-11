@@ -3810,7 +3810,10 @@
                 -webkit-overflow-scrolling: touch;
                 white-space: nowrap;
             }
-            .data-table thead, .data-table tbody { display: table; width: 100%; min-width: 640px; }
+            /* thead and tbody become independent table boxes here, so without a shared layout
+               algorithm their columns drift apart. table-layout:fixed makes both distribute
+               width deterministically (equal columns), keeping each header over its own data. */
+            .data-table thead, .data-table tbody { display: table; width: 100%; min-width: 640px; table-layout: fixed; }
             .data-table .actions { justify-content: flex-start; }
 
             /* Toolbars (CSV / XLSX / Add, filter rows, tab strips) wrap instead of clipping. */
@@ -16350,11 +16353,26 @@ President, Med&amp;X</textarea>
                 try { await navigator.clipboard.writeText(text); Toast.success('Copied: ' + text); }
                 catch (e) { Toast.info(text); }
             },
+            // Escape a value that sits inside a single-quoted JS string that is itself inside a
+            // double-quoted HTML attribute  ->  onclick="...App.x('<HERE>')...".
+            // It must survive BOTH layers: JS-escape backslash/quote, then HTML-escape so a
+            // user-supplied " or < (e.g. an abstract title) can't break out of the attribute.
+            // The browser HTML-decodes the entities before the JS engine runs, so the called
+            // function still receives the original characters.
+            jsAttr(s) {
+                return String(s == null ? '' : s)
+                    .replace(/\\/g, '\\\\')
+                    .replace(/'/g, "\\'")
+                    .replace(/&/g, '&amp;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+            },
             // Build the standard 3-button contact action group for a table row.
             contactActions(email, ctx) {
-                const e = (email || '').replace(/'/g, "\\'");
                 if (!email) return '';
-                const subj = ctx ? ctx.replace(/'/g, "\\'") : '';
+                const e = this.jsAttr(email);
+                const subj = this.jsAttr(ctx || '');
                 return `<button class="contact-btn" onclick="event.stopPropagation();App.emailPerson('${e}','${subj}')" title="Email ${this.escapeHtml(email)}"><i class="fas fa-envelope"></i></button>`
                      + `<button class="msg-btn" onclick="event.stopPropagation();App.messagePerson('${e}','${subj}')" title="Message in portal (pushes their phone)"><i class="fas fa-comment-dots"></i></button>`
                      + `<button class="contact-btn" onclick="event.stopPropagation();App.copyContact('${e}')" title="Copy email"><i class="fas fa-copy"></i></button>`;
@@ -18292,7 +18310,11 @@ President, Med&amp;X</textarea>
                 const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email || 'Registrant';
                 const initials = (name.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2) || '?').toUpperCase();
                 const email = r.email || '';
-                const paid = (r.payment_status === 'paid' || r.payment_status === 'vip-comp' || r.gala_payment_status === 'paid');
+                // gala & bridges have no payment column — a 'confirmed' status is their paid signal
+                // (matches the gala list's own `payment_status==='paid' || status==='confirmed'` rule).
+                const noPayCol = (opts.type === 'gala' || opts.type === 'bridges');
+                const paid = (r.payment_status === 'paid' || r.payment_status === 'vip-comp' || r.gala_payment_status === 'paid'
+                              || (noPayCol && (r.status === 'confirmed' || r.status === 'paid')));
                 const checked = r.checked_in == 1 || r.checked_in === true;
                 // Build a "row" only when the value exists, so the card never shows empty fields.
                 const row = (label, val, opt = {}) => (val == null || val === '' ) ? '' :
@@ -18301,8 +18323,8 @@ President, Med&amp;X</textarea>
                         <span style="font-weight:600;font-size:13px;text-align:right;${opt.color?'color:'+opt.color+';':''}">${opt.raw ? val : esc(val)}</span>
                     </div>`;
                 const pill = (txt, color) => `<span style="display:inline-block;background:${color}22;color:${color};font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;">${esc(txt)}</span>`;
-                const e2 = email.replace(/'/g, '');
-                const ctx = (opts.context || '').replace(/'/g, "\\'");
+                const e2 = this.jsAttr(email);
+                const ctx = this.jsAttr(opts.context || '');
                 const ov = document.createElement('div');
                 ov.className = 'modal-overlay active';
                 ov.style.cssText = 'position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;padding:20px;';
@@ -18328,7 +18350,8 @@ President, Med&amp;X</textarea>
                         ${row('Invoice', r.invoice_number)}
                         ${row('Dietary', r.dietary || r.dietary_requirements)}
                         ${row('Allergies', r.allergies)}
-                        ${row('Notes / requests', r.requests || r.notes)}
+                        ${row('Notes / requests', r.requests || r.special_requests || r.notes)}
+                        ${row('Admin note', r.admin_note || r.admin_notes, { color: '#C9A962' })}
                         ${row('Registered', r.created_at ? new Date(r.created_at).toLocaleString() : '')}
                         ${row('Checked in', checked ? (r.checked_in_at ? new Date(r.checked_in_at).toLocaleString() : 'Yes') : '')}
                     </div>
@@ -18594,8 +18617,8 @@ President, Med&amp;X</textarea>
                 const author = a.submitter_name || email || 'Unknown';
                 const status = a.status || 'submitted';
                 const sc = status === 'accepted' ? '#22c55e' : status === 'rejected' ? '#ef4444' : '#f59e0b';
-                const e2 = email.replace(/'/g, '');
-                const ctx = ('Your Plexus 2026 abstract: ' + (a.title || '')).replace(/'/g, "\\'");
+                const e2 = this.jsAttr(email);
+                const ctx = this.jsAttr('Your Plexus 2026 abstract: ' + (a.title || ''));
                 const ov = document.createElement('div');
                 ov.className = 'modal-overlay active';
                 ov.style.cssText = 'position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;padding:20px;';
