@@ -16694,7 +16694,7 @@ By applying to this program, I provide the following consents:
     // ===== ADMIN MESSAGING =====
 
     // List all sent messages (grouped by conversation)
-    app.get('/api/admin/messages', auth, (req, res) => {
+    app.get('/api/admin/messages', auth, adminOnly, (req, res) => {
         try {
             const messages = query.all(`
                 SELECT dm.*,
@@ -16712,7 +16712,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Send message to a user
-    app.post('/api/admin/messages', auth, (req, res) => {
+    app.post('/api/admin/messages', auth, adminOnly, (req, res) => {
         try {
             const { receiver_id, title, content, attachment_url } = req.body;
             if (!receiver_id || !content) return res.status(400).json({ error: 'Receiver and content are required' });
@@ -16730,7 +16730,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Bulk send to group
-    app.post('/api/admin/messages/bulk', auth, (req, res) => {
+    app.post('/api/admin/messages/bulk', auth, adminOnly, (req, res) => {
         try {
             const { group, title, content } = req.body;
             if (!group || !content) return res.status(400).json({ error: 'Group and content are required' });
@@ -16773,7 +16773,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Get conversation thread with a specific user
-    app.get('/api/admin/messages/:userId', auth, (req, res) => {
+    app.get('/api/admin/messages/:userId', auth, adminOnly, (req, res) => {
         try {
             const messages = query.all(`
                 SELECT * FROM direct_messages
