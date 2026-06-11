@@ -18259,14 +18259,69 @@ President, Med&amp;X</textarea>
             },
 
             viewRegistration(id) {
-                const reg = this.plexusRegistrations.find(r => r.id === id);
-                if (reg) {
-                    alert(`Registration Details:\n\nName: ${reg.first_name} ${reg.last_name}\nEmail: ${reg.email}\nInstitution: ${reg.institution || 'N/A'}\nTicket: ${reg.ticket_type}\nStatus: ${reg.status}\nPayment: ${reg.payment_status}`);
-                }
+                const reg = (this.plexusRegistrations || []).find(r => r.id === id);
+                if (reg) this.showRegistrantDetail(reg, { context: 'Plexus 2026 — your registration', kind: 'Plexus Conference' });
             },
 
             editRegistration(id) {
-                alert('Edit registration form coming soon.');
+                const reg = (this.plexusRegistrations || []).find(r => r.id === id);
+                if (reg) this.showRegistrantDetail(reg, { context: 'Plexus 2026 — your registration', kind: 'Plexus Conference' });
+            },
+
+            // Reusable registrant detail panel — slide-in card with all info + contact + quick actions.
+            // Works for any registrant-shaped object (Plexus / Gala / CA / Bridges).
+            showRegistrantDetail(r, opts = {}) {
+                const esc = (s) => this.escapeHtml(s == null ? '' : String(s));
+                const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email || 'Registrant';
+                const initials = (name.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2) || '?').toUpperCase();
+                const email = r.email || '';
+                const paid = (r.payment_status === 'paid' || r.payment_status === 'vip-comp');
+                const checked = r.checked_in == 1 || r.checked_in === true;
+                // Build a "row" only when the value exists, so the card never shows empty fields.
+                const row = (label, val, opt = {}) => (val == null || val === '' ) ? '' :
+                    `<div style="display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid var(--border);">
+                        <span style="color:var(--text-muted);font-size:12.5px;">${esc(label)}</span>
+                        <span style="font-weight:600;font-size:13px;text-align:right;${opt.color?'color:'+opt.color+';':''}">${opt.raw ? val : esc(val)}</span>
+                    </div>`;
+                const pill = (txt, color) => `<span style="display:inline-block;background:${color}22;color:${color};font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;">${esc(txt)}</span>`;
+                const e2 = email.replace(/'/g, '');
+                const ctx = (opts.context || '').replace(/'/g, "\\'");
+                const ov = document.createElement('div');
+                ov.className = 'modal-overlay active';
+                ov.style.cssText = 'position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;padding:20px;';
+                ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+                ov.innerHTML = `
+                  <div class="card" style="max-width:520px;width:100%;max-height:88vh;overflow:auto;padding:0;">
+                    <div style="padding:22px 22px 16px;background:linear-gradient(135deg,rgba(201,169,98,0.12),transparent);display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--border);">
+                        <div style="width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,#C9A962,#b49650);color:#0f172a;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;flex-shrink:0;">${esc(initials)}</div>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:18px;font-weight:700;line-height:1.2;">${esc(name)}</div>
+                            <div style="font-size:13px;color:var(--text-muted);margin-top:2px;word-break:break-all;">${esc(email)}</div>
+                            <div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap;">${opts.kind?pill(opts.kind,'#a78bfa'):''} ${pill(paid?'PAID':'UNPAID',paid?'#22c55e':'#f59e0b')} ${checked?pill('CHECKED IN','#22c55e'):''}</div>
+                        </div>
+                        <button onclick="this.closest('.modal-overlay').remove()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;align-self:flex-start;">&times;</button>
+                    </div>
+                    <div style="padding:8px 22px 4px;">
+                        ${row('Institution', r.institution || r.current_institution)}
+                        ${row('Country', r.country)}
+                        ${row('Phone', r.phone)}
+                        ${row('Ticket', r.ticket_type || r.ticket_name || r.pricing)}
+                        ${row('Status', r.status)}
+                        ${row('Payment', (r.payment_status || '—') + (r.amount_paid ? ' · €' + r.amount_paid : ''))}
+                        ${row('Invoice', r.invoice_number)}
+                        ${row('Dietary', r.dietary || r.dietary_requirements)}
+                        ${row('Allergies', r.allergies)}
+                        ${row('Notes / requests', r.requests || r.notes)}
+                        ${row('Registered', r.created_at ? new Date(r.created_at).toLocaleString() : '')}
+                        ${row('Checked in', checked ? (r.checked_in_at ? new Date(r.checked_in_at).toLocaleString() : 'Yes') : '')}
+                    </div>
+                    <div style="padding:14px 22px 20px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border);margin-top:6px;">
+                        <button class="btn btn-primary" onclick="App.emailPerson('${e2}','${ctx}')"><i class="fas fa-envelope"></i> Email</button>
+                        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove();App.messagePerson('${e2}','${ctx}')"><i class="fas fa-comment-dots"></i> Message</button>
+                        <button class="btn btn-secondary" onclick="App.copyContact('${e2}')"><i class="fas fa-copy"></i> Copy email</button>
+                    </div>
+                  </div>`;
+                document.body.appendChild(ov);
             },
 
             // Abstract state for sorting/grouping
