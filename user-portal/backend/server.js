@@ -216,10 +216,19 @@ async function drainPushOutbox() {
         let rows = [];
         try { rows = query.all("SELECT * FROM push_outbox WHERE COALESCE(sent,0) = 0 ORDER BY created_at ASC LIMIT 20"); } catch (e) { return; }
         for (const r of rows) {
-            const n = await sendPushToAll({ title: r.title || 'Med&X', body: r.body || '', url: r.url || '/?app=1' });
+            const payload = { title: r.title || 'Med&X', body: r.body || '', url: r.url || '/?app=1' };
+            let n = 0;
+            if (r.target_email) {
+                // Targeted: resolve the user by email, push only their devices.
+                const u = query.get('SELECT id FROM users WHERE LOWER(email) = LOWER(?)', [r.target_email]);
+                if (u) { await sendPushToUser(u.id, payload); n = 1; }
+                console.log(`[Push] Direct "${r.title}" → ${r.target_email}${u ? '' : ' (no such user)'}.`);
+            } else {
+                n = await sendPushToAll(payload);
+                console.log(`[Push] Broadcast "${r.title}" to ${n} device(s).`);
+            }
             db.run("UPDATE push_outbox SET sent = 1, sent_at = ?, sent_count = ? WHERE id = ?", [new Date().toISOString(), n, r.id]);
             saveDb();
-            console.log(`[Push] Broadcast "${r.title}" to ${n} device(s).`);
         }
     } catch (e) { console.error('[Push] outbox drain failed:', e.message); }
     finally { _outboxBusy = false; }
@@ -4092,16 +4101,36 @@ async function initializeApp() {
         FOREIGN KEY (attendee_id) REFERENCES users(id)
     )`);
 
+    // No foreign keys here: admin→user messages store the recipient's EMAIL as receiver_id
+    // (the user portal reads them by email), so a users(id) FK is incompatible and made the
+    // admin message endpoint throw FOREIGN KEY constraint failed. Matches the admin backend's
+    // FK-less definition (whichever boots first on a fresh DB now agrees).
     db.run(`CREATE TABLE IF NOT EXISTS direct_messages (
         id TEXT PRIMARY KEY,
         sender_id TEXT NOT NULL,
         receiver_id TEXT NOT NULL,
         content TEXT NOT NULL,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        read_at TEXT,
-        FOREIGN KEY (sender_id) REFERENCES users(id),
-        FOREIGN KEY (receiver_id) REFERENCES users(id)
+        read_at TEXT
     )`);
+    // One-time rebuild: if an EXISTING direct_messages table carries the old users(id) FK
+    // (created by a prior version), drop the FK so admin→user messages (which store the
+    // recipient's email as receiver_id) stop failing with FOREIGN KEY constraint failed.
+    // Column-preserving: copies whatever columns the live table has.
+    try {
+        const fks = query.all("PRAGMA foreign_key_list(direct_messages)");
+        if (fks && fks.length) {
+            const cols = query.all("PRAGMA table_info(direct_messages)").map(c => c.name);
+            const colList = cols.map(c => `"${c}"`).join(', ');
+            db.run("PRAGMA foreign_keys=OFF");
+            db.run(`CREATE TABLE direct_messages_nofk (${cols.map(c => `"${c}"`).join(', ')})`);
+            db.run(`INSERT INTO direct_messages_nofk (${colList}) SELECT ${colList} FROM direct_messages`);
+            db.run("DROP TABLE direct_messages");
+            db.run("ALTER TABLE direct_messages_nofk RENAME TO direct_messages");
+            saveDb();
+            console.log(`[migrate] Rebuilt direct_messages without users(id) FK (${cols.length} columns preserved).`);
+        }
+    } catch (e) { console.warn('[migrate] direct_messages FK rebuild skipped:', e.message); }
 
     db.run(`CREATE TABLE IF NOT EXISTS gala_registrations (
         id TEXT PRIMARY KEY,
@@ -4651,6 +4680,9 @@ async function initializeApp() {
         sent INTEGER DEFAULT 0, sent_at TEXT, sent_count INTEGER,
         created_by TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+    // target_email (optional): when set, the push goes ONLY to that user (e.g. a 1:1 admin
+    // message). When null, it's a broadcast to everyone. ALTER is idempotent.
+    try { db.run('ALTER TABLE push_outbox ADD COLUMN target_email TEXT'); } catch(e) {}
 
     db.run(`CREATE TABLE IF NOT EXISTS member_rewards (
         id TEXT PRIMARY KEY,

@@ -1370,6 +1370,7 @@ async function initializeApp() {
         sent INTEGER DEFAULT 0, sent_at TEXT, sent_count INTEGER,
         created_by TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+    try { db.run('ALTER TABLE push_outbox ADD COLUMN target_email TEXT'); } catch(e) {}
 
     // Audit log — who did what (for a multi-person team).
     db.run(`CREATE TABLE IF NOT EXISTS audit_log (
@@ -16721,6 +16722,11 @@ By applying to this program, I provide the following consents:
             db.run(`INSERT INTO direct_messages (id, sender_id, receiver_id, sender_type, receiver_type, title, content, attachment_url)
                 VALUES (?, ?, ?, 'admin', 'user', ?, ?, ?)`,
                 [id, req.user.email, receiver_id, title || null, content, attachment_url || null]);
+            // Targeted push so the recipient is pinged on their phone (receiver_id is the email).
+            try {
+                db.run('INSERT INTO push_outbox (id, title, body, url, target_email, created_by) VALUES (?,?,?,?,?,?)',
+                    [uuidv4(), title || 'New message from Med&X', String(content).slice(0, 140), '/?app=1&view=inbox', receiver_id, req.user.id]);
+            } catch (e) { console.warn('[Push] message enqueue failed:', e.message); }
             saveDb();
             res.json({ success: true, id });
         } catch (err) {
