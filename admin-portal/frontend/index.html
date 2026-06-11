@@ -4265,6 +4265,9 @@
             background: var(--bg-hover);
             color: var(--text-primary);
         }
+        /* Contact actions (email / message / copy) — subtly distinguished from view/edit. */
+        .data-table .actions button.contact-btn:hover { background: rgba(201,169,98,0.18); color: #C9A962; }
+        .data-table .actions button.msg-btn:hover { background: rgba(56,189,248,0.18); color: #38bdf8; }
 
         /* Plexus Group/Sort/Filter Styles */
         .px-group-btn {
@@ -16291,12 +16294,37 @@ President, Med&amp;X</textarea>
                 }).join('');
             },
 
-            openComposeModal(recipient) {
+            openComposeModal(recipient, title) {
                 document.getElementById('msgRecipient').value = recipient || '';
-                document.getElementById('msgTitle').value = '';
+                document.getElementById('msgTitle').value = title || '';
                 document.getElementById('msgContent').value = '';
                 this.ensureRegistrantEmails();
                 this.openModal('composeMessageModal');
+            },
+
+            // ---- Reusable inline contact actions (used on every registrant/abstract row) ----
+            // Open the OS email client to email this person directly (free-form, no provider needed).
+            emailPerson(email, subject) {
+                if (!email) { Toast.warning('No email on file for this person'); return; }
+                const sub = subject ? `?subject=${encodeURIComponent(subject)}` : '';
+                window.location.href = `mailto:${email}${sub}`;
+            },
+            // In-app message (delivered to their portal inbox + pushes their phone).
+            messagePerson(email, subject) { this.openComposeModal(email, subject || ''); },
+            // One-click copy of an email (or any text) with a confirmation toast.
+            async copyContact(text) {
+                if (!text) return;
+                try { await navigator.clipboard.writeText(text); Toast.success('Copied: ' + text); }
+                catch (e) { Toast.info(text); }
+            },
+            // Build the standard 3-button contact action group for a table row.
+            contactActions(email, ctx) {
+                const e = (email || '').replace(/'/g, "\\'");
+                if (!email) return '';
+                const subj = ctx ? ctx.replace(/'/g, "\\'") : '';
+                return `<button class="contact-btn" onclick="event.stopPropagation();App.emailPerson('${e}','${subj}')" title="Email ${this.escapeHtml(email)}"><i class="fas fa-envelope"></i></button>`
+                     + `<button class="msg-btn" onclick="event.stopPropagation();App.messagePerson('${e}','${subj}')" title="Message in portal (pushes their phone)"><i class="fas fa-comment-dots"></i></button>`
+                     + `<button class="contact-btn" onclick="event.stopPropagation();App.copyContact('${e}')" title="Copy email"><i class="fas fa-copy"></i></button>`;
             },
 
             // Lazy-load registrant emails once into the compose autocomplete datalist.
@@ -18094,6 +18122,7 @@ President, Med&amp;X</textarea>
                     <td><span class="status ${r.payment_status === 'paid' ? 'paid' : 'pending'}">${r.payment_status || 'Pending'}</span></td>
                     <td>${r.checked_in ? '<i class="fas fa-check" style="color: var(--success);"></i>' : '-'}</td>
                     <td class="actions">
+                        ${this.contactActions(r.email, 'Plexus 2026 — your registration')}
                         <button onclick="App.viewRegistration('${r.id}')" title="View"><i class="fas fa-eye"></i></button>
                         <button onclick="App.editRegistration('${r.id}')" title="Edit"><i class="fas fa-edit"></i></button>
                     </td>
@@ -18313,6 +18342,7 @@ President, Med&amp;X</textarea>
                     <td><span class="status ${a.status === 'accepted' ? 'paid' : a.status === 'rejected' ? 'cancelled' : 'pending'}">${a.status || 'Submitted'}</span></td>
                     <td>${a.review_count || 0} / 3</td>
                     <td class="actions">
+                        ${this.contactActions(a.email || a.submitter_email, 'Your Plexus 2026 abstract: ' + (a.title || ''))}
                         <button onclick="App.viewAbstract('${a.id}')" title="View"><i class="fas fa-eye"></i></button>
                         <button onclick="App.reviewAbstract('${a.id}')" title="Review"><i class="fas fa-clipboard-check"></i></button>
                     </td>
@@ -24318,7 +24348,10 @@ President, Med&amp;X</textarea>
                             <strong>${escapeHtml(r.first_name || '')} ${escapeHtml(r.last_name || '')}</strong>
                             ${!r.first_name && !r.last_name ? '<span style="color: var(--text-muted);">No name</span>' : ''}
                         </td>
-                        <td style="padding: 10px;">${escapeHtml(r.email)}</td>
+                        <td style="padding: 10px;white-space:nowrap;">
+                            <span>${escapeHtml(r.email)}</span>
+                            ${r.email ? `<a href="mailto:${escapeHtml(r.email)}?subject=${encodeURIComponent('Med&X Accelerator — your application')}" title="Email this applicant" style="margin-left:8px;color:var(--accent-gold,#C9A962);"><i class="fas fa-envelope"></i></a><a href="#" onclick="event.preventDefault();App.copyContact('${(r.email||'').replace(/'/g,'')}')" title="Copy email" style="margin-left:6px;color:var(--text-muted);"><i class="fas fa-copy"></i></a>` : ''}
+                        </td>
                         <td style="padding: 10px;">${escapeHtml(r.phone || '-')}</td>
                         <td style="padding: 10px;">${escapeHtml(r.current_institution || '-')}</td>
                         <td style="padding: 10px; text-align: center;">
@@ -26886,8 +26919,9 @@ By applying to this program, I give the following consents:
                                 : `<button class="btn btn-primary" style="padding: 4px 10px; font-size: 11px;" onclick="BridgesApp.checkinRegistration('${r.id}')"><i class="fas fa-check"></i> Check In</button>`
                             }
                         </td>
-                        <td style="padding: 12px 16px; text-align: right;">
-                            <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="BridgesApp.editRegistration('${r.id}')"><i class="fas fa-edit"></i></button>
+                        <td style="padding: 12px 16px; text-align: right;white-space:nowrap;">
+                            <button class="btn btn-secondary" style="padding: 4px 8px;" title="Email ${escapeHtml(r.email || '')}" onclick="App.emailPerson('${(r.email||'').replace(/'/g,'')}','Building Bridges — your registration')"><i class="fas fa-envelope"></i></button>
+                            <button class="btn btn-secondary" style="padding: 4px 8px; margin-left: 4px;" onclick="BridgesApp.editRegistration('${r.id}')"><i class="fas fa-edit"></i></button>
                             <button class="btn btn-danger" style="padding: 4px 8px; margin-left: 4px;" onclick="BridgesApp.deleteRegistration('${r.id}')"><i class="fas fa-trash"></i></button>
                         </td>
                     </tr>
