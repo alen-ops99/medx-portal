@@ -17281,6 +17281,68 @@ By applying to this program, I provide the following consents:
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
+    // ==================== REGISTRANT QUICK ACTIONS ====================
+    // Map a registrant "type" to its table + the columns these actions touch.
+    const REG_TABLES = {
+        gala:        { table: 'gala_registrations',            noteCol: 'requests', evt: 'gala',    evtName: 'Plexus 2026 — Gala Evening' },
+        conference:  { table: 'registrations',                 noteCol: 'admin_note', evt: 'plexus', evtName: 'Plexus Conference 2026' },
+        plexus:      { table: 'registrations',                 noteCol: 'admin_note', evt: 'plexus', evtName: 'Plexus Conference 2026' },
+        'croatians-abroad': { table: 'croatians_abroad_registrations', noteCol: 'notes', evt: 'gala', evtName: 'Plexus 2026 — Croatians Abroad' },
+        bridges:     { table: 'bridges_registrations',         noteCol: 'requests', evt: 'bridges', evtName: 'Croatia Building Bridges' },
+    };
+    function regTarget(type, id) {
+        const m = REG_TABLES[type];
+        if (!m) return null;
+        try { db.run(`ALTER TABLE ${m.table} ADD COLUMN admin_note TEXT`); } catch(e) {}
+        const row = query.get(`SELECT * FROM ${m.table} WHERE id = ?`, [id]);
+        return row ? { ...m, row } : null;
+    }
+
+    // Mark a registrant paid (for manual / bank-transfer payments).
+    app.post('/api/admin/registrant/:type/:id/mark-paid', auth, adminOnly, (req, res) => {
+        const t = regTarget(req.params.type, req.params.id);
+        if (!t) return res.status(404).json({ error: 'Registrant not found' });
+        try {
+            db.run(`UPDATE ${t.table} SET payment_status = 'paid', status = COALESCE(NULLIF(status,''),'confirmed') WHERE id = ?`, [req.params.id]);
+            saveDb();
+            logAudit(req, 'registrant.mark_paid', `${t.row.email || req.params.id} (${req.params.type})`);
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Add / replace an admin note on a registrant.
+    app.post('/api/admin/registrant/:type/:id/note', auth, adminOnly, (req, res) => {
+        const t = regTarget(req.params.type, req.params.id);
+        if (!t) return res.status(404).json({ error: 'Registrant not found' });
+        try {
+            db.run(`UPDATE ${t.table} SET ${t.noteCol} = ? WHERE id = ?`, [String(req.body.note || ''), req.params.id]);
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Resend a registrant their QR ticket / confirmation email.
+    app.post('/api/admin/registrant/:type/:id/resend-ticket', auth, adminOnly, async (req, res) => {
+        const t = regTarget(req.params.type, req.params.id);
+        if (!t || !t.row.email) return res.status(404).json({ error: 'Registrant or email not found' });
+        const r = t.row;
+        const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email;
+        try {
+            const qrAtts = await qrPngAttachment({ type: 'MEDX_MEMBER', regId: r.id, caRegId: r.id, email: r.email, name, evt: t.evt, evtName: t.evtName });
+            const html = buildEmailTemplate('Your ticket', `
+                <p>Dear <strong>${(r.first_name || 'guest')}</strong>,</p>
+                <p>Here is your check-in QR for <strong style="color:#C9A962;">${t.evtName}</strong>, re-sent by the Med&amp;X team. Present it at the entrance.</p>
+                ${buildTicketQrBlock(r.id, { label: 'Your Check-in QR Code', caption: 'Present this at the event entrance' })}
+                <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;">Laura Rodman</a></p>`);
+            const result = await sendEmail(r.email, `Your ${t.evtName} ticket`, html, qrAtts);
+            logAudit(req, 'registrant.resend_ticket', `${r.email} (${req.params.type})`);
+            if (result && (result.mock || result.success === false)) {
+                return res.status(200).json({ ok: false, message: result.mock ? 'No email provider configured.' : ('Provider rejected: ' + (result.error || 'unknown')) });
+            }
+            res.json({ ok: true, message: 'Ticket re-sent to ' + r.email });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
     // ==================== TECH DASHBOARD ====================
     // These routes can stream the entire database, so they fail CLOSED: if TECH_PASSWORD
     // is unset in the environment the gate is disabled entirely (no default password —

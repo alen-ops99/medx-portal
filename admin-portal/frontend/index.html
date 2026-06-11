@@ -18277,12 +18277,12 @@ President, Med&amp;X</textarea>
 
             viewRegistration(id) {
                 const reg = (this.plexusRegistrations || []).find(r => r.id === id);
-                if (reg) this.showRegistrantDetail(reg, { context: 'Plexus 2026 — your registration', kind: 'Plexus Conference' });
+                if (reg) this.showRegistrantDetail(reg, { context: 'Plexus 2026 — your registration', kind: 'Plexus Conference', type: 'conference' });
             },
 
             editRegistration(id) {
                 const reg = (this.plexusRegistrations || []).find(r => r.id === id);
-                if (reg) this.showRegistrantDetail(reg, { context: 'Plexus 2026 — your registration', kind: 'Plexus Conference' });
+                if (reg) this.showRegistrantDetail(reg, { context: 'Plexus 2026 — your registration', kind: 'Plexus Conference', type: 'conference' });
             },
 
             // Reusable registrant detail panel — slide-in card with all info + contact + quick actions.
@@ -18336,9 +18336,44 @@ President, Med&amp;X</textarea>
                         <button class="btn btn-primary" onclick="App.emailPerson('${e2}','${ctx}')"><i class="fas fa-envelope"></i> Email</button>
                         <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove();App.messagePerson('${e2}','${ctx}')"><i class="fas fa-comment-dots"></i> Message</button>
                         <button class="btn btn-secondary" onclick="App.copyContact('${e2}')"><i class="fas fa-copy"></i> Copy email</button>
+                        ${opts.type ? `
+                        ${!paid ? `<button class="btn btn-secondary" onclick="App.regQuickAction('${opts.type}','${r.id}','mark-paid',this)" title="Mark as paid (manual/bank transfer)"><i class="fas fa-money-check-alt"></i> Mark paid</button>` : ''}
+                        <button class="btn btn-secondary" onclick="App.regQuickAction('${opts.type}','${r.id}','resend-ticket',this)" title="Re-send their QR ticket email"><i class="fas fa-paper-plane"></i> Resend ticket</button>
+                        <button class="btn btn-secondary" onclick="App.regAddNote('${opts.type}','${r.id}')" title="Add an internal note"><i class="fas fa-note-sticky"></i> Note</button>
+                        ` : ''}
                     </div>
                   </div>`;
                 document.body.appendChild(ov);
+            },
+
+            // Generic registrant quick action (mark-paid / resend-ticket).
+            async regQuickAction(type, id, action, btn) {
+                const orig = btn ? btn.innerHTML : '';
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+                try {
+                    const res = await fetch(`/api/admin/registrant/${type}/${id}/${action}`, { method: 'POST', headers: { 'Authorization': `Bearer ${this.token}` } });
+                    const d = await res.json();
+                    if (d.success || d.ok) {
+                        Toast.success(d.message || (action === 'mark-paid' ? 'Marked paid' : 'Done'));
+                        if (action === 'mark-paid') { const ov = btn && btn.closest('.modal-overlay'); if (ov) ov.remove(); this.refreshActiveRegList(type); }
+                    } else { Toast.error(d.message || d.error || 'Failed'); }
+                } catch (e) { Toast.error('Failed'); }
+                finally { if (btn) { btn.disabled = false; btn.innerHTML = orig; } }
+            },
+            async regAddNote(type, id) {
+                const note = prompt('Internal note for this registrant:');
+                if (note === null) return;
+                try {
+                    const res = await fetch(`/api/admin/registrant/${type}/${id}/note`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.token}` }, body: JSON.stringify({ note }) });
+                    if ((await res.json()).success) Toast.success('Note saved'); else Toast.error('Failed');
+                } catch (e) { Toast.error('Failed'); }
+            },
+            // Refresh whichever registrant list is on screen after a mutation.
+            refreshActiveRegList(type) {
+                try {
+                    if (type === 'gala' && typeof GalaAdmin !== 'undefined') GalaAdmin.load && GalaAdmin.load();
+                    else if ((type === 'conference' || type === 'plexus') && this.loadPlexusRegistrations) this.loadPlexusRegistrations();
+                } catch (e) {}
             },
 
             // Abstract state for sorting/grouping
@@ -29798,7 +29833,7 @@ By applying to this program, I give the following consents:
 
             viewGuest(id) {
                 const r = (this.registrations || []).find(x => x.id === id);
-                if (r) App.showRegistrantDetail(r, { context: 'Plexus 2026 — Gala Evening', kind: 'Gala Evening' });
+                if (r) App.showRegistrantDetail(r, { context: 'Plexus 2026 — Gala Evening', kind: 'Gala Evening', type: 'gala' });
             },
 
             async updateStatus(id, status) {
