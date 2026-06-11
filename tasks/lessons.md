@@ -6,7 +6,7 @@
 - **DB sync is file-based**: Both portals share `../../shared/medx_portal.db`. After writes, `saveDb()` exports to disk. `watchSharedDb()` detects changes from other portal. Writes within 2s of own save are ignored.
 - **Any schema change must go in BOTH server.js files**: New tables and ALTER TABLE statements need to be duplicated in admin-portal AND user-portal server.js.
 - **sql.js is in-memory SQLite**: Entire DB loaded into RAM. No true concurrent writes. File watching is the sync mechanism.
-- **No .env files**: All config is hardcoded with defaults. JWT secret = 'REDACTED-ROTATED-SECRET'.
+- **Secrets come from env, fail-closed**: JWT_SECRET (and Stripe/Resend/FIRA/Turso/VAPID keys) are read from the environment; in production the server exits if JWT_SECRET is unset (no hardcoded fallback). Set them in Render / a local .env.
 - **User portal logo is CDN-dependent**: Uses a Squarespace CDN URL that could break. Should be local.
 - **Both portals seed on startup**: CREATE TABLE IF NOT EXISTS + seed data runs every time. Idempotent but can mask issues.
 
