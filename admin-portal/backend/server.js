@@ -17187,6 +17187,12 @@ By applying to this program, I provide the following consents:
         return out;
     }
 
+    // Deduped list of registrant emails (for the compose-message autocomplete).
+    app.get('/api/admin/registrant-emails', auth, adminOnly, (req, res) => {
+        const recips = collectBulkRecipients('all');
+        res.json(recips.map(r => ({ email: r.email, name: r.first_name })).slice(0, 2000));
+    });
+
     // Preview the recipient count for an audience (no send).
     app.get('/api/admin/bulk-email/count', auth, adminOnly, (req, res) => {
         const audience = req.query.audience || 'all';
