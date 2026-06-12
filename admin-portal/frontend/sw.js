@@ -1,7 +1,7 @@
 // Med&X Staff (Admin) Service Worker — minimal, enables PWA install + offline app shell.
 // Admin data must always be fresh, so we are network-first for everything and NEVER cache
 // API responses; the cache only holds the app shell so the app opens offline.
-const CACHE_NAME = 'medx-staff-v1';
+const CACHE_NAME = 'medx-staff-v2';
 const SHELL = ['/index.html', '/manifest.json', '/icon-192.png'];
 
 self.addEventListener('install', (event) => {

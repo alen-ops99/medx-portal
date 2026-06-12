@@ -18,7 +18,7 @@
       }
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         :root {
@@ -14875,8 +14875,13 @@ President, Med&amp;X</textarea>
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
 
-                // Render sidebar projects in order
-                const sortedProjects = this.projectOrder.map(id => [id, this.projects[id]]).filter(([id, proj]) => proj);
+                // Render sidebar projects in order. Self-heal: always include every defined
+                // project even if a stale localStorage order dropped some (otherwise a narrowed
+                // saved order can hide programs — e.g. showing only Plexus). Saved order wins for
+                // known ids; any missing project is appended so all programs always appear.
+                const displayOrder = [...this.projectOrder];
+                Object.keys(this.projects).forEach(id => { if (!displayOrder.includes(id)) displayOrder.push(id); });
+                const sortedProjects = displayOrder.map(id => [id, this.projects[id]]).filter(([id, proj]) => proj);
 
                 const sidebarHtml = sortedProjects.map(([id, proj]) => {
                     const isPinned = this.pinnedProjects.includes(id);

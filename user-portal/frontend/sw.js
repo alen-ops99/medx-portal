@@ -1,5 +1,5 @@
 // Med&X Portal Service Worker
-const CACHE_NAME = 'medx-portal-v6';
+const CACHE_NAME = 'medx-portal-v7';
 
 // App-shell assets to precache. (icon-512 is install-only and 740KB — left out of precache
 // so it isn't fetched on every first load; the browser pulls it from the manifest on install.)
