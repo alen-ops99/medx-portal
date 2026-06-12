@@ -20257,7 +20257,7 @@ President, Med&amp;X</textarea>
                     const dStyle = 'width:100%;padding:9px 11px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;';
                     const rows = detailCfg.fields.map(f => {
                         const v = cur[f.col] != null ? String(cur[f.col]) : '';
-                        const common = `id="genDetail_${f.col}" data-role="${f.role}" oninput="App.renderLinkPreview()" onchange="App.saveDetailField('${eventType}','${escapeHtml(eventId||'')}','${f.col}', this.value)"`;
+                        const common = `id="genDetail_${f.col}" data-role="${f.role}" oninput="App.renderLinkPreview(); App.saveDetailField('${eventType}','${escapeHtml(eventId||'')}','${f.col}', this.value)" onchange="App.saveDetailField('${eventType}','${escapeHtml(eventId||'')}','${f.col}', this.value)"`;
                         const input = f.type === 'textarea'
                             ? `<textarea ${common} rows="2" style="${dStyle}">${escapeHtml(v)}</textarea>`
                             : `<input type="text" ${common} value="${escapeHtml(v)}" style="${dStyle}">`;

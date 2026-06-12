@@ -789,8 +789,11 @@ const REVOKED_INVITE_IDS = new Set([
 
 // Serves a full server-rendered HTML page for VIP invite links.
 // Must be defined BEFORE express.static so it takes priority over the SPA.
-app.get('/invite/:data', (req, res) => {
+app.get('/invite/:data', async (req, res) => {
     try {
+        // Show the admin's latest edits immediately (throttled Turso pull) instead of
+        // waiting up to 60s for the periodic sync.
+        await freshSync();
         // Support both base64url and standard base64
         let rawData = req.params.data;
         // Convert base64url to standard base64
@@ -1814,6 +1817,18 @@ function saveDb() {
         if (_syncTimer) clearTimeout(_syncTimer);
         _syncTimer = setTimeout(() => { db.sync(); }, 2000);
     }
+}
+
+// Pull the latest from Turso on demand, throttled. Used by the public invite landing so an
+// admin's just-saved event edits show immediately rather than waiting for the 60s periodic
+// sync. Throttled to at most once per 5s so a burst of landing hits can't hammer Turso.
+let _lastFreshSync = 0;
+async function freshSync() {
+    if (!process.env.TURSO_DATABASE_URL) return;
+    const now = Date.now();
+    if (now - _lastFreshSync < 5000) return;
+    _lastFreshSync = now;
+    try { await db.sync(); } catch(e) { /* stale-but-serving is fine */ }
 }
 
 // Cross-portal sync
