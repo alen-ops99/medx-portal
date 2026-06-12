@@ -15,7 +15,7 @@
     "express-rate-limit": "^8.3.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
-    "libsql": "^0.4.7",
+    "libsql": "^0.5.29",
     "multer": "^2.0.0",
     "nodemailer": "^6.9.7",
     "pdfkit": "^0.14.0",
