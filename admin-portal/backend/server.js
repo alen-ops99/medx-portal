@@ -18025,6 +18025,296 @@ By applying to this program, I provide the following consents:
         catch(e) { res.status(500).json({ error: 'Failed to delete coupon' }); }
     });
 
+    // ============================ ADMIN AI CO-PILOT ============================
+    // Plain-English assistant for (often non-technical) staff. It READS stats freely
+    // and PROPOSES changes the human confirms. The model NEVER writes SQL and can only
+    // touch the whitelisted fields below — every value is validated server-side, and
+    // every write is gated behind an explicit confirmation in the UI.
+
+    // The ONLY fields the assistant may edit, per event kind (type ∈ text|price|int|date|time).
+    const ASSIST_EDITABLE = {
+        gala:        { table: 'gala_settings', where: { id: 'default' }, label: 'Plexus Gala Evening',
+                       fields: { title:'text', tagline:'text', date:'date', time:'time', venue:'text', dress_code:'text', description:'text', capacity:'int', price_gala_only:'price' } },
+        component:   { table: 'event_components', keyFields: ['event_type','component_key'], label: 'Priced component',
+                       fields: { label:'text', price:'price' } },
+        ticket:      { table: 'ticket_types', keyFields: ['id'], label: 'Conference ticket',
+                       fields: { price_early_bird:'price', price_regular:'price', price_late:'price' } },
+        conference:  { table: 'conferences', keyFields: ['id'], label: 'Conference',
+                       fields: { name:'text', description:'text', start_date:'date', end_date:'date', venue_name:'text', venue_city:'text', venue_country:'text', early_bird_deadline:'date', regular_deadline:'date' } },
+        forum_event: { table: 'forum_events', keyFields: ['id'], label: 'Forum event',
+                       fields: { title:'text', description:'text', start_date:'date', end_date:'date', location_name:'text', location_address:'text', capacity:'int', price:'price' } },
+        bridges_event:{ table: 'bridges_events', keyFields: ['id'], label: 'Bridges event',
+                       fields: { name:'text', city:'text', venue_name:'text', venue_address:'text', event_date:'date', event_time:'time', end_time:'time', description:'text', capacity:'int' } }
+    };
+    // What the assistant may CREATE (whitelisted columns + safe defaults).
+    const ASSIST_CREATE = {
+        bridges_event: { table:'bridges_events', required:['name','city','event_date'],
+                         fields:{ name:'text', city:'text', venue_name:'text', venue_address:'text', event_date:'date', event_time:'time', end_time:'time', description:'text', capacity:'int' },
+                         defaults:{ status:'upcoming', is_published:0 } },
+        forum_event:   { table:'forum_events', required:['title','start_date'],
+                         fields:{ title:'text', description:'text', start_date:'date', end_date:'date', location_name:'text', location_address:'text', capacity:'int', price:'price' },
+                         defaults:{ status:'draft' } }
+    };
+
+    const assistNum = (sql, p=[]) => { try { return query.get(sql, p)?.c || 0; } catch(e) { return 0; } };
+    const assistSum = (sql, p=[]) => { try { return Math.round((query.get(sql, p)?.s || 0) * 100) / 100; } catch(e) { return 0; } };
+
+    function assistComputeOverview() {
+        const o = { events: {}, coupons: [] };
+        o.events.plexus = { label:'Plexus Conference',
+            registered: assistNum("SELECT COUNT(*) c FROM registrations"),
+            paid: assistNum("SELECT COUNT(*) c FROM registrations WHERE payment_status='paid'"),
+            unpaid: assistNum("SELECT COUNT(*) c FROM registrations WHERE payment_status!='paid'"),
+            checked_in: assistNum("SELECT COUNT(*) c FROM registrations WHERE checked_in=1"),
+            revenue_eur: assistSum("SELECT SUM(amount_paid) s FROM registrations WHERE payment_status='paid'") };
+        o.events.gala = { label:'Plexus Gala Evening',
+            registered: assistNum("SELECT COUNT(*) c FROM gala_registrations"),
+            paid: assistNum("SELECT COUNT(*) c FROM gala_registrations WHERE payment_status='paid'"),
+            vip_comp: assistNum("SELECT COUNT(*) c FROM gala_registrations WHERE payment_status='vip-comp'"),
+            checked_in: assistNum("SELECT COUNT(*) c FROM gala_registrations WHERE checked_in=1"),
+            revenue_eur: assistSum("SELECT SUM(amount_paid) s FROM gala_registrations WHERE payment_status='paid'") };
+        o.events.forum = { label:'Forum',
+            registered: assistNum("SELECT COUNT(*) c FROM forum_event_registrations"),
+            paid: assistNum("SELECT COUNT(*) c FROM forum_event_registrations WHERE payment_status='paid'"),
+            checked_in: assistNum("SELECT COUNT(*) c FROM forum_event_registrations WHERE checked_in=1"),
+            revenue_eur: assistSum("SELECT SUM(COALESCE(amount_paid, payment_amount)) s FROM forum_event_registrations WHERE payment_status='paid'") };
+        o.events.bridges = { label:'Building Bridges',
+            registered: assistNum("SELECT COUNT(*) c FROM bridges_registrations"),
+            paid: assistNum("SELECT COUNT(*) c FROM bridges_registrations WHERE payment_status IN ('paid','comp')"),
+            checked_in: assistNum("SELECT COUNT(*) c FROM bridges_registrations WHERE checked_in=1"),
+            revenue_eur: assistSum("SELECT SUM(amount_paid) s FROM bridges_registrations WHERE payment_status='paid'") };
+        o.events['croatians-abroad'] = { label:'Croatians Abroad',
+            registered: assistNum("SELECT COUNT(*) c FROM croatians_abroad_registrations"),
+            for_conference: assistNum("SELECT COUNT(*) c FROM croatians_abroad_registrations WHERE selected_conference=1"),
+            for_bridges: assistNum("SELECT COUNT(*) c FROM croatians_abroad_registrations WHERE selected_bridges=1"),
+            for_gala: assistNum("SELECT COUNT(*) c FROM croatians_abroad_registrations WHERE selected_gala=1"),
+            gala_paid: assistNum("SELECT COUNT(*) c FROM croatians_abroad_registrations WHERE gala_payment_status='paid'") };
+        try { o.coupons = query.all("SELECT code, discount_type, discount_value, used_count, max_uses, event_type, is_active FROM promo_codes ORDER BY rowid DESC").slice(0, 50); } catch(e) { o.coupons = []; }
+        o.total_revenue_eur = Math.round((o.events.plexus.revenue_eur + o.events.gala.revenue_eur + o.events.forum.revenue_eur + o.events.bridges.revenue_eur) * 100) / 100;
+        return o;
+    }
+
+    function assistListEvents() {
+        const out = [];
+        // Return the current value of EVERY field the assistant can edit (built from ASSIST_EDITABLE)
+        // plus the row identifier — so the agent sees all editable fields and their current values.
+        const pull = (kind, rows, keyFn, labelFn) => { for (const r of (rows || [])) {
+            if (!r) continue;
+            const cur = {}; for (const f of Object.keys(ASSIST_EDITABLE[kind].fields)) cur[f] = r[f];
+            out.push({ kind, key: keyFn ? keyFn(r) : undefined, label: labelFn(r), current: cur });
+        } };
+        try { const g = query.get("SELECT * FROM gala_settings WHERE id='default'"); pull('gala', [g], null, () => 'Plexus Gala Evening'); } catch(e) {}
+        try { pull('conference', query.all("SELECT * FROM conferences ORDER BY year DESC"), r => ({ id:r.id }), r => 'Conference: ' + r.name); } catch(e) {}
+        try { pull('ticket', query.all("SELECT * FROM ticket_types"), r => ({ id:r.id }), r => 'Ticket: ' + r.name); } catch(e) {}
+        try { pull('component', query.all("SELECT * FROM event_components WHERE is_active=1 ORDER BY event_type, sort_order"), r => ({ event_type:r.event_type, component_key:r.component_key }), r => 'Component: ' + r.event_type + ' / ' + r.label); } catch(e) {}
+        try { pull('forum_event', query.all("SELECT * FROM forum_events ORDER BY start_date"), r => ({ id:r.id }), r => 'Forum event: ' + r.title); } catch(e) {}
+        try { pull('bridges_event', query.all("SELECT * FROM bridges_events ORDER BY event_date"), r => ({ id:r.id }), r => 'Bridges event: ' + r.name); } catch(e) {}
+        return out;
+    }
+
+    function assistSanitize(type, value) {
+        if (type === 'price') { const n = Number(value); if (!isFinite(n) || n < 0) return { error:'must be a number ≥ 0' }; return { value: Math.round(n*100)/100 }; }
+        if (type === 'int')   { const n = Number(value); if (!Number.isInteger(n) || n < 0) return { error:'must be a whole number ≥ 0' }; return { value: n }; }
+        if (type === 'date')  { const s = String(value).trim(); if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return { error:'must be a date YYYY-MM-DD' }; const d = new Date(s + 'T00:00:00Z'); if (isNaN(d.getTime()) || d.toISOString().slice(0,10) !== s) return { error:'is not a real calendar date' }; return { value: s }; }
+        if (type === 'time')  { const s = String(value).trim(); const m = s.match(/^(\d{1,2}):(\d{2})$/); if (!m) return { error:'must be a time HH:MM (24-hour)' }; const h = +m[1], mi = +m[2]; if (h > 23 || mi > 59) return { error:'must be a valid 24-hour time' }; return { value: String(h).padStart(2,'0') + ':' + m[2] }; }
+        return { value: String(value).slice(0, 1000) };
+    }
+
+    function assistApplyChange(kind, key, changes) {
+        const def = ASSIST_EDITABLE[kind];
+        if (!def) return { error:'I can\'t edit "' + kind + '".' };
+        const sets = [], vals = [], applied = {};
+        for (const [f, raw] of Object.entries(changes || {})) {
+            const type = def.fields[f];
+            if (!type) return { error:`I can't change "${f}" on ${def.label}.` };
+            const s = assistSanitize(type, raw);
+            if (s.error) return { error:`${f} ${s.error}.` };
+            sets.push(`${f} = ?`); vals.push(s.value); applied[f] = s.value;   // f is whitelisted, not user input
+        }
+        if (!sets.length) return { error:'No valid fields to change.' };
+        let whereSql, whereVals;
+        if (def.where) { whereSql = Object.keys(def.where).map(k=>`${k}=?`).join(' AND '); whereVals = Object.values(def.where); }
+        else { for (const k of def.keyFields) { if (!key || key[k]==null) return { error:'I need to know which one to change.' }; } whereSql = def.keyFields.map(k=>`${k}=?`).join(' AND '); whereVals = def.keyFields.map(k=>key[k]); }
+        try {
+            if (!query.get(`SELECT 1 FROM ${def.table} WHERE ${whereSql} LIMIT 1`, whereVals)) return { error:`I couldn't find that ${def.label}.` };
+            db.run(`UPDATE ${def.table} SET ${sets.join(', ')} WHERE ${whereSql}`, [...vals, ...whereVals]);
+            saveDb();
+            return { ok:true, applied, label: def.label };
+        } catch(e) { return { error:'The update failed: ' + e.message }; }
+    }
+
+    function assistCreate(kind, fields) {
+        const def = ASSIST_CREATE[kind];
+        if (!def) return { error:'I can only create: ' + Object.keys(ASSIST_CREATE).join(', ') + '.' };
+        for (const r of def.required) { if (!fields || fields[r]==null || String(fields[r]).trim()==='') return { error:`I need a ${r} to create that.` }; }
+        const cols = ['id'], ph = ['?'], vals = [require('crypto').randomUUID()];
+        for (const [f, raw] of Object.entries(fields || {})) {
+            const type = def.fields[f]; if (!type) continue;
+            const s = assistSanitize(type, raw); if (s.error) return { error:`${f} ${s.error}.` };
+            cols.push(f); ph.push('?'); vals.push(s.value);
+        }
+        for (const [k, v] of Object.entries(def.defaults || {})) { cols.push(k); ph.push('?'); vals.push(v); }
+        try { db.run(`INSERT INTO ${def.table} (${cols.join(',')}) VALUES (${ph.join(',')})`, vals); saveDb(); return { ok:true, id: vals[0], label: def.table }; }
+        catch(e) { return { error:'Creating it failed: ' + e.message }; }
+    }
+
+    // Fetch the current DB row for an editable target (used to show old → new in confirmations).
+    function assistCurrentRow(kind, key) {
+        const def = ASSIST_EDITABLE[kind]; if (!def) return null;
+        try {
+            if (def.where) { const w = Object.keys(def.where).map(k=>`${k}=?`).join(' AND '); return query.get(`SELECT * FROM ${def.table} WHERE ${w} LIMIT 1`, Object.values(def.where)); }
+            if (!key) return null;
+            for (const k of def.keyFields) if (key[k] == null) return null;
+            const w = def.keyFields.map(k=>`${k}=?`).join(' AND ');
+            return query.get(`SELECT * FROM ${def.table} WHERE ${w} LIMIT 1`, def.keyFields.map(k=>key[k]));
+        } catch(e) { return null; }
+    }
+
+    function assistDescribeAction(tool, args) {
+        if (tool === 'update_event') {
+            const d = ASSIST_EDITABLE[args.kind];
+            const cur = assistCurrentRow(args.kind, args.key) || {};
+            // Show old → new so the human can catch a mis-parse before confirming.
+            const ch = Object.entries(args.changes||{}).map(([k,v]) => {
+                const old = cur[k];
+                return (old != null && String(old) !== String(v)) ? `${k}: ${old} → ${v}` : `${k} → ${v}`;
+            }).join(', ');
+            return `Update ${d ? d.label : args.kind}: ${ch}`;
+        }
+        if (tool === 'create_event') { const f = args.fields||{}; return `Create new ${args.kind}: "${f.name||f.title||'(unnamed)'}"${(f.event_date||f.start_date)?' on '+(f.event_date||f.start_date):''}`; }
+        if (tool === 'create_coupon') return `Create coupon ${String(args.code||'').toUpperCase()} (${args.discount_type==='fixed'?'€'+args.discount_value+' off':args.discount_value+'% off'}) for ${args.event_type}`;
+        return tool;
+    }
+
+    const ASSIST_TOOLS = [
+        { name:'get_overview', description:'Current registration statistics for every event (registered / paid / checked-in counts, revenue in EUR, coupons). Use for any "how many" or "how much" question.', input_schema:{ type:'object', properties:{} } },
+        { name:'list_events', description:'List all editable events with their current values and identifiers (gala, conferences, tickets, components, forum events, bridges events). ALWAYS call this before proposing an edit so you use the correct identifier and see current values.', input_schema:{ type:'object', properties:{} } },
+        { name:'update_event', description:'Propose changing fields on an existing event. Does NOT apply — the human confirms. kind ∈ gala|conference|ticket|component|forum_event|bridges_event. key identifies the row (from list_events; omit for gala). changes maps field→new value. Use YYYY-MM-DD for dates and 24-hour HH:MM for times.', input_schema:{ type:'object', properties:{ kind:{type:'string'}, key:{type:'object'}, changes:{type:'object'} }, required:['kind','changes'] } },
+        { name:'create_event', description:'Propose creating a new event. kind ∈ bridges_event|forum_event. fields per kind (a name/title and a date are required). Does NOT apply — the human confirms.', input_schema:{ type:'object', properties:{ kind:{type:'string'}, fields:{type:'object'} }, required:['kind','fields'] } },
+        { name:'create_coupon', description:'Propose a discount coupon for an event. Does NOT apply — the human confirms.', input_schema:{ type:'object', properties:{ event_type:{type:'string'}, code:{type:'string'}, discount_type:{type:'string', enum:['fixed','percentage'] }, discount_value:{type:'number'}, max_uses:{type:'number'}, valid_until:{type:'string'} }, required:['event_type','code','discount_type','discount_value'] } }
+    ];
+    const ASSIST_WRITE_TOOLS = ['update_event','create_event','create_coupon'];
+    const ASSIST_SYSTEM = `You are the Med&X admin assistant for the Plexus 2026 conference portal. Your users are often NON-TECHNICAL staff — be warm, brief, and plain-spoken.
+- For any question about numbers (how many registered/paid/checked-in, revenue, coupon usage), call get_overview and answer with the figure directly.
+- To change anything (an event's date/time/venue/price; create an event or coupon), FIRST call list_events to get the exact identifier and current value, THEN call update_event / create_event / create_coupon. These tools DO NOT apply changes — they propose them and the human sees a Confirm button. Never say a change is "done"; say you've prepared it for them to confirm.
+- Convert dates to YYYY-MM-DD and times to 24-hour HH:MM before calling tools (e.g. "7pm" → "19:00").
+- If a request is ambiguous (which event? which price?), ask one short clarifying question instead of guessing.
+- Keep replies short and friendly. Money is in euros (€).`;
+
+    // Route simple questions to a fast/cheap model and anything that CHANGES data to the most
+    // capable model (better at turning loose phrasing into the right tool call). Both are env-
+    // overridable so a newer top model can be adopted without a code change.
+    function assistPickModel(messages) {
+        const simple  = process.env.ASSISTANT_MODEL || 'claude-haiku-4-5-20251001';
+        const complex = process.env.ASSISTANT_MODEL_COMPLEX || 'claude-opus-4-8';
+        let last = '';
+        for (let i = messages.length - 1; i >= 0; i--) { if (messages[i].role === 'user' && typeof messages[i].content === 'string') { last = messages[i].content; break; } }
+        const actiony = /\b(add|creat\w*|new|chang\w*|updat\w*|set|edit|modif\w*|move|renam\w*|delet\w*|remov\w*|make|schedul\w*|reschedul\w*|rais\w*|lower|increas\w*|decreas\w*|adjust\w*|publish|enable|disable|turn\s+(on|off))\b/i.test(last);
+        return actiony ? complex : simple;
+    }
+
+    async function assistRunAgent(messages) {
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey) return { answer:"I'm not switched on yet — an admin needs to add an ANTHROPIC_API_KEY in the server settings (Render → medx-admin-portal → Environment). Once that's set, you can ask me anything.", pending: [] };
+        const model = assistPickModel(messages);
+        const pending = [];
+        const convo = messages.slice();
+        for (let iter = 0; iter < 6; iter++) {
+            let data;
+            try {
+                const resp = await fetch('https://api.anthropic.com/v1/messages', {
+                    method:'POST',
+                    headers:{ 'x-api-key': apiKey, 'anthropic-version':'2023-06-01', 'content-type':'application/json' },
+                    body: JSON.stringify({ model, max_tokens: 1024, system: ASSIST_SYSTEM, tools: ASSIST_TOOLS, messages: convo })
+                });
+                if (!resp.ok) { console.error('[assistant] anthropic', resp.status, (await resp.text()).slice(0,300)); return { answer:'Sorry — I had trouble reaching the AI service. Please try again in a moment.', pending }; }
+                data = await resp.json();
+            } catch(e) { console.error('[assistant] fetch failed', e.message); return { answer:'Sorry — I could not reach the AI service.', pending }; }
+            const content = data.content || [];
+            const toolUses = content.filter(b => b.type === 'tool_use');
+            const text = content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+            if (!toolUses.length) return { answer: text || 'Done.', pending };
+            convo.push({ role:'assistant', content });
+            const results = [];
+            for (const tu of toolUses) {
+                if (tu.name === 'get_overview') results.push({ type:'tool_result', tool_use_id: tu.id, content: JSON.stringify(assistComputeOverview()) });
+                else if (tu.name === 'list_events') results.push({ type:'tool_result', tool_use_id: tu.id, content: JSON.stringify(assistListEvents()) });
+                else if (ASSIST_WRITE_TOOLS.includes(tu.name)) {
+                    pending.push({ tool: tu.name, args: tu.input, description: assistDescribeAction(tu.name, tu.input) });
+                    results.push({ type:'tool_result', tool_use_id: tu.id, content:'Proposed and shown to the user for confirmation. NOT applied yet. Do not call this again for the same change — briefly summarize what you prepared.' });
+                } else results.push({ type:'tool_result', tool_use_id: tu.id, content:'Unknown tool', is_error:true });
+            }
+            convo.push({ role:'user', content: results });
+        }
+        return { answer:'I\'ve prepared the change(s) above — please review and confirm.', pending };
+    }
+
+    function assistResultMessage(tool, result) {
+        if (tool === 'update_event') return `Done — updated ${result.label}.`;
+        if (tool === 'create_event') return `Done — created the new ${result.label}.`;
+        if (tool === 'create_coupon') return `Done — created ${result.label}.`;
+        return 'Done.';
+    }
+
+    // Modest per-IP rate limit to protect Anthropic spend from runaway/scripted calls.
+    const assistantLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many requests — please slow down a moment.' } });
+
+    // Ask the assistant: returns { answer, pending:[{tool,args,description}] }
+    app.post('/api/admin/assistant', assistantLimiter, auth, adminOnly, async (req, res) => {
+        try {
+            const { message, history } = req.body || {};
+            if (!message || !String(message).trim()) return res.status(400).json({ error:'Please type a question.' });
+            const msgs = [];
+            if (Array.isArray(history)) for (const h of history.slice(-8)) {
+                if (h && (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string' && h.content.trim()) msgs.push({ role:h.role, content: h.content.slice(0, 4000) });
+            }
+            msgs.push({ role:'user', content: String(message).slice(0, 2000) });
+            res.json(await assistRunAgent(msgs));
+        } catch(e) { console.error('[assistant] error', e.message); res.status(500).json({ error:'Assistant error' }); }
+    });
+
+    // Execute a confirmed action (one of the proposed pending actions).
+    app.post('/api/admin/assistant/execute', assistantLimiter, auth, adminOnly, (req, res) => {
+        try {
+            const { tool, args } = req.body || {};
+            if (!tool || !args || typeof args !== 'object') return res.status(400).json({ error:'Invalid action.' });
+            // Defense-in-depth: constrain the action shape even on a direct (non-UI) call.
+            if (tool === 'update_event') {
+                if (!ASSIST_EDITABLE[args.kind]) return res.status(400).json({ error:'Unknown event kind.' });
+                if (!args.changes || typeof args.changes !== 'object') return res.status(400).json({ error:'No changes provided.' });
+            } else if (tool === 'create_event') {
+                if (!ASSIST_CREATE[args.kind]) return res.status(400).json({ error:"I can't create that kind." });
+                if (!args.fields || typeof args.fields !== 'object') return res.status(400).json({ error:'No details provided.' });
+            } else if (tool === 'create_coupon') {
+                if (!['gala','forum','plexus','bridges','croatians-abroad'].includes(args.event_type)) return res.status(400).json({ error:'Unknown event for the coupon.' });
+                if (!['fixed','percentage'].includes(args.discount_type)) return res.status(400).json({ error:'Discount type must be fixed or percentage.' });
+            } else {
+                return res.status(400).json({ error:'Unknown action.' });
+            }
+            let result;
+            if (tool === 'update_event') result = assistApplyChange(args.kind, args.key, args.changes);
+            else if (tool === 'create_event') result = assistCreate(args.kind, args.fields);
+            else if (tool === 'create_coupon') {
+                const { event_type, code, discount_type, discount_value, max_uses, valid_until } = args || {};
+                if (!event_type || !code) result = { error:'Missing event or code.' };
+                else {
+                    const dt = discount_type === 'fixed' ? 'fixed' : 'percentage';
+                    const dv = Math.max(0, Number(discount_value) || 0);
+                    if (!dv) result = { error:'The discount must be greater than 0.' };
+                    else if (dt === 'percentage' && dv > 100) result = { error:'A percentage can\'t exceed 100.' };
+                    else {
+                        const codeUp = String(code).trim().toUpperCase();
+                        const dupe = query.get("SELECT id FROM promo_codes WHERE UPPER(code)=? AND (event_type=? OR conference_id=?) AND is_active=1", [codeUp, event_type, couponConfId(event_type)]);
+                        if (dupe) result = { error:'A coupon with that code already exists for this event.' };
+                        else { const id = uuidv4(); db.run('INSERT INTO promo_codes (id, conference_id, event_type, code, discount_type, discount_value, max_uses, used_count, valid_until, is_active) VALUES (?,?,?,?,?,?,?,0,?,1)', [id, couponConfId(event_type), event_type, codeUp, dt, dv, Number(max_uses)||0, valid_until||null]); saveDb(); result = { ok:true, label:'coupon ' + codeUp }; }
+                    }
+                }
+            } else result = { error:'Unknown action.' };
+            if (!result || result.error) return res.status(400).json({ error: (result && result.error) || 'Could not apply.' });
+            res.json({ success:true, message: assistResultMessage(tool, result) });
+        } catch(e) { console.error('[assistant] execute', e.message); res.status(500).json({ error:'Could not apply the change.' }); }
+    });
+
     // Forum Gala Settings (admin-editable pricing)
     app.get('/api/admin/forum/gala-settings', auth, adminOnly, (req, res) => {
         try {

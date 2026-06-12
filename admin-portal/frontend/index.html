@@ -5465,6 +5465,16 @@
         }
         .qr-fab:active { transform: scale(0.95); }
 
+        /* Med&X Assistant floating button (admins) — sits above the QR FAB */
+        .assist-fab {
+            position: fixed; bottom: 160px; right: 28px; width: 56px; height: 56px; border-radius: 50%;
+            background: linear-gradient(135deg, #7c3aed, #a855f7); color: #fff; border: none; font-size: 22px;
+            cursor: pointer; box-shadow: 0 4px 14px rgba(124,58,237,0.45); z-index: 900; display: none;
+            align-items: center; justify-content: center; transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .assist-fab:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(124,58,237,0.6); }
+        .assist-fab:active { transform: scale(0.95); }
+
         .qr-modal-overlay {
             position: fixed;
             inset: 0;
@@ -6524,6 +6534,9 @@
         <!-- Global QR Scanner FAB -->
         <button id="globalQRBtn" class="qr-fab" onclick="App.openGlobalQRScanner()" title="Scan QR Check-in">
             <i class="fas fa-qrcode"></i>
+        </button>
+        <button id="assistantFab" class="assist-fab" onclick="App.openAssistant()" title="Ask the Med&X assistant">
+            <i class="fas fa-robot"></i>
         </button>
 
         <!-- Mobile Header -->
@@ -13337,6 +13350,7 @@ President, Med&amp;X</textarea>
                 document.getElementById('mainApp').classList.remove('active');
                 document.getElementById('loginPage').style.display = 'flex';
                 document.getElementById('globalQRBtn').style.display = 'none';
+                { const af = document.getElementById('assistantFab'); if (af) af.style.display = 'none'; }
             },
 
             // Scanner-only staff (is_staff && !is_admin): hide every super-admin nav item so they
@@ -13367,6 +13381,8 @@ President, Med&amp;X</textarea>
                 document.getElementById('globalQRBtn').style.display = 'none';
                 this.updateFabBadge();
                 this.applyRoleRestrictions();
+                // Show the AI assistant button for admins (not scanner-only staff).
+                if (this.user && this.user.is_admin) { const af = document.getElementById('assistantFab'); if (af) af.style.display = 'flex'; }
 
                 // Online/offline listeners for check-in queue
                 window.addEventListener('online', () => this.flushCheckinQueue());
@@ -20626,6 +20642,106 @@ President, Med&amp;X</textarea>
                 try { await this.api(`/api/admin/coupons/${id}`, { method: 'DELETE' }); Toast.success('Coupon deactivated'); this.loadCoupons(eventType); }
                 catch(e) { Toast.error('Could not deactivate'); }
             },
+
+            // ===== Med&X Assistant (AI co-pilot) =====
+            _assistHistory: [],
+            _assistPending: [],
+            openAssistant() {
+                if (!(this.user && this.user.is_admin)) { Toast.error('The assistant is for admins.'); return; }
+                let ov = document.getElementById('assistantModal');
+                if (!ov) {
+                    ov = document.createElement('div');
+                    ov.id = 'assistantModal';
+                    ov.style.cssText = 'position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.55);display:flex;align-items:stretch;justify-content:flex-end;';
+                    ov.onclick = (e) => { if (e.target === ov) this.closeAssistant(); };
+                    ov.innerHTML = `
+                        <div style="width:100%;max-width:440px;height:100vh;display:flex;flex-direction:column;background:var(--bg-secondary,#0f172a);border-left:1px solid var(--border-color);box-shadow:-8px 0 30px rgba(0,0,0,0.4);">
+                            <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border-color);">
+                                <div style="display:flex;align-items:center;gap:10px;">
+                                    <span style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#a855f7);display:flex;align-items:center;justify-content:center;color:#fff;"><i class="fas fa-robot"></i></span>
+                                    <div><div style="font-weight:700;color:var(--text-primary);">Med&amp;X Assistant</div><div style="font-size:11px;color:var(--text-muted);">Ask a question or tell me what to change</div></div>
+                                </div>
+                                <button onclick="App.closeAssistant()" style="background:none;border:none;color:var(--text-muted);font-size:24px;cursor:pointer;line-height:1;">&times;</button>
+                            </div>
+                            <div id="assistMessages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;min-height:0;"></div>
+                            <div style="padding:12px 14px;border-top:1px solid var(--border-color);">
+                                <div style="display:flex;gap:8px;">
+                                    <input id="assistInput" placeholder="e.g. How many registered for the Gala?" onkeydown="if(event.key==='Enter')App.assistantSend()" style="flex:1;padding:11px 13px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-primary);color:var(--text-primary);font-size:14px;">
+                                    <button id="assistSendBtn" onclick="App.assistantSend()" class="btn btn-primary" style="padding:11px 16px;"><i class="fas fa-paper-plane"></i></button>
+                                </div>
+                                <div style="font-size:10px;color:var(--text-muted);margin-top:6px;text-align:center;">Any change is shown for your confirmation before it happens.</div>
+                            </div>
+                        </div>`;
+                    document.body.appendChild(ov);
+                }
+                ov.style.display = 'flex';
+                this.assistantRender();
+                setTimeout(() => { const i = document.getElementById('assistInput'); if (i) i.focus(); }, 60);
+            },
+            closeAssistant() { const ov = document.getElementById('assistantModal'); if (ov) ov.style.display = 'none'; },
+            assistantRender() {
+                const box = document.getElementById('assistMessages');
+                if (!box) return;
+                let html = '';
+                if (!this._assistHistory.length) {
+                    html += `<div style="color:var(--text-muted);font-size:13px;line-height:1.6;">Hi! I can answer questions like <em>"how many people registered for the Plexus Conference?"</em> or make changes like <em>"change the Gala start time to 19:00"</em> or <em>"add a Bridges event in Zurich on 2026-11-10"</em>.<br><br>Every change is shown to you with a Confirm button first — nothing happens without your OK.</div>`;
+                }
+                for (const m of this._assistHistory) {
+                    if (m.role === 'user') html += `<div style="align-self:flex-end;max-width:85%;background:var(--accent-gold);color:#0f172a;padding:9px 12px;border-radius:12px 12px 2px 12px;font-size:14px;">${escapeHtml(m.content)}</div>`;
+                    else html += `<div style="align-self:flex-start;max-width:92%;background:var(--bg-primary);color:var(--text-primary);padding:9px 12px;border-radius:12px 12px 12px 2px;font-size:14px;white-space:pre-wrap;">${escapeHtml(m.content)}</div>`;
+                }
+                (this._assistPending || []).forEach((p, i) => {
+                    if (p._done) html += `<div style="align-self:flex-start;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.4);color:#22c55e;padding:8px 12px;border-radius:10px;font-size:13px;"><i class="fas fa-check"></i> ${escapeHtml(p._doneMsg || 'Applied')}</div>`;
+                    else if (!p._cancelled) html += `
+                        <div style="align-self:flex-start;width:92%;background:var(--bg-primary);border:1px solid var(--accent-gold);border-radius:10px;padding:12px;">
+                            <div style="font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--accent-gold);text-transform:uppercase;margin-bottom:6px;"><i class="fas fa-pen"></i> Change to confirm</div>
+                            <div style="font-size:13px;color:var(--text-primary);margin-bottom:10px;">${escapeHtml(p.description || p.tool)}</div>
+                            <div style="display:flex;gap:8px;">
+                                <button onclick="App.assistantConfirm(${i})" class="btn btn-primary" style="flex:1;padding:8px;font-size:13px;"><i class="fas fa-check"></i> Confirm</button>
+                                <button onclick="App.assistantCancel(${i})" class="btn btn-secondary" style="padding:8px 14px;font-size:13px;">Cancel</button>
+                            </div>
+                        </div>`;
+                });
+                box.innerHTML = html;
+                box.scrollTop = box.scrollHeight;
+            },
+            async assistantSend() {
+                const input = document.getElementById('assistInput');
+                const btn = document.getElementById('assistSendBtn');
+                const msg = (input.value || '').trim();
+                if (!msg) return;
+                input.value = '';
+                this._assistHistory.push({ role: 'user', content: msg });
+                this._assistPending = [];
+                this._assistHistory.push({ role: 'assistant', content: '…' });
+                this.assistantRender();
+                btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                try {
+                    const hist = this._assistHistory.filter(m => m.content !== '…').map(m => ({ role: m.role, content: m.content }));
+                    const res = await this.api('/api/admin/assistant', { method: 'POST', body: JSON.stringify({ message: msg, history: hist.slice(0, -1) }) });
+                    this._assistHistory.pop(); // drop the thinking bubble
+                    this._assistHistory.push({ role: 'assistant', content: (res && res.answer) || 'Sorry, I had no answer.' });
+                    this._assistPending = (res && res.pending) || [];
+                } catch (e) {
+                    this._assistHistory.pop();
+                    this._assistHistory.push({ role: 'assistant', content: 'Sorry — something went wrong. Please try again.' });
+                }
+                btn.disabled = false; btn.innerHTML = old;
+                this.assistantRender();
+            },
+            async assistantConfirm(i) {
+                const p = this._assistPending[i];
+                if (!p || p._done) return;
+                try {
+                    const res = await this.api('/api/admin/assistant/execute', { method: 'POST', body: JSON.stringify({ tool: p.tool, args: p.args }) });
+                    p._done = true; p._doneMsg = (res && res.message) || 'Applied';
+                    Toast.success(p._doneMsg);
+                } catch (e) {
+                    Toast.error((e && e.message) || 'Could not apply the change');
+                }
+                this.assistantRender();
+            },
+            assistantCancel(i) { if (this._assistPending[i]) { this._assistPending[i]._cancelled = true; this.assistantRender(); } },
 
             // Back-compat alias — all live updates flow through renderLinkPreview now.
             updateGenLinkTotal() { this.renderLinkPreview(); },
