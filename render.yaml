@@ -5,6 +5,11 @@ services:
     rootDir: user-portal/backend
     buildCommand: npm install
     startCommand: node server.js
+    # Deploy when EITHER the backend or the served frontend changes. Without this,
+    # a frontend-only commit (e.g. index.html) is skipped because rootDir is the backend.
+    buildFilter:
+      paths:
+        - user-portal/**
     envVars:
       - key: PORT
         value: 3000
@@ -62,6 +67,10 @@ services:
     rootDir: admin-portal/backend
     buildCommand: npm install
     startCommand: node server.js
+    # Deploy on any admin-portal change (backend OR the served frontend/index.html).
+    buildFilter:
+      paths:
+        - admin-portal/**
     envVars:
       - key: PORT
         value: 3001
