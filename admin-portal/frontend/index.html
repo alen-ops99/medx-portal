@@ -20162,11 +20162,112 @@ President, Med&amp;X</textarea>
             },
 
             // --- DIRECT REGISTRATION LINKS ---
+            // Per-event editable details for the Live Editor. Each field maps a DB column to a
+            // label + input type + which preview row it drives. The PUT endpoint + how to fetch
+            // current values differ per event; all PUTs are partial-safe (send one key at a time).
+            eventDetailConfig(eventType, eventId) {
+                const self = this;
+                const C = {
+                    gala: {
+                        singleton: true,
+                        fetch: () => self.api('/api/admin/gala/settings'),
+                        endpoint: () => '/api/admin/gala/settings',
+                        fields: [
+                            { col:'title', label:'Title', type:'text', role:'title' },
+                            { col:'date', label:'Date', type:'text', role:'date' },
+                            { col:'time', label:'Time', type:'text', role:'time' },
+                            { col:'venue', label:'Venue / Location', type:'text', role:'venue' },
+                            { col:'dress_code', label:'Dress code', type:'text', role:'meta' },
+                            { col:'description', label:'Description', type:'textarea', role:'description' },
+                        ],
+                    },
+                    plexus: {
+                        singleton: true,
+                        fetch: () => self.api('/api/admin/plexus/settings'),
+                        endpoint: () => '/api/admin/plexus/settings',
+                        fields: [
+                            { col:'conference_name', label:'Conference name', type:'text', role:'title' },
+                            { col:'conference_start_date', label:'Start date', type:'date', role:'date' },
+                            { col:'conference_end_date', label:'End date', type:'date', role:'meta' },
+                            { col:'venue_name', label:'Venue name', type:'text', role:'venue' },
+                            { col:'venue_city', label:'Venue city', type:'text', role:'meta' },
+                            { col:'conference_description', label:'Description', type:'textarea', role:'description' },
+                        ],
+                    },
+                    forum: {
+                        needsId: true,
+                        fetch: async () => { const all = await self.api('/api/admin/forum/events'); return (all||[]).find(e => e.id === eventId) || {}; },
+                        endpoint: () => `/api/admin/forum/events/${eventId}`,
+                        fields: [
+                            { col:'title', label:'Title', type:'text', role:'title' },
+                            { col:'start_date', label:'Start date', type:'date', role:'date' },
+                            { col:'end_date', label:'End date', type:'date', role:'meta' },
+                            { col:'location_name', label:'Location', type:'text', role:'venue' },
+                            { col:'description', label:'Description', type:'textarea', role:'description' },
+                        ],
+                    },
+                    bridges: {
+                        needsId: true,
+                        fetch: () => self.api(`/api/bridges/events/${eventId}`),
+                        endpoint: () => `/api/bridges/events/${eventId}`,
+                        fields: [
+                            { col:'name', label:'Name', type:'text', role:'title' },
+                            { col:'event_date', label:'Date', type:'text', role:'date' },
+                            { col:'event_time', label:'Time', type:'text', role:'time' },
+                            { col:'venue_name', label:'Venue', type:'text', role:'venue' },
+                            { col:'city', label:'City', type:'text', role:'meta' },
+                            { col:'description', label:'Description', type:'textarea', role:'description' },
+                        ],
+                    },
+                };
+                const cfg = C[eventType];
+                if (!cfg) return null;
+                if (cfg.needsId && !eventId) return null; // forum/bridges need a specific event to edit
+                return cfg;
+            },
+
+            // Persist ONE edited detail field, partial-safe. Bridges PUT uses COALESCE on the raw
+            // value, so an empty string would overwrite — we still send it only because the admin
+            // explicitly edited the field; callers must not fire this for unchanged fields.
+            _detailSaveTimers: {},
+            saveDetailField(eventType, eventId, col, value) {
+                const cfg = this.eventDetailConfig(eventType, eventId);
+                if (!cfg) return;
+                clearTimeout(this._detailSaveTimers[col]);
+                this._detailSaveTimers[col] = setTimeout(async () => {
+                    try {
+                        await this.api(cfg.endpoint(), { method: 'PUT', body: JSON.stringify({ [col]: value }) });
+                        Toast.success('Saved');
+                    } catch(e) { Toast.error('Could not save ' + col); }
+                }, 500);
+            },
+
             async generateRegistrationLink(eventType, eventId, eventName) {
                 // Single instance — never let two Live Editors stack (their ids would collide).
                 document.getElementById('linkEditorModal')?.remove();
-                const typeNames = { plexus: 'Plexus Conference 2026', gala: 'Gala Evening 2026', forum: 'Biomedical Forum', bridges: 'Building Bridges' };
+                const typeNames = { plexus: 'Plexus Conference 2026', gala: 'Plexus 2026 — Gala Evening', forum: 'Biomedical Forum', bridges: 'Building Bridges' };
                 const name = eventName || typeNames[eventType] || eventType;
+
+                // Hydrate + build the editable Details section (all event details, live-saved).
+                let detailsSection = '';
+                const detailCfg = this.eventDetailConfig(eventType, eventId);
+                if (detailCfg) {
+                    let cur = {};
+                    try { cur = await detailCfg.fetch() || {}; } catch(e) { cur = {}; }
+                    const dStyle = 'width:100%;padding:9px 11px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;';
+                    const rows = detailCfg.fields.map(f => {
+                        const v = cur[f.col] != null ? String(cur[f.col]) : '';
+                        const common = `id="genDetail_${f.col}" data-role="${f.role}" oninput="App.renderLinkPreview()" onchange="App.saveDetailField('${eventType}','${escapeHtml(eventId||'')}','${f.col}', this.value)"`;
+                        const input = f.type === 'textarea'
+                            ? `<textarea ${common} rows="2" style="${dStyle}">${escapeHtml(v)}</textarea>`
+                            : `<input type="text" ${common} value="${escapeHtml(v)}" style="${dStyle}">`;
+                        return `<div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">${escapeHtml(f.label)}</label>${input}</div>`;
+                    }).join('');
+                    detailsSection = `<div style="margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--border-color);">
+                        <div style="font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--accent-gold,#c9a962);text-transform:uppercase;margin-bottom:12px;"><i class="fas fa-pen" style="margin-right:5px;"></i>Event details <span style="font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0;">— edits save automatically &amp; update the preview</span></div>
+                        ${rows}
+                    </div>`;
+                }
 
                 // Live-price note for per-event bridges links: the landing always
                 // re-reads the event's current DB price, so existing links follow edits.
@@ -20248,8 +20349,9 @@ President, Med&amp;X</textarea>
                             </div>
                             <!-- RIGHT: editable controls -->
                             <div style="padding:20px;overflow-y:auto;">
+                                ${detailsSection}
                                 <div style="margin-bottom:16px;">
-                                    <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Event Name</label>
+                                    <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">${detailsSection ? 'Link label <span style="font-weight:400;color:var(--text-muted);">(internal — for your reference)</span>' : 'Event Name'}</label>
                                     <input type="text" id="genLinkName" value="${escapeHtml(name)}" oninput="App.renderLinkPreview()" style="${inStyle}">
                                 </div>
                                 ${subEventSelect}
@@ -20291,8 +20393,12 @@ President, Med&amp;X</textarea>
             // Reads whatever controls exist (composable components OR a single price) so it works
             // for every event type.
             renderLinkPreview() {
+                const esc = (typeof escapeHtml === 'function') ? escapeHtml : (s => s);
+                // Detail fields (when present) are the source of truth for the registrant page.
+                const detail = (role) => { const el = document.querySelector(`#linkEditorModal [data-role="${role}"]`); return el ? el.value.trim() : ''; };
                 const nameEl = document.getElementById('genLinkName');
-                const name = (nameEl && nameEl.value.trim()) || 'Med&X Event';
+                const name = detail('title') || (nameEl && nameEl.value.trim()) || 'Med&X Event';
+                const date = detail('date'), time = detail('time'), venue = detail('venue'), description = detail('description');
                 let total = 0; const included = [];
                 const items = document.getElementById('genLinkItems');
                 const single = document.getElementById('genLinkSinglePrice');
@@ -20303,7 +20409,6 @@ President, Med&amp;X</textarea>
                     });
                 } else if (single) {
                     total = Math.max(0, parseFloat(single.value) || 0);
-                    included.push(name);
                 }
                 total = Math.round(total * 100) / 100;
                 const totalStr = total > 0 ? '€' + total : 'Free';
@@ -20311,15 +20416,18 @@ President, Med&amp;X</textarea>
                 if (totalEl) totalEl.textContent = totalStr;
                 const prev = document.getElementById('genLinkPreview');
                 if (!prev) return;
-                const esc = (typeof escapeHtml === 'function') ? escapeHtml : (s => s);
+                const metaRow = (icon, val) => val ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#94a3b8;margin-bottom:6px;"><i class="fas ${icon}" style="width:14px;color:#c9a962;"></i>${esc(val)}</div>` : '';
                 const partsHtml = included.length
-                    ? '<div style="margin:6px 0 18px;">' + included.map(i =>
+                    ? '<div style="margin:14px 0 18px;">' + included.map(i =>
                         `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:14px;color:#e2e8f0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="color:#22c55e;font-weight:700;">&#10003;</span> ${esc(i)}</div>`).join('') + '</div>'
-                    : '<div style="font-size:13px;color:#64748b;margin:6px 0 18px;">Tick the parts to include &rarr;</div>';
+                    : '<div style="height:8px;"></div>';
                 prev.innerHTML = `
                     <div style="background:#0f172a;border:1px solid rgba(201,169,98,0.25);border-radius:14px;padding:22px;">
-                        <div style="font-size:22px;font-weight:700;color:#fff;line-height:1.2;margin-bottom:4px;">${esc(name)}</div>
-                        <div style="font-size:12px;color:#94a3b8;margin-bottom:18px;">Registration</div>
+                        <div style="font-size:22px;font-weight:700;color:#fff;line-height:1.25;margin-bottom:10px;">${esc(name)}</div>
+                        ${metaRow('fa-calendar', date)}
+                        ${metaRow('fa-clock', time)}
+                        ${metaRow('fa-map-marker-alt', venue)}
+                        ${description ? `<div style="font-size:13px;color:#cbd5e1;line-height:1.5;margin:12px 0 4px;">${esc(description)}</div>` : ''}
                         ${partsHtml}
                         <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:rgba(201,169,98,0.12);border-radius:10px;border:1px solid rgba(201,169,98,0.25);">
                             <span style="font-size:14px;color:#94a3b8;">Total</span>
