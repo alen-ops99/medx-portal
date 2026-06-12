@@ -9017,7 +9017,7 @@ President, Med&amp;X</textarea>
                                         <div style="font-size: 12px; color: var(--text-muted);">Checked In</div>
                                     </div>
                                     <div style="text-align: center; padding: 16px; background: var(--bg-tertiary); border-radius: 8px;">
-                                        <div id="bridgesEventCapacity" style="font-size: 28px; font-weight: 700; color: var(--text-secondary);">0</div>
+                                        <div id="bridgesEventCapacityStat" style="font-size: 28px; font-weight: 700; color: var(--text-secondary);">0</div>
                                         <div style="font-size: 12px; color: var(--text-muted);">Capacity</div>
                                     </div>
                                     <div style="text-align: center; padding: 16px; background: var(--bg-tertiary); border-radius: 8px;">
@@ -12245,6 +12245,10 @@ President, Med&amp;X</textarea>
                         <label>Registration Deadline</label>
                         <input type="date" id="bridgesEventDeadline">
                     </div>
+                </div>
+                <div class="form-group">
+                    <label>Ticket Price (EUR) — 0 = free</label>
+                    <input type="number" id="bridgesEventPrice" min="0" step="0.01" value="0" placeholder="0 = free registration">
                 </div>
                 <div class="form-group">
                     <label>Contact Email</label>
@@ -20157,6 +20161,20 @@ President, Med&amp;X</textarea>
                 const typeNames = { plexus: 'Plexus Conference 2026', gala: 'Gala Evening 2026', forum: 'Biomedical Forum', bridges: 'Building Bridges' };
                 const name = eventName || typeNames[eventType] || eventType;
 
+                // Live-price note for per-event bridges links: the landing always
+                // re-reads the event's current DB price, so existing links follow edits.
+                let priceNote = '';
+                if (eventType === 'bridges' && eventId) {
+                    try {
+                        const ev = await this.api(`/api/bridges/events/${eventId}`);
+                        const p = Number(ev?.price) || 0;
+                        priceNote = `<div style="margin-bottom:16px;padding:10px 12px;border:1px solid var(--border-color,#334155);border-radius:8px;background:var(--bg-secondary);font-size:12px;color:var(--text-secondary);">
+                            <i class="fas fa-ticket-alt" style="color:var(--accent-gold,#c9a962);margin-right:6px;"></i>Current price: <strong style="color:var(--accent-gold,#c9a962);">${p > 0 ? '€' + p : 'Free'}</strong>
+                            — the link landing always shows the event's live price; editing the event price updates every existing link.
+                        </div>`;
+                    } catch(e) {}
+                }
+
                 // Sub-event options
                 const cbStyle = 'display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border-color,#334155);border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-primary,#e2e8f0);';
                 const cbInput = 'accent-color:#c9a962;width:16px;height:16px;';
@@ -20195,6 +20213,7 @@ President, Med&amp;X</textarea>
                         </div>
                         <div style="padding:20px;">
                             ${subEventSelect}
+                            ${priceNote}
                             <div style="margin-bottom:16px;">
                                 <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Event Name</label>
                                 <input type="text" id="genLinkName" value="${escapeHtml(name)}" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;">
@@ -26975,8 +26994,11 @@ By applying to this program, I give the following consents:
                                             : '<span style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 500;"><i class="fas fa-eye-slash" style="margin-right: 3px;"></i>Draft</span>'
                                         }
                                         <span style="font-size: 12px; color: var(--text-muted);"><i class="fas fa-users" style="margin-right: 4px;"></i>${event.registration_count || 0}/${event.capacity || 50}</span>
+                                        <span style="font-size: 12px; color: var(--accent-gold, #c9a962); font-weight: 600;"><i class="fas fa-ticket-alt" style="margin-right: 4px;"></i>${Number(event.price) > 0 ? '€' + Number(event.price) : 'Free'}</span>
                                     </div>
                                 </div>
+                                <button class="btn btn-secondary" style="padding: 6px 10px; font-size: 12px; flex-shrink: 0;" title="Generate registration link"
+                                    onclick="event.stopPropagation(); BridgesApp.generateEventLink('${event.id}')"><i class="fas fa-link"></i></button>
                                 <div style="width: 50px; height: 50px; position: relative;">
                                     <svg viewBox="0 0 36 36" style="width: 50px; height: 50px; transform: rotate(-90deg);">
                                         <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="var(--bg-tertiary)" stroke-width="3"/>
@@ -26988,6 +27010,11 @@ By applying to this program, I give the following consents:
                         </div>
                     `;
                 }).join('');
+            },
+
+            generateEventLink(eventId) {
+                const ev = (this.events || []).find(e => e.id === eventId);
+                App.generateRegistrationLink('bridges', eventId, ev ? `${ev.name || 'Building Bridges'} — ${ev.city}` : undefined);
             },
 
             async showEventDetail(eventId) {
@@ -27005,7 +27032,7 @@ By applying to this program, I give the following consents:
                 // Stats
                 document.getElementById('bridgesEventRegCount').textContent = event.registration_count || 0;
                 document.getElementById('bridgesEventCheckedIn').textContent = event.checked_in_count || 0;
-                document.getElementById('bridgesEventCapacity').textContent = event.capacity || 50;
+                document.getElementById('bridgesEventCapacityStat').textContent = event.capacity || 50;
 
                 // Status badge
                 const statusColors = {
@@ -27083,7 +27110,21 @@ By applying to this program, I give the following consents:
                     );
                 }
 
-                tbody.innerHTML = filtered.map(r => `
+                tbody.innerHTML = filtered.map(r => {
+                    // Awaiting-payment rows must look distinct from confirmed/paid ones so
+                    // door staff don't wave through an abandoned checkout.
+                    const pending = r.status === 'pending' || r.payment_status === 'pending';
+                    const statusStyle = pending
+                        ? 'background: rgba(245,158,11,0.2); color: #f59e0b;'
+                        : 'background: rgba(34, 197, 94, 0.2); color: #22c55e;';
+                    const payChip = r.payment_status === 'paid'
+                        ? `<span style="display:inline-block;margin-top:4px;background:rgba(34,197,94,0.15);color:#22c55e;padding:2px 8px;border-radius:10px;font-size:10px;">PAID${r.amount_paid ? ' €' + r.amount_paid : ''}</span>`
+                        : r.payment_status === 'pending'
+                        ? `<span style="display:inline-block;margin-top:4px;background:rgba(245,158,11,0.15);color:#f59e0b;padding:2px 8px;border-radius:10px;font-size:10px;">AWAITING PAYMENT</span>`
+                        : r.payment_status === 'comp'
+                        ? `<span style="display:inline-block;margin-top:4px;background:rgba(148,163,184,0.15);color:#94a3b8;padding:2px 8px;border-radius:10px;font-size:10px;">COMP</span>`
+                        : '';
+                    return `
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 12px 16px;">
                             <div style="font-weight: 500;">${escapeHtml(r.first_name)} ${escapeHtml(r.last_name)}</div>
@@ -27092,9 +27133,11 @@ By applying to this program, I give the following consents:
                         <td style="padding: 12px 16px; font-size: 13px;">${escapeHtml(r.email)}</td>
                         <td style="padding: 12px 16px; font-size: 13px; color: var(--text-muted);">${escapeHtml(r.institution || '-')}</td>
                         <td style="padding: 12px 16px;">
-                            <span style="background: rgba(34, 197, 94, 0.2); color: #22c55e; padding: 2px 8px; border-radius: 10px; font-size: 11px;">${r.status}</span>
+                            <span style="${statusStyle} padding: 2px 8px; border-radius: 10px; font-size: 11px;">${r.status}</span>
+                            <div>${payChip}</div>
                         </td>
                         <td style="padding: 12px 16px; text-align: center;">
+                            ${pending ? `<div style="font-size:10px;color:#f59e0b;margin-bottom:4px;">unpaid</div>` : ''}
                             ${r.checked_in
                                 ? `<button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="BridgesApp.undoCheckin('${r.id}')"><i class="fas fa-undo"></i> Undo</button>`
                                 : `<button class="btn btn-primary" style="padding: 4px 10px; font-size: 11px;" onclick="BridgesApp.checkinRegistration('${r.id}')"><i class="fas fa-check"></i> Check In</button>`
@@ -27106,7 +27149,8 @@ By applying to this program, I give the following consents:
                             <button class="btn btn-danger" style="padding: 4px 8px; margin-left: 4px;" onclick="BridgesApp.deleteRegistration('${r.id}')"><i class="fas fa-trash"></i></button>
                         </td>
                     </tr>
-                `).join('');
+                `;
+                }).join('');
             },
 
             filterRegistrations() {
@@ -27130,6 +27174,7 @@ By applying to this program, I give the following consents:
                 document.getElementById('bridgesEventPhone').value = event?.contact_phone || '';
                 document.getElementById('bridgesEventDescriptionInput').value = event?.description || '';
                 document.getElementById('bridgesEventNotes').value = event?.notes || '';
+                document.getElementById('bridgesEventPrice').value = event?.price ?? 0;
                 document.getElementById('bridgesEventPublished').checked = !!event?.is_published;
                 document.getElementById('bridgesEventModal').classList.add('active');
             },
@@ -27151,6 +27196,7 @@ By applying to this program, I give the following consents:
                     contact_phone: document.getElementById('bridgesEventPhone').value,
                     description: document.getElementById('bridgesEventDescriptionInput').value,
                     notes: document.getElementById('bridgesEventNotes').value,
+                    price: Math.max(0, parseFloat(document.getElementById('bridgesEventPrice').value) || 0),
                     is_published: document.getElementById('bridgesEventPublished').checked ? 1 : 0
                 };
 
@@ -30661,7 +30707,7 @@ By applying to this program, I give the following consents:
         // ==================== MULTI-YEAR CONFERENCES ====================
         const ConfApp = {
             _list: [],
-            esc(s) { return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); },
+            esc(s) { return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); },
 
             async load() {
                 const el = document.getElementById('confList');
@@ -30678,19 +30724,126 @@ By applying to this program, I give the following consents:
                 if (!this._list.length) { el.innerHTML = '<div class="card" style="padding:20px;color:var(--text-muted);">No conferences yet. Create your first edition above.</div>'; return; }
                 el.innerHTML = this._list.map(c => {
                     const active = c.is_active === 1 || c.is_active === '1';
+                    const deadlines = (c.early_bird_deadline || c.regular_deadline)
+                        ? `EB until ${this.esc(c.early_bird_deadline || '—')} · regular until ${this.esc(c.regular_deadline || '—')}`
+                        : '<span style="color:#f59e0b;">no deadlines set — all tickets charge the LATE price</span>';
                     return `<div class="card" style="padding:16px 18px;margin-bottom:12px;border-left:4px solid ${active ? '#22c55e' : 'var(--border)'};">
                         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
                             <div>
                                 <div style="font-weight:700;font-size:16px;">${this.esc(c.name)} ${active ? '<span style="font-size:10px;font-weight:700;color:#22c55e;border:1px solid rgba(34,197,94,0.4);border-radius:20px;padding:2px 8px;margin-left:6px;">LIVE FOR ATTENDEES</span>' : ''}</div>
                                 <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${c.year || ''} · ${this.esc(c.venue_city || '—')} · ${this.esc(c.start_date || 'no date')} · <code style="font-size:11px;">${this.esc(c.slug)}</code></div>
+                                <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${deadlines}</div>
                             </div>
                             <div style="display:flex;gap:8px;flex-wrap:wrap;">
                                 ${!active ? `<button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="ConfApp.activate('${c.id}','${this.esc(c.name)}')"><i class="fas fa-bolt"></i> Set live</button>` : ''}
+                                <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="ConfApp.toggleEdit('${c.id}')"><i class="fas fa-pen"></i> Edit</button>
+                                <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="ConfApp.toggleTickets('${c.id}')"><i class="fas fa-ticket-alt"></i> Tickets</button>
                                 <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="ConfApp.cloneTickets('${c.id}')"><i class="fas fa-copy"></i> Clone tickets…</button>
                             </div>
                         </div>
+                        <div id="confEdit-${c.id}" style="display:none;"></div>
+                        <div id="confTickets-${c.id}" style="display:none;"></div>
                     </div>`;
                 }).join('');
+            },
+
+            _input(id, label, value, type = 'text') {
+                return `<div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">${label}</label><input id="${id}" type="${type}" value="${this.esc(value ?? '')}" class="form-input" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>`;
+            },
+
+            toggleEdit(id) {
+                const box = document.getElementById('confEdit-' + id);
+                if (!box) return;
+                if (box.style.display === 'block') { box.style.display = 'none'; return; }
+                const c = this._list.find(x => x.id === id);
+                if (!c) return;
+                box.style.display = 'block';
+                box.innerHTML = `<div style="margin-top:14px;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--bg-tertiary);">
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+                        ${this._input('confEditName-' + id, 'Name', c.name)}
+                        ${this._input('confEditYear-' + id, 'Year', c.year, 'number')}
+                        ${this._input('confEditStart-' + id, 'Start date', c.start_date, 'date')}
+                        ${this._input('confEditEnd-' + id, 'End date', c.end_date, 'date')}
+                        ${this._input('confEditEB-' + id, 'Early-bird deadline', c.early_bird_deadline, 'date')}
+                        ${this._input('confEditReg-' + id, 'Regular deadline', c.regular_deadline, 'date')}
+                        ${this._input('confEditCity-' + id, 'Venue city', c.venue_city)}
+                        ${this._input('confEditVenue-' + id, 'Venue name', c.venue_name)}
+                    </div>
+                    <p style="font-size:11px;color:var(--text-muted);margin:10px 0 0;">Ticket prices fall through early-bird → regular → late by these deadlines. Without deadlines, every registration charges the late price.</p>
+                    <div style="margin-top:12px;display:flex;gap:8px;">
+                        <button class="btn btn-primary" style="font-size:13px;" onclick="ConfApp.saveEdit('${id}')"><i class="fas fa-check"></i> Save</button>
+                        <button class="btn btn-secondary" style="font-size:13px;" onclick="document.getElementById('confEdit-${id}').style.display='none'">Cancel</button>
+                    </div>
+                </div>`;
+            },
+
+            async saveEdit(id) {
+                const v = (k) => document.getElementById('confEdit' + k + '-' + id)?.value;
+                const body = {
+                    name: v('Name')?.trim(), year: parseInt(v('Year')) || undefined,
+                    start_date: v('Start') || null, end_date: v('End') || null,
+                    early_bird_deadline: v('EB') || null, regular_deadline: v('Reg') || null,
+                    venue_city: v('City')?.trim() || null, venue_name: v('Venue')?.trim() || null
+                };
+                try {
+                    const res = await fetch('/api/admin/conferences/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify(body) });
+                    const data = await res.json();
+                    if (data.success) { Toast.success('Conference updated'); this.load(); } else Toast.error(data.error || 'Update failed');
+                } catch (e) { Toast.error('Update failed'); }
+            },
+
+            async toggleTickets(id) {
+                const box = document.getElementById('confTickets-' + id);
+                if (!box) return;
+                if (box.style.display === 'block') { box.style.display = 'none'; return; }
+                box.style.display = 'block';
+                box.innerHTML = '<div style="margin-top:14px;color:var(--text-muted);font-size:13px;">Loading tickets…</div>';
+                const c = this._list.find(x => x.id === id);
+                const active = c && (c.is_active === 1 || c.is_active === '1');
+                try {
+                    const res = await fetch('/api/conferences/' + id + '/tickets', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    const tickets = await res.json();
+                    const priceCell = (tid, field, val) => `<input id="tk-${tid}-${field}" type="number" min="0" step="0.01" value="${Number(val) || 0}" style="width:80px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;">`;
+                    const rows = tickets.map(t => `<tr>
+                        <td style="padding:6px 10px 6px 0;font-size:13px;">${this.esc(t.name)}${t.sold_count ? ` <span style="font-size:11px;color:var(--text-muted);">(${t.sold_count} sold)</span>` : ''}</td>
+                        <td style="padding:6px 6px;">${priceCell(t.id, 'eb', t.price_early_bird)}</td>
+                        <td style="padding:6px 6px;">${priceCell(t.id, 'reg', t.price_regular)}</td>
+                        <td style="padding:6px 6px;">${priceCell(t.id, 'late', t.price_late)}</td>
+                        <td style="padding:6px 0 6px 6px;"><button class="btn btn-primary" style="font-size:12px;padding:6px 12px;" onclick="ConfApp.saveTicket('${id}','${t.id}')">Save</button></td>
+                    </tr>`).join('');
+                    box.innerHTML = `<div style="margin-top:14px;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--bg-tertiary);">
+                        ${active ? '<div style="margin-bottom:12px;padding:10px 12px;border:1px solid rgba(245,158,11,0.4);border-radius:8px;background:rgba(245,158,11,0.08);font-size:12px;color:#f59e0b;"><i class="fas fa-exclamation-triangle" style="margin-right:6px;"></i>This is the LIVE conference. Member-site display prices come from <strong>Plexus Settings</strong> — keep them in sync (saving Plexus Settings overwrites these student/professional tiers).</div>' : ''}
+                        ${tickets.length ? `<table style="border-collapse:collapse;">
+                            <tr style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;"><td style="padding:0 10px 6px 0;">Tier</td><td style="padding:0 6px 6px;">Early-bird €</td><td style="padding:0 6px 6px;">Regular €</td><td style="padding:0 6px 6px;">Late €</td><td></td></tr>
+                            ${rows}
+                        </table>` : '<div style="font-size:13px;color:var(--text-muted);">No ticket tiers yet — use "Clone tickets…" or add one below.</div>'}
+                        <div style="margin-top:12px;display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
+                            <div><label style="font-size:11px;color:var(--text-muted);">New tier name</label><br><input id="tkNew-${id}" placeholder="e.g. Student" style="padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;"></div>
+                            <button class="btn btn-secondary" style="font-size:12px;padding:8px 12px;" onclick="ConfApp.addTicket('${id}')"><i class="fas fa-plus"></i> Add tier</button>
+                        </div>
+                    </div>`;
+                } catch (e) { box.innerHTML = '<div style="margin-top:14px;color:#ef4444;font-size:13px;">Failed to load tickets.</div>'; }
+            },
+
+            async saveTicket(confId, ticketId) {
+                const v = (f) => parseFloat(document.getElementById('tk-' + ticketId + '-' + f)?.value) || 0;
+                const body = { price_early_bird: v('eb'), price_regular: v('reg'), price_late: v('late') };
+                try {
+                    const res = await fetch('/api/admin/conferences/' + confId + '/tickets/' + ticketId, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify(body) });
+                    const data = await res.json();
+                    if (data.success) Toast.success('Ticket prices saved'); else Toast.error(data.error || 'Save failed');
+                } catch (e) { Toast.error('Save failed'); }
+            },
+
+            async addTicket(confId) {
+                const name = document.getElementById('tkNew-' + confId)?.value?.trim();
+                if (!name) { Toast.warning('Enter a tier name'); return; }
+                try {
+                    const res = await fetch('/api/admin/conferences/' + confId + '/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify({ name }) });
+                    const data = await res.json();
+                    if (data.success) { Toast.success('Tier added'); document.getElementById('confTickets-' + confId).style.display = 'none'; this.toggleTickets(confId); }
+                    else Toast.error(data.error || 'Add failed');
+                } catch (e) { Toast.error('Add failed'); }
             },
 
             showCreate() {
@@ -30708,6 +30861,8 @@ By applying to this program, I give the following consents:
                         <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">End date</label><input id="confEnd" type="date" class="form-input" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
                         <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Venue city</label><input id="confCity" class="form-input" value="Zagreb" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
                         <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Venue name</label><input id="confVenue" class="form-input" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
+                        <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Early-bird deadline</label><input id="confEB" type="date" class="form-input" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
+                        <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Regular deadline</label><input id="confReg" type="date" class="form-input" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
                     </div>
                     <div style="margin-top:10px;"><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Description</label><textarea id="confDesc" class="form-input" rows="2" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></textarea></div>
                     <div style="margin-top:14px;display:flex;gap:8px;"><button class="btn btn-primary" onclick="ConfApp.create()"><i class="fas fa-check"></i> Create</button><button class="btn btn-secondary" onclick="document.getElementById('confCreateForm').style.display='none';">Cancel</button></div>
@@ -30722,7 +30877,9 @@ By applying to this program, I give the following consents:
                     end_date: document.getElementById('confEnd').value || undefined,
                     venue_city: document.getElementById('confCity').value.trim() || undefined,
                     venue_name: document.getElementById('confVenue').value.trim() || undefined,
-                    description: document.getElementById('confDesc').value.trim() || undefined
+                    description: document.getElementById('confDesc').value.trim() || undefined,
+                    early_bird_deadline: document.getElementById('confEB')?.value || undefined,
+                    regular_deadline: document.getElementById('confReg')?.value || undefined
                 };
                 if (!body.name || !body.year) { Toast.warning('Name and year required'); return; }
                 try {
@@ -30734,7 +30891,7 @@ By applying to this program, I give the following consents:
             },
 
             async activate(id, name) {
-                if (!confirm('Make "' + name + '" the LIVE conference for attendees? This changes what the public portal shows for active-conference views.')) return;
+                if (!confirm('Make "' + name + '" the LIVE conference?\n\nThis reroutes registration PRICING and Stripe charges to this year\'s tickets. Make sure its ticket prices and deadlines are set first.\n\nNote: member-area content (schedule, abstracts, check-in, QR) still references Plexus 2026 until those are migrated separately.')) return;
                 try {
                     const res = await fetch('/api/admin/conferences/' + id + '/activate', { method: 'POST', headers: { 'Authorization': `Bearer ${App.token}` } });
                     const data = await res.json();

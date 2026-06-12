@@ -1186,6 +1186,25 @@ async function submitCA(e) {
             inviteLinkPriceOverride = Number(data.po);
         }
 
+        // Database-backed check for admin-generated shareable registration links (registration_links).
+        // Enforced only when the payload token matches a DB row; legacy/personal invite links
+        // without a row keep working via the payload-embedded expiry below.
+        if (typeof data.t === 'string' && data.t !== 'vip') {
+            let regLink = null;
+            try { regLink = query.get('SELECT * FROM registration_links WHERE token = ?', [data.t]); } catch(e) { regLink = null; }
+            if (regLink) {
+                if (!regLink.is_active) {
+                    return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Disabled</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Link Disabled</h1><p style="color:#94a3b8;">This registration link is no longer active. Please contact the Med&amp;X team if you believe this is an error.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
+                }
+                if (regLink.expires_at && new Date(regLink.expires_at) < new Date()) {
+                    return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Expired</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Link Expired</h1><p style="color:#94a3b8;">This registration link has expired.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
+                }
+                if (regLink.max_uses > 0 && regLink.uses >= regLink.max_uses) {
+                    return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Used Up</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Link No Longer Available</h1><p style="color:#94a3b8;">This registration link has reached its maximum number of uses. Please contact the Med&amp;X team for a new link.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
+                }
+            }
+        }
+
         // Check expiry (payload-embedded, used for legacy invites without DB record)
         if (expiresAt && new Date(expiresAt) < new Date()) {
             return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Expired</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Link Expired</h1><p style="color:#94a3b8;">This invitation link has expired.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&X</a></div></body></html>`);
@@ -1217,7 +1236,7 @@ async function submitCA(e) {
             if (inviteLinkPriceOverride != null) eventInfo.price = inviteLinkPriceOverride;
             if (isVipInvite) eventInfo.name = (eventInfo.name || 'Plexus 2026 Gala Evening') + ' — VIP Invitation';
         } else if (eventType === 'plexus') {
-            const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+            const conf = getActiveConference();
             if (conf) {
                 eventInfo.name = conf.name || 'Plexus Conference 2026';
                 eventInfo.date = conf.start_date ? new Date(conf.start_date).toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'}) : '';
@@ -1296,6 +1315,7 @@ async function submitCA(e) {
                     eventInfo.name = event.name;
                     eventInfo.date = event.event_date;
                     eventInfo.venue = event.venue_name ? event.venue_name + ', ' + event.city : event.city;
+                    eventInfo.price = event.price || 0;
                 }
             }
         }
@@ -1383,6 +1403,7 @@ async function submitCA(e) {
                 <input type="hidden" id="eventType" value="${escapeHtml(eventType)}">
                 <input type="hidden" id="eventName" value="${escapeHtml(eventInfo.name)}">
                 <input type="hidden" id="eventId" value="${escapeHtml(data.i || '')}">
+                <input type="hidden" id="linkToken" value="${escapeHtml((typeof data.t === 'string' && data.t !== 'vip') ? data.t : '')}">
                 <input type="hidden" id="packageItems" value='${escapeHtml(JSON.stringify(packageItems))}'>
                 <div class="form-row">
                     <div><label>First Name *</label><input type="text" id="firstName" required placeholder="First name"></div>
@@ -1493,6 +1514,7 @@ async function submitCA(e) {
             event_type: document.getElementById('eventType').value,
             event_name: document.getElementById('eventName').value,
             event_id: document.getElementById('eventId')?.value || undefined,
+            link_token: document.getElementById('linkToken')?.value || undefined,
             package_items: JSON.parse(document.getElementById('packageItems').value || '[]'),
             dietary: document.getElementById('dietary').value === 'Other' ? document.getElementById('dietaryOther').value : document.getElementById('dietary').value,
             allergies: document.getElementById('allergies').value === 'Other' ? document.getElementById('allergyOther').value : document.getElementById('allergies').value,
@@ -1736,6 +1758,18 @@ const query = {
         stmt.free(); return rows;
     }
 };
+
+// Active conference resolver for the registration/pricing paths (multi-year support).
+// REQUIRES the active row to have at least one ticket tier — otherwise pricing paths
+// would resolve a ticketless conference and silently charge €0. A stray is_active=1 row
+// (schema default is 1) or a freshly-created ticketless year therefore can't hijack
+// charging; resolution falls back to the original plexus-2026 row until tickets exist.
+function getActiveConference() {
+    return query.get(`SELECT c.* FROM conferences c
+                      WHERE c.is_active = 1 AND EXISTS (SELECT 1 FROM ticket_types t WHERE t.conference_id = c.id)
+                      ORDER BY c.year DESC LIMIT 1`)
+        || query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+}
 
 let _syncTimer = null;
 function saveDb() {
@@ -2741,6 +2775,11 @@ async function initializeApp() {
     try { db.run(`ALTER TABLE bridges_events ADD COLUMN is_published INTEGER DEFAULT 0`); } catch(e) {}
     try { db.run(`ALTER TABLE bridges_events ADD COLUMN checkin_enabled INTEGER DEFAULT 0`); } catch(e) {}
     try { db.run(`ALTER TABLE bridges_events ADD COLUMN updated_at TEXT`); } catch(e) {}
+
+    // Phase 7: Per-event Bridges pricing (0 = free)
+    try { db.run(`ALTER TABLE bridges_events ADD COLUMN price REAL DEFAULT 0`); } catch(e) {}
+    try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN payment_status TEXT DEFAULT 'n/a'`); } catch(e) {}
+    try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN amount_paid REAL`); } catch(e) {}
 
     // Phase 6B: QR code for bridges registrations
     try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN qr_code TEXT`); } catch(e) {}
@@ -4452,6 +4491,7 @@ async function initializeApp() {
         contact_email TEXT,
         contact_phone TEXT,
         notes TEXT,
+        price REAL DEFAULT 0,
         created_by TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
@@ -4468,6 +4508,8 @@ async function initializeApp() {
         dietary_requirements TEXT,
         special_requests TEXT,
         status TEXT DEFAULT 'registered',
+        payment_status TEXT DEFAULT 'n/a',
+        amount_paid REAL,
         confirmation_sent INTEGER DEFAULT 0,
         reminder_sent INTEGER DEFAULT 0,
         checked_in INTEGER DEFAULT 0,
@@ -7474,6 +7516,12 @@ By applying to this program, I provide the following consents:
                 return res.json({ success: true, id: existing.id, qr_code: existing.qr_code, already_registered: true });
             }
 
+            // Paid events must register through the invitation link (server-priced Stripe
+            // checkout); this direct member-portal path only confirms FREE registrations.
+            if (Number(event.price) > 0) {
+                return res.status(409).json({ error: 'This event requires paid registration — please use the official registration link to complete payment.' });
+            }
+
             // Check capacity
             const regCount = query.get('SELECT COUNT(*) as c FROM bridges_registrations WHERE event_id = ?', [req.params.id])?.c || 0;
             if (event.capacity && regCount >= event.capacity) {
@@ -7527,6 +7575,14 @@ By applying to this program, I provide the following consents:
 
             if (!event_id) {
                 return res.status(400).json({ error: 'event_id is required' });
+            }
+
+            // Paid events must register through the invitation link (server-priced Stripe
+            // checkout). This direct path only confirms FREE registrations — otherwise it
+            // would hand out a real check-in QR for €0 and defeat the paid-event gate.
+            const applyEvent = query.get('SELECT price FROM bridges_events WHERE id = ?', [event_id]);
+            if (applyEvent && Number(applyEvent.price) > 0) {
+                return res.status(409).json({ error: 'This event requires paid registration — please use the official registration link to complete payment.', requires_payment: true });
             }
 
             // Check if already registered
@@ -10380,7 +10436,7 @@ By applying to this program, I provide the following consents:
 
     // Get conference info for registration
     app.get('/api/plexus/conference', (req, res) => {
-        const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = getActiveConference();
         if (!conf) return res.status(404).json({ error: 'Conference not found' });
 
         const tickets = query.all('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order', [conf.id]);
@@ -10410,7 +10466,7 @@ By applying to this program, I provide the following consents:
     // Validate promo code
     app.post('/api/plexus/promo/validate', (req, res) => {
         const { code } = req.body;
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = getActiveConference();
         const promo = query.get('SELECT * FROM promo_codes WHERE conference_id = ? AND code = ? AND is_active = 1', [conf.id, code?.toUpperCase()]);
 
         if (!promo) return res.json({ valid: false, message: 'Invalid promo code' });
@@ -10429,7 +10485,7 @@ By applying to this program, I provide the following consents:
     app.post('/api/plexus/register', optionalAuth, async (req, res) => {
         try {
             const { first_name, last_name, email, institution, country, pricing, dietary, accessibility, billing, package_items, payment_method } = req.body;
-            const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+            const conf = getActiveConference();
             if (!conf) return res.status(400).json({ error: 'Conference not found' });
 
             // Resolve user: use authenticated user, or find/create from submitted email
@@ -11479,6 +11535,12 @@ By applying to this program, I provide the following consents:
                 try {
                     // Update payment status in the relevant table
                     const amount = session.amount_total ? session.amount_total / 100 : 0;
+                    // For non-gala invite types, detect whether this payment was already recorded
+                    // (duplicate webhook) so the registration_links use is counted exactly once.
+                    let alreadyPaid = false;
+                    if (invEventType === 'plexus') alreadyPaid = query.get('SELECT payment_status FROM registrations WHERE id = ?', [invRegId])?.payment_status === 'paid';
+                    else if (invEventType === 'forum') alreadyPaid = query.get('SELECT payment_status FROM forum_event_registrations WHERE id = ?', [invRegId])?.payment_status === 'paid';
+                    else if (invEventType === 'bridges') alreadyPaid = query.get('SELECT payment_status FROM bridges_registrations WHERE id = ?', [invRegId])?.payment_status === 'paid';
                     if (invEventType === 'plexus') {
                         db.run("UPDATE registrations SET payment_status = 'paid', amount_paid = ? WHERE id = ?", [amount, invRegId]);
                     } else if (invEventType === 'gala') {
@@ -11496,7 +11558,14 @@ By applying to this program, I provide the following consents:
                     } else if (invEventType === 'forum') {
                         db.run("UPDATE forum_event_registrations SET payment_status = 'paid', payment_amount = ? WHERE id = ?", [amount, invRegId]);
                     } else if (invEventType === 'bridges') {
-                        db.run("UPDATE bridges_registrations SET status = 'confirmed' WHERE id = ?", [invRegId]);
+                        db.run("UPDATE bridges_registrations SET status = 'confirmed', payment_status = 'paid', amount_paid = ? WHERE id = ?", [amount, invRegId]);
+                    }
+
+                    // Count the shareable registration_links use now that payment completed
+                    // (gala uses its own gala_invite_links counter above). Guarded by alreadyPaid
+                    // so a duplicate webhook doesn't double-count.
+                    if (metadata.reg_link_id && !alreadyPaid && invEventType !== 'gala') {
+                        try { db.run('UPDATE registration_links SET uses = uses + 1 WHERE id = ?', [metadata.reg_link_id]); } catch(e) {}
                     }
                     saveDb();
 
@@ -17942,6 +18011,20 @@ By applying to this program, I provide the following consents:
             const { first_name, last_name, email, institution, country, event_type, event_name, package_items, guest_count, coupon_code, total_amount, dietary, allergies } = req.body;
             if (!email || !first_name) return res.status(400).json({ error: 'Name and email required' });
 
+            // Enforce admin link controls (deactivate / expiry / max uses) when this submission
+            // came through a tracked registration link. Links without a DB row pass unchanged.
+            let trackedRegLinkId = null;
+            if (req.body.link_token && typeof req.body.link_token === 'string') {
+                let regLinkRow = null;
+                try { regLinkRow = query.get('SELECT * FROM registration_links WHERE token = ?', [req.body.link_token]); } catch(e) { regLinkRow = null; }
+                if (regLinkRow) {
+                    if (!regLinkRow.is_active) return res.status(410).json({ error: 'This registration link is no longer active. Please contact the Med&X team.' });
+                    if (regLinkRow.expires_at && new Date(regLinkRow.expires_at) < new Date()) return res.status(410).json({ error: 'This registration link has expired. Please contact the Med&X team.' });
+                    if (regLinkRow.max_uses > 0 && regLinkRow.uses >= regLinkRow.max_uses) return res.status(410).json({ error: 'This registration link has reached its maximum number of uses. Please contact the Med&X team.' });
+                    trackedRegLinkId = regLinkRow.id;
+                }
+            }
+
             // NOTE: Admin portal sync moved to AFTER payment (in Stripe webhook handler).
             // For free events (no checkout), we forward to admin immediately below.
             const adminUrl = process.env.ADMIN_PORTAL_URL || 'https://medx-admin-portal.onrender.com';
@@ -17958,9 +18041,11 @@ By applying to this program, I provide the following consents:
 
             const regId = uuidv4();
             const pkgJson = package_items && package_items.length ? JSON.stringify(package_items) : null;
+            // Resolved by the bridges insert branch below; consumed by the server-side price block.
+            let bridgesEventPrice = 0;
 
             if (event_type === 'plexus') {
-                const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+                const conf = getActiveConference();
                 if (conf) {
                     const ticket = query.get('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order LIMIT 1', [conf.id]);
                     db.run('INSERT OR IGNORE INTO registrations (id, conference_id, user_id, ticket_type_id, first_name, last_name, email, institution, country, status, payment_status, package_items) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
@@ -18017,25 +18102,62 @@ By applying to this program, I provide the following consents:
                     [regId, eventRow?.id || null, memberId, first_name, last_name || null, email, institution || null, 'registered', 'pending', coupon_code || '']);
             } else if (event_type === 'bridges') {
                 // bridges_registrations.event_id is TEXT NOT NULL with FK to bridges_events(id).
-                // Resolve in priority: 1) body.event_id (from invite token), 2) next upcoming
-                // event, 3) any event. If none exist, skip the insert with a warning.
-                let bridgesEventId = null;
+                // The CHARGE may only come from an EXPLICIT event_id — the same one the /invite
+                // landing priced from (it reads data.i and shows no price without it). A link
+                // without an event id shows "Free" on the landing, so it MUST register free here;
+                // charging a "next upcoming" fallback would bill an amount the guest never saw.
+                let bridgesEvent = null;
+                let explicitEvent = false;
                 if (req.body.event_id) {
-                    const row = query.get(`SELECT id FROM bridges_events WHERE id = ?`, [req.body.event_id]);
-                    if (row) bridgesEventId = row.id;
+                    bridgesEvent = query.get(`SELECT id, price, capacity FROM bridges_events WHERE id = ?`, [req.body.event_id]);
+                    if (bridgesEvent) explicitEvent = true;
                 }
-                if (!bridgesEventId) {
+                if (!bridgesEvent) {
+                    // No explicit event → free interest registration against a placeholder event row.
                     const today = new Date().toISOString().slice(0, 10);
-                    bridgesEventId = query.get(`SELECT id FROM bridges_events WHERE event_date >= ? ORDER BY event_date ASC LIMIT 1`, [today])?.id
-                                   || query.get(`SELECT id FROM bridges_events ORDER BY event_date DESC LIMIT 1`)?.id;
+                    bridgesEvent = query.get(`SELECT id, price, capacity FROM bridges_events WHERE event_date >= ? ORDER BY event_date ASC LIMIT 1`, [today])
+                                 || query.get(`SELECT id, price, capacity FROM bridges_events ORDER BY event_date DESC LIMIT 1`);
                 }
-                if (bridgesEventId) {
-                    db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
-                        [regId, bridgesEventId, first_name, last_name || '', email, institution || null, 'confirmed']);
+                if (bridgesEvent) {
+                    // Price (hence Stripe) only applies when the event was explicitly identified.
+                    bridgesEventPrice = explicitEvent ? Math.max(0, Number(bridgesEvent.price) || 0) : 0;
+                    // Dedup: if this email already has a row for this event, reuse it instead of
+                    // inserting a duplicate (the table has no UNIQUE(event_id,email), so OR IGNORE
+                    // would not dedup). A seat already paid/confirmed must NOT be re-charged.
+                    const priorReg = query.get('SELECT id, status, payment_status FROM bridges_registrations WHERE event_id = ? AND email = ?', [bridgesEvent.id, email]);
+                    if (priorReg) {
+                        const settled = priorReg.payment_status === 'paid' || priorReg.payment_status === 'comp' || (bridgesEventPrice === 0 && priorReg.status === 'confirmed');
+                        if (settled) {
+                            // Already holds a (paid/free/comp) seat — short-circuit, no charge.
+                            regId = priorReg.id;
+                            bridgesEventPrice = 0;
+                        } else {
+                            // Unpaid prior attempt — let them re-pay against the same row.
+                            regId = priorReg.id;
+                        }
+                    } else {
+                        // Capacity: only seats actually held count (confirmed/registered/paid/comp) —
+                        // unpaid 'pending' attempts do not block others.
+                        if (bridgesEvent.capacity) {
+                            const held = query.get(`SELECT COUNT(*) AS n FROM bridges_registrations
+                                WHERE event_id = ? AND (status IN ('confirmed','registered') OR payment_status IN ('paid','comp'))`, [bridgesEvent.id])?.n || 0;
+                            if (held >= bridgesEvent.capacity) {
+                                return res.status(409).json({ error: 'This event is at full capacity.' });
+                            }
+                        }
+                        // Paid events start 'pending'; the Stripe webhook flips to 'confirmed' on payment.
+                        db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, payment_status, registered_at) VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
+                            [regId, bridgesEvent.id, first_name, last_name || '', email, institution || null, bridgesEventPrice > 0 ? 'pending' : 'confirmed', bridgesEventPrice > 0 ? 'pending' : 'n/a']);
+                    }
                 } else {
                     console.warn('[register-invite] bridges: no bridges_events row exists, skipping insert for', email);
                 }
             }
+
+            // NOTE: link max_uses is counted when the registration actually COMPLETES —
+            // immediately for free events (below), or in the Stripe webhook for paid events —
+            // so abandoned checkouts and failed Stripe sessions do not burn a use. This matches
+            // the gala invite-link semantics.
 
             saveDb();
 
@@ -18087,7 +18209,7 @@ By applying to this program, I provide the following consents:
                     basePrice = gala?.price_gala_only || 0;
                 }
             } else if (event_type === 'plexus') {
-                const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+                const conf = getActiveConference();
                 if (conf) {
                     const ticket = query.get('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order LIMIT 1', [conf.id]);
                     const today = new Date().toISOString().split('T')[0];
@@ -18096,6 +18218,8 @@ By applying to this program, I provide the following consents:
             } else if (event_type === 'forum') {
                 const fgs = query.get("SELECT price FROM forum_gala_settings WHERE id = 'default'");
                 basePrice = fgs?.price || 0;
+            } else if (event_type === 'bridges') {
+                basePrice = bridgesEventPrice;
             }
             // Clamp guest_count to a sane non-negative range — a negative value previously
             // drove price to 0 and turned a paid ticket into a free one.
@@ -18134,7 +18258,7 @@ By applying to this program, I provide the following consents:
                         mode: 'payment',
                         payment_method_types: ['card'],
                         line_items: [{ price_data: { currency: 'eur', product_data: { name: event_name || 'Med&X Event Registration' }, unit_amount: Math.round(price * 100) }, quantity: 1 }],
-                        metadata: { registration_id: regId, type: 'invite-' + event_type, email, first_name, last_name: last_name || '', event_name: event_name || 'Med&X Event', items: (package_items || []).join(', '), guest_count: String(safeGuests), dietary: dietary || '', allergies: allergies || '', coupon_code: appliedCoupon, discount_amount: String(discountAmount) },
+                        metadata: { registration_id: regId, type: 'invite-' + event_type, email, first_name, last_name: last_name || '', event_name: event_name || 'Med&X Event', items: (package_items || []).join(', '), guest_count: String(safeGuests), dietary: dietary || '', allergies: allergies || '', coupon_code: appliedCoupon, discount_amount: String(discountAmount), reg_link_id: trackedRegLinkId || '' },
                         customer_email: email,
                         success_url: `${baseUrl}/invite-success?session_id={CHECKOUT_SESSION_ID}`,
                         cancel_url: `${baseUrl}/invite-cancelled`
@@ -18155,6 +18279,11 @@ By applying to this program, I provide the following consents:
 
             // Send confirmation email: immediately for free events, deferred for paid (sent after Stripe payment)
             if (!checkoutUrl) {
+                // Free registration completed now → count the link use now. Paid registrations
+                // are counted in the Stripe webhook so abandoned checkouts don't burn a use.
+                if (trackedRegLinkId) {
+                    try { db.run('UPDATE registration_links SET uses = uses + 1 WHERE id = ?', [trackedRegLinkId]); saveDb(); } catch(e) {}
+                }
                 await sendRegistrationConfirmation();
 
                 // Log free-event registrations to Google Sheets (VIP gala lands here) — events array drives tab routing
@@ -18313,8 +18442,30 @@ By applying to this program, I provide the following consents:
             let linkPkgItems = null;
             try { linkPkgItems = link.package_items ? JSON.parse(link.package_items) : null; } catch(e) {}
 
+            // Paid events must go through the /invite flow (server-priced Stripe checkout).
+            // This legacy endpoint only confirms FREE registrations — refuse when a live
+            // DB price applies, instead of silently inserting a confirmed row.
+            let directPrice = 0;
             if (link.event_type === 'plexus') {
-                const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+                const conf = getActiveConference();
+                const ticket = conf ? query.get('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order LIMIT 1', [conf.id]) : null;
+                if (conf && ticket) {
+                    const today = new Date().toISOString().split('T')[0];
+                    directPrice = today <= conf.early_bird_deadline ? ticket.price_early_bird : today <= conf.regular_deadline ? ticket.price_regular : ticket.price_late;
+                }
+            } else if (link.event_type === 'gala') {
+                directPrice = query.get("SELECT price_gala_only FROM gala_settings WHERE id = 'default'")?.price_gala_only || 0;
+            } else if (link.event_type === 'forum') {
+                directPrice = (link.event_id ? query.get('SELECT price FROM forum_events WHERE id = ?', [link.event_id])?.price : 0) || 0;
+            } else if (link.event_type === 'bridges') {
+                directPrice = (link.event_id ? query.get('SELECT price FROM bridges_events WHERE id = ?', [link.event_id])?.price : 0) || 0;
+            }
+            if (Number(directPrice) > 0) {
+                return res.status(409).json({ error: 'This event requires paid registration — please use your invitation link to complete payment.' });
+            }
+
+            if (link.event_type === 'plexus') {
+                const conf = getActiveConference();
                 if (conf) {
                     const ticket = query.get('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order LIMIT 1', [conf.id]);
                     db.run('INSERT OR IGNORE INTO registrations (id, conference_id, user_id, ticket_type_id, first_name, last_name, email, institution, country, status, payment_status, package_items) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
@@ -18327,8 +18478,17 @@ By applying to this program, I provide the following consents:
                 db.run('INSERT OR IGNORE INTO forum_event_registrations (id, event_id, member_id, status, registered_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)',
                     [regId, link.event_id, user.id, 'registered']);
             } else if (link.event_type === 'bridges') {
+                // event_id is NOT NULL — resolve a real event so the row isn't silently
+                // dropped by OR IGNORE (which would still email "confirmed" + burn a use).
+                let beId = link.event_id ? query.get('SELECT id FROM bridges_events WHERE id = ?', [link.event_id])?.id : null;
+                if (!beId) {
+                    const today = new Date().toISOString().slice(0, 10);
+                    beId = query.get('SELECT id FROM bridges_events WHERE event_date >= ? ORDER BY event_date ASC LIMIT 1', [today])?.id
+                         || query.get('SELECT id FROM bridges_events ORDER BY event_date DESC LIMIT 1')?.id;
+                }
+                if (!beId) return res.status(409).json({ error: 'No Building Bridges event is open for registration right now.' });
                 db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
-                    [regId, link.event_id, first_name, last_name, email, institution, 'confirmed']);
+                    [regId, beId, first_name, last_name, email, institution, 'confirmed']);
             }
 
             // Increment uses

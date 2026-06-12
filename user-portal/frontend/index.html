@@ -77487,7 +77487,14 @@ You can use variables like {first_name} that will be personalized for each recip
                     });
                     clearTimeout(timeoutId);
                     if (!res.ok) {
-                        throw new Error(`API error: ${res.status} ${res.statusText}`);
+                        // Attach status + parsed body so callers can distinguish a deliberate
+                        // rejection (e.g. 409 requires_payment) from a connectivity failure.
+                        let body = null;
+                        try { body = await res.json(); } catch(e) {}
+                        const apiErr = new Error(`API error: ${res.status} ${res.statusText}`);
+                        apiErr.status = res.status;
+                        apiErr.body = body;
+                        throw apiErr;
                     }
                     return res.json();
                 } catch (err) {
@@ -90088,17 +90095,31 @@ You can use variables like {first_name} that will be personalized for each recip
                         // Still save locally so it shows in My Events
                     }
                 } catch (err) {
+                    // Paid event: the gate (409) is deliberate. Do NOT fall back to the legacy
+                    // free endpoint — that would hand out a check-in QR without payment.
+                    if (err.status === 409 || err.body?.requires_payment) {
+                        Toast.warning(err.body?.error || 'This event requires paid registration — please use the official registration link the organizers sent you.');
+                        return;
+                    }
                     console.warn('Bridges registration API unavailable, saving locally:', err);
-                    // Fallback to legacy endpoint
-                    try {
-                        const res2 = await UserPortal.api('/api/bridges/apply', {
-                            method: 'POST',
-                            body: JSON.stringify({ event_id: eventId, name, email, institution, title, motivation })
-                        });
-                        if (res2.id) application.id = res2.id;
-                        if (res2.qr_code) application.qr_code = res2.qr_code;
-                    } catch (err2) {
-                        console.warn('Legacy bridges API also unavailable:', err2);
+                    // Fallback to legacy endpoint ONLY for genuine connectivity failures
+                    // (network error / timeout / 5xx) — never to bypass a paid-event rejection.
+                    const transient = !err.status || err.status >= 500;
+                    if (transient) {
+                        try {
+                            const res2 = await UserPortal.api('/api/bridges/apply', {
+                                method: 'POST',
+                                body: JSON.stringify({ event_id: eventId, name, email, institution, title, motivation })
+                            });
+                            if (res2.id) application.id = res2.id;
+                            if (res2.qr_code) application.qr_code = res2.qr_code;
+                        } catch (err2) {
+                            if (err2.status === 409 || err2.body?.requires_payment) {
+                                Toast.warning(err2.body?.error || 'This event requires paid registration — please use the official registration link.');
+                                return;
+                            }
+                            console.warn('Legacy bridges API also unavailable:', err2);
+                        }
                     }
                 }
 

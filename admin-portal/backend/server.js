@@ -310,6 +310,17 @@ const query = {
     }
 };
 
+// Active conference resolver (multi-year support) — used by the Plexus Settings
+// price sync so admin price edits flow into the ticket_types rows of whichever
+// year is live. REQUIRES the active row to have ticket tiers (so a ticketless or
+// stray is_active=1 row can't capture the sync); falls back to plexus-2026.
+function getActiveConference() {
+    return query.get(`SELECT c.* FROM conferences c
+                      WHERE c.is_active = 1 AND EXISTS (SELECT 1 FROM ticket_types t WHERE t.conference_id = c.id)
+                      ORDER BY c.year DESC LIMIT 1`)
+        || query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+}
+
 let _syncTimer = null;
 function saveDb() {
     // libsql auto-persists to local disk — schedule debounced Turso cloud sync
@@ -2576,6 +2587,7 @@ async function initializeApp() {
         contact_email TEXT,
         contact_phone TEXT,
         notes TEXT,
+        price REAL DEFAULT 0,
         created_by TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
@@ -2593,6 +2605,8 @@ async function initializeApp() {
         dietary_requirements TEXT,
         special_requests TEXT,
         status TEXT DEFAULT 'registered',
+        payment_status TEXT DEFAULT 'n/a',
+        amount_paid REAL,
         confirmation_sent INTEGER DEFAULT 0,
         reminder_sent INTEGER DEFAULT 0,
         checked_in INTEGER DEFAULT 0,
@@ -3191,6 +3205,11 @@ async function initializeApp() {
     // Phase 6A: Building Bridges publish + sync columns
     try { db.run(`ALTER TABLE bridges_events ADD COLUMN is_published INTEGER DEFAULT 0`); } catch(e) {}
     try { db.run(`ALTER TABLE bridges_events ADD COLUMN updated_at TEXT`); } catch(e) {}
+
+    // Phase 7: Per-event Bridges pricing (0 = free)
+    try { db.run(`ALTER TABLE bridges_events ADD COLUMN price REAL DEFAULT 0`); } catch(e) {}
+    try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN payment_status TEXT DEFAULT 'n/a'`); } catch(e) {}
+    try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN amount_paid REAL`); } catch(e) {}
 
     // Phase 6B: QR code for bridges registrations
     try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN qr_code TEXT`); } catch(e) {}
@@ -5506,7 +5525,7 @@ async function initializeApp() {
     // Create a new conference year (e.g. Plexus 2027).
     app.post('/api/admin/conferences', auth, adminOnly, (req, res) => {
         try {
-            const { name, year, slug, description, start_date, end_date, venue_name, venue_city, venue_country, max_capacity } = req.body || {};
+            const { name, year, slug, description, start_date, end_date, venue_name, venue_city, venue_country, max_capacity, early_bird_deadline, regular_deadline } = req.body || {};
             if (!name || !year) return res.status(400).json({ error: 'name and year are required' });
             // Default slug from name; append the year only if the name doesn't already include it.
             const base = slug || (String(name).includes(String(year)) ? name : `${name}-${year}`);
@@ -5515,10 +5534,11 @@ async function initializeApp() {
                 return res.status(409).json({ error: 'A conference with that slug already exists: ' + cleanSlug });
             }
             const id = uuidv4();
-            db.run(`INSERT INTO conferences (id, name, year, slug, description, start_date, end_date, venue_name, venue_city, venue_country, max_capacity, is_active)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,0)`,
+            db.run(`INSERT INTO conferences (id, name, year, slug, description, start_date, end_date, venue_name, venue_city, venue_country, max_capacity, early_bird_deadline, regular_deadline, is_active)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0)`,
                 [id, name, parseInt(year), cleanSlug, description || null, start_date || null, end_date || null,
-                 venue_name || null, venue_city || null, venue_country || null, parseInt(max_capacity) || 200]);
+                 venue_name || null, venue_city || null, venue_country || null, parseInt(max_capacity) || 200,
+                 early_bird_deadline || null, regular_deadline || null]);
             saveDb();
             logAudit(req, 'conference.create', `${name} (${year}) [${cleanSlug}]`);
             res.json({ success: true, id, slug: cleanSlug });
@@ -5545,6 +5565,52 @@ async function initializeApp() {
         } catch (e) { console.error('[Conf] clone failed:', e.message); res.status(500).json({ error: e.message }); }
     });
 
+    // Edit one ticket tier of a conference (name + the three window prices).
+    // NOTE: member-portal DISPLAY prices for the active conference come from plexus_settings;
+    // the settings save endpoint syncs them into these rows. Direct edits here are for
+    // non-active years or tiers the settings screen doesn't cover (VIP, volunteer...).
+    app.put('/api/admin/conferences/:confId/tickets/:ticketId', auth, adminOnly, (req, res) => {
+        try {
+            const existing = query.get('SELECT * FROM ticket_types WHERE id = ? AND conference_id = ?', [req.params.ticketId, req.params.confId]);
+            if (!existing) return res.status(404).json({ error: 'Ticket not found for this conference' });
+            const b = req.body || {};
+            const pickPrice = (k) => (b[k] !== undefined ? Math.max(0, Number(b[k]) || 0) : existing[k]);
+            db.run(`UPDATE ticket_types SET name=?, name_hr=?, price_early_bird=?, price_regular=?, price_late=?, sort_order=? WHERE id=?`,
+                [b.name !== undefined ? b.name : existing.name,
+                 b.name_hr !== undefined ? b.name_hr : existing.name_hr,
+                 pickPrice('price_early_bird'), pickPrice('price_regular'), pickPrice('price_late'),
+                 b.sort_order !== undefined ? parseInt(b.sort_order) || 0 : existing.sort_order,
+                 req.params.ticketId]);
+            saveDb();
+            logAudit(req, 'conference.ticket.update', `${existing.name} → EB ${pickPrice('price_early_bird')} / REG ${pickPrice('price_regular')} / LATE ${pickPrice('price_late')}`);
+            res.json({ success: true });
+        } catch (e) { console.error('[Conf] ticket update failed:', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Add a ticket tier to a conference (for new years created without cloning).
+    app.post('/api/admin/conferences/:confId/tickets', auth, adminOnly, (req, res) => {
+        try {
+            const conf = query.get('SELECT id FROM conferences WHERE id = ?', [req.params.confId]);
+            if (!conf) return res.status(404).json({ error: 'Conference not found' });
+            const b = req.body || {};
+            if (!b.name) return res.status(400).json({ error: 'name is required' });
+            const id = uuidv4();
+            const num = (v) => Math.max(0, Number(v) || 0);
+            // Default a new tier to LAST in sort order. sort_order 0 would tie with the
+            // existing first tier, and the Plexus invite price reads "first by sort_order" —
+            // a €0 tier landing first would make invite registrations free.
+            const nextSort = b.sort_order !== undefined ? parseInt(b.sort_order) || 0
+                : ((query.get('SELECT MAX(sort_order) AS m FROM ticket_types WHERE conference_id = ?', [req.params.confId])?.m ?? -1) + 1);
+            db.run(`INSERT INTO ticket_types (id, conference_id, name, name_hr, price_early_bird, price_regular, price_late, currency, includes_gala, sold_count, sort_order)
+                    VALUES (?,?,?,?,?,?,?,?,?,0,?)`,
+                [id, req.params.confId, b.name, b.name_hr || b.name, num(b.price_early_bird), num(b.price_regular), num(b.price_late),
+                 b.currency || 'EUR', b.includes_gala ? 1 : 0, nextSort]);
+            saveDb();
+            logAudit(req, 'conference.ticket.create', `${b.name} (conf ${req.params.confId})`);
+            res.json({ success: true, id });
+        } catch (e) { console.error('[Conf] ticket create failed:', e.message); res.status(500).json({ error: e.message }); }
+    });
+
     // Edit a conference's details.
     app.put('/api/admin/conferences/:id', auth, adminOnly, (req, res) => {
         try {
@@ -5552,11 +5618,13 @@ async function initializeApp() {
             if (!existing) return res.status(404).json({ error: 'Not found' });
             const b = req.body || {};
             const pick = (k, fb) => (b[k] !== undefined ? b[k] : fb);
-            db.run(`UPDATE conferences SET name=?, year=?, description=?, start_date=?, end_date=?, venue_name=?, venue_city=?, venue_country=?, max_capacity=? WHERE id=?`,
+            db.run(`UPDATE conferences SET name=?, year=?, description=?, start_date=?, end_date=?, venue_name=?, venue_city=?, venue_country=?, max_capacity=?, early_bird_deadline=?, regular_deadline=?, registration_open=? WHERE id=?`,
                 [pick('name', existing.name), pick('year', existing.year), pick('description', existing.description),
                  pick('start_date', existing.start_date), pick('end_date', existing.end_date), pick('venue_name', existing.venue_name),
                  pick('venue_city', existing.venue_city), pick('venue_country', existing.venue_country),
-                 pick('max_capacity', existing.max_capacity), req.params.id]);
+                 pick('max_capacity', existing.max_capacity),
+                 pick('early_bird_deadline', existing.early_bird_deadline), pick('regular_deadline', existing.regular_deadline),
+                 pick('registration_open', existing.registration_open), req.params.id]);
             saveDb();
             res.json({ success: true });
         } catch (e) { res.status(500).json({ error: e.message }); }
@@ -5567,6 +5635,12 @@ async function initializeApp() {
         try {
             const c = query.get('SELECT id, name FROM conferences WHERE id = ?', [req.params.id]);
             if (!c) return res.status(404).json({ error: 'Not found' });
+            // A conference with no ticket tiers must not go live: the registration paths
+            // price from ticket_types, so an empty one would charge €0 for paid registrations.
+            const ticketCount = query.get('SELECT COUNT(*) AS n FROM ticket_types WHERE conference_id = ?', [req.params.id])?.n || 0;
+            if (ticketCount === 0) {
+                return res.status(409).json({ error: 'This conference has no ticket tiers yet. Clone tickets from another year or add a tier before setting it live, or registrations would be charged €0.' });
+            }
             db.run('UPDATE conferences SET is_active = 0');
             db.run('UPDATE conferences SET is_active = 1 WHERE id = ?', [req.params.id]);
             saveDb();
@@ -15415,12 +15489,13 @@ By applying to this program, I provide the following consents:
 
     // Create bridges event
     app.post('/api/bridges/events', auth, adminOnly, (req, res) => {
-        const { name, city, venue_name, venue_address, event_date, event_time, end_time, description, capacity, registration_deadline, contact_email, contact_phone, notes, status, is_published } = req.body;
+        const { name, city, venue_name, venue_address, event_date, event_time, end_time, description, capacity, registration_deadline, contact_email, contact_phone, notes, status, is_published, price } = req.body;
         const id = uuidv4();
+        const eventPrice = Math.max(0, Number(price) || 0);
 
-        db.run(`INSERT INTO bridges_events (id, name, city, venue_name, venue_address, event_date, event_time, end_time, description, capacity, registration_deadline, contact_email, contact_phone, notes, status, is_published, created_by, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-            [id, name, city, venue_name, venue_address, event_date, event_time, end_time, description, capacity || 50, registration_deadline, contact_email, contact_phone, notes, status || 'upcoming', is_published ? 1 : 0, req.user.id]);
+        db.run(`INSERT INTO bridges_events (id, name, city, venue_name, venue_address, event_date, event_time, end_time, description, capacity, registration_deadline, contact_email, contact_phone, notes, status, is_published, price, created_by, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+            [id, name, city, venue_name, venue_address, event_date, event_time, end_time, description, capacity || 50, registration_deadline, contact_email, contact_phone, notes, status || 'upcoming', is_published ? 1 : 0, eventPrice, req.user.id]);
         saveDb();
 
         res.json({ success: true, event: { id, name, city, event_date, status: status || 'upcoming', is_published: is_published ? 1 : 0 } });
@@ -15428,7 +15503,7 @@ By applying to this program, I provide the following consents:
 
     // Update bridges event
     app.put('/api/bridges/events/:id', auth, adminOnly, (req, res) => {
-        const { name, city, venue_name, venue_address, event_date, event_time, end_time, description, capacity, registration_open, registration_deadline, contact_email, contact_phone, status, notes, is_published } = req.body;
+        const { name, city, venue_name, venue_address, event_date, event_time, end_time, description, capacity, registration_open, registration_deadline, contact_email, contact_phone, status, notes, is_published, price } = req.body;
 
         db.run(`UPDATE bridges_events SET
             name = COALESCE(?, name),
@@ -15447,9 +15522,10 @@ By applying to this program, I provide the following consents:
             status = COALESCE(?, status),
             notes = COALESCE(?, notes),
             is_published = COALESCE(?, is_published),
+            price = COALESCE(?, price),
             updated_at = datetime('now')
             WHERE id = ?`,
-            [name, city, venue_name, venue_address, event_date, event_time, end_time, description, capacity, registration_open, registration_deadline, contact_email, contact_phone, status, notes, is_published !== undefined ? (is_published ? 1 : 0) : null, req.params.id]);
+            [name, city, venue_name, venue_address, event_date, event_time, end_time, description, capacity, registration_open, registration_deadline, contact_email, contact_phone, status, notes, is_published !== undefined ? (is_published ? 1 : 0) : null, price !== undefined ? Math.max(0, Number(price) || 0) : null, req.params.id]);
         saveDb();
 
         res.json({ success: true });
@@ -15481,12 +15557,15 @@ By applying to this program, I provide the following consents:
     });
 
     // Add registration to event
-    app.post('/api/bridges/events/:id/registrations', auth, (req, res) => {
+    // Manual comp registration — admin only, matching the other bridges mutation routes.
+    // Comps a seat regardless of price, so it must not be available to non-admin staff.
+    app.post('/api/bridges/events/:id/registrations', auth, adminOnly, (req, res) => {
         const { first_name, last_name, email, phone, institution, position, dietary_requirements, special_requests, notes } = req.body;
         const id = uuidv4();
-
-        db.run(`INSERT INTO bridges_registrations (id, event_id, first_name, last_name, email, phone, institution, position, dietary_requirements, special_requests, notes, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'registered')`,
+        // Comped by an admin: mark payment_status 'comp' so it's distinguishable from
+        // a paid registration and from an unpaid 'pending' one in the list.
+        db.run(`INSERT INTO bridges_registrations (id, event_id, first_name, last_name, email, phone, institution, position, dietary_requirements, special_requests, notes, status, payment_status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'registered', 'comp')`,
             [id, req.params.id, first_name, last_name, email, phone, institution, position, dietary_requirements, special_requests, notes]);
         saveDb();
 
@@ -16876,7 +16955,7 @@ By applying to this program, I provide the following consents:
             // price_regular falls between early and late; we set it to the late price as a
             // safe default (any admin who wants a separate "regular" tier can edit ticket_types directly).
             try {
-                const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+                const conf = getActiveConference();
                 if (conf) {
                     const sE = updated.price_student_early, sL = updated.price_student_late;
                     const pE = updated.price_professional_early, pL = updated.price_professional_late;
@@ -16897,7 +16976,7 @@ By applying to this program, I provide the following consents:
             // (and any other consumer reading /api/conferences/:slug) reflects admin edits.
             // Without this, plexus_settings.conference_start_date diverges from conferences.start_date.
             try {
-                const confSync = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+                const confSync = getActiveConference();
                 if (confSync) {
                     const confFields = [];
                     const confValues = [];
