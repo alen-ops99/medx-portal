@@ -6835,10 +6835,10 @@
                         <!-- Quick actions: create a link of each type -->
                         <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
                             <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; flex-shrink: 0;">Quick Actions</div>
-                            <button class="btn btn-secondary" onclick="App.showSection('gala'); setTimeout(()=>GalaAdmin.showTab('invites'),200);" style="padding: 7px 14px; font-size: 12px;">
+                            <button class="btn btn-secondary" onclick="App.generateRegistrationLink('gala')" style="padding: 7px 14px; font-size: 12px;">
                                 <i class="fas fa-credit-card" style="color:#C9A962;"></i> New Paid Gala Link
                             </button>
-                            <button class="btn btn-secondary" onclick="App.showSection('gala'); setTimeout(()=>GalaAdmin.showTab('invites'),200);" style="padding: 7px 14px; font-size: 12px;">
+                            <button class="btn btn-secondary" onclick="App.generateRegistrationLink('gala')" style="padding: 7px 14px; font-size: 12px;">
                                 <i class="fas fa-star" style="color:#a855f7;"></i> New VIP Link
                             </button>
                             <button class="btn btn-secondary" onclick="App.showSection('croatians-abroad');" style="padding: 7px 14px; font-size: 12px;">
@@ -10541,8 +10541,8 @@ President, Med&amp;X</textarea>
                         <button class="btn btn-primary" id="galaTabRegs" onclick="GalaAdmin.showTab('registrations')" style="font-size: 13px;">
                             <i class="fas fa-users"></i> Registrations
                         </button>
-                        <button class="btn btn-secondary" id="galaTabInvites" onclick="GalaAdmin.showTab('invites')" style="font-size: 13px;">
-                            <i class="fas fa-link"></i> Invite Links
+                        <button class="btn btn-secondary" id="galaTabInvites" onclick="App.generateRegistrationLink('gala')" style="font-size: 13px;">
+                            <i class="fas fa-link"></i> Links
                         </button>
                         <button class="btn btn-secondary" id="galaTabSettings" onclick="GalaAdmin.showTab('settings')" style="font-size: 13px;">
                             <i class="fas fa-cog"></i> Settings
@@ -20357,6 +20357,17 @@ President, Med&amp;X</textarea>
                                 ${subEventSelect}
                                 ${priceControls}
                                 ${priceNote}
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Link type</label>
+                                    <select id="genLinkType" onchange="App.onLinkTypeChange()" style="${inStyle}">
+                                        <option value="generic">Paid — uses the prices above</option>
+                                        <option value="vip">Free / VIP — skips payment, instant confirmation</option>
+                                    </select>
+                                </div>
+                                <div id="genLinkOverrideWrap" style="margin-bottom:16px;">
+                                    <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Fixed price override (€) <span style="font-weight:400;color:var(--text-muted);">— optional; overrides the prices above for this link only (e.g. €75 for sponsors)</span></label>
+                                    <input type="number" id="genLinkOverride" min="0" step="0.01" placeholder="leave empty to use the prices above" oninput="App.renderLinkPreview()" style="${inStyle}">
+                                </div>
                                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
                                     <div>
                                         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Expires in (days)</label>
@@ -20378,12 +20389,77 @@ President, Med&amp;X</textarea>
                                     </div>
                                     <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">Share this link via email. Recipients register without a portal account.</p>
                                 </div>
+                                <div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--border-color);">
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                                        <span style="font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--text-secondary);text-transform:uppercase;"><i class="fas fa-list" style="margin-right:5px;"></i>Existing links</span>
+                                        <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="App.loadExistingLinks('${eventType}')"><i class="fas fa-sync"></i> Refresh</button>
+                                    </div>
+                                    <div id="genLinkExisting" style="font-size:13px;color:var(--text-muted);">Loading…</div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 `;
                 document.body.appendChild(modal);
                 this.renderLinkPreview();
+                this.loadExistingLinks(eventType);
+            },
+
+            // Link-type toggle: hide the price override + parts/price when the link is Free/VIP.
+            onLinkTypeChange() {
+                const vip = (document.getElementById('genLinkType')||{}).value === 'vip';
+                const ov = document.getElementById('genLinkOverrideWrap');
+                if (ov) ov.style.display = vip ? 'none' : 'block';
+                this.renderLinkPreview();
+            },
+
+            // Load + render the existing links for this event (the new unified registration_links,
+            // plus legacy gala_invite_links for the Gala). Each row gets Copy + Deactivate.
+            async loadExistingLinks(eventType) {
+                const box = document.getElementById('genLinkExisting');
+                if (!box) return;
+                box.innerHTML = 'Loading…';
+                try {
+                    let rows = [];
+                    const reg = await this.api(`/api/admin/registration-links?event_type=${eventType}`);
+                    (reg || []).forEach(l => rows.push({
+                        source: 'reg', id: l.id, name: l.label || l.event_name || '(link)', url: l.url,
+                        type: l.link_type === 'vip' ? 'Free/VIP' : (l.price_override != null ? 'Paid €' + l.price_override : 'Paid'),
+                        uses: l.uses || 0, max: l.max_uses || 0, active: l.is_active !== 0
+                    }));
+                    if (eventType === 'gala') {
+                        try {
+                            const gala = await this.api('/api/admin/gala/invite-links');
+                            (gala || []).forEach(l => rows.push({
+                                source: 'gala', id: l.id, name: (l.label || 'Gala invite') + ' (legacy)', url: l.url,
+                                type: l.link_type === 'vip' ? 'Free/VIP' : (l.price_override != null ? 'Paid €' + l.price_override : 'Paid'),
+                                uses: l.used_count || 0, max: l.max_uses || 0, active: !l.revoked
+                            }));
+                        } catch(e) {}
+                    }
+                    if (!rows.length) { box.innerHTML = '<span style="color:var(--text-muted);">No links yet for this event.</span>'; return; }
+                    box.innerHTML = rows.map(r => `
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;margin-bottom:6px;${r.active?'':'opacity:0.5;'}">
+                            <div style="min-width:0;">
+                                <div style="font-size:13px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(r.name)}</div>
+                                <div style="font-size:11px;color:var(--text-muted);">${r.type} · ${r.uses}${r.max?'/'+r.max:''} used${r.active?'':' · inactive'}</div>
+                            </div>
+                            <div style="display:flex;gap:4px;flex-shrink:0;">
+                                ${r.url?`<button class="btn btn-secondary" style="padding:4px 8px;font-size:11px;" title="Copy link" onclick="navigator.clipboard.writeText('${(r.url||'').replace(/'/g,'')}');Toast.success('Copied!')"><i class="fas fa-copy"></i></button>`:''}
+                                ${r.active?`<button class="btn btn-secondary" style="padding:4px 8px;font-size:11px;" title="Deactivate" onclick="App.deactivateExistingLink('${r.source}','${r.id}','${eventType}')"><i class="fas fa-ban"></i></button>`:''}
+                            </div>
+                        </div>`).join('');
+                } catch(e) { box.innerHTML = '<span style="color:#ef4444;">Could not load links.</span>'; }
+            },
+
+            async deactivateExistingLink(source, id, eventType) {
+                if (!confirm('Deactivate this link? Anyone who already has it will no longer be able to register.')) return;
+                try {
+                    if (source === 'gala') await this.api(`/api/admin/gala/invite-links/${id}`, { method: 'DELETE' });
+                    else await this.api(`/api/admin/registration-links/${id}/deactivate`, { method: 'PUT' });
+                    Toast.success('Link deactivated');
+                    this.loadExistingLinks(eventType);
+                } catch(e) { Toast.error('Could not deactivate'); }
             },
 
             // Back-compat alias — all live updates flow through renderLinkPreview now.
@@ -20410,6 +20486,12 @@ President, Med&amp;X</textarea>
                 } else if (single) {
                     total = Math.max(0, parseFloat(single.value) || 0);
                 }
+                // Link type / override take precedence in the preview (mirrors the server): a
+                // Free/VIP link is always €0; a paid override replaces the computed total.
+                const linkType = (document.getElementById('genLinkType')||{}).value;
+                const ovEl = document.getElementById('genLinkOverride');
+                if (linkType === 'vip') total = 0;
+                else if (ovEl && ovEl.value !== '' && parseFloat(ovEl.value) > 0) total = Math.max(0, parseFloat(ovEl.value));
                 total = Math.round(total * 100) / 100;
                 const totalStr = total > 0 ? '€' + total : 'Free';
                 const totalEl = document.getElementById('genLinkTotal');
@@ -20484,11 +20566,17 @@ President, Med&amp;X</textarea>
                         if (cb.dataset.key) componentKeys.push(cb.dataset.key);
                     });
                 }
+                // Unified link type + optional paid override (server clamps/validates; VIP forces free).
+                const linkType = (document.getElementById('genLinkType')||{}).value === 'vip' ? 'vip' : 'generic';
+                const ovRaw = (document.getElementById('genLinkOverride')||{}).value;
+                // Override only applies when > 0 — 0/blank means "use the real prices" (free is the VIP type).
+                const ovNum = parseFloat(ovRaw);
+                const priceOverride = (linkType === 'generic' && ovRaw !== '' && ovNum > 0) ? Math.max(0, ovNum) : undefined;
 
                 try {
                     const result = await this.api('/api/admin/registration-links', {
                         method: 'POST',
-                        body: JSON.stringify({ event_type: eventType, event_id: eventId || null, event_name: name, expires_days: parseInt(expiry), max_uses: parseInt(maxUses), package_items: selectedItems.length ? selectedItems : undefined, component_keys: componentKeys.length ? componentKeys : undefined })
+                        body: JSON.stringify({ event_type: eventType, event_id: eventId || null, event_name: name, expires_days: parseInt(expiry), max_uses: parseInt(maxUses), package_items: selectedItems.length ? selectedItems : undefined, component_keys: componentKeys.length ? componentKeys : undefined, link_type: linkType, price_override: priceOverride })
                     });
 
                     if (result.link) {
@@ -20496,7 +20584,8 @@ President, Med&amp;X</textarea>
                         const urlInput = document.getElementById('genLinkUrl');
                         resultDiv.style.display = 'block';
                         urlInput.value = result.link;
-                        Toast.success('Link generated!');
+                        Toast.success(linkType === 'vip' ? 'Free/VIP link generated!' : 'Link generated!');
+                        this.loadExistingLinks(eventType);
                     }
                 } catch(e) {
                     Toast.error('Failed to generate link: ' + e.message);

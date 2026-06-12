@@ -17769,15 +17769,30 @@ By applying to this program, I provide the following consents:
             )`);
 
             const id = uuidv4();
-            const { package_items, component_keys } = req.body;
+            const { package_items, component_keys, link_type, price_override, label, notes } = req.body;
             try { db.run('ALTER TABLE registration_links ADD COLUMN package_items TEXT'); } catch(e) {}
             // component_keys = selected priced components for composable pricing (separate from
             // package_items display labels). The user portal re-reads these + their DB prices at
             // checkout, so the charged amount is server-trusted, never from the URL.
             try { db.run('ALTER TABLE registration_links ADD COLUMN component_keys TEXT'); } catch(e) {}
+            // Unified link kind: 'generic' (paid via components/single price) or 'vip' (free,
+            // skips Stripe). price_override (nullable) lets a paid link charge a fixed amount
+            // regardless of components — also read server-side at checkout, never from the URL.
+            try { db.run("ALTER TABLE registration_links ADD COLUMN link_type TEXT DEFAULT 'generic'"); } catch(e) {}
+            try { db.run('ALTER TABLE registration_links ADD COLUMN price_override REAL'); } catch(e) {}
+            try { db.run('ALTER TABLE registration_links ADD COLUMN label TEXT'); } catch(e) {}
+            try { db.run('ALTER TABLE registration_links ADD COLUMN notes TEXT'); } catch(e) {}
             const compKeys = Array.isArray(component_keys) ? component_keys.filter(k => typeof k === 'string') : null;
-            db.run(`INSERT INTO registration_links (id, token, event_type, event_id, event_name, created_by, expires_at, max_uses, package_items, component_keys) VALUES (?,?,?,?,?,?,?,?,?,?)`,
-                [id, token, event_type, event_id || null, event_name || '', req.user.email, expiresAt, max_uses || 0, package_items ? JSON.stringify(package_items) : null, compKeys && compKeys.length ? JSON.stringify(compKeys) : null]);
+            const linkType = link_type === 'vip' ? 'vip' : 'generic';
+            // VIP is always free (0). For a Paid link, a price_override only applies when > 0 —
+            // an override of 0/blank means "use the real prices", NOT "make it free". Free is the
+            // Free/VIP type; a Paid link must never silently become a €0 ticket (which would skip
+            // Stripe and the fiscal invoice).
+            const ovNum = Number(price_override);
+            const priceOverride = linkType === 'vip' ? 0
+                : (price_override != null && price_override !== '' && ovNum > 0 ? Math.max(0, ovNum) : null);
+            db.run(`INSERT INTO registration_links (id, token, event_type, event_id, event_name, created_by, expires_at, max_uses, package_items, component_keys, link_type, price_override, label, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [id, token, event_type, event_id || null, event_name || '', req.user.email, expiresAt, max_uses || 0, package_items ? JSON.stringify(package_items) : null, compKeys && compKeys.length ? JSON.stringify(compKeys) : null, linkType, priceOverride, label || null, notes || null]);
             saveDb();
 
             // Build link pointing to user portal (NOT admin portal)
@@ -17811,7 +17826,18 @@ By applying to this program, I provide the following consents:
                 created_by TEXT, expires_at TEXT, max_uses INTEGER DEFAULT 0, uses INTEGER DEFAULT 0,
                 is_active INTEGER DEFAULT 1, created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )`);
-            const links = query.all('SELECT * FROM registration_links ORDER BY created_at DESC');
+            const et = req.query.event_type;
+            const links = et
+                ? query.all('SELECT * FROM registration_links WHERE event_type = ? ORDER BY created_at DESC', [et])
+                : query.all('SELECT * FROM registration_links ORDER BY created_at DESC');
+            // Attach the shareable URL to each row (re-encode the same payload the POST builds),
+            // so the Existing-links list can offer a Copy button without re-deriving it client-side.
+            const userPortalUrl = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
+            for (const l of links) {
+                let pkg = []; try { pkg = l.package_items ? JSON.parse(l.package_items) : []; } catch(e) {}
+                const payload = Buffer.from(JSON.stringify({ t: l.token, e: l.event_type, n: l.event_name || '', i: l.event_id || '', p: pkg, x: l.expires_at })).toString('base64url');
+                l.url = `${userPortalUrl}/invite/${payload}`;
+            }
             res.json(links);
         } catch (error) {
             res.status(500).json({ error: 'Failed to fetch links' });

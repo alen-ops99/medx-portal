@@ -1205,6 +1205,16 @@ async function submitCA(e) {
                 if (regLink.max_uses > 0 && regLink.uses >= regLink.max_uses) {
                     return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Used Up</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Link No Longer Available</h1><p style="color:#94a3b8;">This registration link has reached its maximum number of uses. Please contact the Med&amp;X team for a new link.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
                 }
+                // Unified link kind (works for ANY event): VIP → free + complimentary banner +
+                // skip Stripe; a price_override → fixed price. Applied to eventInfo.price after
+                // the event branches below. Server-trusted (read from the DB row, never the URL).
+                // Only honor it when the link's event matches the page's event, so a hand-crafted
+                // URL can't show a VIP/override price for the wrong event (the charge path enforces
+                // the same match — keep display and charge in lockstep).
+                if (regLink.event_type === eventType) {
+                    if (regLink.link_type === 'vip') { isVipInvite = true; inviteLinkPriceOverride = 0; }
+                    else if (regLink.price_override != null) { inviteLinkPriceOverride = Number(regLink.price_override); }
+                }
             }
         }
 
@@ -1333,6 +1343,11 @@ async function submitCA(e) {
                 }
             }
         }
+
+        // Unified link override (applies to ANY event type): a VIP/Free link or a paid link
+        // with a fixed price_override sets the displayed price here, after the per-event price
+        // was computed. VIP forces 0 (free). Server-trusted — sourced from the DB link row above.
+        if (inviteLinkPriceOverride != null) eventInfo.price = Math.max(0, Number(inviteLinkPriceOverride) || 0);
 
         // Package items from admin selection
         const packageItems = data.p || [];
@@ -18318,6 +18333,14 @@ By applying to this program, I provide the following consents:
                 try { const a = JSON.parse(regLinkRow.component_keys); keys = Array.isArray(a) && a.length ? a : null; } catch(e) { keys = null; }
                 const compBase = sumComponentPrices(event_type, keys);
                 if (compBase != null) basePrice = compBase;
+            }
+            // Unified link kind (AUTHORITATIVE, server-trusted, ANY event): a VIP link is free
+            // (skips Stripe); a paid link with a fixed price_override charges exactly that. Both
+            // are read from the gated link row, taking precedence over the computed base. This is
+            // why a free/VIP or override link works the same for every event type.
+            if (regLinkRow) {
+                if (regLinkRow.link_type === 'vip') basePrice = 0;
+                else if (regLinkRow.price_override != null) basePrice = Math.max(0, Number(regLinkRow.price_override) || 0);
             }
             // Clamp guest_count to a sane non-negative range — a negative value previously
             // drove price to 0 and turned a paid ticket into a free one.
