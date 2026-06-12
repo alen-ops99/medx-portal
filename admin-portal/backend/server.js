@@ -467,6 +467,27 @@ async function initializeApp() {
     )`);
     try { db.run('ALTER TABLE registrations ADD COLUMN package_items TEXT'); } catch(e) {}
 
+    // ===== Custom questions + denormalized "what they applied for" (shared with user portal via Turso) =====
+    try { db.run(`CREATE TABLE IF NOT EXISTS event_custom_fields (
+        id TEXT PRIMARY KEY,
+        scope TEXT NOT NULL DEFAULT 'event',
+        event_type TEXT,
+        link_token TEXT,
+        field_key TEXT NOT NULL,
+        label TEXT NOT NULL,
+        field_type TEXT NOT NULL DEFAULT 'text',
+        options_json TEXT,
+        required INTEGER DEFAULT 0,
+        sort_order INTEGER DEFAULT 0,
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_custom_fields_event ON event_custom_fields(event_type, scope, is_active)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_custom_fields_link ON event_custom_fields(link_token)'); } catch(e) {}
+    try { db.run('ALTER TABLE promo_codes ADD COLUMN event_type TEXT'); } catch(e) {}
+    // NOTE: the custom_answers/applied_for/reg_link_token ALTERs on the registration tables run
+    // LATER (after those tables are created — gala/forum/bridges/CA are defined further down).
+
     // Fix forum event dates (migration — runs on every startup)
     try {
         // Update ALL forum events to correct dates
@@ -3007,6 +3028,14 @@ async function initializeApp() {
         invoice_number TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+
+    // Denormalized "what they applied for" + answers + link token on every registration table.
+    // Runs HERE (not in the early migration block) because gala/forum/bridges/CA are created above.
+    for (const t of ['registrations','gala_registrations','forum_event_registrations','bridges_registrations','croatians_abroad_registrations']) {
+        try { db.run(`ALTER TABLE ${t} ADD COLUMN custom_answers TEXT`); } catch(e) {}
+        try { db.run(`ALTER TABLE ${t} ADD COLUMN applied_for TEXT`); } catch(e) {}
+        try { db.run(`ALTER TABLE ${t} ADD COLUMN reg_link_token TEXT`); } catch(e) {}
+    }
 
     // Gala invite links table — admin-generated shareable URLs (generic paid + VIP free)
     db.run(`CREATE TABLE IF NOT EXISTS gala_invite_links (
@@ -16120,6 +16149,16 @@ By applying to this program, I provide the following consents:
         const codeClean = String(code).trim();
         const now = new Date().toISOString();
 
+        // What this person applied for (components/items) + their custom answers, read straight
+        // from the denormalized registration row so the door staff can see it.
+        function appliedInfo(r) {
+            let applied = r.applied_for || '';
+            if (!applied && r.package_items) { try { const p = JSON.parse(r.package_items); if (Array.isArray(p)) applied = p.join(', '); } catch(e) {} }
+            let answers = [];
+            try { const a = JSON.parse(r.custom_answers || '{}'); answers = Object.values(a).map(x => ({ label: x.label, value: x.value })); } catch(e) {}
+            return { applied_for: applied, answers };
+        }
+
         if (event === 'gala') {
             let reg = null;
             if (isUuid) reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [codeClean]);
@@ -16154,7 +16193,8 @@ By applying to this program, I provide the following consents:
                 registrant: {
                     name: `${reg.first_name} ${reg.last_name || ''}`.trim(),
                     email: reg.email, institution: reg.institution || '',
-                    dietary: reg.dietary || '', amount_paid: reg.amount_paid, invoice: reg.invoice_number || ''
+                    dietary: reg.dietary || '', amount_paid: reg.amount_paid, invoice: reg.invoice_number || '',
+                    ...appliedInfo(reg)
                 }
             });
         }
@@ -16189,7 +16229,8 @@ By applying to this program, I provide the following consents:
                         name: `${sReg.first_name || ''} ${sReg.last_name || ''}`.trim() || sReg.email,
                         email: sReg.email, institution: sReg.institution || '',
                         // registrations/bridges_registrations store dietary_requirements (not dietary)
-                        dietary: sReg.dietary_requirements || sReg.dietary || ''
+                        dietary: sReg.dietary_requirements || sReg.dietary || '',
+                        ...appliedInfo(sReg)
                     }
                 });
             }
@@ -16224,7 +16265,9 @@ By applying to this program, I provide the following consents:
             registrant: {
                 name: `${caReg.first_name} ${caReg.last_name || ''}`.trim(),
                 email: caReg.email, institution: caReg.institution || '',
-                country: caReg.country || '', role: caReg.role || '', dietary: caReg.dietary || ''
+                country: caReg.country || '', role: caReg.role || '', dietary: caReg.dietary || '',
+                applied_for: [caReg.selected_conference ? 'Conference' : null, caReg.selected_bridges ? 'Bridges' : null, caReg.selected_gala ? 'Gala' : null].filter(Boolean).join(', '),
+                answers: appliedInfo(caReg).answers
             }
         });
     });
@@ -17853,6 +17896,133 @@ By applying to this program, I provide the following consents:
         } catch (error) {
             res.status(500).json({ error: 'Failed to deactivate link' });
         }
+    });
+
+    // ===== Custom registration questions (event- or link-scoped) =====
+    function slugifyKey(label) {
+        const base = String(label || 'q').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'q';
+        return base + '_' + uuidv4().slice(0, 6);
+    }
+    app.get('/api/admin/custom-fields', auth, adminOnly, (req, res) => {
+        try {
+            const { event_type, link_token } = req.query;
+            let rows;
+            if (link_token) {
+                rows = query.all("SELECT * FROM event_custom_fields WHERE link_token = ? ORDER BY sort_order, created_at", [link_token]);
+            } else if (event_type) {
+                rows = query.all("SELECT * FROM event_custom_fields WHERE scope='event' AND event_type = ? ORDER BY sort_order, created_at", [event_type]);
+            } else {
+                rows = query.all("SELECT * FROM event_custom_fields ORDER BY event_type, sort_order, created_at");
+            }
+            res.json(rows);
+        } catch(e) { res.status(500).json({ error: 'Failed to load custom fields' }); }
+    });
+    app.post('/api/admin/custom-fields', auth, adminOnly, (req, res) => {
+        try {
+            const { scope, event_type, link_token, label, field_type, options, required, sort_order } = req.body || {};
+            if (!label || !String(label).trim()) return res.status(400).json({ error: 'Label is required' });
+            const sc = scope === 'link' ? 'link' : 'event';
+            if (sc === 'link' && !link_token) return res.status(400).json({ error: 'link_token required for link-scoped question' });
+            if (sc === 'event' && !event_type) return res.status(400).json({ error: 'event_type required for event-scoped question' });
+            const ft = ['text','textarea','select','checkbox'].includes(field_type) ? field_type : 'text';
+            let optionsJson = null;
+            if (ft === 'select') {
+                let opts = Array.isArray(options) ? options : String(options || '').split(',');
+                opts = opts.map(o => String(o).trim()).filter(Boolean);
+                if (!opts.length) return res.status(400).json({ error: 'A dropdown needs at least one option' });
+                optionsJson = JSON.stringify(opts);
+            }
+            const id = uuidv4();
+            db.run(`INSERT INTO event_custom_fields (id, scope, event_type, link_token, field_key, label, field_type, options_json, required, sort_order, is_active)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,1)`,
+                [id, sc, event_type || null, sc === 'link' ? link_token : null, slugifyKey(label), String(label).trim(), ft, optionsJson, required ? 1 : 0, Number(sort_order) || 0]);
+            saveDb();
+            res.json({ success: true, id });
+        } catch(e) { res.status(500).json({ error: 'Failed to create question' }); }
+    });
+    app.put('/api/admin/custom-fields/:id', auth, adminOnly, (req, res) => {
+        try {
+            const ex = query.get('SELECT * FROM event_custom_fields WHERE id = ?', [req.params.id]);
+            if (!ex) return res.status(404).json({ error: 'Not found' });
+            const { label, field_type, options, required, sort_order, is_active } = req.body || {};
+            const ft = field_type && ['text','textarea','select','checkbox'].includes(field_type) ? field_type : ex.field_type;
+            let optionsJson = ex.options_json;
+            if (ft === 'select' && options !== undefined) {
+                let opts = Array.isArray(options) ? options : String(options || '').split(',');
+                opts = opts.map(o => String(o).trim()).filter(Boolean);
+                optionsJson = JSON.stringify(opts);
+            } else if (ft !== 'select') {
+                optionsJson = null;
+            }
+            db.run(`UPDATE event_custom_fields SET label = ?, field_type = ?, options_json = ?, required = ?, sort_order = ?, is_active = ? WHERE id = ?`,
+                [label !== undefined ? String(label).trim() : ex.label, ft, optionsJson,
+                 required !== undefined ? (required ? 1 : 0) : ex.required,
+                 sort_order !== undefined ? (Number(sort_order) || 0) : ex.sort_order,
+                 is_active !== undefined ? (is_active ? 1 : 0) : ex.is_active, req.params.id]);
+            saveDb();
+            res.json({ success: true });
+        } catch(e) { res.status(500).json({ error: 'Failed to update question' }); }
+    });
+    app.delete('/api/admin/custom-fields/:id', auth, adminOnly, (req, res) => {
+        try { db.run('DELETE FROM event_custom_fields WHERE id = ?', [req.params.id]); saveDb(); res.json({ success: true }); }
+        catch(e) { res.status(500).json({ error: 'Failed to delete question' }); }
+    });
+
+    // ===== Coupons (event_type-scoped; stored in promo_codes) =====
+    // Maps event_type → the conference_id checkout falls back to, so admin-created codes resolve
+    // both via the new event_type column and the legacy conference_id lookup.
+    function couponConfId(eventType) {
+        const map = { gala: 'gala', forum: 'forum-gala', bridges: 'bridges', 'croatians-abroad': 'gala' };
+        if (map[eventType]) return map[eventType];
+        if (eventType === 'plexus') { const c = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'"); return c ? c.id : 'plexus-2026'; }
+        return eventType;
+    }
+    app.get('/api/admin/coupons', auth, adminOnly, (req, res) => {
+        try {
+            const et = req.query.event_type;
+            const rows = et
+                ? query.all("SELECT * FROM promo_codes WHERE event_type = ? OR conference_id = ? ORDER BY rowid DESC", [et, couponConfId(et)])
+                : query.all("SELECT * FROM promo_codes ORDER BY rowid DESC");
+            res.json(rows);
+        } catch(e) { res.status(500).json({ error: 'Failed to load coupons' }); }
+    });
+    app.post('/api/admin/coupons', auth, adminOnly, (req, res) => {
+        try {
+            const { event_type, code, discount_type, discount_value, max_uses, valid_until } = req.body || {};
+            if (!event_type) return res.status(400).json({ error: 'event_type required' });
+            if (!code || !String(code).trim()) return res.status(400).json({ error: 'Code required' });
+            const dt = discount_type === 'fixed' ? 'fixed' : 'percentage';
+            const dv = Math.max(0, Number(discount_value) || 0);
+            if (!dv) return res.status(400).json({ error: 'Discount value must be greater than 0' });
+            if (dt === 'percentage' && dv > 100) return res.status(400).json({ error: 'Percentage cannot exceed 100' });
+            const codeUp = String(code).trim().toUpperCase();
+            const dupe = query.get("SELECT id FROM promo_codes WHERE UPPER(code) = ? AND (event_type = ? OR conference_id = ?) AND is_active = 1", [codeUp, event_type, couponConfId(event_type)]);
+            if (dupe) return res.status(409).json({ error: 'An active coupon with this code already exists for this event' });
+            const id = uuidv4();
+            db.run('INSERT INTO promo_codes (id, conference_id, event_type, code, discount_type, discount_value, max_uses, used_count, valid_until, is_active) VALUES (?,?,?,?,?,?,?,0,?,1)',
+                [id, couponConfId(event_type), event_type, codeUp, dt, dv, Number(max_uses) || 0, valid_until || null]);
+            saveDb();
+            res.json({ success: true, id });
+        } catch(e) { res.status(500).json({ error: 'Failed to create coupon' }); }
+    });
+    app.put('/api/admin/coupons/:id', auth, adminOnly, (req, res) => {
+        try {
+            const ex = query.get('SELECT * FROM promo_codes WHERE id = ?', [req.params.id]);
+            if (!ex) return res.status(404).json({ error: 'Not found' });
+            const { discount_type, discount_value, max_uses, valid_until, is_active } = req.body || {};
+            db.run('UPDATE promo_codes SET discount_type = ?, discount_value = ?, max_uses = ?, valid_until = ?, is_active = ? WHERE id = ?',
+                [(discount_type === 'fixed' || discount_type === 'percentage') ? discount_type : ex.discount_type,
+                 discount_value !== undefined ? Math.max(0, Number(discount_value) || 0) : ex.discount_value,
+                 max_uses !== undefined ? (Number(max_uses) || 0) : ex.max_uses,
+                 valid_until !== undefined ? (valid_until || null) : ex.valid_until,
+                 is_active !== undefined ? (is_active ? 1 : 0) : ex.is_active, req.params.id]);
+            saveDb();
+            res.json({ success: true });
+        } catch(e) { res.status(500).json({ error: 'Failed to update coupon' }); }
+    });
+    app.delete('/api/admin/coupons/:id', auth, adminOnly, (req, res) => {
+        try { db.run('UPDATE promo_codes SET is_active = 0 WHERE id = ?', [req.params.id]); saveDb(); res.json({ success: true }); }
+        catch(e) { res.status(500).json({ error: 'Failed to delete coupon' }); }
     });
 
     // Forum Gala Settings (admin-editable pricing)

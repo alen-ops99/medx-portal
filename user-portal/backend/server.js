@@ -1041,6 +1041,7 @@ app.get('/invite/:data', async (req, res) => {
                     <textarea id="caNotes" placeholder="Optional"></textarea>
                 </div>
             </div>
+            ${renderCustomFieldsHtml(loadCustomFields('croatians-abroad', null))}
 
             <div class="total-display" id="caTotalDisplay">
                 <span class="label">Gala Ticket</span>
@@ -1116,7 +1117,8 @@ async function submitCA(e) {
         notes: document.getElementById('caNotes').value.trim(),
         selected_conference: state.conference ? 1 : 0,
         selected_bridges: state.bridges ? 1 : 0,
-        selected_gala: state.gala ? 1 : 0
+        selected_gala: state.gala ? 1 : 0,
+        custom_answers: (function(){ const o={}; document.querySelectorAll('#caForm [data-cf]').forEach(function(el){ const k = el.getAttribute('data-cf'); o[k] = el.getAttribute('data-cf-checkbox') ? (el.checked ? 'true' : 'false') : el.value; }); return o; })()
     };
     try {
         const res = await fetch('/api/croatians-abroad/register', {
@@ -1446,6 +1448,7 @@ async function submitCA(e) {
                 </div>
                 <div><label>Dietary Requirements</label><select id="dietary" onchange="document.getElementById('dietaryOther').style.display=this.value==='Other'?'block':'none'"><option>No special requirements</option><option>Vegetarian</option><option>Vegan</option><option>Gluten-free</option><option>Other</option></select><input type="text" id="dietaryOther" placeholder="Please specify..." style="display:none;margin-top:8px;"></div>
                 <div><label>Allergies</label><select id="allergies" onchange="document.getElementById('allergyOther').style.display=this.value==='Other'?'block':'none'"><option>None</option><option>Nuts</option><option>Shellfish</option><option>Dairy</option><option>Eggs</option><option>Soy</option><option>Wheat</option><option>Other</option></select><input type="text" id="allergyOther" placeholder="Please specify allergies..." style="display:none;margin-top:8px;"></div>
+                ${renderCustomFieldsHtml(loadCustomFields(eventType, (typeof data.t === 'string' && data.t !== 'vip') ? data.t : null))}
                 ${eventInfo.price ? `<div style="padding:14px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;">
                     <label style="margin-bottom:8px;">Additional Guests <span style="font-size:11px;color:#64748b;">(&euro;${eventInfo.price} per guest, max 2)</span></label>
                     <select id="guestCount" onchange="updateTotal()" style="width:100%;padding:10px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;background:rgba(255,255,255,0.05);color:#fff;font-size:14px;">
@@ -1535,6 +1538,16 @@ async function submitCA(e) {
         btn.disabled = true;
         btn.textContent = 'Processing...';
         const price = parseFloat(document.getElementById('eventPrice').value) || 0;
+        // Client-side required-check for admin-defined custom questions (server re-validates).
+        for (const el of document.querySelectorAll('#regForm [data-cf-required]')) {
+            const empty = el.getAttribute('data-cf-checkbox') ? !el.checked : !String(el.value || '').trim();
+            if (empty) {
+                const lbl = (el.closest('div')?.querySelector('label')?.textContent || 'a required field').replace('*','').trim();
+                alert('Please complete: ' + lbl);
+                btn.disabled = false; btn.textContent = price ? 'Proceed to Payment' : 'Complete Registration';
+                return;
+            }
+        }
         const body = {
             first_name: document.getElementById('firstName').value,
             last_name: document.getElementById('lastName').value,
@@ -1550,7 +1563,8 @@ async function submitCA(e) {
             allergies: document.getElementById('allergies').value === 'Other' ? document.getElementById('allergyOther').value : document.getElementById('allergies').value,
             guest_count: parseInt(document.getElementById('guestCount')?.value || '0'),
             coupon_code: document.getElementById('couponCode')?.value?.trim() || '',
-            total_amount: parseFloat(document.getElementById('eventPrice').value) || 0
+            total_amount: parseFloat(document.getElementById('eventPrice').value) || 0,
+            custom_answers: (function(){ const o={}; document.querySelectorAll('#regForm [data-cf]').forEach(function(el){ const k = el.getAttribute('data-cf'); o[k] = el.getAttribute('data-cf-checkbox') ? (el.checked ? 'true' : 'false') : el.value; }); return o; })()
         };
         try {
             // Register via user portal API (handles admin sync + Stripe + email)
@@ -1825,12 +1839,138 @@ function linkComponentKeys(token) {
     try { const a = JSON.parse(row.component_keys); return Array.isArray(a) && a.length ? a : null; } catch(e) { return null; }
 }
 
+// ===== Coupons: event_type-aware lookup (fixes the legacy conference_id-only scoping) =====
+// Maps an event_type to the conference_id values coupons were historically stored under, so codes
+// created in the old Plexus promo UI still resolve while new codes carry event_type directly.
+function promoConfIds(eventType) {
+    const ids = [];
+    try { const conf = getActiveConference(); if (conf && conf.id) ids.push(conf.id); } catch(e) {}
+    const legacy = {
+        gala: ['gala'],
+        forum: ['forum-gala'],
+        plexus: ['plexus-2026'],
+        bridges: ['bridges'],
+        'croatians-abroad': ['gala', 'croatians-abroad']
+    };
+    return ids.concat(legacy[eventType] || []);
+}
+
+// Resolve a usable promo for (eventType, code) or null. Validates active / expiry / max_uses.
+// Server-trusted: discounts are always re-derived here, never taken from the client.
+function lookupPromo(eventType, code) {
+    if (!code || typeof code !== 'string') return null;
+    const c = code.trim();
+    if (!c) return null;
+    let promo = null;
+    try { promo = query.get("SELECT * FROM promo_codes WHERE UPPER(code) = UPPER(?) AND event_type = ? AND is_active = 1", [c, eventType]); } catch(e) {}
+    if (!promo) {
+        for (const cid of promoConfIds(eventType)) {
+            try { promo = query.get("SELECT * FROM promo_codes WHERE UPPER(code) = UPPER(?) AND conference_id = ? AND is_active = 1", [c, cid]); } catch(e) {}
+            if (promo) break;
+        }
+    }
+    if (!promo) return null;
+    if (promo.valid_until && new Date(promo.valid_until) < new Date()) return null;
+    if (promo.max_uses > 0 && promo.used_count >= promo.max_uses) return null;
+    return promo;
+}
+
+// Discount (in currency units) a promo yields against a base price, clamped to [0, price].
+function promoDiscount(promo, price) {
+    if (!promo) return 0;
+    const d = promo.discount_type === 'fixed'
+        ? (Number(promo.discount_value) || 0)
+        : Math.round(price * (Number(promo.discount_value) || 0) / 100 * 100) / 100;
+    return Math.max(0, Math.min(price, d));
+}
+
+// ===== Custom questions =====
+// Load active custom fields for an event_type plus any link-scoped fields for the token
+// (event-scoped first, then link-scoped, each by sort_order).
+function loadCustomFields(eventType, linkToken) {
+    const out = [];
+    try { out.push(...query.all("SELECT * FROM event_custom_fields WHERE scope='event' AND event_type=? AND is_active=1 ORDER BY sort_order, created_at", [eventType || ''])); } catch(e) {}
+    if (linkToken && typeof linkToken === 'string' && linkToken !== 'vip') {
+        try { out.push(...query.all("SELECT * FROM event_custom_fields WHERE scope='link' AND link_token=? AND is_active=1 ORDER BY sort_order, created_at", [linkToken])); } catch(e) {}
+    }
+    return out;
+}
+
+// Render custom-field inputs as form HTML. Each carries data-cf="<field_key>" so the client
+// submit loop can collect answers generically. Labels/options are escaped on render.
+function renderCustomFieldsHtml(fields) {
+    if (!fields || !fields.length) return '';
+    const rows = fields.map(f => {
+        const req = f.required ? ' <span style="color:#ef4444;">*</span>' : '';
+        const reqAttr = f.required ? ' data-cf-required="1"' : '';
+        const label = `<label>${escapeHtml(f.label)}${req}</label>`;
+        const key = escapeHtml(f.field_key);
+        if (f.field_type === 'select') {
+            let opts = [];
+            try { opts = JSON.parse(f.options_json || '[]'); } catch(e) { opts = []; }
+            const optionHtml = ['<option value=""></option>'].concat((opts || []).map(o => `<option>${escapeHtml(String(o))}</option>`)).join('');
+            return `<div>${label}<select data-cf="${key}"${reqAttr}>${optionHtml}</select></div>`;
+        }
+        if (f.field_type === 'checkbox') {
+            return `<div style="display:flex;align-items:center;gap:10px;"><input type="checkbox" data-cf="${key}" data-cf-checkbox="1"${reqAttr} style="width:auto;margin:0;">${label}</div>`;
+        }
+        if (f.field_type === 'textarea') {
+            return `<div>${label}<textarea data-cf="${key}"${reqAttr} rows="3"></textarea></div>`;
+        }
+        return `<div>${label}<input type="text" data-cf="${key}"${reqAttr}></div>`;
+    });
+    return rows.join('\n');
+}
+
+// Validate + normalize submitted custom answers against the active field config (defense-in-depth:
+// required fields can't be bypassed, only known keys are stored). Returns { ok, answers, error }.
+function collectCustomAnswers(eventType, linkToken, raw) {
+    const fields = loadCustomFields(eventType, linkToken);
+    const answers = {};
+    const src = (raw && typeof raw === 'object') ? raw : {};
+    for (const f of fields) {
+        let v = src[f.field_key];
+        if (f.field_type === 'checkbox') {
+            v = (v === true || v === 'true' || v === 'on' || v === 1 || v === '1') ? 'Yes' : 'No';
+        } else {
+            v = (v == null) ? '' : String(v).slice(0, 2000).trim();
+        }
+        if (f.required && (f.field_type === 'checkbox' ? v !== 'Yes' : !v)) {
+            return { ok: false, error: `Please answer: ${f.label}` };
+        }
+        if (v) answers[f.field_key] = { label: f.label, value: v };
+    }
+    return { ok: true, answers };
+}
+
+// One-line human-readable summary of custom answers (for Sheets + scanner display).
+function customAnswersSummary(answers) {
+    if (!answers || typeof answers !== 'object') return '';
+    return Object.values(answers).map(a => `${a.label}: ${a.value}`).join(' | ');
+}
+
 let _syncTimer = null;
 function saveDb() {
     // libsql auto-persists to local disk — schedule debounced Turso cloud sync
     if (process.env.TURSO_DATABASE_URL) {
         if (_syncTimer) clearTimeout(_syncTimer);
         _syncTimer = setTimeout(() => { db.sync(); }, 2000);
+    }
+}
+
+// Immediately push local writes to Turso cloud (not debounced). Used on the critical
+// registration + payment paths so a redeploy within the 2-second debounce window can't drop a
+// confirmed/paid registration. Best-effort; never throws into the request path.
+function flushDb() {
+    if (!process.env.TURSO_DATABASE_URL) return;
+    try {
+        if (_syncTimer) { clearTimeout(_syncTimer); _syncTimer = null; }
+        db.sync();
+    } catch(e) {
+        // A failed immediate flush must not lose the write: re-arm the debounced sync so it
+        // retries (the 60s periodic sync also pushes). Never throw into the request path.
+        console.warn('[Turso] immediate flush failed — re-arming debounced retry:', e.message);
+        try { saveDb(); } catch(e2) {}
     }
 }
 
@@ -4736,6 +4876,39 @@ async function initializeApp() {
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN checked_in_at TEXT'); } catch(e) {}
     // Track which shareable invite link the registrant came in through (NULL for direct/admin-curated)
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN invite_link_id TEXT'); } catch(e) {}
+
+    // ===== Custom questions + denormalized "what they applied for" (shared with admin portal via Turso) =====
+    // Admin-defined extra registration questions. scope='event' applies to every link of an
+    // event_type; scope='link' applies only to a specific link token. Both are rendered on the
+    // public form and validated server-side on submit.
+    try { db.run(`CREATE TABLE IF NOT EXISTS event_custom_fields (
+        id TEXT PRIMARY KEY,
+        scope TEXT NOT NULL DEFAULT 'event',
+        event_type TEXT,
+        link_token TEXT,
+        field_key TEXT NOT NULL,
+        label TEXT NOT NULL,
+        field_type TEXT NOT NULL DEFAULT 'text',
+        options_json TEXT,
+        required INTEGER DEFAULT 0,
+        sort_order INTEGER DEFAULT 0,
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_custom_fields_event ON event_custom_fields(event_type, scope, is_active)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_custom_fields_link ON event_custom_fields(link_token)'); } catch(e) {}
+    // Event-scoped coupons: promo_codes historically scoped by conference_id; add event_type so a
+    // single admin coupon UI can target any event and checkout can look it up by event_type.
+    try { db.run('ALTER TABLE promo_codes ADD COLUMN event_type TEXT'); } catch(e) {}
+    // Denormalize onto every registration table so the scanner + Sheets can read, from the
+    // registration row alone, exactly what a person applied for (components/items), their answers,
+    // and which link they came through — without a reverse lookup that breaks if the link is deleted.
+    for (const t of ['registrations','gala_registrations','forum_event_registrations','bridges_registrations','croatians_abroad_registrations']) {
+        try { db.run(`ALTER TABLE ${t} ADD COLUMN custom_answers TEXT`); } catch(e) {}
+        try { db.run(`ALTER TABLE ${t} ADD COLUMN applied_for TEXT`); } catch(e) {}
+        try { db.run(`ALTER TABLE ${t} ADD COLUMN reg_link_token TEXT`); } catch(e) {}
+    }
+
     // Abstract detail columns from admin portal
     try { db.run('ALTER TABLE abstracts ADD COLUMN submitter_name TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE abstracts ADD COLUMN submitter_email TEXT'); } catch(e) {}
@@ -11604,6 +11777,8 @@ By applying to this program, I provide the following consents:
                                     event_type: 'croatians-abroad',
                                     items: events.join(' + '),
                                     dietary: metadata.dietary || '',
+                                    custom_summary: metadata.custom_summary || '',
+                                    applied_for: events.join(' + '),
                                     amount, payment: 'Paid (Gala bundle)',
                                     registration_id: caRegId,
                                     invoice: invoiceNumber
@@ -11661,7 +11836,13 @@ By applying to this program, I provide the following consents:
                     if (metadata.reg_link_id && !alreadyPaid && invEventType !== 'gala') {
                         try { db.run('UPDATE registration_links SET uses = uses + 1 WHERE id = ?', [metadata.reg_link_id]); } catch(e) {}
                     }
+                    // Burn the coupon use now that payment succeeded (deferred from checkout so
+                    // abandoned carts don't consume a use). Guarded so a duplicate webhook can't double-count.
+                    if (metadata.promo_id && !alreadyPaid) {
+                        try { db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ? AND (max_uses IS NULL OR used_count < max_uses)', [metadata.promo_id]); } catch(e) {}
+                    }
                     saveDb();
+                    flushDb(); // durability: paid registration is final — push to Turso immediately
 
                     // Create FIRA fiscal invoice
                     if (firaService.isConfigured() && amount > 0) {
@@ -11699,7 +11880,7 @@ By applying to this program, I provide the following consents:
                     // Generate QR and send confirmation email NOW (payment is done)
                     const user = query.get('SELECT id FROM users WHERE email = ?', [invEmail]);
                     const itemsList = metadata.items ? metadata.items.split(', ').filter(Boolean) : [];
-                    const qrData = JSON.stringify({ type: 'MEDX_MEMBER', userId: user?.id || invRegId, email: invEmail, name: (metadata.first_name || '') + ' ' + (metadata.last_name || ''), regId: invRegId, evt: metadata.type.replace('invite-', ''), evtName: metadata.event_name || 'Med&X Event', items: itemsList, guests: parseInt(metadata.guest_count || '0'), diet: metadata.dietary || '', allrg: metadata.allergies || '', amt: session.amount_total ? session.amount_total / 100 : 0 });
+                    const qrData = JSON.stringify({ type: 'MEDX_MEMBER', userId: user?.id || invRegId, email: invEmail, name: (metadata.first_name || '') + ' ' + (metadata.last_name || ''), regId: invRegId, evt: metadata.type.replace('invite-', ''), evtName: metadata.event_name || 'Med&X Event', items: itemsList, guests: parseInt(metadata.guest_count || '0'), diet: metadata.dietary || '', allrg: metadata.allergies || '', amt: session.amount_total ? session.amount_total / 100 : 0, custom: metadata.custom_summary || '' });
                     const invQrAtts = await qrPngAttachment(JSON.parse(qrData));
 
                     const guestCnt = parseInt(metadata.guest_count || '0');
@@ -11709,8 +11890,9 @@ By applying to this program, I provide the following consents:
                         </div>
                         <p style="margin-top:20px;">Dear <strong>${metadata.first_name || 'Guest'}</strong>,</p>
                         <p>Your payment of <strong>&euro;${amount.toFixed(2)}</strong> for <strong style="color:#C9A962;">${metadata.event_name || 'Med&X Event'}</strong> has been received.</p>
-                        ${itemsList.length ? '<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;"><tr><td style="background:#f8fafc;padding:10px 16px;font-size:13px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Registered For</td></tr>' + itemsList.map(i => '<tr><td style="padding:10px 16px;font-size:14px;color:#334155;border-bottom:1px solid #f1f5f9;">&#10003; ' + i + '</td></tr>').join('') + '</table>' : ''}
+                        ${itemsList.length ? '<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;"><tr><td style="background:#f8fafc;padding:10px 16px;font-size:13px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Registered For</td></tr>' + itemsList.map(i => '<tr><td style="padding:10px 16px;font-size:14px;color:#334155;border-bottom:1px solid #f1f5f9;">&#10003; ' + escapeHtml(String(i)) + '</td></tr>').join('') + '</table>' : ''}
                         ${guestCnt ? '<p>&#128101; <strong>+' + guestCnt + ' Guest' + (guestCnt > 1 ? 's' : '') + '</strong> included in your registration. Your guest(s) can use the same QR code for check-in.</p>' : ''}
+                        ${metadata.custom_summary ? '<p style="font-size:13px;color:#334155;">' + escapeHtml(metadata.custom_summary) + '</p>' : ''}
                         ${buildTicketQrBlock(invRegId)}
                         <p>We look forward to seeing you!</p>
                         <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;border-top:1px solid #e2e8f0;padding-top:16px;">
@@ -11745,11 +11927,11 @@ By applying to this program, I provide the following consents:
                     try {
                         const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
                         if (sheetsWebhook) {
-                            const events = invEventType === 'gala' ? ['gala'] : invEventType === 'plexus' ? ['conference'] : [];
+                            const events = invEventType === 'gala' ? ['gala'] : invEventType === 'plexus' ? ['conference'] : invEventType === 'forum' ? ['forum'] : invEventType === 'bridges' ? ['bridges'] : [invEventType];
                             fetch(sheetsWebhook, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ timestamp: new Date().toISOString(), events, name: (metadata.first_name || '') + ' ' + (metadata.last_name || ''), email: invEmail, institution: '', event: metadata.event_name || invEventType, event_type: invEventType, items: metadata.items || '', guests: metadata.guest_count || 0, dietary: metadata.dietary || '', allergies: metadata.allergies || '', amount, payment: 'Paid', coupon: metadata.coupon_code || '', discount: metadata.discount_amount || '0', registration_id: invRegId })
+                                body: JSON.stringify({ timestamp: new Date().toISOString(), events, name: (metadata.first_name || '') + ' ' + (metadata.last_name || ''), email: invEmail, institution: '', event: metadata.event_name || invEventType, event_type: invEventType, items: metadata.items || '', applied_for: metadata.items || metadata.event_name || invEventType, guests: metadata.guest_count || 0, dietary: metadata.dietary || '', allergies: metadata.allergies || '', custom_summary: metadata.custom_summary || '', amount, payment: 'Paid', coupon: metadata.coupon_code || '', discount: metadata.discount_amount || '0', registration_id: invRegId })
                             }).catch(err => console.warn('[Sync] external POST (Sheets/admin) failed:', err.message));
                         }
                     } catch(e) {}
@@ -17890,12 +18072,8 @@ By applying to this program, I provide the following consents:
         try {
             const { code, event_type } = req.body;
             if (!code) return res.json({ valid: false, error: 'No code provided' });
-            const confId = event_type === 'forum' ? 'forum-gala' : event_type === 'gala' ? 'gala' : null;
-            if (!confId) return res.json({ valid: false, error: 'No coupons for this event type' });
-            const promo = query.get("SELECT * FROM promo_codes WHERE UPPER(code) = UPPER(?) AND conference_id = ? AND is_active = 1", [code.trim(), confId]);
-            if (!promo) return res.json({ valid: false, error: 'Invalid code' });
-            if (promo.valid_until && new Date(promo.valid_until) < new Date()) return res.json({ valid: false, error: 'Code expired' });
-            if (promo.max_uses > 0 && promo.used_count >= promo.max_uses) return res.json({ valid: false, error: 'Code limit reached' });
+            const promo = lookupPromo(event_type, code);
+            if (!promo) return res.json({ valid: false, error: 'Invalid or expired code' });
             res.json({ valid: true, discount_type: promo.discount_type, discount_value: promo.discount_value });
         } catch(e) { res.json({ valid: false, error: 'Validation error' }); }
     });
@@ -17914,6 +18092,12 @@ By applying to this program, I provide the following consents:
             if (!wantConf && !wantBridges && !wantGala) {
                 return res.status(400).json({ error: 'Please select at least one event' });
             }
+
+            // Validate + collect admin-defined custom questions for this event (event-scoped).
+            const caCf = collectCustomAnswers('croatians-abroad', null, req.body.custom_answers);
+            if (!caCf.ok) return res.status(400).json({ error: caCf.error });
+            const caCustomAnswersJson = Object.keys(caCf.answers).length ? JSON.stringify(caCf.answers) : null;
+            const caAppliedFor = [wantConf ? 'Conference' : null, wantBridges ? 'Bridges' : null, wantGala ? 'Gala' : null].filter(Boolean).join(', ');
 
             // Validate invite link (if provided)
             let caInvite = null;
@@ -17960,6 +18144,19 @@ By applying to this program, I provide the following consents:
                  galaRegistrationId]
             );
             saveDb();
+
+            // Denormalize answers + what they applied for onto the CA row (and the linked gala row)
+            // so the scanner + Sheets read it directly without a reverse lookup.
+            try {
+                db.run('UPDATE croatians_abroad_registrations SET custom_answers = ?, applied_for = ?, reg_link_token = ? WHERE id = ?',
+                    [caCustomAnswersJson, caAppliedFor, invite_link_id || null, regId]);
+                if (galaRegistrationId) {
+                    db.run('UPDATE gala_registrations SET custom_answers = ?, applied_for = ? WHERE id = ?',
+                        [caCustomAnswersJson, caAppliedFor, galaRegistrationId]);
+                }
+            } catch(e) { console.warn('[CA register] denormalize failed:', e.message); }
+            saveDb();
+            flushDb(); // durability: the CA registration row is final now — push to Turso immediately
 
             // Helper: build the event-list HTML used in confirmation emails (with per-event color accents)
             const eventListHtml = [
@@ -18034,6 +18231,9 @@ By applying to this program, I provide the following consents:
                                 event_type: 'croatians-abroad',
                                 items: events.join(' + '),
                                 dietary: dietary || '', notes: notes || '',
+                                applied_for: caAppliedFor,
+                                custom_summary: customAnswersSummary(caCf.answers),
+                                custom_answers: caCf.answers,
                                 amount: 0, payment: 'Free (Pre-Registered)',
                                 invite_label: caInvite?.label || '',
                                 registration_id: regId
@@ -18082,7 +18282,8 @@ By applying to this program, I provide the following consents:
                     dietary: dietary || '',
                     notes: (notes || '').substring(0, 200),
                     bundle_conference: finalConf ? '1' : '0',
-                    bundle_bridges: finalBridges ? '1' : '0'
+                    bundle_bridges: finalBridges ? '1' : '0',
+                    custom_summary: customAnswersSummary(caCf.answers).slice(0, 480)
                 },
                 customer_email: email,
                 success_url: `${baseUrl}/invite-success?session_id={CHECKOUT_SESSION_ID}`,
@@ -18091,6 +18292,7 @@ By applying to this program, I provide the following consents:
             db.run('UPDATE croatians_abroad_registrations SET stripe_session_id = ? WHERE id = ?', [session.id, regId]);
             db.run('UPDATE gala_registrations SET stripe_session_id = ? WHERE id = ?', [session.id, galaRegistrationId]);
             saveDb();
+            flushDb(); // durability: pending CA gala registration must survive a redeploy
             // used_count for Gala path increments only on successful payment (in webhook below)
             return res.json({ success: true, id: regId, checkout_url: session.url });
 
@@ -18127,6 +18329,16 @@ By applying to this program, I provide the following consents:
                     trackedRegLinkId = regLinkRow.id;
                 }
             }
+
+            // Validate + normalize admin-defined custom questions (event- and link-scoped) BEFORE
+            // any insert or Stripe session, so a missing required answer is rejected cleanly.
+            const cfResult = collectCustomAnswers(event_type, req.body.link_token, req.body.custom_answers);
+            if (!cfResult.ok) return res.status(400).json({ error: cfResult.error });
+            const customAnswers = cfResult.answers;
+            const customAnswersJson = Object.keys(customAnswers).length ? JSON.stringify(customAnswers) : null;
+            // Human-readable summary of what this person applied for (components/items they saw),
+            // denormalized onto the registration row for the scanner + Sheets.
+            const appliedFor = (Array.isArray(package_items) && package_items.length) ? package_items.join(', ') : (event_name || event_type);
 
             // NOTE: Admin portal sync moved to AFTER payment (in Stripe webhook handler).
             // For free events (no checkout), we forward to admin immediately below.
@@ -18262,11 +18474,21 @@ By applying to this program, I provide the following consents:
             // so abandoned checkouts and failed Stripe sessions do not burn a use. This matches
             // the gala invite-link semantics.
 
+            // Denormalize what they applied for + their answers + the link token onto the row, so
+            // the scanner/Sheets can read it directly without a (deletable) reverse link lookup.
+            try {
+                const denormTable = { plexus: 'registrations', gala: 'gala_registrations', forum: 'forum_event_registrations', bridges: 'bridges_registrations', 'croatians-abroad': 'croatians_abroad_registrations' }[event_type];
+                if (denormTable) {
+                    db.run(`UPDATE ${denormTable} SET custom_answers = ?, applied_for = ?, reg_link_token = ? WHERE id = ?`,
+                        [customAnswersJson, appliedFor, req.body.link_token || null, regId]);
+                }
+            } catch(e) { console.warn('[register-invite] denormalize failed:', e.message); }
+
             saveDb();
 
             // Helper: generate QR + send confirmation email (called after payment or immediately for free events)
             async function sendRegistrationConfirmation() {
-                const regQrAtts = await qrPngAttachment({ type: 'MEDX_MEMBER', userId: user.id, email, name: first_name + ' ' + last_name, regId, evt: event_type, evtName: event_name || 'Med&X Event', items: package_items || [], guests: guest_count || 0, diet: dietary || '', allrg: allergies || '', amt: total_amount || 0 });
+                const regQrAtts = await qrPngAttachment({ type: 'MEDX_MEMBER', userId: user.id, email, name: first_name + ' ' + last_name, regId, evt: event_type, evtName: event_name || 'Med&X Event', items: package_items || [], guests: guest_count || 0, diet: dietary || '', allrg: allergies || '', amt: total_amount || 0, custom: customAnswersSummary(customAnswers) });
 
                 const regEmailBody = `
                     <div style="text-align:center;margin-bottom:8px;">
@@ -18277,11 +18499,12 @@ By applying to this program, I provide the following consents:
                     ${package_items && package_items.length ? `
                     <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
                         <tr><td style="background:#f8fafc;padding:10px 16px;font-size:13px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Registered For</td></tr>
-                        ${package_items.map(item => '<tr><td style="padding:10px 16px;font-size:14px;color:#334155;border-bottom:1px solid #f1f5f9;">&#10003; ' + item + '</td></tr>').join('')}
+                        ${package_items.map(item => '<tr><td style="padding:10px 16px;font-size:14px;color:#334155;border-bottom:1px solid #f1f5f9;">&#10003; ' + escapeHtml(String(item)) + '</td></tr>').join('')}
                     </table>` : ''}
                     ${guest_count ? '<p>&#128101; <strong>+' + guest_count + ' Guest' + (guest_count > 1 ? 's' : '') + '</strong> included in your registration. Your guest(s) can use the same QR code for check-in.</p>' : ''}
-                    ${dietary && dietary !== 'No special requirements' ? '<p><strong>Dietary:</strong> ' + dietary + '</p>' : ''}
-                    ${allergies && allergies !== 'None' ? '<p><strong>Allergies:</strong> ' + allergies + '</p>' : ''}
+                    ${dietary && dietary !== 'No special requirements' ? '<p><strong>Dietary:</strong> ' + escapeHtml(String(dietary)) + '</p>' : ''}
+                    ${allergies && allergies !== 'None' ? '<p><strong>Allergies:</strong> ' + escapeHtml(String(allergies)) + '</p>' : ''}
+                    ${Object.keys(customAnswers).length ? Object.values(customAnswers).map(a => '<p><strong>' + escapeHtml(a.label) + ':</strong> ' + escapeHtml(a.value) + '</p>').join('') : ''}
                     ${buildTicketQrBlock(regId)}
                     <p>We look forward to seeing you!</p>
                     <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;border-top:1px solid #e2e8f0;padding-top:16px;">
@@ -18304,7 +18527,7 @@ By applying to this program, I provide the following consents:
                 // If this is an admin-generated gala invite link, honor link-level price override (VIP → 0, custom → custom)
                 const galaInviteRowForPrice = req.body.event_id ? query.get('SELECT * FROM gala_invite_links WHERE id = ?', [req.body.event_id]) : null;
                 if (galaInviteRowForPrice && galaInviteRowForPrice.price_override != null) {
-                    basePrice = Number(galaInviteRowForPrice.price_override);
+                    basePrice = Math.max(0, Number(galaInviteRowForPrice.price_override) || 0);
                 } else if (galaInviteRowForPrice && galaInviteRowForPrice.link_type === 'vip') {
                     basePrice = 0;
                 } else {
@@ -18349,18 +18572,17 @@ By applying to this program, I provide the following consents:
             let discountAmount = 0;
             let appliedCoupon = '';
 
-            // Validate and apply coupon code server-side
+            // Validate and apply coupon code server-side (ALL event types via event_type-aware
+            // lookup). used_count is incremented on COMPLETION (free path below / Stripe webhook for
+            // paid), never here, so abandoned checkouts don't burn a use.
+            let appliedPromoId = '';
             if (coupon_code) {
-                const confId = event_type === 'forum' ? 'forum-gala' : event_type === 'gala' ? 'gala' : null;
-                if (confId) {
-                    const promo = query.get("SELECT * FROM promo_codes WHERE UPPER(code) = UPPER(?) AND conference_id = ? AND is_active = 1", [coupon_code.trim(), confId]);
-                    if (promo && (!promo.valid_until || new Date(promo.valid_until) >= new Date()) && (!promo.max_uses || promo.used_count < promo.max_uses)) {
-                        discountAmount = promo.discount_type === 'fixed' ? promo.discount_value : Math.round(price * promo.discount_value / 100 * 100) / 100;
-                        price = Math.max(0, price - discountAmount);
-                        appliedCoupon = promo.code;
-                        db.run("UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ?", [promo.id]);
-                        saveDb();
-                    }
+                const promo = lookupPromo(event_type, coupon_code);
+                if (promo) {
+                    discountAmount = promoDiscount(promo, price);
+                    price = Math.max(0, price - discountAmount);
+                    appliedCoupon = promo.code;
+                    appliedPromoId = promo.id;
                 }
             }
 
@@ -18379,7 +18601,7 @@ By applying to this program, I provide the following consents:
                         mode: 'payment',
                         payment_method_types: ['card'],
                         line_items: [{ price_data: { currency: 'eur', product_data: { name: event_name || 'Med&X Event Registration' }, unit_amount: Math.round(price * 100) }, quantity: 1 }],
-                        metadata: { registration_id: regId, type: 'invite-' + event_type, email, first_name, last_name: last_name || '', event_name: event_name || 'Med&X Event', items: (package_items || []).join(', '), guest_count: String(safeGuests), dietary: dietary || '', allergies: allergies || '', coupon_code: appliedCoupon, discount_amount: String(discountAmount), reg_link_id: trackedRegLinkId || '' },
+                        metadata: { registration_id: regId, type: 'invite-' + event_type, email, first_name, last_name: last_name || '', event_name: event_name || 'Med&X Event', items: (package_items || []).join(', '), guest_count: String(safeGuests), dietary: dietary || '', allergies: allergies || '', coupon_code: appliedCoupon, discount_amount: String(discountAmount), reg_link_id: trackedRegLinkId || '', promo_id: appliedPromoId || '', custom_summary: customAnswersSummary(customAnswers).slice(0, 480) },
                         customer_email: email,
                         success_url: `${baseUrl}/invite-success?session_id={CHECKOUT_SESSION_ID}`,
                         cancel_url: `${baseUrl}/invite-cancelled`
@@ -18390,6 +18612,7 @@ By applying to this program, I provide the following consents:
                         db.run('UPDATE registrations SET amount_paid = ?, payment_status = ? WHERE id = ?', [price, 'pending', regId]);
                     }
                     saveDb();
+                    flushDb(); // durability: the pending registration must survive a redeploy
                 } catch(stripeErr) {
                     console.error('[Stripe] Checkout creation failed:', stripeErr.message);
                     // Do NOT fall through to the free-confirmation path — that would hand out a
@@ -18405,6 +18628,11 @@ By applying to this program, I provide the following consents:
                 if (trackedRegLinkId) {
                     try { db.run('UPDATE registration_links SET uses = uses + 1 WHERE id = ?', [trackedRegLinkId]); saveDb(); } catch(e) {}
                 }
+                // Free registration is final now → burn the coupon use (no Stripe webhook will fire).
+                if (appliedPromoId) {
+                    try { db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ?', [appliedPromoId]); saveDb(); } catch(e) {}
+                }
+                flushDb(); // durability: push this confirmed free registration to Turso immediately
                 await sendRegistrationConfirmation();
 
                 // Log free-event registrations to Google Sheets (VIP gala lands here) — events array drives tab routing
@@ -18414,7 +18642,7 @@ By applying to this program, I provide the following consents:
                         const galaInviteRowSheet = (event_type === 'gala' && req.body.event_id)
                             ? query.get('SELECT label, link_type FROM gala_invite_links WHERE id = ?', [req.body.event_id])
                             : null;
-                        const events = event_type === 'gala' ? ['gala'] : event_type === 'plexus' ? ['conference'] : [];
+                        const events = event_type === 'gala' ? ['gala'] : event_type === 'plexus' ? ['conference'] : event_type === 'forum' ? ['forum'] : event_type === 'bridges' ? ['bridges'] : [event_type];
                         fetch(sheetsWebhook, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -18434,6 +18662,9 @@ By applying to this program, I provide the following consents:
                                 amount: 0,
                                 payment: event_type === 'gala' && galaInviteRowSheet?.link_type === 'vip' ? 'VIP (Free)' : 'Free',
                                 invite_label: galaInviteRowSheet?.label || '',
+                                applied_for: appliedFor,
+                                custom_summary: customAnswersSummary(customAnswers),
+                                custom_answers: customAnswers,
                                 registration_id: regId
                             })
                         }).catch(err => console.warn('[Sync] external POST (Sheets/admin) failed:', err.message));
@@ -18456,19 +18687,9 @@ By applying to this program, I provide the following consents:
                 fs.appendFileSync(csvPath, csvLine + '\n');
             } catch(e) { console.log('[Failsafe] CSV log failed:', e.message); }
 
-            // FAILSAFE 2: Google Sheets webhook (only for FREE events — paid events get logged after Stripe payment confirms)
-            if (!checkoutUrl) {
-                try {
-                    const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
-                    if (sheetsWebhook) {
-                        fetch(sheetsWebhook, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ timestamp: new Date().toISOString(), name: first_name + ' ' + last_name, email, institution: institution || '', event: event_name || event_type, items: (package_items || []).join(', '), guests: guest_count || 0, dietary: dietary || '', allergies: allergies || '', amount: 0, payment: 'Free', registration_id: regId })
-                        }).catch(err => console.warn('[Sync] external POST (Sheets/admin) failed:', err.message));
-                    }
-                } catch(e) {}
-            }
+            // (Google Sheets logging for free events happens once, above, with the events[] tab
+            // routing + custom answers. The earlier duplicate POST here was removed — it lacked tab
+            // routing and created a second, mis-routed row for every free registration.)
 
             // FAILSAFE 3: Email to Laura (only for free events — paid events get notified after Stripe webhook)
             if (!checkoutUrl) {

@@ -20396,13 +20396,71 @@ President, Med&amp;X</textarea>
                                     </div>
                                     <div id="genLinkExisting" style="font-size:13px;color:var(--text-muted);">Loading…</div>
                                 </div>
+
+                                <!-- Custom registration questions -->
+                                <div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--border-color);">
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                                        <span style="font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--text-secondary);text-transform:uppercase;"><i class="fas fa-circle-question" style="margin-right:5px;"></i>Custom Questions</span>
+                                        <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="App.loadCustomQuestions('${eventType}')"><i class="fas fa-sync"></i> Refresh</button>
+                                    </div>
+                                    <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px;">Extra questions shown on this event's form, on top of the built-in dietary &amp; allergies.</p>
+                                    <div id="cqList" style="font-size:13px;color:var(--text-muted);margin-bottom:10px;">Loading…</div>
+                                    <div style="display:grid;gap:8px;padding:10px;border:1px dashed var(--border-color);border-radius:8px;">
+                                        <input type="text" id="cqLabel" placeholder="Question (e.g. T-shirt size)" style="${inStyle}">
+                                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                                            <select id="cqType" onchange="App.onCqTypeChange()" style="${inStyle}">
+                                                <option value="text">Short text</option>
+                                                <option value="textarea">Long text</option>
+                                                <option value="select">Dropdown</option>
+                                                <option value="checkbox">Checkbox (yes/no)</option>
+                                            </select>
+                                            <select id="cqScope" style="${inStyle}">
+                                                <option value="event">All links for this event</option>
+                                            </select>
+                                        </div>
+                                        <input type="text" id="cqOptions" placeholder="Dropdown options, comma-separated" style="display:none;${inStyle}">
+                                        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary);"><input type="checkbox" id="cqRequired" style="width:auto;margin:0;"> Required</label>
+                                        <button class="btn btn-primary" style="font-size:13px;padding:8px;" onclick="App.addCustomQuestion('${eventType}')"><i class="fas fa-plus"></i> Add question</button>
+                                    </div>
+                                </div>
+
+                                <!-- Coupons -->
+                                <div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--border-color);">
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                                        <span style="font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--text-secondary);text-transform:uppercase;"><i class="fas fa-tag" style="margin-right:5px;"></i>Coupons</span>
+                                        <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="App.loadCoupons('${eventType}')"><i class="fas fa-sync"></i> Refresh</button>
+                                    </div>
+                                    <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px;">Discount codes registrants enter at checkout for this event.</p>
+                                    <div id="cpList" style="font-size:13px;color:var(--text-muted);margin-bottom:10px;">Loading…</div>
+                                    <div style="display:grid;gap:8px;padding:10px;border:1px dashed var(--border-color);border-radius:8px;">
+                                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                                            <input type="text" id="cpCode" placeholder="CODE" style="text-transform:uppercase;${inStyle}">
+                                            <select id="cpType" style="${inStyle}">
+                                                <option value="fixed">€ off</option>
+                                                <option value="percentage">% off</option>
+                                            </select>
+                                        </div>
+                                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                                            <input type="number" id="cpValue" min="0" step="0.01" placeholder="Discount amount" style="${inStyle}">
+                                            <input type="number" id="cpMax" min="0" placeholder="Max uses (0 = ∞)" style="${inStyle}">
+                                        </div>
+                                        <div>
+                                            <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:4px;">Valid until (optional)</label>
+                                            <input type="date" id="cpExpiry" style="${inStyle}">
+                                        </div>
+                                        <button class="btn btn-primary" style="font-size:13px;padding:8px;" onclick="App.addCoupon('${eventType}')"><i class="fas fa-plus"></i> Add coupon</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 `;
                 document.body.appendChild(modal);
+                this._genLinkToken = null;
                 this.renderLinkPreview();
                 this.loadExistingLinks(eventType);
+                this.loadCustomQuestions(eventType);
+                this.loadCoupons(eventType);
             },
 
             // Link-type toggle: hide the price override + parts/price when the link is Free/VIP.
@@ -20460,6 +20518,113 @@ President, Med&amp;X</textarea>
                     Toast.success('Link deactivated');
                     this.loadExistingLinks(eventType);
                 } catch(e) { Toast.error('Could not deactivate'); }
+            },
+
+            // ===== Custom questions (Live Editor) =====
+            onCqTypeChange() {
+                const t = (document.getElementById('cqType') || {}).value;
+                const o = document.getElementById('cqOptions');
+                if (o) o.style.display = (t === 'select') ? 'block' : 'none';
+            },
+            // Decode the invite token from a generated /invite/<payload> URL (base64url JSON).
+            tokenFromInviteUrl(url) {
+                try {
+                    let b64 = (String(url).split('/invite/')[1] || '').split(/[?#]/)[0];
+                    b64 = b64.replace(/-/g, '+').replace(/_/g, '/');
+                    while (b64.length % 4) b64 += '=';
+                    return (JSON.parse(decodeURIComponent(escape(atob(b64)))).t) || '';
+                } catch(e) { return ''; }
+            },
+            async loadCustomQuestions(eventType) {
+                const box = document.getElementById('cqList');
+                if (!box) return;
+                box.innerHTML = 'Loading…';
+                try {
+                    const rows = await this.api(`/api/admin/custom-fields?event_type=${encodeURIComponent(eventType)}`) || [];
+                    let linkRows = [];
+                    if (this._genLinkToken) { try { linkRows = await this.api(`/api/admin/custom-fields?link_token=${encodeURIComponent(this._genLinkToken)}`) || []; } catch(e) {} }
+                    const all = rows.concat(linkRows);
+                    if (!all.length) { box.innerHTML = '<span style="color:var(--text-muted);">No custom questions yet.</span>'; return; }
+                    box.innerHTML = all.map(f => `
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border:1px solid var(--border-color);border-radius:8px;margin-bottom:6px;${f.is_active ? '' : 'opacity:0.5;'}">
+                            <div style="min-width:0;">
+                                <div style="font-size:13px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(f.label)}${f.required ? ' <span style="color:#ef4444;">*</span>' : ''}</div>
+                                <div style="font-size:11px;color:var(--text-muted);">${escapeHtml(f.field_type)}${f.scope === 'link' ? ' · this link only' : ''}${f.is_active ? '' : ' · hidden'}</div>
+                            </div>
+                            <button class="btn btn-secondary" style="padding:4px 8px;font-size:11px;" title="Delete" onclick="App.deleteCustomQuestion('${f.id}','${eventType}')"><i class="fas fa-trash"></i></button>
+                        </div>`).join('');
+                } catch(e) { box.innerHTML = '<span style="color:#ef4444;">Could not load questions.</span>'; }
+            },
+            async addCustomQuestion(eventType) {
+                const label = (document.getElementById('cqLabel') || {}).value;
+                if (!label || !label.trim()) { Toast.error('Enter a question'); return; }
+                const field_type = (document.getElementById('cqType') || {}).value;
+                const scope = (document.getElementById('cqScope') || {}).value || 'event';
+                const required = (document.getElementById('cqRequired') || {}).checked;
+                const options = (document.getElementById('cqOptions') || {}).value;
+                if (field_type === 'select' && !String(options || '').trim()) { Toast.error('Add at least one dropdown option'); return; }
+                const body = { scope, event_type: eventType, label, field_type, required, options };
+                if (scope === 'link') {
+                    if (!this._genLinkToken) { Toast.error('Generate the link first to attach link-only questions'); return; }
+                    body.link_token = this._genLinkToken;
+                }
+                try {
+                    await this.api('/api/admin/custom-fields', { method: 'POST', body: JSON.stringify(body) });
+                    Toast.success('Question added');
+                    document.getElementById('cqLabel').value = '';
+                    if (document.getElementById('cqOptions')) document.getElementById('cqOptions').value = '';
+                    if (document.getElementById('cqRequired')) document.getElementById('cqRequired').checked = false;
+                    this.loadCustomQuestions(eventType);
+                } catch(e) { Toast.error('Could not add: ' + e.message); }
+            },
+            async deleteCustomQuestion(id, eventType) {
+                if (!confirm('Delete this question? Answers already collected stay on past registrations.')) return;
+                try { await this.api(`/api/admin/custom-fields/${id}`, { method: 'DELETE' }); Toast.success('Deleted'); this.loadCustomQuestions(eventType); }
+                catch(e) { Toast.error('Could not delete'); }
+            },
+
+            // ===== Coupons (Live Editor) =====
+            async loadCoupons(eventType) {
+                const box = document.getElementById('cpList');
+                if (!box) return;
+                box.innerHTML = 'Loading…';
+                try {
+                    const rows = await this.api(`/api/admin/coupons?event_type=${encodeURIComponent(eventType)}`) || [];
+                    if (!rows.length) { box.innerHTML = '<span style="color:var(--text-muted);">No coupons yet.</span>'; return; }
+                    box.innerHTML = rows.map(c => {
+                        const disc = c.discount_type === 'fixed' ? ('€' + c.discount_value + ' off') : (c.discount_value + '% off');
+                        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border:1px solid var(--border-color);border-radius:8px;margin-bottom:6px;${c.is_active ? '' : 'opacity:0.5;'}">
+                            <div style="min-width:0;">
+                                <div style="font-size:13px;color:var(--text-primary);font-family:monospace;">${escapeHtml(c.code)}</div>
+                                <div style="font-size:11px;color:var(--text-muted);">${disc} · ${c.used_count || 0}${c.max_uses ? '/' + c.max_uses : ''} used${c.is_active ? '' : ' · inactive'}</div>
+                            </div>
+                            ${c.is_active ? `<button class="btn btn-secondary" style="padding:4px 8px;font-size:11px;" title="Deactivate" onclick="App.deleteCoupon('${c.id}','${eventType}')"><i class="fas fa-ban"></i></button>` : ''}
+                        </div>`;
+                    }).join('');
+                } catch(e) { box.innerHTML = '<span style="color:#ef4444;">Could not load coupons.</span>'; }
+            },
+            async addCoupon(eventType) {
+                const code = (document.getElementById('cpCode') || {}).value;
+                if (!code || !code.trim()) { Toast.error('Enter a code'); return; }
+                const discount_type = (document.getElementById('cpType') || {}).value;
+                const discount_value = (document.getElementById('cpValue') || {}).value;
+                const max_uses = (document.getElementById('cpMax') || {}).value;
+                const valid_until = (document.getElementById('cpExpiry') || {}).value;
+                if (!(Number(discount_value) > 0)) { Toast.error('Enter a discount amount'); return; }
+                try {
+                    await this.api('/api/admin/coupons', { method: 'POST', body: JSON.stringify({ event_type: eventType, code, discount_type, discount_value, max_uses, valid_until: valid_until || null }) });
+                    Toast.success('Coupon added');
+                    document.getElementById('cpCode').value = '';
+                    document.getElementById('cpValue').value = '';
+                    if (document.getElementById('cpMax')) document.getElementById('cpMax').value = '';
+                    if (document.getElementById('cpExpiry')) document.getElementById('cpExpiry').value = '';
+                    this.loadCoupons(eventType);
+                } catch(e) { Toast.error('Could not add: ' + e.message); }
+            },
+            async deleteCoupon(id, eventType) {
+                if (!confirm('Deactivate this coupon? It will stop working immediately.')) return;
+                try { await this.api(`/api/admin/coupons/${id}`, { method: 'DELETE' }); Toast.success('Coupon deactivated'); this.loadCoupons(eventType); }
+                catch(e) { Toast.error('Could not deactivate'); }
             },
 
             // Back-compat alias — all live updates flow through renderLinkPreview now.
@@ -20586,6 +20751,13 @@ President, Med&amp;X</textarea>
                         urlInput.value = result.link;
                         Toast.success(linkType === 'vip' ? 'Free/VIP link generated!' : 'Link generated!');
                         this.loadExistingLinks(eventType);
+                        // Enable attaching link-only custom questions to the link just generated.
+                        this._genLinkToken = this.tokenFromInviteUrl(result.link);
+                        const cqScope = document.getElementById('cqScope');
+                        if (cqScope && this._genLinkToken && !cqScope.querySelector('option[value="link"]')) {
+                            const opt = document.createElement('option'); opt.value = 'link'; opt.textContent = 'Only this new link'; cqScope.appendChild(opt);
+                        }
+                        this.loadCustomQuestions(eventType);
                     }
                 } catch(e) {
                     Toast.error('Failed to generate link: ' + e.message);
@@ -30428,6 +30600,8 @@ By applying to this program, I give the following consents:
                             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${escapeHtml(r.email || '')}${r.institution ? ' · ' + escapeHtml(r.institution) : ''}</div>
                             ${r.country || r.role ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${[r.country, r.role].filter(Boolean).map(escapeHtml).join(' · ')}</div>` : ''}
                             ${r.dietary ? `<div style="font-size:12px;color:#c9a962;margin-top:6px;"><i class="fas fa-utensils" style="margin-right:6px;"></i>${escapeHtml(r.dietary)}</div>` : ''}
+                            ${r.applied_for ? `<div style="font-size:12px;color:var(--accent-gold,#c9a962);margin-top:6px;font-weight:600;"><i class="fas fa-ticket" style="margin-right:6px;"></i>Applied for: ${escapeHtml(r.applied_for)}</div>` : ''}
+                            ${Array.isArray(r.answers) && r.answers.length ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px;border-top:1px dashed var(--border-color);padding-top:6px;">${r.answers.map(a => '<div><strong style="color:var(--text-secondary);">' + escapeHtml(a.label) + ':</strong> ' + escapeHtml(a.value) + '</div>').join('')}</div>` : ''}
                             ${already && data.checked_in_at ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px;">First check-in: ${new Date(data.checked_in_at).toLocaleString()}</div>` : ''}
                         </div>
                     `;
