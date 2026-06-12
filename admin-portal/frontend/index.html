@@ -20163,6 +20163,8 @@ President, Med&amp;X</textarea>
 
             // --- DIRECT REGISTRATION LINKS ---
             async generateRegistrationLink(eventType, eventId, eventName) {
+                // Single instance — never let two Live Editors stack (their ids would collide).
+                document.getElementById('linkEditorModal')?.remove();
                 const typeNames = { plexus: 'Plexus Conference 2026', gala: 'Gala Evening 2026', forum: 'Biomedical Forum', bridges: 'Building Bridges' };
                 const name = eventName || typeNames[eventType] || eventType;
 
@@ -20211,75 +20213,151 @@ President, Med&amp;X</textarea>
                         </div></div>`;
                 }
 
+                // Single-price control for events without composable parts (Gala, Bridges).
+                // Editing it updates the live preview instantly and saves to that event's price store.
+                let priceControls = '';
+                const inStyle = 'width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;';
+                if (eventType === 'gala') {
+                    let gp = 0;
+                    try { const gs = await this.api('/api/admin/gala/settings'); gp = Number(gs?.price_gala_only) || 0; } catch(e) {}
+                    priceControls = `<div style="margin-bottom:16px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Gala price (€) <span style="font-weight:400;color:var(--text-muted);">— edits the live Gala price</span></label>
+                        <input type="number" id="genLinkSinglePrice" data-endpoint="gala" value="${gp}" min="0" step="0.01" oninput="App.renderLinkPreview()" onchange="App.saveSinglePrice()" style="${inStyle}"></div>`;
+                } else if (eventType === 'bridges' && eventId) {
+                    let bp = 0;
+                    try { const ev = await this.api(`/api/bridges/events/${eventId}`); bp = Number(ev?.price) || 0; } catch(e) {}
+                    priceControls = `<div style="margin-bottom:16px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Ticket price (€) <span style="font-weight:400;color:var(--text-muted);">— 0 = free; edits this event's price</span></label>
+                        <input type="number" id="genLinkSinglePrice" data-endpoint="bridges" data-event-id="${escapeHtml(eventId)}" value="${bp}" min="0" step="0.01" oninput="App.renderLinkPreview()" onchange="App.saveSinglePrice()" style="${inStyle}"></div>`;
+                }
+
                 const modal = document.createElement('div');
                 modal.className = 'modal-overlay';
+                modal.id = 'linkEditorModal';
                 modal.style.cssText = 'display:flex;align-items:center;justify-content:center;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10001;padding:16px;';
                 modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
                 modal.innerHTML = `
-                    <div class="modal" style="display:block; max-width:460px; width:100%; border-radius:16px;">
-                        <div class="modal-header" style="padding:20px;">
-                            <h3 style="margin:0;"><i class="fas fa-link" style="color:var(--accent-gold);"></i> Generate Registration Link</h3>
+                    <div class="modal" style="display:block; max-width:880px; width:100%; border-radius:16px; overflow:hidden;">
+                        <div class="modal-header" style="padding:18px 20px;border-bottom:1px solid var(--border-color);">
+                            <h3 style="margin:0;"><i class="fas fa-wand-magic-sparkles" style="color:var(--accent-gold);"></i> Live Editor — ${escapeHtml(name)}</h3>
                             <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button>
                         </div>
-                        <div style="padding:20px;">
-                            ${subEventSelect}
-                            ${priceNote}
-                            <div style="margin-bottom:16px;">
-                                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Event Name</label>
-                                <input type="text" id="genLinkName" value="${escapeHtml(name)}" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;max-height:78vh;">
+                            <!-- LEFT: live preview of what the registrant sees -->
+                            <div style="padding:20px;background:var(--bg-primary);border-right:1px solid var(--border-color);overflow-y:auto;">
+                                <div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px;"><i class="fas fa-eye" style="margin-right:5px;"></i>What the registrant sees</div>
+                                <div id="genLinkPreview"></div>
                             </div>
-                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-                                <div>
-                                    <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Expires in (days)</label>
-                                    <input type="number" id="genLinkExpiry" value="30" min="1" max="365" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+                            <!-- RIGHT: editable controls -->
+                            <div style="padding:20px;overflow-y:auto;">
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Event Name</label>
+                                    <input type="text" id="genLinkName" value="${escapeHtml(name)}" oninput="App.renderLinkPreview()" style="${inStyle}">
                                 </div>
-                                <div>
-                                    <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Max uses (0 = ∞)</label>
-                                    <input type="number" id="genLinkMaxUses" value="0" min="0" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+                                ${subEventSelect}
+                                ${priceControls}
+                                ${priceNote}
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                                    <div>
+                                        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Expires in (days)</label>
+                                        <input type="number" id="genLinkExpiry" value="30" min="1" max="365" style="${inStyle}">
+                                    </div>
+                                    <div>
+                                        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Max uses (0 = ∞)</label>
+                                        <input type="number" id="genLinkMaxUses" value="0" min="0" style="${inStyle}">
+                                    </div>
                                 </div>
-                            </div>
-                            <button onclick="App.doGenerateLink('${eventType}','${eventId || ''}')" class="btn btn-primary" style="width:100%;padding:14px;font-size:15px;">
-                                <i class="fas fa-magic"></i> Generate Link
-                            </button>
-                            <div id="genLinkResult" style="margin-top:16px; display:none;">
-                                <label style="display:block;font-size:12px;font-weight:600;color:var(--accent-gold);margin-bottom:6px;">✓ Registration Link Generated</label>
-                                <div style="display:flex;gap:8px;">
-                                    <input type="text" id="genLinkUrl" readonly style="flex:1;padding:10px;border:1px solid var(--accent-gold);border-radius:8px;background:var(--bg-primary);color:var(--accent-gold);font-size:12px;font-family:monospace;min-width:0;">
-                                    <button onclick="navigator.clipboard.writeText(document.getElementById('genLinkUrl').value);Toast.success('Link copied!')" class="btn btn-primary" style="padding:10px 16px;flex-shrink:0;"><i class="fas fa-copy"></i> Copy</button>
+                                <button onclick="App.doGenerateLink('${eventType}','${eventId || ''}')" class="btn btn-primary" style="width:100%;padding:14px;font-size:15px;">
+                                    <i class="fas fa-link"></i> Generate Registration Link
+                                </button>
+                                <div id="genLinkResult" style="margin-top:16px; display:none;">
+                                    <label style="display:block;font-size:12px;font-weight:600;color:var(--accent-gold);margin-bottom:6px;">✓ Registration Link Generated</label>
+                                    <div style="display:flex;gap:8px;">
+                                        <input type="text" id="genLinkUrl" readonly style="flex:1;padding:10px;border:1px solid var(--accent-gold);border-radius:8px;background:var(--bg-primary);color:var(--accent-gold);font-size:12px;font-family:monospace;min-width:0;">
+                                        <button onclick="navigator.clipboard.writeText(document.getElementById('genLinkUrl').value);Toast.success('Link copied!')" class="btn btn-primary" style="padding:10px 16px;flex-shrink:0;"><i class="fas fa-copy"></i> Copy</button>
+                                    </div>
+                                    <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">Share this link via email. Recipients register without a portal account.</p>
                                 </div>
-                                <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">Share this link via email. Recipients register without a portal account.</p>
                             </div>
                         </div>
                     </div>
                 `;
                 document.body.appendChild(modal);
-                this.updateGenLinkTotal();
+                this.renderLinkPreview();
             },
 
-            // Sum the €-prices of the ticked components into the running "Link total".
-            updateGenLinkTotal() {
-                const el = document.getElementById('genLinkTotal');
-                const container = document.getElementById('genLinkItems');
-                if (!el || !container) return;
-                let total = 0;
-                container.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => { total += Number(cb.dataset.price) || 0; });
-                el.textContent = total > 0 ? '€' + (Math.round(total * 100) / 100) : 'Free';
+            // Back-compat alias — all live updates flow through renderLinkPreview now.
+            updateGenLinkTotal() { this.renderLinkPreview(); },
+
+            // Render the left-hand live preview of the registrant's page + the running total.
+            // Reads whatever controls exist (composable components OR a single price) so it works
+            // for every event type.
+            renderLinkPreview() {
+                const nameEl = document.getElementById('genLinkName');
+                const name = (nameEl && nameEl.value.trim()) || 'Med&X Event';
+                let total = 0; const included = [];
+                const items = document.getElementById('genLinkItems');
+                const single = document.getElementById('genLinkSinglePrice');
+                if (items) {
+                    items.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+                        total += Number(cb.dataset.price) || 0;
+                        included.push(cb.dataset.label || cb.value || '');
+                    });
+                } else if (single) {
+                    total = Math.max(0, parseFloat(single.value) || 0);
+                    included.push(name);
+                }
+                total = Math.round(total * 100) / 100;
+                const totalStr = total > 0 ? '€' + total : 'Free';
+                const totalEl = document.getElementById('genLinkTotal');
+                if (totalEl) totalEl.textContent = totalStr;
+                const prev = document.getElementById('genLinkPreview');
+                if (!prev) return;
+                const esc = (typeof escapeHtml === 'function') ? escapeHtml : (s => s);
+                const partsHtml = included.length
+                    ? '<div style="margin:6px 0 18px;">' + included.map(i =>
+                        `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:14px;color:#e2e8f0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="color:#22c55e;font-weight:700;">&#10003;</span> ${esc(i)}</div>`).join('') + '</div>'
+                    : '<div style="font-size:13px;color:#64748b;margin:6px 0 18px;">Tick the parts to include &rarr;</div>';
+                prev.innerHTML = `
+                    <div style="background:#0f172a;border:1px solid rgba(201,169,98,0.25);border-radius:14px;padding:22px;">
+                        <div style="font-size:22px;font-weight:700;color:#fff;line-height:1.2;margin-bottom:4px;">${esc(name)}</div>
+                        <div style="font-size:12px;color:#94a3b8;margin-bottom:18px;">Registration</div>
+                        ${partsHtml}
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:rgba(201,169,98,0.12);border-radius:10px;border:1px solid rgba(201,169,98,0.25);">
+                            <span style="font-size:14px;color:#94a3b8;">Total</span>
+                            <span style="font-size:26px;font-weight:700;color:#c9a962;">${totalStr}</span>
+                        </div>
+                        <div style="margin-top:14px;height:42px;border-radius:10px;background:linear-gradient(135deg,#c9a962,#b49650);display:flex;align-items:center;justify-content:center;color:#0f172a;font-weight:700;font-size:14px;">${total > 0 ? 'Proceed to Payment' : 'Complete Registration'}</div>
+                    </div>`;
             },
 
-            // Persist an edited component price, then refresh the checkbox's price + total.
+            // Persist an edited component price, then refresh the live preview.
             async saveCompPrice(id, value) {
                 const price = Math.max(0, parseFloat(value) || 0);
                 try {
                     await this.api(`/api/admin/event-components/${id}`, { method: 'PUT', body: JSON.stringify({ price }) });
-                    const cb = document.querySelector(`#genLinkItems input[type="checkbox"][data-comp-id], #genLinkItems input[type="number"][data-comp-id="${id}"]`);
                     const numInput = document.querySelector(`#genLinkItems input[type="number"][data-comp-id="${id}"]`);
                     if (numInput) {
                         const row = numInput.closest('label');
                         const box = row && row.querySelector('input[type="checkbox"]');
                         if (box) box.dataset.price = price;
                     }
-                    this.updateGenLinkTotal();
+                    this.renderLinkPreview();
                     Toast.success('Price updated');
+                } catch(e) { Toast.error('Could not save price'); }
+            },
+
+            // Persist the single price for events without composable parts (Gala / Bridges).
+            async saveSinglePrice() {
+                const el = document.getElementById('genLinkSinglePrice');
+                if (!el) return;
+                const price = Math.max(0, parseFloat(el.value) || 0);
+                try {
+                    if (el.dataset.endpoint === 'gala') {
+                        await this.api('/api/admin/gala/settings', { method: 'PUT', body: JSON.stringify({ price_gala_only: price }) });
+                    } else if (el.dataset.endpoint === 'bridges' && el.dataset.eventId) {
+                        await this.api(`/api/bridges/events/${el.dataset.eventId}`, { method: 'PUT', body: JSON.stringify({ price }) });
+                    }
+                    this.renderLinkPreview();
+                    Toast.success('Price saved');
                 } catch(e) { Toast.error('Could not save price'); }
             },
 
