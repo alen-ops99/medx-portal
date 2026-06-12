@@ -20341,14 +20341,14 @@ President, Med&amp;X</textarea>
                             <h3 style="margin:0;"><i class="fas fa-wand-magic-sparkles" style="color:var(--accent-gold);"></i> Live Editor — ${escapeHtml(name)}</h3>
                             <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button>
                         </div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;max-height:78vh;">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;max-height:80vh;">
                             <!-- LEFT: live preview of what the registrant sees -->
-                            <div style="padding:20px;background:var(--bg-primary);border-right:1px solid var(--border-color);overflow-y:auto;">
+                            <div style="padding:20px;background:var(--bg-primary);border-right:1px solid var(--border-color);overflow-y:auto;min-height:0;max-height:80vh;">
                                 <div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px;"><i class="fas fa-eye" style="margin-right:5px;"></i>What the registrant sees</div>
                                 <div id="genLinkPreview"></div>
                             </div>
                             <!-- RIGHT: editable controls -->
-                            <div style="padding:20px;overflow-y:auto;">
+                            <div style="padding:20px;overflow-y:auto;min-height:0;max-height:80vh;-webkit-overflow-scrolling:touch;">
                                 ${detailsSection}
                                 <div style="margin-bottom:16px;">
                                     <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">${detailsSection ? 'Link label <span style="font-weight:400;color:var(--text-muted);">(internal — for your reference)</span>' : 'Event Name'}</label>
