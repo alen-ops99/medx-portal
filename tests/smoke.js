@@ -88,9 +88,11 @@ check('X-Frame-Options + X-Content-Type-Options present', async () => {
 });
 
 // ───────────────────────── Service worker — PR #1 ─────────────────────────
-check('SW v5 + bypasses /api/* (PR #1)', async () => {
+check('SW is versioned + bypasses /api/* (PR #1)', async () => {
     const t = await (await get('/sw.js')).text();
-    assert(t.includes("medx-portal-v5"), 'SW cache version not v5 — pre-PR-#1?');
+    // Match any versioned cache name (medx-portal-vN) rather than pinning a specific
+    // number — the SW version legitimately bumps when the app shell changes.
+    assert(/medx-portal-v\d+/.test(t), 'SW cache version name missing — pre-PR-#1?');
     assert(t.includes("url.pathname.startsWith('/api/')"), 'SW does not bypass /api/*');
 });
 

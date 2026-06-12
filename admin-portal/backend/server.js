@@ -3211,6 +3211,32 @@ async function initializeApp() {
     try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN payment_status TEXT DEFAULT 'n/a'`); } catch(e) {}
     try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN amount_paid REAL`); } catch(e) {}
 
+    // Phase 8: composable per-link pricing — selectable, individually-priced components
+    // per event (admin edits prices; user portal reads them at checkout). Same table in
+    // both backends per the dual-server pattern. Prices are gala-EXCLUDED per component.
+    try { db.run(`CREATE TABLE IF NOT EXISTS event_components (
+        id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        component_key TEXT NOT NULL,
+        label TEXT NOT NULL,
+        price REAL DEFAULT 0,
+        sort_order INTEGER DEFAULT 0,
+        is_active INTEGER DEFAULT 1,
+        UNIQUE(event_type, component_key)
+    )`); } catch(e) {}
+    [
+        ['plexus','conference','Conference (Day 1 + Day 2)',150,1],
+        ['plexus','gala','Gala Evening',150,2],
+        ['plexus','reception','Welcome Reception',0,3],
+        ['plexus','workshop','Workshop',0,4],
+        ['forum','day1','Day 1 — Split',0,1],
+        ['forum','day2','Day 2 — Zagreb',0,2],
+        ['forum','gala','Gala Dinner',100,3],
+    ].forEach(([et,key,label,price,sort]) => {
+        try { db.run('INSERT OR IGNORE INTO event_components (id, event_type, component_key, label, price, sort_order, is_active) VALUES (?,?,?,?,?,?,1)',
+            [et + '-' + key, et, key, label, price, sort]); } catch(e) {}
+    });
+
     // Phase 6B: QR code for bridges registrations
     try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN qr_code TEXT`); } catch(e) {}
 
@@ -17687,6 +17713,37 @@ By applying to this program, I provide the following consents:
     // ========== DIRECT REGISTRATION LINKS ==========
 
     // Generate direct registration link for an event
+    // ===== EVENT COMPONENTS (composable per-link pricing) =====
+    // List the selectable, individually-priced components for an event type.
+    app.get('/api/admin/event-components', auth, adminOnly, (req, res) => {
+        try {
+            const et = req.query.event_type;
+            const rows = et
+                ? query.all('SELECT * FROM event_components WHERE event_type = ? AND is_active = 1 ORDER BY sort_order', [et])
+                : query.all('SELECT * FROM event_components WHERE is_active = 1 ORDER BY event_type, sort_order');
+            res.json(rows);
+        } catch (e) { res.status(500).json({ error: 'Failed to load components' }); }
+    });
+
+    // Edit a component's price (and optionally label / active). Price clamped >= 0.
+    app.put('/api/admin/event-components/:id', auth, adminOnly, (req, res) => {
+        try {
+            const existing = query.get('SELECT * FROM event_components WHERE id = ?', [req.params.id]);
+            if (!existing) return res.status(404).json({ error: 'Component not found' });
+            const b = req.body || {};
+            db.run(`UPDATE event_components SET price = ?, label = ?, sort_order = ?, is_active = ? WHERE id = ?`, [
+                b.price !== undefined ? Math.max(0, Number(b.price) || 0) : existing.price,
+                b.label !== undefined ? String(b.label) : existing.label,
+                b.sort_order !== undefined ? parseInt(b.sort_order) || 0 : existing.sort_order,
+                b.is_active !== undefined ? (b.is_active ? 1 : 0) : existing.is_active,
+                req.params.id
+            ]);
+            saveDb();
+            logAudit(req, 'event_component.update', `${existing.event_type}/${existing.component_key} → €${b.price !== undefined ? Math.max(0, Number(b.price)||0) : existing.price}`);
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: 'Failed to update component' }); }
+    });
+
     app.post('/api/admin/registration-links', auth, adminOnly, (req, res) => {
         try {
             const { event_type, event_id, event_name, expires_days, max_uses } = req.body;
@@ -17710,15 +17767,23 @@ By applying to this program, I provide the following consents:
             )`);
 
             const id = uuidv4();
-            const { package_items } = req.body;
+            const { package_items, component_keys } = req.body;
             try { db.run('ALTER TABLE registration_links ADD COLUMN package_items TEXT'); } catch(e) {}
-            db.run(`INSERT INTO registration_links (id, token, event_type, event_id, event_name, created_by, expires_at, max_uses, package_items) VALUES (?,?,?,?,?,?,?,?,?)`,
-                [id, token, event_type, event_id || null, event_name || '', req.user.email, expiresAt, max_uses || 0, package_items ? JSON.stringify(package_items) : null]);
+            // component_keys = selected priced components for composable pricing (separate from
+            // package_items display labels). The user portal re-reads these + their DB prices at
+            // checkout, so the charged amount is server-trusted, never from the URL.
+            try { db.run('ALTER TABLE registration_links ADD COLUMN component_keys TEXT'); } catch(e) {}
+            const compKeys = Array.isArray(component_keys) ? component_keys.filter(k => typeof k === 'string') : null;
+            db.run(`INSERT INTO registration_links (id, token, event_type, event_id, event_name, created_by, expires_at, max_uses, package_items, component_keys) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+                [id, token, event_type, event_id || null, event_name || '', req.user.email, expiresAt, max_uses || 0, package_items ? JSON.stringify(package_items) : null, compKeys && compKeys.length ? JSON.stringify(compKeys) : null]);
             saveDb();
 
             // Build link pointing to user portal (NOT admin portal)
             // Encode event info in URL so user portal doesn't need DB lookup
             const userPortalUrl = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
+            // NOTE: component_keys are NOT embedded in the URL — the user portal reads them
+            // (and their prices) from the registration_links row by token at checkout, so the
+            // charge is server-trusted and a tampered URL cannot change the price.
             const linkData = Buffer.from(JSON.stringify({
                 t: token,
                 e: event_type,

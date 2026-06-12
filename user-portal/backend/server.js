@@ -1249,6 +1249,11 @@ async function submitCA(e) {
                                      today <= conf.regular_deadline ? ticket.price_regular : ticket.price_late;
                 }
             }
+            // Composable pricing: if this link selected priced components, the displayed price
+            // is their SUM (server-trusted via the link token). Legacy links (no components)
+            // keep the single-ticket price above unchanged.
+            const compSum = sumComponentPrices('plexus', linkComponentKeys(data.t));
+            if (compSum != null) eventInfo.price = compSum;
         } else if (eventType === 'forum') {
             // Check if this is a gala-only invite
             const pkgItems = data.p || [];
@@ -1308,6 +1313,9 @@ async function submitCA(e) {
                     if (event.location_address) eventInfo.venue += (eventInfo.venue ? ', ' : '') + event.location_address;
                 }
             }
+            // Composable pricing for forum links: sum the selected components (Day 1/Day 2/Gala).
+            const compSumForum = sumComponentPrices('forum', linkComponentKeys(data.t));
+            if (compSumForum != null) eventInfo.price = compSumForum;
         } else if (eventType === 'bridges') {
             if (data.i) {
                 const event = query.get('SELECT * FROM bridges_events WHERE id = ?', [data.i]);
@@ -1769,6 +1777,30 @@ function getActiveConference() {
                       WHERE c.is_active = 1 AND EXISTS (SELECT 1 FROM ticket_types t WHERE t.conference_id = c.id)
                       ORDER BY c.year DESC LIMIT 1`)
         || query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+}
+
+// Composable pricing: sum the DB price of the selected components for an event.
+// Returns null when there are no resolvable components (caller then falls through to the
+// existing single-price logic, so legacy links and non-composed events are unchanged).
+// Always reads price from the DB — never trusts any client-sent amount.
+function sumComponentPrices(eventType, componentKeys) {
+    if (!Array.isArray(componentKeys) || !componentKeys.length) return null;
+    let total = 0, resolved = 0;
+    for (const k of componentKeys) {
+        if (typeof k !== 'string') continue;
+        const row = query.get('SELECT price FROM event_components WHERE event_type = ? AND component_key = ? AND is_active = 1', [eventType, k]);
+        if (row) { total += Math.max(0, Number(row.price) || 0); resolved++; }
+    }
+    return resolved ? Math.round(total * 100) / 100 : null;
+}
+
+// Pull the stored component_keys for a registration link token (server-trusted source).
+function linkComponentKeys(token) {
+    if (!token || typeof token !== 'string' || token === 'vip') return null;
+    let row = null;
+    try { row = query.get('SELECT component_keys FROM registration_links WHERE token = ?', [token]); } catch(e) { return null; }
+    if (!row || !row.component_keys) return null;
+    try { const a = JSON.parse(row.component_keys); return Array.isArray(a) && a.length ? a : null; } catch(e) { return null; }
 }
 
 let _syncTimer = null;
@@ -2780,6 +2812,34 @@ async function initializeApp() {
     try { db.run(`ALTER TABLE bridges_events ADD COLUMN price REAL DEFAULT 0`); } catch(e) {}
     try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN payment_status TEXT DEFAULT 'n/a'`); } catch(e) {}
     try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN amount_paid REAL`); } catch(e) {}
+
+    // Phase 8: composable per-link pricing — selectable, individually-priced components
+    // per event. A registration link can include any subset; the charged price is the SUM
+    // of the selected components (server re-reads from this table at checkout). Prices are
+    // gala-EXCLUDED per component so ticking Conference + Gala never double-charges the gala.
+    try { db.run(`CREATE TABLE IF NOT EXISTS event_components (
+        id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        component_key TEXT NOT NULL,
+        label TEXT NOT NULL,
+        price REAL DEFAULT 0,
+        sort_order INTEGER DEFAULT 0,
+        is_active INTEGER DEFAULT 1,
+        UNIQUE(event_type, component_key)
+    )`); } catch(e) {}
+    // Idempotent seed — INSERT OR IGNORE keeps any admin price edits on re-boot.
+    [
+        ['plexus','conference','Conference (Day 1 + Day 2)',150,1],
+        ['plexus','gala','Gala Evening',150,2],
+        ['plexus','reception','Welcome Reception',0,3],
+        ['plexus','workshop','Workshop',0,4],
+        ['forum','day1','Day 1 — Split',0,1],
+        ['forum','day2','Day 2 — Zagreb',0,2],
+        ['forum','gala','Gala Dinner',100,3],
+    ].forEach(([et,key,label,price,sort]) => {
+        try { db.run('INSERT OR IGNORE INTO event_components (id, event_type, component_key, label, price, sort_order, is_active) VALUES (?,?,?,?,?,?,1)',
+            [et + '-' + key, et, key, label, price, sort]); } catch(e) {}
+    });
 
     // Phase 6B: QR code for bridges registrations
     try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN qr_code TEXT`); } catch(e) {}
@@ -18013,14 +18073,23 @@ By applying to this program, I provide the following consents:
 
             // Enforce admin link controls (deactivate / expiry / max uses) when this submission
             // came through a tracked registration link. Links without a DB row pass unchanged.
+            // The link row is ALSO the authoritative source for composable pricing below, so the
+            // charge is bound to the link the registrant actually came through — not to free-form
+            // client fields.
             let trackedRegLinkId = null;
+            let regLinkRow = null;
             if (req.body.link_token && typeof req.body.link_token === 'string') {
-                let regLinkRow = null;
                 try { regLinkRow = query.get('SELECT * FROM registration_links WHERE token = ?', [req.body.link_token]); } catch(e) { regLinkRow = null; }
                 if (regLinkRow) {
                     if (!regLinkRow.is_active) return res.status(410).json({ error: 'This registration link is no longer active. Please contact the Med&X team.' });
                     if (regLinkRow.expires_at && new Date(regLinkRow.expires_at) < new Date()) return res.status(410).json({ error: 'This registration link has expired. Please contact the Med&X team.' });
                     if (regLinkRow.max_uses > 0 && regLinkRow.uses >= regLinkRow.max_uses) return res.status(410).json({ error: 'This registration link has reached its maximum number of uses. Please contact the Med&X team.' });
+                    // Bind the registration to the link's event type — reject a token replayed
+                    // under a different event (e.g. a forum token submitted as plexus) so the
+                    // composable price can't be sourced from the wrong event's components.
+                    if (regLinkRow.event_type && event_type && regLinkRow.event_type !== event_type) {
+                        return res.status(400).json({ error: 'This registration link does not match the selected event.' });
+                    }
                     trackedRegLinkId = regLinkRow.id;
                 }
             }
@@ -18220,6 +18289,16 @@ By applying to this program, I provide the following consents:
                 basePrice = fgs?.price || 0;
             } else if (event_type === 'bridges') {
                 basePrice = bridgesEventPrice;
+            }
+            // Composable pricing (AUTHORITATIVE, server-trusted): the price comes from the
+            // component_keys stored ON THE LINK ROW (regLinkRow) that passed the gate above —
+            // the same link the registrant came through, with its event_type already validated.
+            // Components and their prices are read from the DB, never from any client field.
+            if ((event_type === 'plexus' || event_type === 'forum') && regLinkRow && regLinkRow.component_keys) {
+                let keys = null;
+                try { const a = JSON.parse(regLinkRow.component_keys); keys = Array.isArray(a) && a.length ? a : null; } catch(e) { keys = null; }
+                const compBase = sumComponentPrices(event_type, keys);
+                if (compBase != null) basePrice = compBase;
             }
             // Clamp guest_count to a sane non-negative range — a negative value previously
             // drove price to 0 and turned a paid ticket into a free one.

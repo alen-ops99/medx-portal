@@ -20180,29 +20180,34 @@ President, Med&amp;X</textarea>
                     } catch(e) {}
                 }
 
-                // Sub-event options
-                const cbStyle = 'display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border-color,#334155);border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-primary,#e2e8f0);';
+                // Sub-event options — composable components fetched from the DB. Each row is a
+                // selectable, individually-priced part; the link price = SUM of checked parts.
+                const cbStyle = 'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--border-color,#334155);border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-primary,#e2e8f0);';
                 const cbInput = 'accent-color:#c9a962;width:16px;height:16px;';
                 let subEventSelect = '';
 
-                if (eventType === 'plexus') {
+                if (eventType === 'plexus' || eventType === 'forum') {
+                    let components = [];
+                    try { components = await this.api(`/api/admin/event-components?event_type=${eventType}`); } catch(e) { components = []; }
+                    // Default-check the "core" parts so a quick link still works out of the box.
+                    const defaultChecked = eventType === 'plexus' ? ['conference'] : ['day1','day2'];
+                    const rows = (components || []).map(c => {
+                        const checked = defaultChecked.includes(c.component_key) ? 'checked' : '';
+                        const price = Number(c.price) || 0;
+                        return `<label style="${cbStyle}">
+                            <span style="display:flex;align-items:center;gap:8px;">
+                                <input type="checkbox" data-key="${escapeHtml(c.component_key)}" data-label="${escapeHtml(c.label)}" data-price="${price}" ${checked} onchange="App.updateGenLinkTotal()" style="${cbInput}">
+                                ${escapeHtml(c.label)}
+                            </span>
+                            <span style="display:flex;align-items:center;gap:4px;white-space:nowrap;">€<input type="number" min="0" step="0.01" value="${price}" data-comp-id="${escapeHtml(c.id)}" onchange="App.saveCompPrice('${escapeHtml(c.id)}', this.value)" onclick="event.preventDefault();event.stopPropagation();" style="width:64px;padding:4px 6px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-primary);color:var(--text-primary);font-size:12px;"></span>
+                        </label>`;
+                    }).join('');
                     subEventSelect = `<div style="margin-bottom:16px;">
-                        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Include in registration:</label>
-                        <div style="display:flex;flex-direction:column;gap:6px;" id="genLinkItems">
-                            <label style="${cbStyle}"><input type="checkbox" value="Day 1 — Dec 4" checked style="${cbInput}"> Day 1 — Dec 4</label>
-                            <label style="${cbStyle}"><input type="checkbox" value="Day 2 — Dec 5" checked style="${cbInput}"> Day 2 — Dec 5</label>
-                            <label style="${cbStyle}"><input type="checkbox" value="Gala Evening" style="${cbInput}"> Gala Evening</label>
-                            <label style="${cbStyle}"><input type="checkbox" value="Welcome Reception" style="${cbInput}"> Welcome Reception</label>
-                            <label style="${cbStyle}"><input type="checkbox" value="Workshop" style="${cbInput}"> Workshop</label>
-                            <label style="${cbStyle}"><input type="checkbox" value="VIP / Invited Speaker" style="${cbInput}"> VIP / Invited Speaker</label>
-                        </div></div>`;
-                } else if (eventType === 'forum') {
-                    subEventSelect = `<div style="margin-bottom:16px;">
-                        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Include in registration:</label>
-                        <div style="display:flex;flex-direction:column;gap:6px;" id="genLinkItems">
-                            <label style="${cbStyle}"><input type="checkbox" value="Day 1 — May 25, Split (Conference)" checked style="${cbInput}"> Day 1 — May 25, Split (Conference)</label>
-                            <label style="${cbStyle}"><input type="checkbox" value="Day 2 — May 26, Zagreb (Conference)" checked style="${cbInput}"> Day 2 — May 26, Zagreb (Conference)</label>
-                            <label style="${cbStyle}"><input type="checkbox" value="Gala Evening — May 27 (The Westin Zagreb)" style="${cbInput}"> Gala Evening — May 27 (The Westin Zagreb)</label>
+                        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Include in registration <span style="font-weight:400;color:var(--text-muted);">(price = sum of ticked parts; each € is that part ALONE — set the Conference price without the gala, since Gala is its own line)</span>:</label>
+                        <div style="display:flex;flex-direction:column;gap:6px;" id="genLinkItems">${rows || '<span style="font-size:12px;color:var(--text-muted);">No components defined.</span>'}</div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:8px 10px;background:rgba(201,169,98,0.1);border-radius:8px;">
+                            <span style="font-size:12px;color:var(--text-secondary);">Link total</span>
+                            <span id="genLinkTotal" style="font-size:16px;font-weight:700;color:var(--accent-gold,#c9a962);">€0</span>
                         </div></div>`;
                 }
 
@@ -20248,6 +20253,34 @@ President, Med&amp;X</textarea>
                     </div>
                 `;
                 document.body.appendChild(modal);
+                this.updateGenLinkTotal();
+            },
+
+            // Sum the €-prices of the ticked components into the running "Link total".
+            updateGenLinkTotal() {
+                const el = document.getElementById('genLinkTotal');
+                const container = document.getElementById('genLinkItems');
+                if (!el || !container) return;
+                let total = 0;
+                container.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => { total += Number(cb.dataset.price) || 0; });
+                el.textContent = total > 0 ? '€' + (Math.round(total * 100) / 100) : 'Free';
+            },
+
+            // Persist an edited component price, then refresh the checkbox's price + total.
+            async saveCompPrice(id, value) {
+                const price = Math.max(0, parseFloat(value) || 0);
+                try {
+                    await this.api(`/api/admin/event-components/${id}`, { method: 'PUT', body: JSON.stringify({ price }) });
+                    const cb = document.querySelector(`#genLinkItems input[type="checkbox"][data-comp-id], #genLinkItems input[type="number"][data-comp-id="${id}"]`);
+                    const numInput = document.querySelector(`#genLinkItems input[type="number"][data-comp-id="${id}"]`);
+                    if (numInput) {
+                        const row = numInput.closest('label');
+                        const box = row && row.querySelector('input[type="checkbox"]');
+                        if (box) box.dataset.price = price;
+                    }
+                    this.updateGenLinkTotal();
+                    Toast.success('Price updated');
+                } catch(e) { Toast.error('Could not save price'); }
             },
 
             async doGenerateLink(eventType, eventId) {
@@ -20255,19 +20288,21 @@ President, Med&amp;X</textarea>
                 const expiry = document.getElementById('genLinkExpiry').value;
                 const maxUses = document.getElementById('genLinkMaxUses').value;
 
-                // Collect selected sub-items (for Plexus)
+                // Collect ticked components: labels (for display) + keys (for server-side pricing)
                 const itemsContainer = document.getElementById('genLinkItems');
                 let selectedItems = [];
+                let componentKeys = [];
                 if (itemsContainer) {
                     itemsContainer.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
-                        selectedItems.push(cb.value);
+                        selectedItems.push(cb.dataset.label || cb.value);
+                        if (cb.dataset.key) componentKeys.push(cb.dataset.key);
                     });
                 }
 
                 try {
                     const result = await this.api('/api/admin/registration-links', {
                         method: 'POST',
-                        body: JSON.stringify({ event_type: eventType, event_id: eventId || null, event_name: name, expires_days: parseInt(expiry), max_uses: parseInt(maxUses), package_items: selectedItems.length ? selectedItems : undefined })
+                        body: JSON.stringify({ event_type: eventType, event_id: eventId || null, event_name: name, expires_days: parseInt(expiry), max_uses: parseInt(maxUses), package_items: selectedItems.length ? selectedItems : undefined, component_keys: componentKeys.length ? componentKeys : undefined })
                     });
 
                     if (result.link) {
