@@ -1427,12 +1427,20 @@ async function submitCA(e) {
         .success { text-align:center; padding:40px 20px; }
         .success-icon { width:80px; height:80px; border-radius:50%; background:rgba(34,197,94,0.1); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; }
         @media(max-width:480px) { .form-row { grid-template-columns:1fr; } .container { padding:20px 16px; } }
+        /* Responsive: single column on phones, event-info + form side-by-side on wider screens */
+        .invite-grid { display:grid; gap:22px; }
+        @media(min-width:880px) {
+            .container { max-width:900px; }
+            .invite-grid { grid-template-columns:1fr 1fr; gap:36px; align-items:start; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="logo"><img src="/assets/images/medx-logo.png" alt="Med&X" style="height:40px;filter:brightness(0) invert(1);" onerror="this.outerHTML='<span style=\\'font-size:28px;font-weight:700;color:#fff;\\'>med<em style=\\'color:#c9a962;font-style:normal;\\'>&amp;</em>X</span>'"></div>
         <div class="card">
+            <div class="invite-grid">
+            <div class="ev-info">
             <div class="event-badge"><i class="fas fa-envelope-open-text"></i> ${isVipInvite ? 'VIP Invitation' : "You're Invited"}</div>
             <h1>${escapeHtml(eventInfo.name)}</h1>
             <div class="event-meta">
@@ -1461,6 +1469,7 @@ async function submitCA(e) {
                     No payment required &mdash; please complete your details below to confirm your attendance and receive your QR ticket by email.
                 </div>
             </div>` : (eventInfo.price ? '<div class="price-row"><span class="price-label">Registration Fee</span><span class="price-value">&euro;' + eventInfo.price + '</span></div>' : '')}
+            </div>
             <form id="regForm" class="form-grid" onsubmit="submitReg(event)">
                 <input type="hidden" id="eventType" value="${escapeHtml(eventType)}">
                 <input type="hidden" id="eventName" value="${escapeHtml(eventInfo.name)}">
@@ -1504,6 +1513,7 @@ async function submitCA(e) {
                 </div>
                 <button type="submit" class="submit-btn" id="submitBtn"${isVipInvite ? ' style="background:linear-gradient(135deg,#a855f7,#8b5cf6);"' : ''}>${isVipInvite ? '<i class="fas fa-star" style="margin-right:6px;"></i>Confirm My Attendance' : (eventInfo.price ? 'Proceed to Payment — &euro;' + eventInfo.price : 'Complete Registration')}</button>
             </form>
+            </div>
             <div class="footer" style="margin-top:20px;">
                 <p style="margin-bottom:8px;">By registering, you agree to Med&amp;X's <a href="/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
                 <p style="font-size:11px;color:#475569;">Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event.</p>
