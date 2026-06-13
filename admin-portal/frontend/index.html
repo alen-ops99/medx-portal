@@ -21072,6 +21072,13 @@ President, Med&amp;X</textarea>
                                 try {
                                     const parsed = JSON.parse(rawData);
                                     fullQrData = parsed;
+                                    // A MEDX_MEMBER ticket → run the payment-gated EVENT check-in (PAID
+                                    // card), not a member-profile lookup. Handles dense (old) + slim QRs.
+                                    if (parsed.type === 'MEDX_MEMBER' && (parsed.regId || parsed.caRegId)) {
+                                        if (this._globalStream) { this._globalStream.getTracks().forEach(t => t.stop()); this._globalStream = null; }
+                                        this._globalTicketCheckin(parsed);
+                                        return;
+                                    }
                                     if (parsed.userId && parsed.userId !== '') userId = parsed.userId;
                                     else if (parsed.id && parsed.id !== '') userId = parsed.id;
                                     if (parsed.email && parsed.email !== '') memberEmail = parsed.email;
@@ -21119,6 +21126,58 @@ President, Med&amp;X</textarea>
                 }
 
                 requestAnimationFrame(() => this._scanGlobalFrame());
+            },
+
+            // A scanned event ticket → payment-gated check-in via the unified verifier, rendering the
+            // PAID / DO-NOT-ADMIT door card (name, applied-for, guests) from the DB by regId.
+            async _globalTicketCheckin(parsed) {
+                const statusEl = document.getElementById('globalQRStatus');
+                if (statusEl) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:#c9a962;"></i> Checking in…';
+                // Resolve the event: prefer the "Checking in for" selector; else the QR's own event.
+                const ctx = document.getElementById('qrCheckInContext')?.value || 'general';
+                const ctxMap = { plexus: 'conference', gala: 'gala', forum: 'forum' };
+                let evt = ctxMap[ctx] || (ctx.indexOf('bridges') === 0 ? 'bridges' : null);
+                if (!evt) {
+                    const e = parsed.evt;
+                    evt = (e === 'plexus' || e === 'conference') ? 'conference' : e === 'gala' ? 'gala' : e === 'forum' ? 'forum' : e === 'bridges' ? 'bridges' : e === 'croatians-abroad' ? 'gala' : 'conference';
+                }
+                const code = parsed.regId || parsed.caRegId || parsed.id;
+                try {
+                    let data;
+                    if (evt === 'forum') {
+                        const r = await this.api('/api/admin/forum/checkin', { method: 'POST', body: JSON.stringify({ code, registration_id: code }) });
+                        data = { valid: r.success !== false, already_checked_in: r.already_checked_in, status_label: 'REGISTERED', status_color: '#22c55e', registrant: r.attendee || {}, message: r.error };
+                    } else {
+                        data = await this.api('/api/admin/checkin/verify', { method: 'POST', body: JSON.stringify({ event: evt, code, mark: true }) });
+                    }
+                    this._renderGlobalTicketResult(data);
+                    this.loadGlobalCheckinStats();
+                    this.loadGlobalRecentCheckins();
+                } catch (err) {
+                    this._renderGlobalTicketResult({ valid: false, message: err.message || 'Check-in failed', registrant: {} });
+                }
+            },
+
+            _renderGlobalTicketResult(data) {
+                const el = document.getElementById('globalCheckinResult');
+                const statusEl = document.getElementById('globalQRStatus');
+                if (statusEl) statusEl.innerHTML = '';
+                if (!el) return;
+                const r = data.registrant || {};
+                if (data.valid) {
+                    const already = data.already_checked_in;
+                    el.className = 'checkin-result ' + (already ? 'already' : 'success');
+                    el.innerHTML = `
+                        <div style="font-size:18px;font-weight:700;color:${data.status_color || '#22c55e'};">${already ? 'ALREADY CHECKED IN' : 'CHECKED IN ✓'}${data.status_label ? ' · ' + escapeHtml(data.status_label) : ''}</div>
+                        <div style="font-size:16px;font-weight:600;color:var(--text-primary,#e2e8f0);margin-top:6px;">${escapeHtml(r.name || '—')}</div>
+                        <div style="font-size:12px;color:var(--text-muted,#94a3b8);">${escapeHtml(r.email || '')}</div>
+                        ${r.applied_for ? `<div style="font-size:12px;color:var(--accent-gold,#c9a962);margin-top:6px;font-weight:600;"><i class="fas fa-ticket"></i> Applied for: ${escapeHtml(r.applied_for)}</div>` : ''}
+                        ${r.guests ? `<div style="font-size:14px;color:#fff;margin-top:8px;font-weight:700;background:rgba(168,85,247,0.2);border:1px solid rgba(168,85,247,0.55);border-radius:8px;padding:8px 12px;"><i class="fas fa-users"></i> +${r.guests} guest${r.guests > 1 ? 's' : ''} — admit ${Number(r.guests) + 1} people total</div>` : ''}
+                        ${already && data.checked_in_at ? `<div style="font-size:11px;color:var(--text-muted,#94a3b8);margin-top:6px;">First check-in: ${new Date(data.checked_in_at).toLocaleString()}</div>` : ''}`;
+                } else {
+                    el.className = 'checkin-result error';
+                    el.innerHTML = `<div style="font-size:16px;font-weight:700;color:#ef4444;"><i class="fas fa-times-circle"></i> ${escapeHtml(data.message || data.reason || 'Not admitted')}</div>${r.name ? '<div style="margin-top:4px;color:var(--text-primary,#e2e8f0);">' + escapeHtml(r.name) + '</div>' : ''}`;
+                }
             },
 
             closeGlobalQRScanner() {
