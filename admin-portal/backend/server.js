@@ -17753,7 +17753,16 @@ By applying to this program, I provide the following consents:
                 'Med&X Tech Dashboard — Test Email',
                 '<h2>Test Email</h2><p>This is a test email from the Med&X Tech Dashboard.</p><p>Sent at: ' + new Date().toISOString() + '</p>'
             );
-            res.json({ success: result.success, message: result.mock ? 'Email mock-sent (SMTP not configured)' : 'Test email sent to ' + (req.user.email || 'juginovic.alen@gmail.com'), mock: result.mock || false });
+            const to = req.user.email || 'juginovic.alen@gmail.com';
+            res.json({
+                success: result.success,
+                message: result.mock
+                    ? 'Email mock-sent — no SMTP/provider configured.'
+                    : result.success
+                        ? 'Test email sent to ' + to + ' — check inbox + spam.'
+                        : 'SMTP rejected the send: ' + (result.error || 'unknown error'),
+                mock: result.mock || false
+            });
         } catch (err) {
             res.json({ success: false, message: 'Email error: ' + err.message });
         }
