@@ -20307,7 +20307,9 @@ President, Med&amp;X</textarea>
                     let components = [];
                     try { components = await this.api(`/api/admin/event-components?event_type=${eventType}`); } catch(e) { components = []; }
                     // Default-check the "core" parts so a quick link still works out of the box.
-                    const defaultChecked = eventType === 'plexus' ? ['conference'] : ['day1','day2'];
+                    // Plexus = the 3-event "Experience": offer all three by default; the registrant
+                    // then chooses which to attend on the /plexus page and pays only for those.
+                    const defaultChecked = eventType === 'plexus' ? ['conference','bridges','gala'] : ['day1','day2'];
                     const rows = (components || []).map(c => {
                         const checked = defaultChecked.includes(c.component_key) ? 'checked' : '';
                         const price = Number(c.price) || 0;
@@ -20319,8 +20321,11 @@ President, Med&amp;X</textarea>
                             <span style="display:flex;align-items:center;gap:4px;white-space:nowrap;">€<input type="number" min="0" step="0.01" value="${price}" data-comp-id="${escapeHtml(c.id)}" onchange="App.saveCompPrice('${escapeHtml(c.id)}', this.value)" onclick="event.preventDefault();event.stopPropagation();" style="width:64px;padding:4px 6px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-primary);color:var(--text-primary);font-size:12px;"></span>
                         </label>`;
                     }).join('');
+                    const offerHelp = eventType === 'plexus'
+                        ? '(tick the events this link OFFERS; the guest then chooses which to attend on the Plexus page and pays only for those. Conference &amp; Bridges are free; Gala is paid.)'
+                        : '(price = sum of ticked parts; each € is that part ALONE — set the Conference price without the gala, since Gala is its own line)';
                     subEventSelect = `<div style="margin-bottom:16px;">
-                        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Include in registration <span style="font-weight:400;color:var(--text-muted);">(price = sum of ticked parts; each € is that part ALONE — set the Conference price without the gala, since Gala is its own line)</span>:</label>
+                        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Include in registration <span style="font-weight:400;color:var(--text-muted);">${offerHelp}</span>:</label>
                         <div style="display:flex;flex-direction:column;gap:6px;" id="genLinkItems">${rows || '<span style="font-size:12px;color:var(--text-muted);">No components defined.</span>'}</div>
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:8px 10px;background:rgba(201,169,98,0.1);border-radius:8px;">
                             <span style="font-size:12px;color:var(--text-secondary);">Link total</span>

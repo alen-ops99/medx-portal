@@ -3112,6 +3112,9 @@ async function initializeApp() {
         invoice_number TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+    // Mirror of the user-portal migration: 'source' distinguishes public Plexus Experience rows
+    // (source='plexus') from diaspora Croatians Abroad rows so the admin lists stay separate.
+    try { db.run("ALTER TABLE croatians_abroad_registrations ADD COLUMN source TEXT DEFAULT 'croatians-abroad'"); } catch(e) {}
 
     // Denormalized "what they applied for" + answers + link token on every registration table.
     // Runs HERE (not in the early migration block) because gala/forum/bridges/CA are created above.
@@ -3154,6 +3157,11 @@ async function initializeApp() {
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
     try { db.run("INSERT OR IGNORE INTO gala_settings (id) VALUES ('default')"); } catch(e) {}
+    // Mirror of the user-portal early-bird Gala pricing columns so the admin can read/edit them
+    // and so the shared DB schema is consistent regardless of which service boots first.
+    try { db.run("ALTER TABLE gala_settings ADD COLUMN price_gala_early_bird REAL DEFAULT 150"); } catch(e) {}
+    try { db.run("ALTER TABLE gala_settings ADD COLUMN price_gala_regular REAL DEFAULT 175"); } catch(e) {}
+    try { db.run("ALTER TABLE gala_settings ADD COLUMN early_bird_deadline TEXT DEFAULT '2026-09-01'"); } catch(e) {}
 
     // Forum gala settings (separate from Plexus gala)
     db.run(`CREATE TABLE IF NOT EXISTS forum_gala_settings (
@@ -3340,11 +3348,14 @@ async function initializeApp() {
         is_active INTEGER DEFAULT 1,
         UNIQUE(event_type, component_key)
     )`); } catch(e) {}
+    // Plexus 2026 (per the "3 events" invitation): Conference FREE, Bridges FREE, Gala paid.
+    // Mirror of the user-portal seed so the admin link picker shows the same components.
     [
-        ['plexus','conference','Conference (Day 1 + Day 2)',150,1],
-        ['plexus','gala','Gala Evening',150,2],
-        ['plexus','reception','Welcome Reception',0,3],
-        ['plexus','workshop','Workshop',0,4],
+        ['plexus','conference','Plexus Conference (4–5 Dec)',0,1],
+        ['plexus','bridges','Croatian Biomedical Bridges (4–5 Dec)',0,2],
+        ['plexus','gala','Plexus Gala Evening (5 Dec)',150,3],
+        ['plexus','reception','Welcome Reception',0,4],
+        ['plexus','workshop','Workshop',0,5],
         ['forum','day1','Day 1 — Split',0,1],
         ['forum','day2','Day 2 — Zagreb',0,2],
         ['forum','gala','Gala Dinner',100,3],
@@ -3352,6 +3363,16 @@ async function initializeApp() {
         try { db.run('INSERT OR IGNORE INTO event_components (id, event_type, component_key, label, price, sort_order, is_active) VALUES (?,?,?,?,?,?,1)',
             [et + '-' + key, et, key, label, price, sort]); } catch(e) {}
     });
+    // Force the pre-existing Plexus Conference component to FREE + refresh labels (INSERT OR
+    // IGNORE won't update existing rows). Guarded to the legacy default 150 so a deliberate
+    // admin price edit is never stomped.
+    try {
+        const confRow = query.get("SELECT price FROM event_components WHERE event_type='plexus' AND component_key='conference'");
+        if (confRow && Number(confRow.price) === 150) {
+            db.run("UPDATE event_components SET price = 0, label = 'Plexus Conference (4–5 Dec)' WHERE event_type='plexus' AND component_key='conference'");
+        }
+        db.run("UPDATE event_components SET label = 'Plexus Gala Evening (5 Dec)' WHERE event_type='plexus' AND component_key='gala' AND label = 'Gala Evening'");
+    } catch(e) {}
 
     // Phase 6B: QR code for bridges registrations
     try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN qr_code TEXT`); } catch(e) {}
@@ -16020,6 +16041,7 @@ By applying to this program, I provide the following consents:
 
         const { title, tagline, date, time, venue, dress_code, description, capacity,
                 price_gala_only, price_bundle, price_bundle_original, is_registration_open,
+                price_gala_early_bird, price_gala_regular, early_bird_deadline,
                 speakers_json, schedule_json, keynote_name, keynote_role, keynote_image_url } = req.body;
         const fields = [];
         const values = [];
@@ -16032,6 +16054,9 @@ By applying to this program, I provide the following consents:
         if (description !== undefined) { fields.push('description = ?'); values.push(description); }
         if (capacity !== undefined) { fields.push('capacity = ?'); values.push(capacity); }
         if (price_gala_only !== undefined) { fields.push('price_gala_only = ?'); values.push(price_gala_only); }
+        if (price_gala_early_bird !== undefined) { fields.push('price_gala_early_bird = ?'); values.push(price_gala_early_bird); }
+        if (price_gala_regular !== undefined) { fields.push('price_gala_regular = ?'); values.push(price_gala_regular); }
+        if (early_bird_deadline !== undefined) { fields.push('early_bird_deadline = ?'); values.push(early_bird_deadline); }
         if (price_bundle !== undefined) { fields.push('price_bundle = ?'); values.push(price_bundle); }
         if (price_bundle_original !== undefined) { fields.push('price_bundle_original = ?'); values.push(price_bundle_original); }
         if (keynote_name !== undefined) { fields.push('keynote_name = ?'); values.push(keynote_name); }
@@ -16207,7 +16232,15 @@ By applying to this program, I provide the following consents:
     });
 
     app.get('/api/admin/croatians-abroad/registrations', auth, adminOnly, (req, res) => {
-        const rows = query.all('SELECT * FROM croatians_abroad_registrations ORDER BY created_at DESC');
+        // Diaspora flow only — exclude public Plexus Experience rows (separate endpoint below).
+        const rows = query.all("SELECT * FROM croatians_abroad_registrations WHERE COALESCE(source,'croatians-abroad') <> 'plexus' ORDER BY created_at DESC");
+        res.json(rows);
+    });
+
+    // Public "Plexus Experience" multi-event registrations (source='plexus'). Same table as
+    // Croatians Abroad (linked gala_registrations + check-in unified) but listed separately.
+    app.get('/api/admin/plexus-experience/registrations', auth, adminOnly, (req, res) => {
+        const rows = query.all("SELECT * FROM croatians_abroad_registrations WHERE source = 'plexus' ORDER BY created_at DESC");
         res.json(rows);
     });
 
@@ -16218,7 +16251,19 @@ By applying to this program, I provide the following consents:
         if (!col) return res.status(400).json({ error: "event must be one of: conference, bridges, gala" });
         const rows = query.all(
             `SELECT first_name, last_name, email, institution, country, role, created_at
-             FROM croatians_abroad_registrations WHERE ${col} = 1 ORDER BY created_at DESC`
+             FROM croatians_abroad_registrations WHERE ${col} = 1 AND COALESCE(source,'croatians-abroad') <> 'plexus' ORDER BY created_at DESC`
+        );
+        res.json({ event, count: rows.length, emails: rows.map(r => r.email), registrants: rows });
+    });
+
+    app.get('/api/admin/plexus-experience/emails-by-event/:event', auth, adminOnly, (req, res) => {
+        const event = req.params.event;
+        const validCols = { conference: 'selected_conference', bridges: 'selected_bridges', gala: 'selected_gala' };
+        const col = validCols[event];
+        if (!col) return res.status(400).json({ error: "event must be one of: conference, bridges, gala" });
+        const rows = query.all(
+            `SELECT first_name, last_name, email, institution, country, role, created_at
+             FROM croatians_abroad_registrations WHERE ${col} = 1 AND source = 'plexus' ORDER BY created_at DESC`
         );
         res.json({ event, count: rows.length, emails: rows.map(r => r.email), registrants: rows });
     });
@@ -17950,7 +17995,12 @@ By applying to this program, I provide the following consents:
                 p: package_items || [],
                 x: expiresAt
             })).toString('base64url');
-            const link = `${userPortalUrl}/invite/${linkData}`;
+            // Plexus links open the multi-event "Reserve your place" chooser (/plexus/:token),
+            // which reads the offered components from the registration_links row by token. All
+            // other event types keep the legacy /invite/<payload> single-event landing.
+            const link = event_type === 'plexus'
+                ? `${userPortalUrl}/plexus/${token}`
+                : `${userPortalUrl}/invite/${linkData}`;
 
             res.json({ success: true, id, token, link, expiresAt });
         } catch (error) {
@@ -17976,8 +18026,13 @@ By applying to this program, I provide the following consents:
             const userPortalUrl = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
             for (const l of links) {
                 let pkg = []; try { pkg = l.package_items ? JSON.parse(l.package_items) : []; } catch(e) {}
-                const payload = Buffer.from(JSON.stringify({ t: l.token, e: l.event_type, n: l.event_name || '', i: l.event_id || '', p: pkg, x: l.expires_at })).toString('base64url');
-                l.url = `${userPortalUrl}/invite/${payload}`;
+                if (l.event_type === 'plexus') {
+                    // Plexus links open the multi-event chooser keyed by token (see POST handler).
+                    l.url = `${userPortalUrl}/plexus/${l.token}`;
+                } else {
+                    const payload = Buffer.from(JSON.stringify({ t: l.token, e: l.event_type, n: l.event_name || '', i: l.event_id || '', p: pkg, x: l.expires_at })).toString('base64url');
+                    l.url = `${userPortalUrl}/invite/${payload}`;
+                }
             }
             res.json(links);
         } catch (error) {

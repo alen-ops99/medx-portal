@@ -861,6 +861,203 @@ const REVOKED_INVITE_IDS = new Set([
 
 // Serves a full server-rendered HTML page for VIP invite links.
 // Must be defined BEFORE express.static so it takes priority over the SPA.
+// ========== PLEXUS EXPERIENCE — public 3-event chooser (Conference / Bridges / Gala) ==========
+// One page, registrant picks which events to attend. Posts to the source-aware
+// /api/croatians-abroad/register with source='plexus' so the Gala portion lands in the SAME
+// gala_registrations table + Gala Sheet tab as every other Gala entry point (unified data).
+// Reachable publicly at /plexus and via an admin-generated link at /plexus/:token (the token's
+// registration_links.component_keys decide which of the three events the link OFFERS).
+const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title || 'Plexus 2026'}</title><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { min-height:100vh; background:linear-gradient(160deg,#0f172a,#1e293b); font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif; color:#e2e8f0; padding:32px 16px; }
+    .container { max-width:640px; margin:0 auto; }
+    .logo { text-align:center; margin-bottom:24px; }
+    .logo span { font-size:28px; font-weight:700; color:#fff; letter-spacing:-0.5px; }
+    .logo span em { font-style:normal; color:#c9a962; }
+    .card { background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,98,0.2); border-radius:20px; padding:28px 26px; }
+    .badge { display:inline-block; font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#c9a962; margin-bottom:12px; padding:5px 12px; background:rgba(201,169,98,0.12); border-radius:20px; }
+    h1 { font-size:24px; font-weight:700; color:#fff; margin-bottom:6px; line-height:1.2; }
+    .lede { font-size:14px; color:#94a3b8; margin-bottom:8px; line-height:1.55; }
+    .section-label { font-size:11px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#c9a962; margin:22px 0 12px; }
+    .event-option { background:rgba(255,255,255,0.04); border:1.5px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px; margin-bottom:10px; display:flex; gap:14px; cursor:pointer; transition:all 0.2s; position:relative; overflow:hidden; }
+    .event-option::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:transparent; transition:background 0.2s; }
+    .event-option:hover { border-color:rgba(201,169,98,0.3); background:rgba(255,255,255,0.06); transform:translateY(-1px); }
+    .event-option.evt-conference::before { background:rgba(167,139,250,0.5); }
+    .event-option.evt-bridges::before { background:rgba(244,114,182,0.5); }
+    .event-option.evt-gala::before { background:rgba(201,169,98,0.5); }
+    .event-option.evt-conference.selected { border-color:#a78bfa; background:rgba(167,139,250,0.06); }
+    .event-option.evt-conference.selected::before { background:#a78bfa; width:4px; }
+    .event-option.evt-bridges.selected { border-color:#f472b6; background:rgba(244,114,182,0.06); }
+    .event-option.evt-bridges.selected::before { background:#f472b6; width:4px; }
+    .event-option.evt-gala.selected { border-color:#c9a962; background:rgba(201,169,98,0.08); }
+    .event-option.evt-gala.selected::before { background:#c9a962; width:4px; }
+    .event-checkbox { flex-shrink:0; width:22px; height:22px; border:2px solid rgba(255,255,255,0.2); border-radius:6px; display:flex; align-items:center; justify-content:center; margin-top:2px; transition:all 0.2s; }
+    .event-option.evt-conference.selected .event-checkbox { background:#a78bfa; border-color:#a78bfa; }
+    .event-option.evt-bridges.selected .event-checkbox { background:#f472b6; border-color:#f472b6; }
+    .event-option.evt-gala.selected .event-checkbox { background:#c9a962; border-color:#c9a962; }
+    .event-checkbox i { color:#fff; font-size:12px; display:none; }
+    .event-option.selected .event-checkbox i { display:block; }
+    .event-icon { flex-shrink:0; width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:16px; margin-top:-2px; }
+    .event-option.evt-conference .event-icon { background:rgba(167,139,250,0.12); color:#a78bfa; }
+    .event-option.evt-bridges .event-icon { background:rgba(244,114,182,0.12); color:#f472b6; }
+    .event-option.evt-gala .event-icon { background:rgba(201,169,98,0.12); color:#c9a962; }
+    .event-body { flex:1; }
+    .event-title-row { display:flex; justify-content:space-between; gap:10px; align-items:baseline; margin-bottom:4px; }
+    .event-name { font-size:15.5px; font-weight:600; color:#fff; }
+    .event-price { font-size:13px; font-weight:600; color:#c9a962; white-space:nowrap; }
+    .event-price.free { color:#22c55e; }
+    .event-meta { font-size:12px; color:#94a3b8; line-height:1.45; }
+    .form-grid { display:grid; gap:14px; margin-top:6px; }
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    label { display:block; font-size:11px; font-weight:600; color:#94a3b8; margin-bottom:5px; }
+    input, select, textarea { width:100%; padding:11px 13px; border:1px solid rgba(255,255,255,0.1); border-radius:9px; background:rgba(255,255,255,0.05); color:#fff; font-size:13.5px; font-family:inherit; }
+    input:focus, select:focus, textarea:focus { border-color:#c9a962; outline:none; box-shadow:0 0 0 3px rgba(201,169,98,0.1); }
+    input::placeholder, textarea::placeholder { color:#64748b; }
+    textarea { resize:vertical; min-height:60px; }
+    .total-display { display:none; justify-content:space-between; align-items:center; padding:14px 16px; background:rgba(201,169,98,0.1); border-radius:10px; border:1px solid rgba(201,169,98,0.25); margin-top:16px; }
+    .total-display.show { display:flex; }
+    .total-display .label { font-size:13px; color:#94a3b8; }
+    .total-display .amount { font-size:22px; font-weight:700; color:#c9a962; }
+    .submit-btn { width:100%; margin-top:16px; padding:15px; border:none; border-radius:11px; background:linear-gradient(135deg,#c9a962,#b8965a); color:#0f172a; font-size:15px; font-weight:700; cursor:pointer; transition:all 0.2s; }
+    .submit-btn:hover { transform:translateY(-1px); box-shadow:0 8px 20px rgba(201,169,98,0.25); }
+    .submit-btn:disabled { opacity:0.55; cursor:not-allowed; transform:none; box-shadow:none; }
+    .msg { margin-top:14px; padding:12px 14px; border-radius:9px; font-size:13px; display:none; }
+    .msg.err { display:block; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); color:#fca5a5; }
+    .foot { text-align:center; font-size:12px; color:#64748b; margin-top:20px; }
+    .foot a { color:#c9a962; text-decoration:none; }
+</style></head><body><div class="container">
+    <div class="logo"><span>med<em>&amp;X</em></span></div>
+    ${inner}
+    <div class="foot">Questions? <a href="mailto:laura.rodman@medx.hr">laura.rodman@medx.hr</a> &middot; <a href="https://medx.hr">medx.hr</a></div>
+</div></body></html>`;
+
+const plexusNoticePage = (heading, body) => PLEXUS_SHELL(`<div class="card" style="text-align:center;"><h1 style="color:#ef4444;">${heading}</h1><p class="lede" style="margin-top:10px;">${body}</p></div>`, heading);
+
+app.get(['/plexus', '/plexus/:token'], async (req, res) => {
+    try {
+        await freshSync();
+        const token = (req.params.token || req.query.t || '').toString().trim();
+        let link = null, linkLabel = '';
+        let offered = ['conference', 'bridges', 'gala'];
+        if (token) {
+            try { link = query.get("SELECT * FROM registration_links WHERE token = ? AND event_type = 'plexus'", [token]); } catch(e) { link = null; }
+            if (link) {
+                if (link.is_active === 0) return res.send(plexusNoticePage('Link Disabled', 'This registration link is no longer active. Please contact the Med&amp;X team.'));
+                if (link.expires_at && new Date(link.expires_at) < new Date()) return res.send(plexusNoticePage('Link Expired', 'This registration link has expired.'));
+                if (link.max_uses && Number(link.max_uses) > 0 && Number(link.uses || 0) >= Number(link.max_uses)) return res.send(plexusNoticePage('Link Fully Used', 'This registration link has reached its maximum number of uses.'));
+                try { const a = JSON.parse(link.component_keys || 'null'); if (Array.isArray(a) && a.length) offered = a.filter(k => ['conference', 'bridges', 'gala'].includes(k)); } catch(e) {}
+                linkLabel = link.label || '';
+            }
+        }
+        if (!offered.length) offered = ['conference', 'bridges', 'gala'];
+
+        const galaSettings = query.get("SELECT * FROM gala_settings WHERE id = 'default'") || {};
+        const galaPrice = effectiveGalaPrice();
+        const ebDeadline = galaSettings.early_bird_deadline || '2026-09-01';
+        const isEarly = new Date().toISOString().slice(0, 10) <= ebDeadline;
+        const fmtD = (iso) => { try { return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); } catch(e) { return iso; } };
+        const galaVenue = galaSettings.venue || 'Hotel Esplanade Zagreb';
+        const galaPriceLabel = isEarly ? ('&euro;' + galaPrice + ' &middot; early-bird until ' + fmtD(ebDeadline)) : ('&euro;' + galaPrice);
+
+        const cardConference = `<div class="event-option evt-conference" data-key="conference" data-price="0" onclick="plexToggle(this)">
+            <div class="event-checkbox"><i class="fas fa-check"></i></div>
+            <div class="event-icon"><i class="fas fa-microscope"></i></div>
+            <div class="event-body"><div class="event-title-row"><span class="event-name">Plexus Conference</span><span class="event-price free">FREE</span></div>
+            <div class="event-meta">4&ndash;5 December 2026 &middot; Zagreb &middot; two days of panels &amp; lectures across biomedicine. Programme to follow.</div></div></div>`;
+        const cardBridges = `<div class="event-option evt-bridges" data-key="bridges" data-price="0" onclick="plexToggle(this)">
+            <div class="event-checkbox"><i class="fas fa-check"></i></div>
+            <div class="event-icon"><i class="fas fa-handshake"></i></div>
+            <div class="event-body"><div class="event-title-row"><span class="event-name">Croatian Biomedical Bridges</span><span class="event-price free">FREE</span></div>
+            <div class="event-meta">4 or 5 December 2026 &middot; Zagreb &middot; a daytime gathering connecting Croatian medicine worldwide. Pre-registration; date &amp; venue to follow.</div></div></div>`;
+        const cardGala = `<div class="event-option evt-gala" data-key="gala" data-price="${galaPrice}" onclick="plexToggle(this)">
+            <div class="event-checkbox"><i class="fas fa-check"></i></div>
+            <div class="event-icon"><i class="fas fa-champagne-glasses"></i></div>
+            <div class="event-body"><div class="event-title-row"><span class="event-name">Plexus Gala Evening</span><span class="event-price">${galaPriceLabel}</span></div>
+            <div class="event-meta">5 December 2026 &middot; ${galaVenue} &middot; black-tie evening, keynote by Lord Smith of Finsbury (Chancellor, University of Cambridge), fireside panel. Limited places.</div></div></div>`;
+        const cards = [
+            offered.includes('conference') ? cardConference : '',
+            offered.includes('bridges') ? cardBridges : '',
+            offered.includes('gala') ? cardGala : ''
+        ].join('');
+
+        const inner = `<div class="card">
+            <span class="badge">Plexus 2026 &middot; Zagreb${linkLabel ? ' &middot; ' + escapeHtml(linkLabel) : ''}</span>
+            <h1>Reserve your place</h1>
+            <p class="lede">Register once, from this single page. Choose the events you would like to attend &mdash; the Conference and Croatian Biomedical Bridges are complimentary; the Gala Evening is a paid ticket.</p>
+            <div class="section-label">Choose your events</div>
+            ${cards}
+            <div class="total-display" id="plexTotal"><span class="label">Total</span><span class="amount" id="plexTotalAmt">&euro;0</span></div>
+            <form id="plexForm" onsubmit="return plexSubmit(event)">
+                <div class="section-label">Your details</div>
+                <div class="form-grid">
+                    <div class="form-row">
+                        <div><label>First name *</label><input id="pf_first" required maxlength="100"></div>
+                        <div><label>Last name *</label><input id="pf_last" required maxlength="100"></div>
+                    </div>
+                    <div><label>Email *</label><input id="pf_email" type="email" required maxlength="160"></div>
+                    <div class="form-row">
+                        <div><label>Institution</label><input id="pf_inst" maxlength="160"></div>
+                        <div><label>Country</label><input id="pf_country" maxlength="80"></div>
+                    </div>
+                    <div><label>Dietary requirements (for the Gala)</label><input id="pf_diet" maxlength="200" placeholder="e.g. vegetarian, allergies"></div>
+                    <div><label>Anything else?</label><textarea id="pf_notes" maxlength="500"></textarea></div>
+                </div>
+                <div class="total-display show" style="margin-top:14px;"><span class="label">To pay now</span><span class="amount" id="plexPayAmt">&euro;0</span></div>
+                <button type="submit" class="submit-btn" id="plexBtn">Complete registration</button>
+                <div class="msg" id="plexMsg"></div>
+            </form>
+        </div>`;
+
+        const clientJs = `<script>
+        var PLEX_TOKEN = ${JSON.stringify(token || '')};
+        function plexEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
+        function plexRecompute(){
+            var total = 0;
+            document.querySelectorAll('.event-option.selected').forEach(function(o){ total += Number(o.dataset.price)||0; });
+            var any = document.querySelectorAll('.event-option.selected').length > 0;
+            document.getElementById('plexTotal').classList.toggle('show', any);
+            document.getElementById('plexTotalAmt').textContent = '\\u20AC' + total;
+            document.getElementById('plexPayAmt').textContent = '\\u20AC' + total;
+            document.getElementById('plexBtn').textContent = total > 0 ? ('Proceed to payment \\u2014 \\u20AC' + total) : 'Complete registration';
+        }
+        function plexToggle(el){ el.classList.toggle('selected'); plexRecompute(); }
+        function plexErr(m){ var e=document.getElementById('plexMsg'); e.className='msg err'; e.textContent=m; }
+        async function plexSubmit(ev){
+            ev.preventDefault();
+            var sel = { conference:0, bridges:0, gala:0 };
+            document.querySelectorAll('.event-option.selected').forEach(function(o){ sel[o.dataset.key] = 1; });
+            if(!sel.conference && !sel.bridges && !sel.gala){ plexErr('Please select at least one event.'); return false; }
+            var btn = document.getElementById('plexBtn'); btn.disabled = true; btn.textContent = 'Processing\\u2026';
+            var body = {
+                source: 'plexus',
+                link_token: PLEX_TOKEN || undefined,
+                first_name: document.getElementById('pf_first').value.trim(),
+                last_name: document.getElementById('pf_last').value.trim(),
+                email: document.getElementById('pf_email').value.trim(),
+                institution: document.getElementById('pf_inst').value.trim(),
+                country: document.getElementById('pf_country').value.trim(),
+                dietary: document.getElementById('pf_diet').value.trim(),
+                notes: document.getElementById('pf_notes').value.trim(),
+                selected_conference: sel.conference, selected_bridges: sel.bridges, selected_gala: sel.gala
+            };
+            try {
+                var r = await fetch('/api/croatians-abroad/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+                var d = await r.json();
+                if(!r.ok){ plexErr(d.error || 'Registration failed. Please try again.'); btn.disabled=false; plexRecompute(); return false; }
+                if(d.checkout_url){ window.location = d.checkout_url; return false; }
+                document.querySelector('.card').innerHTML = '<div style="text-align:center;padding:14px 0;"><div style="font-size:46px;color:#22c55e;margin-bottom:10px;"><i class="fas fa-circle-check"></i></div><h1>You are registered</h1><p class="lede" style="margin-top:10px;">Thank you, ' + plexEsc(body.first_name) + '. A confirmation email with your check-in QR code is on its way to ' + plexEsc(body.email) + '. We look forward to welcoming you to Plexus 2026 in Zagreb.</p></div>';
+            } catch(e){ plexErr('Network error. Please try again.'); btn.disabled=false; plexRecompute(); }
+            return false;
+        }
+        </script>`;
+
+        return res.send(PLEXUS_SHELL(inner + clientJs, 'Plexus 2026 — Reserve Your Place'));
+    } catch (err) {
+        console.error('[Plexus page] error:', err.message);
+        return res.status(500).send(plexusNoticePage('Something went wrong', 'Please try again, or contact laura.rodman@medx.hr.'));
+    }
+});
+
 app.get('/invite/:data', async (req, res) => {
     try {
         // Show the admin's latest edits immediately (throttled Turso pull) instead of
@@ -1904,6 +2101,22 @@ function sumComponentPrices(eventType, componentKeys) {
         if (row) { total += Math.max(0, Number(row.price) || 0); resolved++; }
     }
     return resolved ? Math.round(total * 100) / 100 : null;
+}
+
+// Effective Gala-only ticket price: early-bird until the deadline, then the regular price.
+// Date-driven + admin-editable via gala_settings. Used by BOTH the standalone Gala checkout
+// and the Plexus multi-event flow so the Gala price is identical regardless of entry point.
+// Always server-computed — never trusts a client-sent amount.
+function effectiveGalaPrice() {
+    const s = query.get("SELECT price_gala_only, price_gala_early_bird, price_gala_regular, early_bird_deadline FROM gala_settings WHERE id = 'default'") || {};
+    const eb = Number(s.price_gala_early_bird);
+    const reg = Number(s.price_gala_regular);
+    const deadline = s.early_bird_deadline || '2026-09-01';
+    if (Number.isFinite(eb) && Number.isFinite(reg)) {
+        const today = new Date().toISOString().slice(0, 10);
+        return today <= deadline ? eb : reg;
+    }
+    return Number(s.price_gala_only) || 150; // legacy fallback
 }
 
 // Pull the stored component_keys for a registration link token (server-trusted source).
@@ -3078,11 +3291,15 @@ async function initializeApp() {
         UNIQUE(event_type, component_key)
     )`); } catch(e) {}
     // Idempotent seed — INSERT OR IGNORE keeps any admin price edits on re-boot.
+    // Plexus 2026 (per the "3 events" invitation): Conference FREE, Bridges FREE, Gala paid.
+    // The Gala component's price here is display-only; the authoritative charge comes from
+    // effectiveGalaPrice() (early-bird → regular by date), so it never double-sources.
     [
-        ['plexus','conference','Conference (Day 1 + Day 2)',150,1],
-        ['plexus','gala','Gala Evening',150,2],
-        ['plexus','reception','Welcome Reception',0,3],
-        ['plexus','workshop','Workshop',0,4],
+        ['plexus','conference','Plexus Conference (4–5 Dec)',0,1],
+        ['plexus','bridges','Croatian Biomedical Bridges (4–5 Dec)',0,2],
+        ['plexus','gala','Plexus Gala Evening (5 Dec)',150,3],
+        ['plexus','reception','Welcome Reception',0,4],
+        ['plexus','workshop','Workshop',0,5],
         ['forum','day1','Day 1 — Split',0,1],
         ['forum','day2','Day 2 — Zagreb',0,2],
         ['forum','gala','Gala Dinner',100,3],
@@ -3090,6 +3307,16 @@ async function initializeApp() {
         try { db.run('INSERT OR IGNORE INTO event_components (id, event_type, component_key, label, price, sort_order, is_active) VALUES (?,?,?,?,?,?,1)',
             [et + '-' + key, et, key, label, price, sort]); } catch(e) {}
     });
+    // Migrate the pre-existing Plexus components to the 2026 invitation model. INSERT OR IGNORE
+    // above won't touch rows that already exist, so force Conference → FREE and refresh labels
+    // (guarded to the legacy default 150 so a deliberate admin price edit is never stomped).
+    try {
+        const confRow = query.get("SELECT price FROM event_components WHERE event_type='plexus' AND component_key='conference'");
+        if (confRow && Number(confRow.price) === 150) {
+            db.run("UPDATE event_components SET price = 0, label = 'Plexus Conference (4–5 Dec)' WHERE event_type='plexus' AND component_key='conference'");
+        }
+        db.run("UPDATE event_components SET label = 'Plexus Gala Evening (5 Dec)' WHERE event_type='plexus' AND component_key='gala' AND label = 'Gala Evening'");
+    } catch(e) {}
 
     // Phase 6B: QR code for bridges registrations
     try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN qr_code TEXT`); } catch(e) {}
@@ -4521,6 +4748,12 @@ async function initializeApp() {
     if (!existingGalaSettings) {
         db.run("INSERT INTO gala_settings (id) VALUES ('default')");
     }
+    // 2026 Gala early-bird pricing: €150 until 1 Sep 2026, then €175 (regular). Both the
+    // standalone Gala link AND the new Plexus multi-event link charge via effectiveGalaPrice()
+    // so pricing stays unified. All three values are admin-editable in gala_settings.
+    try { db.run("ALTER TABLE gala_settings ADD COLUMN price_gala_early_bird REAL DEFAULT 150"); } catch(e) {}
+    try { db.run("ALTER TABLE gala_settings ADD COLUMN price_gala_regular REAL DEFAULT 175"); } catch(e) {}
+    try { db.run("ALTER TABLE gala_settings ADD COLUMN early_bird_deadline TEXT DEFAULT '2026-09-01'"); } catch(e) {}
     // 2026 pricing migration: gala-only early-bird fee €150 (only if still at a legacy default; never overrides admin edits)
     try {
         const galaRow = query.get("SELECT price_gala_only, time, venue, title FROM gala_settings WHERE id = 'default'");
@@ -4635,6 +4868,10 @@ async function initializeApp() {
         invoice_number TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+    // Source tag: distinguishes the public "Plexus Experience" multi-event registrations
+    // (source='plexus') from the diaspora "Croatians Abroad" ones (default). Both share this
+    // table + the linked gala_registrations row so Gala data stays unified across entry points.
+    try { db.run("ALTER TABLE croatians_abroad_registrations ADD COLUMN source TEXT DEFAULT 'croatians-abroad'"); } catch(e) {}
 
     // Gala invite links — admin-generated shareable URLs (generic paid + VIP free)
     db.run(`CREATE TABLE IF NOT EXISTS gala_invite_links (
@@ -11748,6 +11985,12 @@ By applying to this program, I provide the following consents:
                     if (metadata.invite_link_id) {
                         db.run('UPDATE croatians_abroad_invite_links SET used_count = COALESCE(used_count,0) + 1 WHERE id = ?', [metadata.invite_link_id]);
                     }
+                    // Count the Plexus link use exactly once, on successful payment — batched here
+                    // (before saveDb) so it persists atomically with the paid status and is never
+                    // lost to a crash + idempotent webhook retry. Capped via the WHERE guard.
+                    if (metadata.plexus_link_id) {
+                        try { db.run('UPDATE registration_links SET uses = COALESCE(uses,0) + 1 WHERE id = ? AND (max_uses IS NULL OR max_uses = 0 OR COALESCE(uses,0) < max_uses)', [metadata.plexus_link_id]); } catch(e) {}
+                    }
                     saveDb();
 
                     // FIRA fiscal invoice + finance income record — CA-gala payments were
@@ -11822,7 +12065,7 @@ By applying to this program, I provide the following consents:
                             <p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${invoiceNumber}</p>
                             ${buildTicketQrBlock(galaRegId, { label: 'Gala Check-in QR Code', caption: 'Present this code at the Gala entrance on 5 December' })}
                             <p>We will email you the <strong>Conference programme</strong> as soon as it is finalised${metadata.bundle_bridges === '1' ? ', and confirm the <strong>Bridges date and venue</strong> when those are set' : ''}.</p>
-                            <p style="margin-top:24px;">We look forward to welcoming you home in Zagreb.</p>
+                            <p style="margin-top:24px;">We look forward to welcoming you ${metadata.source === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
                             <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
                         `), galaQrAtts);
                         // sendEmail returns {success:false}/{mock:true} instead of throwing, so the
@@ -11850,13 +12093,13 @@ By applying to this program, I provide the following consents:
                                     name: (metadata.first_name || '') + ' ' + (metadata.last_name || ''),
                                     email: caEmail,
                                     institution: metadata.institution || '', country: metadata.country || '', role: metadata.role || '',
-                                    event: 'Plexus 2026 — Croatians Abroad (Gala bundle)',
+                                    event: metadata.source === 'plexus' ? 'Plexus 2026 (Gala paid)' : 'Plexus 2026 — Croatians Abroad (Gala bundle)',
                                     event_type: 'croatians-abroad',
                                     items: events.join(' + '),
                                     dietary: metadata.dietary || '',
                                     custom_summary: metadata.custom_summary || '',
                                     applied_for: events.join(' + '),
-                                    amount, payment: 'Paid (Gala bundle)',
+                                    amount, payment: metadata.source === 'plexus' ? 'Paid (Gala)' : 'Paid (Gala bundle)',
                                     registration_id: caRegId,
                                     invoice: invoiceNumber
                                 })
@@ -17482,7 +17725,17 @@ By applying to this program, I provide the following consents:
 
     // List all registrations + per-event emails for later bulk notifications
     app.get('/api/admin/croatians-abroad/registrations', auth, adminOnly, (req, res) => {
-        const rows = query.all('SELECT * FROM croatians_abroad_registrations ORDER BY created_at DESC');
+        // Diaspora flow only — exclude public Plexus Experience rows (source='plexus'),
+        // which have their own list endpoint so the two never mix.
+        const rows = query.all("SELECT * FROM croatians_abroad_registrations WHERE COALESCE(source,'croatians-abroad') <> 'plexus' ORDER BY created_at DESC");
+        res.json(rows);
+    });
+
+    // Public "Plexus Experience" multi-event registrations (source='plexus'). Same table as
+    // Croatians Abroad (so the linked gala_registrations + check-in are unified) but listed
+    // separately for the Plexus admin section.
+    app.get('/api/admin/plexus-experience/registrations', auth, adminOnly, (req, res) => {
+        const rows = query.all("SELECT * FROM croatians_abroad_registrations WHERE source = 'plexus' ORDER BY created_at DESC");
         res.json(rows);
     });
 
@@ -17493,9 +17746,23 @@ By applying to this program, I provide the following consents:
         const validCols = { conference: 'selected_conference', bridges: 'selected_bridges', gala: 'selected_gala' };
         const col = validCols[event];
         if (!col) return res.status(400).json({ error: "event must be one of: conference, bridges, gala" });
+        // Diaspora flow only — exclude public Plexus Experience rows (they have their own export).
         const rows = query.all(
             `SELECT first_name, last_name, email, institution, country, role, created_at
-             FROM croatians_abroad_registrations WHERE ${col} = 1 ORDER BY created_at DESC`
+             FROM croatians_abroad_registrations WHERE ${col} = 1 AND COALESCE(source,'croatians-abroad') <> 'plexus' ORDER BY created_at DESC`
+        );
+        res.json({ event, count: rows.length, emails: rows.map(r => r.email), registrants: rows });
+    });
+
+    // Plexus Experience email export by event (source='plexus' only).
+    app.get('/api/admin/plexus-experience/emails-by-event/:event', auth, adminOnly, (req, res) => {
+        const event = req.params.event;
+        const validCols = { conference: 'selected_conference', bridges: 'selected_bridges', gala: 'selected_gala' };
+        const col = validCols[event];
+        if (!col) return res.status(400).json({ error: "event must be one of: conference, bridges, gala" });
+        const rows = query.all(
+            `SELECT first_name, last_name, email, institution, country, role, created_at
+             FROM croatians_abroad_registrations WHERE ${col} = 1 AND source = 'plexus' ORDER BY created_at DESC`
         );
         res.json({ event, count: rows.length, emails: rows.map(r => r.email), registrants: rows });
     });
@@ -17852,11 +18119,13 @@ By applying to this program, I provide the following consents:
             if (reg.status !== 'approved') return res.status(400).json({ error: 'Registration must be approved before payment' });
             if (reg.payment_status === 'paid') return res.status(400).json({ error: 'Already paid' });
 
-            // Get pricing from settings
+            // Get pricing from settings. Gala-only uses effectiveGalaPrice() (early-bird → regular
+            // by date) so a Gala ticket costs the SAME whether booked via the Gala link or the
+            // Plexus link. Bundle keeps its own price.
             const settings = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
             const price = reg.pricing === 'bundle'
                 ? (settings?.price_bundle || 174)
-                : (settings?.price_gala_only || 150);
+                : effectiveGalaPrice();
 
             // Generate invoice number
             const year = new Date().getFullYear();
@@ -18154,11 +18423,47 @@ By applying to this program, I provide the following consents:
             const { invite_link_id, first_name, last_name, email, institution, country, role, dietary, notes,
                     selected_conference, selected_bridges, selected_gala } = req.body || {};
             if (!email || !first_name) return res.status(400).json({ error: 'Name and email required' });
-            const wantConf = !!Number(selected_conference);
-            const wantBridges = !!Number(selected_bridges);
-            const wantGala = !!Number(selected_gala);
+            let wantConf = !!Number(selected_conference);
+            let wantBridges = !!Number(selected_bridges);
+            let wantGala = !!Number(selected_gala);
             if (!wantConf && !wantBridges && !wantGala) {
                 return res.status(400).json({ error: 'Please select at least one event' });
+            }
+
+            // Source-aware: this proven multi-event engine serves BOTH the diaspora "Croatians
+            // Abroad" flow and the public "Plexus Experience" flow. The Plexus flow passes
+            // source='plexus' + a registration_links token whose component_keys define which of
+            // Conference/Bridges/Gala the admin OFFERED on that link. The registrant's chosen
+            // subset is clamped to those offered components (server-trusted — never the client).
+            const regSource = (req.body.source === 'plexus') ? 'plexus' : 'croatians-abroad';
+            let plexusLinkRow = null;
+            if (regSource === 'plexus') {
+                const token = (req.body.link_token && typeof req.body.link_token === 'string') ? req.body.link_token.trim() : '';
+                if (token) {
+                    // A token was supplied → it MUST resolve to a valid, active, non-expired,
+                    // non-exhausted link. Rejecting a tampered/fake token here is the access-control
+                    // boundary: without this, dropping in a bogus token would skip clamping and let
+                    // a guest register for events the link never offered.
+                    try { plexusLinkRow = query.get("SELECT * FROM registration_links WHERE token = ? AND event_type = 'plexus'", [token]); } catch(e) { plexusLinkRow = null; }
+                    if (!plexusLinkRow) return res.status(403).json({ error: 'This registration link is invalid or has expired. Please use a valid link or contact the Med&X team.' });
+                    if (plexusLinkRow.is_active === 0) return res.status(403).json({ error: 'This registration link is no longer active.' });
+                    if (plexusLinkRow.expires_at && new Date(plexusLinkRow.expires_at) < new Date()) return res.status(403).json({ error: 'This registration link has expired.' });
+                    if (plexusLinkRow.max_uses && Number(plexusLinkRow.max_uses) > 0 && Number(plexusLinkRow.uses || 0) >= Number(plexusLinkRow.max_uses)) return res.status(403).json({ error: 'This registration link has reached its maximum number of uses.' });
+                    let offered = null;
+                    try { const a = JSON.parse(plexusLinkRow.component_keys || 'null'); offered = (Array.isArray(a) && a.length) ? a.filter(k => ['conference', 'bridges', 'gala'].includes(k)) : null; } catch(e) { console.warn('[CA register] component_keys parse failed for link', plexusLinkRow.id); offered = null; }
+                    if (offered && offered.length) {
+                        // Clamp the registrant's choice to what THIS link offers (malformed/empty
+                        // component_keys falls through to the public default — all three offered).
+                        if (wantConf && !offered.includes('conference')) wantConf = false;
+                        if (wantBridges && !offered.includes('bridges')) wantBridges = false;
+                        if (wantGala && !offered.includes('gala')) wantGala = false;
+                        if (!wantConf && !wantBridges && !wantGala) {
+                            return res.status(400).json({ error: 'Your selection is not available on this link.' });
+                        }
+                    }
+                }
+                // No token → the public /plexus page, where all three events are openly offered
+                // (and Gala still requires payment), so no clamping is needed.
             }
 
             // Validate + collect admin-defined custom questions for this event (event-scoped).
@@ -18201,15 +18506,15 @@ By applying to this program, I provide the following consents:
                 `INSERT INTO croatians_abroad_registrations
                  (id, invite_link_id, first_name, last_name, email, institution, country, role, dietary, notes,
                   selected_conference, selected_bridges, selected_gala,
-                  conference_status, bridges_status, gala_status, gala_payment_status, gala_registration_id)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                  conference_status, bridges_status, gala_status, gala_payment_status, gala_registration_id, source)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
                 [regId, invite_link_id || null, first_name, last_name || '', email, institution || '', country || '', role || '', dietary || '', notes || '',
                  finalConf ? 1 : 0, finalBridges ? 1 : 0, finalGala ? 1 : 0,
                  finalConf ? 'pre-registered' : null,
                  finalBridges ? 'pre-registered' : null,
                  finalGala ? 'awaiting_payment' : null,
                  finalGala ? 'pending' : null,
-                 galaRegistrationId]
+                 galaRegistrationId, regSource]
             );
             saveDb();
 
@@ -18277,7 +18582,7 @@ By applying to this program, I provide the following consents:
                         ${qrBlock}
                         <p>We will email you the <strong>Conference programme</strong> as soon as it is finalised${finalBridges ? ', and confirm the <strong>Bridges date and venue</strong> when those are set' : ''}.</p>
                         <p>If you would also like to join us at the <strong>Plexus Gala Evening</strong> on 5 December 2026 (Hotel Esplanade Zagreb, Lord Smith of Finsbury keynote), simply reply to this email and we will send you the ticket link.</p>
-                        <p style="margin-top:24px;">We look forward to welcoming you home in Zagreb.</p>
+                        <p style="margin-top:24px;">We look forward to welcoming you ${regSource === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
                         <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
                     `));
                 } catch(emailErr) { console.warn('CA pre-reg email failed:', emailErr.message); }
@@ -18295,7 +18600,7 @@ By applying to this program, I provide the following consents:
                                 events,                            // ← new: tab routing (['conference','bridges','gala'])
                                 name: first_name + ' ' + (last_name || ''),
                                 email, institution: institution || '', country: country || '', role: role || '',
-                                event: 'Plexus 2026 — Croatians Abroad',
+                                event: regSource === 'plexus' ? 'Plexus 2026' : 'Plexus 2026 — Croatians Abroad',
                                 event_type: 'croatians-abroad',
                                 items: events.join(' + '),
                                 dietary: dietary || '', notes: notes || '',
@@ -18315,6 +18620,12 @@ By applying to this program, I provide the following consents:
                     db.run('UPDATE croatians_abroad_invite_links SET used_count = COALESCE(used_count,0) + 1 WHERE id = ?', [caInvite.id]);
                     saveDb();
                 }
+                if (plexusLinkRow) {
+                    // Atomic cap: the WHERE guard prevents the counter exceeding max_uses even if
+                    // two free registrations race past the earlier check.
+                    db.run('UPDATE registration_links SET uses = COALESCE(uses,0) + 1 WHERE id = ? AND (max_uses IS NULL OR max_uses = 0 OR COALESCE(uses,0) < max_uses)', [plexusLinkRow.id]);
+                    saveDb();
+                }
                 return res.json({ success: true, id: regId, status: 'pre-registered' });
             }
 
@@ -18322,8 +18633,7 @@ By applying to this program, I provide the following consents:
             if (!stripe) {
                 return res.status(500).json({ error: 'Payment processor not configured. Please contact info@medx.hr.' });
             }
-            const galaSettingsRow = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
-            const galaPrice = galaSettingsRow?.price_gala_only || 150;
+            const galaPrice = effectiveGalaPrice(); // early-bird → regular by date; unified across all entry points
             const baseUrl = process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
             const session = await stripe.checkout.sessions.create({
                 mode: 'payment',
@@ -18331,13 +18641,15 @@ By applying to this program, I provide the following consents:
                 line_items: [{
                     price_data: {
                         currency: 'eur',
-                        product_data: { name: 'Plexus 2026 Gala Evening — Croatians Abroad' },
+                        product_data: { name: regSource === 'plexus' ? 'Plexus 2026 Gala Evening' : 'Plexus 2026 Gala Evening — Croatians Abroad' },
                         unit_amount: Math.round(galaPrice * 100)
                     },
                     quantity: 1
                 }],
                 metadata: {
                     type: 'croatians-abroad-gala',
+                    source: regSource,
+                    plexus_link_id: (plexusLinkRow && plexusLinkRow.id) || '',
                     ca_registration_id: regId,
                     gala_registration_id: galaRegistrationId,
                     invite_link_id: invite_link_id || '',
