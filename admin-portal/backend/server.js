@@ -3035,6 +3035,7 @@ async function initializeApp() {
         try { db.run(`ALTER TABLE ${t} ADD COLUMN custom_answers TEXT`); } catch(e) {}
         try { db.run(`ALTER TABLE ${t} ADD COLUMN applied_for TEXT`); } catch(e) {}
         try { db.run(`ALTER TABLE ${t} ADD COLUMN reg_link_token TEXT`); } catch(e) {}
+        try { db.run(`ALTER TABLE ${t} ADD COLUMN guest_count INTEGER DEFAULT 0`); } catch(e) {}
     }
 
     // Gala invite links table — admin-generated shareable URLs (generic paid + VIP free)
@@ -16194,6 +16195,7 @@ By applying to this program, I provide the following consents:
                     name: `${reg.first_name} ${reg.last_name || ''}`.trim(),
                     email: reg.email, institution: reg.institution || '',
                     dietary: reg.dietary || '', amount_paid: reg.amount_paid, invoice: reg.invoice_number || '',
+                    guests: reg.guest_count || 0,
                     ...appliedInfo(reg)
                 }
             });
@@ -16230,6 +16232,7 @@ By applying to this program, I provide the following consents:
                         email: sReg.email, institution: sReg.institution || '',
                         // registrations/bridges_registrations store dietary_requirements (not dietary)
                         dietary: sReg.dietary_requirements || sReg.dietary || '',
+                        guests: sReg.guest_count || 0,
                         ...appliedInfo(sReg)
                     }
                 });
@@ -16267,7 +16270,8 @@ By applying to this program, I provide the following consents:
                 email: caReg.email, institution: caReg.institution || '',
                 country: caReg.country || '', role: caReg.role || '', dietary: caReg.dietary || '',
                 applied_for: [caReg.selected_conference ? 'Conference' : null, caReg.selected_bridges ? 'Bridges' : null, caReg.selected_gala ? 'Gala' : null].filter(Boolean).join(', '),
-                answers: appliedInfo(caReg).answers
+                answers: appliedInfo(caReg).answers,
+                guests: caReg.guest_count || 0
             }
         });
     });

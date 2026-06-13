@@ -4934,6 +4934,7 @@ async function initializeApp() {
         try { db.run(`ALTER TABLE ${t} ADD COLUMN custom_answers TEXT`); } catch(e) {}
         try { db.run(`ALTER TABLE ${t} ADD COLUMN applied_for TEXT`); } catch(e) {}
         try { db.run(`ALTER TABLE ${t} ADD COLUMN reg_link_token TEXT`); } catch(e) {}
+        try { db.run(`ALTER TABLE ${t} ADD COLUMN guest_count INTEGER DEFAULT 0`); } catch(e) {}
     }
 
     // Abstract detail columns from admin portal
@@ -18497,8 +18498,8 @@ By applying to this program, I provide the following consents:
             try {
                 const denormTable = { plexus: 'registrations', gala: 'gala_registrations', forum: 'forum_event_registrations', bridges: 'bridges_registrations', 'croatians-abroad': 'croatians_abroad_registrations' }[event_type];
                 if (denormTable) {
-                    db.run(`UPDATE ${denormTable} SET custom_answers = ?, applied_for = ?, reg_link_token = ? WHERE id = ?`,
-                        [customAnswersJson, appliedFor, req.body.link_token || null, regId]);
+                    db.run(`UPDATE ${denormTable} SET custom_answers = ?, applied_for = ?, reg_link_token = ?, guest_count = ? WHERE id = ?`,
+                        [customAnswersJson, appliedFor, req.body.link_token || null, Math.max(0, Math.min(20, parseInt(guest_count) || 0)), regId]);
                 }
             } catch(e) { console.warn('[register-invite] denormalize failed:', e.message); }
 
