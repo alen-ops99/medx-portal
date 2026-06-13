@@ -20907,9 +20907,10 @@ President, Med&amp;X</textarea>
 
                         <div style="margin-bottom: 12px;">
                             <label style="font-size: 12px; font-weight: 600; color: var(--text-muted, #94a3b8); text-transform: uppercase; letter-spacing: 0.5px;">Checking in for:</label>
-                            <select id="qrCheckInContext" style="width: 100%; padding: 10px; border: 1px solid var(--border-color, #334155); border-radius: 8px; background: var(--bg-secondary, #1e293b); color: var(--text-primary, #e2e8f0); font-size: 14px; margin-top: 4px;">
-                                <option value="general">General Lookup</option>
+                            <select id="qrCheckInContext" onchange="App.loadGlobalCheckinStats()" style="width: 100%; padding: 10px; border: 1px solid var(--border-color, #334155); border-radius: 8px; background: var(--bg-secondary, #1e293b); color: var(--text-primary, #e2e8f0); font-size: 14px; margin-top: 4px;">
+                                <option value="general">General Lookup (all events)</option>
                                 <option value="plexus">Plexus Conference 2026</option>
+                                <option value="gala">Plexus Gala Evening</option>
                                 <option value="forum">Annual Biomedical Forum</option>
                                 <option value="bridges-zurich">Building Bridges: Zurich</option>
                                 <option value="bridges-dc">Building Bridges: Washington DC</option>
@@ -21184,7 +21185,6 @@ President, Med&amp;X</textarea>
                 try {
                     const stats = await this.api('/api/checkin/stats');
                     const o = stats.overall || { total: 0, checked_in: 0 };
-                    const pct = o.total > 0 ? Math.round((o.checked_in / o.total) * 100) : 0;
 
                     const label = document.getElementById('qrStatsLabel');
                     const pctEl = document.getElementById('qrStatsPct');
@@ -21192,7 +21192,16 @@ President, Med&amp;X</textarea>
                     const events = document.getElementById('qrStatsEvents');
                     if (!label) return;
 
-                    label.textContent = `${o.checked_in} / ${o.total} checked in`;
+                    // Focus the headline on the event chosen in "Checking in for:" — so the door can pick
+                    // Gala (or any event) and watch "checked in / registered" for just that event, live.
+                    const ctx = document.getElementById('qrCheckInContext')?.value || 'general';
+                    const ctxKey = ctx === 'plexus' ? 'plexus' : ctx === 'gala' ? 'gala' : ctx === 'forum' ? 'forum' : ctx.indexOf('bridges') === 0 ? 'bridges' : null;
+                    const eventNames = { plexus: 'Plexus Conference', gala: 'Gala Evening', forum: 'Forum', bridges: 'Building Bridges' };
+                    const head = (ctxKey && stats[ctxKey]) ? stats[ctxKey] : o;
+                    const headLabel = (ctxKey && stats[ctxKey]) ? eventNames[ctxKey] : 'All events';
+                    const pct = head.total > 0 ? Math.round((head.checked_in / head.total) * 100) : 0;
+
+                    label.textContent = `${headLabel}: ${head.checked_in} / ${head.total} checked in`;
                     pctEl.textContent = `${pct}%`;
                     fill.style.width = `${pct}%`;
 
