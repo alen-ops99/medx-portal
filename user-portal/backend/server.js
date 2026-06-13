@@ -57,6 +57,48 @@ async function sendEmail(to, subject, htmlContent, attachments, cc) {
     const atts = Array.isArray(attachments) ? attachments.filter(a => a && a.filename && a.content) : [];
     const ccList = cc ? (Array.isArray(cc) ? cc : [cc]).filter(Boolean) : null;
 
+    // Option -1: Brevo (Sendinblue) — HTTP API, works on Render, single-sender (no DNS)
+    if (process.env.BREVO_API_KEY) {
+        try {
+            // Honor EMAIL_FROM ("Med&X <president@medx.hr>"); parse "Name <email>".
+            const fromMatch = /<([^>]+)>/.exec(fromAddress);
+            const bvFromEmail = (fromMatch && fromMatch[1]) || process.env.SMTP_USER || 'onboarding@resend.dev';
+            const bvFromName = fromAddress.replace(/<[^>]*>/, '').trim() || 'Med&X';
+            const bvBody = {
+                sender: { email: bvFromEmail, name: bvFromName },
+                to: [{ email: to }],
+                subject,
+                htmlContent
+            };
+            if (ccList && ccList.length) bvBody.cc = ccList.map(e => ({ email: e }));
+            if (atts.length) {
+                bvBody.attachment = atts.map(a => ({
+                    content: Buffer.from(a.content).toString('base64'),
+                    name: a.filename
+                }));
+            }
+            const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+                method: 'POST',
+                headers: {
+                    'api-key': process.env.BREVO_API_KEY,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(bvBody)
+            });
+            if (response.ok || response.status === 201) {
+                console.log(`[Email Sent via Brevo] To: ${to}, Subject: ${subject}`);
+                return { success: true };
+            }
+            const errData = await response.text();
+            console.error('Brevo error:', response.status, errData);
+            return { success: false, error: errData };
+        } catch (err) {
+            console.error('Brevo error:', err.message);
+            return { success: false, error: err.message };
+        }
+    }
+
     // Option 0: SendGrid (works on Render, no domain verification needed)
     if (process.env.SENDGRID_API_KEY) {
         try {

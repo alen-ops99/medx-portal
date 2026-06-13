@@ -53,6 +53,47 @@ async function sendEmail(to, subject, htmlContent, attachments) {
     const fromAddress = process.env.EMAIL_FROM || 'Med&X <onboarding@resend.dev>';
     const atts = Array.isArray(attachments) ? attachments.filter(a => a && a.filename && a.content) : [];
 
+    // Option -1: Brevo (Sendinblue) — HTTP API, works on Render, single-sender (no DNS)
+    if (process.env.BREVO_API_KEY) {
+        try {
+            // Honor EMAIL_FROM ("Med&X <president@medx.hr>"); parse "Name <email>".
+            const fromMatch = /<([^>]+)>/.exec(fromAddress);
+            const bvFromEmail = (fromMatch && fromMatch[1]) || process.env.SMTP_USER || 'onboarding@resend.dev';
+            const bvFromName = fromAddress.replace(/<[^>]*>/, '').trim() || 'Med&X';
+            const bvBody = {
+                sender: { email: bvFromEmail, name: bvFromName },
+                to: [{ email: to }],
+                subject,
+                htmlContent
+            };
+            if (atts.length) {
+                bvBody.attachment = atts.map(a => ({
+                    content: Buffer.from(a.content).toString('base64'),
+                    name: a.filename
+                }));
+            }
+            const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+                method: 'POST',
+                headers: {
+                    'api-key': process.env.BREVO_API_KEY,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(bvBody)
+            });
+            if (response.ok || response.status === 201) {
+                console.log(`[Email Sent via Brevo] To: ${to}, Subject: ${subject}`);
+                return { success: true };
+            }
+            const errData = await response.text();
+            console.error('Brevo error:', response.status, errData);
+            return { success: false, error: errData };
+        } catch (err) {
+            console.error('Brevo error:', err.message);
+            return { success: false, error: err.message };
+        }
+    }
+
     // Option 0: SendGrid (works on Render, no domain verification needed)
     if (process.env.SENDGRID_API_KEY) {
         try {
@@ -17182,9 +17223,9 @@ By applying to this program, I provide the following consents:
 
         // ---- Integrations & config ----
         groups.push({ group: 'Integrations & Configuration', checks: [
-            safe('Email provider', () => has('RESEND_API_KEY') || has('SENDGRID_API_KEY') || (has('SMTP_HOST') && has('SMTP_USER'))
-                ? { detail: has('RESEND_API_KEY') ? 'Resend configured' : has('SENDGRID_API_KEY') ? 'SendGrid configured' : 'SMTP configured' }
-                : { status: 'fail', detail: 'No email provider configured — confirmation/QR emails will NOT send.', fix: 'Set RESEND_API_KEY (or SENDGRID_API_KEY) in Render env.' }),
+            safe('Email provider', () => has('BREVO_API_KEY') || has('RESEND_API_KEY') || has('SENDGRID_API_KEY') || (has('SMTP_HOST') && has('SMTP_USER'))
+                ? { detail: has('BREVO_API_KEY') ? 'Brevo configured' : has('RESEND_API_KEY') ? 'Resend configured' : has('SENDGRID_API_KEY') ? 'SendGrid configured' : 'SMTP configured' }
+                : { status: 'fail', detail: 'No email provider configured — confirmation/QR emails will NOT send.', fix: 'Set BREVO_API_KEY (or SENDGRID_API_KEY) in Render env.' }),
             safe('Sender address (EMAIL_FROM)', () => {
                 const f = process.env.EMAIL_FROM || '';
                 if (!f) return { status: 'warn', detail: 'EMAIL_FROM not set — using the resend.dev shared sender (delivers only to the Resend account owner).', fix: 'Set EMAIL_FROM once a sender domain is verified.' };
@@ -17797,7 +17838,7 @@ By applying to this program, I provide the following consents:
                 '<h2>Test Email</h2><p>This is a test email from the Med&X Tech Dashboard.</p><p>Sent at: ' + new Date().toISOString() + '</p>'
             );
             const to = req.user.email || 'juginovic.alen@gmail.com';
-            const provider = process.env.SENDGRID_API_KEY ? 'SendGrid' : process.env.RESEND_API_KEY ? 'Resend' : process.env.SMTP_USER ? 'SMTP (note: Render blocks SMTP — switch to SendGrid)' : 'NO provider configured';
+            const provider = process.env.BREVO_API_KEY ? 'Brevo' : process.env.SENDGRID_API_KEY ? 'SendGrid' : process.env.RESEND_API_KEY ? 'Resend' : process.env.SMTP_USER ? 'SMTP (note: Render blocks SMTP — switch to Brevo)' : 'NO provider configured';
             res.json({
                 success: result.success,
                 message: result.mock
