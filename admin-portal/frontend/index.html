@@ -30508,7 +30508,7 @@ By applying to this program, I give the following consents:
                     return;
                 }
 
-                let html = `<table style="width: 100%; border-collapse: collapse;">
+                let html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table style="width: 100%; min-width: 680px; border-collapse: collapse;">
                     <thead>
                         <tr style="border-bottom: 1px solid var(--border);">
                             <th style="text-align: left; padding: 12px 16px; font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Name</th>
@@ -30565,7 +30565,7 @@ By applying to this program, I give the following consents:
                     html += `</td></tr>`;
                 });
 
-                html += '</tbody></table>';
+                html += '</tbody></table></div>';
                 container.innerHTML = html;
             },
 
