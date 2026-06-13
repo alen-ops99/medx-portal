@@ -347,7 +347,10 @@ function getBankDetails(reference, amount) {
 
 async function qrPngAttachment(payload) {
     try {
-        const png = await QRCode.toBuffer(JSON.stringify(payload), { width: 560, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
+        // Encode only the minimal token (id + event) so the attached ticket QR is sparse + easy to
+        // scan; the scanner reads name/status/guests from the DB by regId.
+        const slim = (payload && payload.regId) ? { type: 'MEDX_MEMBER', regId: payload.regId, evt: payload.evt } : payload;
+        const png = await QRCode.toBuffer(JSON.stringify(slim), { errorCorrectionLevel: 'L', width: 560, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
         return [{ filename: 'plexus-ticket-qr.png', content: png, type: 'image/png' }];
     } catch (e) {
         console.warn('QR attachment generation failed:', e.message);
@@ -1670,12 +1673,9 @@ app.get('/qr/:id.png', async (req, res) => {
             let g = null;
             try { g = query.get('SELECT * FROM gala_registrations WHERE id = ?', [id]); } catch(e) {}
             if (g) {
-                payload = {
-                    type: 'MEDX_MEMBER', regId: g.id, email: g.email,
-                    name: `${g.first_name} ${g.last_name || ''}`.trim(),
-                    evt: 'gala', evtName: 'Plexus 2026 — Gala Evening'
-                };
-                if (g.dietary) payload.diet = g.dietary;
+                // Minimal payload → sparse, easy-to-scan QR. The scanner verifies by regId against
+                // the DB (which returns name/status/guests/etc.), so no other fields are needed here.
+                payload = { type: 'MEDX_MEMBER', regId: g.id, evt: 'gala' };
             }
         }
 
@@ -1690,12 +1690,7 @@ app.get('/qr/:id.png', async (req, res) => {
                 let row = null;
                 try { row = query.get(l.sql, [id]); } catch(e) {}
                 if (row) {
-                    payload = {
-                        type: 'MEDX_MEMBER', regId: row.id, email: row.email,
-                        name: `${row.first_name} ${row.last_name || ''}`.trim(),
-                        evt: l.evt, evtName: l.evtName
-                    };
-                    if (row.user_id) payload.userId = row.user_id;
+                    payload = { type: 'MEDX_MEMBER', regId: row.id, evt: l.evt };
                     break;
                 }
             }
@@ -1703,7 +1698,9 @@ app.get('/qr/:id.png', async (req, res) => {
 
         if (!payload) return res.status(404).json({ error: 'Not found' });
 
-        const png = await QRCode.toBuffer(JSON.stringify(payload), { width: 560, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
+        // errorCorrectionLevel 'L' = fewer modules for the same data → a sparser, easier-to-scan
+        // code (these are shown on clean screens, so heavy error correction isn't needed).
+        const png = await QRCode.toBuffer(JSON.stringify(payload), { errorCorrectionLevel: 'L', width: 560, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
         res.set('Content-Type', 'image/png');
         res.set('Cache-Control', 'public, max-age=3600');
         res.send(png);
