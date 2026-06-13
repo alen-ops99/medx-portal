@@ -11901,12 +11901,11 @@ By applying to this program, I provide the following consents:
                         </div>
                         <p style="margin-top:20px;">Dear <strong>${metadata.first_name || 'Guest'}</strong>,</p>
                         <p>Your payment of <strong>&euro;${amount.toFixed(2)}</strong> for <strong style="color:#C9A962;">${metadata.event_name || 'Med&X Event'}</strong> has been received.</p>
+                        <p>We're genuinely delighted you'll be joining us at <strong>${metadata.event_name || 'this event'}</strong>. Gatherings like this are where new collaborations and friendships across the biomedical community take shape, and it means a great deal to have you with us. We look forward to welcoming you and sharing the evening together.</p>
                         ${itemsList.length ? '<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;"><tr><td style="background:#f8fafc;padding:10px 16px;font-size:13px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Registered For</td></tr>' + itemsList.map(i => '<tr><td style="padding:10px 16px;font-size:14px;color:#334155;border-bottom:1px solid #f1f5f9;">&#10003; ' + escapeHtml(String(i)) + '</td></tr>').join('') + '</table>' : ''}
                         ${guestCnt ? '<p>&#128101; <strong>+' + guestCnt + ' Guest' + (guestCnt > 1 ? 's' : '') + '</strong> included in your registration. Your guest(s) can use the same QR code for check-in.</p>' : ''}
                         ${metadata.custom_summary ? '<p style="font-size:13px;color:#334155;">' + escapeHtml(metadata.custom_summary) + '</p>' : ''}
                         ${buildTicketQrBlock(invRegId)}
-                        <p>We're genuinely delighted you'll be joining us at <strong>${metadata.event_name || 'this event'}</strong>. Gatherings like this are where new collaborations and friendships across the biomedical community take shape, and it means a great deal to have you with us.</p>
-                        <p>We look forward to welcoming you and sharing the evening together.</p>
                         <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;border-top:1px solid #e2e8f0;padding-top:16px;">
                             <tr><td style="font-size:13px;color:#64748b;">Questions? Contact <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></td></tr>
                         </table>`;
