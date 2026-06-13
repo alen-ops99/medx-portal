@@ -13377,8 +13377,9 @@ President, Med&amp;X</textarea>
             async showApp() {
                 document.getElementById('loginPage').style.display = 'none';
                 document.getElementById('mainApp').classList.add('active');
-                // QR FAB starts hidden; shown only when navigating to Plexus section
-                document.getElementById('globalQRBtn').style.display = 'none';
+                // Check-in scanner FAB: visible everywhere for admins & scanner staff (the global
+                // scanner handles every event, so it's useful on any section — not just Plexus).
+                { const qf = document.getElementById('globalQRBtn'); if (qf && this.user && (this.user.is_admin || this.user.is_staff)) qf.style.display = 'flex'; }
                 this.updateFabBadge();
                 this.applyRoleRestrictions();
                 // Show the AI assistant button for admins (not scanner-only staff).
@@ -15553,11 +15554,9 @@ President, Med&amp;X</textarea>
                     chatPanel?.classList.add('hidden');
                 }
 
-                // Only show Quick Check-in FAB on Plexus section
+                // Check-in scanner FAB stays visible on every section (universal scanner).
                 const qrFab = document.getElementById('globalQRBtn');
-                if (qrFab) {
-                    qrFab.style.display = sectionId === 'plexus' ? 'flex' : 'none';
-                }
+                if (qrFab && this.user && (this.user.is_admin || this.user.is_staff)) qrFab.style.display = 'flex';
 
                 if (sectionId === 'finances') {
                     // Switch to Finances team chat
@@ -15675,11 +15674,9 @@ President, Med&amp;X</textarea>
                 // Load project-specific channels
                 this.loadProjectChannels(projectId);
 
-                // Only show Quick Check-in FAB on Plexus section
+                // Check-in scanner FAB stays visible on every project (universal scanner).
                 const qrFab = document.getElementById('globalQRBtn');
-                if (qrFab) {
-                    qrFab.style.display = projectId === 'plexus' ? 'flex' : 'none';
-                }
+                if (qrFab && this.user && (this.user.is_admin || this.user.is_staff)) qrFab.style.display = 'flex';
 
                 // Load Plexus-specific data
                 if (projectId === 'plexus') {

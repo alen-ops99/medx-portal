@@ -52,9 +52,10 @@ const app = express();
 
 // Email configuration — supports Resend API (recommended for cloud hosting) or SMTP fallback
 // attachments: optional array of { filename, content: Buffer, type? } — converted per provider below
-async function sendEmail(to, subject, htmlContent, attachments) {
+async function sendEmail(to, subject, htmlContent, attachments, cc) {
     const fromAddress = process.env.EMAIL_FROM || 'Med&X <onboarding@resend.dev>';
     const atts = Array.isArray(attachments) ? attachments.filter(a => a && a.filename && a.content) : [];
+    const ccList = cc ? (Array.isArray(cc) ? cc : [cc]).filter(Boolean) : null;
 
     // Option 0: SendGrid (works on Render, no domain verification needed)
     if (process.env.SENDGRID_API_KEY) {
@@ -65,7 +66,7 @@ async function sendEmail(to, subject, htmlContent, attachments) {
             const sgFromEmail = (fromMatch && fromMatch[1]) || process.env.SMTP_USER || 'onboarding@resend.dev';
             const sgFromName = fromAddress.replace(/<[^>]*>/, '').trim() || 'Med&X';
             const sgBody = {
-                personalizations: [{ to: [{ email: to }] }],
+                personalizations: [{ to: [{ email: to }], ...(ccList && ccList.length ? { cc: ccList.map(e => ({ email: e })) } : {}) }],
                 from: { email: sgFromEmail, name: sgFromName },
                 subject,
                 content: [{ type: 'text/html', value: htmlContent }]
@@ -103,6 +104,7 @@ async function sendEmail(to, subject, htmlContent, attachments) {
     if (process.env.RESEND_API_KEY) {
         try {
             const resendBody = { from: fromAddress, to, subject, html: htmlContent };
+            if (ccList && ccList.length) resendBody.cc = ccList;
             if (atts.length) {
                 resendBody.attachments = atts.map(a => ({
                     filename: a.filename,
@@ -145,6 +147,7 @@ async function sendEmail(to, subject, htmlContent, attachments) {
             // Gmail SMTP requires FROM to match the authenticated user
             const smtpFrom = `Med&X <${process.env.SMTP_USER}>`;
             const mailOpts = { from: smtpFrom, to, subject, html: htmlContent };
+            if (ccList && ccList.length) mailOpts.cc = ccList;
             if (atts.length) {
                 mailOpts.attachments = atts.map(a => ({ filename: a.filename, content: a.content }));
             }
@@ -160,6 +163,12 @@ async function sendEmail(to, subject, htmlContent, attachments) {
     // No email provider configured
     console.log(`[Email Mock] To: ${to}, Subject: ${subject}`);
     return { success: true, mock: true };
+}
+
+// Participant event-confirmation emails — always CC the Med&X contact so the team has a copy of
+// exactly what the registrant received. Override the address with CONFIRMATION_CC if needed.
+async function sendEventConfirmation(to, subject, htmlContent, attachments) {
+    return sendEmail(to, subject, htmlContent, attachments, process.env.CONFIRMATION_CC || 'laura.rodman@medx.hr');
 }
 
 // Send push notification to a specific user
@@ -235,7 +244,9 @@ async function drainPushOutbox() {
 }
 
 // Branded email template builder — wraps content in Med&X styled HTML
-const MEDX_LOGO_URL = 'https://medx-user-portal.onrender.com/assets/images/medx-logo.png';
+// Served from jsDelivr (always-on CDN mirroring the public GitHub repo) so the email logo never
+// breaks when the Render free-tier service is asleep. Override with EMAIL_LOGO_URL if needed.
+const MEDX_LOGO_URL = process.env.EMAIL_LOGO_URL || 'https://cdn.jsdelivr.net/gh/alen-ops99/medx-portal@main/user-portal/frontend/assets/images/medx-logo.png';
 
 function buildEmailTemplate(title, bodyHtml) {
     return `
@@ -11460,7 +11471,7 @@ By applying to this program, I provide the following consents:
 
                     // Send gala payment confirmation email
                     try {
-                        sendEmail(galaReg.email, 'Payment Confirmed — Plexus 2026 Gala Evening', buildEmailTemplate('Payment Confirmed', `
+                        sendEventConfirmation(galaReg.email, 'Payment Confirmed — Plexus 2026 Gala Evening', buildEmailTemplate('Payment Confirmed', `
                             <p>Dear ${galaReg.first_name},</p>
                             <p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 14px 18px; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 16px; text-align: center;">
                                 Your Gala Evening payment has been received — your spot is secured!
@@ -11559,7 +11570,7 @@ By applying to this program, I provide the following consents:
                     try {
                         const recipientEmail = forumReg.email;
                         if (recipientEmail) {
-                            sendEmail(recipientEmail, `Payment Confirmed — Med&X Forum: ${forumReg.event_title || 'Event'}`, buildEmailTemplate('Payment Confirmed', `
+                            sendEventConfirmation(recipientEmail, `Payment Confirmed — Med&X Forum: ${forumReg.event_title || 'Event'}`, buildEmailTemplate('Payment Confirmed', `
                                 <p>Dear ${forumReg.name || forumReg.first_name || 'Forum Member'},</p>
                                 <p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 14px 18px; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 16px; text-align: center;">
                                     Your Forum event payment has been received — your spot is secured!
@@ -11732,7 +11743,7 @@ By applying to this program, I provide the following consents:
 
                     // Confirmation email — payment receipt + bundle summary + QR
                     try {
-                        const caSend = await sendEmail(caEmail, 'Payment Confirmed — Plexus 2026 Gala Evening', buildEmailTemplate('Payment Confirmed', `
+                        const caSend = await sendEventConfirmation(caEmail, 'Payment Confirmed — Plexus 2026 Gala Evening', buildEmailTemplate('Payment Confirmed', `
                             <div style="text-align:center;margin-bottom:8px;">
                                 <div style="display:inline-block;background:#22c55e;color:#fff;font-size:13px;font-weight:600;padding:6px 20px;border-radius:20px;letter-spacing:0.5px;">PAYMENT CONFIRMED</div>
                             </div>
@@ -11894,12 +11905,13 @@ By applying to this program, I provide the following consents:
                         ${guestCnt ? '<p>&#128101; <strong>+' + guestCnt + ' Guest' + (guestCnt > 1 ? 's' : '') + '</strong> included in your registration. Your guest(s) can use the same QR code for check-in.</p>' : ''}
                         ${metadata.custom_summary ? '<p style="font-size:13px;color:#334155;">' + escapeHtml(metadata.custom_summary) + '</p>' : ''}
                         ${buildTicketQrBlock(invRegId)}
-                        <p>We look forward to seeing you!</p>
+                        <p>We're genuinely delighted you'll be joining us at <strong>${metadata.event_name || 'this event'}</strong>. Gatherings like this are where new collaborations and friendships across the biomedical community take shape, and it means a great deal to have you with us.</p>
+                        <p>We look forward to welcoming you and sharing the evening together.</p>
                         <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;border-top:1px solid #e2e8f0;padding-top:16px;">
                             <tr><td style="font-size:13px;color:#64748b;">Questions? Contact <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></td></tr>
                         </table>`;
                     try {
-                        const invSend = await sendEmail(invEmail, `Payment Confirmed: ${metadata.event_name || 'Med&X Event'}`,
+                        const invSend = await sendEventConfirmation(invEmail, `Payment Confirmed: ${metadata.event_name || 'Med&X Event'}`,
                             buildEmailTemplate('Payment Confirmed', invEmailBody), invQrAtts);
                         if (!invSend || invSend.success === false || invSend.mock) {
                             console.error(`[Stripe][EMAIL-FAIL] PAID invite guest ${invEmail} (reg ${invRegId}) did NOT receive their ticket email:`, invSend && invSend.mock ? 'mock mode (no provider configured)' : (invSend && invSend.error) || 'unknown');
@@ -12056,7 +12068,7 @@ By applying to this program, I provide the following consents:
                 try {
                     const firaRef = tx?.metadata ? (() => { try { const m = JSON.parse(tx.metadata); return m.fira_invoice_number || null; } catch(e) { return null; } })() : null;
 
-                    sendEmail(reg.email, 'Payment Confirmed — Plexus 2026', buildEmailTemplate('Payment Confirmed', `
+                    sendEventConfirmation(reg.email, 'Payment Confirmed — Plexus 2026', buildEmailTemplate('Payment Confirmed', `
                         <p>Dear ${reg.first_name},</p>
                         <p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 14px 18px; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 16px; text-align: center;">
                             Your payment has been received — your spot is secured!
@@ -18199,7 +18211,7 @@ By applying to this program, I provide the following consents:
                     </td></tr></table>` : '';
 
                 try {
-                    await sendEmail(email, "You're pre-registered — Plexus 2026", buildEmailTemplate('Pre-Registration Confirmed', `
+                    await sendEventConfirmation(email, "You're pre-registered — Plexus 2026", buildEmailTemplate('Pre-Registration Confirmed', `
                         <p>Dear <strong>${first_name}</strong>,</p>
                         <p>Thank you for accepting our invitation. Your pre-registration for <strong>Plexus 2026</strong> is confirmed.</p>
                         <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
@@ -18514,7 +18526,7 @@ By applying to this program, I provide the following consents:
                         </td></tr>
                     </table>`;
                 try {
-                    await sendEmail(email, `Registration Confirmed: ${event_name || 'Med&X Event'}`,
+                    await sendEventConfirmation(email, `Registration Confirmed: ${event_name || 'Med&X Event'}`,
                         buildEmailTemplate('Registration Confirmed', regEmailBody), regQrAtts);
                 } catch(e) { console.log('Confirmation email failed:', e.message); }
             }
@@ -18839,7 +18851,7 @@ By applying to this program, I provide the following consents:
 
             // Send confirmation email
             try {
-                await sendEmail(email, `Registration Confirmed: ${link.event_name}`,
+                await sendEventConfirmation(email, `Registration Confirmed: ${link.event_name}`,
                     `<h2>You're registered!</h2>
                     <p>Dear ${first_name},</p>
                     <p>Your registration for <strong>${link.event_name}</strong> has been confirmed.</p>
