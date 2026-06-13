@@ -17754,13 +17754,14 @@ By applying to this program, I provide the following consents:
                 '<h2>Test Email</h2><p>This is a test email from the Med&X Tech Dashboard.</p><p>Sent at: ' + new Date().toISOString() + '</p>'
             );
             const to = req.user.email || 'juginovic.alen@gmail.com';
+            const provider = process.env.SENDGRID_API_KEY ? 'SendGrid' : process.env.RESEND_API_KEY ? 'Resend' : process.env.SMTP_USER ? 'SMTP (note: Render blocks SMTP — switch to SendGrid)' : 'NO provider configured';
             res.json({
                 success: result.success,
                 message: result.mock
-                    ? 'Email mock-sent — no SMTP/provider configured.'
+                    ? 'Email mock-sent — no provider configured on this service.'
                     : result.success
-                        ? 'Test email sent to ' + to + ' — check inbox + spam.'
-                        : 'SMTP rejected the send: ' + (result.error || 'unknown error'),
+                        ? 'Test email sent to ' + to + ' via ' + provider + ' — check inbox + spam.'
+                        : 'Send failed via ' + provider + ': ' + (result.error || 'unknown error'),
                 mock: result.mock || false
             });
         } catch (err) {
