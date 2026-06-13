@@ -300,6 +300,22 @@ function buildEmailTemplate(title, bodyHtml) {
 </html>`;
 }
 
+// Format an ISO date (YYYY-MM-DD) as "5 December 2026" for emails; falls back to the raw value.
+function fmtEventDate(d) {
+    if (!d) return '';
+    try { const dt = new Date(String(d) + 'T00:00:00Z'); if (isNaN(dt.getTime())) return String(d); return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }); } catch(e) { return String(d); }
+}
+// Best-effort "date · time · venue" line for an event, read live from the DB (correct per event).
+function lookupEventWhen(eventType, regId) {
+    try {
+        if (eventType === 'gala')   { const g = query.get("SELECT date, time, venue FROM gala_settings WHERE id='default'"); return g ? [fmtEventDate(g.date), g.time, g.venue].filter(Boolean).join(' · ') : ''; }
+        if (eventType === 'plexus') { const c = getActiveConference(); return c ? [fmtEventDate(c.start_date), c.venue_name, c.venue_city].filter(Boolean).join(' · ') : ''; }
+        if (eventType === 'bridges'){ const r = query.get('SELECT event_id FROM bridges_registrations WHERE id = ?', [regId]); if (r && r.event_id) { const b = query.get('SELECT event_date, event_time, venue_name, city FROM bridges_events WHERE id = ?', [r.event_id]); if (b) return [fmtEventDate(b.event_date), b.event_time, b.venue_name, b.city].filter(Boolean).join(' · '); } return ''; }
+        if (eventType === 'forum')  { const f = query.get("SELECT date, venue FROM forum_gala_settings WHERE id='default'"); return f ? [fmtEventDate(f.date), f.venue].filter(Boolean).join(' · ') : ''; }
+    } catch(e) {}
+    return '';
+}
+
 // ---- Hosted ticket-QR helpers ----
 // Confirmation emails reference GET /qr/<registrationId>.png instead of an inline data: URI,
 // because Gmail and Outlook strip data: URIs (guests saw a broken image instead of their ticket).
@@ -11895,6 +11911,7 @@ By applying to this program, I provide the following consents:
                     const invQrAtts = await qrPngAttachment(JSON.parse(qrData));
 
                     const guestCnt = parseInt(metadata.guest_count || '0');
+                    const eventWhen = lookupEventWhen(invEventType, invRegId);
                     const invEmailBody = `
                         <div style="text-align:center;margin-bottom:8px;">
                             <div style="display:inline-block;background:#22c55e;color:#fff;font-size:13px;font-weight:600;padding:6px 20px;border-radius:20px;letter-spacing:0.5px;">PAYMENT CONFIRMED</div>
@@ -11902,6 +11919,8 @@ By applying to this program, I provide the following consents:
                         <p style="margin-top:20px;">Dear <strong>${metadata.first_name || 'Guest'}</strong>,</p>
                         <p>Your payment of <strong>&euro;${amount.toFixed(2)}</strong> for <strong style="color:#C9A962;">${metadata.event_name || 'Med&X Event'}</strong> has been received.</p>
                         <p>We're genuinely delighted you'll be joining us at <strong>${metadata.event_name || 'this event'}</strong>. Gatherings like this are where new collaborations and friendships across the biomedical community take shape, and it means a great deal to have you with us. We look forward to welcoming you and sharing the evening together.</p>
+                        ${eventWhen ? '<p style="margin:10px 0;font-size:15px;color:#0f172a;"><strong>&#128197; ' + escapeHtml(eventWhen) + '</strong></p>' : ''}
+                        <p>We'll keep you posted with full details and any updates as the event draws closer.</p>
                         ${itemsList.length ? '<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;"><tr><td style="background:#f8fafc;padding:10px 16px;font-size:13px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Registered For</td></tr>' + itemsList.map(i => '<tr><td style="padding:10px 16px;font-size:14px;color:#334155;border-bottom:1px solid #f1f5f9;">&#10003; ' + escapeHtml(String(i)) + '</td></tr>').join('') + '</table>' : ''}
                         ${guestCnt ? '<p>&#128101; <strong>+' + guestCnt + ' Guest' + (guestCnt > 1 ? 's' : '') + '</strong> included in your registration. Your guest(s) can use the same QR code for check-in.</p>' : ''}
                         ${metadata.custom_summary ? '<p style="font-size:13px;color:#334155;">' + escapeHtml(metadata.custom_summary) + '</p>' : ''}
