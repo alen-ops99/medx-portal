@@ -11920,20 +11920,8 @@ By applying to this program, I provide the following consents:
                         }
                     } catch(emailErr) { console.error(`[Stripe][EMAIL-FAIL] PAID invite guest ${invEmail} (reg ${invRegId}) ticket email threw:`, emailErr.message); }
 
-                    // Notify Laura about the paid registration
-                    try {
-                        await sendEmail('laura.rodman@medx.hr', `Payment Received: ${metadata.first_name || ''} ${metadata.last_name || ''} — ${metadata.event_name || 'Med&X Event'}`,
-                            `<div style="font-family:system-ui;max-width:500px;margin:0 auto;">
-                                <h2 style="color:#22c55e;">Payment Confirmed</h2>
-                                <p><strong>Name:</strong> ${metadata.first_name || ''} ${metadata.last_name || ''}</p>
-                                <p><strong>Email:</strong> ${invEmail}</p>
-                                <p><strong>Event:</strong> ${metadata.event_name || ''}</p>
-                                <p><strong>Items:</strong> ${metadata.items || 'N/A'}</p>
-                                <p><strong>Amount:</strong> &euro;${amount.toFixed(2)}</p>
-                                <p><strong>Guests:</strong> ${metadata.guest_count || '0'}</p>
-                                <p style="color:#64748b;font-size:12px;">ID: ${invRegId}</p>
-                            </div>`);
-                    } catch(e) {}
+                    // (Laura is CC'd on the participant's confirmation email above, so the separate
+                    // "Payment Received" notification to her was removed to avoid double emails.)
 
                     // Log to Google Sheets AFTER payment confirmed — `events` array routes to correct tab
                     try {
@@ -18703,25 +18691,8 @@ By applying to this program, I provide the following consents:
             // routing + custom answers. The earlier duplicate POST here was removed — it lacked tab
             // routing and created a second, mis-routed row for every free registration.)
 
-            // FAILSAFE 3: Email to Laura (only for free events — paid events get notified after Stripe webhook)
-            if (!checkoutUrl) {
-                try {
-                    await sendEmail('laura.rodman@medx.hr', `New Registration: ${first_name} ${last_name} — ${event_name || event_type}`,
-                        `<div style="font-family:system-ui;max-width:500px;margin:0 auto;">
-                            <h2 style="color:#c9a962;">New Registration</h2>
-                            <p><strong>Name:</strong> ${first_name} ${last_name}</p>
-                            <p><strong>Email:</strong> ${email}</p>
-                            <p><strong>Institution:</strong> ${institution || 'N/A'}</p>
-                            <p><strong>Event:</strong> ${event_name || event_type}</p>
-                            ${package_items && package_items.length ? '<p><strong>Items:</strong> ' + package_items.join(', ') + '</p>' : ''}
-                            ${guest_count ? '<p><strong>Guests:</strong> +' + guest_count + '</p>' : ''}
-                            ${dietary && dietary !== 'No special requirements' ? '<p><strong>Dietary:</strong> ' + dietary + '</p>' : ''}
-                            ${allergies && allergies !== 'None' ? '<p><strong>Allergies:</strong> ' + allergies + '</p>' : ''}
-                            <p><strong>Total:</strong> &euro;${total_amount || 0}</p>
-                            <p style="color:#64748b;font-size:12px;">ID: ${regId}</p>
-                        </div>`);
-                } catch(emailErr) {}
-            }
+            // (Laura is CC'd on the participant's confirmation email, so the separate
+            // "New Registration" notification to her was removed to avoid double emails.)
 
             res.json({ success: true, checkout_url: checkoutUrl || null });
         } catch (error) {
