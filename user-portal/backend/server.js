@@ -894,24 +894,25 @@ const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><me
     .event-option::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:transparent; transition:background 0.2s; }
     .event-option:hover { border-color:rgba(201,169,98,0.3); background:rgba(255,255,255,0.06); transform:translateY(-1px); }
     .event-option.evt-conference::before { background:rgba(167,139,250,0.5); }
-    .event-option.evt-bridges::before { background:rgba(244,114,182,0.5); }
+    .event-option.evt-bridges::before { background:rgba(45,212,191,0.5); }
     .event-option.evt-gala::before { background:rgba(201,169,98,0.5); }
     .event-option.evt-conference.selected { border-color:#a78bfa; background:rgba(167,139,250,0.06); }
     .event-option.evt-conference.selected::before { background:#a78bfa; width:4px; }
-    .event-option.evt-bridges.selected { border-color:#f472b6; background:rgba(244,114,182,0.06); }
-    .event-option.evt-bridges.selected::before { background:#f472b6; width:4px; }
+    .event-option.evt-bridges.selected { border-color:#2dd4bf; background:rgba(45,212,191,0.06); }
+    .event-option.evt-bridges.selected::before { background:#2dd4bf; width:4px; }
     .event-option.evt-gala.selected { border-color:#c9a962; background:rgba(201,169,98,0.08); }
     .event-option.evt-gala.selected::before { background:#c9a962; width:4px; }
     .event-checkbox { flex-shrink:0; width:22px; height:22px; border:2px solid rgba(255,255,255,0.2); border-radius:6px; display:flex; align-items:center; justify-content:center; margin-top:2px; transition:all 0.2s; }
     .event-option.evt-conference.selected .event-checkbox { background:#a78bfa; border-color:#a78bfa; }
-    .event-option.evt-bridges.selected .event-checkbox { background:#f472b6; border-color:#f472b6; }
+    .event-option.evt-bridges.selected .event-checkbox { background:#2dd4bf; border-color:#2dd4bf; }
     .event-option.evt-gala.selected .event-checkbox { background:#c9a962; border-color:#c9a962; }
     .event-checkbox i { color:#fff; font-size:12px; display:none; }
     .event-option.selected .event-checkbox i { display:block; }
-    .event-icon { flex-shrink:0; width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:16px; margin-top:-2px; }
-    .event-option.evt-conference .event-icon { background:rgba(167,139,250,0.12); color:#a78bfa; }
-    .event-option.evt-bridges .event-icon { background:rgba(244,114,182,0.12); color:#f472b6; }
-    .event-option.evt-gala .event-icon { background:rgba(201,169,98,0.12); color:#c9a962; }
+    .event-icon { flex-shrink:0; width:44px; height:44px; border-radius:13px; display:flex; align-items:center; justify-content:center; font-size:18px; margin-top:-1px; box-shadow:0 5px 16px rgba(0,0,0,0.24); transition:transform 0.2s ease; }
+    .event-option:hover .event-icon { transform:scale(1.06); }
+    .event-option.evt-conference .event-icon { background:linear-gradient(135deg,rgba(167,139,250,0.32),rgba(167,139,250,0.07)); color:#c4b5fd; border:1px solid rgba(167,139,250,0.28); }
+    .event-option.evt-bridges .event-icon { background:linear-gradient(135deg,rgba(45,212,191,0.32),rgba(45,212,191,0.07)); color:#5eead4; border:1px solid rgba(45,212,191,0.28); }
+    .event-option.evt-gala .event-icon { background:linear-gradient(135deg,rgba(201,169,98,0.34),rgba(201,169,98,0.08)); color:#e8c97a; border:1px solid rgba(201,169,98,0.30); }
     .event-body { flex:1; }
     .event-title-row { display:flex; justify-content:space-between; gap:10px; align-items:baseline; margin-bottom:4px; }
     .event-name { font-size:15.5px; font-weight:600; color:#fff; }
@@ -1026,12 +1027,12 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
 
         const cardConference = `<div class="event-option evt-conference" data-key="conference" data-price="0" onclick="plexToggle(this)">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
-            <div class="event-icon"><i class="fas fa-microscope"></i></div>
+            <div class="event-icon"><i class="fas fa-dna"></i></div>
             <div class="event-body"><div class="event-title-row"><span class="event-name">Plexus Conference</span><span class="event-price free">FREE</span></div>
             <div class="event-meta">${escapeHtml(confDesc)}</div></div></div>`;
         const cardBridges = `<div class="event-option evt-bridges" data-key="bridges" data-price="0" onclick="plexToggle(this)">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
-            <div class="event-icon"><i class="fas fa-handshake"></i></div>
+            <div class="event-icon"><i class="fas fa-handshake-angle"></i></div>
             <div class="event-body"><div class="event-title-row"><span class="event-name">Croatian Biomedical Bridges</span><span class="event-price free">FREE</span></div>
             <div class="event-meta">${escapeHtml(bridgesDesc)}</div></div></div>`;
         const cardGala = `<div class="event-option evt-gala" data-key="gala" data-price="${galaPrice}" onclick="plexToggle(this)">
@@ -1234,23 +1235,23 @@ app.get('/invite/:data', async (req, res) => {
     .event-option::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:transparent; transition:background 0.2s; }
     .event-option:hover { border-color:rgba(201,169,98,0.3); background:rgba(255,255,255,0.06); transform:translateY(-1px); }
     .event-option.evt-conf::before { background:rgba(167,139,250,0.5); }
-    .event-option.evt-bridges::before { background:rgba(244,114,182,0.5); }
+    .event-option.evt-bridges::before { background:rgba(45,212,191,0.5); }
     .event-option.evt-gala::before { background:rgba(201,169,98,0.5); }
     .event-option.evt-conf.selected { border-color:#a78bfa; background:rgba(167,139,250,0.06); }
     .event-option.evt-conf.selected::before { background:#a78bfa; width:4px; }
-    .event-option.evt-bridges.selected { border-color:#f472b6; background:rgba(244,114,182,0.06); }
-    .event-option.evt-bridges.selected::before { background:#f472b6; width:4px; }
+    .event-option.evt-bridges.selected { border-color:#2dd4bf; background:rgba(45,212,191,0.06); }
+    .event-option.evt-bridges.selected::before { background:#2dd4bf; width:4px; }
     .event-option.evt-gala.selected { border-color:#c9a962; background:rgba(201,169,98,0.08); }
     .event-option.evt-gala.selected::before { background:#c9a962; width:4px; }
     .event-checkbox { flex-shrink:0; width:22px; height:22px; border:2px solid rgba(255,255,255,0.2); border-radius:6px; display:flex; align-items:center; justify-content:center; margin-top:2px; transition:all 0.2s; }
     .event-option.evt-conf.selected .event-checkbox { background:#a78bfa; border-color:#a78bfa; }
-    .event-option.evt-bridges.selected .event-checkbox { background:#f472b6; border-color:#f472b6; }
+    .event-option.evt-bridges.selected .event-checkbox { background:#2dd4bf; border-color:#2dd4bf; }
     .event-option.evt-gala.selected .event-checkbox { background:#c9a962; border-color:#c9a962; }
     .event-checkbox i { color:#fff; font-size:12px; display:none; }
     .event-option.selected .event-checkbox i { display:block; }
     .event-icon { flex-shrink:0; width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:16px; margin-top:-2px; transition:transform 0.2s; }
     .event-option.evt-conf .event-icon { background:rgba(167,139,250,0.12); color:#a78bfa; }
-    .event-option.evt-bridges .event-icon { background:rgba(244,114,182,0.12); color:#f472b6; }
+    .event-option.evt-bridges .event-icon { background:rgba(45,212,191,0.12); color:#2dd4bf; }
     .event-option.evt-gala .event-icon { background:rgba(201,169,98,0.12); color:#c9a962; }
     .event-option:hover .event-icon { transform:scale(1.05); }
     .event-title-row { display:flex; justify-content:space-between; gap:10px; align-items:baseline; margin-bottom:4px; }
@@ -1317,7 +1318,7 @@ app.get('/invite/:data', async (req, res) => {
                     <span class="event-name">Croatian Biomedical Bridges</span>
                     <span class="event-price free">INCLUDED</span>
                 </div>
-                <div class="event-meta"><i class="fas fa-calendar" style="color:#f472b6;margin-right:5px;"></i>${escapeHtml(bridgesDateText)}</div>
+                <div class="event-meta"><i class="fas fa-calendar" style="color:#2dd4bf;margin-right:5px;"></i>${escapeHtml(bridgesDateText)}</div>
                 <div class="event-note">${escapeHtml(bridgesDesc)}</div>
             </div>
         </div>
@@ -5613,7 +5614,7 @@ async function initializeApp() {
         const teamMembers = [
             ['Alen Juginovic', 'President', '#C9A962', alenUser?.id],
             ['Miro Vukovic', 'Vice President', '#60a5fa', miroUser?.id],
-            ['Laura Rodman', 'Executive Assistant', '#f472b6', null],
+            ['Laura Rodman', 'Executive Assistant', '#2dd4bf', null],
             ['Ivan Nikolic', 'Plexus Lead', '#4ade80', null],
             ['Sara Bonet', 'Operations', '#a78bfa', null],
             ['Petra Horvat', 'Marketing', '#fb923c', null]
@@ -12175,7 +12176,7 @@ By applying to this program, I provide the following consents:
                             <strong style="color:#0f172a;">Plexus Conference</strong>
                             <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
                             <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 &middot; Zagreb &middot; program to follow</div></td></tr>` : ''}
-                        ${metadata.bundle_bridges === '1' ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #f472b6;">
+                        ${metadata.bundle_bridges === '1' ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #2dd4bf;">
                             <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
                             <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
                             <div style="color:#64748b;font-size:12px;margin-top:3px;">4 or 5 December 2026 &middot; Zagreb &middot; date and venue to be confirmed</div></td></tr>` : ''}
@@ -18127,7 +18128,7 @@ By applying to this program, I provide the following consents:
                     <strong style="color:#0f172a;">Plexus Conference</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
                     <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 · Zagreb · program to follow</div></td></tr>
-                <tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;background:#fff;border-left:3px solid #f472b6;">
+                <tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;background:#fff;border-left:3px solid #2dd4bf;">
                     <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
                     <div style="color:#64748b;font-size:12px;margin-top:3px;">4 or 5 December 2026 · Zagreb · date to be confirmed</div></td></tr>
@@ -18671,7 +18672,7 @@ By applying to this program, I provide the following consents:
                     <strong style="color:#0f172a;">Plexus Conference</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED</span>
                     <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 &middot; Zagreb &middot; program to be announced</div></td></tr>` : '',
-                finalBridges ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #f472b6;">
+                finalBridges ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #2dd4bf;">
                     <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED</span>
                     <div style="color:#64748b;font-size:12px;margin-top:3px;">4 or 5 December 2026 &middot; Zagreb &middot; date and venue to be confirmed</div></td></tr>` : '',

@@ -3706,7 +3706,7 @@ async function initializeApp() {
         const teamMembers = [
             ['Alen Juginovic', 'President', '#C9A962', alenUser?.id],
             ['Miro Vukovic', 'Vice President', '#60a5fa', miroUser?.id],
-            ['Laura Rodman', 'Executive Assistant', '#f472b6', null],
+            ['Laura Rodman', 'Executive Assistant', '#2dd4bf', null],
             ['Ivan Nikolic', 'Plexus Lead', '#4ade80', null],
             ['Sara Bonet', 'Operations', '#a78bfa', null],
             ['Petra Horvat', 'Marketing', '#fb923c', null]
@@ -16561,7 +16561,7 @@ By applying to this program, I provide the following consents:
                     <strong style="color:#0f172a;">Plexus Conference</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
                     <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 · Zagreb · program to follow</div></td></tr>
-                <tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;background:#fff;border-left:3px solid #f472b6;">
+                <tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;background:#fff;border-left:3px solid #2dd4bf;">
                     <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
                     <div style="color:#64748b;font-size:12px;margin-top:3px;">4 or 5 December 2026 · Zagreb · date to be confirmed</div></td></tr>
