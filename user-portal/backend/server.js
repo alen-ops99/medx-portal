@@ -873,6 +873,7 @@ const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><me
     /* Wide on desktop (was a fixed 640px strip — that's why it didn't use desktop space). */
     .container { max-width:1040px; margin:0 auto; }
     .logo { text-align:center; margin-bottom:24px; }
+    .logo img { height:38px; width:auto; display:inline-block; filter:brightness(0) invert(1); }
     .logo span { font-size:28px; font-weight:700; color:#fff; letter-spacing:-0.5px; }
     .logo span em { font-style:normal; color:#c9a962; }
     .card { background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,98,0.2); border-radius:20px; padding:28px 26px; }
@@ -915,6 +916,12 @@ const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><me
     .event-price { font-size:13px; font-weight:600; color:#c9a962; white-space:nowrap; }
     .event-price.free { color:#22c55e; }
     .event-meta { font-size:12px; color:#94a3b8; line-height:1.45; }
+    /* Gala keynote highlight (Lord Smith of Finsbury, Chancellor of Cambridge). */
+    .keynote-card { background:linear-gradient(135deg,rgba(201,169,98,0.12),rgba(201,169,98,0.02)); border:1px solid rgba(201,169,98,0.28); border-radius:14px; padding:16px 18px; margin-top:14px; display:flex; gap:16px; align-items:center; }
+    .keynote-card img { width:72px; height:72px; border-radius:50%; object-fit:cover; object-position:center 22%; border:2px solid #c9a962; flex-shrink:0; box-shadow:0 4px 14px rgba(0,0,0,0.25); }
+    .keynote-card .kc-label { font-size:9px; letter-spacing:2.5px; text-transform:uppercase; color:#c9a962; font-weight:700; margin-bottom:4px; }
+    .keynote-card .kc-name { font-size:15.5px; font-weight:600; color:#fff; line-height:1.2; }
+    .keynote-card .kc-role { font-size:12.5px; font-style:italic; color:#e8c97a; margin-top:3px; }
     .form-grid { display:grid; gap:14px; margin-top:6px; }
     .form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     label { display:block; font-size:11px; font-weight:600; color:#94a3b8; margin-bottom:5px; }
@@ -968,7 +975,7 @@ const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><me
         .foot { font-size: 11px; }
     }
 </style></head><body><div class="container">
-    <div class="logo"><span>med<em>&amp;X</em></span></div>
+    <div class="logo"><img src="${MEDX_LOGO_URL}" alt="Med&amp;X" /></div>
     ${inner}
     <div class="foot">Questions? <a href="mailto:laura.rodman@medx.hr">laura.rodman@medx.hr</a> &middot; <a href="https://medx.hr">medx.hr</a></div>
 </div></body></html>`;
@@ -1030,6 +1037,19 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             offered.includes('gala') ? cardGala : ''
         ].join('');
 
+        // Gala keynote highlight — shown when the Gala is offered (pulled from gala_settings).
+        const kName = galaSettings.keynote_name || '';
+        const kRole = galaSettings.keynote_role || '';
+        const kImg = galaSettings.keynote_image_url || '';
+        const keynoteCard = (offered.includes('gala') && kName) ? `<div class="keynote-card">
+            ${kImg ? `<img src="${escapeHtml(kImg)}" alt="${escapeHtml(kName)}" onerror="this.style.display='none'">` : ''}
+            <div>
+                <div class="kc-label">Gala Evening Keynote</div>
+                <div class="kc-name">${escapeHtml(kName)}</div>
+                <div class="kc-role">${escapeHtml(kRole)}</div>
+            </div>
+        </div>` : '';
+
         const inner = `<div id="plexMain">
             <div class="hero">
                 <span class="badge">Plexus 2026 &middot; Zagreb${linkLabel ? ' &middot; ' + escapeHtml(linkLabel) : ''}</span>
@@ -1040,6 +1060,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                 <div class="card events-col">
                     <div class="section-label" style="margin-top:0;">Choose your events</div>
                     ${cards}
+                    ${keynoteCard}
                     <div class="total-display" id="plexTotal"><span class="label">Total</span><span class="amount" id="plexTotalAmt">&euro;0</span></div>
                 </div>
                 <div class="card form-col">
