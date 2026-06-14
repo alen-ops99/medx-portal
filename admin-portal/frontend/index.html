@@ -7050,6 +7050,25 @@
                         </button>
                     </div>
 
+                    <!-- Registration page text editor — controls the lede + the line under each
+                         event on the public /plexus registration page (admin-editable). -->
+                    <div class="card" id="plexusPageTextCard" style="margin-bottom:18px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+                            <h3 style="margin:0;font-size:15px;"><i class="fas fa-pen-to-square" style="color:#c9a962;margin-right:6px;"></i>Registration page text <span style="font-weight:400;color:var(--text-muted);font-size:12px;">— the intro + the description under each event on your /plexus link</span></h3>
+                            <button class="btn btn-primary" onclick="PlexusPageText.save()" style="font-size:12px;"><i class="fas fa-save"></i> Save page text</button>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:12px;">
+                            <div><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">Intro (above the events)</label>
+                                <textarea id="plexusPageLede" rows="2" style="width:100%;padding:9px 11px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-primary);color:var(--text-primary);font-size:13px;font-family:inherit;resize:vertical;"></textarea></div>
+                            <div><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;"><i class="fas fa-microscope" style="color:#a78bfa;margin-right:4px;"></i>Under Plexus Conference</label>
+                                <textarea id="plexusConfDesc" rows="2" style="width:100%;padding:9px 11px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-primary);color:var(--text-primary);font-size:13px;font-family:inherit;resize:vertical;"></textarea></div>
+                            <div><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;"><i class="fas fa-handshake" style="color:#f472b6;margin-right:4px;"></i>Under Croatian Biomedical Bridges</label>
+                                <textarea id="plexusBridgesDesc" rows="2" style="width:100%;padding:9px 11px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-primary);color:var(--text-primary);font-size:13px;font-family:inherit;resize:vertical;"></textarea></div>
+                            <div><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;"><i class="fas fa-champagne-glasses" style="color:#c9a962;margin-right:4px;"></i>Under Plexus Gala Evening <span style="font-weight:400;color:var(--text-muted);">(type {venue} to insert the live Gala venue)</span></label>
+                                <textarea id="plexusGalaDesc" rows="2" style="width:100%;padding:9px 11px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-primary);color:var(--text-primary);font-size:13px;font-family:inherit;resize:vertical;"></textarea></div>
+                        </div>
+                    </div>
+
                     <!-- Plexus Sub-Navigation -->
                     <div class="plexus-tabs">
                         <button class="plexus-tab active" onclick="App.showPlexusTab('dashboard')"><i class="fas fa-chart-line"></i> Dashboard</button>
@@ -15558,6 +15577,9 @@ President, Med&amp;X</textarea>
                 // Check-in scanner FAB stays visible on every section (universal scanner).
                 const qrFab = document.getElementById('globalQRBtn');
                 if (qrFab && this.user && (this.user.is_admin || this.user.is_staff)) qrFab.style.display = 'flex';
+
+                // Load the editable /plexus registration-page text when the Plexus section opens.
+                if (sectionId === 'plexus' && typeof PlexusPageText !== 'undefined') PlexusPageText.load();
 
                 if (sectionId === 'finances') {
                     // Switch to Finances team chat
@@ -30082,6 +30104,41 @@ By applying to this program, I give the following consents:
         // =========================================
         // GALA ADMIN - Gala Evening Management
         // =========================================
+        // Editable text for the public /plexus registration page (lede + per-event descriptions).
+        const PlexusPageText = {
+            async load() {
+                try {
+                    const res = await fetch('/api/admin/plexus/settings', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    if (!res.ok) return;
+                    const s = await res.json();
+                    const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+                    setVal('plexusPageLede', s.page_lede);
+                    setVal('plexusConfDesc', s.conference_desc);
+                    setVal('plexusBridgesDesc', s.bridges_desc);
+                    setVal('plexusGalaDesc', s.gala_desc);
+                } catch (e) { console.error('Plexus page text load failed:', e); }
+            },
+            async save() {
+                const getVal = (id) => (document.getElementById(id)?.value || '').trim();
+                const body = {
+                    page_lede: getVal('plexusPageLede'),
+                    conference_desc: getVal('plexusConfDesc'),
+                    bridges_desc: getVal('plexusBridgesDesc'),
+                    gala_desc: getVal('plexusGalaDesc')
+                };
+                try {
+                    const res = await fetch('/api/admin/plexus/settings', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+                        body: JSON.stringify(body)
+                    });
+                    const d = await res.json().catch(() => ({}));
+                    if (res.ok) { (typeof Toast !== 'undefined' ? Toast.success('Saved — live on the /plexus page') : alert('Saved')); }
+                    else { (typeof Toast !== 'undefined' ? Toast.error(d.error || 'Save failed') : alert(d.error || 'Save failed')); }
+                } catch (e) { (typeof Toast !== 'undefined' ? Toast.error('Network error') : alert('Network error')); }
+            }
+        };
+
         const GalaAdmin = {
             registrations: [],
             settings: null,

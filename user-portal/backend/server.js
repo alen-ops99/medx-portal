@@ -925,6 +925,35 @@ const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><me
     .msg.err { display:block; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); color:#fca5a5; }
     .foot { text-align:center; font-size:12px; color:#64748b; margin-top:20px; }
     .foot a { color:#c9a962; text-decoration:none; }
+    /* Tablet / large phone — stack the form to one column, tighten the cards (mirrors the Gala
+       page's 768px breakpoint so the layout adapts the same way). */
+    @media (max-width: 768px) {
+        body { padding: 22px 12px; }
+        .container { max-width: 100%; }
+        .card { padding: 22px 18px; }
+        .logo span { font-size: 24px; }
+        h1 { font-size: 21px; }
+        .lede { font-size: 13.5px; }
+        .event-option { padding: 14px; gap: 12px; }
+        .event-icon { width: 34px; height: 34px; font-size: 14px; }
+        .event-name { font-size: 14.5px; }
+        .event-price { font-size: 12.5px; }
+        .event-meta { font-size: 11.5px; }
+        .form-row { grid-template-columns: 1fr; gap: 12px; }
+        .submit-btn { padding: 14px; font-size: 14px; }
+    }
+    /* Small phone — further compaction, larger touch targets kept comfortable. */
+    @media (max-width: 480px) {
+        body { padding: 16px 10px; }
+        .card { padding: 18px 14px; border-radius: 16px; }
+        h1 { font-size: 19px; margin-bottom: 8px; }
+        .lede { font-size: 12.5px; line-height: 1.55; }
+        .event-title-row { flex-wrap: wrap; gap: 4px; }
+        .event-name { font-size: 14px; }
+        .section-label { font-size: 10px; margin: 18px 0 10px; }
+        .total-display .amount { font-size: 19px; }
+        .foot { font-size: 11px; }
+    }
 </style></head><body><div class="container">
     <div class="logo"><span>med<em>&amp;X</em></span></div>
     ${inner}
@@ -959,21 +988,29 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
         const galaVenue = galaSettings.venue || 'Hotel Esplanade Zagreb';
         const galaPriceLabel = isEarly ? ('&euro;' + galaPrice + ' &middot; early-bird until ' + fmtD(ebDeadline)) : ('&euro;' + galaPrice);
 
+        // Admin-editable copy (lede + per-event descriptions) from plexus_page_settings, with the
+        // launch defaults as fallback. {venue} in the Gala description resolves to the live venue.
+        const pps = query.get("SELECT page_lede, conference_desc, bridges_desc, gala_desc FROM plexus_page_settings WHERE id = 'default'") || {};
+        const pageLede = pps.page_lede || 'Register once, from this single page. Choose the events you would like to attend — the Conference and Croatian Biomedical Bridges are complimentary; the Gala Evening is a paid ticket.';
+        const confDesc = pps.conference_desc || '4–5 December 2026 · Zagreb · two days of panels & lectures across biomedicine. Programme to follow.';
+        const bridgesDesc = pps.bridges_desc || '4 or 5 December 2026 · Zagreb · a daytime gathering connecting Croatian medicine worldwide. Pre-registration; date & venue to follow.';
+        const galaDesc = (pps.gala_desc || '5 December 2026 · {venue} · black-tie evening, keynote by Lord Smith of Finsbury (Chancellor, University of Cambridge), fireside panel. Limited places.').replace(/\{venue\}/g, galaVenue);
+
         const cardConference = `<div class="event-option evt-conference" data-key="conference" data-price="0" onclick="plexToggle(this)">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
             <div class="event-icon"><i class="fas fa-microscope"></i></div>
             <div class="event-body"><div class="event-title-row"><span class="event-name">Plexus Conference</span><span class="event-price free">FREE</span></div>
-            <div class="event-meta">4&ndash;5 December 2026 &middot; Zagreb &middot; two days of panels &amp; lectures across biomedicine. Programme to follow.</div></div></div>`;
+            <div class="event-meta">${escapeHtml(confDesc)}</div></div></div>`;
         const cardBridges = `<div class="event-option evt-bridges" data-key="bridges" data-price="0" onclick="plexToggle(this)">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
             <div class="event-icon"><i class="fas fa-handshake"></i></div>
             <div class="event-body"><div class="event-title-row"><span class="event-name">Croatian Biomedical Bridges</span><span class="event-price free">FREE</span></div>
-            <div class="event-meta">4 or 5 December 2026 &middot; Zagreb &middot; a daytime gathering connecting Croatian medicine worldwide. Pre-registration; date &amp; venue to follow.</div></div></div>`;
+            <div class="event-meta">${escapeHtml(bridgesDesc)}</div></div></div>`;
         const cardGala = `<div class="event-option evt-gala" data-key="gala" data-price="${galaPrice}" onclick="plexToggle(this)">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
             <div class="event-icon"><i class="fas fa-champagne-glasses"></i></div>
             <div class="event-body"><div class="event-title-row"><span class="event-name">Plexus Gala Evening</span><span class="event-price">${galaPriceLabel}</span></div>
-            <div class="event-meta">5 December 2026 &middot; ${galaVenue} &middot; black-tie evening, keynote by Lord Smith of Finsbury (Chancellor, University of Cambridge), fireside panel. Limited places.</div></div></div>`;
+            <div class="event-meta">${escapeHtml(galaDesc)}</div></div></div>`;
         const cards = [
             offered.includes('conference') ? cardConference : '',
             offered.includes('bridges') ? cardBridges : '',
@@ -983,7 +1020,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
         const inner = `<div class="card">
             <span class="badge">Plexus 2026 &middot; Zagreb${linkLabel ? ' &middot; ' + escapeHtml(linkLabel) : ''}</span>
             <h1>Reserve your place</h1>
-            <p class="lede">Register once, from this single page. Choose the events you would like to attend &mdash; the Conference and Croatian Biomedical Bridges are complimentary; the Gala Evening is a paid ticket.</p>
+            <p class="lede">${escapeHtml(pageLede)}</p>
             <div class="section-label">Choose your events</div>
             ${cards}
             <div class="total-display" id="plexTotal"><span class="label">Total</span><span class="amount" id="plexTotalAmt">&euro;0</span></div>
@@ -4754,6 +4791,25 @@ async function initializeApp() {
     try { db.run("ALTER TABLE gala_settings ADD COLUMN price_gala_early_bird REAL DEFAULT 150"); } catch(e) {}
     try { db.run("ALTER TABLE gala_settings ADD COLUMN price_gala_regular REAL DEFAULT 175"); } catch(e) {}
     try { db.run("ALTER TABLE gala_settings ADD COLUMN early_bird_deadline TEXT DEFAULT '2026-09-01'"); } catch(e) {}
+    // Admin-editable copy for the public /plexus page (the lede + the description under each
+    // event card). Seeded once with the launch defaults; edited from the admin Plexus section.
+    // In gala_desc, the literal {venue} is replaced at render time with the live Gala venue.
+    db.run(`CREATE TABLE IF NOT EXISTS plexus_page_settings (
+        id TEXT PRIMARY KEY DEFAULT 'default',
+        page_lede TEXT,
+        conference_desc TEXT,
+        bridges_desc TEXT,
+        gala_desc TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    if (!query.get("SELECT id FROM plexus_page_settings WHERE id = 'default'")) {
+        db.run("INSERT INTO plexus_page_settings (id, page_lede, conference_desc, bridges_desc, gala_desc) VALUES ('default', ?, ?, ?, ?)", [
+            'Register once, from this single page. Choose the events you would like to attend — the Conference and Croatian Biomedical Bridges are complimentary; the Gala Evening is a paid ticket.',
+            '4–5 December 2026 · Zagreb · two days of panels & lectures across biomedicine. Programme to follow.',
+            '4 or 5 December 2026 · Zagreb · a daytime gathering connecting Croatian medicine worldwide. Pre-registration; date & venue to follow.',
+            '5 December 2026 · {venue} · black-tie evening, keynote by Lord Smith of Finsbury (Chancellor, University of Cambridge), fireside panel. Limited places.'
+        ]);
+    }
     // 2026 pricing migration: gala-only early-bird fee €150 (only if still at a legacy default; never overrides admin edits)
     try {
         const galaRow = query.get("SELECT price_gala_only, time, venue, title FROM gala_settings WHERE id = 'default'");

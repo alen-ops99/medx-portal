@@ -3162,6 +3162,24 @@ async function initializeApp() {
     try { db.run("ALTER TABLE gala_settings ADD COLUMN price_gala_early_bird REAL DEFAULT 150"); } catch(e) {}
     try { db.run("ALTER TABLE gala_settings ADD COLUMN price_gala_regular REAL DEFAULT 175"); } catch(e) {}
     try { db.run("ALTER TABLE gala_settings ADD COLUMN early_bird_deadline TEXT DEFAULT '2026-09-01'"); } catch(e) {}
+    // Admin-editable copy for the public /plexus page (mirror of the user-portal table so the
+    // admin GET/PUT work regardless of boot order; seeded once with launch defaults).
+    db.run(`CREATE TABLE IF NOT EXISTS plexus_page_settings (
+        id TEXT PRIMARY KEY DEFAULT 'default',
+        page_lede TEXT,
+        conference_desc TEXT,
+        bridges_desc TEXT,
+        gala_desc TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    if (!query.get("SELECT id FROM plexus_page_settings WHERE id = 'default'")) {
+        db.run("INSERT INTO plexus_page_settings (id, page_lede, conference_desc, bridges_desc, gala_desc) VALUES ('default', ?, ?, ?, ?)", [
+            'Register once, from this single page. Choose the events you would like to attend — the Conference and Croatian Biomedical Bridges are complimentary; the Gala Evening is a paid ticket.',
+            '4–5 December 2026 · Zagreb · two days of panels & lectures across biomedicine. Programme to follow.',
+            '4 or 5 December 2026 · Zagreb · a daytime gathering connecting Croatian medicine worldwide. Pre-registration; date & venue to follow.',
+            '5 December 2026 · {venue} · black-tie evening, keynote by Lord Smith of Finsbury (Chancellor, University of Cambridge), fireside panel. Limited places.'
+        ]);
+    }
 
     // Forum gala settings (separate from Plexus gala)
     db.run(`CREATE TABLE IF NOT EXISTS forum_gala_settings (
@@ -16081,6 +16099,27 @@ By applying to this program, I provide the following consents:
             try { updated.schedule = JSON.parse(updated.schedule_json || '[]'); } catch(e) { updated.schedule = []; }
         }
         res.json({ success: true, settings: updated });
+    });
+
+    // ===== Plexus page text (the /plexus lede + per-event descriptions) — admin-editable =====
+    app.get('/api/admin/plexus/settings', auth, adminOnly, (req, res) => {
+        const row = query.get("SELECT page_lede, conference_desc, bridges_desc, gala_desc FROM plexus_page_settings WHERE id = 'default'") || {};
+        res.json(row);
+    });
+    app.put('/api/admin/plexus/settings', auth, adminOnly, (req, res) => {
+        const { page_lede, conference_desc, bridges_desc, gala_desc } = req.body || {};
+        const fields = [], values = [];
+        if (page_lede !== undefined) { fields.push('page_lede = ?'); values.push(String(page_lede).slice(0, 2000)); }
+        if (conference_desc !== undefined) { fields.push('conference_desc = ?'); values.push(String(conference_desc).slice(0, 2000)); }
+        if (bridges_desc !== undefined) { fields.push('bridges_desc = ?'); values.push(String(bridges_desc).slice(0, 2000)); }
+        if (gala_desc !== undefined) { fields.push('gala_desc = ?'); values.push(String(gala_desc).slice(0, 2000)); }
+        if (!fields.length) return res.status(400).json({ error: 'No fields to update' });
+        db.run("INSERT OR IGNORE INTO plexus_page_settings (id) VALUES ('default')");
+        fields.push('updated_at = ?'); values.push(new Date().toISOString());
+        db.run(`UPDATE plexus_page_settings SET ${fields.join(', ')} WHERE id = 'default'`, values);
+        saveDb();
+        logAudit(req, 'plexus.page_settings', 'Plexus page text updated');
+        res.json({ success: true, settings: query.get("SELECT page_lede, conference_desc, bridges_desc, gala_desc FROM plexus_page_settings WHERE id = 'default'") });
     });
 
     // Gala registrations list (admin)
