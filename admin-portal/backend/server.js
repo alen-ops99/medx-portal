@@ -235,7 +235,7 @@ function buildEmailTemplate(title, bodyHtml) {
             <a href="https://www.instagram.com/medx.hr/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 8px;">Instagram</a>
         </div>
         <div style="color: #64748b; font-size: 11px; line-height: 1.55;">
-            Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event.
+            Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organizing and delivering this event.
             <a href="https://medx-user-portal.onrender.com/privacy" style="color: #C9A962; text-decoration: none;">Privacy Policy</a>
             &nbsp;·&nbsp;
             <a href="https://medx-user-portal.onrender.com/terms" style="color: #C9A962; text-decoration: none;">Terms</a>
@@ -3175,7 +3175,7 @@ async function initializeApp() {
     if (!query.get("SELECT id FROM plexus_page_settings WHERE id = 'default'")) {
         db.run("INSERT INTO plexus_page_settings (id, page_lede, conference_desc, bridges_desc, gala_desc) VALUES ('default', ?, ?, ?, ?)", [
             'Register once, from this single page. Choose the events you would like to attend — the Conference and Croatian Biomedical Bridges are complimentary; the Gala Evening is a paid ticket.',
-            '4–5 December 2026 · Zagreb · two days of panels & lectures across biomedicine. Programme to follow.',
+            '4–5 December 2026 · Zagreb · two days of panels & lectures across biomedicine. Program to follow · limited spaces.',
             '4 or 5 December 2026 · Zagreb · a daytime gathering connecting Croatian medicine worldwide. Pre-registration; date & venue to follow.',
             '5 December 2026 · {venue} · black-tie evening, keynote by Lord Smith of Finsbury (Chancellor, University of Cambridge), fireside panel. Limited places.'
         ]);
@@ -16483,7 +16483,7 @@ By applying to this program, I provide the following consents:
                 <p style="font-size:13px;color:#64748b;">Admin Portal → Event Check-in → pick Conference or Bridges → scan this QR → ✓ valid. Pick Gala → ✗ not registered.</p>
                 <p style="font-size:11px;color:#94a3b8;"><em>Tagged "SCANNER TEST — safe to delete" in your Croatians Abroad list.</em></p>
                 <hr style="border:none;border-top:1px solid #e2e8f0;margin:18px 0;">
-                <p style="font-size:10px;color:#94a3b8;line-height:1.55;">Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event. <a href="https://medx-user-portal.onrender.com/privacy" style="color:#c9a962;text-decoration:none;">Privacy Policy</a> &nbsp;·&nbsp; <a href="https://medx-user-portal.onrender.com/terms" style="color:#c9a962;text-decoration:none;">Terms</a></p>
+                <p style="font-size:10px;color:#94a3b8;line-height:1.55;">Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organizing and delivering this event. <a href="https://medx-user-portal.onrender.com/privacy" style="color:#c9a962;text-decoration:none;">Privacy Policy</a> &nbsp;·&nbsp; <a href="https://medx-user-portal.onrender.com/terms" style="color:#c9a962;text-decoration:none;">Terms</a></p>
             </div>`;
             const sendResult = await sendEmail(email, 'Scanner Test QR — Plexus 2026', html, testQrAtts);
             if (sendResult && sendResult.mock) {
@@ -16560,7 +16560,7 @@ By applying to this program, I provide the following consents:
                 <tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;background:#fff;border-left:3px solid #a78bfa;">
                     <strong style="color:#0f172a;">Plexus Conference</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
-                    <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 · Zagreb · programme to follow</div></td></tr>
+                    <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 · Zagreb · program to follow</div></td></tr>
                 <tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;background:#fff;border-left:3px solid #f472b6;">
                     <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
@@ -16582,12 +16582,12 @@ By applying to this program, I provide the following consents:
                 </table>
                 <p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${invoiceNumber}</p>
                 ${buildTicketQrBlock(galaRegId, { label: 'Gala Check-in QR Code', caption: 'Present this code at the Gala entrance on 5 December' })}
-                <p>We will email you the <strong>Conference programme</strong> as soon as it is finalised, and confirm the <strong>Bridges date and venue</strong> when those are set.</p>
+                <p>We will email you the <strong>Conference program</strong> as soon as it is finalised, and confirm the <strong>Bridges date and venue</strong> when those are set.</p>
                 <p style="margin-top:18px;">We look forward to welcoming you home in Zagreb.</p>
                 <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
                 <p style="font-size:12px;color:#94a3b8;"><strong>[BUNDLE TEST]</strong> This was generated by the admin test-bundle-email tool. The registration is tagged "BUNDLE TEST — safe to delete" and can be removed from your Croatians Abroad list any time. The QR is fully functional in the Event Check-in scanner — try scanning it in all three modes.</p>
                 <hr style="border:none;border-top:1px solid #e2e8f0;margin:18px 0;">
-                <p style="font-size:10px;color:#94a3b8;line-height:1.55;">Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event. <a href="https://medx-user-portal.onrender.com/privacy" style="color:#c9a962;text-decoration:none;">Privacy Policy</a> &nbsp;·&nbsp; <a href="https://medx-user-portal.onrender.com/terms" style="color:#c9a962;text-decoration:none;">Terms</a></p>
+                <p style="font-size:10px;color:#94a3b8;line-height:1.55;">Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organizing and delivering this event. <a href="https://medx-user-portal.onrender.com/privacy" style="color:#c9a962;text-decoration:none;">Privacy Policy</a> &nbsp;·&nbsp; <a href="https://medx-user-portal.onrender.com/terms" style="color:#c9a962;text-decoration:none;">Terms</a></p>
             </div>`;
 
             const sendResult = await sendEmail(targetEmail, 'Payment Confirmed — Plexus 2026 Gala Evening (TEST)', html, bundleQrAtts);

@@ -323,12 +323,12 @@ function buildEmailTemplate(title, bodyHtml) {
         <div style="margin-bottom: 16px;">
             <a href="https://medx.hr" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">Website</a>
             <span style="color: #334155;">|</span>
-            <a href="https://www.linkedin.com/company/med-x-croatia/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">LinkedIn</a>
+            <a href="https://www.linkedin.com/company/med-x-association/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">LinkedIn</a>
             <span style="color: #334155;">|</span>
-            <a href="https://www.instagram.com/medx.hr/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">Instagram</a>
+            <a href="https://www.instagram.com/medx_association/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">Instagram</a>
         </div>
         <div style="border-top: 1px solid #1e293b; padding-top: 12px; color: #64748b; font-size: 11px; line-height: 1.55;">
-            Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event.
+            Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organizing and delivering this event.
             <a href="https://medx-user-portal.onrender.com/privacy" style="color: #C9A962; text-decoration: none;">Privacy Policy</a>
             &nbsp;·&nbsp;
             <a href="https://medx-user-portal.onrender.com/terms" style="color: #C9A962; text-decoration: none;">Terms</a>
@@ -602,7 +602,7 @@ app.get('/invite-success', async (req, res) => {
     </div>
     <a href="https://medx.hr" style="display:inline-block;padding:12px 24px;background:rgba(255,255,255,0.06);color:#c9a962;border:1px solid rgba(201,169,98,0.3);border-radius:10px;font-weight:600;text-decoration:none;margin-top:8px;">Visit Med&X →</a>
     <div style="margin-top:28px;padding-top:18px;border-top:1px solid rgba(255,255,255,0.06);font-size:11px;color:#64748b;line-height:1.55;text-align:center;">
-        Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event.<br>
+        Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organizing and delivering this event.<br>
         <a href="/privacy" style="color:#c9a962;text-decoration:none;">Privacy Policy</a> &nbsp;·&nbsp; <a href="/terms" style="color:#c9a962;text-decoration:none;">Terms</a>
     </div>
 </div>
@@ -688,7 +688,7 @@ app.get('/invite-cancelled', (req, res) => {
             <a href="mailto:laura.rodman@medx.hr" style="display:inline-block;padding:12px 22px;background:rgba(255,255,255,0.06);color:#c9a962;border:1px solid rgba(201,169,98,0.3);border-radius:10px;font-weight:600;text-decoration:none;">Contact Laura</a>
         </div>
         <div style="margin-top:28px;padding-top:18px;border-top:1px solid rgba(255,255,255,0.06);font-size:11px;color:#64748b;line-height:1.55;">
-            Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event.<br>
+            Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organizing and delivering this event.<br>
             <a href="/privacy" style="color:#c9a962;text-decoration:none;">Privacy Policy</a> &nbsp;·&nbsp; <a href="/terms" style="color:#c9a962;text-decoration:none;">Terms</a>
         </div>
     </div>
@@ -742,7 +742,7 @@ app.get('/terms', (req, res) => {
         <h1>Terms &amp; Conditions</h1>
         <div class="updated">Last updated: 1 June 2026</div>
 
-        <p>These terms govern registration for events organised by <strong>Med&amp;X</strong>, a Croatian non-profit organisation, including the Plexus Conference, the Plexus Gala Evening, the Annual Biomedical Forum, and other Med&amp;X-organised events.</p>
+        <p>These terms govern registration for events organized by <strong>Med&amp;X</strong>, a Croatian non-profit organization, including the Plexus Conference, the Plexus Gala Evening, the Annual Biomedical Forum, and other Med&amp;X-organized events.</p>
 
         <h2>1. Registration and Payment</h2>
         <p>By submitting a registration form, you confirm that the information you provide is accurate and that you accept these terms. Paid registrations are processed via Stripe; receipt of payment confirms your registration. Complimentary (VIP) registrations are confirmed at the moment of form submission.</p>
@@ -754,7 +754,7 @@ app.get('/terms', (req, res) => {
         <ul>
             <li>You will receive a personal QR-coded ticket by email after registration. The ticket is required for entry and must be presented (printed or on a mobile device) at the venue.</li>
             <li>Tickets are personal and non-transferable except as set out in §2 above.</li>
-            <li>Dress code, programme timing and venue details are communicated in your confirmation email and on the official event invitation.</li>
+            <li>Dress code, program timing and venue details are communicated in your confirmation email and on the official event invitation.</li>
             <li>Med&amp;X reserves the right to refuse entry to anyone who fails to comply with venue rules, applicable law, or these terms.</li>
         </ul>
 
@@ -789,7 +789,7 @@ app.get('/privacy', (req, res) => {
         <h1>Privacy Policy</h1>
         <div class="updated">Last updated: 1 June 2026</div>
 
-        <p><strong>Med&amp;X</strong>, a Croatian non-profit organisation, is the controller of personal data collected through this portal. This policy explains what data we collect, why we collect it, how we use it, and your rights under the EU General Data Protection Regulation (GDPR) and the Croatian Personal Data Protection Act.</p>
+        <p><strong>Med&amp;X</strong>, a Croatian non-profit organization, is the controller of personal data collected through this portal. This policy explains what data we collect, why we collect it, how we use it, and your rights under the EU General Data Protection Regulation (GDPR) and the Croatian Personal Data Protection Act.</p>
 
         <h2>1. Data We Collect</h2>
         <p>When you register for a Med&amp;X event, we collect the personal data you submit through the registration form, which may include:</p>
@@ -805,8 +805,8 @@ app.get('/privacy', (req, res) => {
         <h2>2. Purposes and Legal Basis</h2>
         <ul>
             <li><strong>Performing the registration contract (GDPR Art. 6(1)(b)):</strong> processing your registration, sending your confirmation and QR ticket, managing attendance at the event.</li>
-            <li><strong>Legitimate interests (Art. 6(1)(f)):</strong> event organisation, internal reporting, fraud prevention, security of the portal.</li>
-            <li><strong>Consent (Art. 6(1)(a)):</strong> if you opt in to marketing communications, we will send occasional updates about Med&amp;X programmes and future events. You can withdraw consent at any time.</li>
+            <li><strong>Legitimate interests (Art. 6(1)(f)):</strong> event organization, internal reporting, fraud prevention, security of the portal.</li>
+            <li><strong>Consent (Art. 6(1)(a)):</strong> if you opt in to marketing communications, we will send occasional updates about Med&amp;X programs and future events. You can withdraw consent at any time.</li>
             <li><strong>Legal obligation (Art. 6(1)(c)):</strong> retention of financial records under Croatian tax and accounting law.</li>
         </ul>
 
@@ -1012,7 +1012,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
         // launch defaults as fallback. {venue} in the Gala description resolves to the live venue.
         const pps = query.get("SELECT page_lede, conference_desc, bridges_desc, gala_desc FROM plexus_page_settings WHERE id = 'default'") || {};
         const pageLede = pps.page_lede || 'Register once, from this single page. Choose the events you would like to attend — the Conference and Croatian Biomedical Bridges are complimentary; the Gala Evening is a paid ticket.';
-        const confDesc = pps.conference_desc || '4–5 December 2026 · Zagreb · two days of panels & lectures across biomedicine. Programme to follow.';
+        const confDesc = pps.conference_desc || '4–5 December 2026 · Zagreb · two days of panels & lectures across biomedicine. Program to follow · limited spaces.';
         const bridgesDesc = pps.bridges_desc || '4 or 5 December 2026 · Zagreb · a daytime gathering connecting Croatian medicine worldwide. Pre-registration; date & venue to follow.';
         const galaDesc = (pps.gala_desc || '5 December 2026 · {venue} · black-tie evening, keynote by Lord Smith of Finsbury (Chancellor, University of Cambridge), fireside panel. Limited places.').replace(/\{venue\}/g, galaVenue);
 
@@ -1297,7 +1297,7 @@ app.get('/invite/:data', async (req, res) => {
                     <span class="event-price free">INCLUDED</span>
                 </div>
                 <div class="event-meta"><i class="fas fa-calendar" style="color:#a78bfa;margin-right:5px;"></i>${escapeHtml(confDate)} &middot; Zagreb, Croatia</div>
-                <div class="event-note">${escapeHtml(confDesc)} Programme to be announced &mdash; we will email you the full schedule.</div>
+                <div class="event-note">${escapeHtml(confDesc)} Program to be announced &mdash; we will email you the full schedule.</div>
             </div>
         </div>
 
@@ -1401,7 +1401,7 @@ app.get('/invite/:data', async (req, res) => {
 
         <div class="footer">
             <p>By registering, you agree to Med&amp;X's <a href="/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
-            <p style="margin-top:6px;color:#475569;">Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event.</p>
+            <p style="margin-top:6px;color:#475569;">Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organizing and delivering this event.</p>
             <p style="margin-top:6px;color:#475569;">Questions? <a href="mailto:laura.rodman@medx.hr">laura.rodman@medx.hr</a></p>
         </div>
     </div>
@@ -1489,7 +1489,7 @@ async function submitCA(e) {
         document.getElementById('mainCard').innerHTML = '<div class="success">' +
             '<div class="success-icon"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div>' +
             '<h1 style="color:#22c55e;margin-bottom:8px;">You&apos;re pre-registered!</h1>' +
-            '<p style="color:#94a3b8;font-size:15px;margin-bottom:12px;line-height:1.5;">A confirmation has been sent to your email. We&apos;ll be in touch with the Conference programme and Bridges date as soon as they&apos;re finalised.</p>' +
+            '<p style="color:#94a3b8;font-size:15px;margin-bottom:12px;line-height:1.5;">A confirmation has been sent to your email. We&apos;ll be in touch with the Conference program and Bridges date as soon as they&apos;re finalised.</p>' +
             '<p style="color:#64748b;font-size:13px;margin-bottom:22px;">We look forward to welcoming you home in Zagreb.</p>' +
             '<a href="https://medx.hr" style="display:inline-block;padding:11px 22px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Visit Med&amp;X</a></div>';
     } catch(err) {
@@ -1834,7 +1834,7 @@ async function submitCA(e) {
             </div>
             <div class="footer" style="margin-top:20px;">
                 <p style="margin-bottom:8px;">By registering, you agree to Med&amp;X's <a href="/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
-                <p style="font-size:11px;color:#475569;">Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organising and delivering this event.</p>
+                <p style="font-size:11px;color:#475569;">Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organizing and delivering this event.</p>
                 <p style="font-size:11px;color:#475569;margin-top:8px;">All registrations are non-refundable.</p>
                 <p style="font-size:11px;color:#475569;margin-top:8px;">For any questions, please contact Laura Rodman at <a href="mailto:laura.rodman@medx.hr" style="color:#c9a962;">laura.rodman@medx.hr</a></p>
                 <p style="font-size:11px;color:#475569;margin-top:8px;">We look forward to seeing you! &mdash; The Med&amp;X Team</p>
@@ -4847,7 +4847,7 @@ async function initializeApp() {
     if (!query.get("SELECT id FROM plexus_page_settings WHERE id = 'default'")) {
         db.run("INSERT INTO plexus_page_settings (id, page_lede, conference_desc, bridges_desc, gala_desc) VALUES ('default', ?, ?, ?, ?)", [
             'Register once, from this single page. Choose the events you would like to attend — the Conference and Croatian Biomedical Bridges are complimentary; the Gala Evening is a paid ticket.',
-            '4–5 December 2026 · Zagreb · two days of panels & lectures across biomedicine. Programme to follow.',
+            '4–5 December 2026 · Zagreb · two days of panels & lectures across biomedicine. Program to follow · limited spaces.',
             '4 or 5 December 2026 · Zagreb · a daytime gathering connecting Croatian medicine worldwide. Pre-registration; date & venue to follow.',
             '5 December 2026 · {venue} · black-tie evening, keynote by Lord Smith of Finsbury (Chancellor, University of Cambridge), fireside panel. Limited places.'
         ]);
@@ -11891,6 +11891,34 @@ By applying to this program, I provide the following consents:
                     } catch (emailErr) {
                         console.warn('Gala payment confirmation email failed:', emailErr.message);
                     }
+
+                    // Log to Google Sheets — Gala tab (events:['gala']) so EVERY paid Gala (this
+                    // standalone/direct checkout, the invite link, and the Plexus link) lands in the
+                    // SAME Gala sheet. Previously this handler skipped Sheets entirely.
+                    try {
+                        const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
+                        if (sheetsWebhook) {
+                            fetch(sheetsWebhook, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    timestamp: new Date().toISOString(),
+                                    events: ['gala'],
+                                    name: `${galaReg.first_name} ${galaReg.last_name || ''}`.trim(),
+                                    email: galaReg.email || '',
+                                    institution: galaReg.institution || '',
+                                    event: 'Plexus 2026 — Gala Evening',
+                                    event_type: 'gala',
+                                    items: ticketLabel,
+                                    applied_for: 'Gala',
+                                    dietary: galaReg.dietary || '',
+                                    amount, payment: 'Paid',
+                                    registration_id: galaRegId,
+                                    invoice: galaInvoice
+                                })
+                            }).catch(err => console.warn('[Sync] Gala Sheets POST failed:', err.message));
+                        }
+                    } catch(e) {}
                 } catch (dbErr) {
                     console.error('[Stripe] Failed to process gala webhook:', dbErr.message);
                     return res.status(500).send('Internal error');
@@ -12138,7 +12166,7 @@ By applying to this program, I provide the following consents:
                         ${metadata.bundle_conference === '1' ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #a78bfa;">
                             <strong style="color:#0f172a;">Plexus Conference</strong>
                             <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
-                            <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 &middot; Zagreb &middot; programme to follow</div></td></tr>` : ''}
+                            <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 &middot; Zagreb &middot; program to follow</div></td></tr>` : ''}
                         ${metadata.bundle_bridges === '1' ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #f472b6;">
                             <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
                             <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
@@ -12162,7 +12190,7 @@ By applying to this program, I provide the following consents:
                             </table>
                             <p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${invoiceNumber}</p>
                             ${buildTicketQrBlock(galaRegId, { label: 'Gala Check-in QR Code', caption: 'Present this code at the Gala entrance on 5 December' })}
-                            <p>We will email you the <strong>Conference programme</strong> as soon as it is finalised${metadata.bundle_bridges === '1' ? ', and confirm the <strong>Bridges date and venue</strong> when those are set' : ''}.</p>
+                            <p>We will email you the <strong>Conference program</strong> as soon as it is finalised${metadata.bundle_bridges === '1' ? ', and confirm the <strong>Bridges date and venue</strong> when those are set' : ''}.</p>
                             <p style="margin-top:24px;">We look forward to welcoming you ${metadata.source === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
                             <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
                         `), galaQrAtts);
@@ -17837,7 +17865,7 @@ By applying to this program, I provide the following consents:
         res.json(rows);
     });
 
-    // Per-event email export — used when the Conference programme / Bridges date is finalised
+    // Per-event email export — used when the Conference program / Bridges date is finalised
     // and we want to email everyone who pre-registered for that event.
     app.get('/api/admin/croatians-abroad/emails-by-event/:event', auth, adminOnly, (req, res) => {
         const event = req.params.event;
@@ -18090,7 +18118,7 @@ By applying to this program, I provide the following consents:
                 <tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;background:#fff;border-left:3px solid #a78bfa;">
                     <strong style="color:#0f172a;">Plexus Conference</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
-                    <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 · Zagreb · programme to follow</div></td></tr>
+                    <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 · Zagreb · program to follow</div></td></tr>
                 <tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;background:#fff;border-left:3px solid #f472b6;">
                     <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
@@ -18112,7 +18140,7 @@ By applying to this program, I provide the following consents:
                 </table>
                 <p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${invoiceNumber}</p>
                 ${buildTicketQrBlock(galaRegId, { label: 'Gala Check-in QR Code', caption: 'Present this code at the Gala entrance on 5 December' })}
-                <p>We will email you the <strong>Conference programme</strong> as soon as it is finalised, and confirm the <strong>Bridges date and venue</strong> when those are set.</p>
+                <p>We will email you the <strong>Conference program</strong> as soon as it is finalised, and confirm the <strong>Bridges date and venue</strong> when those are set.</p>
                 <p style="margin-top:18px;">We look forward to welcoming you home in Zagreb.</p>
                 <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
                 <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
@@ -18634,7 +18662,7 @@ By applying to this program, I provide the following consents:
                 finalConf ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #a78bfa;">
                     <strong style="color:#0f172a;">Plexus Conference</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED</span>
-                    <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 &middot; Zagreb &middot; programme to be announced</div></td></tr>` : '',
+                    <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 &middot; Zagreb &middot; program to be announced</div></td></tr>` : '',
                 finalBridges ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #f472b6;">
                     <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
                     <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED</span>
@@ -18678,7 +18706,7 @@ By applying to this program, I provide the following consents:
                             ${eventListHtml}
                         </table>
                         ${qrBlock}
-                        <p>We will email you the <strong>Conference programme</strong> as soon as it is finalised${finalBridges ? ', and confirm the <strong>Bridges date and venue</strong> when those are set' : ''}.</p>
+                        <p>We will email you the <strong>Conference program</strong> as soon as it is finalised${finalBridges ? ', and confirm the <strong>Bridges date and venue</strong> when those are set' : ''}.</p>
                         <p>If you would also like to join us at the <strong>Plexus Gala Evening</strong> on 5 December 2026 (Hotel Esplanade Zagreb, Lord Smith of Finsbury keynote), simply reply to this email and we will send you the ticket link.</p>
                         <p style="margin-top:24px;">We look forward to welcoming you ${regSource === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
                         <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
