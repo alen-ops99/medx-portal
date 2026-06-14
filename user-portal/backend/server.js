@@ -326,6 +326,8 @@ function buildEmailTemplate(title, bodyHtml) {
             <a href="https://www.linkedin.com/company/med-x-association/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">LinkedIn</a>
             <span style="color: #334155;">|</span>
             <a href="https://www.instagram.com/medx_association/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">Instagram</a>
+            <span style="color: #334155;">|</span>
+            <a href="https://www.facebook.com/profile.php?id=61554188818525" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">Facebook</a>
         </div>
         <div style="border-top: 1px solid #1e293b; padding-top: 12px; color: #64748b; font-size: 11px; line-height: 1.55;">
             Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organizing and delivering this event.
@@ -977,7 +979,13 @@ const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><me
 </style></head><body><div class="container">
     <div class="logo"><img src="${MEDX_LOGO_URL}" alt="Med&amp;X" /></div>
     ${inner}
-    <div class="foot">Questions? <a href="mailto:laura.rodman@medx.hr">laura.rodman@medx.hr</a> &middot; <a href="https://medx.hr">medx.hr</a></div>
+    <div class="foot">Questions? <a href="mailto:laura.rodman@medx.hr">laura.rodman@medx.hr</a> &middot; <a href="https://medx.hr">medx.hr</a><br>
+        <span style="display:inline-block;margin-top:8px;">
+            <a href="https://www.linkedin.com/company/med-x-association/">LinkedIn</a> &middot;
+            <a href="https://www.instagram.com/medx_association/">Instagram</a> &middot;
+            <a href="https://www.facebook.com/profile.php?id=61554188818525">Facebook</a>
+        </span>
+    </div>
 </div></body></html>`;
 
 const plexusNoticePage = (heading, body) => PLEXUS_SHELL(`<div class="card" style="text-align:center;"><h1 style="color:#ef4444;">${heading}</h1><p class="lede" style="margin-top:10px;">${body}</p></div>`, heading);

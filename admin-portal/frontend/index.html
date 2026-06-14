@@ -7069,6 +7069,22 @@
                         </div>
                     </div>
 
+                    <!-- Plexus Experience registrations (one-link multi-event sign-ups; source='plexus') -->
+                    <div class="card" id="plexusRegsCard" style="margin-bottom:18px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+                            <h3 style="margin:0;font-size:15px;"><i class="fas fa-users" style="color:#c9a962;margin-right:6px;"></i>Plexus Experience registrations <span id="plexusRegsCount" style="font-weight:400;color:var(--text-muted);font-size:12px;"></span> <span style="font-weight:400;color:var(--text-muted);font-size:12px;">— people who signed up via a /plexus link</span></h3>
+                            <button class="btn btn-secondary" onclick="PlexusRegs.load()" style="font-size:12px;"><i class="fas fa-rotate"></i> Refresh</button>
+                        </div>
+                        <div style="overflow-x:auto;">
+                            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                                <thead><tr style="text-align:left;color:var(--text-muted);border-bottom:1px solid var(--border-color);">
+                                    <th style="padding:8px;">Name</th><th style="padding:8px;">Email</th><th style="padding:8px;">Institution</th><th style="padding:8px;">Applied for</th><th style="padding:8px;">Gala</th><th style="padding:8px;">Date</th>
+                                </tr></thead>
+                                <tbody id="plexusRegsBody"><tr><td colspan="6" style="padding:10px;color:var(--text-muted);">Loading…</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     <!-- Plexus Sub-Navigation -->
                     <div class="plexus-tabs">
                         <button class="plexus-tab active" onclick="App.showPlexusTab('dashboard')"><i class="fas fa-chart-line"></i> Dashboard</button>
@@ -10666,6 +10682,22 @@ President, Med&amp;X</textarea>
                                     <div class="form-group">
                                         <label class="form-label">Bundle Original Price</label>
                                         <input type="number" class="form-input" id="galaSettingPriceBundleOrig" step="0.01">
+                                    </div>
+                                </div>
+                                <!-- Early-bird Gala pricing — drives the Gala price on the Gala link AND the Plexus link.
+                                     €early-bird until the deadline, then €regular. -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 16px;">
+                                    <div class="form-group">
+                                        <label class="form-label">Gala Early-Bird Price (EUR)</label>
+                                        <input type="number" class="form-input" id="galaSettingPriceEarlyBird" step="0.01">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Gala Regular Price (after deadline)</label>
+                                        <input type="number" class="form-input" id="galaSettingPriceRegular" step="0.01">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Early-Bird Deadline</label>
+                                        <input type="date" class="form-input" id="galaSettingEarlyBirdDeadline">
                                     </div>
                                 </div>
                                 <!-- Featured Keynote — admin-editable, appears on user-portal invite pages -->
@@ -15578,8 +15610,12 @@ President, Med&amp;X</textarea>
                 const qrFab = document.getElementById('globalQRBtn');
                 if (qrFab && this.user && (this.user.is_admin || this.user.is_staff)) qrFab.style.display = 'flex';
 
-                // Load the editable /plexus registration-page text when the Plexus section opens.
-                if (sectionId === 'plexus' && typeof PlexusPageText !== 'undefined') PlexusPageText.load();
+                // Load the editable /plexus registration-page text + the Plexus Experience
+                // registrations list when the Plexus section opens.
+                if (sectionId === 'plexus') {
+                    if (typeof PlexusPageText !== 'undefined') PlexusPageText.load();
+                    if (typeof PlexusRegs !== 'undefined') PlexusRegs.load();
+                }
 
                 if (sectionId === 'finances') {
                     // Switch to Finances team chat
@@ -30139,6 +30175,36 @@ By applying to this program, I give the following consents:
             }
         };
 
+        // Lists the public Plexus Experience registrations (source='plexus') in the Plexus section.
+        const PlexusRegs = {
+            async load() {
+                const body = document.getElementById('plexusRegsBody');
+                if (!body) return;
+                try {
+                    const res = await fetch('/api/admin/plexus-experience/registrations', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    if (!res.ok) { body.innerHTML = '<tr><td colspan="6" style="padding:10px;color:#ef4444;">Could not load.</td></tr>'; return; }
+                    const rows = await res.json();
+                    const cnt = document.getElementById('plexusRegsCount');
+                    if (cnt) cnt.textContent = '(' + rows.length + ')';
+                    if (!rows.length) { body.innerHTML = '<tr><td colspan="6" style="padding:10px;color:var(--text-muted);">No Plexus Experience registrations yet.</td></tr>'; return; }
+                    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+                    body.innerHTML = rows.map(r => {
+                        const applied = [r.selected_conference ? 'Conference' : null, r.selected_bridges ? 'Bridges' : null, r.selected_gala ? 'Gala' : null].filter(Boolean).join(', ') || '—';
+                        const gala = r.selected_gala ? (r.gala_payment_status === 'paid' ? '<span style="color:#22c55e;">Paid</span>' : esc(r.gala_payment_status || 'awaiting')) : '—';
+                        const date = String(r.created_at || '').replace('T', ' ').slice(0, 16);
+                        return '<tr style="border-bottom:1px solid var(--border-color);">' +
+                            '<td style="padding:8px;">' + esc((r.first_name || '') + ' ' + (r.last_name || '')) + '</td>' +
+                            '<td style="padding:8px;">' + esc(r.email) + '</td>' +
+                            '<td style="padding:8px;">' + esc(r.institution) + '</td>' +
+                            '<td style="padding:8px;">' + esc(applied) + '</td>' +
+                            '<td style="padding:8px;">' + gala + '</td>' +
+                            '<td style="padding:8px;color:var(--text-muted);">' + esc(date) + '</td>' +
+                        '</tr>';
+                    }).join('');
+                } catch (e) { body.innerHTML = '<tr><td colspan="6" style="padding:10px;color:#ef4444;">Error loading.</td></tr>'; }
+            }
+        };
+
         const GalaAdmin = {
             registrations: [],
             settings: null,
@@ -30200,6 +30266,9 @@ By applying to this program, I give the following consents:
                 setVal('galaSettingPriceOnly', s.price_gala_only);
                 setVal('galaSettingPriceBundle', s.price_bundle);
                 setVal('galaSettingPriceBundleOrig', s.price_bundle_original);
+                setVal('galaSettingPriceEarlyBird', s.price_gala_early_bird);
+                setVal('galaSettingPriceRegular', s.price_gala_regular);
+                setVal('galaSettingEarlyBirdDeadline', s.early_bird_deadline);
                 setVal('galaSettingKeynoteName', s.keynote_name);
                 setVal('galaSettingKeynoteRole', s.keynote_role);
                 setVal('galaSettingKeynoteImage', s.keynote_image_url);
@@ -30230,6 +30299,9 @@ By applying to this program, I give the following consents:
                     price_gala_only: numOrPrev('galaSettingPriceOnly', 'price_gala_only'),
                     price_bundle: numOrPrev('galaSettingPriceBundle', 'price_bundle'),
                     price_bundle_original: numOrPrev('galaSettingPriceBundleOrig', 'price_bundle_original'),
+                    price_gala_early_bird: numOrPrev('galaSettingPriceEarlyBird', 'price_gala_early_bird'),
+                    price_gala_regular: numOrPrev('galaSettingPriceRegular', 'price_gala_regular'),
+                    early_bird_deadline: getVal('galaSettingEarlyBirdDeadline') || prev.early_bird_deadline || '2026-09-01',
                     keynote_name: getVal('galaSettingKeynoteName'),
                     keynote_role: getVal('galaSettingKeynoteRole'),
                     keynote_image_url: getVal('galaSettingKeynoteImage'),
