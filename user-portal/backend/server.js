@@ -870,13 +870,21 @@ const REVOKED_INVITE_IDS = new Set([
 const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title || 'Plexus 2026'}</title><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { min-height:100vh; background:linear-gradient(160deg,#0f172a,#1e293b); font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif; color:#e2e8f0; padding:32px 16px; }
-    .container { max-width:640px; margin:0 auto; }
+    /* Wide on desktop (was a fixed 640px strip — that's why it didn't use desktop space). */
+    .container { max-width:1040px; margin:0 auto; }
     .logo { text-align:center; margin-bottom:24px; }
     .logo span { font-size:28px; font-weight:700; color:#fff; letter-spacing:-0.5px; }
     .logo span em { font-style:normal; color:#c9a962; }
     .card { background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,98,0.2); border-radius:20px; padding:28px 26px; }
+    /* Hero header band spanning the full width on desktop. */
+    .hero { background:linear-gradient(135deg,rgba(201,169,98,0.12),rgba(201,169,98,0.02)); border:1px solid rgba(201,169,98,0.22); border-radius:20px; padding:34px 28px; text-align:center; margin-bottom:20px; }
+    .hero .lede { max-width:640px; margin:0 auto; }
+    /* Two-column layout on desktop: events on the left, the form on the right. */
+    .plex-layout { display:grid; grid-template-columns:1.25fr 1fr; gap:20px; align-items:start; }
+    .form-col { position:sticky; top:24px; }
     .badge { display:inline-block; font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#c9a962; margin-bottom:12px; padding:5px 12px; background:rgba(201,169,98,0.12); border-radius:20px; }
     h1 { font-size:24px; font-weight:700; color:#fff; margin-bottom:6px; line-height:1.2; }
+    .hero h1 { font-size:clamp(26px,4vw,38px); }
     .lede { font-size:14px; color:#94a3b8; margin-bottom:8px; line-height:1.55; }
     .section-label { font-size:11px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#c9a962; margin:22px 0 12px; }
     .event-option { background:rgba(255,255,255,0.04); border:1.5px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px; margin-bottom:10px; display:flex; gap:14px; cursor:pointer; transition:all 0.2s; position:relative; overflow:hidden; }
@@ -925,6 +933,11 @@ const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><me
     .msg.err { display:block; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); color:#fca5a5; }
     .foot { text-align:center; font-size:12px; color:#64748b; margin-top:20px; }
     .foot a { color:#c9a962; text-decoration:none; }
+    /* Mid widths — drop the two-column split to a single stacked column. */
+    @media (max-width: 880px) {
+        .plex-layout { grid-template-columns: 1fr; }
+        .form-col { position: static; }
+    }
     /* Tablet / large phone — stack the form to one column, tighten the cards (mirrors the Gala
        page's 768px breakpoint so the layout adapts the same way). */
     @media (max-width: 768px) {
@@ -1017,32 +1030,40 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             offered.includes('gala') ? cardGala : ''
         ].join('');
 
-        const inner = `<div class="card">
-            <span class="badge">Plexus 2026 &middot; Zagreb${linkLabel ? ' &middot; ' + escapeHtml(linkLabel) : ''}</span>
-            <h1>Reserve your place</h1>
-            <p class="lede">${escapeHtml(pageLede)}</p>
-            <div class="section-label">Choose your events</div>
-            ${cards}
-            <div class="total-display" id="plexTotal"><span class="label">Total</span><span class="amount" id="plexTotalAmt">&euro;0</span></div>
-            <form id="plexForm" onsubmit="return plexSubmit(event)">
-                <div class="section-label">Your details</div>
-                <div class="form-grid">
-                    <div class="form-row">
-                        <div><label>First name *</label><input id="pf_first" required maxlength="100"></div>
-                        <div><label>Last name *</label><input id="pf_last" required maxlength="100"></div>
-                    </div>
-                    <div><label>Email *</label><input id="pf_email" type="email" required maxlength="160"></div>
-                    <div class="form-row">
-                        <div><label>Institution</label><input id="pf_inst" maxlength="160"></div>
-                        <div><label>Country</label><input id="pf_country" maxlength="80"></div>
-                    </div>
-                    <div><label>Dietary requirements (for the Gala)</label><input id="pf_diet" maxlength="200" placeholder="e.g. vegetarian, allergies"></div>
-                    <div><label>Anything else?</label><textarea id="pf_notes" maxlength="500"></textarea></div>
+        const inner = `<div id="plexMain">
+            <div class="hero">
+                <span class="badge">Plexus 2026 &middot; Zagreb${linkLabel ? ' &middot; ' + escapeHtml(linkLabel) : ''}</span>
+                <h1>Reserve your place</h1>
+                <p class="lede">${escapeHtml(pageLede)}</p>
+            </div>
+            <div class="plex-layout">
+                <div class="card events-col">
+                    <div class="section-label" style="margin-top:0;">Choose your events</div>
+                    ${cards}
+                    <div class="total-display" id="plexTotal"><span class="label">Total</span><span class="amount" id="plexTotalAmt">&euro;0</span></div>
                 </div>
-                <div class="total-display show" style="margin-top:14px;"><span class="label">To pay now</span><span class="amount" id="plexPayAmt">&euro;0</span></div>
-                <button type="submit" class="submit-btn" id="plexBtn">Complete registration</button>
-                <div class="msg" id="plexMsg"></div>
-            </form>
+                <div class="card form-col">
+                    <form id="plexForm" onsubmit="return plexSubmit(event)">
+                        <div class="section-label" style="margin-top:0;">Your details</div>
+                        <div class="form-grid">
+                            <div class="form-row">
+                                <div><label>First name *</label><input id="pf_first" required maxlength="100"></div>
+                                <div><label>Last name *</label><input id="pf_last" required maxlength="100"></div>
+                            </div>
+                            <div><label>Email *</label><input id="pf_email" type="email" required maxlength="160"></div>
+                            <div class="form-row">
+                                <div><label>Institution</label><input id="pf_inst" maxlength="160"></div>
+                                <div><label>Country</label><input id="pf_country" maxlength="80"></div>
+                            </div>
+                            <div><label>Dietary requirements (for the Gala)</label><input id="pf_diet" maxlength="200" placeholder="e.g. vegetarian, allergies"></div>
+                            <div><label>Anything else?</label><textarea id="pf_notes" maxlength="500"></textarea></div>
+                        </div>
+                        <div class="total-display show" style="margin-top:14px;"><span class="label">To pay now</span><span class="amount" id="plexPayAmt">&euro;0</span></div>
+                        <button type="submit" class="submit-btn" id="plexBtn">Complete registration</button>
+                        <div class="msg" id="plexMsg"></div>
+                    </form>
+                </div>
+            </div>
         </div>`;
 
         const clientJs = `<script>
@@ -1082,7 +1103,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                 var d = await r.json();
                 if(!r.ok){ plexErr(d.error || 'Registration failed. Please try again.'); btn.disabled=false; plexRecompute(); return false; }
                 if(d.checkout_url){ window.location = d.checkout_url; return false; }
-                document.querySelector('.card').innerHTML = '<div style="text-align:center;padding:14px 0;"><div style="font-size:46px;color:#22c55e;margin-bottom:10px;"><i class="fas fa-circle-check"></i></div><h1>You are registered</h1><p class="lede" style="margin-top:10px;">Thank you, ' + plexEsc(body.first_name) + '. A confirmation email with your check-in QR code is on its way to ' + plexEsc(body.email) + '. We look forward to welcoming you to Plexus 2026 in Zagreb.</p></div>';
+                document.getElementById('plexMain').innerHTML = '<div class="card" style="text-align:center;max-width:640px;margin:0 auto;padding:36px 28px;"><div style="font-size:46px;color:#22c55e;margin-bottom:10px;"><i class="fas fa-circle-check"></i></div><h1>You are registered</h1><p class="lede" style="margin-top:10px;">Thank you, ' + plexEsc(body.first_name) + '. A confirmation email with your check-in QR code is on its way to ' + plexEsc(body.email) + '. We look forward to welcoming you to Plexus 2026 in Zagreb.</p></div>';
             } catch(e){ plexErr('Network error. Please try again.'); btn.disabled=false; plexRecompute(); }
             return false;
         }
