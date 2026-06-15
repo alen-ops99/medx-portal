@@ -3180,6 +3180,10 @@ async function initializeApp() {
             '5 December 2026 · {venue} · black-tie evening, keynote by Lord Smith of Finsbury (Chancellor, University of Cambridge), fireside panel. Limited places.'
         ]);
     }
+    // Per-event editable title + status badge + date (description already exists above).
+    ['conference_title','conference_status','conference_date','bridges_title','bridges_status','bridges_date','gala_title','gala_status','gala_date']
+        .forEach(col => { try { db.run(`ALTER TABLE plexus_page_settings ADD COLUMN ${col} TEXT`); } catch(e) {} });
+    try { db.run("UPDATE plexus_page_settings SET conference_title=COALESCE(conference_title,'Plexus Conference'), bridges_title=COALESCE(bridges_title,'Croatian Biomedical Bridges'), gala_title=COALESCE(gala_title,'Plexus Gala Evening'), conference_status=COALESCE(conference_status,'Open for registration'), bridges_status=COALESCE(bridges_status,'Open for pre-registration'), gala_status=COALESCE(gala_status,'Limited spaces') WHERE id='default'"); } catch(e) {}
 
     // Forum gala settings (separate from Plexus gala)
     db.run(`CREATE TABLE IF NOT EXISTS forum_gala_settings (
@@ -16105,24 +16109,27 @@ By applying to this program, I provide the following consents:
     // NOTE: distinct path from /api/admin/plexus/settings (which manages the separate
     // plexus_settings table: conference name/dates/venue). Keeping them separate avoids the
     // route collision that previously shadowed the conference-detail endpoint.
+    // Whitelisted editable columns for the /plexus page copy (title/status/date/desc per event + intro).
+    const PLEXUS_TEXT_COLS = ['page_lede',
+        'conference_title','conference_status','conference_date','conference_desc',
+        'bridges_title','bridges_status','bridges_date','bridges_desc',
+        'gala_title','gala_status','gala_date','gala_desc'];
     app.get('/api/admin/plexus/page-text', auth, adminOnly, (req, res) => {
-        const row = query.get("SELECT page_lede, conference_desc, bridges_desc, gala_desc FROM plexus_page_settings WHERE id = 'default'") || {};
+        const row = query.get(`SELECT ${PLEXUS_TEXT_COLS.join(', ')} FROM plexus_page_settings WHERE id = 'default'`) || {};
         res.json(row);
     });
     app.put('/api/admin/plexus/page-text', auth, adminOnly, (req, res) => {
-        const { page_lede, conference_desc, bridges_desc, gala_desc } = req.body || {};
         const fields = [], values = [];
-        if (page_lede !== undefined) { fields.push('page_lede = ?'); values.push(String(page_lede).slice(0, 2000)); }
-        if (conference_desc !== undefined) { fields.push('conference_desc = ?'); values.push(String(conference_desc).slice(0, 2000)); }
-        if (bridges_desc !== undefined) { fields.push('bridges_desc = ?'); values.push(String(bridges_desc).slice(0, 2000)); }
-        if (gala_desc !== undefined) { fields.push('gala_desc = ?'); values.push(String(gala_desc).slice(0, 2000)); }
+        for (const col of PLEXUS_TEXT_COLS) {
+            if (req.body && req.body[col] !== undefined) { fields.push(`${col} = ?`); values.push(String(req.body[col]).slice(0, 2000)); }
+        }
         if (!fields.length) return res.status(400).json({ error: 'No fields to update' });
         db.run("INSERT OR IGNORE INTO plexus_page_settings (id) VALUES ('default')");
         fields.push('updated_at = ?'); values.push(new Date().toISOString());
         db.run(`UPDATE plexus_page_settings SET ${fields.join(', ')} WHERE id = 'default'`, values);
         saveDb();
         logAudit(req, 'plexus.page_settings', 'Plexus page text updated');
-        res.json({ success: true, settings: query.get("SELECT page_lede, conference_desc, bridges_desc, gala_desc FROM plexus_page_settings WHERE id = 'default'") });
+        res.json({ success: true, settings: query.get(`SELECT ${PLEXUS_TEXT_COLS.join(', ')} FROM plexus_page_settings WHERE id = 'default'`) });
     });
 
     // Gala registrations list (admin)

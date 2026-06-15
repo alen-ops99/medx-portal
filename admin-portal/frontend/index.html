@@ -20262,9 +20262,18 @@ President, Med&amp;X</textarea>
                         endpoint: () => '/api/admin/plexus/page-text',
                         fields: [
                             { col:'page_lede', label:'Intro — top of the page', type:'textarea', role:'lede' },
-                            { col:'conference_desc', label:'Under Plexus Conference (Enter = new line, "- " = bullet)', type:'textarea', role:'desc_conference' },
-                            { col:'bridges_desc', label:'Under Croatian Biomedical Bridges', type:'textarea', role:'desc_bridges' },
-                            { col:'gala_desc', label:'Under Plexus Gala Evening (type {venue} for the live venue)', type:'textarea', role:'desc_gala' },
+                            { col:'conference_title', label:'Conference — title', type:'text', role:'title_conference' },
+                            { col:'conference_status', label:'Conference — status badge (e.g. Open for registration)', type:'text', role:'status_conference' },
+                            { col:'conference_date', label:'Conference — date', type:'text', role:'date_conference' },
+                            { col:'conference_desc', label:'Conference — description (Enter = new line, "- " = bullet)', type:'textarea', role:'desc_conference' },
+                            { col:'bridges_title', label:'Bridges — title', type:'text', role:'title_bridges' },
+                            { col:'bridges_status', label:'Bridges — status badge (e.g. Open for pre-registration)', type:'text', role:'status_bridges' },
+                            { col:'bridges_date', label:'Bridges — date', type:'text', role:'date_bridges' },
+                            { col:'bridges_desc', label:'Bridges — description', type:'textarea', role:'desc_bridges' },
+                            { col:'gala_title', label:'Gala — title', type:'text', role:'title_gala' },
+                            { col:'gala_status', label:'Gala — status badge (e.g. Limited spaces)', type:'text', role:'status_gala' },
+                            { col:'gala_date', label:'Gala — date (type {venue} for the live venue)', type:'text', role:'date_gala' },
+                            { col:'gala_desc', label:'Gala — description', type:'textarea', role:'desc_gala' },
                         ],
                     },
                     forum: {
@@ -20851,16 +20860,20 @@ President, Med&amp;X</textarea>
                 // with its editable description below it.
                 const plexLede = document.querySelector('#linkEditorModal [data-role="lede"]');
                 if (plexLede) {
-                    const descByKey = { conference: detail('desc_conference'), bridges: detail('desc_bridges'), gala: detail('desc_gala') };
                     let cardsHtml = '';
                     if (items) {
                         items.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
-                            const key = cb.dataset.key, label = cb.dataset.label || cb.value || '';
+                            const key = cb.dataset.key;
                             const price = Number(cb.dataset.price) || 0;
-                            const d = descByKey[key];
+                            const title = detail('title_' + key) || cb.dataset.label || cb.value || '';
+                            const status = detail('status_' + key);
+                            const date = detail('date_' + key);
+                            const d = detail('desc_' + key);
                             cardsHtml += `<div style="padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
-                                <div style="display:flex;justify-content:space-between;gap:10px;"><span style="font-size:15px;font-weight:600;color:#fff;">${esc(label)}</span><span style="font-size:13px;font-weight:600;color:${price>0?'#c9a962':'#22c55e'};">${price>0?'€'+price:'FREE'}</span></div>
-                                ${d ? `<div style="font-size:12.5px;color:#94a3b8;line-height:1.5;margin-top:4px;">${fmtRich(d)}</div>` : ''}
+                                <div style="display:flex;justify-content:space-between;gap:10px;"><span style="font-size:15px;font-weight:600;color:#fff;">${esc(title)}</span><span style="font-size:13px;font-weight:600;color:${price>0?'#c9a962':'#22c55e'};">${price>0?'€'+price:'FREE'}</span></div>
+                                ${status ? `<div style="font-size:10px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:#c9a962;margin:3px 0;">${esc(status)}</div>` : ''}
+                                ${date ? `<div style="font-size:12px;font-weight:600;color:#e2e8f0;">${esc(date)}</div>` : ''}
+                                ${d ? `<div style="font-size:12.5px;color:#94a3b8;line-height:1.5;margin-top:2px;">${fmtRich(d)}</div>` : ''}
                             </div>`;
                         });
                     }

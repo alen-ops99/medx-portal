@@ -927,6 +927,8 @@ const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><me
     .event-price { font-size:13px; font-weight:600; color:#c9a962; white-space:nowrap; }
     .event-price.free { color:#22c55e; }
     .event-meta { font-size:12px; color:#94a3b8; line-height:1.45; }
+    .event-status { display:inline-block; font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#c9a962; background:rgba(201,169,98,0.12); border:1px solid rgba(201,169,98,0.25); padding:2px 9px; border-radius:20px; margin:2px 0 6px; }
+    .event-date { font-size:12.5px; font-weight:600; color:#e2e8f0; margin-bottom:4px; }
     /* Gala keynote highlight (Lord Smith of Finsbury, Chancellor of Cambridge). */
     .keynote-card { background:linear-gradient(135deg,rgba(201,169,98,0.12),rgba(201,169,98,0.02)); border:1px solid rgba(201,169,98,0.28); border-radius:14px; padding:16px 18px; margin-top:14px; display:flex; gap:16px; align-items:center; }
     .keynote-card img { width:72px; height:72px; border-radius:50%; object-fit:cover; object-position:center 22%; border:2px solid #c9a962; flex-shrink:0; box-shadow:0 4px 14px rgba(0,0,0,0.25); }
@@ -1027,26 +1029,42 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
 
         // Admin-editable copy (lede + per-event descriptions) from plexus_page_settings, with the
         // launch defaults as fallback. {venue} in the Gala description resolves to the live venue.
-        const pps = query.get("SELECT page_lede, conference_desc, bridges_desc, gala_desc FROM plexus_page_settings WHERE id = 'default'") || {};
+        const pps = query.get("SELECT * FROM plexus_page_settings WHERE id = 'default'") || {};
         const pageLede = pps.page_lede || 'Register once, from this single page. Choose the events you would like to attend — the Conference and Croatian Biomedical Bridges are complimentary; the Gala Evening is a paid ticket.';
+        const confTitle = pps.conference_title || 'Plexus Conference';
+        const confStatus = pps.conference_status || '';
+        const confDate = pps.conference_date || '';
         const confDesc = pps.conference_desc || '4–5 December 2026 · Zagreb · two days of panels & lectures across biomedicine. Program to follow · limited spaces.';
+        const bridgesTitle = pps.bridges_title || 'Croatian Biomedical Bridges';
+        const bridgesStatus = pps.bridges_status || '';
+        const bridgesDate = pps.bridges_date || '';
         const bridgesDesc = pps.bridges_desc || '4 or 5 December 2026 · Zagreb · a daytime gathering connecting Croatian medicine worldwide. Pre-registration; date & venue to follow.';
+        const galaTitle = pps.gala_title || 'Plexus Gala Evening';
+        const galaStatus = pps.gala_status || '';
+        const galaDate = (pps.gala_date || '').replace(/\{venue\}/g, galaVenue);
         const galaDesc = (pps.gala_desc || '5 December 2026 · {venue} · black-tie evening, keynote by Lord Smith of Finsbury (Chancellor, University of Cambridge), fireside panel. Limited places.').replace(/\{venue\}/g, galaVenue);
+        // Status pill (below the title) + optional date line for a card.
+        const evtHead = (status, date) =>
+            (status ? `<span class="event-status">${escapeHtml(status)}</span>` : '') +
+            (date ? `<div class="event-date">${escapeHtml(date)}</div>` : '');
 
         const cardConference = `<div class="event-option evt-conference" data-key="conference" data-price="0" onclick="plexToggle(this)">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
             <div class="event-icon"><i class="fas fa-dna"></i></div>
-            <div class="event-body"><div class="event-title-row"><span class="event-name">Plexus Conference</span><span class="event-price free">FREE</span></div>
+            <div class="event-body"><div class="event-title-row"><span class="event-name">${escapeHtml(confTitle)}</span><span class="event-price free">FREE</span></div>
+            ${evtHead(confStatus, confDate)}
             <div class="event-meta">${formatRichText(confDesc)}</div></div></div>`;
         const cardBridges = `<div class="event-option evt-bridges" data-key="bridges" data-price="0" onclick="plexToggle(this)">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
             <div class="event-icon"><i class="fas fa-handshake-angle"></i></div>
-            <div class="event-body"><div class="event-title-row"><span class="event-name">Croatian Biomedical Bridges</span><span class="event-price free">FREE</span></div>
+            <div class="event-body"><div class="event-title-row"><span class="event-name">${escapeHtml(bridgesTitle)}</span><span class="event-price free">FREE</span></div>
+            ${evtHead(bridgesStatus, bridgesDate)}
             <div class="event-meta">${formatRichText(bridgesDesc)}</div></div></div>`;
         const cardGala = `<div class="event-option evt-gala" data-key="gala" data-price="${galaPrice}" onclick="plexToggle(this)">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
             <div class="event-icon"><i class="fas fa-champagne-glasses"></i></div>
-            <div class="event-body"><div class="event-title-row"><span class="event-name">Plexus Gala Evening</span><span class="event-price">${galaPriceLabel}</span></div>
+            <div class="event-body"><div class="event-title-row"><span class="event-name">${escapeHtml(galaTitle)}</span><span class="event-price">${galaPriceLabel}</span></div>
+            ${evtHead(galaStatus, galaDate)}
             <div class="event-meta">${formatRichText(galaDesc)}</div></div></div>`;
         const cards = [
             offered.includes('conference') ? cardConference : '',
@@ -4876,6 +4894,10 @@ async function initializeApp() {
             '5 December 2026 · {venue} · black-tie evening, keynote by Lord Smith of Finsbury (Chancellor, University of Cambridge), fireside panel. Limited places.'
         ]);
     }
+    // Per-event editable title + status badge + date (description already exists above).
+    ['conference_title','conference_status','conference_date','bridges_title','bridges_status','bridges_date','gala_title','gala_status','gala_date']
+        .forEach(col => { try { db.run(`ALTER TABLE plexus_page_settings ADD COLUMN ${col} TEXT`); } catch(e) {} });
+    try { db.run("UPDATE plexus_page_settings SET conference_title=COALESCE(conference_title,'Plexus Conference'), bridges_title=COALESCE(bridges_title,'Croatian Biomedical Bridges'), gala_title=COALESCE(gala_title,'Plexus Gala Evening'), conference_status=COALESCE(conference_status,'Open for registration'), bridges_status=COALESCE(bridges_status,'Open for pre-registration'), gala_status=COALESCE(gala_status,'Limited spaces') WHERE id='default'"); } catch(e) {}
     // 2026 pricing migration: gala-only early-bird fee €150 (only if still at a legacy default; never overrides admin edits)
     try {
         const galaRow = query.get("SELECT price_gala_only, time, venue, title FROM gala_settings WHERE id = 'default'");
