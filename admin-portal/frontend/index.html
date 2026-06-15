@@ -7050,24 +7050,8 @@
                         </button>
                     </div>
 
-                    <!-- Registration page text editor — controls the lede + the line under each
-                         event on the public /plexus registration page (admin-editable). -->
-                    <div class="card" id="plexusPageTextCard" style="margin-bottom:18px;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-                            <h3 style="margin:0;font-size:15px;"><i class="fas fa-pen-to-square" style="color:#c9a962;margin-right:6px;"></i>Registration page text <span style="font-weight:400;color:var(--text-muted);font-size:12px;">— the intro + the description under each event on your /plexus link</span></h3>
-                            <button class="btn btn-primary" onclick="PlexusPageText.save()" style="font-size:12px;"><i class="fas fa-save"></i> Save page text</button>
-                        </div>
-                        <div style="display:flex;flex-direction:column;gap:12px;">
-                            <div><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">Intro (above the events)</label>
-                                <textarea id="plexusPageLede" rows="2" style="width:100%;padding:9px 11px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-primary);color:var(--text-primary);font-size:13px;font-family:inherit;resize:vertical;"></textarea></div>
-                            <div><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;"><i class="fas fa-microscope" style="color:#a78bfa;margin-right:4px;"></i>Under Plexus Conference</label>
-                                <textarea id="plexusConfDesc" rows="2" style="width:100%;padding:9px 11px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-primary);color:var(--text-primary);font-size:13px;font-family:inherit;resize:vertical;"></textarea></div>
-                            <div><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;"><i class="fas fa-handshake" style="color:#f472b6;margin-right:4px;"></i>Under Croatian Biomedical Bridges</label>
-                                <textarea id="plexusBridgesDesc" rows="2" style="width:100%;padding:9px 11px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-primary);color:var(--text-primary);font-size:13px;font-family:inherit;resize:vertical;"></textarea></div>
-                            <div><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;"><i class="fas fa-champagne-glasses" style="color:#c9a962;margin-right:4px;"></i>Under Plexus Gala Evening <span style="font-weight:400;color:var(--text-muted);">(type {venue} to insert the live Gala venue)</span></label>
-                                <textarea id="plexusGalaDesc" rows="2" style="width:100%;padding:9px 11px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-primary);color:var(--text-primary);font-size:13px;font-family:inherit;resize:vertical;"></textarea></div>
-                        </div>
-                    </div>
+                    <!-- (Registration page text — intro + per-event title/status/date/description —
+                         is edited in the "Direct Link" Live Editor, top-right.) -->
 
                     <!-- Plexus Experience registrations (one-link multi-event sign-ups; source='plexus') -->
                     <div class="card" id="plexusRegsCard" style="margin-bottom:18px;">
@@ -7078,9 +7062,9 @@
                         <div style="overflow-x:auto;">
                             <table style="width:100%;border-collapse:collapse;font-size:13px;">
                                 <thead><tr style="text-align:left;color:var(--text-muted);border-bottom:1px solid var(--border-color);">
-                                    <th style="padding:8px;">Name</th><th style="padding:8px;">Email</th><th style="padding:8px;">Institution</th><th style="padding:8px;">Applied for</th><th style="padding:8px;">Gala</th><th style="padding:8px;">Date</th>
+                                    <th style="padding:8px;">Name</th><th style="padding:8px;">Email</th><th style="padding:8px;">Institution</th><th style="padding:8px;">Applied for</th><th style="padding:8px;">Gala</th><th style="padding:8px;">Date</th><th style="padding:8px;">Actions</th>
                                 </tr></thead>
-                                <tbody id="plexusRegsBody"><tr><td colspan="6" style="padding:10px;color:var(--text-muted);">Loading…</td></tr></tbody>
+                                <tbody id="plexusRegsBody"><tr><td colspan="7" style="padding:10px;color:var(--text-muted);">Loading…</td></tr></tbody>
                             </table>
                         </div>
                     </div>
@@ -15610,12 +15594,8 @@ President, Med&amp;X</textarea>
                 const qrFab = document.getElementById('globalQRBtn');
                 if (qrFab && this.user && (this.user.is_admin || this.user.is_staff)) qrFab.style.display = 'flex';
 
-                // Load the editable /plexus registration-page text + the Plexus Experience
-                // registrations list when the Plexus section opens.
-                if (sectionId === 'plexus') {
-                    if (typeof PlexusPageText !== 'undefined') PlexusPageText.load();
-                    if (typeof PlexusRegs !== 'undefined') PlexusRegs.load();
-                }
+                // Load the Plexus Experience registrations list when the Plexus section opens.
+                if (sectionId === 'plexus' && typeof PlexusRegs !== 'undefined') PlexusRegs.load();
 
                 if (sectionId === 'finances') {
                     // Switch to Finances team chat
@@ -30227,21 +30207,29 @@ By applying to this program, I give the following consents:
 
         // Lists the public Plexus Experience registrations (source='plexus') in the Plexus section.
         const PlexusRegs = {
+            rows: [],
             async load() {
                 const body = document.getElementById('plexusRegsBody');
                 if (!body) return;
                 try {
                     const res = await fetch('/api/admin/plexus-experience/registrations', { headers: { 'Authorization': `Bearer ${App.token}` } });
-                    if (!res.ok) { body.innerHTML = '<tr><td colspan="6" style="padding:10px;color:#ef4444;">Could not load.</td></tr>'; return; }
+                    if (!res.ok) { body.innerHTML = '<tr><td colspan="7" style="padding:10px;color:#ef4444;">Could not load.</td></tr>'; return; }
                     const rows = await res.json();
+                    this.rows = rows;
                     const cnt = document.getElementById('plexusRegsCount');
                     if (cnt) cnt.textContent = '(' + rows.length + ')';
-                    if (!rows.length) { body.innerHTML = '<tr><td colspan="6" style="padding:10px;color:var(--text-muted);">No Plexus Experience registrations yet.</td></tr>'; return; }
+                    if (!rows.length) { body.innerHTML = '<tr><td colspan="7" style="padding:10px;color:var(--text-muted);">No Plexus Experience registrations yet.</td></tr>'; return; }
                     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
-                    body.innerHTML = rows.map(r => {
+                    const ja = (s) => (typeof App.jsAttr === 'function') ? App.jsAttr(s) : String(s == null ? '' : s).replace(/'/g, '');
+                    body.innerHTML = rows.map((r, i) => {
                         const applied = [r.selected_conference ? 'Conference' : null, r.selected_bridges ? 'Bridges' : null, r.selected_gala ? 'Gala' : null].filter(Boolean).join(', ') || '—';
                         const gala = r.selected_gala ? (r.gala_payment_status === 'paid' ? '<span style="color:#22c55e;">Paid</span>' : esc(r.gala_payment_status || 'awaiting')) : '—';
                         const date = String(r.created_at || '').replace('T', ' ').slice(0, 16);
+                        const em = ja(r.email || ''); const b = 'padding:4px 8px;font-size:11px;';
+                        const actions =
+                            `<button class="btn btn-secondary" style="${b}" title="Details" onclick="PlexusRegs.viewDetail(${i})"><i class="fas fa-id-card"></i></button>` +
+                            `<button class="btn btn-secondary" style="${b}" title="Email" onclick="App.emailPerson('${em}','Plexus 2026')"><i class="fas fa-envelope"></i></button>` +
+                            `<button class="btn btn-secondary" style="${b}" title="Message" onclick="App.messagePerson('${em}','Plexus 2026')"><i class="fas fa-comment-dots"></i></button>`;
                         return '<tr style="border-bottom:1px solid var(--border-color);">' +
                             '<td style="padding:8px;">' + esc((r.first_name || '') + ' ' + (r.last_name || '')) + '</td>' +
                             '<td style="padding:8px;">' + esc(r.email) + '</td>' +
@@ -30249,9 +30237,14 @@ By applying to this program, I give the following consents:
                             '<td style="padding:8px;">' + esc(applied) + '</td>' +
                             '<td style="padding:8px;">' + gala + '</td>' +
                             '<td style="padding:8px;color:var(--text-muted);">' + esc(date) + '</td>' +
+                            '<td style="padding:8px;white-space:nowrap;"><div style="display:flex;gap:4px;">' + actions + '</div></td>' +
                         '</tr>';
                     }).join('');
-                } catch (e) { body.innerHTML = '<tr><td colspan="6" style="padding:10px;color:#ef4444;">Error loading.</td></tr>'; }
+                } catch (e) { body.innerHTML = '<tr><td colspan="7" style="padding:10px;color:#ef4444;">Error loading.</td></tr>'; }
+            },
+            viewDetail(i) {
+                const r = this.rows[i];
+                if (r && typeof App.showRegistrantDetail === 'function') App.showRegistrantDetail(r, { context: 'Plexus 2026' });
             }
         };
 
