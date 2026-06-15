@@ -17669,6 +17669,32 @@ By applying to this program, I provide the following consents:
             console.warn('Gala registration email failed:', emailErr.message);
         }
 
+        // Log the invitation REQUEST to the Gala Sheet tab so pending requests are visible too.
+        // payment='Request (pending review)' distinguishes it from a paid row (which the payment
+        // webhook posts separately once they pay).
+        try {
+            const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
+            if (sheetsWebhook) {
+                fetch(sheetsWebhook, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        timestamp: new Date().toISOString(),
+                        events: ['gala'],
+                        name: `${first_name} ${last_name || ''}`.trim(),
+                        email, institution: institution || '',
+                        event: 'Plexus 2026 — Gala Evening',
+                        event_type: 'gala',
+                        items: 'Gala (invitation request)',
+                        applied_for: 'Gala',
+                        dietary: dietary || '',
+                        amount: 0, payment: 'Request (pending review)',
+                        registration_id: id
+                    })
+                }).catch(err => console.warn('[Sync] Gala request Sheets POST failed:', err.message));
+            }
+        } catch(e) {}
+
         res.json({ success: true, id, status: 'pending' });
     });
 
