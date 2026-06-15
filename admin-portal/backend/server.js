@@ -16102,11 +16102,14 @@ By applying to this program, I provide the following consents:
     });
 
     // ===== Plexus page text (the /plexus lede + per-event descriptions) — admin-editable =====
-    app.get('/api/admin/plexus/settings', auth, adminOnly, (req, res) => {
+    // NOTE: distinct path from /api/admin/plexus/settings (which manages the separate
+    // plexus_settings table: conference name/dates/venue). Keeping them separate avoids the
+    // route collision that previously shadowed the conference-detail endpoint.
+    app.get('/api/admin/plexus/page-text', auth, adminOnly, (req, res) => {
         const row = query.get("SELECT page_lede, conference_desc, bridges_desc, gala_desc FROM plexus_page_settings WHERE id = 'default'") || {};
         res.json(row);
     });
-    app.put('/api/admin/plexus/settings', auth, adminOnly, (req, res) => {
+    app.put('/api/admin/plexus/page-text', auth, adminOnly, (req, res) => {
         const { page_lede, conference_desc, bridges_desc, gala_desc } = req.body || {};
         const fields = [], values = [];
         if (page_lede !== undefined) { fields.push('page_lede = ?'); values.push(String(page_lede).slice(0, 2000)); }

@@ -20255,15 +20255,16 @@ President, Med&amp;X</textarea>
                     },
                     plexus: {
                         singleton: true,
-                        fetch: () => self.api('/api/admin/plexus/settings'),
-                        endpoint: () => '/api/admin/plexus/settings',
+                        // Edits the ACTUAL text shown on the /plexus registration page (the intro +
+                        // the line under each event). Uses /page-text (plexus_page_settings) — NOT
+                        // /settings (which is the separate conference-detail table).
+                        fetch: () => self.api('/api/admin/plexus/page-text'),
+                        endpoint: () => '/api/admin/plexus/page-text',
                         fields: [
-                            { col:'conference_name', label:'Conference name', type:'text', role:'title' },
-                            { col:'conference_start_date', label:'Start date', type:'date', role:'date' },
-                            { col:'conference_end_date', label:'End date', type:'date', role:'meta' },
-                            { col:'venue_name', label:'Venue name', type:'text', role:'venue' },
-                            { col:'venue_city', label:'Venue city', type:'text', role:'meta' },
-                            { col:'conference_description', label:'Description', type:'textarea', role:'description' },
+                            { col:'page_lede', label:'Intro — top of the page', type:'textarea', role:'lede' },
+                            { col:'conference_desc', label:'Under Plexus Conference (Enter = new line, "- " = bullet)', type:'textarea', role:'desc_conference' },
+                            { col:'bridges_desc', label:'Under Croatian Biomedical Bridges', type:'textarea', role:'desc_bridges' },
+                            { col:'gala_desc', label:'Under Plexus Gala Evening (type {venue} for the live venue)', type:'textarea', role:'desc_gala' },
                         ],
                     },
                     forum: {
@@ -20844,6 +20845,36 @@ President, Med&amp;X</textarea>
                 if (totalEl) totalEl.textContent = totalStr;
                 const prev = document.getElementById('genLinkPreview');
                 if (!prev) return;
+                // Rich-text formatter shared by the preview (newline → <br>; -, *, • → "• " bullet).
+                const fmtRich = (s) => esc(s == null ? '' : s).split('\n').map(l => l.replace(/^\s*[-*•]\s+/, '• ')).join('<br>');
+                // Plexus links: preview the actual /plexus page — the intro plus each chosen event
+                // with its editable description below it.
+                const plexLede = document.querySelector('#linkEditorModal [data-role="lede"]');
+                if (plexLede) {
+                    const descByKey = { conference: detail('desc_conference'), bridges: detail('desc_bridges'), gala: detail('desc_gala') };
+                    let cardsHtml = '';
+                    if (items) {
+                        items.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+                            const key = cb.dataset.key, label = cb.dataset.label || cb.value || '';
+                            const price = Number(cb.dataset.price) || 0;
+                            const d = descByKey[key];
+                            cardsHtml += `<div style="padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+                                <div style="display:flex;justify-content:space-between;gap:10px;"><span style="font-size:15px;font-weight:600;color:#fff;">${esc(label)}</span><span style="font-size:13px;font-weight:600;color:${price>0?'#c9a962':'#22c55e'};">${price>0?'€'+price:'FREE'}</span></div>
+                                ${d ? `<div style="font-size:12.5px;color:#94a3b8;line-height:1.5;margin-top:4px;">${fmtRich(d)}</div>` : ''}
+                            </div>`;
+                        });
+                    }
+                    prev.innerHTML = `<div style="background:#0f172a;border:1px solid rgba(201,169,98,0.25);border-radius:14px;padding:22px;">
+                        <div style="font-size:20px;font-weight:700;color:#fff;margin-bottom:8px;">Reserve your place</div>
+                        ${plexLede.value.trim() ? `<div style="font-size:13px;color:#cbd5e1;line-height:1.5;margin-bottom:14px;">${fmtRich(plexLede.value)}</div>` : ''}
+                        ${cardsHtml || '<div style="color:#64748b;font-size:13px;">Tick events above to include them.</div>'}
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;margin-top:14px;background:rgba(201,169,98,0.12);border-radius:10px;border:1px solid rgba(201,169,98,0.25);">
+                            <span style="font-size:14px;color:#94a3b8;">Total</span>
+                            <span style="font-size:26px;font-weight:700;color:#c9a962;">${totalStr}</span>
+                        </div>
+                    </div>`;
+                    return;
+                }
                 // Match the live page: newlines → <br>, lines starting with -, *, • → "• " bullets.
                 const descHtml = esc(description).split('\n').map(l => l.replace(/^\s*[-*•]\s+/, '• ')).join('<br>');
                 const metaRow = (icon, val) => val ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#94a3b8;margin-bottom:6px;"><i class="fas ${icon}" style="width:14px;color:#c9a962;"></i>${esc(val)}</div>` : '';
@@ -30150,7 +30181,7 @@ By applying to this program, I give the following consents:
         const PlexusPageText = {
             async load() {
                 try {
-                    const res = await fetch('/api/admin/plexus/settings', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    const res = await fetch('/api/admin/plexus/page-text', { headers: { 'Authorization': `Bearer ${App.token}` } });
                     if (!res.ok) return;
                     const s = await res.json();
                     const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
@@ -30169,7 +30200,7 @@ By applying to this program, I give the following consents:
                     gala_desc: getVal('plexusGalaDesc')
                 };
                 try {
-                    const res = await fetch('/api/admin/plexus/settings', {
+                    const res = await fetch('/api/admin/plexus/page-text', {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
                         body: JSON.stringify(body)
