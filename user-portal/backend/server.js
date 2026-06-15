@@ -1784,7 +1784,7 @@ async function submitCA(e) {
                 ${eventInfo.venue ? '<div><i class="fas fa-map-marker-alt"></i>' + escapeHtml(String(eventInfo.venue)) + '</div>' : ''}
                 ${eventType === 'gala' && eventInfo.dress_code ? '<div style="margin-top:4px;"><i class="fas fa-tshirt"></i>' + escapeHtml(String(eventInfo.dress_code)) + '</div>' : ''}
             </div>
-            ${eventInfo.description ? '<div style="font-size:14px;color:#cbd5e1;line-height:1.55;margin:0 0 18px;">' + escapeHtml(String(eventInfo.description)) + '</div>' : ''}
+            ${eventInfo.description ? '<div style="font-size:14px;color:#cbd5e1;line-height:1.55;margin:0 0 18px;">' + formatRichText(eventInfo.description) + '</div>' : ''}
             ${eventType === 'gala' && eventInfo.keynote_name ? `
             <div style="background:linear-gradient(135deg,rgba(201,169,98,0.08),rgba(201,169,98,0.02));border:1px solid rgba(201,169,98,0.25);border-radius:14px;padding:16px;margin-bottom:20px;display:flex;gap:14px;align-items:center;">
                 ${eventInfo.keynote_image_url ? `<img src="${escapeHtml(eventInfo.keynote_image_url)}" alt="${escapeHtml(eventInfo.keynote_name)}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;object-position:center 22%;flex-shrink:0;border:2px solid #c9a962;" onerror="this.style.display='none'">` : ''}

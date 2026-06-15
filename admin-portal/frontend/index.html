@@ -20844,6 +20844,8 @@ President, Med&amp;X</textarea>
                 if (totalEl) totalEl.textContent = totalStr;
                 const prev = document.getElementById('genLinkPreview');
                 if (!prev) return;
+                // Match the live page: newlines → <br>, lines starting with -, *, • → "• " bullets.
+                const descHtml = esc(description).split('\n').map(l => l.replace(/^\s*[-*•]\s+/, '• ')).join('<br>');
                 const metaRow = (icon, val) => val ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#94a3b8;margin-bottom:6px;"><i class="fas ${icon}" style="width:14px;color:#c9a962;"></i>${esc(val)}</div>` : '';
                 const partsHtml = included.length
                     ? '<div style="margin:14px 0 18px;">' + included.map(i =>
@@ -20855,7 +20857,7 @@ President, Med&amp;X</textarea>
                         ${metaRow('fa-calendar', date)}
                         ${metaRow('fa-clock', time)}
                         ${metaRow('fa-map-marker-alt', venue)}
-                        ${description ? `<div style="font-size:13px;color:#cbd5e1;line-height:1.5;margin:12px 0 4px;">${esc(description)}</div>` : ''}
+                        ${description ? `<div style="font-size:13px;color:#cbd5e1;line-height:1.5;margin:12px 0 4px;">${descHtml}</div>` : ''}
                         ${partsHtml}
                         <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:rgba(201,169,98,0.12);border-radius:10px;border:1px solid rgba(201,169,98,0.25);">
                             <span style="font-size:14px;color:#94a3b8;">Total</span>
