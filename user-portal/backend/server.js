@@ -927,7 +927,7 @@ const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><me
     .event-price { font-size:13px; font-weight:600; color:#c9a962; white-space:nowrap; }
     .event-price.free { color:#22c55e; }
     .event-meta { font-size:12px; color:#94a3b8; line-height:1.45; }
-    .event-status { display:inline-block; font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#c9a962; background:rgba(201,169,98,0.12); border:1px solid rgba(201,169,98,0.25); padding:2px 9px; border-radius:20px; margin:2px 0 6px; }
+    .event-status { display:inline-block; font-size:10px; font-weight:700; letter-spacing:0.6px; text-indent:0.6px; text-align:center; text-transform:uppercase; color:#c9a962; background:rgba(201,169,98,0.12); border:1px solid rgba(201,169,98,0.25); padding:2px 9px; border-radius:20px; margin:2px 0 6px; }
     .event-date { font-size:12.5px; font-weight:600; color:#e2e8f0; margin-bottom:4px; }
     /* Gala keynote highlight (Lord Smith of Finsbury, Chancellor of Cambridge). */
     .keynote-card { background:linear-gradient(135deg,rgba(201,169,98,0.12),rgba(201,169,98,0.02)); border:1px solid rgba(201,169,98,0.28); border-radius:14px; padding:16px 18px; margin-top:14px; display:flex; gap:16px; align-items:center; }
