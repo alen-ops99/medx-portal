@@ -20572,7 +20572,11 @@ President, Med&amp;X</textarea>
                             }));
                         } catch(e) {}
                     }
-                    if (!rows.length) { box.innerHTML = '<span style="color:var(--text-muted);">No links yet for this event.</span>'; return; }
+                    // Show ACTIVE links only — a removed link disappears from this list for good
+                    // (its DB row stays soft-deleted so the token is dead and any registrations keep
+                    // their reference, but it's gone from view, as expected).
+                    rows = rows.filter(r => r.active);
+                    if (!rows.length) { box.innerHTML = '<span style="color:var(--text-muted);">No active links for this event.</span>'; return; }
                     box.innerHTML = rows.map(r => `
                         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;margin-bottom:6px;${r.active?'':'opacity:0.5;'}">
                             <div style="min-width:0;">
@@ -20581,20 +20585,20 @@ President, Med&amp;X</textarea>
                             </div>
                             <div style="display:flex;gap:4px;flex-shrink:0;">
                                 ${r.url?`<button class="btn btn-secondary" style="padding:4px 8px;font-size:11px;" title="Copy link" onclick="navigator.clipboard.writeText('${(r.url||'').replace(/'/g,'')}');Toast.success('Copied!')"><i class="fas fa-copy"></i></button>`:''}
-                                ${r.active?`<button class="btn btn-secondary" style="padding:4px 8px;font-size:11px;" title="Deactivate" onclick="App.deactivateExistingLink('${r.source}','${r.id}','${eventType}')"><i class="fas fa-ban"></i></button>`:''}
+                                ${r.active?`<button class="btn btn-secondary" style="padding:4px 8px;font-size:11px;" title="Remove link" onclick="App.deactivateExistingLink('${r.source}','${r.id}','${eventType}')"><i class="fas fa-trash"></i></button>`:''}
                             </div>
                         </div>`).join('');
                 } catch(e) { box.innerHTML = '<span style="color:#ef4444;">Could not load links.</span>'; }
             },
 
             async deactivateExistingLink(source, id, eventType) {
-                if (!confirm('Deactivate this link? Anyone who already has it will no longer be able to register.')) return;
+                if (!confirm('Remove this link? It will disappear from this list permanently and stop working — anyone who already has it can no longer register.')) return;
                 try {
                     if (source === 'gala') await this.api(`/api/admin/gala/invite-links/${id}`, { method: 'DELETE' });
                     else await this.api(`/api/admin/registration-links/${id}/deactivate`, { method: 'PUT' });
-                    Toast.success('Link deactivated');
+                    Toast.success('Link removed');
                     this.loadExistingLinks(eventType);
-                } catch(e) { Toast.error('Could not deactivate'); }
+                } catch(e) { Toast.error('Could not remove link'); }
             },
 
             // ===== Custom questions (Live Editor) =====

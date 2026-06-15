@@ -2360,7 +2360,14 @@ async function freshSync() {
     const now = Date.now();
     if (now - _lastFreshSync < 5000) return;
     _lastFreshSync = now;
-    try { await db.sync(); } catch(e) { /* stale-but-serving is fine */ }
+    // Cap the sync at 4s so a slow/stalled Turso pull can NEVER hang a public page render
+    // (e.g. /plexus, /invite). Stale-but-served is fine — the periodic background sync catches up.
+    try {
+        await Promise.race([
+            db.sync(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('freshSync timeout')), 4000))
+        ]);
+    } catch(e) { /* stale-but-serving is fine */ }
 }
 
 // Cross-portal sync
