@@ -501,6 +501,14 @@ function escapeHtml(str) {
     if (!str) return '';
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+// Render admin-typed copy with line breaks + bullets preserved (XSS-safe). Escapes first, then
+// turns newlines into <br> and lines starting with -, *, or • into "• " bullets.
+function formatRichText(str) {
+    return escapeHtml(String(str == null ? '' : str))
+        .split('\n')
+        .map(line => line.replace(/^\s*[-*•]\s+/, '• '))
+        .join('<br>');
+}
 
 // CSV formula-injection guard: a leading =,+,-,@ (or tab/CR) makes Excel/Sheets execute the
 // cell as a formula. Prefix with a single quote to neutralize. Mirrors the admin backend.
@@ -1029,17 +1037,17 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
             <div class="event-icon"><i class="fas fa-dna"></i></div>
             <div class="event-body"><div class="event-title-row"><span class="event-name">Plexus Conference</span><span class="event-price free">FREE</span></div>
-            <div class="event-meta">${escapeHtml(confDesc)}</div></div></div>`;
+            <div class="event-meta">${formatRichText(confDesc)}</div></div></div>`;
         const cardBridges = `<div class="event-option evt-bridges" data-key="bridges" data-price="0" onclick="plexToggle(this)">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
             <div class="event-icon"><i class="fas fa-handshake-angle"></i></div>
             <div class="event-body"><div class="event-title-row"><span class="event-name">Croatian Biomedical Bridges</span><span class="event-price free">FREE</span></div>
-            <div class="event-meta">${escapeHtml(bridgesDesc)}</div></div></div>`;
+            <div class="event-meta">${formatRichText(bridgesDesc)}</div></div></div>`;
         const cardGala = `<div class="event-option evt-gala" data-key="gala" data-price="${galaPrice}" onclick="plexToggle(this)">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
             <div class="event-icon"><i class="fas fa-champagne-glasses"></i></div>
             <div class="event-body"><div class="event-title-row"><span class="event-name">Plexus Gala Evening</span><span class="event-price">${galaPriceLabel}</span></div>
-            <div class="event-meta">${escapeHtml(galaDesc)}</div></div></div>`;
+            <div class="event-meta">${formatRichText(galaDesc)}</div></div></div>`;
         const cards = [
             offered.includes('conference') ? cardConference : '',
             offered.includes('bridges') ? cardBridges : '',
@@ -1063,7 +1071,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             <div class="hero">
                 <span class="badge">Plexus 2026 &middot; Zagreb${linkLabel ? ' &middot; ' + escapeHtml(linkLabel) : ''}</span>
                 <h1>Reserve your place</h1>
-                <p class="lede">${escapeHtml(pageLede)}</p>
+                <p class="lede">${formatRichText(pageLede)}</p>
             </div>
             <div class="plex-layout">
                 <div class="card events-col">
