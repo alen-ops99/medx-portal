@@ -1111,7 +1111,20 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                                 <div><label>Institution</label><input id="pf_inst" maxlength="160"></div>
                                 <div><label>Country</label><input id="pf_country" maxlength="80"></div>
                             </div>
-                            <div><label>Dietary requirements (for the Gala)</label><input id="pf_diet" maxlength="200" placeholder="e.g. vegetarian, allergies"></div>
+                            <div><label>Dietary requirements (for the Gala)</label><input id="pf_diet" maxlength="200" placeholder="e.g. vegetarian"></div>
+                            <div><label>Allergies (for the Gala)</label><input id="pf_allergies" maxlength="200" placeholder="e.g. nuts, shellfish"></div>
+                            <div><label>Additional guests for the Gala <span style="color:#64748b;font-weight:400;">(max 2)</span></label>
+                                <select id="pf_guests" onchange="plexRecompute()">
+                                    <option value="0">No additional guests</option>
+                                    <option value="1">+1 guest (+&euro;${galaPrice})</option>
+                                    <option value="2">+2 guests (+&euro;${galaPrice * 2})</option>
+                                </select></div>
+                            <div><label>Discount code <span style="color:#64748b;font-weight:400;">(optional, applies to the Gala)</span></label>
+                                <div style="display:flex;gap:8px;">
+                                    <input id="pf_coupon" maxlength="40" placeholder="Enter code" style="text-transform:uppercase;flex:1;" oninput="plexClearCoupon()">
+                                    <button type="button" id="pf_couponBtn" onclick="plexApplyCoupon()" style="padding:11px 16px;border:none;border-radius:9px;background:linear-gradient(135deg,#c9a962,#b8965a);color:#0f172a;font-weight:700;cursor:pointer;white-space:nowrap;">Apply</button>
+                                </div>
+                                <div id="pf_couponMsg" style="margin-top:6px;font-size:12px;display:none;"></div></div>
                             <div><label>Anything else?</label><textarea id="pf_notes" maxlength="500"></textarea></div>
                         </div>
                         <div class="total-display show" style="margin-top:14px;"><span class="label">To pay now</span><span class="amount" id="plexPayAmt">&euro;0</span></div>
@@ -1124,15 +1137,43 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
 
         const clientJs = `<script>
         var PLEX_TOKEN = ${JSON.stringify(token || '')};
+        var plexDiscount = 0, plexDiscountType = '';
         function plexEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
         function plexRecompute(){
-            var total = 0;
-            document.querySelectorAll('.event-option.selected').forEach(function(o){ total += Number(o.dataset.price)||0; });
+            var total = 0, galaUnit = 0, galaSel = false;
+            document.querySelectorAll('.event-option.selected').forEach(function(o){
+                if (o.dataset.key === 'gala') { galaSel = true; galaUnit = Number(o.dataset.price) || 0; }
+                else { total += Number(o.dataset.price) || 0; }
+            });
+            var guests = parseInt((document.getElementById('pf_guests') || {}).value || '0') || 0;
+            if (galaSel) {
+                var galaSub = galaUnit * (1 + guests);
+                if (plexDiscount > 0) {
+                    var disc = plexDiscountType === 'fixed' ? plexDiscount : Math.round(galaSub * plexDiscount / 100 * 100) / 100;
+                    galaSub = Math.max(0, galaSub - disc);
+                }
+                total += Math.round(galaSub * 100) / 100;
+            }
             var any = document.querySelectorAll('.event-option.selected').length > 0;
             document.getElementById('plexTotal').classList.toggle('show', any);
             document.getElementById('plexTotalAmt').textContent = '\\u20AC' + total;
             document.getElementById('plexPayAmt').textContent = '\\u20AC' + total;
             document.getElementById('plexBtn').textContent = total > 0 ? ('Proceed to payment \\u2014 \\u20AC' + total) : 'Complete registration';
+        }
+        function plexClearCoupon(){ plexDiscount = 0; plexDiscountType = ''; var m = document.getElementById('pf_couponMsg'); if (m) m.style.display = 'none'; plexRecompute(); }
+        async function plexApplyCoupon(){
+            var code = ((document.getElementById('pf_coupon') || {}).value || '').trim();
+            var m = document.getElementById('pf_couponMsg');
+            if (!code) { if (m) { m.style.display = 'block'; m.style.color = '#fca5a5'; m.textContent = 'Enter a code'; } return; }
+            var b = document.getElementById('pf_couponBtn'); b.disabled = true; b.textContent = '\\u2026';
+            try {
+                var r = await fetch('/api/invite/validate-coupon', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ code: code, event_type: 'gala' }) });
+                var d = await r.json();
+                if (d.valid) { plexDiscount = Number(d.discount_value) || 0; plexDiscountType = d.discount_type; if (m) { m.style.display = 'block'; m.style.color = '#5eead4'; m.textContent = (d.discount_type === 'fixed' ? ('\\u20AC' + d.discount_value + ' off') : (d.discount_value + '% off')) + ' applied to the Gala'; } }
+                else { plexDiscount = 0; plexDiscountType = ''; if (m) { m.style.display = 'block'; m.style.color = '#fca5a5'; m.textContent = d.error || 'Invalid or expired code'; } }
+            } catch(e) { if (m) { m.style.display = 'block'; m.style.color = '#fca5a5'; m.textContent = 'Could not validate'; } }
+            b.disabled = false; b.textContent = 'Apply';
+            plexRecompute();
         }
         function plexToggle(el){ el.classList.toggle('selected'); plexRecompute(); }
         function plexErr(m){ var e=document.getElementById('plexMsg'); e.className='msg err'; e.textContent=m; }
@@ -1151,6 +1192,9 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                 institution: document.getElementById('pf_inst').value.trim(),
                 country: document.getElementById('pf_country').value.trim(),
                 dietary: document.getElementById('pf_diet').value.trim(),
+                allergies: (document.getElementById('pf_allergies') || {}).value ? document.getElementById('pf_allergies').value.trim() : '',
+                guest_count: parseInt((document.getElementById('pf_guests') || {}).value || '0') || 0,
+                coupon: ((document.getElementById('pf_coupon') || {}).value || '').trim(),
                 notes: document.getElementById('pf_notes').value.trim(),
                 selected_conference: sel.conference, selected_bridges: sel.bridges, selected_gala: sel.gala
             };
@@ -12275,9 +12319,12 @@ By applying to this program, I provide the following consents:
                                     event_type: 'croatians-abroad',
                                     items: events.join(' + '),
                                     dietary: metadata.dietary || '',
+                                    allergies: metadata.allergies || '',
+                                    guests: metadata.guest_count || 0,
                                     custom_summary: metadata.custom_summary || '',
                                     applied_for: events.join(' + '),
                                     amount, payment: metadata.source === 'plexus' ? 'Paid (Gala)' : 'Paid (Gala bundle)',
+                                    coupon: metadata.coupon_code || '', discount: metadata.discount_amount || '0',
                                     registration_id: caRegId,
                                     invoice: invoiceNumber
                                 })
@@ -18833,11 +18880,28 @@ By applying to this program, I provide the following consents:
                 return res.json({ success: true, id: regId, status: 'pre-registered' });
             }
 
-            // ---------- PATH B: Gala selected → Stripe Checkout ----------
+            // ---------- PATH B: Gala selected → server-trusted pricing (guests + coupon) ----------
+            // ALL amounts re-derived here from the DB — never trust a client-sent price.
+            const galaBase = effectiveGalaPrice();                                   // per-person Gala price
+            const guests = Math.max(0, Math.min(2, parseInt(req.body.guest_count, 10) || 0)); // +guests, max 2
+            const subtotal = Math.round(galaBase * (1 + guests) * 100) / 100;
+            const galaPromo = lookupPromo('gala', req.body.coupon || req.body.coupon_code || '');
+            const galaDiscount = galaPromo ? promoDiscount(galaPromo, subtotal) : 0;
+            const galaPrice = Math.max(0, Math.round((subtotal - galaDiscount) * 100) / 100);
+            const galaAllergies = (req.body.allergies || '').toString().slice(0, 200);
+            // Persist guests + allergies on the gala row (allergies folded into requests) + CA row.
+            try {
+                const reqText = [notes, galaAllergies ? ('Allergies: ' + galaAllergies) : ''].filter(Boolean).join(' | ') || null;
+                db.run('UPDATE gala_registrations SET guest_count = ?, requests = ? WHERE id = ?', [guests, reqText, galaRegistrationId]);
+                db.run('UPDATE croatians_abroad_registrations SET guest_count = ? WHERE id = ?', [guests, regId]);
+            } catch(e) {}
+            // Stripe needs a real charge; a 100%-off / sub-€0.50 result can't be charged.
+            if (galaPrice < 0.5) {
+                return res.status(400).json({ error: 'That code brings the Gala to €0 — please email info@medx.hr to be added as a complimentary guest.' });
+            }
             if (!stripe) {
                 return res.status(500).json({ error: 'Payment processor not configured. Please contact info@medx.hr.' });
             }
-            const galaPrice = effectiveGalaPrice(); // early-bird → regular by date; unified across all entry points
             const baseUrl = process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
             const session = await stripe.checkout.sessions.create({
                 mode: 'payment',
@@ -18845,7 +18909,7 @@ By applying to this program, I provide the following consents:
                 line_items: [{
                     price_data: {
                         currency: 'eur',
-                        product_data: { name: regSource === 'plexus' ? 'Plexus 2026 Gala Evening' : 'Plexus 2026 Gala Evening — Croatians Abroad' },
+                        product_data: { name: (regSource === 'plexus' ? 'Plexus 2026 Gala Evening' : 'Plexus 2026 Gala Evening — Croatians Abroad') + (guests ? ` (+${guests} guest${guests > 1 ? 's' : ''})` : '') },
                         unit_amount: Math.round(galaPrice * 100)
                     },
                     quantity: 1
@@ -18864,6 +18928,10 @@ By applying to this program, I provide the following consents:
                     country: country || '',
                     role: role || '',
                     dietary: dietary || '',
+                    allergies: galaAllergies,
+                    guest_count: String(guests),
+                    coupon_code: galaPromo ? (req.body.coupon || req.body.coupon_code || '') : '',
+                    discount_amount: String(galaDiscount),
                     notes: (notes || '').substring(0, 200),
                     bundle_conference: finalConf ? '1' : '0',
                     bundle_bridges: finalBridges ? '1' : '0',
