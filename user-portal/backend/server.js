@@ -2223,10 +2223,16 @@ function sumComponentPrices(eventType, componentKeys) {
 // Always server-computed — never trusts a client-sent amount.
 function effectiveGalaPrice() {
     const s = query.get("SELECT price_gala_only, price_gala_early_bird, price_gala_regular, early_bird_deadline FROM gala_settings WHERE id = 'default'") || {};
-    const eb = Number(s.price_gala_early_bird);
-    const reg = Number(s.price_gala_regular);
+    // ONE Gala price source: the editable Gala component price (what admins set in the Live
+    // Editor's price box) is the early-bird price, so an edit there reflects on EVERY entry point
+    // (Plexus link, standalone Gala, invite) — keeping the Gala price unified. Falls back to the
+    // gala_settings early-bird value, then the legacy single price.
+    let comp = null;
+    try { comp = query.get("SELECT price FROM event_components WHERE event_type='plexus' AND component_key='gala' AND is_active=1"); } catch(e) {}
+    const eb = (comp && comp.price != null) ? Number(comp.price) : Number(s.price_gala_early_bird);
+    const reg = Number.isFinite(Number(s.price_gala_regular)) ? Number(s.price_gala_regular) : eb;
     const deadline = s.early_bird_deadline || '2026-09-01';
-    if (Number.isFinite(eb) && Number.isFinite(reg)) {
+    if (Number.isFinite(eb)) {
         const today = new Date().toISOString().slice(0, 10);
         return today <= deadline ? eb : reg;
     }
