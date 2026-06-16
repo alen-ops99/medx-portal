@@ -16365,7 +16365,7 @@ By applying to this program, I provide the following consents:
 
         // Manual failsafe: staff can type the short 8-char code printed under the QR (success
         // page + email). Resolve it by prefix-matching the registration UUID (dashes stripped).
-        const isShort = !isUuid && /^[0-9a-z]{4,12}$/i.test(codeClean) && !codeClean.includes('@');
+        const isShort = !isUuid && /^[0-9a-f]{4,12}$/i.test(codeClean) && !codeClean.includes('@');
         const codeNorm = codeClean.toLowerCase().replace(/[^0-9a-f]/g, '');
         const prefixMatch = (table) => {
             if (!isShort || codeNorm.length < 4) return null;
@@ -16776,6 +16776,10 @@ By applying to this program, I provide the following consents:
                 SELECT id, first_name, last_name, email, checked_in_at, 'forum' as event FROM forum_members WHERE checked_in = 1 AND checked_in_at IS NOT NULL
                 UNION ALL
                 SELECT id, first_name, last_name, email, checked_in_at, 'bridges' as event FROM bridges_registrations WHERE checked_in = 1 AND checked_in_at IS NOT NULL
+                UNION ALL
+                SELECT id, first_name, last_name, email, conference_checked_in_at as checked_in_at, 'conference' as event FROM croatians_abroad_registrations WHERE conference_checked_in = 1 AND conference_checked_in_at IS NOT NULL
+                UNION ALL
+                SELECT id, first_name, last_name, email, bridges_checked_in_at as checked_in_at, 'bridges' as event FROM croatians_abroad_registrations WHERE bridges_checked_in = 1 AND bridges_checked_in_at IS NOT NULL
                 ORDER BY checked_in_at DESC LIMIT 10
             `);
             res.json(rows.map(r => ({
@@ -16806,8 +16810,11 @@ By applying to this program, I provide the following consents:
                 UNION ALL
                 SELECT id, NULL as user_id, first_name, last_name, email, checked_in, 'bridges' as event, NULL as ticket_name
                 FROM bridges_registrations WHERE (first_name || ' ' || last_name LIKE ? OR email LIKE ?)
+                UNION ALL
+                SELECT id, NULL as user_id, first_name, last_name, email, (CASE WHEN conference_checked_in = 1 OR bridges_checked_in = 1 THEN 1 ELSE 0 END) as checked_in, 'croatians-abroad' as event, NULL as ticket_name
+                FROM croatians_abroad_registrations WHERE (first_name || ' ' || last_name LIKE ? OR email LIKE ?)
                 ORDER BY first_name LIMIT 10
-            `, [like, like, like, like, like, like, like, like]);
+            `, [like, like, like, like, like, like, like, like, like, like]);
             res.json(rows.map(r => ({
                 id: r.id, user_id: r.user_id || null, name: `${r.first_name || ''} ${r.last_name || ''}`.trim(), email: r.email, event: r.event, checked_in: r.checked_in, ticket_name: r.ticket_name
             })));
@@ -18627,14 +18634,15 @@ By applying to this program, I provide the following consents:
             try {
                 const GRACE_MS = 3 * 24 * 60 * 60 * 1000;
                 const pps = query.get("SELECT conference_date, bridges_date, gala_date FROM plexus_page_settings WHERE id = 'default'") || {};
+                const MONTHS = ['january','february','march','april','may','june','july','august','september','october','november','december'];
                 const parseEnd = (str) => {
                     if (!str) return null;
                     const m = String(str).match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
                     if (!m) return null;
-                    const before = String(str).slice(0, String(str).toLowerCase().indexOf(m[1].toLowerCase()));
+                    const before = String(str).slice(0, m.index); // slice before the MATCHED month, not the first occurrence
                     const days = (before.match(/\b(\d{1,2})\b/g) || []).map(Number).filter(d => d >= 1 && d <= 31);
-                    const day = days.length ? Math.max(...days) : 1;
-                    const d = new Date(`${m[1]} ${day}, ${m[2]}`);
+                    if (!days.length) return null; // no explicit day -> skip (never risk a premature wipe on a month-only date)
+                    const d = new Date(Date.UTC(Number(m[2]), MONTHS.indexOf(m[1].toLowerCase()), Math.max(...days))); // UTC-stable
                     return isNaN(d.getTime()) ? null : d;
                 };
                 const expired = (str) => { const d = parseEnd(str); return d && (Date.now() > d.getTime() + GRACE_MS); };
