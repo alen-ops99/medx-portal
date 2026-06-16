@@ -18618,6 +18618,36 @@ By applying to this program, I provide the following consents:
     app.listen(PORT, () => {
         console.log(`Med&X Admin Portal running on http://localhost:${PORT}`);
 
+        // Auto-reset check-ins a few days after each event date passes (so the system "resets"
+        // post-event). Conservative: only clears an event's flags when its date parses cleanly
+        // AND today is > that date + 3 days. Idempotent (re-running is a no-op). Reads the
+        // admin-editable dates from plexus_page_settings, tolerating ranges like "4 or 5 December
+        // 2026" (uses the latest day before the month) and trailing text like "· 7:00 PM".
+        function resetExpiredCheckins() {
+            try {
+                const GRACE_MS = 3 * 24 * 60 * 60 * 1000;
+                const pps = query.get("SELECT conference_date, bridges_date, gala_date FROM plexus_page_settings WHERE id = 'default'") || {};
+                const parseEnd = (str) => {
+                    if (!str) return null;
+                    const m = String(str).match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
+                    if (!m) return null;
+                    const before = String(str).slice(0, String(str).toLowerCase().indexOf(m[1].toLowerCase()));
+                    const days = (before.match(/\b(\d{1,2})\b/g) || []).map(Number).filter(d => d >= 1 && d <= 31);
+                    const day = days.length ? Math.max(...days) : 1;
+                    const d = new Date(`${m[1]} ${day}, ${m[2]}`);
+                    return isNaN(d.getTime()) ? null : d;
+                };
+                const expired = (str) => { const d = parseEnd(str); return d && (Date.now() > d.getTime() + GRACE_MS); };
+                const cleared = [];
+                if (expired(pps.conference_date)) { db.run("UPDATE croatians_abroad_registrations SET conference_checked_in = 0, conference_checked_in_at = NULL WHERE conference_checked_in = 1"); cleared.push('conference'); }
+                if (expired(pps.bridges_date)) { db.run("UPDATE croatians_abroad_registrations SET bridges_checked_in = 0, bridges_checked_in_at = NULL WHERE bridges_checked_in = 1"); cleared.push('bridges'); }
+                if (expired(pps.gala_date)) { db.run("UPDATE gala_registrations SET checked_in = 0, checked_in_at = NULL WHERE checked_in = 1"); cleared.push('gala'); }
+                if (cleared.length) { saveDb(); console.log('[CheckinReset] Cleared post-event check-ins for: ' + cleared.join(', ')); }
+            } catch (e) { console.warn('[CheckinReset] skipped:', e.message); }
+        }
+        resetExpiredCheckins();
+        setInterval(resetExpiredCheckins, 24 * 60 * 60 * 1000);
+
         // Keep-alive: ping self every 14 min to prevent Render free tier from sleeping
         const KEEP_ALIVE_URL = process.env.RENDER_EXTERNAL_URL || 'https://medx-admin-portal.onrender.com';
         if (process.env.NODE_ENV === 'production') {
