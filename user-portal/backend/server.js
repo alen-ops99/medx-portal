@@ -420,6 +420,11 @@ function buildTicketQrBlock(regId, opts = {}) {
     </td></tr></table>`;
 }
 
+// Safety net: a single bad request must NOT take down the whole service (critical on event day).
+// Node 15+ exits the process on an unhandled promise rejection — e.g. an async route that throws
+// after its try/catch. Log it instead of crashing so Render keeps serving everyone else.
+process.on('unhandledRejection', (reason) => { console.error('[unhandledRejection]', (reason && reason.stack) || reason); });
+
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'development' ? 'medx-dev-secret' : (() => { console.error('FATAL: JWT_SECRET environment variable is required in production'); process.exit(1); })());
 
@@ -546,6 +551,7 @@ app.get('/invite-success', async (req, res) => {
     let itemsList = [];
     let amount = 0;
     let guestCount = 0;
+    let regId = '';
 
     // Try to get session details from Stripe for QR generation
     let paymentConfirmed = false;
@@ -564,7 +570,7 @@ app.get('/invite-success', async (req, res) => {
             itemsList = meta.items ? meta.items.split(', ').filter(Boolean) : [];
             amount = session.amount_total ? session.amount_total / 100 : 0;
             guestCount = parseInt(meta.guest_count || '0');
-            const regId = meta.registration_id || '';
+            regId = meta.registration_id || '';
             const evtType = (meta.type || '').replace('invite-', '');
 
             // Generate QR code for display

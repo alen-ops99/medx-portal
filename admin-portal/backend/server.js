@@ -289,6 +289,10 @@ function generateSpeakerInviteCode() {
     return `SPK-${code}-2026`;
 }
 
+// Safety net: a single bad request must NOT take down the whole service. Node 15+ exits on an
+// unhandled promise rejection (e.g. an async route that throws after its try/catch) — log instead.
+process.on('unhandledRejection', (reason) => { console.error('[unhandledRejection]', (reason && reason.stack) || reason); });
+
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'development' ? 'medx-dev-secret' : (() => { console.error('FATAL: JWT_SECRET environment variable is required in production'); process.exit(1); })());
 
