@@ -582,38 +582,80 @@ app.get('/invite-success', async (req, res) => {
 
     // Escape all Stripe-metadata-derived values before rendering — these originate from the
     // registration request body (attacker-controllable) and land on the official domain.
-    const itemsHtml = itemsList.length ? '<div style="text-align:left;background:rgba(255,255,255,0.05);border-radius:10px;padding:14px 18px;margin:16px 0;">' +
-        '<div style="font-size:11px;font-weight:600;color:#c9a962;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Registered For</div>' +
-        itemsList.map(i => '<div style="padding:4px 0;color:#e2e8f0;font-size:14px;">✓ ' + escapeHtml(i) + '</div>').join('') + '</div>' : '';
+    const itemsHtml = itemsList.length ? '<div class="items"><div class="ttl">Registered For</div>' +
+        itemsList.map(i => '<div class="row"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a962" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' + escapeHtml(i) + '</div>').join('') + '</div>' : '';
 
-    res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Registration Complete — Med&X</title></head>
-<body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:system-ui;text-align:center;padding:20px;margin:0;">
-<div style="max-width:440px;width:100%;">
-    <div style="width:80px;height:80px;border-radius:50%;background:rgba(34,197,94,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-    </div>
-    <h1 style="color:#22c55e;margin-bottom:8px;font-size:24px;">Payment Successful!</h1>
-    <p style="color:#94a3b8;font-size:16px;margin-bottom:4px;">Your registration for <strong style="color:#c9a962;">${escapeHtml(eventName)}</strong> is confirmed.</p>
-    ${amount ? '<p style="color:#64748b;font-size:14px;">Amount paid: <strong style="color:#e2e8f0;">€' + amount.toFixed(2) + '</strong></p>' : ''}
+    res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Registration Confirmed — Med&X</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;}
+body{margin:0;min-height:100vh;font-family:'Inter',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;color:#e8eaf0;-webkit-font-smoothing:antialiased;
+  background:radial-gradient(1100px 620px at 50% -12%,rgba(201,169,98,0.12),transparent 60%),linear-gradient(168deg,#0a0f1c,#0f172a 48%,#0c1626);
+  display:flex;align-items:flex-start;justify-content:center;padding:46px 20px 64px;}
+.wrap{max-width:480px;width:100%;text-align:center;animation:rise .55s cubic-bezier(.2,.7,.2,1) both;}
+@keyframes rise{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:none;}}
+@keyframes pop{0%{transform:scale(.6);opacity:0;}60%{transform:scale(1.08);}100%{transform:scale(1);opacity:1;}}
+.brand{margin-bottom:30px;}
+.brand img{height:42px;width:auto;filter:brightness(0) invert(1);opacity:.92;}
+.brand .tag{margin-top:10px;font-size:9.5px;text-transform:uppercase;letter-spacing:2.6px;color:#7c8aa3;}
+.check{width:76px;height:76px;border-radius:50%;margin:0 auto 22px;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(circle at 50% 32%,rgba(52,211,153,.24),rgba(34,197,94,.05));
+  border:1px solid rgba(52,211,153,.4);box-shadow:0 0 0 9px rgba(34,197,94,.045),0 14px 44px rgba(34,197,94,.16);animation:pop .6s .15s cubic-bezier(.2,.8,.2,1.2) both;}
+.h1{font-family:'Cormorant Garamond',serif;font-size:35px;font-weight:600;color:#fff;margin:0 0 10px;letter-spacing:.3px;line-height:1.1;}
+.sub{color:#aab4c6;font-size:15.5px;line-height:1.55;margin:0;}
+.sub strong{color:#d9b978;font-weight:600;}
+.paid{display:inline-block;margin-top:16px;font-size:11.5px;letter-spacing:.5px;text-transform:uppercase;color:#cdd5e3;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:7px 18px;}
+.paid b{color:#fff;font-size:13px;letter-spacing:0;}
+.items{text-align:left;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:16px 18px;margin:20px 0;}
+.items .ttl{font-size:10px;font-weight:700;color:#c9a962;text-transform:uppercase;letter-spacing:2.2px;margin-bottom:11px;}
+.items .row{padding:5px 0;color:#dbe2ee;font-size:14.5px;display:flex;align-items:center;gap:10px;}
+.items .row svg{flex:none;}
+.guest{background:rgba(201,169,98,.09);border:1px solid rgba(201,169,98,.22);border-radius:14px;padding:13px 16px;margin:16px 0;}
+.guest p{margin:0;color:#d9b978;font-size:14px;}
+.guest .s{color:#9aa6ba;font-size:12px;margin-top:5px;}
+.ticket{position:relative;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.018));border:1px solid rgba(201,169,98,.24);border-radius:20px;padding:28px 24px;margin:26px 0;box-shadow:0 26px 64px rgba(0,0,0,.4);}
+.ticket::before{content:'';position:absolute;left:24px;right:24px;top:0;height:3px;border-radius:0 0 4px 4px;background:linear-gradient(90deg,transparent,#c9a962,transparent);}
+.ticket .lbl{font-size:10.5px;font-weight:700;color:#c9a962;text-transform:uppercase;letter-spacing:3px;margin-bottom:18px;}
+.qrtile{display:inline-block;background:#fff;padding:14px;border-radius:16px;box-shadow:0 12px 30px rgba(0,0,0,.34);}
+.qrtile img{width:202px;height:202px;display:block;}
+.hint{color:#8b97ad;font-size:12.5px;margin:15px 0 0;}
+.btn-gold{display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:12px 26px;border:none;border-radius:11px;cursor:pointer;font-family:inherit;font-weight:600;font-size:13.5px;color:#1a1206;background:linear-gradient(135deg,#e7cd86,#c9a962 52%,#ad8a42);box-shadow:0 8px 24px rgba(201,169,98,.3);transition:transform .15s,box-shadow .15s;}
+.btn-gold:hover{transform:translateY(-1px);box-shadow:0 13px 32px rgba(201,169,98,.45);}
+.email-note{background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.22);border-radius:14px;padding:15px 18px;margin:18px 0;}
+.email-note p{margin:0;color:#7fdca0;font-size:13.5px;line-height:1.5;}
+.email-note strong{color:#b6f2cf;}
+.email-note .s{color:#74839a;font-size:11.5px;margin-top:6px;}
+.visit{display:inline-block;margin-top:6px;padding:12px 28px;border-radius:11px;text-decoration:none;font-weight:600;font-size:13.5px;color:#d9b978;background:rgba(255,255,255,.04);border:1px solid rgba(201,169,98,.3);transition:background .15s,border-color .15s;}
+.visit:hover{background:rgba(201,169,98,.1);border-color:rgba(201,169,98,.55);}
+.foot{margin-top:32px;padding-top:20px;border-top:1px solid rgba(255,255,255,.06);font-size:11px;color:#6b7689;line-height:1.65;}
+.foot a{color:#c9a962;text-decoration:none;}
+@media(max-width:480px){.h1{font-size:29px;}.ticket{padding:24px 18px;}}
+</style></head>
+<body>
+<div class="wrap">
+    <div class="brand"><img src="${MEDX_LOGO_URL}" alt="Med&X" /><div class="tag">Building Bridges in Biomedicine</div></div>
+    <div class="check"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+    <h1 class="h1">You're all set</h1>
+    <p class="sub">Your registration for <strong>${escapeHtml(eventName)}</strong> is confirmed.</p>
+    ${amount ? '<div class="paid">Amount paid&nbsp;&nbsp;<b>€' + amount.toFixed(2) + '</b></div>' : ''}
     ${itemsHtml}
-    ${guestCount ? '<div style="background:rgba(201,169,98,0.1);border:1px solid rgba(201,169,98,0.2);border-radius:10px;padding:12px;margin:12px 0;"><p style="color:#c9a962;font-size:14px;margin:0;">👥 <strong>+' + guestCount + ' Guest' + (guestCount > 1 ? 's' : '') + '</strong> included in your registration</p><p style="color:#94a3b8;font-size:12px;margin:6px 0 0;">Your guest(s) can use the same QR code for check-in.</p></div>' : ''}
+    ${guestCount ? '<div class="guest"><p>👥 <strong>+' + guestCount + ' Guest' + (guestCount > 1 ? 's' : '') + '</strong> included in your registration</p><p class="s">Your guest(s) can use the same QR code for check-in.</p></div>' : ''}
     ${qrDataUrl ? `
-    <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(201,169,98,0.2);border-radius:16px;padding:24px;margin:20px 0;">
-        <div style="font-size:11px;font-weight:700;color:#c9a962;text-transform:uppercase;letter-spacing:2px;margin-bottom:14px;">Your Check-in QR Code</div>
-        <img id="qrImg" src="${qrDataUrl}" alt="QR Code" style="width:200px;height:200px;border-radius:12px;background:#fff;padding:8px;" />
-        <p style="color:#94a3b8;font-size:12px;margin-top:10px;">Present this code at the event entrance</p>
-        <button onclick="downloadQR()" style="margin-top:12px;padding:10px 24px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">
-            ⬇ Download QR Code
-        </button>
+    <div class="ticket">
+        <div class="lbl">Your Check-in QR Code</div>
+        <div class="qrtile"><img id="qrImg" src="${qrDataUrl}" alt="Check-in QR Code" /></div>
+        <p class="hint">Present this code at the event entrance</p>
+        <button class="btn-gold" onclick="downloadQR()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download QR Code</button>
     </div>` : ''}
-    <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:10px;padding:14px;margin:16px 0;">
-        <p style="color:#22c55e;font-size:14px;margin:0;">📧 A confirmation email with your QR code has been sent${customerEmail ? ' to <strong>' + escapeHtml(customerEmail) + '</strong>' : ''}.</p>
-        <p style="color:#64748b;font-size:12px;margin:6px 0 0;">Check your spam folder if you don't see it within a few minutes.</p>
+    <div class="email-note">
+        <p>✉️ A confirmation email with your QR code has been sent${customerEmail ? ' to <strong>' + escapeHtml(customerEmail) + '</strong>' : ''}.</p>
+        <p class="s">Check your spam folder if you don't see it within a few minutes.</p>
     </div>
-    <a href="https://medx.hr" style="display:inline-block;padding:12px 24px;background:rgba(255,255,255,0.06);color:#c9a962;border:1px solid rgba(201,169,98,0.3);border-radius:10px;font-weight:600;text-decoration:none;margin-top:8px;">Visit Med&X →</a>
-    <div style="margin-top:28px;padding-top:18px;border-top:1px solid rgba(255,255,255,0.06);font-size:11px;color:#64748b;line-height:1.55;text-align:center;">
+    <a class="visit" href="https://medx.hr">Visit Med&X →</a>
+    <div class="foot">
         Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organizing and delivering this event.<br>
-        <a href="/privacy" style="color:#c9a962;text-decoration:none;">Privacy Policy</a> &nbsp;·&nbsp; <a href="/terms" style="color:#c9a962;text-decoration:none;">Terms</a>
+        <a href="/privacy">Privacy Policy</a> &nbsp;·&nbsp; <a href="/terms">Terms</a>
     </div>
 </div>
 <script>
@@ -1568,7 +1610,7 @@ async function submitCA(e) {
         document.getElementById('mainCard').innerHTML = '<div class="success">' +
             '<div class="success-icon"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div>' +
             '<h1 style="color:#22c55e;margin-bottom:8px;">You&apos;re pre-registered!</h1>' +
-            '<p style="color:#94a3b8;font-size:15px;margin-bottom:12px;line-height:1.5;">A confirmation has been sent to your email. We&apos;ll be in touch with the Conference program and Bridges date as soon as they&apos;re finalised.</p>' +
+            '<p style="color:#94a3b8;font-size:15px;margin-bottom:12px;line-height:1.5;">A confirmation has been sent to your email. We&apos;ll be in touch with the Conference program and Croatian Biomedical Bridges date as soon as they&apos;re finalized.</p>' +
             '<p style="color:#64748b;font-size:13px;margin-bottom:22px;">We look forward to welcoming you home in Zagreb.</p>' +
             '<a href="https://medx.hr" style="display:inline-block;padding:11px 22px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Visit Med&amp;X</a></div>';
     } catch(err) {
@@ -12274,19 +12316,19 @@ By applying to this program, I provide the following consents:
 
                     // Confirmation email — payment receipt + bundle summary + QR
                     try {
-                        const caSend = await sendEventConfirmation(caEmail, 'Payment Confirmed — Plexus 2026 Gala Evening', buildEmailTemplate('Payment Confirmed', `
+                        const caSend = await sendEventConfirmation(caEmail, 'Payment Confirmed — Plexus 2026', buildEmailTemplate('Payment Confirmed', `
                             <div style="text-align:center;margin-bottom:8px;">
                                 <div style="display:inline-block;background:#22c55e;color:#fff;font-size:13px;font-weight:600;padding:6px 20px;border-radius:20px;letter-spacing:0.5px;">PAYMENT CONFIRMED</div>
                             </div>
                             <p style="margin-top:18px;">Dear <strong>${metadata.first_name || 'guest'}</strong>,</p>
-                            <p>Your payment of <strong>&euro;${amount.toFixed(2)}</strong> for the <strong style="color:#C9A962;">Plexus 2026 Gala Evening</strong> has been received. Your ticket is below.</p>
+                            <p>Your payment of <strong>&euro;${amount.toFixed(2)}</strong> for <strong style="color:#C9A962;">Plexus 2026</strong> has been received. Your ticket is below.</p>
                             <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
                                 <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Your Plexus 2026 Reservations</td></tr>
                                 ${eventListHtml}
                             </table>
                             <p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${invoiceNumber}</p>
                             ${buildTicketQrBlock(galaRegId, { label: 'Gala Check-in QR Code', caption: 'Present this code at the Gala entrance on 5 December' })}
-                            <p>We will email you the <strong>Conference program</strong> as soon as it is finalised${metadata.bundle_bridges === '1' ? ', and confirm the <strong>Bridges date and venue</strong> when those are set' : ''}.</p>
+                            <p>We will email you the <strong>Conference program</strong> as soon as it is finalized${metadata.bundle_bridges === '1' ? ', and confirm the <strong>Croatian Biomedical Bridges date and venue</strong> when those are set' : ''}.</p>
                             <p style="margin-top:24px;">We look forward to welcoming you ${metadata.source === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
                             <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
                         `), galaQrAtts);
@@ -18265,7 +18307,7 @@ By applying to this program, I provide the following consents:
                 </table>
                 <p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${invoiceNumber}</p>
                 ${buildTicketQrBlock(galaRegId, { label: 'Gala Check-in QR Code', caption: 'Present this code at the Gala entrance on 5 December' })}
-                <p>We will email you the <strong>Conference program</strong> as soon as it is finalised, and confirm the <strong>Bridges date and venue</strong> when those are set.</p>
+                <p>We will email you the <strong>Conference program</strong> as soon as it is finalized, and confirm the <strong>Croatian Biomedical Bridges date and venue</strong> when those are set.</p>
                 <p style="margin-top:18px;">We look forward to welcoming you home in Zagreb.</p>
                 <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
                 <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
@@ -18831,7 +18873,7 @@ By applying to this program, I provide the following consents:
                             ${eventListHtml}
                         </table>
                         ${qrBlock}
-                        <p>We will email you the <strong>Conference program</strong> as soon as it is finalised${finalBridges ? ', and confirm the <strong>Bridges date and venue</strong> when those are set' : ''}.</p>
+                        <p>We will email you the <strong>Conference program</strong> as soon as it is finalized${finalBridges ? ', and confirm the <strong>Croatian Biomedical Bridges date and venue</strong> when those are set' : ''}.</p>
                         <p>If you would also like to join us at the <strong>Plexus Gala Evening</strong> on 5 December 2026 (Hotel Esplanade Zagreb, Lord Smith of Finsbury keynote), simply reply to this email and we will send you the ticket link.</p>
                         <p style="margin-top:24px;">We look forward to welcoming you ${regSource === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
                         <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
