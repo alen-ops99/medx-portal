@@ -60,7 +60,8 @@ var FIELD_MAP = [
   { header: 'Invoice',       key: 'invoice' },
   { header: 'Invite Label',  key: 'invite_label' },
   { header: 'RegID',         key: 'registration_id' },
-  { header: 'Event',         key: 'event' }
+  { header: 'Event',         key: 'event' },
+  { header: 'Ticket Code',   key: 'ticket_code' }
 ];
 
 function doPost(e) {

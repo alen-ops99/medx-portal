@@ -414,7 +414,7 @@ function buildTicketQrBlock(regId, opts = {}) {
             <tr><td align="center" style="padding:10px 34px 6px;text-align:center;">
                 <img src="${qrImageUrl(regId)}" alt="Check-in QR code" width="220" height="220" style="display:block;margin:0 auto;border:0;" />
             </td></tr>
-            <tr><td style="padding:0 34px 4px;text-align:center;font-size:12px;color:#94a3b8;letter-spacing:2px;font-family:'Courier New',monospace;">${String(regId).substring(0, 8).toUpperCase()}</td></tr>
+            <tr><td style="padding:0 34px 4px;text-align:center;font-size:12px;color:#94a3b8;letter-spacing:2px;font-family:'Courier New',monospace;"><span style="font-family:Arial,Helvetica,sans-serif;letter-spacing:1.5px;color:#b0b8c4;font-size:9px;">MANUAL CODE&nbsp;&nbsp;</span>${String(regId).substring(0, 8).toUpperCase()}</td></tr>
             <tr><td style="padding:6px 34px 22px;text-align:center;font-size:12px;color:#64748b;line-height:1.6;">${caption}<br><span style="color:#94a3b8;">Your QR is also attached to this email — save it to your phone.</span></td></tr>
         </table>
     </td></tr></table>`;
@@ -645,6 +645,7 @@ body{margin:0;min-height:100vh;font-family:'Inter',-apple-system,BlinkMacSystemF
     <div class="ticket">
         <div class="lbl">Your Check-in QR Code</div>
         <div class="qrtile"><img id="qrImg" src="${qrDataUrl}" alt="Check-in QR Code" /></div>
+        ${regId ? `<div style="margin-top:13px;"><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:2px;color:#7c8aa3;">Manual check-in code</div><div style="font-family:'Courier New',monospace;font-size:17px;font-weight:700;letter-spacing:3px;color:#d9b978;margin-top:3px;">${String(regId).substring(0, 8).toUpperCase()}</div></div>` : ''}
         <p class="hint">Present this code at the event entrance</p>
         <button class="btn-gold" onclick="downloadQR()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download QR Code</button>
     </div>` : ''}
@@ -12373,6 +12374,7 @@ By applying to this program, I provide the following consents:
                                     applied_for: events.join(' + '),
                                     amount, payment: metadata.source === 'plexus' ? 'Paid (Gala)' : 'Paid (Gala bundle)',
                                     coupon: metadata.coupon_code || '', discount: metadata.discount_amount || '0',
+                                    ticket_code: String(galaRegId).substring(0, 8).toUpperCase(),
                                     registration_id: caRegId,
                                     invoice: invoiceNumber
                                 })
@@ -18876,6 +18878,7 @@ By applying to this program, I provide the following consents:
                         <table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:14px;padding:20px;text-align:center;">
                             <tr><td style="padding-bottom:10px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Your Check-in QR Code</td></tr>
                             <tr><td align="center" style="text-align:center;"><img src="${caQrDataUrl}" alt="QR Code" width="200" height="200" style="display:block;margin:0 auto;border-radius:8px;border:0;" /></td></tr>
+                            <tr><td style="padding-top:8px;font-size:13px;color:#475569;font-family:'Courier New',monospace;letter-spacing:2px;"><span style="font-family:Arial,sans-serif;font-size:9px;letter-spacing:1.5px;color:#94a3b8;">MANUAL CODE&nbsp;&nbsp;</span>${String(regId).substring(0, 8).toUpperCase()}</td></tr>
                             <tr><td style="padding-top:10px;font-size:12px;color:#94a3b8;">Present this QR at the entrance to each event you've pre-registered for</td></tr>
                         </table>
                     </td></tr></table>` : '';
@@ -18918,6 +18921,7 @@ By applying to this program, I provide the following consents:
                                 custom_answers: caCf.answers,
                                 amount: 0, payment: 'Free (Pre-Registered)',
                                 invite_label: caInvite?.label || '',
+                                ticket_code: String(regId).substring(0, 8).toUpperCase(),
                                 registration_id: regId
                             })
                         }).catch(err => console.warn('[Sync] external POST (Sheets/admin) failed:', err.message));

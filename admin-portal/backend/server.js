@@ -16363,6 +16363,15 @@ By applying to this program, I provide the following consents:
             return out;
         }
 
+        // Manual failsafe: staff can type the short 8-char code printed under the QR (success
+        // page + email). Resolve it by prefix-matching the registration UUID (dashes stripped).
+        const isShort = !isUuid && /^[0-9a-z]{4,12}$/i.test(codeClean) && !codeClean.includes('@');
+        const codeNorm = codeClean.toLowerCase().replace(/[^0-9a-f]/g, '');
+        const prefixMatch = (table) => {
+            if (!isShort || codeNorm.length < 4) return null;
+            try { return query.get(`SELECT * FROM ${table} WHERE replace(lower(id), '-', '') LIKE ? ORDER BY created_at DESC LIMIT 1`, [codeNorm + '%']); } catch(e) { return null; }
+        };
+
         if (event === 'gala') {
             let reg = null;
             if (isUuid) reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [codeClean]);
@@ -16374,6 +16383,7 @@ By applying to this program, I provide the following consents:
                 }
             }
             if (!reg) reg = query.get('SELECT * FROM gala_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
+            if (!reg) { reg = prefixMatch('gala_registrations'); if (!reg) { const caP = prefixMatch('croatians_abroad_registrations'); if (caP && caP.gala_registration_id) reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [caP.gala_registration_id]); } }
             if (!reg) return res.json({ valid: false, event, code, reason: 'not_found', message: 'No Gala registration found for this code.' });
             const isPaid = reg.payment_status === 'paid';
             const isVip = reg.payment_status === 'vip-comp';
@@ -16414,6 +16424,7 @@ By applying to this program, I provide the following consents:
             );
         }
         if (!caReg) caReg = query.get('SELECT * FROM croatians_abroad_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
+        if (!caReg && isShort) caReg = prefixMatch('croatians_abroad_registrations');
         if (!caReg) {
             // Fallback: standalone (non-diaspora) registrants live in their own tables, not
             // croatians_abroad_registrations. Conference → registrations; Bridges → bridges_registrations.
@@ -16422,6 +16433,7 @@ By applying to this program, I provide the following consents:
             let sReg = null;
             if (isUuid) { try { sReg = query.get(`SELECT * FROM ${standaloneTable} WHERE id = ?`, [codeClean]); } catch(e) {} }
             if (!sReg) { try { sReg = query.get(`SELECT * FROM ${standaloneTable} WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1`, [codeClean]); } catch(e) {} }
+            if (!sReg && isShort) sReg = prefixMatch(standaloneTable);
             if (sReg) {
                 const sAlready = !!sReg.checked_in;
                 if (mark && !sAlready) {
