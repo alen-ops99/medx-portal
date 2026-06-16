@@ -18763,7 +18763,7 @@ By applying to this program, I provide the following consents:
             const caCf = collectCustomAnswers('croatians-abroad', null, req.body.custom_answers);
             if (!caCf.ok) return res.status(400).json({ error: caCf.error });
             const caCustomAnswersJson = Object.keys(caCf.answers).length ? JSON.stringify(caCf.answers) : null;
-            const caAppliedFor = [wantConf ? 'Conference' : null, wantBridges ? 'Bridges' : null, wantGala ? 'Gala' : null].filter(Boolean).join(', ');
+            const caAppliedFor = [wantConf ? 'Plexus Conference' : null, wantBridges ? 'Croatian Biomedical Bridges' : null, wantGala ? 'Gala Evening' : null].filter(Boolean).join(', ');
 
             // Validate invite link (if provided)
             let caInvite = null;

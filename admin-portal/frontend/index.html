@@ -21003,12 +21003,17 @@ President, Med&amp;X</textarea>
                             <label style="font-size: 12px; font-weight: 600; color: var(--text-muted, #94a3b8); text-transform: uppercase; letter-spacing: 0.5px;">Checking in for:</label>
                             <select id="qrCheckInContext" onchange="App.loadGlobalCheckinStats()" style="width: 100%; padding: 10px; border: 1px solid var(--border-color, #334155); border-radius: 8px; background: var(--bg-secondary, #1e293b); color: var(--text-primary, #e2e8f0); font-size: 14px; margin-top: 4px;">
                                 <option value="general">General Lookup (all events)</option>
-                                <option value="plexus">Plexus Conference 2026</option>
-                                <option value="gala">Plexus Gala Evening</option>
-                                <option value="forum">Annual Biomedical Forum</option>
-                                <option value="bridges-zurich">Building Bridges: Zurich</option>
-                                <option value="bridges-dc">Building Bridges: Washington DC</option>
-                                <option value="bridges-boston">Building Bridges: Boston</option>
+                                <optgroup label="Plexus 2026">
+                                    <option value="plexus">Plexus Conference</option>
+                                    <option value="bridges-croatian">Croatian Biomedical Bridges</option>
+                                    <option value="gala">Plexus Gala Evening</option>
+                                </optgroup>
+                                <optgroup label="Other programs">
+                                    <option value="forum">Annual Biomedical Forum</option>
+                                    <option value="bridges-zurich">Building Bridges: Zurich</option>
+                                    <option value="bridges-dc">Building Bridges: Washington DC</option>
+                                    <option value="bridges-boston">Building Bridges: Boston</option>
+                                </optgroup>
                             </select>
                         </div>
 
@@ -21228,8 +21233,14 @@ President, Med&amp;X</textarea>
                 if (statusEl) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:#c9a962;"></i> Checking in…';
                 // Resolve the event: prefer the "Checking in for" selector; else the QR's own event.
                 const ctx = document.getElementById('qrCheckInContext')?.value || 'general';
-                const ctxMap = { plexus: 'conference', gala: 'gala', forum: 'forum' };
-                let evt = ctxMap[ctx] || (ctx.indexOf('bridges') === 0 ? 'bridges' : null);
+                // Croatian Biomedical Bridges (a Plexus 2026 sub-event) is DISTINCT from the regional
+                // Building Bridges projects (Zurich/DC/Boston). 'bridges-croatian' -> the unified
+                // verifier (croatians_abroad). The city bridges -> their own bridges_registrations
+                // endpoint, so a Plexus QR scanned under a city correctly returns "not found" instead
+                // of a false "pre-registered".
+                const ctxMap = { plexus: 'conference', conference: 'conference', gala: 'gala', forum: 'forum', 'bridges-croatian': 'bridges' };
+                const isRegionalBridges = (ctx === 'bridges-zurich' || ctx === 'bridges-dc' || ctx === 'bridges-boston');
+                let evt = ctxMap[ctx] || (isRegionalBridges ? 'regional-bridges' : null);
                 if (!evt) {
                     const e = parsed.evt;
                     evt = (e === 'plexus' || e === 'conference') ? 'conference' : e === 'gala' ? 'gala' : e === 'forum' ? 'forum' : e === 'bridges' ? 'bridges' : e === 'croatians-abroad' ? 'gala' : 'conference';
@@ -21240,6 +21251,9 @@ President, Med&amp;X</textarea>
                     if (evt === 'forum') {
                         const r = await this.api('/api/admin/forum/checkin', { method: 'POST', body: JSON.stringify({ code, registration_id: code }) });
                         data = { valid: r.success !== false, already_checked_in: r.already_checked_in, status_label: 'REGISTERED', status_color: '#22c55e', registrant: r.attendee || {}, message: r.error };
+                    } else if (evt === 'regional-bridges') {
+                        const r = await this.api('/api/admin/bridges/checkin', { method: 'POST', body: JSON.stringify({ code }) });
+                        data = { valid: r.success !== false, already_checked_in: r.already_checked_in, status_label: 'REGISTERED', status_color: '#22c55e', registrant: r.attendee || {}, message: r.error || (r.success === false ? 'Not found for this Building Bridges event.' : '') };
                     } else {
                         data = await this.api('/api/admin/checkin/verify', { method: 'POST', body: JSON.stringify({ event: evt, code, mark: true }) });
                     }
@@ -21264,7 +21278,7 @@ President, Med&amp;X</textarea>
                         <div style="font-size:18px;font-weight:700;color:${data.status_color || '#22c55e'};">${already ? 'ALREADY CHECKED IN' : 'CHECKED IN ✓'}${data.status_label ? ' · ' + escapeHtml(data.status_label) : ''}</div>
                         <div style="font-size:16px;font-weight:600;color:var(--text-primary,#e2e8f0);margin-top:6px;">${escapeHtml(r.name || '—')}</div>
                         <div style="font-size:12px;color:var(--text-muted,#94a3b8);">${escapeHtml(r.email || '')}</div>
-                        ${r.applied_for ? `<div style="font-size:12px;color:var(--accent-gold,#c9a962);margin-top:6px;font-weight:600;"><i class="fas fa-ticket"></i> Applied for: ${escapeHtml(r.applied_for)}</div>` : ''}
+                        ${r.applied_for ? `<div style="font-size:12px;color:var(--accent-gold,#c9a962);margin-top:8px;font-weight:600;"><i class="fas fa-ticket"></i> Applied for:</div><ul style="margin:4px 0 0;padding-left:22px;color:var(--accent-gold,#c9a962);font-size:12px;font-weight:600;list-style:disc;">${String(r.applied_for).split(/\s*[,+;]\s*|\n+/).map(s => s.trim()).filter(Boolean).map(s => `<li style="margin:2px 0;">${escapeHtml(s)}</li>`).join('')}</ul>` : ''}
                         ${r.guests ? `<div style="font-size:14px;color:#fff;margin-top:8px;font-weight:700;background:rgba(168,85,247,0.2);border:1px solid rgba(168,85,247,0.55);border-radius:8px;padding:8px 12px;"><i class="fas fa-users"></i> +${r.guests} guest${r.guests > 1 ? 's' : ''} — admit ${Number(r.guests) + 1} people total</div>` : ''}
                         ${already && data.checked_in_at ? `<div style="font-size:11px;color:var(--text-muted,#94a3b8);margin-top:6px;">First check-in: ${new Date(data.checked_in_at).toLocaleString()}</div>` : ''}`;
                 } else {
@@ -21348,8 +21362,13 @@ President, Med&amp;X</textarea>
                     // Focus the headline on the event chosen in "Checking in for:" — so the door can pick
                     // Gala (or any event) and watch "checked in / registered" for just that event, live.
                     const ctx = document.getElementById('qrCheckInContext')?.value || 'general';
-                    const ctxKey = ctx === 'plexus' ? 'plexus' : ctx === 'gala' ? 'gala' : ctx === 'forum' ? 'forum' : ctx.indexOf('bridges') === 0 ? 'bridges' : null;
-                    const eventNames = { plexus: 'Plexus Conference', gala: 'Gala Evening', forum: 'Forum', bridges: 'Building Bridges' };
+                    const ctxKey = ctx === 'plexus' ? 'conference'
+                        : ctx === 'gala' ? 'gala'
+                        : ctx === 'forum' ? 'forum'
+                        : ctx === 'bridges-croatian' ? 'bridges'
+                        : ctx.indexOf('bridges') === 0 ? 'regionalBridges'
+                        : null;
+                    const eventNames = { conference: 'Plexus Conference', bridges: 'Croatian Bridges', gala: 'Gala Evening', forum: 'Forum', regionalBridges: 'Building Bridges' };
                     const head = (ctxKey && stats[ctxKey]) ? stats[ctxKey] : o;
                     const headLabel = (ctxKey && stats[ctxKey]) ? eventNames[ctxKey] : 'All events';
                     const pct = head.total > 0 ? Math.round((head.checked_in / head.total) * 100) : 0;
@@ -21358,11 +21377,11 @@ President, Med&amp;X</textarea>
                     pctEl.textContent = `${pct}%`;
                     fill.style.width = `${pct}%`;
 
-                    events.innerHTML = ['plexus', 'gala', 'forum', 'bridges']
+                    events.innerHTML = ['conference', 'bridges', 'gala', 'forum', 'regionalBridges']
                         .filter(e => stats[e] && stats[e].total > 0)
                         .map(e => {
                             const s = stats[e];
-                            return `<span class="qr-stat-chip"><span class="event-badge ${e}" style="margin-right:4px">${e}</span> <span class="qr-stat-count">${s.checked_in}</span>/${s.total}</span>`;
+                            return `<span class="qr-stat-chip">${this.escapeHtml(eventNames[e] || e)}: <span class="qr-stat-count">${s.checked_in}</span>/${s.total}</span>`;
                         }).join('');
                 } catch (err) {
                     console.error('Stats load failed:', err);
@@ -30959,7 +30978,7 @@ By applying to this program, I give the following consents:
                             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${escapeHtml(r.email || '')}${r.institution ? ' · ' + escapeHtml(r.institution) : ''}</div>
                             ${r.country || r.role ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${[r.country, r.role].filter(Boolean).map(escapeHtml).join(' · ')}</div>` : ''}
                             ${r.dietary ? `<div style="font-size:12px;color:#c9a962;margin-top:6px;"><i class="fas fa-utensils" style="margin-right:6px;"></i>${escapeHtml(r.dietary)}</div>` : ''}
-                            ${r.applied_for ? `<div style="font-size:12px;color:var(--accent-gold,#c9a962);margin-top:6px;font-weight:600;"><i class="fas fa-ticket" style="margin-right:6px;"></i>Applied for: ${escapeHtml(r.applied_for)}</div>` : ''}
+                            ${r.applied_for ? `<div style="font-size:12px;color:var(--accent-gold,#c9a962);margin-top:6px;font-weight:600;"><i class="fas fa-ticket" style="margin-right:6px;"></i>Applied for:</div><ul style="margin:4px 0 0;padding-left:22px;color:var(--accent-gold,#c9a962);font-size:12px;font-weight:600;list-style:disc;">${String(r.applied_for).split(/\s*[,+;]\s*|\n+/).map(s => s.trim()).filter(Boolean).map(s => `<li style="margin:2px 0;">${escapeHtml(s)}</li>`).join('')}</ul>` : ''}
                             ${r.guests ? `<div style="font-size:14px;color:#fff;margin-top:8px;font-weight:700;background:rgba(168,85,247,0.20);border:1px solid rgba(168,85,247,0.55);border-radius:8px;padding:8px 12px;"><i class="fas fa-users" style="margin-right:6px;"></i>+${r.guests} guest${r.guests > 1 ? 's' : ''} — admit ${Number(r.guests) + 1} people total</div>` : ''}
                             ${Array.isArray(r.answers) && r.answers.length ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px;border-top:1px dashed var(--border-color);padding-top:6px;">${r.answers.map(a => '<div><strong style="color:var(--text-secondary);">' + escapeHtml(a.label) + ':</strong> ' + escapeHtml(a.value) + '</div>').join('')}</div>` : ''}
                             ${already && data.checked_in_at ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px;">First check-in: ${new Date(data.checked_in_at).toLocaleString()}</div>` : ''}

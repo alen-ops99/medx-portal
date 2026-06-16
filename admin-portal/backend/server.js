@@ -16447,7 +16447,7 @@ By applying to this program, I provide the following consents:
                 name: `${caReg.first_name} ${caReg.last_name || ''}`.trim(),
                 email: caReg.email, institution: caReg.institution || '',
                 country: caReg.country || '', role: caReg.role || '', dietary: caReg.dietary || '',
-                applied_for: [caReg.selected_conference ? 'Conference' : null, caReg.selected_bridges ? 'Bridges' : null, caReg.selected_gala ? 'Gala' : null].filter(Boolean).join(', '),
+                applied_for: [caReg.selected_conference ? 'Plexus Conference' : null, caReg.selected_bridges ? 'Croatian Biomedical Bridges' : null, caReg.selected_gala ? 'Gala Evening' : null].filter(Boolean).join(', '),
                 answers: appliedInfo(caReg).answers,
                 guests: caReg.guest_count || 0
             }
@@ -16700,15 +16700,20 @@ By applying to this program, I provide the following consents:
     // Check-in stats — aggregated counts across all event tables
     app.get('/api/checkin/stats', auth, staffOrAdmin, (req, res) => {
         try {
-            const plexus = query.get('SELECT COUNT(*) as total, COALESCE(SUM(checked_in), 0) as checked_in FROM registrations') || { total: 0, checked_in: 0 };
+            // Plexus 2026 sub-events live on croatians_abroad_registrations (per-event flags +
+            // per-event check-in columns), NOT the legacy `registrations` table.
+            const conference = query.get('SELECT COUNT(*) as total, COALESCE(SUM(conference_checked_in), 0) as checked_in FROM croatians_abroad_registrations WHERE selected_conference = 1') || { total: 0, checked_in: 0 };
+            const bridges = query.get('SELECT COUNT(*) as total, COALESCE(SUM(bridges_checked_in), 0) as checked_in FROM croatians_abroad_registrations WHERE selected_bridges = 1') || { total: 0, checked_in: 0 };
             const gala = query.get('SELECT COUNT(*) as total, COALESCE(SUM(checked_in), 0) as checked_in FROM gala_registrations') || { total: 0, checked_in: 0 };
             const forum = query.get('SELECT COUNT(*) as total, COALESCE(SUM(checked_in), 0) as checked_in FROM forum_members') || { total: 0, checked_in: 0 };
-            const bridges = query.get('SELECT COUNT(*) as total, COALESCE(SUM(checked_in), 0) as checked_in FROM bridges_registrations') || { total: 0, checked_in: 0 };
+            // Regional Building Bridges (Zurich/DC/Boston) — a SEPARATE program from Croatian Biomedical Bridges.
+            const regionalBridges = query.get('SELECT COUNT(*) as total, COALESCE(SUM(checked_in), 0) as checked_in FROM bridges_registrations') || { total: 0, checked_in: 0 };
             res.json({
-                plexus, gala, forum, bridges,
+                conference, bridges, gala, forum, regionalBridges,
+                plexus: conference, // legacy alias (Plexus Conference)
                 overall: {
-                    total: plexus.total + gala.total + forum.total + bridges.total,
-                    checked_in: plexus.checked_in + gala.checked_in + forum.checked_in + bridges.checked_in
+                    total: conference.total + bridges.total + gala.total + forum.total + regionalBridges.total,
+                    checked_in: conference.checked_in + bridges.checked_in + gala.checked_in + forum.checked_in + regionalBridges.checked_in
                 }
             });
         } catch (err) {
