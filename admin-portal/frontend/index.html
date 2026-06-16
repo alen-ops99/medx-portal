@@ -20254,6 +20254,9 @@ President, Med&amp;X</textarea>
                             { col:'gala_status', label:'Gala — status badge (e.g. Limited spaces)', type:'text', role:'status_gala' },
                             { col:'gala_date', label:'Gala — date (type {venue} for the live venue)', type:'text', role:'date_gala' },
                             { col:'gala_desc', label:'Gala — description', type:'textarea', role:'desc_gala' },
+                            { col:'req_institution', label:'Form field: Institution / Company — required?', type:'select', role:'req_institution', options:[{value:'optional',label:'Optional'},{value:'required',label:'Required'}] },
+                            { col:'req_country', label:'Form field: Country — required?', type:'select', role:'req_country', options:[{value:'optional',label:'Optional'},{value:'required',label:'Required'}] },
+                            { col:'req_notes', label:'Form field: "Anything else?" — required?', type:'select', role:'req_notes', options:[{value:'optional',label:'Optional'},{value:'required',label:'Required'}] },
                         ],
                     },
                     forum: {
@@ -20322,6 +20325,8 @@ President, Med&amp;X</textarea>
                         const common = `id="genDetail_${f.col}" data-role="${f.role}" oninput="App.renderLinkPreview(); App.saveDetailField('${eventType}','${escapeHtml(eventId||'')}','${f.col}', this.value)" onchange="App.saveDetailField('${eventType}','${escapeHtml(eventId||'')}','${f.col}', this.value)"`;
                         const input = f.type === 'textarea'
                             ? `<textarea ${common} rows="2" style="${dStyle}">${escapeHtml(v)}</textarea>`
+                            : f.type === 'select'
+                            ? `<select ${common} style="${dStyle}">${(f.options || []).map(o => `<option value="${escapeHtml(o.value)}"${(v || 'optional') === o.value ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}</select>`
                             : `<input type="text" ${common} value="${escapeHtml(v)}" style="${dStyle}">`;
                         return `<div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">${escapeHtml(f.label)}</label>${input}</div>`;
                     }).join('');

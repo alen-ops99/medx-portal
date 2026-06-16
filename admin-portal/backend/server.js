@@ -3184,7 +3184,7 @@ async function initializeApp() {
         ]);
     }
     // Per-event editable title + status badge + date (description already exists above).
-    ['conference_title','conference_status','conference_date','bridges_title','bridges_status','bridges_date','gala_title','gala_status','gala_date']
+    ['conference_title','conference_status','conference_date','bridges_title','bridges_status','bridges_date','gala_title','gala_status','gala_date','req_institution','req_country','req_notes']
         .forEach(col => { try { db.run(`ALTER TABLE plexus_page_settings ADD COLUMN ${col} TEXT`); } catch(e) {} });
     try { db.run("UPDATE plexus_page_settings SET conference_title=COALESCE(conference_title,'Plexus Conference'), bridges_title=COALESCE(bridges_title,'Croatian Biomedical Bridges'), gala_title=COALESCE(gala_title,'Plexus Gala Evening'), conference_status=COALESCE(conference_status,'Open for registration'), bridges_status=COALESCE(bridges_status,'Open for pre-registration'), gala_status=COALESCE(gala_status,'Limited spaces') WHERE id='default'"); } catch(e) {}
 
@@ -16116,7 +16116,8 @@ By applying to this program, I provide the following consents:
     const PLEXUS_TEXT_COLS = ['page_lede',
         'conference_title','conference_status','conference_date','conference_desc',
         'bridges_title','bridges_status','bridges_date','bridges_desc',
-        'gala_title','gala_status','gala_date','gala_desc'];
+        'gala_title','gala_status','gala_date','gala_desc',
+        'req_institution','req_country','req_notes'];
     app.get('/api/admin/plexus/page-text', auth, adminOnly, (req, res) => {
         const row = query.get(`SELECT ${PLEXUS_TEXT_COLS.join(', ')} FROM plexus_page_settings WHERE id = 'default'`) || {};
         res.json(row);

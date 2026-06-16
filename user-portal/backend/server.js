@@ -1085,6 +1085,10 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
         const galaStatus = pps.gala_status || '';
         const galaDate = (pps.gala_date || '').replace(/\{venue\}/g, galaVenue);
         const galaDesc = (pps.gala_desc || '5 December 2026 · {venue} · black-tie evening, keynote by Lord Smith of Finsbury (Chancellor, University of Cambridge), fireside panel. Limited places.').replace(/\{venue\}/g, galaVenue);
+        // Admin-configurable mandatory fields (plexus_page_settings.req_*). 'required' => the
+        // browser enforces it (the form is a real <form onsubmit>) AND the server re-checks it.
+        const reqStar = (k) => (pps['req_' + k] === 'required') ? ' <span style="color:#c9a962;">*</span>' : '';
+        const reqAttr = (k) => (pps['req_' + k] === 'required') ? ' required' : '';
         // Status pill (below the title) + optional date line for a card.
         const evtHead = (status, date) =>
             (status ? `<span class="event-status">${escapeHtml(status)}</span>` : '') +
@@ -1150,8 +1154,8 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                             </div>
                             <div><label>Email *</label><input id="pf_email" type="email" required maxlength="160"></div>
                             <div class="form-row">
-                                <div><label>Institution</label><input id="pf_inst" maxlength="160"></div>
-                                <div><label>Country</label><input id="pf_country" maxlength="80"></div>
+                                <div><label>Institution / Company${reqStar('institution')}</label><input id="pf_inst" maxlength="160"${reqAttr('institution')}></div>
+                                <div><label>Country${reqStar('country')}</label><input id="pf_country" maxlength="80"${reqAttr('country')}></div>
                             </div>
                             <div><label>Dietary requirements (for the Gala)</label><input id="pf_diet" maxlength="200" placeholder="e.g. vegetarian"></div>
                             <div><label>Allergies (for the Gala)</label><input id="pf_allergies" maxlength="200" placeholder="e.g. nuts, shellfish"></div>
@@ -1167,7 +1171,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                                     <button type="button" id="pf_couponBtn" onclick="plexApplyCoupon()" style="padding:11px 16px;border:none;border-radius:9px;background:linear-gradient(135deg,#c9a962,#b8965a);color:#0f172a;font-weight:700;cursor:pointer;white-space:nowrap;">Apply</button>
                                 </div>
                                 <div id="pf_couponMsg" style="margin-top:6px;font-size:12px;display:none;"></div></div>
-                            <div><label>Anything else?</label><textarea id="pf_notes" maxlength="500"></textarea></div>
+                            <div><label>Anything else?${reqStar('notes')}</label><textarea id="pf_notes" maxlength="500"${reqAttr('notes')}></textarea></div>
                         </div>
                         <div class="total-display show" style="margin-top:14px;"><span class="label">To pay now</span><span class="amount" id="plexPayAmt">&euro;0</span></div>
                         <button type="submit" class="submit-btn" id="plexBtn">Complete registration</button>
@@ -4988,7 +4992,7 @@ async function initializeApp() {
         ]);
     }
     // Per-event editable title + status badge + date (description already exists above).
-    ['conference_title','conference_status','conference_date','bridges_title','bridges_status','bridges_date','gala_title','gala_status','gala_date']
+    ['conference_title','conference_status','conference_date','bridges_title','bridges_status','bridges_date','gala_title','gala_status','gala_date','req_institution','req_country','req_notes']
         .forEach(col => { try { db.run(`ALTER TABLE plexus_page_settings ADD COLUMN ${col} TEXT`); } catch(e) {} });
     try { db.run("UPDATE plexus_page_settings SET conference_title=COALESCE(conference_title,'Plexus Conference'), bridges_title=COALESCE(bridges_title,'Croatian Biomedical Bridges'), gala_title=COALESCE(gala_title,'Plexus Gala Evening'), conference_status=COALESCE(conference_status,'Open for registration'), bridges_status=COALESCE(bridges_status,'Open for pre-registration'), gala_status=COALESCE(gala_status,'Limited spaces') WHERE id='default'"); } catch(e) {}
     // 2026 pricing migration: gala-only early-bird fee €150 (only if still at a legacy default; never overrides admin edits)
@@ -18731,6 +18735,16 @@ By applying to this program, I provide the following consents:
             // Conference/Bridges/Gala the admin OFFERED on that link. The registrant's chosen
             // subset is clamped to those offered components (server-trusted — never the client).
             const regSource = (req.body.source === 'plexus') ? 'plexus' : 'croatians-abroad';
+            // Server-trusted enforcement of admin-configured mandatory fields (Plexus flow). The
+            // browser already blocks empty 'required' inputs, but never trust the client.
+            if (regSource === 'plexus') {
+                const rq = query.get("SELECT req_institution, req_country, req_notes FROM plexus_page_settings WHERE id = 'default'") || {};
+                const missing = [];
+                if (rq.req_institution === 'required' && !String(institution || '').trim()) missing.push('Institution / Company');
+                if (rq.req_country === 'required' && !String(country || '').trim()) missing.push('Country');
+                if (rq.req_notes === 'required' && !String(notes || '').trim()) missing.push('Anything else');
+                if (missing.length) return res.status(400).json({ error: 'Please fill in the required field(s): ' + missing.join(', ') });
+            }
             let plexusLinkRow = null;
             if (regSource === 'plexus') {
                 const token = (req.body.link_token && typeof req.body.link_token === 'string') ? req.body.link_token.trim() : '';
