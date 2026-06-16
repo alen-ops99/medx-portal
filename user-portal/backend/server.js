@@ -12340,8 +12340,8 @@ By applying to this program, I provide the following consents:
                                 ${eventListHtml}
                             </table>
                             <p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${invoiceNumber}</p>
-                            ${buildTicketQrBlock(galaRegId, { label: 'Gala Check-in QR Code', caption: 'Present this code at the Gala entrance on 5 December' })}
-                            <p>We will email you the <strong>Conference program</strong> as soon as it is finalized${metadata.bundle_bridges === '1' ? ', and confirm the <strong>Croatian Biomedical Bridges date and venue</strong> when those are set' : ''}.</p>
+                            ${buildTicketQrBlock(galaRegId, { label: 'Your Plexus 2026 Check-in QR', caption: 'Present this QR at the entrance of each event you registered for' })}
+                            ${(metadata.bundle_conference === '1' || metadata.bundle_bridges === '1') ? `<p>We will email you ${[metadata.bundle_conference === '1' ? 'the <strong>Conference program</strong>' : null, metadata.bundle_bridges === '1' ? 'the <strong>Croatian Biomedical Bridges date and venue</strong>' : null].filter(Boolean).join(' and ')} as soon as ${(metadata.bundle_conference === '1' && metadata.bundle_bridges === '1') ? 'they are' : 'it is'} finalized.</p>` : ''}
                             <p style="margin-top:24px;">We look forward to welcoming you ${metadata.source === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
                             <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
                         `), galaQrAtts);
@@ -18320,7 +18320,7 @@ By applying to this program, I provide the following consents:
                     ${eventListHtml}
                 </table>
                 <p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${invoiceNumber}</p>
-                ${buildTicketQrBlock(galaRegId, { label: 'Gala Check-in QR Code', caption: 'Present this code at the Gala entrance on 5 December' })}
+                ${buildTicketQrBlock(galaRegId, { label: 'Your Plexus 2026 Check-in QR', caption: 'Present this QR at the entrance of each event you registered for' })}
                 <p>We will email you the <strong>Conference program</strong> as soon as it is finalized, and confirm the <strong>Croatian Biomedical Bridges date and venue</strong> when those are set.</p>
                 <p style="margin-top:18px;">We look forward to welcoming you home in Zagreb.</p>
                 <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
@@ -18898,7 +18898,7 @@ By applying to this program, I provide the following consents:
                             ${eventListHtml}
                         </table>
                         ${qrBlock}
-                        <p>We will email you the <strong>Conference program</strong> as soon as it is finalized${finalBridges ? ', and confirm the <strong>Croatian Biomedical Bridges date and venue</strong> when those are set' : ''}.</p>
+                        ${(finalConf || finalBridges) ? `<p>We will email you ${[finalConf ? 'the <strong>Conference program</strong>' : null, finalBridges ? 'the <strong>Croatian Biomedical Bridges date and venue</strong>' : null].filter(Boolean).join(' and ')} as soon as ${(finalConf && finalBridges) ? 'they are' : 'it is'} finalized.</p>` : ''}
                         <p>If you would also like to join us at the <strong>Plexus Gala Evening</strong> on 5 December 2026 (Hotel Esplanade Zagreb, Lord Smith of Finsbury keynote), simply reply to this email and we will send you the ticket link.</p>
                         <p style="margin-top:24px;">We look forward to welcoming you ${regSource === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
                         <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>

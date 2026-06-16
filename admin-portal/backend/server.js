@@ -16638,7 +16638,7 @@ By applying to this program, I provide the following consents:
                     ${eventListHtml}
                 </table>
                 <p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${invoiceNumber}</p>
-                ${buildTicketQrBlock(galaRegId, { label: 'Gala Check-in QR Code', caption: 'Present this code at the Gala entrance on 5 December' })}
+                ${buildTicketQrBlock(galaRegId, { label: 'Your Plexus 2026 Check-in QR', caption: 'Present this QR at the entrance of each event you registered for' })}
                 <p>We will email you the <strong>Conference program</strong> as soon as it is finalized, and confirm the <strong>Croatian Biomedical Bridges date and venue</strong> when those are set.</p>
                 <p style="margin-top:18px;">We look forward to welcoming you home in Zagreb.</p>
                 <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
