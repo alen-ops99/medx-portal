@@ -2585,6 +2585,7 @@ async function initializeApp() {
     // Email verification columns (migration — safe to re-run)
     try { db.run('ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0'); } catch (e) { /* column may already exist */ }
     try { db.run('ALTER TABLE users ADD COLUMN verification_token TEXT'); } catch (e) { /* column may already exist */ }
+    try { db.run('ALTER TABLE users ADD COLUMN tier TEXT'); } catch (e) { /* column may already exist */ }
     // Set on password change/reset; auth rejects JWTs issued before this time so a reset
     // (or password change) invalidates all existing sessions — account-recovery hardening.
     try { db.run('ALTER TABLE users ADD COLUMN password_changed_at TEXT'); } catch (e) { /* column may already exist */ }
@@ -5457,6 +5458,7 @@ async function initializeApp() {
         try { db.run(`ALTER TABLE ${t} ADD COLUMN applied_for TEXT`); } catch(e) {}
         try { db.run(`ALTER TABLE ${t} ADD COLUMN reg_link_token TEXT`); } catch(e) {}
         try { db.run(`ALTER TABLE ${t} ADD COLUMN guest_count INTEGER DEFAULT 0`); } catch(e) {}
+        try { db.run(`ALTER TABLE ${t} ADD COLUMN seat_number TEXT`); } catch(e) {}
     }
 
     // Abstract detail columns from admin portal

@@ -512,6 +512,8 @@ async function initializeApp() {
     // Role separation: is_staff = scanner + read-only access (no settings/finance/delete).
     // Existing is_admin users keep full super-admin access; is_staff is an explicit, narrower grant.
     try { db.run('ALTER TABLE users ADD COLUMN is_staff INTEGER DEFAULT 0'); } catch (e) { /* may exist */ }
+    // Membership tier shown at the welcome desk (e.g. Bronze/Silver/Gold). Falls back to forum membership level if unset.
+    try { db.run('ALTER TABLE users ADD COLUMN tier TEXT'); } catch (e) { /* may exist */ }
 
     db.run(`CREATE TABLE IF NOT EXISTS conferences (
         id TEXT PRIMARY KEY, name TEXT NOT NULL, year INTEGER, slug TEXT UNIQUE,
@@ -3123,6 +3125,7 @@ async function initializeApp() {
         try { db.run(`ALTER TABLE ${t} ADD COLUMN applied_for TEXT`); } catch(e) {}
         try { db.run(`ALTER TABLE ${t} ADD COLUMN reg_link_token TEXT`); } catch(e) {}
         try { db.run(`ALTER TABLE ${t} ADD COLUMN guest_count INTEGER DEFAULT 0`); } catch(e) {}
+        try { db.run(`ALTER TABLE ${t} ADD COLUMN seat_number TEXT`); } catch(e) {}
     }
 
     // Gala invite links table — admin-generated shareable URLs (generic paid + VIP free)
@@ -16338,6 +16341,27 @@ By applying to this program, I provide the following consents:
             return { applied_for: applied, answers };
         }
 
+        // Welcome-desk enrichment: forum membership, tier (portal account, else forum level),
+        // and how many event registrations are on file for this email (returning attendee).
+        function welcomeInfo(email) {
+            const out = { forum_member: false, forum_status: '', tier: '', returning_count: 0 };
+            if (!email) return out;
+            const em = String(email).toLowerCase();
+            try {
+                const fm = query.get('SELECT membership_status, membership_level FROM forum_members WHERE LOWER(email) = ?', [em]);
+                if (fm) { out.forum_member = true; out.forum_status = fm.membership_status || ''; }
+                let usrTier = '';
+                try { const usr = query.get('SELECT tier FROM users WHERE LOWER(email) = ?', [em]); usrTier = (usr && usr.tier) ? usr.tier : ''; } catch(e) {}
+                out.tier = usrTier || (fm && fm.membership_level && fm.membership_level !== 'member' ? fm.membership_level : '');
+                let n = 0;
+                for (const t of ['registrations', 'gala_registrations', 'bridges_registrations', 'croatians_abroad_registrations', 'forum_event_registrations']) {
+                    try { const c = query.get(`SELECT COUNT(*) as c FROM ${t} WHERE LOWER(email) = ?`, [em]); n += (c && c.c) || 0; } catch(e) {}
+                }
+                out.returning_count = n;
+            } catch(e) {}
+            return out;
+        }
+
         if (event === 'gala') {
             let reg = null;
             if (isUuid) reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [codeClean]);
@@ -16374,6 +16398,8 @@ By applying to this program, I provide the following consents:
                     email: reg.email, institution: reg.institution || '',
                     dietary: reg.dietary || '', amount_paid: reg.amount_paid, invoice: reg.invoice_number || '',
                     guests: reg.guest_count || 0,
+                    seat: reg.seat_number || '',
+                    ...welcomeInfo(reg.email),
                     ...appliedInfo(reg)
                 }
             });
@@ -16411,6 +16437,8 @@ By applying to this program, I provide the following consents:
                         // registrations/bridges_registrations store dietary_requirements (not dietary)
                         dietary: sReg.dietary_requirements || sReg.dietary || '',
                         guests: sReg.guest_count || 0,
+                        seat: sReg.seat_number || '',
+                        ...welcomeInfo(sReg.email),
                         ...appliedInfo(sReg)
                     }
                 });
@@ -16449,7 +16477,9 @@ By applying to this program, I provide the following consents:
                 country: caReg.country || '', role: caReg.role || '', dietary: caReg.dietary || '',
                 applied_for: [caReg.selected_conference ? 'Plexus Conference' : null, caReg.selected_bridges ? 'Croatian Biomedical Bridges' : null, caReg.selected_gala ? 'Gala Evening' : null].filter(Boolean).join(', '),
                 answers: appliedInfo(caReg).answers,
-                guests: caReg.guest_count || 0
+                guests: caReg.guest_count || 0,
+                seat: caReg.seat_number || '',
+                ...welcomeInfo(caReg.email)
             }
         });
     });
