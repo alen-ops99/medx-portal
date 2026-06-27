@@ -55288,6 +55288,8 @@ textarea:focus:not(:focus-visible),
 h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.view-title,.panel-title,.greeting,.welcome-splash-title,.welcome-splash-subtitle{font-family:var(--serif) !important;letter-spacing:-.01em}
 /* De-gamify + cut low-value widgets (display-only; JS/payment untouched). Quiet recognition layer to be added separately. */
 .quiz-widget,.quiz-leaderboard-preview,.milestone-banner,#milestoneBanner,#milestoneBar,.activity-feed-card,.dashboard-widget.poll-widget,.ai-chat-panel,[onclick*="CardPicker"]{display:none !important;}
+/* Points-for-money redemption removed (quiet-recognition redesign) — hide checkout redeem UI. Coupons unaffected. */
+#pxRedeemSection{display:none !important;}
 /* === end MEDX-TOKENS-INJECTED === */
 
 </style>
@@ -83229,29 +83231,13 @@ You can use variables like {first_name} that will be personalized for each recip
                 return total;
             },
 
-            // Toggle points redemption
+            // Toggle points redemption — DISABLED (points-for-money redemption removed
+            // in the quiet-recognition redesign). Kept as a no-op so the flag can never
+            // go true; the #pxRedeemSection UI is hidden via CSS. Coupons are unaffected.
             togglePointsRedeem() {
-                this.redeemEnabled = !this.redeemEnabled;
-                const toggle = document.getElementById('pxRedeemToggle');
-                const sliderSection = document.getElementById('pxRedeemSliderSection');
-                const slider = document.getElementById('pxRedeemSlider');
-
-                if (this.redeemEnabled) {
-                    // Cap slider at the lesser of: user's actual points balance, or 100 * current subtotal (can't discount more than the ticket)
-                    const userPoints = (typeof RewardsPortal !== 'undefined' && RewardsPortal.userRewards?.pointsBalance) || 0;
-                    const subtotalCents = Math.max(0, Math.floor(this.calculateTotal() * 100));
-                    const maxRedeemable = Math.min(userPoints, subtotalCents);
-                    if (slider) slider.max = String(maxRedeemable);
-                    toggle?.classList.add('active');
-                    sliderSection?.classList.add('active');
-                } else {
-                    toggle?.classList.remove('active');
-                    sliderSection?.classList.remove('active');
-                    // Reset points
-                    this.pointsToRedeem = 0;
-                    if (slider) slider.value = 0;
-                    this.updateRedeemSlider();
-                }
+                this.redeemEnabled = false;
+                this.pointsToRedeem = 0;
+                return;
             },
 
             // Update redemption slider
