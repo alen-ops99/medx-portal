@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -23,6 +23,7 @@
     <meta name="apple-mobile-web-app-title" content="Med&amp;X Check-in">
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%230f172a' width='100' height='100' rx='20'/><text x='50' y='65' font-size='50' text-anchor='middle' fill='%23c9a962'>M</text></svg>">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js" crossorigin="anonymous" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
@@ -55166,7 +55167,125 @@ textarea:focus:not(:focus-visible),
         -webkit-tap-highlight-color: rgba(201, 169, 98, 0.15);
     }
 }
-    </style>
+    
+
+/* === MEDX-TOKENS-INJECTED (premium one-brand theme; overrides legacy :root) === */
+
+
+/* ============================================================
+   Med&X shared design tokens — ONE brand across website + user portal + admin.
+   Canonical source. Light = the marketing website (cream/crimson/Fraunces).
+   Dark = refined premium (ink/charcoal + warm gold accent), user-selectable.
+   Each surface aliases its existing var names onto these (see alias layer below)
+   so legacy rules keep working without a rewrite.
+   Switch theme via  <html data-theme="light">  /  data-theme="dark".
+   ============================================================ */
+
+:root,
+[data-theme="light"] {
+  /* Brand */
+  --crimson:        #9b1b22;
+  --crimson-deep:   #7e151b;
+  --gold:           #c9a962;   /* DEMOTED: secondary "members-club" metal accent only */
+  --gold-dim:       #a38a4f;
+
+  /* Neutrals (light / website) */
+  --ink:            #15110f;   /* primary text */
+  --ink-soft:       #403a36;   /* secondary text */
+  --muted:          #6b6258;   /* tertiary/labels */
+  --paper:          #fbf9f6;   /* page background */
+  --paper-2:        #f3efe9;   /* tinted surface */
+  --surface:        #ffffff;   /* cards */
+  --line:           #e2dcd3;
+  --line-strong:    #cfc7ba;
+  --white:          #ffffff;
+
+  /* Semantic accents (single accent = crimson; status only where needed) */
+  --accent:         var(--crimson);
+  --success:        #2f6b3a;
+  --danger:         #b3261e;
+  --warning:        #b8801f;
+
+  /* Type */
+  --serif: 'Fraunces', Georgia, 'Times New Roman', serif;   /* display / headings */
+  --sans:  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Shape / depth */
+  --radius-sm: 6px;
+  --radius:    10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 2px rgba(20,15,12,.05), 0 8px 24px rgba(20,15,12,.06);
+  --shadow-md: 0 2px 6px rgba(20,15,12,.07), 0 24px 60px rgba(20,15,12,.10);
+  --shadow-lg: 0 8px 40px rgba(20,15,12,.16);
+  --ease: cubic-bezier(.2,.7,.2,1);
+
+  /* Canonical project/category colors (ONE set — reconciles website/app/admin).
+     Differentiate projects by label + icon + a thin accent, NOT loud hues. */
+  --cat-plexus:     #9b1b22;  /* crimson */
+  --cat-gala:       #7e151b;  /* deep crimson */
+  --cat-accelerator:#b06a1f;  /* warm bronze */
+  --cat-forum:      #3f5d52;  /* muted green-slate */
+  --cat-bridges:    #355070;  /* muted blue-slate */
+}
+
+[data-theme="dark"] {
+  /* Refined premium dark — warm ink/charcoal, not flat navy; gold as quiet accent */
+  --crimson:        #c2484e;   /* lifted for contrast on dark */
+  --crimson-deep:   #9b1b22;
+  --gold:           #d2b16a;
+  --gold-dim:       #a78a4c;
+
+  --ink:            #f3efe9;   /* primary text (light on dark) */
+  --ink-soft:       #c9c3ba;
+  --muted:          #8c857a;
+  --paper:          #14110f;   /* near-black warm */
+  --paper-2:        #1d1a17;
+  --surface:        #211d19;
+  --line:           #322c27;
+  --line-strong:    #463e37;
+  --white:          #14110f;   /* "on-accent" text flips to dark */
+
+  --accent:         var(--crimson);
+  --success:        #5aa06a;
+  --danger:         #e06a63;
+  --warning:        #d9a847;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.45);
+  --shadow-md: 0 2px 6px rgba(0,0,0,.5), 0 24px 60px rgba(0,0,0,.55);
+  --shadow-lg: 0 8px 40px rgba(0,0,0,.6);
+
+  --cat-plexus:     #c2484e;
+  --cat-gala:       #d57f84;
+  --cat-accelerator:#d2a05a;
+  --cat-forum:      #6f9686;
+  --cat-bridges:    #6f93b8;
+}
+
+/* ---- Portal alias layer: map the portal's LEGACY var names onto the tokens
+   so its ~500+ existing rules render with the new palette without a rewrite.
+   (Include this AFTER the :root block in user-portal/admin.) ---- */
+:root,[data-theme="light"],[data-theme="dark"] {
+  --bg-primary:     var(--paper);
+  --bg-secondary:   var(--paper-2);
+  --bg-tertiary:    var(--surface);
+  --bg-hover:       var(--paper-2);
+  --border:         var(--line);
+  --border-light:   var(--line);
+  --accent-gold:    var(--gold);
+  --accent-gold-dim:var(--gold-dim);
+  /* newer --up-* family points at the same tokens */
+  --up-bg:          var(--paper);
+  --up-surface:     var(--surface);
+  --up-ink:         var(--ink);
+  --up-muted:       var(--muted);
+  --up-line:        var(--line);
+  --up-accent:      var(--crimson);
+  --up-gold:        var(--gold);
+}
+
+/* === end MEDX-TOKENS-INJECTED === */
+
+</style>
 
     <!-- PWA Manifest and Icons — absolute paths so they resolve correctly
          on path-style direct links like /forum/events/<slug> or /invite/<token>. -->
@@ -76367,7 +76486,7 @@ You can use variables like {first_name} that will be personalized for each recip
             token: null,
             currentSection: 'dashboard',
             navigationHistory: [],
-            theme: localStorage.getItem('medx_theme') || 'dark',
+            theme: localStorage.getItem('medx_theme') || 'light',
             _initialLoadComplete: false,
             subscriptions: safeJsonParse(localStorage.getItem('medx_subscriptions'), {"plexus":true,"accelerator":true,"forum":false,"af26":true}),
 
@@ -95016,7 +95135,7 @@ ${'='.repeat(70)}
             },
 
             loadThemeSetting() {
-                const theme = localStorage.getItem('medx_theme') || 'dark';
+                const theme = localStorage.getItem('medx_theme') || 'light';
                 this.currentThemeSetting = theme;
                 this.updateThemeUI(theme);
             },
