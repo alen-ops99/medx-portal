@@ -117990,47 +117990,28 @@ By applying to this program, I give the following consents:
             events: [],
             _dynamicLoaded: false,
 
-            // Default/fallback news items
+            // Default/fallback news (generic + true; real items load from /api/portal-content/published).
+            // No fabricated people, partnerships, or dates.
             _defaultNews: [
                 {
                     id: 'news-001',
-                    title: 'Plexus 2026 Keynote Speakers Announced',
-                    description: 'We are thrilled to reveal our keynote lineup featuring biomedical leaders and leading researchers in neuroscience and sleep medicine.',
+                    title: 'Plexus 2026 registration is open',
+                    description: 'Join researchers and clinicians from around the world in Zagreb this December for the flagship Med&X conference.',
                     type: 'announcement',
                     link: 'plexus',
                     featured: true,
-                    unread: true,
+                    unread: false,
                     createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
                 },
                 {
                     id: 'news-002',
-                    title: 'New Accelerator Collaboration: Cleveland Clinic',
-                    description: 'Cleveland Clinic joins our network of collaborating institutions, offering new opportunities for Croatian researchers.',
+                    title: 'Med&X Accelerator — applications open',
+                    description: 'Apply for a research placement at a leading institution through the Med&X Accelerator programme.',
                     type: 'program',
                     link: 'accelerator',
                     featured: false,
-                    unread: true,
+                    unread: false,
                     createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-                },
-                {
-                    id: 'news-003',
-                    title: 'Forum Member Spotlight: Dr. Ana Horvat',
-                    description: 'Read about Dr. Horvat\'s groundbreaking work in immunotherapy and her journey from Zagreb to leading research at Harvard.',
-                    type: 'event',
-                    link: 'forum',
-                    featured: false,
-                    unread: false,
-                    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-                },
-                {
-                    id: 'news-004',
-                    title: 'Early Bird Registration Extended',
-                    description: 'Due to popular demand, we\'ve extended early bird pricing for Plexus 2026 until March 15th.',
-                    type: 'update',
-                    link: 'plexus',
-                    featured: false,
-                    unread: false,
-                    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
                 }
             ],
 
