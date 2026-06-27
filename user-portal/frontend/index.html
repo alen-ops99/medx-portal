@@ -55375,6 +55375,13 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
 .hub-checkin-card{background:linear-gradient(135deg, var(--emph-bg), var(--emph-bg-2)) !important;border:1px solid var(--emph-line) !important;}
 /* Demo Login: keep it (handy for review) but make it a quiet ghost button, not cheap green */
 button[onclick*="demoLogin"]{background:transparent !important;color:var(--muted) !important;border:1px solid var(--line-strong) !important;font-weight:500 !important;box-shadow:none !important;}
+/* ===== Editorial calm: cut redundancy + add breathing room (dashboard was 3434px, events repeated 5x) ===== */
+#hubWelcomeSubtitle{display:none !important;}                 /* redundant cheap promo line under greeting */
+#dashboardSplitSection{display:none !important;}             /* busy duplicate 'My Events' (payment pills); 'Your Events' list remains */
+#upNextEvent{margin-top:18px !important;}
+#featuredCarousel,.hub-checkin-card,.news-programs-row,#dashboardBento{margin-top:28px !important;}
+.hub-programs-trio,.my-network-card-compact{margin-bottom:28px !important;}
+#userPortal .up-section,.hub-container{padding-left:18px !important;padding-right:18px !important;}
 /* Browser autofill must not tint inputs blue — keep paper surface + ink text */
 input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus,textarea:-webkit-autofill,select:-webkit-autofill{-webkit-box-shadow:0 0 0 1000px var(--paper-2) inset !important;-webkit-text-fill-color:var(--ink) !important;caret-color:var(--ink) !important;}
 /* === end MEDX-TOKENS-INJECTED === */
