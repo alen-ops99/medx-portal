@@ -67455,8 +67455,8 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
                         <!-- Populated by MyMedXPortal.renderPrograms() -->
                     </div>
 
-                    <!-- Event QR Codes -->
-                    <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0 0 12px; padding-left: 4px;">Event QR Codes</h3>
+                    <!-- My Wallet (tickets + QR + receipts) -->
+                    <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0 0 12px; padding-left: 4px;">My Wallet</h3>
                     <div id="mymedxQRCodes" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 24px;">
                         <!-- Populated by MyMedXPortal.renderQRCodes() -->
                     </div>
@@ -76336,48 +76336,56 @@ You can use variables like {first_name} that will be personalized for each recip
                 this.renderNetworkStats();
             },
 
-            renderTierCard() {
-                const container = document.getElementById('mymedxTierCard');
+            // ===== Member data (single fetch → Recognition + Wallet) =====
+            renderTierCard() { this._loadMemberData(); },
+
+            _loadMemberData() {
+                if (this._memberDataLoading) return;
+                this._memberDataLoading = true;
+                var self = this;
+                var token = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
+                var apiBase = typeof API_BASE !== 'undefined' ? API_BASE : '';
+                var wc = document.getElementById('mymedxQRCodes');
+                if (wc) wc.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--muted);font-size:13px;">Loading your tickets…</div>';
+                fetch(apiBase + '/api/registrations/my', { headers: token ? { 'Authorization': 'Bearer ' + token } : {} })
+                    .then(function(r){ return r.ok ? r.json() : Promise.reject('err'); })
+                    .then(function(regs){ self._regs = Array.isArray(regs) ? regs : []; self.renderRecognition(self._regs); self._renderWalletCards(self._regs); })
+                    .catch(function(){ self._regs = []; self.renderRecognition([]); self._renderWalletCards(null); })
+                    .then(function(){ self._memberDataLoading = false; });
+            },
+
+            // Quiet recognition — honest badges from real signals only (replaces the points/tier arcade)
+            renderRecognition(regs) {
+                var container = document.getElementById('mymedxTierCard');
                 if (!container) return;
+                regs = regs || [];
+                var user = (typeof UserPortal !== 'undefined' && UserPortal.user) || {};
+                var name = (user.name || ((user.first_name||'') + ' ' + (user.last_name||'')).trim() || 'Member');
+                var badges = [];
+                var attended = regs.filter(function(r){ return r.checked_in; }).length;
+                var registered = regs.length;
+                var years = {};
+                regs.forEach(function(r){ var y=(r.start_date||'').slice(0,4); if(y) years[y]=1; });
+                var yearCount = Object.keys(years).length;
+                if (attended > 0) badges.push({icon:'fa-check-circle', label:'Attended', color:'var(--success)'});
+                if (registered > 0) badges.push({icon:'fa-ticket-alt', label: registered + (registered>1?' registrations':' registration'), color:'var(--crimson)'});
+                if (yearCount > 1) badges.push({icon:'fa-star', label: yearCount + '-year participant', color:'var(--gold-dim)'});
+                try { if ((JSON.parse(localStorage.getItem('medx_accelerator_applications')||'[]')).length) badges.push({icon:'fa-rocket', label:'Accelerator applicant', color:'var(--cat-accelerator)'}); } catch(e){}
+                try { if (localStorage.getItem('forum_member')==='1' || (JSON.parse(localStorage.getItem('forum_registered_events')||'[]')).length) badges.push({icon:'fa-landmark', label:'Forum participant', color:'var(--cat-forum)'}); } catch(e){}
 
-                // Read from RewardsPortal if available
-                let tier = 'bronze', points = 100, totalEarned = 100;
-                if (typeof RewardsPortal !== 'undefined' && RewardsPortal.userRewards) {
-                    tier = RewardsPortal.userRewards.tier || 'bronze';
-                    points = RewardsPortal.userRewards.pointsBalance || 0;
-                    totalEarned = RewardsPortal.userRewards.totalPointsEarned || 0;
-                }
-
-                const tierColors = { bronze: '#cd7f32', silver: '#94a3b8', gold: '#d4a843', platinum: '#a78bfa' };
-                const tierIcons = { bronze: 'fa-medal', silver: 'fa-award', gold: 'fa-crown', platinum: 'fa-gem' };
-                const tierThresholds = { bronze: 0, silver: 3000, gold: 10000, platinum: 15000 };
-                const tiers = ['bronze', 'silver', 'gold', 'platinum'];
-                const tierIdx = tiers.indexOf(tier);
-                const nextTier = tierIdx < 3 ? tiers[tierIdx + 1] : null;
-                const nextThreshold = nextTier ? tierThresholds[nextTier] : tierThresholds.platinum;
-                const progress = nextTier ? Math.min(100, Math.round((totalEarned / nextThreshold) * 100)) : 100;
-                const color = tierColors[tier];
+                var badgesHtml = badges.length
+                    ? '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">' + badges.map(function(b){
+                        return '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:600;color:'+b.color+';background:var(--paper-2);border:1px solid var(--line);"><i class="fas '+b.icon+'"></i>'+b.label+'</span>';
+                      }).join('') + '</div>'
+                    : '<div style="margin-top:12px;font-size:13px;color:var(--muted);">Your recognition appears here as you register for and attend Med&X events.</div>';
 
                 container.innerHTML =
-                    '<div style="display: flex; align-items: center; gap: 14px; margin-bottom: 16px;">' +
-                        '<div style="width: 48px; height: 48px; border-radius: 12px; background: ' + color + '22; display: flex; align-items: center; justify-content: center;">' +
-                            '<i class="fas ' + tierIcons[tier] + '" style="font-size: 22px; color: ' + color + ';"></i>' +
-                        '</div>' +
-                        '<div style="flex: 1;">' +
-                            '<div style="font-size: 18px; font-weight: 700; color: var(--up-text, #1d1d1f); text-transform: capitalize;">' + tier + ' Member</div>' +
-                            '<div style="font-size: 13px; color: var(--up-text-secondary, #6e6e73);">' + points.toLocaleString() + ' points available</div>' +
-                        '</div>' +
-                    '</div>' +
-                    '<div style="background: var(--up-bg, #ffffff); border-radius: 8px; height: 8px; overflow: hidden; margin-bottom: 8px;">' +
-                        '<div style="height: 100%; width: ' + progress + '%; background: ' + color + '; border-radius: 8px; transition: width 0.6s ease;"></div>' +
-                    '</div>' +
-                    '<div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--up-text-secondary, #6e6e73);">' +
-                        '<span>' + totalEarned.toLocaleString() + ' / ' + nextThreshold.toLocaleString() + ' pts</span>' +
-                        (nextTier ? '<span>Next: <strong style="text-transform: capitalize; color: ' + tierColors[nextTier] + ';">' + nextTier + '</strong></span>' : '<span style="color: ' + color + ';">Max tier!</span>') +
-                    '</div>' +
-                    '<a href="#" onclick="UserPortal.showSection(\'rewards\'); return false;" style="display: inline-block; margin-top: 12px; font-size: 13px; color: var(--up-gold, #d4a843); text-decoration: none; font-weight: 600;">' +
-                        '<i class="fas fa-arrow-right" style="margin-right: 4px;"></i> View Full Rewards' +
-                    '</a>';
+                    '<div style="display:flex;align-items:center;gap:14px;">'
+                      + '<div style="width:48px;height:48px;border-radius:12px;background:var(--paper-2);display:flex;align-items:center;justify-content:center;"><i class="fas fa-id-badge" style="font-size:22px;color:var(--crimson);"></i></div>'
+                      + '<div style="flex:1;min-width:0;"><div style="font-size:18px;font-weight:700;color:var(--ink);font-family:var(--serif);">'+name+'</div>'
+                      + '<div style="font-size:13px;color:var(--muted);">Med&X member</div></div>'
+                    + '</div>'
+                    + badgesHtml;
             },
 
             renderPrograms() {
@@ -76413,33 +76421,104 @@ You can use variables like {first_name} that will be personalized for each recip
                 }).join('');
             },
 
-            renderQRCodes() {
-                const container = document.getElementById('mymedxQRCodes');
+            renderQRCodes() { this._loadMemberData(); },
+
+            _fmtDateRange(start, end) {
+                if (!start) return '';
+                try {
+                    var s = new Date(start + 'T00:00:00');
+                    if (end && end !== start) {
+                        var e = new Date(end + 'T00:00:00');
+                        return s.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' + e.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+                    }
+                    return s.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+                } catch(e){ return start; }
+            },
+
+            // Real wallet: tickets from /api/registrations/my, QR rendered from the actual ticket_qr_code (same value the scanner reads)
+            _renderWalletCards(regs) {
+                var container = document.getElementById('mymedxQRCodes');
                 if (!container) return;
-
-                const events = JSON.parse(localStorage.getItem('forum_registered_events') || '[]');
-
-                if (events.length === 0) {
-                    container.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 24px; color: var(--up-text-muted, #94a3b8); font-size: 13px; border: 1px dashed var(--up-border, #d2d2d7); border-radius: 12px;">Register for Forum events to see your QR codes here</div>';
+                if (regs === null) {
+                    container.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--muted);font-size:13px;border:1px dashed var(--line);border-radius:12px;">Couldn\'t load your tickets right now. Please try again in a moment.</div>';
                     return;
                 }
-
-                container.innerHTML = events.map(function(evt) {
-                    var eventName = typeof evt === 'string' ? evt : (evt.name || evt.title || 'Event');
-                    var regDate = typeof evt === 'object' && evt.registeredAt ? new Date(evt.registeredAt).toLocaleDateString() : 'N/A';
-                    var ticketId = 'TKT-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-                    return '<div style="background: var(--up-bg, #ffffff); border: 1px solid var(--up-border, #d2d2d7); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">' +
-                        '<div style="font-size: 14px; font-weight: 600; color: var(--up-text, #1d1d1f);">' + eventName + '</div>' +
-                        '<div style="font-size: 11px; color: var(--up-text-secondary, #6e6e73);">Registered: ' + regDate + '</div>' +
-                        '<div style="background: #1a1a2e; color: #00ff88; font-family: \'Courier New\', monospace; font-size: 11px; padding: 16px 12px; border-radius: 8px; text-align: center; line-height: 1.6; letter-spacing: 1px;">' +
-                            '<div style="font-size: 10px; color: #666; margin-bottom: 4px;">||||||||||||||||||||</div>' +
-                            '<div style="font-weight: 700;">' + eventName + '</div>' +
-                            '<div style="color: #22c55e; font-weight: 700; margin: 4px 0;">VERIFIED</div>' +
-                            '<div style="font-size: 10px; color: var(--muted);">' + ticketId + '</div>' +
-                            '<div style="font-size: 10px; color: #666; margin-top: 4px;">||||||||||||||||||||</div>' +
-                        '</div>' +
-                    '</div>';
+                if (!regs.length) {
+                    container.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:28px 20px;border:1px dashed var(--line);border-radius:12px;">'
+                        + '<div style="font-size:26px;margin-bottom:8px;">🎟️</div>'
+                        + '<div style="font-weight:700;color:var(--ink);margin-bottom:4px;font-family:var(--serif);">No tickets yet</div>'
+                        + '<div style="font-size:13px;color:var(--muted);margin-bottom:14px;">Register for Plexus or a Med&X event and your ticket + QR will appear here.</div>'
+                        + '<button onclick="UserPortal.showSection(\'plexus\')" style="background:var(--crimson);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-weight:600;font-size:13px;cursor:pointer;">Browse events</button>'
+                        + '</div>';
+                    return;
+                }
+                var jobs = [];
+                container.innerHTML = regs.map(function(r, i){
+                    var paid = (r.payment_status === 'paid');
+                    var free = (!r.amount_paid || Number(r.amount_paid) === 0);
+                    var statusLabel = paid ? 'Paid' : (free ? 'Confirmed' : 'Payment pending');
+                    var statusColor = (paid || free) ? 'var(--success)' : 'var(--warning)';
+                    var dates = MyMedXPortal._fmtDateRange(r.start_date, r.end_date);
+                    var venue = [r.venue_name, r.venue_city].filter(Boolean).join(', ');
+                    var amount = (r.amount_paid != null && Number(r.amount_paid) > 0) ? ('€' + Number(r.amount_paid).toFixed(2)) : (free ? 'Free' : '');
+                    var qrId = 'walletQR_' + i;
+                    var qrData = r.ticket_qr_code || ('MEDX:' + (r.id || ''));
+                    jobs.push({ id: qrId, data: qrData });
+                    var checkedIn = !!r.checked_in;
+                    return '<div style="background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow-sm);">'
+                        + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">'
+                            + '<div style="min-width:0;"><div style="font-size:15px;font-weight:700;color:var(--ink);font-family:var(--serif);line-height:1.2;">' + (r.conference_name || 'Med&X event') + '</div>'
+                            + '<div style="font-size:12px;color:var(--muted);margin-top:2px;">' + (r.ticket_name || r.registration_type || 'Ticket') + '</div></div>'
+                            + '<span style="white-space:nowrap;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:' + statusColor + ';background:var(--paper-2);border:1px solid var(--line);padding:4px 9px;border-radius:999px;">' + statusLabel + '</span>'
+                        + '</div>'
+                        + (dates ? '<div style="font-size:12px;color:var(--ink-soft);"><i class="fas fa-calendar" style="width:16px;color:var(--muted);"></i> ' + dates + '</div>' : '')
+                        + (venue ? '<div style="font-size:12px;color:var(--ink-soft);"><i class="fas fa-location-dot" style="width:16px;color:var(--muted);"></i> ' + venue + '</div>' : '')
+                        + '<div style="background:#ffffff;border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:6px;">'
+                            + '<div id="' + qrId + '" style="width:148px;height:148px;display:flex;align-items:center;justify-content:center;"></div>'
+                            + '<div style="font-size:11px;color:var(--muted);">' + (checkedIn ? '<span style="color:var(--success);font-weight:700;"><i class="fas fa-check-circle"></i> Checked in</span>' : 'Show at check-in') + '</div>'
+                        + '</div>'
+                        + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
+                            + '<div style="font-size:12px;color:var(--muted);">' + (amount ? ('<strong style="color:var(--ink);">' + amount + '</strong>') : '') + (r.invoice_number ? (' · #' + r.invoice_number) : '') + '</div>'
+                            + (r.start_date ? '<button onclick="MyMedXPortal.addToCalendar(' + i + ')" style="background:transparent;border:1px solid var(--line-strong);color:var(--ink);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-calendar-plus"></i> Add to calendar</button>' : '')
+                        + '</div>'
+                    + '</div>';
                 }).join('');
+                // Render REAL QR codes from the ticket_qr_code value
+                if (typeof QRCode !== 'undefined') {
+                    jobs.forEach(function(job){
+                        var el = document.getElementById(job.id);
+                        if (!el) return;
+                        QRCode.toCanvas(document.createElement('canvas'), job.data, { width: 148, margin: 1, color: { dark:'#15110f', light:'#ffffff' } }, function(err, canvas){
+                            if (err || !canvas) { el.textContent = 'QR unavailable'; el.style.fontSize='11px'; el.style.color='var(--muted)'; return; }
+                            canvas.style.width='148px'; canvas.style.height='148px'; el.appendChild(canvas);
+                        });
+                    });
+                } else {
+                    jobs.forEach(function(job){ var el=document.getElementById(job.id); if(el){ el.textContent='QR unavailable'; el.style.fontSize='11px'; el.style.color='var(--muted)'; } });
+                }
+            },
+
+            // Download an .ics for this registration's event (all-day; DTEND exclusive)
+            addToCalendar(idx) {
+                var r = (this._regs || [])[idx];
+                if (!r || !r.start_date) return;
+                var dtStart = (r.start_date || '').replace(/-/g,'');
+                var endBase = r.end_date || r.start_date;
+                var endDate = new Date(endBase + 'T00:00:00'); endDate.setDate(endDate.getDate()+1);
+                var dtEnd = '' + endDate.getFullYear() + String(endDate.getMonth()+1).padStart(2,'0') + String(endDate.getDate()).padStart(2,'0');
+                var loc = [r.venue_name, r.venue_city].filter(Boolean).join(', ');
+                var uid = 'medx-' + (r.id || Math.random().toString(36).slice(2)) + '@medx.hr';
+                var ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Med&X//Portal//EN','CALSCALE:GREGORIAN','BEGIN:VEVENT',
+                    'UID:' + uid, 'DTSTART;VALUE=DATE:' + dtStart, 'DTEND;VALUE=DATE:' + dtEnd,
+                    'SUMMARY:' + (r.conference_name || 'Med&X event'), 'LOCATION:' + loc,
+                    'DESCRIPTION:' + ((r.ticket_name || 'Ticket') + ' — Med&X'), 'END:VEVENT','END:VCALENDAR'].join('\r\n');
+                var blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url; a.download = (r.conference_name || 'medx-event').replace(/[^a-z0-9]+/gi,'-').toLowerCase() + '.ics';
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+                if (typeof Toast !== 'undefined' && Toast.success) Toast.success('Calendar file downloaded');
             },
 
             renderInterests() {
