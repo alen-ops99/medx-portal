@@ -440,8 +440,16 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
     console.log('[Push] VAPID keys not set — push notifications disabled');
 }
 
+// Public read endpoints (conferences/tickets/schedule/speakers) are consumed by the
+// marketing website for live prices/dates — explicit allowlist (never wildcard) since
+// this server also handles Stripe/registration. Add the website + preview origins.
 app.use(cors({
-    origin: [process.env.RENDER_EXTERNAL_URL, 'http://localhost:3000', 'http://localhost:3001'].filter(Boolean)
+    origin: [
+        process.env.RENDER_EXTERNAL_URL,
+        'https://medx.hr', 'https://www.medx.hr',
+        'https://medx-website-preview.netlify.app',
+        'http://localhost:3000', 'http://localhost:3001', 'http://localhost:8899'
+    ].filter(Boolean)
 }));
 
 // Security headers via helmet — keep CSP permissive enough to allow Stripe + CDN scripts
