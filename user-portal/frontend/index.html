@@ -55323,7 +55323,7 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
   #upBottomNav .up-tab.active i{transform:none;}
 }
 /* ===== Splash entry — refined warm-dark brand (consistent both themes; white logo stays legible) ===== */
-.splash-entry{background:linear-gradient(180deg, rgba(20,17,15,.88) 0%, rgba(20,17,15,.93) 55%, rgba(126,21,27,.80) 100%), url('/assets/photos/plexus_25_gala_grupna.jpg') center/cover !important;}
+.splash-entry{background:linear-gradient(180deg, rgba(18,15,13,.70) 0%, rgba(18,15,13,.85) 55%, rgba(18,15,13,.93) 100%), url('/assets/photos/plexus_25_gala_grupna.jpg') center/cover !important;}
 .splash-entry-subtitle{font-family:var(--serif) !important;color:#f3efe9 !important;font-weight:500;letter-spacing:-.01em;}
 .splash-entry-description{color:rgba(243,239,233,.62) !important;}
 .splash-entry-divider{background:var(--crimson) !important;opacity:.75;}
@@ -55366,13 +55366,17 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
       dark-ink→crimson overlay so the white Fraunces headline + crimson CTA stay legible. */
 .featured-slide-bg{background-size:cover !important;background-position:center !important;}
 .featured-slide-bg::before{background:transparent !important;}
-.featured-slide-bg.plexus{background:linear-gradient(135deg, rgba(20,17,15,.86) 0%, rgba(20,17,15,.60) 55%, rgba(126,21,27,.58) 100%), url('/assets/photos/plexus_25_gala_grupna.jpg') center/cover !important;}
-.featured-slide-bg.gala{background:linear-gradient(135deg, rgba(20,17,15,.86) 0%, rgba(20,17,15,.60) 55%, rgba(126,21,27,.58) 100%), url('/assets/photos/plexus_25_gala.jpg') center/cover !important;}
-.featured-slide-bg.accelerator{background:linear-gradient(135deg, rgba(20,17,15,.86) 0%, rgba(20,17,15,.60) 55%, rgba(126,21,27,.58) 100%), url('/assets/photos/plexus_25_acc_panel.jpg') center/cover !important;}
-.featured-slide-bg.forum{background:linear-gradient(135deg, rgba(20,17,15,.88) 0%, rgba(20,17,15,.64) 55%, rgba(126,21,27,.58) 100%), url('/assets/photos/plexus_2022.jpg') center/cover !important;}
-.featured-slide-bg.bridges{background:linear-gradient(135deg, rgba(20,17,15,.86) 0%, rgba(20,17,15,.60) 55%, rgba(126,21,27,.58) 100%), url('/assets/photos/plexus_2022.jpg') center/cover !important;}
+.featured-slide-bg.plexus{background:linear-gradient(135deg, rgba(20,17,15,.86) 0%, rgba(20,17,15,.60) 55%, rgba(18,15,13,.82) 100%), url('/assets/photos/plexus_25_gala_grupna.jpg') center/cover !important;}
+.featured-slide-bg.gala{background:linear-gradient(135deg, rgba(20,17,15,.86) 0%, rgba(20,17,15,.60) 55%, rgba(18,15,13,.82) 100%), url('/assets/photos/plexus_25_gala.jpg') center/cover !important;}
+.featured-slide-bg.accelerator{background:linear-gradient(135deg, rgba(20,17,15,.86) 0%, rgba(20,17,15,.60) 55%, rgba(18,15,13,.82) 100%), url('/assets/photos/plexus_25_acc_panel.jpg') center/cover !important;}
+.featured-slide-bg.forum{background:linear-gradient(135deg, rgba(20,17,15,.88) 0%, rgba(20,17,15,.64) 55%, rgba(18,15,13,.82) 100%), url('/assets/photos/plexus_2022.jpg') center/cover !important;}
+.featured-slide-bg.bridges{background:linear-gradient(135deg, rgba(20,17,15,.86) 0%, rgba(20,17,15,.60) 55%, rgba(18,15,13,.82) 100%), url('/assets/photos/plexus_2022.jpg') center/cover !important;}
 /* 8. Quieter quick-check-in card (was a hard navy gradient) → warm-ink emphasis */
 .hub-checkin-card{background:linear-gradient(135deg, var(--emph-bg), var(--emph-bg-2)) !important;border:1px solid var(--emph-line) !important;}
+/* Demo Login: keep it (handy for review) but make it a quiet ghost button, not cheap green */
+button[onclick*="demoLogin"]{background:transparent !important;color:var(--muted) !important;border:1px solid var(--line-strong) !important;font-weight:500 !important;box-shadow:none !important;}
+/* Browser autofill must not tint inputs blue — keep paper surface + ink text */
+input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus,textarea:-webkit-autofill,select:-webkit-autofill{-webkit-box-shadow:0 0 0 1000px var(--paper-2) inset !important;-webkit-text-fill-color:var(--ink) !important;caret-color:var(--ink) !important;}
 /* === end MEDX-TOKENS-INJECTED === */
 
 </style>
@@ -57775,7 +57779,7 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
                           var paid=(r.payment_status==='paid'); var free=(!r.amount_paid||Number(r.amount_paid)===0);
                           var status=paid?'Paid':(free?'Confirmed':'Payment pending');
                           var venue=[r.venue_name,r.venue_city].filter(Boolean).join(', ');
-                          host.innerHTML='<div style="position:relative;overflow:hidden;border-radius:18px;background:linear-gradient(135deg, rgba(20,17,15,.90) 0%, rgba(20,17,15,.62) 60%, rgba(126,21,27,.55) 100%), url(\'/assets/photos/plexus_2022.jpg\') center/cover;color:#f3efe9;padding:20px;box-shadow:var(--shadow-md);">'
+                          host.innerHTML='<div style="position:relative;overflow:hidden;border-radius:18px;background:linear-gradient(135deg, rgba(18,15,13,.88) 0%, rgba(18,15,13,.60) 55%, rgba(18,15,13,.86) 100%), url(\'/assets/photos/plexus_2022.jpg\') center/cover;color:#f3efe9;padding:20px;box-shadow:var(--shadow-md);">'
                             +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">'
                               +'<div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:rgba(243,239,233,.7);">Your next event'+(countdown?(' · '+countdown):'')+'</div>'
                               +'<span style="white-space:nowrap;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);padding:4px 9px;border-radius:999px;">'+status+'</span></div>'
