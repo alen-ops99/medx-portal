@@ -57713,6 +57713,53 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
                         </div>
                     </section>
 
+                    <!-- Your next event hub (personalized from /api/registrations/my) -->
+                    <section id="upNextEvent" class="up-next-event" style="margin:0 0 18px;"></section>
+                    <script>
+                    (function(){
+                      function apiBase(){ return (typeof API_BASE!=='undefined')?API_BASE:''; }
+                      function token(){ return (typeof UserPortal!=='undefined'&&UserPortal.token)||localStorage.getItem('medx_user_token'); }
+                      function daysUntil(d){ try{ var t=new Date(d+'T00:00:00'); var now=new Date(); now.setHours(0,0,0,0); return Math.round((t-now)/86400000);}catch(e){return null;} }
+                      function fmtRange(s,e){ try{ var sd=new Date(s+'T00:00:00'); if(e&&e!==s){var ed=new Date(e+'T00:00:00'); return sd.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' – '+ed.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});} return sd.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});}catch(e){return s;} }
+                      window.medxICS=function(r){ if(!r||!r.start_date)return; var ds=(r.start_date||'').replace(/-/g,''); var eb=r.end_date||r.start_date; var ed=new Date(eb+'T00:00:00'); ed.setDate(ed.getDate()+1); var de=''+ed.getFullYear()+String(ed.getMonth()+1).padStart(2,'0')+String(ed.getDate()).padStart(2,'0'); var loc=[r.venue_name,r.venue_city].filter(Boolean).join(', '); var ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Med&X//Portal//EN','BEGIN:VEVENT','UID:medx-'+(r.id||Math.random().toString(36).slice(2))+'@medx.hr','DTSTART;VALUE=DATE:'+ds,'DTEND;VALUE=DATE:'+de,'SUMMARY:'+(r.conference_name||'Med&X event'),'LOCATION:'+loc,'END:VEVENT','END:VCALENDAR'].join('\r\n'); var b=new Blob([ics],{type:'text/calendar;charset=utf-8'}); var u=URL.createObjectURL(b); var a=document.createElement('a'); a.href=u; a.download=(r.conference_name||'medx-event').replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'.ics'; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){URL.revokeObjectURL(u);},1000); };
+                      var NE={ _reg:null,
+                        render:function(){ var host=document.getElementById('upNextEvent'); if(!host) return; var tk=token(); if(!tk){ host.innerHTML=''; return; }
+                          fetch(apiBase()+'/api/registrations/my',{headers:{'Authorization':'Bearer '+tk}})
+                            .then(function(r){return r.ok?r.json():Promise.reject();})
+                            .then(function(regs){ NE._paint(Array.isArray(regs)?regs:[]); })
+                            .catch(function(){ host.innerHTML=''; }); },
+                        _paint:function(regs){ var host=document.getElementById('upNextEvent'); if(!host) return;
+                          var today=new Date(); today.setHours(0,0,0,0);
+                          var up=regs.filter(function(r){ var d=r.end_date||r.start_date; return d && new Date(d+'T00:00:00')>=today; })
+                                     .sort(function(a,b){ return new Date((a.start_date||'')+'T00:00:00')-new Date((b.start_date||'')+'T00:00:00'); });
+                          if(!up.length){ host.innerHTML='<div style="background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:14px;box-shadow:var(--shadow-sm);">'
+                            +'<div><div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);">Your next event</div>'
+                            +'<div style="font-size:16px;font-weight:700;color:var(--ink);font-family:var(--serif);margin-top:3px;">Nothing booked yet</div>'
+                            +'<div style="font-size:13px;color:var(--muted);margin-top:2px;">Plexus 2026 is open for registration.</div></div>'
+                            +'<button onclick="UserPortal.showSection(\'plexus\')" style="background:var(--crimson);color:#fff;border:none;border-radius:10px;padding:10px 16px;font-weight:600;font-size:13px;cursor:pointer;white-space:nowrap;">Explore</button></div>'; return; }
+                          var r=up[0]; NE._reg=r; var d=daysUntil(r.start_date);
+                          var countdown=d===0?'Today':(d===1?'Tomorrow':(d>1?('in '+d+' days'):''));
+                          var paid=(r.payment_status==='paid'); var free=(!r.amount_paid||Number(r.amount_paid)===0);
+                          var status=paid?'Paid':(free?'Confirmed':'Payment pending');
+                          var venue=[r.venue_name,r.venue_city].filter(Boolean).join(', ');
+                          host.innerHTML='<div style="position:relative;overflow:hidden;border-radius:18px;background:linear-gradient(135deg,var(--emph-bg) 0%,var(--emph-bg-2) 100%);color:#f3efe9;padding:20px;box-shadow:var(--shadow-md);">'
+                            +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">'
+                              +'<div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:rgba(243,239,233,.7);">Your next event'+(countdown?(' · '+countdown):'')+'</div>'
+                              +'<span style="white-space:nowrap;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);padding:4px 9px;border-radius:999px;">'+status+'</span></div>'
+                            +'<div style="font-size:22px;font-weight:700;font-family:var(--serif);margin:8px 0 4px;line-height:1.15;">'+(r.conference_name||'Med&X event')+'</div>'
+                            +'<div style="font-size:13px;color:rgba(243,239,233,.85);">'+fmtRange(r.start_date,r.end_date)+(venue?(' · '+venue):'')+'</div>'
+                            +'<div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">'
+                              +'<button onclick="UserPortal.showSection(\'mymedx\')" style="background:#fff;color:var(--ink);border:none;border-radius:10px;padding:10px 16px;font-weight:700;font-size:13px;cursor:pointer;"><i class="fas fa-qrcode"></i> Show ticket</button>'
+                              +'<button onclick="medxICS(MedXNextEvent._reg)" style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:10px 16px;font-weight:600;font-size:13px;cursor:pointer;"><i class="fas fa-calendar-plus"></i> Add to calendar</button></div>'
+                          +'</div>'; }
+                      };
+                      window.MedXNextEvent=NE;
+                      function maybeRender(){ var h=(location.hash||'').replace('#',''); if(!h||h==='dashboard'){ NE.render(); } }
+                      if(document.readyState!=='loading') setTimeout(maybeRender,1200); else window.addEventListener('load',function(){ setTimeout(maybeRender,1200); });
+                      window.addEventListener('hashchange',maybeRender);
+                    })();
+                    </script>
+
                     <!-- Milestone Progress Banner -->
                     <div class="milestone-banner" id="milestoneBanner">
                         <div class="milestone-content" onclick="UserPortal.showSection('rewards')" style="cursor: pointer">
