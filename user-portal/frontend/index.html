@@ -47678,11 +47678,10 @@
 }
 
 /* ===== QUIZ WIDGET STYLES ===== */
-/* Force quiz to always be visible — overrides card-hidden !important */
+/* De-gamified: dashboard Daily Quiz card removed in the quiet-recognition redesign.
+   (Was force-visible to override card-hidden; now authoritatively hidden at the source.) */
 #quizWidget {
-    display: block !important;
-    opacity: 1 !important;
-    visibility: visible !important;
+    display: none !important;
 }
 .quiz-widget {
     background: var(--bg-secondary);
@@ -55287,6 +55286,8 @@ textarea:focus:not(:focus-visible),
 [data-theme="dark"]{--emph-bg:#211d19;--emph-bg-2:#2a2521;--emph-line:rgba(255,255,255,.10)}
 /* Fraunces display on headings/titles (website's signature) */
 h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.view-title,.panel-title,.greeting,.welcome-splash-title,.welcome-splash-subtitle{font-family:var(--serif) !important;letter-spacing:-.01em}
+/* De-gamify + cut low-value widgets (display-only; JS/payment untouched). Quiet recognition layer to be added separately. */
+.quiz-widget,.quiz-leaderboard-preview,.milestone-banner,#milestoneBanner,#milestoneBar,.activity-feed-card,.dashboard-widget.poll-widget,.ai-chat-panel,[onclick*="CardPicker"]{display:none !important;}
 /* === end MEDX-TOKENS-INJECTED === */
 
 </style>
