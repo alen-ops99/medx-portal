@@ -55408,6 +55408,11 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
     <meta name="theme-color" content="#0f172a">
 </head>
 <body>
+        <script>
+        /* Seamless hand-off from the marketing website: if opened with ?mxt=<token>, adopt that
+           session so the app is already signed in, then clean the URL. Runs before the app boots. */
+        (function(){try{var p=new URLSearchParams(location.search);var t=p.get('mxt');if(t){localStorage.setItem('medx_user_token',t);var u=location.pathname+location.hash;history.replaceState(null,'',u||'/');}}catch(e){}})();
+        </script>
 
         <!-- Skip Link for Accessibility -->
         <a href="#main-content" class="skip-link">Skip to main content</a>
