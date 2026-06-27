@@ -55340,6 +55340,33 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
 .auth-form-input{background:var(--paper-2) !important;color:var(--ink) !important;border:1px solid var(--line-strong) !important;border-radius:var(--radius) !important;}
 .auth-form-input:focus{border-color:var(--crimson) !important;box-shadow:0 0 0 3px rgba(155,27,34,.15) !important;outline:none !important;}
 .auth-btn:not([style*="background"]){background:var(--crimson) !important;color:#fff !important;border:none !important;}
+/* ============================================================
+   PREMIUM POLISH — close the gap to the marketing website
+   (editorial display type, card+color discipline, breathing room)
+   ============================================================ */
+/* 1. Editorial display scale: large Fraunces greeting + real hierarchy */
+.hub-welcome-greeting{font-family:var(--serif) !important;font-size:30px !important;font-weight:600 !important;letter-spacing:-.02em !important;line-height:1.08 !important;color:var(--ink) !important;}
+@media (min-width:768px){.hub-welcome-greeting{font-size:42px !important;}}
+.up-card-title,.card-title,.section-title,.up-section-title,.px-card-title{font-family:var(--serif) !important;font-size:19px !important;font-weight:600 !important;letter-spacing:-.01em !important;}
+/* 2. Section labels become quiet uppercase eyebrows (not big filler headings) */
+.hub-dashboard-header h2,.hub-section-label{font-family:var(--sans) !important;font-size:11px !important;font-weight:700 !important;letter-spacing:.13em !important;text-transform:uppercase !important;color:var(--muted) !important;margin:0 !important;}
+/* 3. Card discipline: warm surface, hairline border, one soft shadow, generous radius */
+.up-card,.hub-card,.mymedx-container .up-card{background:var(--surface) !important;border:1px solid var(--line) !important;border-radius:14px !important;box-shadow:var(--shadow-sm) !important;}
+/* 4. Tone the rainbow: program/quick icon tiles → warm neutral with crimson glyph */
+.up-project-icon,.hub-quick-icon,.feature-icon,.project-icon-wrap{background:var(--paper-2) !important;color:var(--crimson) !important;}
+.up-project-icon i,.hub-quick-icon i{color:var(--crimson) !important;}
+/* 5. Breathing room on mobile */
+@media (max-width:768px){
+  .hub-welcome-section{padding-top:22px !important;padding-bottom:6px !important;}
+  .hub-dashboard-header{margin-top:26px !important;}
+}
+/* 6. Quieter, premium status pills (less SaaS-badge) */
+.status-pill,.up-status,.px-badge,.hub-badge{font-weight:600 !important;letter-spacing:.02em !important;border-radius:999px !important;}
+/* 7. Featured carousel → one brand warm-ink treatment (drop the blue/teal/rainbow slide gradients) */
+.featured-slide-bg{background:linear-gradient(135deg, var(--emph-bg) 0%, var(--emph-bg-2) 68%, #36211f 100%) !important;}
+.featured-slide-bg::before{background:radial-gradient(circle at 88% 12%, rgba(155,27,34,.30) 0%, transparent 55%) !important;}
+/* 8. Quieter quick-check-in card (was a hard navy gradient) → warm-ink emphasis */
+.hub-checkin-card{background:linear-gradient(135deg, var(--emph-bg), var(--emph-bg-2)) !important;border:1px solid var(--emph-line) !important;}
 /* === end MEDX-TOKENS-INJECTED === */
 
 </style>
@@ -67409,8 +67436,8 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
             <div class="up-section" id="up-section-mymedx">
                 <div class="mymedx-container" style="max-width: 800px; margin: 0 auto; padding: 20px 16px 40px;">
                     <!-- Home Button -->
-                    <button class="section-home-btn" onclick="UserPortal.showSection('dashboard')" title="Back to Home" style="background: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.3); z-index: 1000;">
-                        <div class="home-house" style="--house-color: #3b82f6;">
+                    <button class="section-home-btn" onclick="UserPortal.showSection('dashboard')" title="Back to Home" style="background: var(--paper-2); border-color: var(--line); z-index: 1000;">
+                        <div class="home-house" style="--house-color: var(--crimson);">
                             <div class="home-house-chimney"></div>
                             <div class="home-house-smoke"></div>
                             <div class="home-house-roof"></div>
@@ -67422,7 +67449,7 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
 
                     <!-- Hero Header -->
                     <div style="text-align: center; padding: 40px 0 24px;">
-                        <div style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #1d4ed8); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 28px; color: #fff;">
+                        <div style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, var(--crimson), var(--crimson-deep)); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 28px; color: #fff;">
                             <i class="fas fa-user-circle"></i>
                         </div>
                         <h1 style="font-size: 24px; font-weight: 700; color: var(--up-text, #1d1d1f); margin: 0 0 4px;">My Med&amp;X</h1>
@@ -76388,14 +76415,14 @@ You can use variables like {first_name} that will be personalized for each recip
                     { name: 'Biomedical Forum', status: forumEvents.length > 0 ? forumEvents.length + ' Events' : 'Member', icon: 'fa-landmark', color: '#fb923c', section: 'forum' }
                 ];
 
-                const statusColors = { 'Registered': '#22c55e', 'Applied': '#f59e0b', 'Member': '#3b82f6', 'Not Registered': '#94a3b8', 'Not Applied': '#94a3b8' };
-                // Event count uses blue
-                if (forumEvents.length > 0) statusColors[forumEvents.length + ' Events'] = '#3b82f6';
+                const statusColors = { 'Registered': '#2f6b3a', 'Applied': '#b8801f', 'Member': '#9b1b22', 'Not Registered': '#6b6258', 'Not Applied': '#6b6258' };
+                // Event count uses brand crimson
+                if (forumEvents.length > 0) statusColors[forumEvents.length + ' Events'] = '#9b1b22';
 
                 container.innerHTML = programs.map(function(p) {
                     return '<div onclick="UserPortal.showSection(\'' + p.section + '\')" style="background: var(--up-bg, #ffffff); border: 1px solid var(--up-border, #d2d2d7); border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: transform 0.15s ease;" onmouseover="this.style.transform=\'scale(1.01)\'" onmouseout="this.style.transform=\'scale(1)\'">' +
-                        '<div style="width: 40px; height: 40px; border-radius: 10px; background: ' + p.color + '22; display: flex; align-items: center; justify-content: center;">' +
-                            '<i class="fas ' + p.icon + '" style="color: ' + p.color + '; font-size: 16px;"></i>' +
+                        '<div style="width: 40px; height: 40px; border-radius: 10px; background: var(--paper-2); display: flex; align-items: center; justify-content: center;">' +
+                            '<i class="fas ' + p.icon + '" style="color: var(--crimson); font-size: 16px;"></i>' +
                         '</div>' +
                         '<div style="flex: 1;">' +
                             '<div style="font-size: 14px; font-weight: 600; color: var(--up-text, #1d1d1f);">' + p.name + '</div>' +
