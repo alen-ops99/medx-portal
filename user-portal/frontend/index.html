@@ -55290,6 +55290,38 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
 .quiz-widget,.quiz-leaderboard-preview,.milestone-banner,#milestoneBanner,#milestoneBar,.activity-feed-card,.dashboard-widget.poll-widget,.ai-chat-panel,[onclick*="CardPicker"]{display:none !important;}
 /* Points-for-money redemption removed (quiet-recognition redesign) — hide checkout redeem UI. Coupons unaffected. */
 #pxRedeemSection{display:none !important;}
+/* ===== Member bottom-tab nav (premium, mobile-first) ===== */
+#upBottomNav{position:fixed;left:0;right:0;bottom:0;z-index:1300;display:none;
+  grid-template-columns:repeat(5,1fr);align-items:stretch;
+  background:var(--surface);border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  box-shadow:0 -2px 18px rgba(20,15,12,.07);backdrop-filter:saturate(1.1);}
+#upBottomNav .up-tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  padding:9px 4px 7px;background:none;border:0;cursor:pointer;text-decoration:none;
+  color:var(--muted);font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.01em;
+  min-height:56px;transition:color .18s var(--ease);}
+#upBottomNav .up-tab i{font-size:18px;line-height:1;transition:transform .18s var(--ease);}
+#upBottomNav .up-tab span{line-height:1;white-space:nowrap;}
+#upBottomNav .up-tab.active{color:var(--crimson);}
+#upBottomNav .up-tab.active i{transform:translateY(-1px);}
+#upBottomNav .up-tab:active{opacity:.55;}
+@media (max-width:768px){
+  #upBottomNav{display:grid;}
+  #userPortal .up-section{padding-bottom:80px;}
+  /* lift floating menus above the bar so they never hide behind it */
+  #upProjectsMenu{bottom:78px !important;top:auto !important;}
+  #upFloatUserDropdown{bottom:78px !important;top:auto !important;}
+  /* PWA install banner sits ABOVE the tab bar (its inline bottom:12px is non-important) */
+  #medxInstallBanner{bottom:74px !important;}
+  /* floating QR FAB is redundant on mobile — QR lives in My Med&X + dashboard check-in */
+  #floatingQRBtn{display:none !important;}
+  /* lift the support "?" FAB above the tab bar */
+  .floating-help-btn{bottom:80px !important;}
+}
+@media (prefers-reduced-motion:reduce){
+  #upBottomNav .up-tab,#upBottomNav .up-tab i{transition:none;}
+  #upBottomNav .up-tab.active i{transform:none;}
+}
 /* === end MEDX-TOKENS-INJECTED === */
 
 </style>
@@ -56268,6 +56300,41 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
                 </div>
             </div>
         </div>
+
+        <!-- ===== Bottom Tab Bar (member, mobile-first; reuses existing UserPortal routers) ===== -->
+        <nav class="up-bottom-nav" id="upBottomNav" role="navigation" aria-label="Primary">
+            <button class="up-tab active" data-tab="home" onclick="UserPortal.showSection('dashboard'); MedXBottomNav.set('home');" aria-label="Home">
+                <i class="fas fa-home"></i><span>Home</span>
+            </button>
+            <button class="up-tab" data-tab="programs" onclick="UserPortal.toggleProjectsMenu(); MedXBottomNav.set('programs');" aria-label="Programs">
+                <i class="fas fa-th-large"></i><span>Programs</span>
+            </button>
+            <button class="up-tab" data-tab="network" onclick="UserPortal.showSection('network'); MedXBottomNav.set('network');" aria-label="Network">
+                <i class="fas fa-users"></i><span>Network</span>
+            </button>
+            <button class="up-tab" data-tab="mymedx" onclick="UserPortal.showSection('mymedx'); MedXBottomNav.set('mymedx');" aria-label="My Med&amp;X">
+                <i class="fas fa-id-badge"></i><span>My Med&amp;X</span>
+            </button>
+            <button class="up-tab" data-tab="profile" onclick="UserPortal.toggleUserMenu(event); MedXBottomNav.set('profile');" aria-label="Profile">
+                <i class="fas fa-user-circle"></i><span>Profile</span>
+            </button>
+        </nav>
+        <script>
+        (function(){
+          var MAP={dashboard:'home',network:'network',mymedx:'mymedx',rewards:'profile',settings:'profile',
+                   plexus:'programs',gala:'programs',accelerator:'programs',forum:'programs',bridges:'programs',af26:'programs',speaker:'programs'};
+          window.MedXBottomNav={
+            set:function(tab){
+              var bar=document.getElementById('upBottomNav'); if(!bar)return;
+              bar.querySelectorAll('.up-tab').forEach(function(t){t.classList.toggle('active',t.getAttribute('data-tab')===tab);});
+            },
+            syncFromSection:function(sec){ if(MAP[sec]) this.set(MAP[sec]); }
+          };
+          window.addEventListener('hashchange',function(){
+            var s=(location.hash||'').replace('#',''); if(s) window.MedXBottomNav.syncFromSection(s);
+          });
+        })();
+        </script>
 
         <!-- Floating Messages Button (hidden — contact btn is sufficient) -->
         <div class="floating-btns-stack" id="floatingBtnsStack" style="display: none !important;">
