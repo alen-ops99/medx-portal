@@ -55382,6 +55382,9 @@ button[onclick*="demoLogin"]{background:transparent !important;color:var(--muted
 #featuredCarousel,.hub-checkin-card,.news-programs-row,#dashboardBento{margin-top:28px !important;}
 .hub-programs-trio,.my-network-card-compact{margin-bottom:28px !important;}
 #userPortal .up-section,.hub-container{padding-left:18px !important;padding-right:18px !important;}
+/* Hide fabricated notification/count badges (hardcoded 2/3/5) — they read as cheap, not real.
+   Real, gated badges (#hubBellBadge / #adminMsgBadge, default display:none) are untouched. */
+.up-project-badge,.hub-grid-btn-badge,#upFloatNotifBadge,#msgBadge,#hubBadgeNotif{display:none !important;}
 /* Browser autofill must not tint inputs blue — keep paper surface + ink text */
 input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus,textarea:-webkit-autofill,select:-webkit-autofill{-webkit-box-shadow:0 0 0 1000px var(--paper-2) inset !important;-webkit-text-fill-color:var(--ink) !important;caret-color:var(--ink) !important;}
 /* === end MEDX-TOKENS-INJECTED === */
