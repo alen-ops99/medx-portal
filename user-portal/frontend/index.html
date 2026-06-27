@@ -55362,9 +55362,15 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
 }
 /* 6. Quieter, premium status pills (less SaaS-badge) */
 .status-pill,.up-status,.px-badge,.hub-badge{font-weight:600 !important;letter-spacing:.02em !important;border-radius:999px !important;}
-/* 7. Featured carousel → one brand warm-ink treatment (drop the blue/teal/rainbow slide gradients) */
-.featured-slide-bg{background:linear-gradient(135deg, var(--emph-bg) 0%, var(--emph-bg-2) 68%, #36211f 100%) !important;}
-.featured-slide-bg::before{background:radial-gradient(circle at 88% 12%, rgba(155,27,34,.30) 0%, transparent 55%) !important;}
+/* 7. Featured carousel → PHOTOGRAPHIC heroes (website signature): real event photos under a
+      dark-ink→crimson overlay so the white Fraunces headline + crimson CTA stay legible. */
+.featured-slide-bg{background-size:cover !important;background-position:center !important;}
+.featured-slide-bg::before{background:transparent !important;}
+.featured-slide-bg.plexus{background:linear-gradient(135deg, rgba(20,17,15,.86) 0%, rgba(20,17,15,.60) 55%, rgba(126,21,27,.58) 100%), url('/assets/photos/plexus_25_gala_grupna.jpg') center/cover !important;}
+.featured-slide-bg.gala{background:linear-gradient(135deg, rgba(20,17,15,.86) 0%, rgba(20,17,15,.60) 55%, rgba(126,21,27,.58) 100%), url('/assets/photos/plexus_25_gala.jpg') center/cover !important;}
+.featured-slide-bg.accelerator{background:linear-gradient(135deg, rgba(20,17,15,.86) 0%, rgba(20,17,15,.60) 55%, rgba(126,21,27,.58) 100%), url('/assets/photos/plexus_25_acc_panel.jpg') center/cover !important;}
+.featured-slide-bg.forum{background:linear-gradient(135deg, rgba(20,17,15,.88) 0%, rgba(20,17,15,.64) 55%, rgba(126,21,27,.58) 100%), url('/assets/photos/plexus_2022.jpg') center/cover !important;}
+.featured-slide-bg.bridges{background:linear-gradient(135deg, rgba(20,17,15,.86) 0%, rgba(20,17,15,.60) 55%, rgba(126,21,27,.58) 100%), url('/assets/photos/plexus_2022.jpg') center/cover !important;}
 /* 8. Quieter quick-check-in card (was a hard navy gradient) → warm-ink emphasis */
 .hub-checkin-card{background:linear-gradient(135deg, var(--emph-bg), var(--emph-bg-2)) !important;border:1px solid var(--emph-line) !important;}
 /* === end MEDX-TOKENS-INJECTED === */
@@ -57769,7 +57775,7 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
                           var paid=(r.payment_status==='paid'); var free=(!r.amount_paid||Number(r.amount_paid)===0);
                           var status=paid?'Paid':(free?'Confirmed':'Payment pending');
                           var venue=[r.venue_name,r.venue_city].filter(Boolean).join(', ');
-                          host.innerHTML='<div style="position:relative;overflow:hidden;border-radius:18px;background:linear-gradient(135deg,var(--emph-bg) 0%,var(--emph-bg-2) 100%);color:#f3efe9;padding:20px;box-shadow:var(--shadow-md);">'
+                          host.innerHTML='<div style="position:relative;overflow:hidden;border-radius:18px;background:linear-gradient(135deg, rgba(20,17,15,.90) 0%, rgba(20,17,15,.62) 60%, rgba(126,21,27,.55) 100%), url(\'/assets/photos/plexus_2022.jpg\') center/cover;color:#f3efe9;padding:20px;box-shadow:var(--shadow-md);">'
                             +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">'
                               +'<div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:rgba(243,239,233,.7);">Your next event'+(countdown?(' · '+countdown):'')+'</div>'
                               +'<span style="white-space:nowrap;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);padding:4px 9px;border-radius:999px;">'+status+'</span></div>'
