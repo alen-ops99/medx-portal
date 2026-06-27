@@ -57987,77 +57987,15 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
                                 <div class="my-network-title">
                                     <i class="fas fa-users"></i>
                                     <span>My Network</span>
-                                    <span class="my-network-count">47</span>
                                 </div>
                                 <button class="my-network-view-all" onclick="UserPortal.showSection('network')">
-                                    View All <i class="fas fa-arrow-right"></i>
+                                    Open <i class="fas fa-arrow-right"></i>
                                 </button>
                             </div>
-
-                            <!-- 3-Column Horizontal Layout -->
-                            <div class="my-network-grid">
-                                <!-- Requests Column -->
-                                <div class="my-network-col requests">
-                                    <div class="my-network-col-header">
-                                        <span class="my-network-col-badge requests">3</span>
-                                        <span>Requests</span>
-                                    </div>
-                                    <div class="my-network-person">
-                                        <div class="my-network-avatar" style="background: #64748b; color: white;">MS</div>
-                                        <div class="my-network-info">
-                                            <div class="my-network-name">Dr. Maria Santos</div>
-                                            <div class="my-network-role">Cardiology &middot; <span title="Brazil">&#x1F1E7;&#x1F1F7;</span> Brazil</div>
-                                            <div class="my-network-role" style="font-size: 10px; opacity: 0.7;">Feb 22, 2026</div>
-                                        </div>
-                                    </div>
-                                    <div class="my-network-actions">
-                                        <button class="my-network-btn accept" onclick="NetworkActions.acceptConnection('maria-santos'); RewardsPortal.showPointsEarned(10, this);">
-                                            Accept
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <!-- Reconnect Column -->
-                                <div class="my-network-col reconnect">
-                                    <div class="my-network-col-header">
-                                        <i class="fas fa-clock"></i>
-                                        <span>Reconnect</span>
-                                    </div>
-                                    <div class="my-network-person">
-                                        <div class="my-network-avatar" style="background: #475569; color: white;">SC</div>
-                                        <div class="my-network-info">
-                                            <div class="my-network-name">Dr. Sarah Chen</div>
-                                            <div class="my-network-role">Plexus 2025</div>
-                                        </div>
-                                    </div>
-                                    <div class="my-network-actions">
-                                        <button class="my-network-btn message" onclick="NetworkActions.openMessage('sarah-chen'); RewardsPortal.showPointsEarned(5, this);">
-                                            <i class="fas fa-paper-plane"></i> Message
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <!-- Suggested Column (single person) -->
-                                <div class="my-network-col suggested">
-                                    <div class="my-network-col-header">
-                                        <i class="fas fa-user-plus"></i>
-                                        <span>Suggested</span>
-                                    </div>
-                                    <div class="my-network-person">
-                                        <div class="my-network-avatar" style="background: #64748b; color: white;">AL</div>
-                                        <div class="my-network-info">
-                                            <div class="my-network-name">Dr. Ana Lopez</div>
-                                            <div class="my-network-role">Neuroscience Researcher</div>
-                                            <div class="my-network-role" style="font-size: 10px; opacity: 0.7;">Karolinska Institute</div>
-                                        </div>
-                                    </div>
-                                    <div class="my-network-actions" style="display: flex; gap: 8px; align-items: center;">
-                                        <button class="my-network-btn connect" onclick="NetworkActions.sendConnectionRequest('ana-lopez'); RewardsPortal.showPointsEarned(5, this);">
-                                            <i class="fas fa-plus"></i> Connect
-                                        </button>
-                                        <a href="#" onclick="event.preventDefault(); UserPortal.showSection('network'); setTimeout(() => { if (typeof NetworkingPortal !== 'undefined' && NetworkingPortal.showTab) NetworkingPortal.showTab('discover'); }, 300);" style="font-size: 11px; color: var(--gold); text-decoration: none; white-space: nowrap;">See All <i class="fas fa-arrow-right" style="font-size: 9px;"></i></a>
-                                    </div>
-                                </div>
+                            <!-- Honest empty/CTA state — real connections appear here as you make them (no fabricated people) -->
+                            <div style="text-align:center;padding:18px 12px 6px;">
+                                <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:14px;">Connect with the researchers and clinicians you meet at Med&amp;X events. Your requests and connections will show up here.</div>
+                                <button onclick="UserPortal.showSection('network'); setTimeout(function(){ if(typeof NetworkingPortal!=='undefined' &amp;&amp; NetworkingPortal.showTab) NetworkingPortal.showTab('discover'); },300);" style="background:var(--crimson);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-weight:600;font-size:13px;cursor:pointer;"><i class="fas fa-user-plus"></i> Find people</button>
                             </div>
                         </div>
 
