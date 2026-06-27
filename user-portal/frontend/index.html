@@ -55876,9 +55876,9 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
 
             <div class="splash-entry-content">
                 <div class="splash-entry-logo"><img src="/assets/images/medx-logo.png" alt="Med&amp;X"></div>
-                <p class="splash-entry-subtitle">Where Medicine Meets Innovation</p>
+                <p class="splash-entry-subtitle">Connecting biomedicine's next generation</p>
                 <div class="splash-entry-divider"></div>
-                <p class="splash-entry-description">Access conferences, applications, networking, and your personalized Med&amp;X experience</p>
+                <p class="splash-entry-description">Conferences, programs, and a network of researchers and clinicians — in one place.</p>
                 <div class="splash-entry-actions">
                     <button class="splash-btn-primary" onclick="UserPortal.openLoginModal()">
                         Get Started <i class="fas fa-arrow-right"></i>
@@ -55891,7 +55891,7 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
 
             <div class="splash-entry-footer">
                 <i class="fas fa-shield-alt"></i>
-                <span>Secure portal by Med&amp;X</span>
+                <span>Med&amp;X member portal</span>
             </div>
         </div>
 
@@ -67453,7 +67453,7 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
                             <i class="fas fa-user-circle"></i>
                         </div>
                         <h1 style="font-size: 24px; font-weight: 700; color: var(--up-text, #1d1d1f); margin: 0 0 4px;">My Med&amp;X</h1>
-                        <p style="font-size: 14px; color: var(--up-text-secondary, #6e6e73); margin: 0;">Your personal hub &amp; membership overview</p>
+                        <p style="font-size: 14px; color: var(--up-text-secondary, #6e6e73); margin: 0;">Your membership, programs, and registrations</p>
                     </div>
 
                     <!-- Tier Card -->
@@ -76410,12 +76410,12 @@ You can use variables like {first_name} that will be personalized for each recip
                 const forumEvents = JSON.parse(localStorage.getItem('forum_registered_events') || '[]');
 
                 const programs = [
-                    { name: 'Plexus Conference', status: plexusRegistered ? 'Registered' : 'Not Registered', icon: 'fa-atom', color: '#a78bfa', section: 'plexus' },
-                    { name: 'Accelerator Program', status: acceleratorApps.length > 0 ? 'Applied' : 'Not Applied', icon: 'fa-rocket', color: '#22d3ee', section: 'accelerator' },
+                    { name: 'Plexus Conference', status: plexusRegistered ? 'Registered' : 'Open', icon: 'fa-atom', color: '#a78bfa', section: 'plexus' },
+                    { name: 'Accelerator Program', status: acceleratorApps.length > 0 ? 'Applied' : 'Applications open', icon: 'fa-rocket', color: '#22d3ee', section: 'accelerator' },
                     { name: 'Biomedical Forum', status: forumEvents.length > 0 ? forumEvents.length + ' Events' : 'Member', icon: 'fa-landmark', color: '#fb923c', section: 'forum' }
                 ];
 
-                const statusColors = { 'Registered': '#2f6b3a', 'Applied': '#b8801f', 'Member': '#9b1b22', 'Not Registered': '#6b6258', 'Not Applied': '#6b6258' };
+                const statusColors = { 'Registered': '#2f6b3a', 'Applied': '#b8801f', 'Member': '#9b1b22', 'Open': '#6b6258', 'Applications open': '#6b6258' };
                 // Event count uses brand crimson
                 if (forumEvents.length > 0) statusColors[forumEvents.length + ' Events'] = '#9b1b22';
 
@@ -123279,7 +123279,7 @@ By applying to this program, I give the following consents:
                 b.id = 'medxInstallBanner';
                 b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;max-width:520px;margin:0 auto;background:#0f172a;color:#fff;border:1px solid rgba(201,169,98,0.4);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 30px rgba(0,0,0,0.4);font-family:system-ui,-apple-system,sans-serif;';
                 b.innerHTML = '<div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--gold),#b49650);display:flex;align-items:center;justify-content:center;flex-shrink:0;color: var(--ink);font-size:18px;">🎟️</div>'
-                    + '<div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:14px;">Install the Plexus app</div><div style="font-size:12px;color: var(--muted);">Your ticket & schedule, one tap from your home screen.</div></div>'
+                    + '<div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:14px;">Add Med&X to your home screen</div><div style="font-size:12px;color: var(--muted);">Your tickets and schedule, always within reach.</div></div>'
                     + '<button id="medxInstallGo" style="background:linear-gradient(135deg,var(--gold),#b49650);color: var(--ink);border:none;border-radius:9px;padding:9px 14px;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0;">Install</button>'
                     + '<button id="medxInstallX" aria-label="Dismiss" style="background:transparent;border:none;color: var(--muted);font-size:18px;cursor:pointer;flex-shrink:0;padding:4px 6px;">×</button>';
                 document.body.appendChild(b);
