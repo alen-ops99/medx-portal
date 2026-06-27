@@ -441,7 +441,14 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
 }
 
 app.use(cors({
-    origin: [process.env.RENDER_EXTERNAL_URL, 'http://localhost:3000', 'http://localhost:3001'].filter(Boolean)
+    // Marketing website (login + notifications bridge) reads the portal API over CORS.
+    // Explicit allowlist (never wildcard) — this server also handles Stripe/registration.
+    origin: [
+        process.env.RENDER_EXTERNAL_URL,
+        'https://medx.hr', 'https://www.medx.hr',
+        'https://medx-website-preview.netlify.app',
+        'http://localhost:3000', 'http://localhost:3001'
+    ].filter(Boolean)
 }));
 
 // Security headers via helmet — keep CSP permissive enough to allow Stripe + CDN scripts
