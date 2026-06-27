@@ -18,6 +18,11 @@
       }
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&display=swap" rel="stylesheet">
+    <style id="medx-admin-brand">
+      /* Brand match with the website + user portal: Fraunces display on headings (presentation-only) */
+      h1,h2,h3,.welcome-title,.section-title,.card-title,.modal-title{font-family:'Fraunces',Georgia,serif !important;letter-spacing:-.01em;}
+    </style>
     <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
@@ -36,25 +41,25 @@
             --success: #22c55e;
             --warning: #f59e0b;
             --danger: #ef4444;
-            --plexus: #a78bfa;
-            --accelerator: #22d3ee;
+            --plexus: #c2484e;
+            --accelerator: #b06a1f;
             --forum: #fb923c;
-            --bridges: #f472b6;
+            --bridges: #c9a962;
             --finances: #10b981;
-            --pr-media: #ec4899;
+            --pr-media: #9b1b22;
 
             /* Aliases used in inline styles throughout the app */
             --border-color: #334155;
             --input-bg: #1e293b;
             --card-bg: #1e293b;
-            --accent-primary: #22d3ee;
+            --accent-primary: #b06a1f;
             --accent-color: #c9a962;
             --success-color: #22c55e;
             --danger-color: #ef4444;
             --success-rgb: 34, 197, 94;
             --danger-rgb: 239, 68, 68;
             --pr-media-rgb: 236, 72, 153;
-            --plexus-rgb: 167, 139, 250;
+            --plexus-rgb: 194, 72, 78;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1377,10 +1382,10 @@
             margin-bottom: 8px;
         }
 
-        .pinned-item .pin-source.plexus { background: rgba(167, 139, 250, 0.2); color: #a78bfa; }
-        .pinned-item .pin-source.accelerator { background: rgba(34, 211, 238, 0.2); color: #22d3ee; }
+        .pinned-item .pin-source.plexus { background: rgba(194, 72, 78, 0.2); color: #c2484e; }
+        .pinned-item .pin-source.accelerator { background: rgba(176, 106, 31, 0.2); color: #b06a1f; }
         .pinned-item .pin-source.forum { background: rgba(251, 146, 60, 0.2); color: #fb923c; }
-        .pinned-item .pin-source.bridges { background: rgba(244, 114, 182, 0.2); color: #f472b6; }
+        .pinned-item .pin-source.bridges { background: rgba(244, 114, 182, 0.2); color: #c9a962; }
 
         .pinned-item .pin-title {
             font-size: 14px;
@@ -1497,12 +1502,12 @@
         }
 
         .project-icon.plexus {
-            background: rgba(167, 139, 250, 0.15);
+            background: rgba(194, 72, 78, 0.15);
             color: var(--plexus);
         }
 
         .project-icon.accelerator {
-            background: rgba(34, 211, 238, 0.15);
+            background: rgba(176, 106, 31, 0.15);
             color: var(--accelerator);
         }
 
@@ -3268,7 +3273,7 @@
         .forum-event-badge.status-planning { background: rgba(148, 163, 184, 0.2); color: #94a3b8; }
         .forum-event-badge.status-upcoming { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
         .forum-event-badge.status-open { background: rgba(34, 197, 94, 0.15); color: var(--success); }
-        .forum-event-badge.status-ongoing { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+        .forum-event-badge.status-ongoing { background: rgba(155, 27, 34, 0.15); color: #9b1b22; }
         .forum-event-badge.status-completed { background: rgba(107, 114, 128, 0.2); color: #6b7280; }
         .forum-event-badge.status-published { background: rgba(34, 197, 94, 0.15); color: var(--success); }
         .forum-event-badge.published { background: rgba(34, 197, 94, 0.15); color: var(--success); }
@@ -3953,19 +3958,19 @@
         }
         /* Status: today */
         .akd-item.today {
-            background: rgba(34, 211, 238, 0.08);
-            border: 1px solid rgba(34, 211, 238, 0.2);
+            background: rgba(176, 106, 31, 0.08);
+            border: 1px solid rgba(176, 106, 31, 0.2);
         }
         .akd-item.today .akd-marker {
             animation: akdPulse 2s infinite;
         }
         /* Status: next upcoming */
         .akd-item.next .akd-marker {
-            box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.25);
+            box-shadow: 0 0 0 4px rgba(176, 106, 31, 0.25);
         }
         @keyframes akdPulse {
-            0%, 100% { box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.3); }
-            50% { box-shadow: 0 0 0 8px rgba(34, 211, 238, 0.1); }
+            0%, 100% { box-shadow: 0 0 0 4px rgba(176, 106, 31, 0.3); }
+            50% { box-shadow: 0 0 0 8px rgba(176, 106, 31, 0.1); }
         }
         /* Marker shapes */
         .akd-marker {
@@ -3987,10 +3992,10 @@
         /* Category color overrides */
         .akd-item.cat-deadline .akd-marker { background: #ef4444; }
         .akd-item.cat-milestone .akd-marker { background: #c9a962; }
-        .akd-item.cat-event .akd-marker { background: #22d3ee; }
+        .akd-item.cat-event .akd-marker { background: #b06a1f; }
         .akd-item.cat-deadline { border-left: 3px solid #ef4444; }
         .akd-item.cat-milestone { border-left: 3px solid #c9a962; }
-        .akd-item.cat-event { border-left: 3px solid #22d3ee; }
+        .akd-item.cat-event { border-left: 3px solid #b06a1f; }
         /* Content */
         .akd-content {
             flex: 1;
@@ -4027,11 +4032,11 @@
             border-radius: 10px;
             text-transform: uppercase;
         }
-        .akd-badge.today-badge { background: rgba(34, 211, 238, 0.2); color: #22d3ee; }
+        .akd-badge.today-badge { background: rgba(176, 106, 31, 0.2); color: #b06a1f; }
         .akd-badge.next-badge { background: rgba(201, 169, 98, 0.2); color: #c9a962; }
         .akd-badge.cat-badge-deadline { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
         .akd-badge.cat-badge-milestone { background: rgba(201, 169, 98, 0.15); color: #c9a962; }
-        .akd-badge.cat-badge-event { background: rgba(34, 211, 238, 0.15); color: #22d3ee; }
+        .akd-badge.cat-badge-event { background: rgba(176, 106, 31, 0.15); color: #b06a1f; }
         /* Inline editing */
         .akd-inline-input {
             background: var(--bg-secondary);
@@ -4045,7 +4050,7 @@
             width: 100%;
         }
         .akd-inline-input:focus {
-            box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.3);
+            box-shadow: 0 0 0 2px rgba(176, 106, 31, 0.3);
         }
         .akd-actions {
             display: flex;
@@ -4349,14 +4354,14 @@
             justify-content: space-between;
             align-items: center;
             padding: 10px 16px;
-            background: rgba(167, 139, 250, 0.1);
+            background: rgba(194, 72, 78, 0.1);
             border-bottom: 1px solid var(--border);
             cursor: pointer;
             user-select: none;
             transition: background 0.15s;
         }
         .px-group-header:hover {
-            background: rgba(167, 139, 250, 0.18);
+            background: rgba(194, 72, 78, 0.18);
         }
         .px-group-header-title {
             font-weight: 600;
@@ -4517,7 +4522,7 @@
             transition: background 0.1s;
         }
         .schedule-grid-cell:hover {
-            background: rgba(167, 139, 250, 0.04);
+            background: rgba(194, 72, 78, 0.04);
         }
         .schedule-grid-cell.hour-mark {
             border-bottom: 1px solid rgba(255,255,255,0.08);
@@ -4580,10 +4585,10 @@
             border-radius: 3px;
             background: rgba(0,0,0,0.2);
         }
-        .schedule-session-block.type-keynote { background: rgba(167, 139, 250, 0.55); border-left-color: #a78bfa; color: #ede9fe; }
-        .schedule-session-block.type-panel { background: rgba(34, 211, 238, 0.50); border-left-color: #22d3ee; color: #ecfeff; }
+        .schedule-session-block.type-keynote { background: rgba(194, 72, 78, 0.55); border-left-color: #c2484e; color: #ede9fe; }
+        .schedule-session-block.type-panel { background: rgba(176, 106, 31, 0.50); border-left-color: #b06a1f; color: #ecfeff; }
         .schedule-session-block.type-workshop { background: rgba(251, 146, 60, 0.50); border-left-color: #fb923c; color: #fff7ed; }
-        .schedule-session-block.type-poster_session { background: rgba(244, 114, 182, 0.50); border-left-color: #f472b6; color: #fdf2f8; }
+        .schedule-session-block.type-poster_session { background: rgba(244, 114, 182, 0.50); border-left-color: #c9a962; color: #fdf2f8; }
         .schedule-session-block.type-break { background: rgba(255,255,255,0.08); border-left-color: rgba(255,255,255,0.4); color: var(--text-secondary); border-style: dashed; border-left-style: dashed; }
         .schedule-session-block.type-networking { background: rgba(16, 185, 129, 0.50); border-left-color: #10b981; color: #ecfdf5; }
         .schedule-session-block.type-talk { background: rgba(201, 169, 98, 0.50); border-left-color: #c9a962; color: #fef9ec; }
@@ -4921,7 +4926,7 @@
         .sp-tier-badge.gold { background: rgba(201,169,98,0.15); color: #c9a962; }
         .sp-tier-badge.silver { background: rgba(148,163,184,0.15); color: #94a3b8; }
         .sp-tier-badge.bronze { background: rgba(180,83,9,0.15); color: #b45309; }
-        .sp-tier-badge.partner { background: rgba(167,139,250,0.15); color: #a78bfa; }
+        .sp-tier-badge.partner { background: rgba(194, 72, 78,0.15); color: #c2484e; }
         .sp-status-pill {
             font-size: 10px;
             font-weight: 600;
@@ -4932,7 +4937,7 @@
         .sp-status-pill.contacted { background: rgba(59,130,246,0.15); color: #60a5fa; }
         .sp-status-pill.negotiating { background: rgba(234,179,8,0.15); color: #facc15; }
         .sp-status-pill.confirmed { background: rgba(34,197,94,0.15); color: #4ade80; }
-        .sp-status-pill.fulfilled { background: rgba(167,139,250,0.15); color: #a78bfa; }
+        .sp-status-pill.fulfilled { background: rgba(194, 72, 78,0.15); color: #c2484e; }
 
         .sponsor-pipeline-card .sp-contact {
             font-size: 12px;
@@ -5135,7 +5140,7 @@
         .checkin-input:focus {
             outline: none;
             border-color: var(--plexus);
-            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+            box-shadow: 0 0 0 3px rgba(194, 72, 78, 0.1);
         }
 
         .checkin-result {
@@ -5468,7 +5473,7 @@
         /* Med&X Assistant floating button (admins) — sits above the QR FAB */
         .assist-fab {
             position: fixed; bottom: 160px; right: 28px; width: 56px; height: 56px; border-radius: 50%;
-            background: linear-gradient(135deg, #7c3aed, #a855f7); color: #fff; border: none; font-size: 22px;
+            background: linear-gradient(135deg, #9b1b22, #9b1b22); color: #fff; border: none; font-size: 22px;
             cursor: pointer; box-shadow: 0 4px 14px rgba(124,58,237,0.45); z-index: 900; display: none;
             align-items: center; justify-content: center; transition: transform 0.2s, box-shadow 0.2s;
         }
@@ -5782,10 +5787,10 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        .event-badge.plexus { background: rgba(167,139,250,0.2); color: #a78bfa; }
+        .event-badge.plexus { background: rgba(194, 72, 78,0.2); color: #c2484e; }
         .event-badge.gala { background: rgba(201,169,98,0.2); color: #c9a962; }
         .event-badge.forum { background: rgba(251,146,60,0.2); color: #fb923c; }
-        .event-badge.bridges { background: rgba(244,114,182,0.2); color: #f472b6; }
+        .event-badge.bridges { background: rgba(244,114,182,0.2); color: #c9a962; }
 
         /* Live pulse dot */
         .live-dot {
@@ -6646,7 +6651,7 @@
                 </a>
 
                 <a class="nav-item" data-section="email-blast" onclick="App.showSection('email-blast', this)">
-                    <i class="fas fa-envelope-open-text" style="color: #f472b6;"></i>
+                    <i class="fas fa-envelope-open-text" style="color: #c9a962;"></i>
                     <span>Email Registrants</span>
                 </a>
 
@@ -6669,7 +6674,7 @@
                 </a>
 
                 <a class="nav-item" data-section="user-notifications" onclick="App.showSection('user-notifications', this)">
-                    <i class="fas fa-paper-plane" style="color: #22d3ee;"></i>
+                    <i class="fas fa-paper-plane" style="color: #b06a1f;"></i>
                     <span>Notifications</span>
                     <span id="userNotifCount" style="background: #ef4444; color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
                 </a>
@@ -6685,7 +6690,7 @@
                 </a>
 
                 <a class="nav-item" data-section="messages" onclick="App.showSection('messages', this)">
-                    <i class="fas fa-envelope" style="color: #a78bfa;"></i>
+                    <i class="fas fa-envelope" style="color: #c2484e;"></i>
                     <span>Messages</span>
                 </a>
 
@@ -6720,7 +6725,7 @@
                 </a>
 
                 <a class="nav-item" data-section="tech" onclick="App.showSection('tech', this)">
-                    <i class="fas fa-server" style="color: #8b5cf6;"></i>
+                    <i class="fas fa-server" style="color: #9b1b22;"></i>
                     <span>Tech</span>
                 </a>
             </nav>
@@ -6812,14 +6817,14 @@
                                 </div>
                             </div>
                             <!-- VIP -->
-                            <div class="card" style="padding: 18px; border-left: 4px solid #a855f7; cursor: pointer;" onclick="App.showSection('gala')">
+                            <div class="card" style="padding: 18px; border-left: 4px solid #9b1b22; cursor: pointer;" onclick="App.showSection('gala')">
                                 <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                                     <div>
                                         <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;">Gala &mdash; VIP</div>
                                         <div id="overviewGalaVip" style="font-size: 32px; font-weight: 700; color: var(--text-primary); margin-top: 4px; line-height: 1;">—</div>
                                         <div id="overviewGalaVipNote" style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">complimentary guests</div>
                                     </div>
-                                    <i class="fas fa-star" style="color: #a855f7; font-size: 22px;"></i>
+                                    <i class="fas fa-star" style="color: #9b1b22; font-size: 22px;"></i>
                                 </div>
                             </div>
                             <!-- Croatians Abroad -->
@@ -6853,7 +6858,7 @@
                                 <i class="fas fa-credit-card" style="color:#C9A962;"></i> New Paid Gala Link
                             </button>
                             <button class="btn btn-secondary" onclick="App.generateRegistrationLink('gala')" style="padding: 7px 14px; font-size: 12px;">
-                                <i class="fas fa-star" style="color:#a855f7;"></i> New VIP Link
+                                <i class="fas fa-star" style="color:#9b1b22;"></i> New VIP Link
                             </button>
                             <button class="btn btn-secondary" onclick="App.showSection('croatians-abroad');" style="padding: 7px 14px; font-size: 12px;">
                                 <i class="fas fa-globe-europe" style="color:#ef4444;"></i> New Diaspora Link
@@ -7045,7 +7050,7 @@
                             <h1>Plexus Conference 2026</h1>
                             <p>December 4-5, 2026 in Zagreb</p>
                         </div>
-                        <button class="btn btn-primary" onclick="App.generateRegistrationLink('plexus')" style="white-space:nowrap; background:linear-gradient(135deg,#6366f1,#4f46e5); border:none;">
+                        <button class="btn btn-primary" onclick="App.generateRegistrationLink('plexus')" style="white-space:nowrap; background:linear-gradient(135deg,#9b1b22,#7e151b); border:none;">
                             <i class="fas fa-link"></i> Direct Link
                         </button>
                     </div>
@@ -7607,14 +7612,14 @@ President, Med&amp;X</textarea>
                     <div class="plexus-content" id="plexus-settings">
                         <!-- Prominent Save & Publish button at top -->
                         <div style="margin-bottom: 20px; display: flex; justify-content: flex-end;">
-                            <button class="btn btn-primary" onclick="PlexusSettingsAdmin.saveAndPublish()" style="padding: 14px 36px; font-size: 15px; font-weight: 600; background: linear-gradient(135deg, #a78bfa, #7c3aed); border: none; box-shadow: 0 4px 14px rgba(167, 139, 250, 0.4);">
+                            <button class="btn btn-primary" onclick="PlexusSettingsAdmin.saveAndPublish()" style="padding: 14px 36px; font-size: 15px; font-weight: 600; background: linear-gradient(135deg, #c2484e, #9b1b22); border: none; box-shadow: 0 4px 14px rgba(194, 72, 78, 0.4);">
                                 <i class="fas fa-rocket" style="margin-right: 8px;"></i> Save & Publish to Users
                             </button>
                         </div>
                         <!-- Conference Identity (NEW): purple left border. Syncs to conferences table → user portal -->
-                        <div class="card" style="border-left: 3px solid rgba(167, 139, 250, 0.5);">
+                        <div class="card" style="border-left: 3px solid rgba(194, 72, 78, 0.5);">
                             <div class="card-header">
-                                <h3 class="card-title"><i class="fas fa-info-circle" style="margin-right: 8px; color: #a78bfa;"></i>Conference Identity</h3>
+                                <h3 class="card-title"><i class="fas fa-info-circle" style="margin-right: 8px; color: #c2484e;"></i>Conference Identity</h3>
                                 <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Edits propagate live to /api/conferences/plexus-2026 and the Croatians Abroad invite page.</p>
                             </div>
                             <div class="card-body">
@@ -7834,7 +7839,7 @@ President, Med&amp;X</textarea>
                             </div>
                             <div class="card-body">
                                 <div class="akd-legend">
-                                    <div class="akd-legend-item"><div class="akd-legend-dot" style="background: #22d3ee;"></div> Event</div>
+                                    <div class="akd-legend-item"><div class="akd-legend-dot" style="background: #b06a1f;"></div> Event</div>
                                     <div class="akd-legend-item"><div class="akd-legend-dot" style="background: #ef4444;"></div> Deadline</div>
                                     <div class="akd-legend-item"><div class="akd-legend-dot diamond" style="background: #c9a962;"></div> Milestone</div>
                                 </div>
@@ -8510,7 +8515,7 @@ President, Med&amp;X</textarea>
                             <h1>Biomedical Forum</h1>
                             <p id="forumSubtitle">Senior leaders network</p>
                         </div>
-                        <button class="btn btn-primary" onclick="App.generateRegistrationLink('forum','9799cb97-e3a7-493a-ac23-ee2910e8457b','Annual Biomedical Forum 2026')" style="white-space:nowrap; background:linear-gradient(135deg,#6366f1,#4f46e5); border:none;">
+                        <button class="btn btn-primary" onclick="App.generateRegistrationLink('forum','9799cb97-e3a7-493a-ac23-ee2910e8457b','Annual Biomedical Forum 2026')" style="white-space:nowrap; background:linear-gradient(135deg,#9b1b22,#7e151b); border:none;">
                             <i class="fas fa-link"></i> Direct Link
                         </button>
                     </div>
@@ -9534,10 +9539,10 @@ President, Med&amp;X</textarea>
                         <!-- Source Filter Buttons -->
                         <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
                             <button onclick="FinanceApp.filterConfPaySource('all')" id="confPaySrcAll" class="confPaySrcBtn" style="padding: 8px 18px; border-radius: 20px; border: 2px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); font-size: 13px; font-weight: 600; cursor: pointer;">All Sources</button>
-                            <button onclick="FinanceApp.filterConfPaySource('plexus')" id="confPaySrcPlexus" class="confPaySrcBtn" style="padding: 8px 18px; border-radius: 20px; border: 2px solid transparent; background: rgba(99,102,241,0.12); color: #6366f1; font-size: 13px; font-weight: 600; cursor: pointer;">Plexus</button>
+                            <button onclick="FinanceApp.filterConfPaySource('plexus')" id="confPaySrcPlexus" class="confPaySrcBtn" style="padding: 8px 18px; border-radius: 20px; border: 2px solid transparent; background: rgba(155, 27, 34,0.12); color: #9b1b22; font-size: 13px; font-weight: 600; cursor: pointer;">Plexus</button>
                             <button onclick="FinanceApp.filterConfPaySource('gala')" id="confPaySrcGala" class="confPaySrcBtn" style="padding: 8px 18px; border-radius: 20px; border: 2px solid transparent; background: rgba(201,169,98,0.12); color: #C9A962; font-size: 13px; font-weight: 600; cursor: pointer;">Gala</button>
                             <button onclick="FinanceApp.filterConfPaySource('accelerator')" id="confPaySrcAccelerator" class="confPaySrcBtn" style="padding: 8px 18px; border-radius: 20px; border: 2px solid transparent; background: rgba(59,130,246,0.12); color: #3b82f6; font-size: 13px; font-weight: 600; cursor: pointer;">Accelerator</button>
-                            <button onclick="FinanceApp.filterConfPaySource('forum')" id="confPaySrcForum" class="confPaySrcBtn" style="padding: 8px 18px; border-radius: 20px; border: 2px solid transparent; background: rgba(20,184,166,0.12); color: #14b8a6; font-size: 13px; font-weight: 600; cursor: pointer;">Forum</button>
+                            <button onclick="FinanceApp.filterConfPaySource('forum')" id="confPaySrcForum" class="confPaySrcBtn" style="padding: 8px 18px; border-radius: 20px; border: 2px solid transparent; background: rgba(20,184,166,0.12); color: #b06a1f; font-size: 13px; font-weight: 600; cursor: pointer;">Forum</button>
                         </div>
 
                         <!-- Filters -->
@@ -10148,7 +10153,7 @@ President, Med&amp;X</textarea>
                     <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                         <div>
                             <h1 style="font-size: 28px; font-weight: 700; margin-bottom: 4px;">
-                                <i class="fas fa-paper-plane" style="color: #22d3ee; margin-right: 12px;"></i>
+                                <i class="fas fa-paper-plane" style="color: #b06a1f; margin-right: 12px;"></i>
                                 User Notifications
                             </h1>
                             <p style="color: var(--text-muted);">Send announcements and notifications to user portal members</p>
@@ -10161,7 +10166,7 @@ President, Med&amp;X</textarea>
                     <!-- Send Notification Form -->
                     <div id="notifSendForm" style="display: none; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px;">
                         <h3 style="margin-bottom: 16px; font-size: 16px;">
-                            <i class="fas fa-bullhorn" style="margin-right: 8px; color: #22d3ee;"></i>
+                            <i class="fas fa-bullhorn" style="margin-right: 8px; color: #b06a1f;"></i>
                             Compose Notification
                         </h3>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
@@ -10481,7 +10486,7 @@ President, Med&amp;X</textarea>
                             <div style="font-size: 12px; color: var(--text-muted);">Drafts</div>
                         </div>
                         <div class="card" style="padding: 16px; text-align: center;">
-                            <div style="font-size: 24px; font-weight: 700; color: #8b5cf6;" id="pcStatSections">0</div>
+                            <div style="font-size: 24px; font-weight: 700; color: #9b1b22;" id="pcStatSections">0</div>
                             <div style="font-size: 12px; color: var(--text-muted);">Sections</div>
                         </div>
                     </div>
@@ -10506,7 +10511,7 @@ President, Med&amp;X</textarea>
                     <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                         <div>
                             <h1 style="font-size: 28px; font-weight: 700; margin-bottom: 4px;">
-                                <i class="fas fa-envelope" style="color: #a78bfa; margin-right: 12px;"></i>
+                                <i class="fas fa-envelope" style="color: #c2484e; margin-right: 12px;"></i>
                                 Messages
                             </h1>
                             <p style="color: var(--text-muted);">Direct messaging with users</p>
@@ -10544,7 +10549,7 @@ President, Med&amp;X</textarea>
                             </h1>
                             <p style="color: var(--text-muted);">Manage invitations, settings, and registrations</p>
                         </div>
-                        <button class="btn btn-primary" onclick="App.generateRegistrationLink('gala')" style="white-space:nowrap; background:linear-gradient(135deg,#6366f1,#4f46e5); border:none;">
+                        <button class="btn btn-primary" onclick="App.generateRegistrationLink('gala')" style="white-space:nowrap; background:linear-gradient(135deg,#9b1b22,#7e151b); border:none;">
                             <i class="fas fa-link"></i> Direct Link
                         </button>
                     </div>
@@ -10770,10 +10775,10 @@ President, Med&amp;X</textarea>
                             </div>
 
                             <!-- VIP CARD (Free, special guests) -->
-                            <div class="card" style="border: 1px solid rgba(168,85,247,0.35); background: linear-gradient(180deg, rgba(168,85,247,0.04), transparent);">
-                                <div class="card-header" style="border-bottom: 1px solid rgba(168,85,247,0.2);">
+                            <div class="card" style="border: 1px solid rgba(155, 27, 34,0.35); background: linear-gradient(180deg, rgba(155, 27, 34,0.04), transparent);">
+                                <div class="card-header" style="border-bottom: 1px solid rgba(155, 27, 34,0.2);">
                                     <h3 class="card-title" style="display:flex;align-items:center;gap:10px;">
-                                        <span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:rgba(168,85,247,0.18);color:#a855f7;"><i class="fas fa-star"></i></span>
+                                        <span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:rgba(155, 27, 34,0.18);color:#9b1b22;"><i class="fas fa-star"></i></span>
                                         VIP Link &mdash; Free
                                     </h3>
                                     <p style="color: var(--text-muted); font-size: 12px; margin-top: 6px;">Special guests. Free instant registration, skips Stripe, QR ticket emailed immediately.</p>
@@ -10798,10 +10803,10 @@ President, Med&amp;X</textarea>
                                         <textarea id="galaVipNotes" class="form-input" rows="2" placeholder="Internal notes"></textarea>
                                     </div>
                                     <div style="height: 67px;"></div>
-                                    <button class="btn btn-primary" onclick="GalaAdmin.createInviteLink('vip')" style="width:100%;padding: 13px;margin-top:8px;background:linear-gradient(135deg,#a855f7,#8b5cf6);">
+                                    <button class="btn btn-primary" onclick="GalaAdmin.createInviteLink('vip')" style="width:100%;padding: 13px;margin-top:8px;background:linear-gradient(135deg,#9b1b22,#9b1b22);">
                                         <i class="fas fa-star"></i> Generate VIP Invite Link
                                     </button>
-                                    <div id="galaVipLinkResult" style="display: none; margin-top: 14px; padding: 12px 14px; background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: 8px;"></div>
+                                    <div id="galaVipLinkResult" style="display: none; margin-top: 14px; padding: 12px 14px; background: rgba(155, 27, 34, 0.08); border: 1px solid rgba(155, 27, 34, 0.25); border-radius: 8px;"></div>
                                 </div>
                             </div>
                         </div>
@@ -10841,8 +10846,8 @@ President, Med&amp;X</textarea>
                     <!-- Stats -->
                     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
                         <div class="card" style="padding:18px;"><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Total Registrations</div><div id="caStatTotal" style="font-size:28px;font-weight:700;color:var(--text-primary);margin-top:4px;">0</div></div>
-                        <div class="card" style="padding:18px;"><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Conference</div><div id="caStatConf" style="font-size:28px;font-weight:700;color:#a78bfa;margin-top:4px;">0</div></div>
-                        <div class="card" style="padding:18px;"><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Bridges</div><div id="caStatBridges" style="font-size:28px;font-weight:700;color:#f472b6;margin-top:4px;">0</div></div>
+                        <div class="card" style="padding:18px;"><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Conference</div><div id="caStatConf" style="font-size:28px;font-weight:700;color:#c2484e;margin-top:4px;">0</div></div>
+                        <div class="card" style="padding:18px;"><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Bridges</div><div id="caStatBridges" style="font-size:28px;font-weight:700;color:#c9a962;margin-top:4px;">0</div></div>
                         <div class="card" style="padding:18px;"><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Gala (Paid)</div><div id="caStatGala" style="font-size:28px;font-weight:700;color:#C9A962;margin-top:4px;">0</div></div>
                     </div>
 
@@ -10944,7 +10949,7 @@ President, Med&amp;X</textarea>
                 <!-- EMAIL REGISTRANTS (BULK) -->
                 <div class="section" id="section-email-blast">
                     <div class="back-link" onclick="App.showSection('dashboard')"><i class="fas fa-arrow-left"></i> Back to Dashboard</div>
-                    <h2 style="margin:0 0 6px;font-size:22px;display:flex;align-items:center;gap:10px;"><i class="fas fa-envelope-open-text" style="color:#f472b6;"></i> Email Registrants</h2>
+                    <h2 style="margin:0 0 6px;font-size:22px;display:flex;align-items:center;gap:10px;"><i class="fas fa-envelope-open-text" style="color:#c9a962;"></i> Email Registrants</h2>
                     <p style="margin:0 0 18px;color:var(--text-muted);font-size:13px;">Send an announcement to everyone registered for an event (e.g. final details the week before). Test rows are excluded automatically.</p>
                     <div class="card" style="padding:18px;max-width:640px;">
                         <div style="margin-bottom:12px;">
@@ -11049,7 +11054,7 @@ President, Med&amp;X</textarea>
                     <!-- Password Gate Modal -->
                     <div id="techPasswordGate" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; align-items: center; justify-content: center;">
                         <div style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 16px; padding: 40px; width: 380px; text-align: center;">
-                            <i class="fas fa-lock" style="font-size: 36px; color: #8b5cf6; margin-bottom: 16px;"></i>
+                            <i class="fas fa-lock" style="font-size: 36px; color: #9b1b22; margin-bottom: 16px;"></i>
                             <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 8px; color: var(--text-primary);">Tech Dashboard</h2>
                             <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 24px;">Enter the tech password to continue</p>
                             <input type="password" id="techPasswordInput" class="form-input" placeholder="Password" style="text-align: center; font-size: 16px; margin-bottom: 16px;" onkeydown="if(event.key==='Enter') TechApp.verifyPassword()">
@@ -11065,7 +11070,7 @@ President, Med&amp;X</textarea>
                         <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
                             <div>
                                 <h1 style="font-size: 28px; font-weight: 700; margin-bottom: 4px;">
-                                    <i class="fas fa-server" style="color: #8b5cf6; margin-right: 12px;"></i>
+                                    <i class="fas fa-server" style="color: #9b1b22; margin-right: 12px;"></i>
                                     Tech Dashboard
                                 </h1>
                                 <p style="color: var(--text-muted);">System overview, database browser, and quick actions</p>
@@ -11447,10 +11452,10 @@ President, Med&amp;X</textarea>
                 <div class="form-group">
                     <label class="form-label">Color (optional)</label>
                     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                        <button type="button" class="color-btn" data-color="#a78bfa" onclick="App.selectTimelineColor('#a78bfa')" style="width: 32px; height: 32px; border-radius: 6px; border: 2px solid transparent; background: #a78bfa; cursor: pointer;"></button>
-                        <button type="button" class="color-btn" data-color="#22d3ee" onclick="App.selectTimelineColor('#22d3ee')" style="width: 32px; height: 32px; border-radius: 6px; border: 2px solid transparent; background: #22d3ee; cursor: pointer;"></button>
+                        <button type="button" class="color-btn" data-color="#c2484e" onclick="App.selectTimelineColor('#c2484e')" style="width: 32px; height: 32px; border-radius: 6px; border: 2px solid transparent; background: #c2484e; cursor: pointer;"></button>
+                        <button type="button" class="color-btn" data-color="#b06a1f" onclick="App.selectTimelineColor('#b06a1f')" style="width: 32px; height: 32px; border-radius: 6px; border: 2px solid transparent; background: #b06a1f; cursor: pointer;"></button>
                         <button type="button" class="color-btn" data-color="#fb923c" onclick="App.selectTimelineColor('#fb923c')" style="width: 32px; height: 32px; border-radius: 6px; border: 2px solid transparent; background: #fb923c; cursor: pointer;"></button>
-                        <button type="button" class="color-btn" data-color="#f472b6" onclick="App.selectTimelineColor('#f472b6')" style="width: 32px; height: 32px; border-radius: 6px; border: 2px solid transparent; background: #f472b6; cursor: pointer;"></button>
+                        <button type="button" class="color-btn" data-color="#c9a962" onclick="App.selectTimelineColor('#c9a962')" style="width: 32px; height: 32px; border-radius: 6px; border: 2px solid transparent; background: #c9a962; cursor: pointer;"></button>
                         <button type="button" class="color-btn" data-color="#22c55e" onclick="App.selectTimelineColor('#22c55e')" style="width: 32px; height: 32px; border-radius: 6px; border: 2px solid transparent; background: #22c55e; cursor: pointer;"></button>
                         <button type="button" class="color-btn" data-color="#ef4444" onclick="App.selectTimelineColor('#ef4444')" style="width: 32px; height: 32px; border-radius: 6px; border: 2px solid transparent; background: #ef4444; cursor: pointer;"></button>
                         <button type="button" class="color-btn" data-color="#c9a962" onclick="App.selectTimelineColor('#c9a962')" style="width: 32px; height: 32px; border-radius: 6px; border: 2px solid transparent; background: #c9a962; cursor: pointer;"></button>
@@ -12836,13 +12841,13 @@ President, Med&amp;X</textarea>
                             <div style="background:var(--bg-secondary,#1e293b); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-bottom:10px;">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
                                     <div style="display:flex; align-items:center; gap:10px;">
-                                        <i class="fas ${isCheckedIn ? 'fa-check-circle' : 'fa-circle'}" style="color:${isCheckedIn ? '#22c55e' : '#f472b6'}; font-size:20px;"></i>
+                                        <i class="fas ${isCheckedIn ? 'fa-check-circle' : 'fa-circle'}" style="color:${isCheckedIn ? '#22c55e' : '#c9a962'}; font-size:20px;"></i>
                                         <div>
                                             <div style="font-weight:600; color:var(--text-primary,#e2e8f0);">${escapeHtml(r.event_name || 'Building Bridges')}</div>
                                             <div style="font-size:12px; color:var(--text-muted,#94a3b8);">${escapeHtml(r.city || '')} \u00b7 Building Bridges</div>
                                         </div>
                                     </div>
-                                    <span style="display:inline-block; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:600; background:${isCheckedIn ? 'rgba(34,197,94,0.15)' : 'rgba(244,114,182,0.15)'}; color:${isCheckedIn ? '#22c55e' : '#f472b6'};">${isCheckedIn ? 'CHECKED IN' : 'REGISTERED'}</span>
+                                    <span style="display:inline-block; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:600; background:${isCheckedIn ? 'rgba(34,197,94,0.15)' : 'rgba(244,114,182,0.15)'}; color:${isCheckedIn ? '#22c55e' : '#c9a962'};">${isCheckedIn ? 'CHECKED IN' : 'REGISTERED'}</span>
                                 </div>
                                 ${checkinBtn('bridges', r.id, isCheckedIn)}
                             </div>`;
@@ -12857,17 +12862,17 @@ President, Med&amp;X</textarea>
                         const isVip = r.payment_status === 'vip-comp';
                         const isAwaiting = r.status === 'awaiting_payment';
                         // Status label + color
-                        let statusLabel = 'PENDING', statusColor = '#a855f7', statusBg = 'rgba(168,85,247,0.15)';
+                        let statusLabel = 'PENDING', statusColor = '#9b1b22', statusBg = 'rgba(155, 27, 34,0.15)';
                         if (isPaid) { statusLabel = 'PAID'; statusColor = '#22c55e'; statusBg = 'rgba(34,197,94,0.15)'; }
-                        else if (isVip) { statusLabel = 'VIP · COMPLIMENTARY'; statusColor = '#a855f7'; statusBg = 'rgba(168,85,247,0.15)'; }
+                        else if (isVip) { statusLabel = 'VIP · COMPLIMENTARY'; statusColor = '#9b1b22'; statusBg = 'rgba(155, 27, 34,0.15)'; }
                         else if (isAwaiting) { statusLabel = 'AWAITING PAYMENT'; statusColor = '#f59e0b'; statusBg = 'rgba(245,158,11,0.15)'; }
                         // Venue — read from gala_settings if available (set by App.galaSettings cache), fall back to canonical default
                         const galaVenue = (typeof App !== 'undefined' && App.galaSettings && App.galaSettings.venue) || 'Hotel Esplanade Zagreb';
                         eventsHtml += `
-                            <div style="background:var(--bg-secondary,#1e293b); border:1px solid ${isVip ? 'rgba(168,85,247,0.3)' : 'rgba(255,255,255,0.06)'}; border-radius:12px; padding:16px; margin-bottom:10px;">
+                            <div style="background:var(--bg-secondary,#1e293b); border:1px solid ${isVip ? 'rgba(155, 27, 34,0.3)' : 'rgba(255,255,255,0.06)'}; border-radius:12px; padding:16px; margin-bottom:10px;">
                                 <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
                                     <div style="display:flex; align-items:center; gap:10px; min-width:0;">
-                                        <i class="fas ${isCheckedIn ? 'fa-check-circle' : (isVip ? 'fa-star' : 'fa-glass-cheers')}" style="color:${isCheckedIn ? '#22c55e' : (isVip ? '#a855f7' : '#c9a962')}; font-size:20px; flex-shrink:0;"></i>
+                                        <i class="fas ${isCheckedIn ? 'fa-check-circle' : (isVip ? 'fa-star' : 'fa-glass-cheers')}" style="color:${isCheckedIn ? '#22c55e' : (isVip ? '#9b1b22' : '#c9a962')}; font-size:20px; flex-shrink:0;"></i>
                                         <div style="min-width:0;">
                                             <div style="font-weight:600; color:var(--text-primary,#e2e8f0);">Plexus 2026 Gala Evening</div>
                                             <div style="font-size:12px; color:var(--text-muted,#94a3b8);">${escapeHtml(galaVenue)}${r.amount_paid ? ' &middot; &euro;' + Number(r.amount_paid).toFixed(2) : ''}${r.invoice_number ? ' &middot; ' + escapeHtml(r.invoice_number) : ''}</div>
@@ -12886,7 +12891,7 @@ President, Med&amp;X</textarea>
                 // Fallback: use QR code embedded data if no registrations found in DB
                 if (!eventsHtml && data.evt) {
                     const evtLabels = { plexus: 'Plexus Conference 2026', gala: 'Plexus 2026 Gala Evening', forum: 'Biomedical Forum 2026', bridges: 'Building Bridges' };
-                    const evtColors = { plexus: '#6366f1', gala: '#a855f7', forum: '#fb923c', bridges: '#f472b6' };
+                    const evtColors = { plexus: '#9b1b22', gala: '#9b1b22', forum: '#fb923c', bridges: '#c9a962' };
                     const evtIcons = { plexus: 'fa-microscope', gala: 'fa-glass-cheers', forum: 'fa-comments', bridges: 'fa-handshake' };
                     const evtLabel = data.evtName || evtLabels[data.evt] || data.evt;
                     const evtColor = evtColors[data.evt] || '#c9a962';
@@ -12972,7 +12977,7 @@ President, Med&amp;X</textarea>
                                     <div style="font-size:11px; color:var(--text-muted,#94a3b8);">Total Paid</div>
                                 </div>
                                 <div style="background:var(--bg-secondary,#1e293b); border-radius:10px; padding:12px; text-align:center;">
-                                    <div style="font-size:22px; font-weight:700; color:#a78bfa;">${profile.summary?.eventsAttended || 0}</div>
+                                    <div style="font-size:22px; font-weight:700; color:#c2484e;">${profile.summary?.eventsAttended || 0}</div>
                                     <div style="font-size:11px; color:var(--text-muted,#94a3b8);">Attended</div>
                                 </div>
                             </div>
@@ -13129,22 +13134,22 @@ President, Med&amp;X</textarea>
 
             // Project configuration (dates loaded from backend)
             projects: {
-                plexus: { name: 'Plexus Conference', desc: 'Dec 4-5 in Zagreb', icon: 'fa-users', color: '#a78bfa', date: '2026-12-04' },
-                accelerator: { name: 'Med&X Accelerator', desc: 'Research internship program', icon: 'fa-rocket', color: '#22d3ee', date: '2026-06-01' },
+                plexus: { name: 'Plexus Conference', desc: 'Dec 4-5 in Zagreb', icon: 'fa-users', color: '#c2484e', date: '2026-12-04' },
+                accelerator: { name: 'Med&X Accelerator', desc: 'Research internship program', icon: 'fa-rocket', color: '#b06a1f', date: '2026-06-01' },
                 forum: { name: 'Biomedical Forum', desc: 'Senior leaders network', icon: 'fa-landmark', color: '#fb923c', date: '2026-12-06' },
-                bridges: { name: 'Building Bridges', desc: 'Global networking events', icon: 'fa-globe-americas', color: '#f472b6', date: '2026-04-18' },
+                bridges: { name: 'Building Bridges', desc: 'Global networking events', icon: 'fa-globe-americas', color: '#c9a962', date: '2026-04-18' },
                 general: { name: 'General Tasks', desc: 'Miscellaneous tasks', icon: 'fa-tasks', color: '#6b7280', date: null }
             },
 
             // Timeline events (sub-events for Bridges and Accelerator)
             // type: 'point' for single events, 'range' for periods
             timelineEvents: [
-                { id: 'plexus', parent: 'plexus', name: 'Plexus Conference', color: '#a78bfa', date: '2026-12-04', type: 'point' },
+                { id: 'plexus', parent: 'plexus', name: 'Plexus Conference', color: '#c2484e', date: '2026-12-04', type: 'point' },
                 { id: 'forum', parent: 'forum', name: 'Biomedical Forum', color: '#fb923c', date: '2026-12-06', type: 'point' },
                 // Bridges events
-                { id: 'bridges-zurich', parent: 'bridges', name: 'Zurich Symposium', color: '#f472b6', date: '2026-03-15', type: 'point' },
-                { id: 'bridges-washington', parent: 'bridges', name: 'Washington Event', color: '#f472b6', date: '2026-04-18', type: 'point' },
-                { id: 'bridges-boston', parent: 'bridges', name: 'Boston Symposium', color: '#f472b6', date: '2026-09-20', type: 'point' },
+                { id: 'bridges-zurich', parent: 'bridges', name: 'Zurich Symposium', color: '#c9a962', date: '2026-03-15', type: 'point' },
+                { id: 'bridges-washington', parent: 'bridges', name: 'Washington Event', color: '#c9a962', date: '2026-04-18', type: 'point' },
+                { id: 'bridges-boston', parent: 'bridges', name: 'Boston Symposium', color: '#c9a962', date: '2026-09-20', type: 'point' },
             ],
 
             // ========== CUSTOMIZABLE DASHBOARD CARDS ==========
@@ -13531,13 +13536,13 @@ President, Med&amp;X</textarea>
                             datasets: [{
                                 label: 'Registrations',
                                 data: [plexusReg, accReg, forumReg, bridgesReg],
-                                backgroundColor: ['#a78bfa', '#22d3ee', '#fb923c', '#f472b6'],
+                                backgroundColor: ['#c2484e', '#b06a1f', '#fb923c', '#c9a962'],
                                 borderRadius: 8,
                                 borderSkipped: false
                             }, {
                                 label: 'Active Tasks',
                                 data: [plexusTasks, accTasks, forumTasks, bridgesTasks],
-                                backgroundColor: ['rgba(167,139,250,0.3)', 'rgba(34,211,238,0.3)', 'rgba(251,146,60,0.3)', 'rgba(244,114,182,0.3)'],
+                                backgroundColor: ['rgba(194, 72, 78,0.3)', 'rgba(176, 106, 31,0.3)', 'rgba(251,146,60,0.3)', 'rgba(244,114,182,0.3)'],
                                 borderRadius: 8,
                                 borderSkipped: false
                             }]
@@ -13601,18 +13606,18 @@ President, Med&amp;X</textarea>
                         datasets.push({
                             label: 'Plexus Registrations',
                             data: plexusData,
-                            borderColor: '#a78bfa',
-                            backgroundColor: 'rgba(167,139,250,0.1)',
-                            fill: true, tension: 0.4, pointRadius: 4, pointBackgroundColor: '#a78bfa'
+                            borderColor: '#c2484e',
+                            backgroundColor: 'rgba(194, 72, 78,0.1)',
+                            fill: true, tension: 0.4, pointRadius: 4, pointBackgroundColor: '#c2484e'
                         });
                     }
                     if (filter === 'all' || filter === 'accelerator') {
                         datasets.push({
                             label: 'Accelerator Applications',
                             data: accData,
-                            borderColor: '#22d3ee',
-                            backgroundColor: 'rgba(34,211,238,0.1)',
-                            fill: true, tension: 0.4, pointRadius: 4, pointBackgroundColor: '#22d3ee'
+                            borderColor: '#b06a1f',
+                            backgroundColor: 'rgba(176, 106, 31,0.1)',
+                            fill: true, tension: 0.4, pointRadius: 4, pointBackgroundColor: '#b06a1f'
                         });
                     }
 
@@ -13687,20 +13692,20 @@ President, Med&amp;X</textarea>
             // Section definitions for onboarding
             sectionDefs: [
                 { id: 'dashboard', label: 'Home', icon: 'fa-home', color: '#c9a962', desc: 'Dashboard overview', alwaysOn: true },
-                { id: 'plexus', label: 'Plexus Conference', icon: 'fa-users', color: '#a78bfa', desc: 'Annual flagship conference' },
+                { id: 'plexus', label: 'Plexus Conference', icon: 'fa-users', color: '#c2484e', desc: 'Annual flagship conference' },
                 { id: 'gala', label: 'Gala Evening', icon: 'fa-glass-cheers', color: '#C9A962', desc: 'Plexus 2026 Gala — registrations, invite links, settings' },
                 { id: 'croatians-abroad', label: 'Croatians Abroad', icon: 'fa-globe-europe', color: '#ef4444', desc: 'Diaspora multi-event invitations (Conference + Bridges + Gala)' },
-                { id: 'accelerator', label: 'Med&X Accelerator', icon: 'fa-rocket', color: '#22d3ee', desc: 'Research internship program' },
+                { id: 'accelerator', label: 'Med&X Accelerator', icon: 'fa-rocket', color: '#b06a1f', desc: 'Research internship program' },
                 { id: 'forum', label: 'Biomedical Forum', icon: 'fa-landmark', color: '#fb923c', desc: 'Senior leaders network' },
-                { id: 'bridges', label: 'Building Bridges', icon: 'fa-globe-americas', color: '#f472b6', desc: 'Global networking events' },
+                { id: 'bridges', label: 'Building Bridges', icon: 'fa-globe-americas', color: '#c9a962', desc: 'Global networking events' },
                 { id: 'finances', label: 'Finances', icon: 'fa-coins', color: '#4ade80', desc: 'Budget & expense tracking' },
                 { id: 'pr-media', label: 'PR & Media', icon: 'fa-bullhorn', color: '#f87171', desc: 'Press releases & outreach' },
                 { id: 'newsletter', label: 'Newsletter', icon: 'fa-envelope-open-text', color: '#10b981', desc: 'Email newsletter campaigns' },
-                { id: 'user-notifications', label: 'Notifications', icon: 'fa-paper-plane', color: '#22d3ee', desc: 'Push & in-app notifications' },
+                { id: 'user-notifications', label: 'Notifications', icon: 'fa-paper-plane', color: '#b06a1f', desc: 'Push & in-app notifications' },
                 { id: 'portal-content', label: 'Portal Content', icon: 'fa-th-large', color: '#c9a962', desc: 'User-portal content & pages' },
-                { id: 'messages', label: 'Messages', icon: 'fa-envelope', color: '#a78bfa', desc: 'Inbound messages from users' },
+                { id: 'messages', label: 'Messages', icon: 'fa-envelope', color: '#c2484e', desc: 'Inbound messages from users' },
                 { id: 'contacts', label: 'My Network', icon: 'fa-address-book', color: '#60a5fa', desc: 'Contact management' },
-                { id: 'tech', label: 'Tech', icon: 'fa-server', color: '#8b5cf6', desc: 'System health & deployment' },
+                { id: 'tech', label: 'Tech', icon: 'fa-server', color: '#9b1b22', desc: 'System health & deployment' },
             ],
 
             userSections: null, // null = all visible (backwards compat), array = filtered
@@ -14023,12 +14028,12 @@ President, Med&amp;X</textarea>
                     cells += `
                     <div class="pulse-stat${stats.plexus.pending > 0 ? ' pulse-stat--warning' : ''}">
                         <div class="pulse-stat-header">
-                            <div class="pulse-stat-header-left"><i class="fas fa-ticket-alt" style="color: #a78bfa;"></i><span class="pulse-stat-label">Registrations</span></div>
+                            <div class="pulse-stat-header-left"><i class="fas fa-ticket-alt" style="color: #c2484e;"></i><span class="pulse-stat-label">Registrations</span></div>
                             ${this._pulseTrend(stats.plexus.trend)}
                         </div>
                         <div class="pulse-stat-value">${stats.plexus.registrations}</div>
                         <div class="pulse-stat-detail"><span>${stats.plexus.paid} paid (${paidPct}%)</span><span>${stats.plexus.pending} pending</span></div>
-                        ${this._pulseMiniBar(stats.plexus.paid, stats.plexus.registrations, '#a78bfa')}
+                        ${this._pulseMiniBar(stats.plexus.paid, stats.plexus.registrations, '#c2484e')}
                     </div>`;
                 }
 
@@ -14038,7 +14043,7 @@ President, Med&amp;X</textarea>
                     cells += `
                     <div class="pulse-stat${(stats.plexus.abstractsPending || 0) > 0 ? ' pulse-stat--info' : ''}">
                         <div class="pulse-stat-header">
-                            <div class="pulse-stat-header-left"><i class="fas fa-file-alt" style="color: #a78bfa;"></i><span class="pulse-stat-label">Abstracts</span></div>
+                            <div class="pulse-stat-header-left"><i class="fas fa-file-alt" style="color: #c2484e;"></i><span class="pulse-stat-label">Abstracts</span></div>
                         </div>
                         <div class="pulse-stat-value">${stats.plexus.abstracts}</div>
                         <div class="pulse-stat-detail"><span>${stats.plexus.abstractsAccepted} accepted (${reviewedPct}%)</span><span>${stats.plexus.abstractsPending || 0} unreviewed</span></div>
@@ -14052,12 +14057,12 @@ President, Med&amp;X</textarea>
                     cells += `
                     <div class="pulse-stat${stats.accelerator.submitted > 0 ? ' pulse-stat--warning' : ''}">
                         <div class="pulse-stat-header">
-                            <div class="pulse-stat-header-left"><i class="fas fa-rocket" style="color: #22d3ee;"></i><span class="pulse-stat-label">Applications</span></div>
+                            <div class="pulse-stat-header-left"><i class="fas fa-rocket" style="color: #b06a1f;"></i><span class="pulse-stat-label">Applications</span></div>
                             ${this._pulseTrend(stats.accelerator.trend)}
                         </div>
                         <div class="pulse-stat-value">${stats.accelerator.applications}</div>
                         <div class="pulse-stat-detail"><span>${stats.accelerator.submitted} new</span><span>${stats.accelerator.underReview} reviewing</span><span>${stats.accelerator.accepted} accepted</span></div>
-                        ${this._pulseMiniBar(stats.accelerator.accepted + stats.accelerator.rejected, stats.accelerator.applications, '#22d3ee')}
+                        ${this._pulseMiniBar(stats.accelerator.accepted + stats.accelerator.rejected, stats.accelerator.applications, '#b06a1f')}
                     </div>`;
                 }
 
@@ -16523,7 +16528,7 @@ President, Med&amp;X</textarea>
                     (messages || []).forEach(m => {
                         const isAdmin = m.sender_type === 'admin';
                         html += `<div style="margin-bottom: 12px; display: flex; justify-content: ${isAdmin ? 'flex-end' : 'flex-start'};">
-                            <div style="max-width: 70%; padding: 10px 14px; border-radius: 12px; background: ${isAdmin ? 'rgba(167,139,250,0.15)' : 'var(--bg-tertiary)'}; font-size: 13px; color: var(--text-primary);">
+                            <div style="max-width: 70%; padding: 10px 14px; border-radius: 12px; background: ${isAdmin ? 'rgba(194, 72, 78,0.15)' : 'var(--bg-tertiary)'}; font-size: 13px; color: var(--text-primary);">
                                 ${m.title ? `<div style="font-weight: 600; margin-bottom: 4px;">${escapeHtml(m.title)}</div>` : ''}
                                 <div>${escapeHtml(m.content)}</div>
                                 <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px;">${new Date(m.created_at).toLocaleString()}</div>
@@ -18041,7 +18046,7 @@ President, Med&amp;X</textarea>
             },
 
             renderPlexusCharts(stats) {
-                const typeColors = ['#a78bfa', '#22d3ee', '#c9a962', '#f472b6', '#fb923c', '#10b981'];
+                const typeColors = ['#c2484e', '#b06a1f', '#c9a962', '#c9a962', '#fb923c', '#10b981'];
 
                 // Registration by type chart (Doughnut)
                 const typeCtx = document.getElementById('pxChartByTypeCanvas');
@@ -18094,7 +18099,7 @@ President, Med&amp;X</textarea>
                                 labels: countryLabels,
                                 datasets: [{
                                     data: countryData,
-                                    backgroundColor: '#a78bfa',
+                                    backgroundColor: '#c2484e',
                                     borderRadius: 6,
                                     borderSkipped: false
                                 }]
@@ -18397,7 +18402,7 @@ President, Med&amp;X</textarea>
                         <div style="flex:1;min-width:0;">
                             <div style="font-size:18px;font-weight:700;line-height:1.2;">${esc(name)}</div>
                             <div style="font-size:13px;color:var(--text-muted);margin-top:2px;word-break:break-all;">${esc(email)}</div>
-                            <div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap;">${opts.kind?pill(opts.kind,'#a78bfa'):''} ${pill(paid?'PAID':'UNPAID',paid?'#22c55e':'#f59e0b')} ${checked?pill('CHECKED IN','#22c55e'):''}</div>
+                            <div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap;">${opts.kind?pill(opts.kind,'#c2484e'):''} ${pill(paid?'PAID':'UNPAID',paid?'#22c55e':'#f59e0b')} ${checked?pill('CHECKED IN','#22c55e'):''}</div>
                         </div>
                         <button onclick="this.closest('.modal-overlay').remove()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;align-self:flex-start;">&times;</button>
                     </div>
@@ -18739,7 +18744,7 @@ President, Med&amp;X</textarea>
             },
 
             _getSessionTypeColor(type) {
-                const colors = { keynote: '#a78bfa', panel: '#22d3ee', workshop: '#fb923c', poster_session: '#f472b6', break: 'rgba(255,255,255,0.3)', networking: '#10b981', talk: '#c9a962' };
+                const colors = { keynote: '#c2484e', panel: '#b06a1f', workshop: '#fb923c', poster_session: '#c9a962', break: 'rgba(255,255,255,0.3)', networking: '#10b981', talk: '#c9a962' };
                 return colors[type] || '#c9a962';
             },
 
@@ -20718,7 +20723,7 @@ President, Med&amp;X</textarea>
                         <div style="width:100%;max-width:440px;height:100vh;display:flex;flex-direction:column;background:var(--bg-secondary,#0f172a);border-left:1px solid var(--border-color);box-shadow:-8px 0 30px rgba(0,0,0,0.4);">
                             <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border-color);">
                                 <div style="display:flex;align-items:center;gap:10px;">
-                                    <span style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#a855f7);display:flex;align-items:center;justify-content:center;color:#fff;"><i class="fas fa-robot"></i></span>
+                                    <span style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#9b1b22,#9b1b22);display:flex;align-items:center;justify-content:center;color:#fff;"><i class="fas fa-robot"></i></span>
                                     <div><div style="font-weight:700;color:var(--text-primary);">Med&amp;X Assistant</div><div style="font-size:11px;color:var(--text-muted);">Ask a question or tell me what to change</div></div>
                                 </div>
                                 <button onclick="App.closeAssistant()" style="background:none;border:none;color:var(--text-muted);font-size:24px;cursor:pointer;line-height:1;">&times;</button>
@@ -21284,9 +21289,9 @@ President, Med&amp;X</textarea>
                         <div style="font-size:16px;font-weight:600;color:var(--text-primary,#e2e8f0);margin-top:6px;">${escapeHtml(r.name || '—')}</div>
                         <div style="font-size:12px;color:var(--text-muted,#94a3b8);">${escapeHtml(r.email || '')}</div>
                         ${r.applied_for ? `<div style="font-size:12px;color:var(--accent-gold,#c9a962);margin-top:8px;font-weight:600;"><i class="fas fa-ticket"></i> Applied for:</div><ul style="margin:4px 0 0;padding-left:22px;color:var(--accent-gold,#c9a962);font-size:12px;font-weight:600;list-style:disc;">${String(r.applied_for).split(/\s*[,+;]\s*|\n+/).map(s => s.trim()).filter(Boolean).map(s => `<li style="margin:2px 0;">${escapeHtml(s)}</li>`).join('')}</ul>` : ''}
-                        ${(r.forum_member || (r.tier && r.tier.length) || (r.returning_count > 1)) ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">${r.forum_member ? `<span style="font-size:11px;font-weight:700;color:#34d399;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.35);border-radius:20px;padding:3px 10px;"><i class="fas fa-star"></i> Forum member${r.forum_status && r.forum_status !== 'active' && r.forum_status !== 'approved' ? ' (' + escapeHtml(r.forum_status) + ')' : ''}</span>` : ''}${r.tier ? `<span style="font-size:11px;font-weight:700;color:#c9a962;background:rgba(201,169,98,0.12);border:1px solid rgba(201,169,98,0.35);border-radius:20px;padding:3px 10px;text-transform:capitalize;"><i class="fas fa-medal"></i> ${escapeHtml(r.tier)}</span>` : ''}${r.returning_count > 1 ? `<span style="font-size:11px;font-weight:700;color:#a78bfa;background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.35);border-radius:20px;padding:3px 10px;"><i class="fas fa-rotate-left"></i> Returning · ${r.returning_count} on file</span>` : ''}</div>` : ''}
+                        ${(r.forum_member || (r.tier && r.tier.length) || (r.returning_count > 1)) ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">${r.forum_member ? `<span style="font-size:11px;font-weight:700;color:#34d399;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.35);border-radius:20px;padding:3px 10px;"><i class="fas fa-star"></i> Forum member${r.forum_status && r.forum_status !== 'active' && r.forum_status !== 'approved' ? ' (' + escapeHtml(r.forum_status) + ')' : ''}</span>` : ''}${r.tier ? `<span style="font-size:11px;font-weight:700;color:#c9a962;background:rgba(201,169,98,0.12);border:1px solid rgba(201,169,98,0.35);border-radius:20px;padding:3px 10px;text-transform:capitalize;"><i class="fas fa-medal"></i> ${escapeHtml(r.tier)}</span>` : ''}${r.returning_count > 1 ? `<span style="font-size:11px;font-weight:700;color:#c2484e;background:rgba(194, 72, 78,0.12);border:1px solid rgba(194, 72, 78,0.35);border-radius:20px;padding:3px 10px;"><i class="fas fa-rotate-left"></i> Returning · ${r.returning_count} on file</span>` : ''}</div>` : ''}
                         ${r.seat ? `<div style="font-size:13px;color:#fff;margin-top:8px;font-weight:700;background:rgba(45,212,191,0.18);border:1px solid rgba(45,212,191,0.5);border-radius:8px;padding:6px 12px;"><i class="fas fa-chair"></i> Table / Seat: ${escapeHtml(r.seat)}</div>` : ''}
-                        ${r.guests ? `<div style="font-size:14px;color:#fff;margin-top:8px;font-weight:700;background:rgba(168,85,247,0.2);border:1px solid rgba(168,85,247,0.55);border-radius:8px;padding:8px 12px;"><i class="fas fa-users"></i> +${r.guests} guest${r.guests > 1 ? 's' : ''} — admit ${Number(r.guests) + 1} people total</div>` : ''}
+                        ${r.guests ? `<div style="font-size:14px;color:#fff;margin-top:8px;font-weight:700;background:rgba(155, 27, 34,0.2);border:1px solid rgba(155, 27, 34,0.55);border-radius:8px;padding:8px 12px;"><i class="fas fa-users"></i> +${r.guests} guest${r.guests > 1 ? 's' : ''} — admit ${Number(r.guests) + 1} people total</div>` : ''}
                         ${already && data.checked_in_at ? `<div style="font-size:11px;color:var(--text-muted,#94a3b8);margin-top:6px;">First check-in: ${new Date(data.checked_in_at).toLocaleString()}</div>` : ''}`;
                 } else {
                     el.className = 'checkin-result error';
@@ -23387,7 +23392,7 @@ President, Med&amp;X</textarea>
 
             // Toast notification helper for accelerator section
             showAccToast(message, type = 'info') {
-                const colors = { success: '#22c55e', error: '#ef4444', warning: '#f59e0b', info: '#22d3ee' };
+                const colors = { success: '#22c55e', error: '#ef4444', warning: '#f59e0b', info: '#b06a1f' };
                 const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
                 const toast = document.createElement('div');
                 toast.setAttribute('role', 'alert');
@@ -23607,7 +23612,7 @@ President, Med&amp;X</textarea>
 
                     html += `
                         <div class="akd-item cat-${cat} ${statusClass}" data-id="${d.id}">
-                            <div class="akd-marker ${isMilestone ? 'diamond' : ''}" style="background: ${d.color || '#22d3ee'};"></div>
+                            <div class="akd-marker ${isMilestone ? 'diamond' : ''}" style="background: ${d.color || '#b06a1f'};"></div>
                             <div class="akd-content">
                                 <div class="akd-date" onclick="AcceleratorApp.inlineEditDate('${d.id}', '${d.date_start}', '${d.date_end || ''}', this)">${dateRange}</div>
                                 <div class="akd-name" onclick="AcceleratorApp.inlineEditText('${d.id}', 'name', '${eName}', this)">${escapeHtml(d.name)}</div>
@@ -23731,7 +23736,7 @@ President, Med&amp;X</textarea>
             async cycleCategory(id, current) {
                 const cats = ['event', 'deadline', 'milestone'];
                 const next = cats[(cats.indexOf(current) + 1) % cats.length];
-                const colorMap = { event: '#22d3ee', deadline: '#ef4444', milestone: '#c9a962' };
+                const colorMap = { event: '#b06a1f', deadline: '#ef4444', milestone: '#c9a962' };
                 await this.api(`/api/accelerator/dates/${id}`, {
                     method: 'PUT', body: JSON.stringify({ category: next, color: colorMap[next] })
                 });
@@ -23769,7 +23774,7 @@ President, Med&amp;X</textarea>
 
                     html += `
                         <div class="akd-item cat-${cat} ${statusClass}">
-                            <div class="akd-marker ${isMilestone ? 'diamond' : ''}" style="background: ${d.color || '#22d3ee'};"></div>
+                            <div class="akd-marker ${isMilestone ? 'diamond' : ''}" style="background: ${d.color || '#b06a1f'};"></div>
                             <div class="akd-content">
                                 <div class="akd-date">${monthDay}</div>
                                 <div class="akd-name">${escapeHtml(d.name)}</div>
@@ -23844,7 +23849,7 @@ President, Med&amp;X</textarea>
                     const date_end = document.getElementById('akdAddEnd').value;
                     const description = document.getElementById('akdAddDesc').value;
                     const category = document.getElementById('akdAddCategory').value;
-                    const colorMap = { event: '#22d3ee', deadline: '#ef4444', milestone: '#c9a962' };
+                    const colorMap = { event: '#b06a1f', deadline: '#ef4444', milestone: '#c9a962' };
 
                     if (!name || !date_start) { Toast.warning('Name and Start Date are required.'); return; }
 
@@ -23923,7 +23928,7 @@ President, Med&amp;X</textarea>
                     const newEnd = document.getElementById('akdEditEnd').value;
                     const newDesc = document.getElementById('akdEditDesc').value;
                     const category = document.getElementById('akdEditCategory').value;
-                    const colorMap = { event: '#22d3ee', deadline: '#ef4444', milestone: '#c9a962' };
+                    const colorMap = { event: '#b06a1f', deadline: '#ef4444', milestone: '#c9a962' };
 
                     if (!newName || !newStart) { Toast.warning('Name and Start Date are required.'); return; }
 
@@ -23970,7 +23975,7 @@ President, Med&amp;X</textarea>
                                 <h4 style="margin: 0 0 4px 0;">${escapeHtml(inst.name)}</h4>
                                 <p style="margin: 0; font-size: 12px; color: var(--text-muted);">${escapeHtml(inst.city || '')}, ${escapeHtml(inst.country || '')}</p>
                             </div>
-                            <span style="background: ${inst.program_type === 'clinical' ? '#f472b6' : '#22d3ee'}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px;">
+                            <span style="background: ${inst.program_type === 'clinical' ? '#c9a962' : '#b06a1f'}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px;">
                                 ${inst.program_type === 'clinical' ? 'Clinical' : 'Scientific'}
                             </span>
                         </div>
@@ -23995,7 +24000,7 @@ President, Med&amp;X</textarea>
                 if (!inst) return;
 
                 const programBadge = inst.program_type ?
-                    `<span style="background: ${inst.program_type === 'clinical' ? '#f472b6' : '#22d3ee'}; color: white; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500;">
+                    `<span style="background: ${inst.program_type === 'clinical' ? '#c9a962' : '#b06a1f'}; color: white; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500;">
                         ${inst.program_type}
                     </span>` : '';
 
@@ -24044,14 +24049,14 @@ President, Med&amp;X</textarea>
                             </div>
                             <div style="padding: 16px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px;">
                                 <h4 style="margin: 0 0 8px 0; font-size: 14px; display: flex; align-items: center; gap: 8px;">
-                                    <i class="fas fa-euro-sign" style="color: #6366f1;"></i> Stipend
+                                    <i class="fas fa-euro-sign" style="color: #9b1b22;"></i> Stipend
                                 </h4>
                                 <p style="margin: 0; font-size: 13px; line-height: 1.6; white-space: pre-line;">${escapeHtml(inst.stipend_info || 'Not specified')}</p>
                             </div>
                         </div>
 
                         <!-- Contact -->
-                        <div style="padding: 16px; background: linear-gradient(135deg, rgba(34, 211, 238, 0.1), rgba(34, 211, 238, 0.05)); border-radius: 8px; border: 1px solid rgba(34, 211, 238, 0.3);">
+                        <div style="padding: 16px; background: linear-gradient(135deg, rgba(176, 106, 31, 0.1), rgba(176, 106, 31, 0.05)); border-radius: 8px; border: 1px solid rgba(176, 106, 31, 0.3);">
                             <h4 style="margin: 0 0 8px 0; font-size: 14px; display: flex; align-items: center; gap: 8px;">
                                 <i class="fas fa-address-card" style="color: var(--accent-primary);"></i> Kontakt
                             </h4>
@@ -25347,7 +25352,7 @@ President, Med&amp;X</textarea>
                         </td>
                         <td style="padding: 10px;">${r.created_at ? new Date(r.created_at).toLocaleDateString() : '-'}</td>
                         <td style="padding: 10px; text-align: center;">
-                            ${r.application_count > 0 ? `<span class="status-badge" style="background: rgba(34, 211, 238, 0.2); color: #22d3ee;">${r.application_count} (${r.submitted_count} submitted)</span>` : '<span style="color: var(--text-muted);">None</span>'}
+                            ${r.application_count > 0 ? `<span class="status-badge" style="background: rgba(176, 106, 31, 0.2); color: #b06a1f;">${r.application_count} (${r.submitted_count} submitted)</span>` : '<span style="color: var(--text-muted);">None</span>'}
                         </td>
                     </tr>
                 `).join('');
@@ -25627,7 +25632,7 @@ President, Med&amp;X</textarea>
                                     <div style="font-size: 12px; color: var(--text-muted);">${escapeHtml(group.applicant?.email || '')} ${group.applicant?.candidate_id ? '| ID: ' + escapeHtml(group.applicant.candidate_id) : ''}</div>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 8px;">
-                                    <span style="background: rgba(34, 211, 238, 0.2); color: var(--accelerator); padding: 2px 8px; border-radius: 12px; font-size: 12px;">${fileCount} file${fileCount !== 1 ? 's' : ''}</span>
+                                    <span style="background: rgba(176, 106, 31, 0.2); color: var(--accelerator); padding: 2px 8px; border-radius: 12px; font-size: 12px;">${fileCount} file${fileCount !== 1 ? 's' : ''}</span>
                                     <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="event.stopPropagation(); AcceleratorApp.downloadDocs('${group.applicant?.id || ''}')" title="Download All"><i class="fas fa-download"></i> All</button>
                                 </div>
                             </div>
@@ -26109,9 +26114,9 @@ By applying to this program, I give the following consents:
                 const sections = this.getFormSections();
                 const colors = ['var(--accent-primary)', 'var(--accent-primary)', 'var(--accent-primary)', 'var(--accent-primary)', 'var(--accent-primary)', 'var(--accent-gold)', '#22c55e'];
 
-                let html = `<div style="margin-bottom: 20px; padding: 16px; background: linear-gradient(135deg, rgba(34, 211, 238, 0.08), rgba(201, 169, 98, 0.08)); border-radius: 10px; border: 1px solid rgba(34, 211, 238, 0.2);">
+                let html = `<div style="margin-bottom: 20px; padding: 16px; background: linear-gradient(135deg, rgba(176, 106, 31, 0.08), rgba(201, 169, 98, 0.08)); border-radius: 10px; border: 1px solid rgba(176, 106, 31, 0.2);">
                     <div style="display: flex; align-items: center; gap: 12px;">
-                        <i class="fas fa-eye" style="font-size: 24px; color: #22d3ee;"></i>
+                        <i class="fas fa-eye" style="font-size: 24px; color: #b06a1f;"></i>
                         <div>
                             <div style="font-weight: 600; font-size: 15px;">Form Preview</div>
                             <div style="font-size: 12px; color: var(--text-muted);">This is how applicants see the form. Click "Edit Form" to modify fields and submit applications.</div>
@@ -27051,7 +27056,7 @@ By applying to this program, I give the following consents:
                         assigned: { bg: 'rgba(59,130,246,0.2)', color: '#3b82f6' },
                         submitted: { bg: 'rgba(245,158,11,0.2)', color: 'var(--warning)' },
                         approved: { bg: 'rgba(34,197,94,0.2)', color: 'var(--success)' },
-                        calculated: { bg: 'rgba(168,85,247,0.2)', color: '#a855f7' },
+                        calculated: { bg: 'rgba(155, 27, 34,0.2)', color: '#9b1b22' },
                         rejected: { bg: 'rgba(239,68,68,0.2)', color: 'var(--danger)' },
                         paid: { bg: 'rgba(16,185,129,0.2)', color: 'var(--finances)' }
                     };
@@ -27296,7 +27301,7 @@ By applying to this program, I give the following consents:
             },
 
             _getSourceBadge(source) {
-                const colors = { plexus: '#6366f1', gala: '#C9A962', accelerator: '#3b82f6', forum: '#14b8a6' };
+                const colors = { plexus: '#9b1b22', gala: '#C9A962', accelerator: '#3b82f6', forum: '#b06a1f' };
                 const labels = { plexus: 'Plexus', gala: 'Gala', accelerator: 'Accelerator', forum: 'Forum' };
                 const color = colors[source] || '#64748b';
                 const label = labels[source] || source;
@@ -27334,7 +27339,7 @@ By applying to this program, I give the following consents:
                 tbody.innerHTML = data.payments.map(p => {
                     const isCard = p.payment_method === 'card';
                     const methodIcon = isCard
-                        ? '<i class="fas fa-credit-card" style="color: #6366f1;" title="Card (Stripe)"></i>'
+                        ? '<i class="fas fa-credit-card" style="color: #9b1b22;" title="Card (Stripe)"></i>'
                         : '<i class="fas fa-university" style="color: #C9A962;" title="Bank Transfer"></i>';
                     const stripeRef = p.stripe_payment_id
                         ? `<div style="font-size: 10px; color: var(--text-muted); font-family: monospace;" title="${this.escapeHtml(p.stripe_payment_id)}">Stripe: ${this.escapeHtml(p.stripe_payment_id.substring(0, 16))}...</div>`
@@ -27570,10 +27575,10 @@ By applying to this program, I give the following consents:
                 }
 
                 const projectColors = {
-                    plexus: '#a78bfa',
-                    accelerator: '#22d3ee',
+                    plexus: '#c2484e',
+                    accelerator: '#b06a1f',
                     forum: '#fb923c',
-                    bridges: '#f472b6'
+                    bridges: '#c9a962'
                 };
 
                 container.innerHTML = this.contacts.map(c => {
@@ -27750,7 +27755,7 @@ By applying to this program, I give the following consents:
                     upcoming: { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' },
                     planning: { bg: 'rgba(251, 146, 60, 0.2)', color: '#fb923c' },
                     registration_open: { bg: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6' },
-                    ongoing: { bg: 'rgba(168, 85, 247, 0.2)', color: '#a855f7' },
+                    ongoing: { bg: 'rgba(155, 27, 34, 0.2)', color: '#9b1b22' },
                     completed: { bg: 'rgba(148, 163, 184, 0.2)', color: '#94a3b8' },
                     cancelled: { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' }
                 };
@@ -27827,7 +27832,7 @@ By applying to this program, I give the following consents:
                     upcoming: { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' },
                     planning: { bg: 'rgba(251, 146, 60, 0.2)', color: '#fb923c' },
                     registration_open: { bg: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6' },
-                    ongoing: { bg: 'rgba(168, 85, 247, 0.2)', color: '#a855f7' },
+                    ongoing: { bg: 'rgba(155, 27, 34, 0.2)', color: '#9b1b22' },
                     completed: { bg: 'rgba(148, 163, 184, 0.2)', color: '#94a3b8' },
                     cancelled: { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' }
                 };
@@ -28128,7 +28133,7 @@ By applying to this program, I give the following consents:
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px;">
                                     <div style="display: flex; gap: 6px; align-items: center;">
                                         <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: ${s.is_published ? 'rgba(34,197,94,0.2)' : 'rgba(251,146,60,0.2)'}; color: ${s.is_published ? '#22c55e' : '#fb923c'};">${s.is_published ? 'Published' : 'Draft'}</span>
-                                        <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(244,114,182,0.1); color: #f472b6;">${escapeHtml(eventName)}</span>
+                                        <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(244,114,182,0.1); color: #c9a962;">${escapeHtml(eventName)}</span>
                                     </div>
                                     <div style="display: flex; gap: 4px;">
                                         <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="BridgesApp.toggleSpeakerPublish('${s.id}')" title="${s.is_published ? 'Unpublish' : 'Publish'}"><i class="fas fa-${s.is_published ? 'eye-slash' : 'eye'}"></i></button>
@@ -28257,7 +28262,7 @@ By applying to this program, I give the following consents:
                                 ${item.description ? `<div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">${escapeHtml(item.description)}</div>` : ''}
                             </div>
                             <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(244,114,182,0.1); color: #f472b6;">${escapeHtml(eventName)}</span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(244,114,182,0.1); color: #c9a962;">${escapeHtml(eventName)}</span>
                                 <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: ${item.is_published ? 'rgba(34,197,94,0.2)' : 'rgba(251,146,60,0.2)'}; color: ${item.is_published ? '#22c55e' : '#fb923c'};">${item.is_published ? 'Published' : 'Draft'}</span>
                                 <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="BridgesApp.toggleProgramPublish('${item.id}')" title="${item.is_published ? 'Unpublish' : 'Publish'}"><i class="fas fa-${item.is_published ? 'eye-slash' : 'eye'}"></i></button>
                                 <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="BridgesApp.editProgramItem('${item.id}')"><i class="fas fa-edit"></i></button>
@@ -28500,7 +28505,7 @@ By applying to this program, I give the following consents:
             },
 
             getCategoryColor(cat) {
-                const colors = { announcement: '#22d3ee', event: '#8b5cf6', registration: '#10b981', reminder: '#f59e0b', homepage: '#c9a962', system: '#6b7280' };
+                const colors = { announcement: '#b06a1f', event: '#9b1b22', registration: '#10b981', reminder: '#f59e0b', homepage: '#c9a962', system: '#6b7280' };
                 return colors[cat] || '#6b7280';
             },
 
@@ -28521,7 +28526,7 @@ By applying to this program, I give the following consents:
                             <div style="display: flex; gap: 8px; align-items: center; font-size: 11px; color: var(--text-muted);">
                                 <span style="background: ${this.getCategoryColor(n.category)}20; color: ${this.getCategoryColor(n.category)}; padding: 1px 8px; border-radius: 4px; font-weight: 500;">${n.category}</span>
                                 ${n.notification_type && n.notification_type !== 'info' ? `<span style="background: ${n.notification_type === 'warning' ? '#f59e0b' : n.notification_type === 'alert' ? '#ef4444' : n.notification_type === 'success' ? '#22c55e' : '#6b7280'}20; color: ${n.notification_type === 'warning' ? '#f59e0b' : n.notification_type === 'alert' ? '#ef4444' : n.notification_type === 'success' ? '#22c55e' : '#6b7280'}; padding: 1px 6px; border-radius: 4px; font-weight: 500;">${n.notification_type}</span>` : ''}
-                                ${n.placement && n.placement !== 'panel' ? `<span style="background: #8b5cf620; color: #8b5cf6; padding: 1px 6px; border-radius: 4px; font-weight: 500;"><i class="fas fa-home" style="margin-right: 2px;"></i>${n.placement}</span>` : ''}
+                                ${n.placement && n.placement !== 'panel' ? `<span style="background: #9b1b2220; color: #9b1b22; padding: 1px 6px; border-radius: 4px; font-weight: 500;"><i class="fas fa-home" style="margin-right: 2px;"></i>${n.placement}</span>` : ''}
                                 ${n.project ? `<span><i class="fas fa-folder" style="margin-right: 3px;"></i>${n.project}</span>` : ''}
                                 ${n.user_group !== 'all' ? `<span><i class="fas fa-users" style="margin-right: 3px;"></i>${n.user_group}</span>` : '<span><i class="fas fa-globe" style="margin-right: 3px;"></i>All users</span>'}
                                 ${n.target_tier && n.target_tier !== 'all' ? `<span><i class="fas fa-crown" style="margin-right: 3px;"></i>${n.target_tier}</span>` : ''}
@@ -28750,7 +28755,7 @@ By applying to this program, I give the following consents:
             },
 
             getAudienceColor(val) {
-                const colors = { all: '#22d3ee', bronze: '#cd7f32', silver: '#c0c0c0', gold: '#c9a962', platinum: '#e5e4e2', plexus: '#a78bfa' };
+                const colors = { all: '#b06a1f', bronze: '#cd7f32', silver: '#c0c0c0', gold: '#c9a962', platinum: '#e5e4e2', plexus: '#c2484e' };
                 return colors[val] || '#6b7280';
             },
 
@@ -28840,7 +28845,7 @@ By applying to this program, I give the following consents:
                 }
 
                 const sectionIcon = { hero: 'fa-star', news: 'fa-newspaper', featured: 'fa-award', links: 'fa-link' }[section] || 'fa-file';
-                const sectionColor = { hero: '#c9a962', news: '#3b82f6', featured: '#8b5cf6', links: '#10b981' }[section] || '#6b7280';
+                const sectionColor = { hero: '#c9a962', news: '#3b82f6', featured: '#9b1b22', links: '#10b981' }[section] || '#6b7280';
                 const projectLabel = project ? `<span style="background: rgba(201,169,98,0.15); color: var(--accent-gold); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">${project}</span>` : '';
 
                 container.innerHTML = `
@@ -28924,7 +28929,7 @@ By applying to this program, I give the following consents:
                 }
 
                 const sectionIcons = { hero: 'fa-star', news: 'fa-newspaper', featured: 'fa-award', links: 'fa-link' };
-                const sectionColors = { hero: '#c9a962', news: '#3b82f6', featured: '#8b5cf6', links: '#10b981' };
+                const sectionColors = { hero: '#c9a962', news: '#3b82f6', featured: '#9b1b22', links: '#10b981' };
                 const sectionLabels = { hero: 'Hero', news: 'News', featured: 'Featured', links: 'Links' };
 
                 container.innerHTML = `
@@ -30479,7 +30484,7 @@ By applying to this program, I give the following consents:
                     const result = document.getElementById(prefix + 'LinkResult');
                     result.style.display = 'block';
                     const inputId = isVip ? 'newVipInviteUrl' : 'newPaidInviteUrl';
-                    const badgeColor = isVip ? '#a855f7' : '#10b981';
+                    const badgeColor = isVip ? '#9b1b22' : '#10b981';
                     const badgeLabel = isVip
                         ? 'VIP invite link created (free admission)'
                         : 'Paid invite link created (€' + (data.invite.price_override != null ? data.invite.price_override : '140') + ')';
@@ -30577,7 +30582,7 @@ By applying to this program, I give the following consents:
                 links.forEach(l => {
                     const isVip = l.link_type === 'vip';
                     const typeBadge = isVip
-                        ? '<span style="background:rgba(168,85,247,0.15);color:#a855f7;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;letter-spacing:0.5px;">VIP · Free</span>'
+                        ? '<span style="background:rgba(155, 27, 34,0.15);color:#9b1b22;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;letter-spacing:0.5px;">VIP · Free</span>'
                         : `<span style="background:rgba(201,169,98,0.15);color:#c9a962;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;letter-spacing:0.5px;">€${l.price_override != null ? l.price_override : '140'}</span>`;
                     const usesText = l.max_uses != null ? `${l.used_count || 0} / ${l.max_uses}` : `${l.used_count || 0} / ∞`;
                     const expiresText = l.expires_at ? new Date(l.expires_at).toLocaleDateString() : '—';
@@ -30829,7 +30834,7 @@ By applying to this program, I give the following consents:
                 const existing = document.getElementById('eventCheckinOverlay');
                 if (existing) existing.remove();
                 const eventLabel = { gala: 'Plexus Gala Evening', conference: 'Plexus Conference', bridges: 'Croatian Biomedical Bridges' };
-                const eventColor = { gala: '#c9a962', conference: '#a78bfa', bridges: '#f472b6' };
+                const eventColor = { gala: '#c9a962', conference: '#c2484e', bridges: '#c9a962' };
                 const eventIcon = { gala: 'fa-glass-cheers', conference: 'fa-microscope', bridges: 'fa-handshake' };
                 const sel = this.event;
                 const overlay = document.createElement('div');
@@ -30986,9 +30991,9 @@ By applying to this program, I give the following consents:
                             ${r.country || r.role ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${[r.country, r.role].filter(Boolean).map(escapeHtml).join(' · ')}</div>` : ''}
                             ${r.dietary ? `<div style="font-size:12px;color:#c9a962;margin-top:6px;"><i class="fas fa-utensils" style="margin-right:6px;"></i>${escapeHtml(r.dietary)}</div>` : ''}
                             ${r.applied_for ? `<div style="font-size:12px;color:var(--accent-gold,#c9a962);margin-top:6px;font-weight:600;"><i class="fas fa-ticket" style="margin-right:6px;"></i>Applied for:</div><ul style="margin:4px 0 0;padding-left:22px;color:var(--accent-gold,#c9a962);font-size:12px;font-weight:600;list-style:disc;">${String(r.applied_for).split(/\s*[,+;]\s*|\n+/).map(s => s.trim()).filter(Boolean).map(s => `<li style="margin:2px 0;">${escapeHtml(s)}</li>`).join('')}</ul>` : ''}
-                            ${(r.forum_member || (r.tier && r.tier.length) || (r.returning_count > 1)) ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">${r.forum_member ? `<span style="font-size:11px;font-weight:700;color:#34d399;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.35);border-radius:20px;padding:3px 10px;"><i class="fas fa-star"></i> Forum member${r.forum_status && r.forum_status !== 'active' && r.forum_status !== 'approved' ? ' (' + escapeHtml(r.forum_status) + ')' : ''}</span>` : ''}${r.tier ? `<span style="font-size:11px;font-weight:700;color:#c9a962;background:rgba(201,169,98,0.12);border:1px solid rgba(201,169,98,0.35);border-radius:20px;padding:3px 10px;text-transform:capitalize;"><i class="fas fa-medal"></i> ${escapeHtml(r.tier)}</span>` : ''}${r.returning_count > 1 ? `<span style="font-size:11px;font-weight:700;color:#a78bfa;background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.35);border-radius:20px;padding:3px 10px;"><i class="fas fa-rotate-left"></i> Returning · ${r.returning_count} on file</span>` : ''}</div>` : ''}
+                            ${(r.forum_member || (r.tier && r.tier.length) || (r.returning_count > 1)) ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">${r.forum_member ? `<span style="font-size:11px;font-weight:700;color:#34d399;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.35);border-radius:20px;padding:3px 10px;"><i class="fas fa-star"></i> Forum member${r.forum_status && r.forum_status !== 'active' && r.forum_status !== 'approved' ? ' (' + escapeHtml(r.forum_status) + ')' : ''}</span>` : ''}${r.tier ? `<span style="font-size:11px;font-weight:700;color:#c9a962;background:rgba(201,169,98,0.12);border:1px solid rgba(201,169,98,0.35);border-radius:20px;padding:3px 10px;text-transform:capitalize;"><i class="fas fa-medal"></i> ${escapeHtml(r.tier)}</span>` : ''}${r.returning_count > 1 ? `<span style="font-size:11px;font-weight:700;color:#c2484e;background:rgba(194, 72, 78,0.12);border:1px solid rgba(194, 72, 78,0.35);border-radius:20px;padding:3px 10px;"><i class="fas fa-rotate-left"></i> Returning · ${r.returning_count} on file</span>` : ''}</div>` : ''}
                             ${r.seat ? `<div style="font-size:13px;color:#fff;margin-top:8px;font-weight:700;background:rgba(45,212,191,0.18);border:1px solid rgba(45,212,191,0.5);border-radius:8px;padding:6px 12px;"><i class="fas fa-chair" style="margin-right:6px;"></i>Table / Seat: ${escapeHtml(r.seat)}</div>` : ''}
-                            ${r.guests ? `<div style="font-size:14px;color:#fff;margin-top:8px;font-weight:700;background:rgba(168,85,247,0.20);border:1px solid rgba(168,85,247,0.55);border-radius:8px;padding:8px 12px;"><i class="fas fa-users" style="margin-right:6px;"></i>+${r.guests} guest${r.guests > 1 ? 's' : ''} — admit ${Number(r.guests) + 1} people total</div>` : ''}
+                            ${r.guests ? `<div style="font-size:14px;color:#fff;margin-top:8px;font-weight:700;background:rgba(155, 27, 34,0.20);border:1px solid rgba(155, 27, 34,0.55);border-radius:8px;padding:8px 12px;"><i class="fas fa-users" style="margin-right:6px;"></i>+${r.guests} guest${r.guests > 1 ? 's' : ''} — admit ${Number(r.guests) + 1} people total</div>` : ''}
                             ${Array.isArray(r.answers) && r.answers.length ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px;border-top:1px dashed var(--border-color);padding-top:6px;">${r.answers.map(a => '<div><strong style="color:var(--text-secondary);">' + escapeHtml(a.label) + ':</strong> ' + escapeHtml(a.value) + '</div>').join('')}</div>` : ''}
                             ${already && data.checked_in_at ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px;">First check-in: ${new Date(data.checked_in_at).toLocaleString()}</div>` : ''}
                         </div>
@@ -31420,8 +31425,8 @@ By applying to this program, I give the following consents:
                     </tr></thead><tbody>`;
                 regs.forEach(r => {
                     const events = [];
-                    if (r.selected_conference) events.push('<span style="background:rgba(167,139,250,0.15);color:#a78bfa;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;">Conf</span>');
-                    if (r.selected_bridges) events.push('<span style="background:rgba(244,114,182,0.15);color:#f472b6;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;">Bridges</span>');
+                    if (r.selected_conference) events.push('<span style="background:rgba(194, 72, 78,0.15);color:#c2484e;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;">Conf</span>');
+                    if (r.selected_bridges) events.push('<span style="background:rgba(244,114,182,0.15);color:#c9a962;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;">Bridges</span>');
                     if (r.selected_gala) events.push('<span style="background:rgba(201,169,98,0.15);color:#C9A962;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;">Gala</span>');
                     const galaBadge = r.selected_gala
                         ? (r.gala_payment_status === 'paid'
@@ -31977,7 +31982,7 @@ By applying to this program, I give the following consents:
                     container.innerHTML = `
                         <!-- Server Info -->
                         <div class="card" style="padding: 20px;">
-                            <h3 style="font-size: 14px; font-weight: 600; color: var(--text-muted); margin-bottom: 16px;"><i class="fas fa-microchip" style="color: #8b5cf6; margin-right: 8px;"></i>Server</h3>
+                            <h3 style="font-size: 14px; font-weight: 600; color: var(--text-muted); margin-bottom: 16px;"><i class="fas fa-microchip" style="color: #9b1b22; margin-right: 8px;"></i>Server</h3>
                             <div style="display: grid; gap: 12px;">
                                 <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted);font-size:13px;">Node.js</span><span style="font-weight:600;font-size:13px;">${escapeHtml(s.nodeVersion)}</span></div>
                                 <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted);font-size:13px;">Platform</span><span style="font-weight:600;font-size:13px;">${escapeHtml(s.platform)} (${escapeHtml(s.arch)})</span></div>
@@ -32004,9 +32009,9 @@ By applying to this program, I give the following consents:
                         <div class="card" style="padding: 20px;">
                             <h3 style="font-size: 14px; font-weight: 600; color: var(--text-muted); margin-bottom: 16px;"><i class="fas fa-cloud" style="color: #3b82f6; margin-right: 8px;"></i>Deployment</h3>
                             <div style="display: grid; gap: 12px;">
-                                <div><span style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:2px;">Admin Portal</span><a href="${escapeHtml(dep.adminUrl)}" target="_blank" style="font-size:13px;color:#8b5cf6;word-break:break-all;">${escapeHtml(dep.adminUrl)}</a></div>
-                                <div><span style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:2px;">User Portal</span><a href="${escapeHtml(dep.userPortalUrl)}" target="_blank" style="font-size:13px;color:#8b5cf6;word-break:break-all;">${escapeHtml(dep.userPortalUrl)}</a></div>
-                                <div><span style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:2px;">GitHub</span><a href="${escapeHtml(dep.githubRepo)}" target="_blank" style="font-size:13px;color:#8b5cf6;">${escapeHtml(dep.githubRepo)}</a></div>
+                                <div><span style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:2px;">Admin Portal</span><a href="${escapeHtml(dep.adminUrl)}" target="_blank" style="font-size:13px;color:#9b1b22;word-break:break-all;">${escapeHtml(dep.adminUrl)}</a></div>
+                                <div><span style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:2px;">User Portal</span><a href="${escapeHtml(dep.userPortalUrl)}" target="_blank" style="font-size:13px;color:#9b1b22;word-break:break-all;">${escapeHtml(dep.userPortalUrl)}</a></div>
+                                <div><span style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:2px;">GitHub</span><a href="${escapeHtml(dep.githubRepo)}" target="_blank" style="font-size:13px;color:#9b1b22;">${escapeHtml(dep.githubRepo)}</a></div>
                             </div>
                         </div>
 
@@ -32043,7 +32048,7 @@ By applying to this program, I give the following consents:
                     const data = await res.json();
                     if (!data.success) throw new Error(data.error);
                     list.innerHTML = data.tables.map(t => `
-                        <div onclick="TechApp.loadTableData('${t.name}')" style="padding: 10px 16px; cursor: pointer; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; transition: background 0.15s; ${this._currentTable === t.name ? 'background: rgba(139,92,246,0.15);' : ''}" onmouseover="this.style.background='rgba(139,92,246,0.1)'" onmouseout="this.style.background='${this._currentTable === t.name ? 'rgba(139,92,246,0.15)' : ''}'">
+                        <div onclick="TechApp.loadTableData('${t.name}')" style="padding: 10px 16px; cursor: pointer; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; transition: background 0.15s; ${this._currentTable === t.name ? 'background: rgba(155, 27, 34,0.15);' : ''}" onmouseover="this.style.background='rgba(155, 27, 34,0.1)'" onmouseout="this.style.background='${this._currentTable === t.name ? 'rgba(155, 27, 34,0.15)' : ''}'">
                             <span style="font-size: 13px; font-weight: 500;">${escapeHtml(t.name)}</span>
                             <span style="font-size: 11px; color: var(--text-muted); background: var(--bg-primary); padding: 2px 8px; border-radius: 10px;">${t.rowCount}</span>
                         </div>
@@ -32144,7 +32149,7 @@ By applying to this program, I give the following consents:
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px;">
                         <!-- Admin Portal -->
                         <div class="card" style="padding: 20px;">
-                            <h3 style="font-size: 15px; font-weight: 700; color: #8b5cf6; margin-bottom: 16px;"><i class="fas fa-shield-alt" style="margin-right: 8px;"></i>Admin Portal</h3>
+                            <h3 style="font-size: 15px; font-weight: 700; color: #9b1b22; margin-bottom: 16px;"><i class="fas fa-shield-alt" style="margin-right: 8px;"></i>Admin Portal</h3>
                             <pre style="font-size: 12px; line-height: 1.8; color: var(--text-primary); margin: 0; white-space: pre-wrap; font-family: 'SF Mono', Monaco, monospace;">admin-portal/
 ├── backend/
 │   ├── <b>server.js</b>          <span style="color:var(--text-muted);">— Express API (all endpoints)</span>
@@ -32209,7 +32214,7 @@ By applying to this program, I give the following consents:
                         <!-- Download DB -->
                         <div class="card" style="padding: 24px;">
                             <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-                                <div style="width:40px;height:40px;border-radius:10px;background:rgba(139,92,246,0.15);display:flex;align-items:center;justify-content:center;"><i class="fas fa-download" style="color:#8b5cf6;"></i></div>
+                                <div style="width:40px;height:40px;border-radius:10px;background:rgba(155, 27, 34,0.15);display:flex;align-items:center;justify-content:center;"><i class="fas fa-download" style="color:#9b1b22;"></i></div>
                                 <div><h4 style="font-weight:600;font-size:14px;">Download Database</h4><p style="font-size:12px;color:var(--text-muted);">Download the .db file directly</p></div>
                             </div>
                             <button class="btn btn-primary" onclick="TechApp.downloadDb()" style="width:100%;"><i class="fas fa-database"></i> Download .db</button>
@@ -32227,7 +32232,7 @@ By applying to this program, I give the following consents:
                         <!-- Test Stripe -->
                         <div class="card" style="padding: 24px;">
                             <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-                                <div style="width:40px;height:40px;border-radius:10px;background:rgba(99,102,241,0.15);display:flex;align-items:center;justify-content:center;"><i class="fab fa-stripe-s" style="color:#6366f1;"></i></div>
+                                <div style="width:40px;height:40px;border-radius:10px;background:rgba(155, 27, 34,0.15);display:flex;align-items:center;justify-content:center;"><i class="fab fa-stripe-s" style="color:#9b1b22;"></i></div>
                                 <div><h4 style="font-weight:600;font-size:14px;">Test Stripe</h4><p style="font-size:12px;color:var(--text-muted);">Verify Stripe API connection</p></div>
                             </div>
                             <button class="btn btn-secondary" onclick="TechApp.testConnection('stripe', this)" style="width:100%;"><i class="fab fa-stripe-s"></i> Test Connection</button>
@@ -32247,7 +32252,7 @@ By applying to this program, I give the following consents:
                         <!-- Test Email -->
                         <div class="card" style="padding: 24px;">
                             <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-                                <div style="width:40px;height:40px;border-radius:10px;background:rgba(236,72,153,0.15);display:flex;align-items:center;justify-content:center;"><i class="fas fa-envelope" style="color:#ec4899;"></i></div>
+                                <div style="width:40px;height:40px;border-radius:10px;background:rgba(236,72,153,0.15);display:flex;align-items:center;justify-content:center;"><i class="fas fa-envelope" style="color:#9b1b22;"></i></div>
                                 <div><h4 style="font-weight:600;font-size:14px;">Test Email</h4><p style="font-size:12px;color:var(--text-muted);">Send a test email via SMTP</p></div>
                             </div>
                             <button class="btn btn-secondary" onclick="TechApp.testConnection('email', this)" style="width:100%;"><i class="fas fa-paper-plane"></i> Send Test Email</button>
@@ -32377,9 +32382,9 @@ By applying to this program, I give the following consents:
                 { title: 'Dashboard', sub: 'Home', icon: 'fa-home', color: 'var(--accent-gold)', group: 'Sections', action: () => App.showSection('dashboard') },
                 { title: 'Finances', sub: 'Budget, transactions, invoices', icon: 'fa-coins', color: 'var(--finances)', group: 'Sections', action: () => App.showSection('finances') },
                 { title: 'PR & Media', sub: 'Social, newsletters, campaigns', icon: 'fa-bullhorn', color: 'var(--pr-media)', group: 'Sections', action: () => App.showSection('pr-media') },
-                { title: 'Notifications', sub: 'Send user notifications', icon: 'fa-paper-plane', color: '#22d3ee', group: 'Sections', action: () => App.showSection('user-notifications') },
+                { title: 'Notifications', sub: 'Send user notifications', icon: 'fa-paper-plane', color: '#b06a1f', group: 'Sections', action: () => App.showSection('user-notifications') },
                 { title: 'Portal Content', sub: 'CMS for user portal', icon: 'fa-th-large', color: 'var(--accent-gold)', group: 'Sections', action: () => App.showSection('portal-content') },
-                { title: 'Messages', sub: 'Direct messaging with users', icon: 'fa-envelope', color: '#a78bfa', group: 'Sections', action: () => App.showSection('messages') },
+                { title: 'Messages', sub: 'Direct messaging with users', icon: 'fa-envelope', color: '#c2484e', group: 'Sections', action: () => App.showSection('messages') },
                 { title: 'Settings', sub: 'Profile, security, sections', icon: 'fa-cog', color: 'var(--text-muted)', group: 'Sections', action: () => App.openSettings() },
 
                 // Projects
@@ -32424,7 +32429,7 @@ By applying to this program, I give the following consents:
                 { title: 'Forum Gallery', sub: 'Biomedical Forum', icon: 'fa-images', color: 'var(--forum)', group: 'Forum Tabs', action: () => { App.showProject('forum'); App.showForumTab('gallery'); } },
 
                 // Quick Actions
-                { title: 'Send Notification', sub: 'Quick send to users', icon: 'fa-bell', color: '#22d3ee', group: 'Actions', action: () => App.showSection('user-notifications') },
+                { title: 'Send Notification', sub: 'Quick send to users', icon: 'fa-bell', color: '#b06a1f', group: 'Actions', action: () => App.showSection('user-notifications') },
                 { title: 'New Task', sub: 'Create a new to-do item', icon: 'fa-plus-circle', color: '#10b981', group: 'Quick Actions', action: () => App.openTaskModal() },
                 { title: 'My Network', sub: 'Open contacts panel', icon: 'fa-address-book', color: 'var(--accent-gold)', group: 'Quick Actions', action: () => NetworkApp.openPanel() },
             ],
