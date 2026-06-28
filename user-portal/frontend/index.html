@@ -55302,7 +55302,7 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
   min-height:56px;transition:color .18s var(--ease);}
 #upBottomNav .up-tab i{font-size:18px;line-height:1;transition:transform .18s var(--ease);}
 #upBottomNav .up-tab span{line-height:1;white-space:nowrap;}
-#upBottomNav .up-tab.active{color:var(--crimson);}
+#upBottomNav .up-tab.active{color:var(--crimson);font-weight:700;box-shadow:inset 0 2px 0 var(--crimson);}
 #upBottomNav .up-tab.active i{transform:translateY(-1px);}
 #upBottomNav .up-tab:active{opacity:.55;}
 @media (max-width:768px){
@@ -56442,7 +56442,7 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
           window.MedXBottomNav={
             set:function(tab){
               var bar=document.getElementById('upBottomNav'); if(!bar)return;
-              bar.querySelectorAll('.up-tab').forEach(function(t){t.classList.toggle('active',t.getAttribute('data-tab')===tab);});
+              bar.querySelectorAll('.up-tab').forEach(function(t){var on=t.getAttribute('data-tab')===tab; t.classList.toggle('active',on); if(on){t.setAttribute('aria-current','page');}else{t.removeAttribute('aria-current');}});
             },
             syncFromSection:function(sec){ if(MAP[sec]) this.set(MAP[sec]); }
           };
@@ -57819,6 +57819,7 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
                       function token(){ return (typeof UserPortal!=='undefined'&&UserPortal.token)||localStorage.getItem('medx_user_token'); }
                       function daysUntil(d){ try{ var t=new Date(d+'T00:00:00'); var now=new Date(); now.setHours(0,0,0,0); return Math.round((t-now)/86400000);}catch(e){return null;} }
                       function fmtRange(s,e){ try{ var sd=new Date(s+'T00:00:00'); if(e&&e!==s){var ed=new Date(e+'T00:00:00'); return sd.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' – '+ed.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});} return sd.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});}catch(e){return s;} }
+                      function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
                       window.medxICS=function(r){ if(!r||!r.start_date)return; var ds=(r.start_date||'').replace(/-/g,''); var eb=r.end_date||r.start_date; var ed=new Date(eb+'T00:00:00'); ed.setDate(ed.getDate()+1); var de=''+ed.getFullYear()+String(ed.getMonth()+1).padStart(2,'0')+String(ed.getDate()).padStart(2,'0'); var loc=[r.venue_name,r.venue_city].filter(Boolean).join(', '); var ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Med&X//Portal//EN','BEGIN:VEVENT','UID:medx-'+(r.id||Math.random().toString(36).slice(2))+'@medx.hr','DTSTART;VALUE=DATE:'+ds,'DTEND;VALUE=DATE:'+de,'SUMMARY:'+(r.conference_name||'Med&X event'),'LOCATION:'+loc,'END:VEVENT','END:VCALENDAR'].join('\r\n'); var b=new Blob([ics],{type:'text/calendar;charset=utf-8'}); var u=URL.createObjectURL(b); var a=document.createElement('a'); a.href=u; a.download=(r.conference_name||'medx-event').replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'.ics'; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){URL.revokeObjectURL(u);},1000); };
                       var NE={ _reg:null,
                         render:function(){ var host=document.getElementById('upNextEvent'); if(!host) return; var tk=token(); if(!tk){ host.innerHTML=''; return; }
@@ -57843,8 +57844,8 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
                             var status=paid?'Paid':(free?'Confirmed':'Payment pending');
                             var venue=[r.venue_name,r.venue_city].filter(Boolean).join(', ');
                             body='<div class="up-hero-eyebrow">Your next event'+(countdown?(' · '+countdown):'')+'<span class="up-hero-status">'+status+'</span></div>'
-                              +'<div class="up-hero-event">'+(r.conference_name||'Med&X event')+'</div>'
-                              +'<div class="up-hero-meta">'+fmtRange(r.start_date,r.end_date)+(venue?(' · '+venue):'')+'</div>'
+                              +'<div class="up-hero-event">'+esc(r.conference_name||'Med&X event')+'</div>'
+                              +'<div class="up-hero-meta">'+esc(fmtRange(r.start_date,r.end_date))+(venue?(' · '+esc(venue)):'')+'</div>'
                               +'<div class="up-hero-actions"><button onclick="UserPortal.showSection(\'mymedx\')" class="up-hero-btn primary"><i class="fas fa-qrcode"></i> Show ticket</button>'
                               +'<button onclick="medxICS(MedXNextEvent._reg)" class="up-hero-btn ghost"><i class="fas fa-calendar-plus"></i> Add to calendar</button></div>';
                           } else {
@@ -57853,7 +57854,7 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
                               +'<div class="up-hero-meta">Plexus 2026 is open for registration — Zagreb, this December.</div>'
                               +'<div class="up-hero-actions"><button onclick="UserPortal.showSection(\'plexus\')" class="up-hero-btn primary"><i class="fas fa-arrow-right"></i> Explore Plexus</button></div>';
                           }
-                          host.innerHTML='<div class="up-hero"><div class="up-hero-greeting">'+greet+(name?(', '+name):'')+'</div>'+body+'</div>'; }
+                          host.innerHTML='<div class="up-hero"><div class="up-hero-greeting">'+greet+(name?(', '+esc(name)):'')+'</div>'+body+'</div>'; }
                       };
                       window.MedXNextEvent=NE;
                       function maybeRender(){ var h=(location.hash||'').replace('#',''); if(!h||h==='dashboard'){ NE.render(); } }
