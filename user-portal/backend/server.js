@@ -440,14 +440,15 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
     console.log('[Push] VAPID keys not set — push notifications disabled');
 }
 
+// Public read endpoints (conferences/tickets/schedule/speakers) are consumed by the
+// marketing website for live prices/dates — explicit allowlist (never wildcard) since
+// this server also handles Stripe/registration. Add the website + preview origins.
 app.use(cors({
-    // Marketing website (login + notifications bridge) reads the portal API over CORS.
-    // Explicit allowlist (never wildcard) — this server also handles Stripe/registration.
     origin: [
         process.env.RENDER_EXTERNAL_URL,
         'https://medx.hr', 'https://www.medx.hr',
         'https://medx-website-preview.netlify.app',
-        'http://localhost:3000', 'http://localhost:3001'
+        'http://localhost:3000', 'http://localhost:3001', 'http://localhost:8899'
     ].filter(Boolean)
 }));
 
@@ -6319,6 +6320,42 @@ async function submitReset(e){
     // ========== CONFERENCE ROUTES ==========
     app.get('/api/conferences/active', (req, res) => {
         res.json(query.get('SELECT * FROM conferences WHERE is_active = 1 ORDER BY year DESC LIMIT 1'));
+    });
+
+    // ---- PUBLIC site data for the marketing website (read-only, no auth, no PII) ----
+    // Single source of truth: the ACTIVE conference + public pricing + confirmed speakers, so
+    // the website always reflects what admin has set. Never exposes user/registration/payment data.
+    app.get('/api/public/site', (req, res) => {
+        try {
+            const conf = query.get('SELECT * FROM conferences WHERE is_active = 1 ORDER BY year DESC LIMIT 1');
+            if (!conf) return res.json({ conference: null, tickets: [], speakers: [] });
+            const tickets = query.all(
+                'SELECT name, name_hr, price_early_bird, price_regular, price_late, currency, includes_gala, sort_order FROM ticket_types WHERE conference_id = ? ORDER BY sort_order',
+                [conf.id]
+            );
+            const speakers = query.all(
+                'SELECT name, title, institution, photo_url, talk_title, is_keynote, sort_order FROM speakers WHERE conference_id = ? AND is_confirmed = 1 ORDER BY is_keynote DESC, sort_order',
+                [conf.id]
+            );
+            const today = new Date().toISOString().slice(0, 10);
+            let phase = 'late';
+            if (conf.early_bird_deadline && today <= conf.early_bird_deadline) phase = 'early_bird';
+            else if (conf.regular_deadline && today <= conf.regular_deadline) phase = 'regular';
+            res.json({
+                conference: {
+                    name: conf.name, year: conf.year, slug: conf.slug, description: conf.description,
+                    start_date: conf.start_date, end_date: conf.end_date,
+                    venue_name: conf.venue_name, venue_city: conf.venue_city, venue_country: conf.venue_country,
+                    registration_open: !!conf.registration_open,
+                    early_bird_deadline: conf.early_bird_deadline, regular_deadline: conf.regular_deadline,
+                    pricing_phase: phase
+                },
+                tickets, speakers,
+                generated_at: new Date().toISOString()
+            });
+        } catch (e) {
+            res.status(500).json({ error: 'Failed to load site data' });
+        }
     });
 
     app.get('/api/conferences/:slug', (req, res) => {

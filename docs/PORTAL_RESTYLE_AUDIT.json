@@ -1,0 +1,170 @@
+{
+  "summary": "Expert panel audits the Med&X USER portal: feature value (cut/keep/add), UX+mobile, premium restyle blueprint",
+  "agentCount": 5,
+  "logs": [],
+  "result": {
+    "experts": 4,
+    "perExpert": [
+      {
+        "lane": "Product strategy / feature value",
+        "take": "This is a biomedical-NGO member app wearing a social-game costume. The genuinely valuable jobs — register and pay for Plexus/Gala/Bridges/Forum, submit an abstract, get your ticket/QR/certificate, see your schedule, find and message peers, manage travel — are all present and real, but they're buried under a sprawling gamification and \"engagement\" layer (points, bronze/silver/gold tiers, daily quiz, challenge-a-friend duels, leaderboards, streaks, quick polls, activity feed, a widget Card Picker) that no doctor opens an NGO event app to do. Worse, key engagement pieces are hardcoded mock data (\"Dr. Anna S. - 2,450 pts\") and several views are \"coming soon\" stubs, which actively erodes trust in a paid-payments product. The fix is not subtle: strip the casino, make the home screen answer \"what do I need to do for my next event,\" and let the premium website aesthetic carry the prestige instead of badges.",
+        "cutCount": 9
+      },
+      {
+        "lane": "UX / IA / mobile",
+        "take": "The portal is feature-rich but navigationally broken on mobile: there is no persistent tab bar. The only way to move between the 15 top-level sections is a 40px low-contrast \"kebab\" dot pinned to the top-RIGHT corner (worst thumb zone), which must be tapped to expand before any navigation is even possible, and which fans out to a confusing duplicate set of menus (float grid + hubQuickMenu + projects grid all overlap). The dashboard then dumps ~11-13 stacked sections (greeting, points subtitle, milestone banner, homepage notifications, 5-slide carousel, check-in, news, programs, network, daily quiz, my events, pending, your events) so the most-used actions (register/pay, check in) are buried below the fold under gamification chrome. The brief's clean \"Dashboard / Accelerator / Network / My Med&X / Settings\" 5-item nav does NOT actually exist in the build — that's the IA you should ship. Highest-leverage fixes: a real bottom tab bar, collapse the duplicate nav menus into one, and cut the dashboard to 4-5 cards led by \"what do I need to do next.\"",
+        "cutCount": 6
+      },
+      {
+        "lane": "Premium visual design + theming",
+        "take": "The portal does NOT feel like the website and currently cannot, for one concrete reason: it shares zero DNA with it. Fraunces is loaded 0 times, crimson #9b1b22 appears 0 times, and the app is navy/gold/Inter. Worse, there are TWO rival token systems that don't talk to each other (legacy --bg-primary/--accent-gold drives most of the 123k-line app; a newer --up-* set with a half-built [data-theme] toggle drives the rest) sitting on top of ~3,500 hardcoded hex declarations (500x #0f172a, plus a confetti of green/orange/purple/cyan/pink/blue accents). A light/dark toggle physically cannot work until the color layer is unified onto ONE token set. The fix is a foundation pass first (one token system, Fraunces display + Inter body, crimson as the single accent, kill the rainbow), THEN a tasteful restyle of cards/nav/buttons and a deliberate de-gamification of the points UI from arcade-orange to a quiet engraved-medal aesthetic.",
+        "cutCount": 5
+      },
+      {
+        "lane": "Engagement & gamification (NGO context)",
+        "take": "The gamification layer is built like a consumer mobile game (points, Bronze/Silver/Gold levels, daily medical trivia, login streaks, leaderboards, \"Challenge a Friend\" duels, badges) and it is wrong for this audience and brand. Senior physicians and ambitious early-career biomedical professionals do not return to an NGO app for a \"5-day streak\" or to answer \"What is a frameshift mutation?\" for +50 points; they return for events, the Accelerator, real connections, and staying tied to Croatia. Worse, parts of the system are fake (the duel opponent auto-accepts and self-scores in code, the Top-3 leaderboard is hardcoded names, points are localStorage-only) while other parts create real liability (points redeem for euro event credits, a Gala ticket, VIP upgrades, and a 1-on-1 with a speaker). Strip the arcade mechanics, kill the fake and liability-creating redemptions, and redirect every engagement surface toward the four things that actually retain this membership.",
+        "cutCount": 7
+      }
+    ],
+    "synthesis": {
+      "verdict": "Strong consensus across all four lanes, and I verified the load-bearing technical claims directly in the 123,180-line / 5.6MB index.html. The portal is a real, valuable biomedical-NGO member app (register + pay for events, QR check-in, abstract submission, networking, travel, Accelerator) buried under a consumer-game costume that is wrong for senior physicians and early-career researchers and actively erodes trust on a product that takes live Stripe payments. The single highest-leverage move is NOT cosmetic: it is to (a) gut the arcade gamification and the shipped fake data, (b) unify the two rival CSS token systems so a light/dark toggle is even physically possible, then (c) re-skin to the editorial website (Fraunces + crimson/cream/ink, gold demoted to accent). Verified: 500x #0f172a, 424x #C9A962, 297x legacy --accent-gold and 75x --bg-primary vs 3,073x newer --up-* tokens (two systems that don't talk), Fraunces loaded 0x and crimson #9b1b22 present 0x (shares zero DNA with the website), 507 data-theme references but only 1 prefers-color-scheme (toggle half-built), hardcoded fake leaderboard (\"Dr. Anna S. - 2,450 pts\", lines 57883-58237) and a simulated duel opponent (\"Simulate opponent accepting...(demo)\", lines 119809-120273) live in production. CRITICAL PAYMENT COUPLING CONFIRMED: the points-to-euro discount is wired straight into the Stripe payload — points_redeemed at line 82215 and a total of Math.max(0, subtotal - pointsToRedeem/100 - couponDiscount) at line 82182 — so removing gamification must surgically neutralize the redeem path (set redeemEnabled false / pointsDiscount 0) and be regression-tested; it cannot be a blind delete. Two genuine product decisions need Alen's call (kill gamification entirely vs. keep an editorial contribution-based recognition layer, and remove the monetary points-redemption catalog), but everything else — fake data, dead nav, mobile navigation, theming foundation — is an unambiguous fix. Net: a foundation-first refactor (tokens + de-arcade + de-fake), then restyle, with payment/registration treated as a frozen, separately-verified surface.",
+      "cutList": [
+        {
+          "feature": "Daily Quiz (medical trivia, +pts, streaks, e.g. 'What is a frameshift mutation?')",
+          "consensus": "4 of 4 lanes (unanimous)",
+          "why": "Strongest unanimous flag. A scored biology-flashcard game has zero link to the member's real jobs (register, pay, check in, network, Accelerator) and reads as faintly insulting to practicing clinicians and PhDs. It is a Duolingo-style daily-active-user hook on an event-cadence app, costs ongoing content authoring, consumes a full scroll-screen on mobile, and signals 'toy' on a product that takes real payments. QUESTION FOR ALEN: Delete the Daily Quiz entirely?"
+        },
+        {
+          "feature": "Challenge a Friend / Quiz Duel (+25 pts)",
+          "consensus": "4 of 4 lanes (unanimous)",
+          "why": "It is FAKE in code: the opponent auto-accepts after a 2s setTimeout ('Simulate opponent accepting...(demo)', line 120273) and the opponent's score is simulated (lines 119809-120273), so no real member is ever challenged. Shipping a feature that pretends a colleague is dueling you is a credibility risk, and competitive trivia is tonally wrong for a Harvard-adjacent biomedical body (risks embarrassing a member who 'challenges' a senior physician). QUESTION FOR ALEN: Delete the entire QuizDuel/Challenge-a-Friend system?"
+        },
+        {
+          "feature": "Hardcoded fake leaderboard / Top-3 ('Dr. Anna S. - 2,450 pts', 'Dr. James L.', 'Dr. Maria K.')",
+          "consensus": "4 of 4 lanes (unanimous, flagged as ship-blocking)",
+          "why": "Verified live in production at lines 57883-58237. Fabricated peer data plus a public points ranking among professional peers rewards app-grinding (not contribution), can embarrass senior members who rank low, and fake data on an app that takes real Stripe payments is a direct trust liability. This must be removed before any release regardless of the broader gamification decision. QUESTION FOR ALEN: Confirm immediate removal of the fake leaderboard and all mock people/points data?"
+        },
+        {
+          "feature": "Points-redemption catalog for money/scarce items (€5/€10/€25 Event Credit, Gala Ticket 7,500 pts = a real €75 ticket, VIP Upgrade, Free Workshop, 1-on-1 with a Speaker)",
+          "consensus": "2 lanes explicitly (Engagement + Product), with theming/UX implicitly supportive",
+          "why": "This converts a cosmetic, client-side-only (localStorage) score into real money and scarce founder/speaker time the NGO must honor. Points are trivially farmable (trivia, streaks, posting), so redemptions are exploitable financial and reputational liability — a 1-on-1 'bought' with farmed points is an unkeepable promise. NOTE: the redemption is wired into Stripe pricing (points_redeemed, line 82215; total math line 82182), so removal must neutralize the redeem path and be payment-tested, not blind-deleted. QUESTION FOR ALEN: Remove all monetary/scarce points redemptions (keep at most zero-cost recognition)?"
+        },
+        {
+          "feature": "Login streaks (7-day / 30-day, +200 bonus, fire icons)",
+          "consensus": "4 of 4 lanes (unanimous)",
+          "why": "Streaks manufacture daily-login guilt for an app whose natural cadence is a few times per event cycle. They mostly generate broken-streak disappointment and notification fatigue, inflate the points economy that backs real redemptions, and the fire-gradient visuals are the single most off-brand 'cheap consumer app' element vs cream/crimson editorial. QUESTION FOR ALEN: Cut streaks entirely?"
+        },
+        {
+          "feature": "Points / Levels / Bronze-Silver-Gold tiers ('900 points to Silver', +pts badges on nearly every action, milestone trophy banner)",
+          "consensus": "4 of 4 lanes (the core debate — keep mechanic? or kill?)",
+          "why": "This is the one feature where lanes split on REMEDY, not on the problem. All four agree the CURRENT execution is wrong: hundreds of +pts badges create noise, tiered levels imply a status hierarchy that is off-brand for a 'building bridges' equal-access NGO, gating perks (early access, priority networking) by who grinds the app most penalizes exactly the senior people you want in the room, and 'pay the Gala +100 pts' cheapens a real transaction. Theming lane would KEEP the mechanic but re-skin it to an engraved-medal/members-club aesthetic; the other three lean toward replacing points with contribution-based recognition. QUESTION FOR ALEN (the big one): Kill the points/levels economy entirely and replace with a quiet contribution-based recognition layer (Accelerator alum, speaker, mentor, multi-year attendee) — OR keep the mechanic but restyle it from arcade to editorial medal?"
+        },
+        {
+          "feature": "Activity Feed / 'What's Happening' live community feed",
+          "consensus": "2 lanes (Product + UX), no dissent",
+          "why": "A live social feed sets an expectation of constant chatter a niche NGO cannot sustain; a stale/empty feed looks worse than no feed. The legitimate content is already covered by the 'Latest from Med&X' announcements feed — redundant and high-maintenance. QUESTION FOR ALEN: Cut the live activity feed and keep only the announcements feed?"
+        },
+        {
+          "feature": "Add Widget / dashboard Card Picker customization",
+          "consensus": "3 of 4 lanes (Product + UX + theming implied)",
+          "why": "Self-service dashboard assembly is a power-user feature with a modal + drag/pin/persist system to maintain, but members open this app a few times a year for 2-3 concrete tasks. It adds taps, state, and surface area to break, while the team loses control of the one screen that should reliably drive the next action. QUESTION FOR ALEN: Remove dashboard customization and ship one curated dashboard?"
+        },
+        {
+          "feature": "Quick Poll widget (+5 pts)",
+          "consensus": "1 lane explicit (Product), aligned with all anti-engagement-filler lanes",
+          "why": "Low-signal filler with no member benefit beyond a vanity metric. If Med&X needs member input, send a real survey tied to a decision, not a points-baited one-tapper. QUESTION FOR ALEN: Cut the Quick Poll widget?"
+        },
+        {
+          "feature": "Three overlapping navigation menus (up-float programs grid + hubQuickMenu overlay + up-projects-menu grid) and the 5-slide auto-rotating carousel",
+          "consensus": "2 lanes (UX primary, Product/theming supportive)",
+          "why": "Pure IA debt — at least three surfaces list Plexus/Gala/Accelerator/Forum/Network with slightly different item sets, so users hit different menus from different entry points and never build a mental model. The 5-slide auto-advance carousel fights the user on mobile and pushes core content below the fold (slide-1 engagement only). QUESTION FOR ALEN: Approve collapsing to ONE nav source of truth and replacing the carousel with a single static hero (Accelerator Apply)?"
+        },
+        {
+          "feature": "Animated splash: floating blurred orbs + gold mesh gradient + grid overlay on login/entry",
+          "consensus": "1 lane explicit (theming), supported by mobile-perf concerns in UX",
+          "why": "Three 100px-blur drifting orbs + radial gold mesh + 60px grid is a 2021 SaaS hero, not editorial — premium earns gravitas through restraint (still cream field, one Fraunces line, crimson CTA). Also a mobile battery/perf win and removes hardcoded navy that breaks in the light theme. QUESTION FOR ALEN: Replace the animated splash with a restrained editorial login?"
+        },
+        {
+          "feature": "'Ask Alan' AI chat panel as a persistent floating element",
+          "consensus": "1 lane explicit (UX)",
+          "why": "A general-purpose chatbot is a maintenance + accuracy liability and competes for the same screen corner as the only nav control. A Help form already covers the real need. QUESTION FOR ALEN: Remove the floating AI chat (or fold it into Help)?"
+        }
+      ],
+      "addList": [
+        {
+          "feature": "'Your next event' action-hub hero — the dashboard's first card",
+          "why": "Unanimous across lanes. The #1 member job is logistics for the event they're attending: what's paid, what's pending, where/when, ticket/QR, and the one button to fix the outstanding item. Replacing the points hero ('900 points to Silver') with a single status-driven card makes the app instantly answer 'what do I need to do?' — the actual reason members install it. Merge today's scattered 'Pending items' + 'My Events' + check-in into this one top-of-page card."
+        },
+        {
+          "feature": "Persistent bottom tab bar (mobile) / left rail (desktop): Home, Programs, Network, My Med&X, Profile",
+          "why": "UX lane calls this the single biggest fix. Today the ONLY way to move between ~15 sections is a 40px low-contrast kebab pinned top-RIGHT (worst thumb zone) that must be tapped to expand before any nav is possible. A fixed, thumb-reachable tab bar is the standard installed-PWA pattern, matches the IA the brief already assumes (which does NOT actually exist in the build), and removes the tap-to-expand barrier."
+        },
+        {
+          "feature": "Wallet: tickets, QR codes, certificates, receipts/invoices in one predictable place",
+          "why": "Two lanes. Members need their QR at the door, a receipt/invoice for institutional reimbursement, and certificates of attendance/abstract acceptance. QR is currently scattered across dashboard check-in, the membership card, MyMedX, and per-event pages — a single 'My QR & tickets' destination (natural tab-bar item) reduces panic at venue entrances and justifies the app far more than any quiz."
+        },
+        {
+          "feature": "Native calendar add (.ics for Google/Apple/Outlook) + event-anchored session reminders",
+          "why": "My Schedule exists but the real win is getting sessions into the member's actual calendar plus a timely push before their talk or the Gala. This is the genuine daily-utility hook that streaks were faking, on the correct event-driven cadence."
+        },
+        {
+          "feature": "Real, scoped member directory with verified profiles and a clear 'why connect' + warm-intro / mentor-match / 'people at this event'",
+          "why": "For a networking-driven NGO this is the durable, brand-appropriate engagement engine and is already half-built. Make it searchable by institution/specialty/city, surface 'why connect' (same session, same track, accelerator cohort), and redirect the energy spent on quiz/duel/streak code here. Drop the '+10 pts/connection' framing — the connection itself is the reward."
+        },
+        {
+          "feature": "Accelerator application status tracker (submitted -> under review -> interview -> decision) with deadlines + document upload",
+          "why": "The Accelerator is a flagship with real stakes; a clear pipeline is a high-anxiety, high-value job the app should own end-to-end instead of just an 'Apply Now' button."
+        },
+        {
+          "feature": "A 'Stay connected to Croatia / Med&X' value layer: member spotlights, alumni-in-the-news, where-are-they-now, opportunities (jobs, fellowships, calls for collaborators, diaspora events)",
+          "why": "This is the actual reason this diaspora demographic returns between events — professional belonging and Croatia ties (named in the brief as core value). It earns repeat visits honestly with on-brand content and feeds the NGO mission, replacing the dopamine of streaks with substance."
+        },
+        {
+          "feature": "Opt-in, server-verified contribution recognition (Accelerator cohort, Plexus speaker, abstract author, mentor, multi-year attendee) shown on the networking profile",
+          "why": "If a sense of progress/status is wanted, base it on real achievement, not farmed points. Several achievement badges already in the code (Accelerator Alum, Plexus Veteran) are the right idea — keep ONLY those, make them server-verified, and surface them where they aid real connection. This is the proposed replacement for the points economy if Alen chooses to kill it."
+        },
+        {
+          "feature": "Sticky per-section header with a visible Back affordance",
+          "why": "Today 'Back' is one of the fanned-out floating icons, so returning from a deep flow (inside Accelerator apply or a registration step) is unreliable on mobile — which risks accidental abandonment of LIVE Stripe flows. A standard sticky header with title + back per section prevents users getting lost in the 15-section maze and protects checkout."
+        }
+      ],
+      "keepStrong": [
+        "Event registration + Stripe payment flows (Plexus Conference, Gala, Building Bridges, Biomedical Forum) — the core revenue/value engine. Treat as a FROZEN, separately-verified surface during all redesign/theme work. Note the verified coupling: points_redeemed (line 82215) and total = subtotal - pointsToRedeem/100 - couponDiscount (line 82182) feed the Stripe payload, so any gamification removal must neutralize the redeem path and be payment-regression-tested.",
+        "QR / 'Tap to Check In' at events — core, time-critical job; keep but elevate and make contextual (surface at top on event days). Ensure it uses theme tokens, not the hardcoded #0f172a navy gradient, so it doesn't look broken in the light theme.",
+        "Abstract submission",
+        "My Events / RSVP / Pending items — genuinely useful, but reframe as a logistics checklist and merge into the top-of-page 'next steps' card; strip every '+pts' framing ('Payment due: €X for the Gala — Pay now' beats gamifying an invoice).",
+        "Latest from Med&X announcements feed — the one legitimate, low-maintenance content stream; keep as a compact list, not a hero.",
+        "My Network connections (Connect / Accept / Message) — real professional networking, not a game; consolidate the duplicate Network surfaces (dashboard card, Network section, Forum networking tabs) into one canonical destination.",
+        "Travel info: hotel, visa letter, accommodation.",
+        "Profile management + a quiet profile-completeness nudge (no points).",
+        "My Schedule / program / speakers.",
+        "Installable PWA + install prompt — appropriate since people install on phones.",
+        "Project cards as the dashboard's organizing unit with clear status labels (Registration Open / Applications Open / Invite Only) — right structure; needs the unified premium card recipe and single-accent treatment.",
+        "Gold #C9A962 — keep, but DEMOTE from primary to a secondary metal accent that pairs with crimson and reinforces the members-club feel.",
+        "A refined PREMIUM DARK theme as a user-selectable option (Alen wants both) — rebuilt as ink/charcoal + warm gold on near-black, not the current flat navy."
+      ],
+      "restyleBlueprint": [
+        "STEP 0 — Freeze and fence payments FIRST. Before touching anything, isolate the registration/checkout flow as a protected surface. Verified coupling lives at index.html lines 82180-82215 (subtotal - pointsToRedeem/100 - couponDiscount; points_redeemed in Stripe payload), 82652-82657 (balance decrement), 82903-82907 and 83137-83154 (Step-3 total display). Decide the redeem path's fate up front (see decisions). If points-redemption is killed, set redeemEnabled=false / pointsDiscount=0 surgically and keep couponDiscount intact, then end-to-end test a real Stripe charge before merging any restyle.",
+        "STEP 1 — Ship-blocker cleanup (do regardless of the big decisions): remove the hardcoded fake leaderboard/people (lines 57883-58237), the simulated duel opponent (lines 119809-120273), and hide every 'Coming Soon'/demo/sample-data section behind a flag. Fabricated peer data on a payments app is a trust liability and must go before release.",
+        "STEP 2 — Build ONE unified design-token layer in :root (--bg, --surface, --ink, --accent=crimson #9b1b22, --gold=#C9A962 as accent, --line, --muted, radii, 2-3 shadow tokens --shadow-sm/md/lg, type-scale). Alias BOTH legacy and new names onto it: --bg-primary: var(--bg); --accent-gold: var(--gold); and map the --up-* family to the same tokens. This makes the existing ~3,073 --up-*, 297 --accent-gold and 75 --bg-primary references resolve without a rewrite. This is the prerequisite for any working light/dark toggle — verified that 507 data-theme refs exist but only 1 prefers-color-scheme, so the toggle is half-built today.",
+        "STEP 3 — Consolidate the ~3,500 hardcoded hex values onto the tokens in priority order: #0f172a (500x) -> --bg, #C9A962/#c9a962 (424x) -> --gold, #64748b/#94a3b8 -> --muted, then the rainbow accents. CRITICAL: use a guarded scripted replace with temp+verify per the bulk-edit truncation lesson (perl/sed -i over a 5.6MB single file can silently zero it) — check `find . -size 0` after each pass. Never blind-sed the whole file.",
+        "STEP 4 — Wire the real light/dark toggle: [data-theme='light'|'dark'] flips all tokens from one attribute; persist to localStorage; honor prefers-color-scheme as the initial default; place the toggle in Profile/Settings AND make it reachable without first opening the hidden float menu. Set per-theme theme-color meta + iOS status-bar styling (currently dark-navy only) and verify on a real iOS install.",
+        "STEP 5 — Typography is ~80% of the 'feels like the website' goal: load Fraunces (display) + Inter (body) — Fraunces is currently loaded 0x — and apply Fraunces to h1/h2, section titles, the greeting, and event names; Inter for body/UI. Reconcile radii onto one editorial scale (8-12px, not the current 20-24px bubble cards).",
+        "STEP 6 — Collapse the rainbow: replace per-project saturated hues (bridges pink, forum, finances green, pr-media pink, scattered blue/purple/cyan) with a single crimson accent + neutral ink/paper; differentiate projects by label, icon, and a thin gold rule, not by hue. Replace orange/red 'fire' streak gradients and the green +100 pointsPop, and remove emoji used as app chrome (medals/fire/rockets) — keep emoji only in user-authored content.",
+        "STEP 7 — Premium component kit applied app-wide: cream/paper cards with 1px hairline borders, generous 24-28px padding, restrained shadows; crimson primary button + ink ghost button; quiet top nav with a gold-underline active state. One reusable card/button/nav recipe across both the legacy and --up-* zones so it reads as a single luxury product.",
+        "STEP 8 — Restyle the login/splash to the editorial system (cream field or refined dark, Fraunces wordmark, crimson 'Get Started', both CTAs full-width 48px and thumb-reachable) and add 2-3 lines of value prop ('register for events, apply to the Accelerator, network') so the logged-out landing isn't just a logo + tagline.",
+        "STEP 9 — Mobile/IA: add the persistent bottom tab bar (Home / Programs / Network / My Med&X / Profile), collapse the three overlapping nav menus into one source of truth, add sticky per-section headers with visible Back, bump every interactive control to >=44px (current kebab + up-float buttons are 40px), and fix the nav-control contrast that disappears on dark (it uses hardcoded rgba(0,0,0,0.3)). Disable carousel auto-advance / prefer a static hero.",
+        "STEP 10 — Dashboard re-rank by JOB, not engagement: cut from ~11-13 stacked blocks to 4-5, ordered Next steps -> Check in (contextual) -> Programs -> Network -> News. Kill the milestone banner + points-subtitle redundancy.",
+        "STEP 11 — Honor prefers-reduced-motion (gate orb drift, shimmer, fadeInUp, pointsPop) for accessibility and battery on installed phones, and rebuild the dark theme as a refined ink/charcoal + warm gold (not flat navy)."
+      ],
+      "decisionsForAlen": [
+        "DECISION 1 (the big one) — Gamification's fate: kill the points/levels/tiers economy entirely and replace it with a quiet, server-verified contribution-recognition layer (Accelerator alum, speaker, mentor, multi-year attendee)? OR keep the points mechanic but restyle it from arcade to an editorial engraved-medal/members-club look? 3 of 4 lanes lean kill-or-de-emphasize; the design lane alone would keep-and-restyle. All four agree the current arcade execution is wrong.",
+        "DECISION 2 — Monetary redemption: remove the points-for-money/scarce-item catalog (€ event credits, a real €75 Gala ticket for 7,500 pts, VIP upgrades, 1-on-1 with a speaker)? It is a financial/reputational liability because points are client-side and farmable, AND it is wired into the Stripe total (lines 82182/82215), so removal must be done surgically and payment-tested. Recommendation: remove; keep at most zero-cost recognition.",
+        "DECISION 3 — Confirm immediate removal of all shipped fake/mock data (fake Top-3 leaderboard 'Dr. Anna S. 2,450 pts', simulated duel opponent) and hiding of every 'Coming Soon' stub before any release. This is recommended as non-optional regardless of Decisions 1-2.",
+        "DECISION 4 — Approve the IA change: replace the hidden top-right kebab with a persistent bottom tab bar (Home / Programs / Network / My Med&X / Profile) and collapse the three overlapping nav menus + the 5-slide carousel into one nav + one static hero. This is the brief's assumed IA, which does not actually exist in the current build.",
+        "DECISION 5 — Confirm the theming foundation order: unify the two CSS token systems and consolidate ~3,500 hardcoded hex values onto tokens (guarded scripted replace) BEFORE the visual restyle, with payment/registration frozen and separately verified throughout, since the light/dark toggle is physically impossible until the color layer is unified.",
+        "DECISION 6 — Confirm the editorial direction: Fraunces + Inter, crimson #9b1b22 as the single accent with cream/ink neutrals, gold #C9A962 demoted to a secondary metal accent, rainbow per-project hues collapsed to label/icon/gold-rule differentiation, AND a refined premium dark theme as the user-selectable alternate."
+      ]
+    }
+  }
+}
