@@ -55280,6 +55280,15 @@ textarea:focus:not(:focus-visible),
   --up-line:        var(--line);
   --up-accent:      var(--crimson);
   --up-gold:        var(--gold);
+  /* legacy slate text tokens -> warm brand neutrals (were stranded at #f1f5f9/#94a3b8/#64748b) */
+  --text-primary:   var(--ink);
+  --text-secondary: var(--ink-soft);
+  --text-muted:     var(--muted);
+  /* Apple-grey --up-text family -> warm tokens */
+  --up-text:        var(--ink);
+  --up-text-muted:  var(--muted);
+  --up-border:      var(--line);
+  --up-bg-subtle:   var(--paper-2);
 }
 
 :root,[data-theme="light"]{--emph-bg:#14110f;--emph-bg-2:#211d19;--emph-line:rgba(255,255,255,.12)}
@@ -85306,10 +85315,12 @@ You can use variables like {first_name} that will be personalized for each recip
 
                     if (distance < 0) {
                         clearInterval(this.countdownInterval);
-                        if (daysEl) daysEl.textContent = '0';
-                        if (hoursEl) hoursEl.textContent = '00';
-                        if (minutesEl) minutesEl.textContent = '00';
-                        if (secondsEl) secondsEl.textContent = '00';
+                        if (container) container.style.display = 'none';
+                        const heroText = document.getElementById('axHeroDeadlineText');
+                        if (heroText) heroText.innerHTML = '<i class="far fa-clock"></i> Applications for this cohort have closed. The next call opens soon.';
+                        const badge = document.querySelector('#up-section-accelerator .ax-hero-badge');
+                        if (badge) badge.innerHTML = '<i class="fas fa-rocket"></i> Next cohort announced soon';
+                        return;
                     }
                 };
 
