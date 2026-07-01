@@ -76701,7 +76701,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (!container) return;
 
                 const stats = [
-                    { label: 'Connections', value: 24, icon: 'fa-users', color: '#10b981' },
+                    { label: 'Connections', value: 24, icon: 'fa-users', color: '#9b1b22' },
                     { label: 'Pending', value: 3, icon: 'fa-user-clock', color: '#f59e0b' },
                     { label: 'Favorites', value: 8, icon: 'fa-star', color: '#9b1b22' }
                 ];
@@ -85386,6 +85386,10 @@ You can use variables like {first_name} that will be personalized for each recip
 
                     if (distance < 0) {
                         clearInterval(this.countdownInterval);
+                        if (daysEl) daysEl.textContent = '0';
+                        if (hoursEl) hoursEl.textContent = '00';
+                        if (minutesEl) minutesEl.textContent = '00';
+                        if (secondsEl) secondsEl.textContent = '00';
                         if (container) container.style.display = 'none';
                         const heroText = document.getElementById('axHeroDeadlineText');
                         if (heroText) heroText.innerHTML = '<i class="far fa-clock"></i> Applications for this cohort have closed. The next call opens soon.';
