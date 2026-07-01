@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Med&X Admin — Dashboard</title>
-    <meta name="theme-color" content="#0f172a">
+    <title>Admin — Med&X</title>
+    <meta name="theme-color" content="#17120f">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Med&X Staff">
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/icon-192.png">
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚕️</text></svg>">
+    <link rel="icon" type="image/png" href="assets/logo.png">
     <script>
       // Register the staff service worker (enables install-to-home-screen + offline shell).
       if ('serviceWorker' in navigator) {
@@ -23,7 +23,7 @@
       /* Brand match with the website + user portal (presentation-only) */
       h1,h2,h3,.welcome-title,.section-title,.card-title,.modal-title{font-family:'Fraunces',Georgia,serif !important;letter-spacing:-.01em;}
       /* Premium login: warm-ink card + crimson Sign In (was navy + gold) */
-      .login-card{background:linear-gradient(180deg, #211d19 0%, #14110f 100%) !important;border:1px solid rgba(155,27,34,0.32) !important;box-shadow:0 30px 80px rgba(0,0,0,0.55) !important;}
+      .login-card{background:linear-gradient(180deg, #211d19 0%, #14110f 100%) !important;border:1px solid rgba(155,27,34,0.22) !important;box-shadow:0 30px 80px rgba(0,0,0,0.55) !important;}
       .login-card .login-logo p{font-family:'Fraunces',Georgia,serif !important;letter-spacing:.01em;}
       .login-btn{background:#9b1b22 !important;color:#fff !important;border:none !important;}
       .login-btn:hover{background:#7e151b !important;}
@@ -36,39 +36,39 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         :root {
-            --bg-primary: #0f172a;
-            --bg-secondary: #1e293b;
-            --bg-tertiary: #334155;
-            --bg-hover: #475569;
-            --accent-gold: #c9a962;
-            --accent-gold-dim: #a38a4f;
-            --text-primary: #f1f5f9;
-            --text-secondary: #94a3b8;
-            --text-muted: #64748b;
-            --border: #334155;
-            --border-light: #475569;
+            --bg-primary: #17120f;
+            --bg-secondary: #211d19;
+            --bg-tertiary: #2a231d;
+            --bg-hover: #3a2f27;
+            --accent-gold: #c14b52;
+            --accent-gold-dim: #9b1b22;
+            --text-primary: #f2ede6;
+            --text-secondary: #c9c2ba;
+            --text-muted: #8f867c;
+            --border: #2a231d;
+            --border-light: #3a2f27;
             --success: #22c55e;
             --warning: #f59e0b;
             --danger: #ef4444;
-            --plexus: #c2484e;
+            --plexus: #9b1b22;
             --accelerator: #b06a1f;
-            --forum: #fb923c;
-            --bridges: #c9a962;
-            --finances: #10b981;
+            --forum: #3f5d52;
+            --bridges: #355070;
+            --finances: #3f6f6a;
             --pr-media: #9b1b22;
 
             /* Aliases used in inline styles throughout the app */
-            --border-color: #334155;
-            --input-bg: #1e293b;
-            --card-bg: #1e293b;
+            --border-color: #2a231d;
+            --input-bg: #1e1813;
+            --card-bg: #211d19;
             --accent-primary: #b06a1f;
-            --accent-color: #c9a962;
+            --accent-color: #c14b52;
             --success-color: #22c55e;
             --danger-color: #ef4444;
             --success-rgb: 34, 197, 94;
             --danger-rgb: 239, 68, 68;
-            --pr-media-rgb: 236, 72, 153;
-            --plexus-rgb: 194, 72, 78;
+            --pr-media-rgb: 155, 27, 34;
+            --plexus-rgb: 155, 27, 34;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -79,7 +79,7 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
             background: var(--bg-primary);
@@ -93,7 +93,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, var(--bg-primary) 0%, #1a2744 100%);
+            background: linear-gradient(160deg, #17120f 0%, #241a15 100%);
         }
 
         .login-card {
@@ -161,7 +161,7 @@
         .login-form .form-input:focus {
             outline: none;
             border-color: var(--accent-gold);
-            box-shadow: 0 0 0 3px rgba(201, 169, 98, 0.1);
+            box-shadow: 0 0 0 3px rgba(193, 75, 82, 0.16);
         }
 
         .login-form .form-input::placeholder {
@@ -324,7 +324,7 @@
         .section-card.selected {
             border-color: var(--accent-gold);
             background: rgba(201, 169, 98, 0.08);
-            box-shadow: 0 0 0 1px rgba(201, 169, 98, 0.15), 0 2px 8px rgba(201, 169, 98, 0.1);
+            box-shadow: 0 0 0 1px rgba(201, 169, 98, 0.15), 0 2px 8px rgba(193, 75, 82, 0.16);
         }
 
         .section-card.selected:hover:not(.always-on) {
@@ -868,7 +868,7 @@
         }
 
         .nav-item.active {
-            background: rgba(201, 169, 98, 0.15);
+            background: rgba(193, 75, 82, 0.15);
             color: var(--accent-gold);
             border-left: 3px solid var(--accent-gold);
             padding-left: 9px;
@@ -1771,7 +1771,7 @@
         .form-select:focus {
             outline: none;
             border-color: var(--accent-gold);
-            box-shadow: 0 0 0 3px rgba(201, 169, 98, 0.1);
+            box-shadow: 0 0 0 3px rgba(193, 75, 82, 0.16);
         }
 
         /* ===== VISUAL TIMELINE ===== */
@@ -2316,7 +2316,7 @@
         .search-input:focus {
             outline: none;
             border-color: var(--accent-gold);
-            box-shadow: 0 0 0 3px rgba(201, 169, 98, 0.1);
+            box-shadow: 0 0 0 3px rgba(193, 75, 82, 0.16);
         }
 
         .search-input::placeholder {
@@ -2792,7 +2792,7 @@
         .chat-input:focus {
             outline: none;
             border-color: var(--accent-gold);
-            box-shadow: 0 0 0 3px rgba(201, 169, 98, 0.1);
+            box-shadow: 0 0 0 3px rgba(193, 75, 82, 0.16);
         }
 
         .chat-input::placeholder {
@@ -3279,7 +3279,7 @@
             font-weight: 500;
         }
         .forum-event-badge.type { background: rgba(251, 146, 60, 0.15); color: var(--forum); }
-        .forum-event-badge.status-planning { background: rgba(148, 163, 184, 0.2); color: #94a3b8; }
+        .forum-event-badge.status-planning { background: rgba(148, 163, 184, 0.2); color: #c9c2ba; }
         .forum-event-badge.status-upcoming { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
         .forum-event-badge.status-open { background: rgba(34, 197, 94, 0.15); color: var(--success); }
         .forum-event-badge.status-ongoing { background: rgba(155, 27, 34, 0.15); color: #9b1b22; }
@@ -3487,7 +3487,7 @@
         .form-input:focus {
             outline: none;
             border-color: var(--accent-gold);
-            box-shadow: 0 0 0 3px rgba(201, 169, 98, 0.1);
+            box-shadow: 0 0 0 3px rgba(193, 75, 82, 0.16);
         }
 
         /* ===== SIMPLE LIST ===== */
@@ -3909,8 +3909,8 @@
         }
 
         .plexus-tab.active {
-            background: var(--plexus);
-            color: var(--bg-primary);
+            background: #9b1b22;
+            color: #fff;
         }
 
         .plexus-tab i {
@@ -4132,7 +4132,7 @@
         }
 
         .tab-btn.active {
-            background: var(--finances);
+            background: #9b1b22;
             color: white;
         }
 
@@ -4679,7 +4679,7 @@
         .session-checkin-input-group input:focus {
             outline: none;
             border-color: var(--accent-gold);
-            box-shadow: 0 0 0 3px rgba(201, 169, 98, 0.1);
+            box-shadow: 0 0 0 3px rgba(193, 75, 82, 0.16);
         }
 
         /* Speakers Grid */
@@ -4753,7 +4753,7 @@
         }
 
         .sponsor-tier-label.gold { color: #fbbf24; }
-        .sponsor-tier-label.silver { color: #94a3b8; }
+        .sponsor-tier-label.silver { color: #c9c2ba; }
         .sponsor-tier-label.bronze { color: #c2410c; }
 
         .sponsors-row {
@@ -4933,7 +4933,7 @@
             letter-spacing: 0.5px;
         }
         .sp-tier-badge.gold { background: rgba(201,169,98,0.15); color: #c9a962; }
-        .sp-tier-badge.silver { background: rgba(148,163,184,0.15); color: #94a3b8; }
+        .sp-tier-badge.silver { background: rgba(148,163,184,0.15); color: #c9c2ba; }
         .sp-tier-badge.bronze { background: rgba(180,83,9,0.15); color: #b45309; }
         .sp-tier-badge.partner { background: rgba(194, 72, 78,0.15); color: #c2484e; }
         .sp-status-pill {
@@ -4942,7 +4942,7 @@
             padding: 2px 8px;
             border-radius: 10px;
         }
-        .sp-status-pill.prospect { background: rgba(100,116,139,0.15); color: #94a3b8; }
+        .sp-status-pill.prospect { background: rgba(100,116,139,0.15); color: #c9c2ba; }
         .sp-status-pill.contacted { background: rgba(59,130,246,0.15); color: #60a5fa; }
         .sp-status-pill.negotiating { background: rgba(234,179,8,0.15); color: #facc15; }
         .sp-status-pill.confirmed { background: rgba(34,197,94,0.15); color: #4ade80; }
@@ -5249,8 +5249,8 @@
 
         /* Forum Tab Styles */
         .forum-tabs .forum-tab.active {
-            background: var(--forum);
-            color: var(--bg-primary);
+            background: #9b1b22;
+            color: #fff;
         }
 
         .forum-tabs .forum-tab:hover:not(.active) {
@@ -5388,7 +5388,7 @@
         [id^="qr-reader"] button,
         [id^="globalQR"] button {
             background: linear-gradient(135deg, #c9a962, #b49650) !important;
-            color: #0f172a !important;
+            color: #17120f !important;
             border: none !important;
             padding: 10px 20px !important;
             border-radius: 10px !important;
@@ -5408,9 +5408,9 @@
         #globalQRReader select,
         [id^="qr-reader"] select,
         [id^="globalQR"] select {
-            background: var(--bg-secondary, #1e293b) !important;
+            background: var(--bg-secondary, #211d19) !important;
             color: var(--text-primary, #e2e8f0) !important;
-            border: 1px solid var(--border-color, #334155) !important;
+            border: 1px solid var(--border-color, #2a231d) !important;
             border-radius: 8px !important;
             padding: 8px 12px !important;
             font-size: 13px !important;
@@ -5456,11 +5456,11 @@
             height: 56px;
             border-radius: 50%;
             background: var(--accent-gold);
-            color: #0f172a;
+            color: #fff;
             border: none;
             font-size: 22px;
             cursor: pointer;
-            box-shadow: 0 4px 14px rgba(201, 169, 98, 0.4);
+            box-shadow: 0 4px 14px rgba(155, 27, 34, 0.4);
             z-index: 900;
             display: none;
             align-items: center;
@@ -5475,7 +5475,7 @@
         }
         .qr-fab:hover {
             transform: scale(1.08);
-            box-shadow: 0 6px 20px rgba(201, 169, 98, 0.55);
+            box-shadow: 0 6px 20px rgba(155, 27, 34, 0.55);
         }
         .qr-fab:active { transform: scale(0.95); }
 
@@ -5483,10 +5483,10 @@
         .assist-fab {
             position: fixed; bottom: 160px; right: 28px; width: 56px; height: 56px; border-radius: 50%;
             background: linear-gradient(135deg, #9b1b22, #9b1b22); color: #fff; border: none; font-size: 22px;
-            cursor: pointer; box-shadow: 0 4px 14px rgba(124,58,237,0.45); z-index: 900; display: none;
+            cursor: pointer; box-shadow: 0 4px 14px rgba(155,27,34,0.45); z-index: 900; display: none;
             align-items: center; justify-content: center; transition: transform 0.2s, box-shadow 0.2s;
         }
-        .assist-fab:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(124,58,237,0.6); }
+        .assist-fab:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(155,27,34,0.6); }
         .assist-fab:active { transform: scale(0.95); }
 
         .qr-modal-overlay {
@@ -5567,13 +5567,13 @@
             outline: none;
             transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
-        .qr-modal .manual-entry input:focus { border-color: var(--accent-gold); box-shadow: 0 0 0 3px rgba(201, 169, 98, 0.1); }
+        .qr-modal .manual-entry input:focus { border-color: var(--accent-gold); box-shadow: 0 0 0 3px rgba(193, 75, 82, 0.16); }
         .qr-modal .manual-entry button {
             padding: 10px 18px;
             border-radius: 8px;
             border: none;
             background: var(--accent-gold);
-            color: #0f172a;
+            color: #17120f;
             font-weight: 600;
             cursor: pointer;
             font-size: 14px;
@@ -5653,7 +5653,7 @@
         }
         .qr-tab-btn.active {
             background: var(--accent-gold);
-            color: #0f172a;
+            color: #17120f;
         }
         .qr-tab-btn:not(.active):hover { background: rgba(255,255,255,0.05); }
 
@@ -5671,7 +5671,7 @@
             box-sizing: border-box;
             transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
-        .qr-search-input:focus { border-color: var(--accent-gold); box-shadow: 0 0 0 3px rgba(201, 169, 98, 0.1); }
+        .qr-search-input:focus { border-color: var(--accent-gold); box-shadow: 0 0 0 3px rgba(193, 75, 82, 0.16); }
         .qr-search-results {
             max-height: 220px;
             overflow-y: auto;
@@ -5701,7 +5701,7 @@
             cursor: pointer;
             white-space: nowrap;
         }
-        .qr-sr-btn.checkin { background: var(--accent-gold); color: #0f172a; }
+        .qr-sr-btn.checkin { background: var(--accent-gold); color: #17120f; }
         .qr-sr-btn.checkin:hover { opacity: 0.9; }
         .qr-sr-btn.checked { background: rgba(74,222,128,0.15); color: #4ade80; cursor: default; }
 
@@ -6110,7 +6110,7 @@
         input:focus, select:focus, textarea:focus {
             border-color: var(--accent-gold, #c9a962);
             outline: none;
-            box-shadow: 0 0 0 3px rgba(201, 169, 98, 0.1);
+            box-shadow: 0 0 0 3px rgba(193, 75, 82, 0.16);
         }
 
         /* ============================================================
@@ -6120,42 +6120,42 @@
            Removes the class to fall back to the classic theme below.
            ============================================================ */
         body.theme-fresh {
-            --bg-primary: #0b1220;
-            --bg-secondary: #131a2c;
-            --bg-tertiary: #1c2436;
-            --bg-hover: #2a3a55;
-            --accent-gold: #d4b366;
-            --accent-gold-dim: #a08a4f;
-            --text-primary: #e9eef9;
-            --text-secondary: #a3aec5;
-            --text-muted: #6b7689;
-            --border: #1f2940;
-            --border-light: #2c3651;
-            --border-color: #1f2940;
-            --input-bg: #131a2c;
-            --card-bg: #1c2436;
+            --bg-primary: #14110f;
+            --bg-secondary: #1c1712;
+            --bg-tertiary: #241d17;
+            --bg-hover: #33291f;
+            --accent-gold: #c14b52;
+            --accent-gold-dim: #9b1b22;
+            --text-primary: #efe9e1;
+            --text-secondary: #c9c2ba;
+            --text-muted: #8f867c;
+            --border: #2a221b;
+            --border-light: #3a3027;
+            --border-color: #2a221b;
+            --input-bg: #1c1712;
+            --card-bg: #241d17;
         }
         body.theme-fresh {
-            background: radial-gradient(ellipse at top, #0e1830 0%, #0b1220 60%) fixed;
+            background: radial-gradient(ellipse at top, #241c16 0%, #14110f 60%) fixed;
         }
         body.theme-fresh .sidebar {
-            background: linear-gradient(180deg, #0a1020 0%, #0d1424 100%);
-            border-right: 1px solid #1a2238;
+            background: linear-gradient(180deg, #17120f 0%, #1c1610 100%);
+            border-right: 1px solid #2a221b;
         }
         body.theme-fresh .nav-item {
             border-radius: 8px;
             padding: 10px 14px;
             margin: 2px 8px;
-            color: #c2cce3;
+            color: #d8d0c6;
             transition: background 0.15s, color 0.15s, box-shadow 0.15s;
             position: relative;
         }
         body.theme-fresh .nav-item:hover {
-            background: rgba(212, 179, 102, 0.08);
+            background: rgba(193, 75, 82, 0.08);
             color: #fff;
         }
         body.theme-fresh .nav-item.active {
-            background: linear-gradient(135deg, rgba(212,179,102,0.18) 0%, rgba(212,179,102,0.04) 100%);
+            background: linear-gradient(135deg, rgba(193,75,82,0.18) 0%, rgba(193,75,82,0.04) 100%);
             color: var(--accent-gold);
             box-shadow: inset 3px 0 0 var(--accent-gold);
         }
@@ -6196,13 +6196,13 @@
         }
         body.theme-fresh .btn-primary {
             background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-dim));
-            color: #0b1220;
+            color: #14110f;
             border: none;
-            box-shadow: 0 1px 0 rgba(255,255,255,0.12) inset, 0 4px 12px rgba(212,179,102,0.22);
+            box-shadow: 0 1px 0 rgba(255,255,255,0.12) inset, 0 4px 12px rgba(193,75,82,0.22);
         }
         body.theme-fresh .btn-primary:hover {
             transform: translateY(-1px);
-            box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 8px 22px rgba(212,179,102,0.32);
+            box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 8px 22px rgba(193,75,82,0.32);
         }
         body.theme-fresh .btn-secondary {
             background: transparent;
@@ -6212,7 +6212,7 @@
         body.theme-fresh .btn-secondary:hover {
             border-color: var(--accent-gold);
             color: var(--accent-gold);
-            background: rgba(212,179,102,0.06);
+            background: rgba(193,75,82,0.06);
         }
         body.theme-fresh .form-input,
         body.theme-fresh .search-input,
@@ -6240,7 +6240,7 @@
         body.theme-fresh select:focus,
         body.theme-fresh textarea:focus {
             border-color: var(--accent-gold);
-            box-shadow: 0 0 0 3px rgba(212,179,102,0.14);
+            box-shadow: 0 0 0 3px rgba(193,75,82,0.14);
             outline: none;
         }
         body.theme-fresh .form-label {
@@ -6274,7 +6274,7 @@
             transition: background 0.15s;
         }
         body.theme-fresh .data-table tbody tr:hover {
-            background: rgba(212,179,102,0.07);
+            background: rgba(193,75,82,0.07);
             box-shadow: inset 2px 0 0 rgba(201,169,98,0.5);
         }
         body.theme-fresh .data-table .status {
@@ -6301,7 +6301,7 @@
         body.theme-fresh .modal {
             border-radius: 16px;
             border: 1px solid rgba(255,255,255,0.06);
-            box-shadow: 0 25px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,179,102,0.04);
+            box-shadow: 0 25px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(193,75,82,0.04);
             background: var(--bg-tertiary);
         }
         body.theme-fresh .modal-header {
@@ -6336,20 +6336,20 @@
         }
         body.theme-fresh .login-card {
             border-radius: 20px;
-            background: linear-gradient(180deg, rgba(28,36,54,0.92), rgba(19,26,44,0.95));
-            border: 1px solid rgba(212,179,102,0.15);
+            background: linear-gradient(180deg, rgba(36,29,23,0.94), rgba(20,17,15,0.96));
+            border: 1px solid rgba(193,75,82,0.15);
             box-shadow: 0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03);
             padding: 44px 40px;
         }
         body.theme-fresh .quick-action-btn {
             background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-dim));
-            color: #0b1220;
+            color: #fff;
             border: none;
-            box-shadow: 0 4px 12px rgba(212,179,102,0.22);
+            box-shadow: 0 4px 12px rgba(193,75,82,0.22);
         }
         body.theme-fresh .quick-action-btn:hover {
             transform: translateY(-1px);
-            box-shadow: 0 8px 22px rgba(212,179,102,0.35);
+            box-shadow: 0 8px 22px rgba(193,75,82,0.35);
         }
         body.theme-fresh .quick-action-dropdown {
             border-radius: 12px;
@@ -6358,7 +6358,7 @@
             box-shadow: 0 12px 40px rgba(0,0,0,0.4);
         }
         body.theme-fresh .quick-action-item:hover {
-            background: rgba(212,179,102,0.08);
+            background: rgba(193,75,82,0.08);
             color: var(--accent-gold);
         }
         body.theme-fresh .toast {
@@ -6371,8 +6371,8 @@
         /* Theme toggle button (sidebar) */
         .theme-toggle-btn {
             background: transparent;
-            border: 1px solid var(--border-light, #475569);
-            color: var(--text-secondary, #94a3b8);
+            border: 1px solid var(--border-light, #3a2f27);
+            color: var(--text-secondary, #c9c2ba);
             width: 36px;
             height: 36px;
             min-width: 36px;
@@ -6385,12 +6385,12 @@
             transition: all 0.15s;
         }
         .theme-toggle-btn:hover {
-            background: rgba(212, 179, 102, 0.1);
+            background: rgba(193, 75, 82, 0.1);
             color: var(--accent-gold, #c9a962);
             border-color: var(--accent-gold, #c9a962);
         }
         body.theme-fresh .theme-toggle-btn {
-            background: linear-gradient(135deg, rgba(212,179,102,0.15), rgba(212,179,102,0.05));
+            background: linear-gradient(135deg, rgba(193,75,82,0.15), rgba(193,75,82,0.05));
             border-color: var(--accent-gold);
             color: var(--accent-gold);
         }
@@ -6398,6 +6398,27 @@
     <!-- Self-hosted (was CDN) so ad-blockers / restricted networks can't block the scanner libs -->
     <script src="/vendor/html5-qrcode.min.js"></script>
     <script src="/vendor/jsqr.min.js"></script>
+    <style id="medx-admin-brand-v2">
+      /* Sidebar section icons: one restrained neutral, crimson only on the active row */
+      .sidebar .nav-item > i { color: #a89e92 !important; }
+      .sidebar .nav-item.active > i { color: #c14b52 !important; }
+      /* Mobile: keep the floating action buttons clear of the stacked stat cards
+         (shrink + tuck into the bottom-right corner, and add scroll room below the last card) */
+      @media (max-width: 768px){
+        .main { padding-bottom: 108px !important; }
+        .qr-fab { width: 46px !important; height: 46px !important; bottom: 18px !important; right: 16px !important; font-size: 18px !important; }
+        .assist-fab { width: 46px !important; height: 46px !important; bottom: 74px !important; right: 16px !important; font-size: 18px !important; }
+      }
+      /* Accessibility: respect reduced-motion preference (admin had zero coverage) */
+      @media (prefers-reduced-motion: reduce){
+        *,*::before,*::after{
+          animation-duration: .001ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: .001ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
 </head>
 <body class="theme-fresh">
     <script>
@@ -6447,7 +6468,7 @@
         <div class="login-card">
             <div class="login-logo">
                 <img src="assets/images/medx-logo.png" alt="Med&X">
-                <p>Admin Portal</p>
+                <p>Admin</p>
             </div>
 
             <div class="login-error" id="loginError">Invalid email or password</div>
@@ -6724,7 +6745,7 @@
                 </a>
 
                 <a class="nav-item" data-section="audit" onclick="App.showSection('audit', this)">
-                    <i class="fas fa-clipboard-list" style="color: #94a3b8;"></i>
+                    <i class="fas fa-clipboard-list" style="color: #c9c2ba;"></i>
                     <span>Audit Log</span>
                 </a>
 
@@ -9527,7 +9548,7 @@ President, Med&amp;X</textarea>
                     <div class="finance-tab" id="finance-tab-conference-payments">
                         <!-- Summary Cards -->
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px;">
-                            <div class="stat-card" style="background: linear-gradient(135deg, #3b82f6, #2563eb); padding: 20px; border-radius: 12px;">
+                            <div class="stat-card" style="background: linear-gradient(135deg, #9b1b22, #7e151b); padding: 20px; border-radius: 12px;">
                                 <div style="font-size: 13px; color: rgba(255,255,255,0.8);">Total Registrations</div>
                                 <div style="font-size: 28px; font-weight: 700; color: white;" id="confPayTotal">0</div>
                             </div>
@@ -10162,7 +10183,7 @@ President, Med&amp;X</textarea>
                     <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                         <div>
                             <h1 style="font-size: 28px; font-weight: 700; margin-bottom: 4px;">
-                                <i class="fas fa-paper-plane" style="color: #b06a1f; margin-right: 12px;"></i>
+                                <i class="fas fa-paper-plane" style="color: #c14b52; margin-right: 12px;"></i>
                                 User Notifications
                             </h1>
                             <p style="color: var(--text-muted);">Send announcements and notifications to user portal members</p>
@@ -10342,7 +10363,7 @@ President, Med&amp;X</textarea>
                     <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                         <div>
                             <h1 style="font-size: 28px; font-weight: 700; margin-bottom: 4px;">
-                                <i class="fas fa-envelope-open-text" style="color: #10b981; margin-right: 12px;"></i>
+                                <i class="fas fa-envelope-open-text" style="color: #c14b52; margin-right: 12px;"></i>
                                 Member Newsletter
                             </h1>
                             <p style="color: var(--text-muted);">Create and send email newsletters to user portal members</p>
@@ -10381,7 +10402,7 @@ President, Med&amp;X</textarea>
                         <div style="margin-bottom: 16px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                                 <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">Body</label>
-                                <button class="btn btn-sm" onclick="NewsletterApp.autoGenerate()" style="font-size: 11px; padding: 4px 12px; border-radius: 6px; background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; cursor: pointer;">
+                                <button class="btn btn-sm" onclick="NewsletterApp.autoGenerate()" style="font-size: 11px; padding: 4px 12px; border-radius: 6px; background: linear-gradient(135deg, #9b1b22, #7e151b); color: white; border: none; cursor: pointer;">
                                     <i class="fas fa-magic" style="margin-right: 4px;"></i> Auto-Generate
                                 </button>
                             </div>
@@ -10405,7 +10426,7 @@ President, Med&amp;X</textarea>
                                 <button class="btn" onclick="NewsletterApp.saveDraft()" style="background: var(--bg-hover); color: var(--text-primary); border: 1px solid var(--border); padding: 8px 16px; border-radius: 8px; cursor: pointer;">
                                     <i class="fas fa-save" style="margin-right: 6px;"></i> Save Draft
                                 </button>
-                                <button class="btn btn-primary" onclick="NewsletterApp.sendNewsletter()" style="background: #10b981; border-color: #10b981;">
+                                <button class="btn btn-primary" onclick="NewsletterApp.sendNewsletter()" style="background: #9b1b22; border-color: #9b1b22;">
                                     <i class="fas fa-paper-plane" style="margin-right: 6px;"></i> Send Newsletter
                                 </button>
                             </div>
@@ -10520,7 +10541,7 @@ President, Med&amp;X</textarea>
                     <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                         <div>
                             <h1 style="font-size: 28px; font-weight: 700; margin-bottom: 4px;">
-                                <i class="fas fa-envelope" style="color: #c2484e; margin-right: 12px;"></i>
+                                <i class="fas fa-envelope" style="color: #c14b52; margin-right: 12px;"></i>
                                 Messages
                             </h1>
                             <p style="color: var(--text-muted);">Direct messaging with users</p>
@@ -10578,7 +10599,7 @@ President, Med&amp;X</textarea>
                             <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Approved</div>
                         </div>
                         <div class="card" style="padding: 20px; text-align: center;">
-                            <div style="font-size: 32px; font-weight: 700; color: #3b82f6;" id="galaStatPaid">0</div>
+                            <div style="font-size: 32px; font-weight: 700; color: #16a34a;" id="galaStatPaid">0</div>
                             <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Paid / Confirmed</div>
                         </div>
                     </div>
@@ -11024,7 +11045,7 @@ President, Med&amp;X</textarea>
                     <div class="back-link" onclick="App.showSection('dashboard')"><i class="fas fa-arrow-left"></i> Back to Dashboard</div>
                     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px;">
                         <div>
-                            <h2 style="margin:0;font-size:22px;display:flex;align-items:center;gap:10px;"><i class="fas fa-clipboard-list" style="color:#94a3b8;"></i> Audit Log</h2>
+                            <h2 style="margin:0;font-size:22px;display:flex;align-items:center;gap:10px;"><i class="fas fa-clipboard-list" style="color:#c9c2ba;"></i> Audit Log</h2>
                             <p style="margin:6px 0 0;color:var(--text-muted);font-size:13px;">Who changed what — price changes, conference activation, announcements, bulk emails, DB downloads.</p>
                         </div>
                         <button class="btn btn-secondary" onclick="AuditApp.load()"><i class="fas fa-sync"></i> Refresh</button>
@@ -12776,13 +12797,13 @@ President, Med&amp;X</textarea>
                         }
 
                         eventsHtml += `
-                            <div style="background:var(--bg-secondary,#1e293b); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-bottom:10px;">
+                            <div style="background:var(--bg-secondary,#211d19); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-bottom:10px;">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
                                     <div style="display:flex; align-items:center; gap:10px;">
-                                        <i class="fas ${isCheckedIn ? 'fa-check-circle' : 'fa-circle'}" style="color:${isCheckedIn ? '#22c55e' : isPaid ? '#f59e0b' : '#64748b'}; font-size:20px;"></i>
+                                        <i class="fas ${isCheckedIn ? 'fa-check-circle' : 'fa-circle'}" style="color:${isCheckedIn ? '#22c55e' : isPaid ? '#f59e0b' : '#8f867c'}; font-size:20px;"></i>
                                         <div>
                                             <div style="font-weight:600; color:var(--text-primary,#e2e8f0); font-size:15px;">${escapeHtml(r.conference_name || 'Plexus Conference')}</div>
-                                            <div style="font-size:13px; color:var(--text-muted,#94a3b8); margin-top:2px;">${escapeHtml(r.ticket_name || 'General')} &middot; &euro;${(r.amount_paid || 0).toFixed(2)}${subCount ? ' &middot; ' + subCount + ' items' : ''}</div>
+                                            <div style="font-size:13px; color:var(--text-muted,#c9c2ba); margin-top:2px;">${escapeHtml(r.ticket_name || 'General')} &middot; &euro;${(r.amount_paid || 0).toFixed(2)}${subCount ? ' &middot; ' + subCount + ' items' : ''}</div>
                                         </div>
                                     </div>
                                     <span style="display:inline-block; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600; background:${isPaid ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)'}; color:${isPaid ? '#22c55e' : '#f59e0b'};">${isPaid ? 'PAID' : (r.payment_status || 'PENDING').toUpperCase()}</span>
@@ -12821,16 +12842,16 @@ President, Med&amp;X</textarea>
                         if (r.guest_count) details.push('<i class="fas fa-users" style="color:#c9a962;"></i> +' + r.guest_count + ' guest' + (r.guest_count > 1 ? 's' : ''));
                         if (r.dietary && r.dietary !== 'No special requirements') details.push('<i class="fas fa-utensils" style="color:#c9a962;"></i> ' + escapeHtml(r.dietary));
                         if (r.allergies && r.allergies !== 'None') details.push('<i class="fas fa-exclamation-triangle" style="color:#f59e0b;"></i> ' + escapeHtml(r.allergies));
-                        if (details.length) detailsHtml = '<div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:12px; font-size:12px; color:var(--text-muted,#94a3b8);">' + details.join('') + '</div>';
+                        if (details.length) detailsHtml = '<div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:12px; font-size:12px; color:var(--text-muted,#c9c2ba);">' + details.join('') + '</div>';
 
                         eventsHtml += `
-                            <div style="background:var(--bg-secondary,#1e293b); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-bottom:10px;">
+                            <div style="background:var(--bg-secondary,#211d19); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-bottom:10px;">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
                                     <div style="display:flex; align-items:center; gap:10px;">
                                         <i class="fas ${isCheckedIn ? 'fa-check-circle' : 'fa-circle'}" style="color:${isCheckedIn ? '#22c55e' : '#fb923c'}; font-size:20px;"></i>
                                         <div>
                                             <div style="font-weight:600; color:var(--text-primary,#e2e8f0);">${escapeHtml(r.event_name || 'Forum Event')}</div>
-                                            <div style="font-size:12px; color:var(--text-muted,#94a3b8);">Biomedical Forum${amtPaid ? ' &middot; &euro;' + amtPaid.toFixed(2) : ''}</div>
+                                            <div style="font-size:12px; color:var(--text-muted,#c9c2ba);">Biomedical Forum${amtPaid ? ' &middot; &euro;' + amtPaid.toFixed(2) : ''}</div>
                                         </div>
                                     </div>
                                     <span style="display:inline-block; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:600; background:rgba(251,146,60,0.15); color:#fb923c;">${escapeHtml((r.status || 'registered').toUpperCase())}</span>
@@ -12847,13 +12868,13 @@ President, Med&amp;X</textarea>
                     profile.bridgesRegistrations.forEach(r => {
                         const isCheckedIn = r.checked_in === 1;
                         eventsHtml += `
-                            <div style="background:var(--bg-secondary,#1e293b); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-bottom:10px;">
+                            <div style="background:var(--bg-secondary,#211d19); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-bottom:10px;">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
                                     <div style="display:flex; align-items:center; gap:10px;">
                                         <i class="fas ${isCheckedIn ? 'fa-check-circle' : 'fa-circle'}" style="color:${isCheckedIn ? '#22c55e' : '#c9a962'}; font-size:20px;"></i>
                                         <div>
                                             <div style="font-weight:600; color:var(--text-primary,#e2e8f0);">${escapeHtml(r.event_name || 'Building Bridges')}</div>
-                                            <div style="font-size:12px; color:var(--text-muted,#94a3b8);">${escapeHtml(r.city || '')} \u00b7 Building Bridges</div>
+                                            <div style="font-size:12px; color:var(--text-muted,#c9c2ba);">${escapeHtml(r.city || '')} \u00b7 Building Bridges</div>
                                         </div>
                                     </div>
                                     <span style="display:inline-block; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:600; background:${isCheckedIn ? 'rgba(34,197,94,0.15)' : 'rgba(244,114,182,0.15)'}; color:${isCheckedIn ? '#22c55e' : '#c9a962'};">${isCheckedIn ? 'CHECKED IN' : 'REGISTERED'}</span>
@@ -12878,19 +12899,19 @@ President, Med&amp;X</textarea>
                         // Venue — read from gala_settings if available (set by App.galaSettings cache), fall back to canonical default
                         const galaVenue = (typeof App !== 'undefined' && App.galaSettings && App.galaSettings.venue) || 'Hotel Esplanade Zagreb';
                         eventsHtml += `
-                            <div style="background:var(--bg-secondary,#1e293b); border:1px solid ${isVip ? 'rgba(155, 27, 34,0.3)' : 'rgba(255,255,255,0.06)'}; border-radius:12px; padding:16px; margin-bottom:10px;">
+                            <div style="background:var(--bg-secondary,#211d19); border:1px solid ${isVip ? 'rgba(155, 27, 34,0.3)' : 'rgba(255,255,255,0.06)'}; border-radius:12px; padding:16px; margin-bottom:10px;">
                                 <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
                                     <div style="display:flex; align-items:center; gap:10px; min-width:0;">
                                         <i class="fas ${isCheckedIn ? 'fa-check-circle' : (isVip ? 'fa-star' : 'fa-glass-cheers')}" style="color:${isCheckedIn ? '#22c55e' : (isVip ? '#9b1b22' : '#c9a962')}; font-size:20px; flex-shrink:0;"></i>
                                         <div style="min-width:0;">
                                             <div style="font-weight:600; color:var(--text-primary,#e2e8f0);">Plexus 2026 Gala Evening</div>
-                                            <div style="font-size:12px; color:var(--text-muted,#94a3b8);">${escapeHtml(galaVenue)}${r.amount_paid ? ' &middot; &euro;' + Number(r.amount_paid).toFixed(2) : ''}${r.invoice_number ? ' &middot; ' + escapeHtml(r.invoice_number) : ''}</div>
+                                            <div style="font-size:12px; color:var(--text-muted,#c9c2ba);">${escapeHtml(galaVenue)}${r.amount_paid ? ' &middot; &euro;' + Number(r.amount_paid).toFixed(2) : ''}${r.invoice_number ? ' &middot; ' + escapeHtml(r.invoice_number) : ''}</div>
                                         </div>
                                     </div>
                                     <span style="display:inline-block; padding:3px 10px; border-radius:6px; font-size:10px; font-weight:700; letter-spacing:0.5px; background:${statusBg}; color:${statusColor}; white-space:nowrap;">${statusLabel}</span>
                                 </div>
-                                ${r.dietary ? '<div style="margin-top:8px;font-size:12px;color:var(--text-muted,#94a3b8);"><i class="fas fa-utensils" style="color:#c9a962;margin-right:6px;"></i>' + escapeHtml(r.dietary) + '</div>' : ''}
-                                ${r.requests ? '<div style="margin-top:4px;font-size:12px;color:var(--text-muted,#94a3b8);"><i class="fas fa-comment" style="color:#c9a962;margin-right:6px;"></i>' + escapeHtml(r.requests) + '</div>' : ''}
+                                ${r.dietary ? '<div style="margin-top:8px;font-size:12px;color:var(--text-muted,#c9c2ba);"><i class="fas fa-utensils" style="color:#c9a962;margin-right:6px;"></i>' + escapeHtml(r.dietary) + '</div>' : ''}
+                                ${r.requests ? '<div style="margin-top:4px;font-size:12px;color:var(--text-muted,#c9c2ba);"><i class="fas fa-comment" style="color:#c9a962;margin-right:6px;"></i>' + escapeHtml(r.requests) + '</div>' : ''}
                                 ${isAwaiting ? '<div style="margin-top:8px;padding:8px 10px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:6px;font-size:11px;color:#f59e0b;"><i class="fas fa-exclamation-triangle" style="margin-right:4px;"></i>This person started checkout but has not paid. Do NOT check in unless you have verified payment.</div>' : ''}
                                 ${(isPaid || isVip) ? checkinBtn('gala', r.id, isCheckedIn) : ''}
                             </div>`;
@@ -12919,16 +12940,16 @@ President, Med&amp;X</textarea>
                     if (data.guests) qrDetails.push('<i class="fas fa-users" style="color:#c9a962;"></i> +' + data.guests + ' guest' + (data.guests > 1 ? 's' : ''));
                     if (data.diet && data.diet !== 'No special requirements') qrDetails.push('<i class="fas fa-utensils" style="color:#c9a962;"></i> ' + escapeHtml(data.diet));
                     if (data.allrg && data.allrg !== 'None') qrDetails.push('<i class="fas fa-exclamation-triangle" style="color:#f59e0b;"></i> ' + escapeHtml(data.allrg));
-                    if (qrDetails.length) qrDetailsHtml = '<div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:12px; font-size:12px; color:var(--text-muted,#94a3b8);">' + qrDetails.join('') + '</div>';
+                    if (qrDetails.length) qrDetailsHtml = '<div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:12px; font-size:12px; color:var(--text-muted,#c9c2ba);">' + qrDetails.join('') + '</div>';
 
                     eventsHtml = `
-                        <div style="background:var(--bg-secondary,#1e293b); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-bottom:10px;">
+                        <div style="background:var(--bg-secondary,#211d19); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-bottom:10px;">
                             <div style="display:flex; justify-content:space-between; align-items:center;">
                                 <div style="display:flex; align-items:center; gap:10px;">
                                     <i class="fas ${evtIcon}" style="color:${evtColor}; font-size:20px;"></i>
                                     <div>
                                         <div style="font-weight:600; color:var(--text-primary,#e2e8f0); font-size:15px;">${escapeHtml(evtLabel)}</div>
-                                        <div style="font-size:13px; color:var(--text-muted,#94a3b8);">${data.amt ? '&euro;' + Number(data.amt).toFixed(2) : 'Registered via invite link'}</div>
+                                        <div style="font-size:13px; color:var(--text-muted,#c9c2ba);">${data.amt ? '&euro;' + Number(data.amt).toFixed(2) : 'Registered via invite link'}</div>
                                     </div>
                                 </div>
                                 <span style="display:inline-block; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600; background:rgba(201,169,98,0.15); color:#c9a962;">FROM QR</span>
@@ -12936,11 +12957,11 @@ President, Med&amp;X</textarea>
                             ${qrItemsHtml}
                             ${qrDetailsHtml}
                         </div>
-                        <div style="text-align:center; padding:8px; font-size:11px; color:var(--text-muted,#64748b);"><i class="fas fa-info-circle"></i> Registration data from QR code (cross-portal sync pending)</div>`;
+                        <div style="text-align:center; padding:8px; font-size:11px; color:var(--text-muted,#8f867c);"><i class="fas fa-info-circle"></i> Registration data from QR code (cross-portal sync pending)</div>`;
                 }
 
                 if (!eventsHtml) {
-                    eventsHtml = '<div style="text-align:center; padding:20px; color:var(--text-muted,#94a3b8);"><i class="fas fa-calendar-times" style="font-size:24px; opacity:0.3; display:block; margin-bottom:8px;"></i>No event registrations</div>';
+                    eventsHtml = '<div style="text-align:center; padding:20px; color:var(--text-muted,#c9c2ba);"><i class="fas fa-calendar-times" style="font-size:24px; opacity:0.3; display:block; margin-bottom:8px;"></i>No event registrations</div>';
                 }
 
                 // Build modal
@@ -12956,13 +12977,13 @@ President, Med&amp;X</textarea>
                         </div>
                         <div style="padding:20px;">
                             <div style="display:flex; align-items:center; gap:16px; margin-bottom:20px;">
-                                <div style="width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg,#c9a962,#b49650); display:flex; align-items:center; justify-content:center; color:#0f172a; font-weight:700; font-size:20px; flex-shrink:0;">
+                                <div style="width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg,#c9a962,#b49650); display:flex; align-items:center; justify-content:center; color:#17120f; font-weight:700; font-size:20px; flex-shrink:0;">
                                     ${(u.first_name||'?')[0]}${(u.last_name||'?')[0]}
                                 </div>
                                 <div>
                                     <div style="font-size:18px; font-weight:700; color:var(--text-primary,#e2e8f0);">${escapeHtml(name)}</div>
-                                    <div style="font-size:13px; color:var(--text-muted,#94a3b8);">${escapeHtml(u.email || '')}</div>
-                                    <div style="font-size:12px; color:var(--text-muted,#94a3b8); margin-top:2px;">${escapeHtml(u.institution || '')}${u.country ? ' \u00b7 ' + escapeHtml(u.country) : ''}</div>
+                                    <div style="font-size:13px; color:var(--text-muted,#c9c2ba);">${escapeHtml(u.email || '')}</div>
+                                    <div style="font-size:12px; color:var(--text-muted,#c9c2ba); margin-top:2px;">${escapeHtml(u.institution || '')}${u.country ? ' \u00b7 ' + escapeHtml(u.country) : ''}</div>
                                 </div>
                             </div>
 
@@ -12973,21 +12994,21 @@ President, Med&amp;X</textarea>
                                 if (ctx === 'plexus') { isReg = profile.registrations?.length > 0; evtName = 'Plexus Conference 2026'; }
                                 else if (ctx === 'forum') { isReg = profile.forumRegistrations?.length > 0; evtName = 'Annual Biomedical Forum'; }
                                 else if (ctx.startsWith('bridges')) { isReg = profile.bridgesRegistrations?.length > 0; evtName = 'Building Bridges'; }
-                                return '<div style="text-align:center;padding:16px;margin-bottom:16px;border-radius:12px;background:' + (isReg ? 'rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3)') + '"><i class="fas ' + (isReg ? 'fa-check-circle' : 'fa-times-circle') + '" style="font-size:36px;color:' + (isReg ? '#22c55e' : '#ef4444') + ';"></i><div style="font-size:16px;font-weight:700;color:' + (isReg ? '#22c55e' : '#ef4444') + ';margin-top:8px;">' + (isReg ? 'REGISTERED' : 'NOT REGISTERED') + '</div><div style="font-size:12px;color:var(--text-muted,#94a3b8);margin-top:4px;">for ' + evtName + '</div></div>';
+                                return '<div style="text-align:center;padding:16px;margin-bottom:16px;border-radius:12px;background:' + (isReg ? 'rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3)') + '"><i class="fas ' + (isReg ? 'fa-check-circle' : 'fa-times-circle') + '" style="font-size:36px;color:' + (isReg ? '#22c55e' : '#ef4444') + ';"></i><div style="font-size:16px;font-weight:700;color:' + (isReg ? '#22c55e' : '#ef4444') + ';margin-top:8px;">' + (isReg ? 'REGISTERED' : 'NOT REGISTERED') + '</div><div style="font-size:12px;color:var(--text-muted,#c9c2ba);margin-top:4px;">for ' + evtName + '</div></div>';
                             })()}
 
                             <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:20px;">
-                                <div style="background:var(--bg-secondary,#1e293b); border-radius:10px; padding:12px; text-align:center;">
+                                <div style="background:var(--bg-secondary,#211d19); border-radius:10px; padding:12px; text-align:center;">
                                     <div style="font-size:22px; font-weight:700; color:var(--accent-gold,#c9a962);">${profile.summary?.totalRegistrations || (data.evt ? 1 : 0)}</div>
-                                    <div style="font-size:11px; color:var(--text-muted,#94a3b8);">Registrations</div>
+                                    <div style="font-size:11px; color:var(--text-muted,#c9c2ba);">Registrations</div>
                                 </div>
-                                <div style="background:var(--bg-secondary,#1e293b); border-radius:10px; padding:12px; text-align:center;">
+                                <div style="background:var(--bg-secondary,#211d19); border-radius:10px; padding:12px; text-align:center;">
                                     <div style="font-size:22px; font-weight:700; color:#22c55e;">\u20ac${(profile.summary?.totalPaid || data.amt || 0).toFixed ? (profile.summary?.totalPaid || data.amt || 0).toFixed(0) : (profile.summary?.totalPaid || data.amt || 0)}</div>
-                                    <div style="font-size:11px; color:var(--text-muted,#94a3b8);">Total Paid</div>
+                                    <div style="font-size:11px; color:var(--text-muted,#c9c2ba);">Total Paid</div>
                                 </div>
-                                <div style="background:var(--bg-secondary,#1e293b); border-radius:10px; padding:12px; text-align:center;">
+                                <div style="background:var(--bg-secondary,#211d19); border-radius:10px; padding:12px; text-align:center;">
                                     <div style="font-size:22px; font-weight:700; color:#c2484e;">${profile.summary?.eventsAttended || 0}</div>
-                                    <div style="font-size:11px; color:var(--text-muted,#94a3b8);">Attended</div>
+                                    <div style="font-size:11px; color:var(--text-muted,#c9c2ba);">Attended</div>
                                 </div>
                             </div>
 
@@ -13545,13 +13566,13 @@ President, Med&amp;X</textarea>
                             datasets: [{
                                 label: 'Registrations',
                                 data: [plexusReg, accReg, forumReg, bridgesReg],
-                                backgroundColor: ['#c2484e', '#b06a1f', '#fb923c', '#c9a962'],
+                                backgroundColor: ['#9b1b22', '#c9a962', '#b0603a', '#3f6f6a'],
                                 borderRadius: 8,
                                 borderSkipped: false
                             }, {
                                 label: 'Active Tasks',
                                 data: [plexusTasks, accTasks, forumTasks, bridgesTasks],
-                                backgroundColor: ['rgba(194, 72, 78,0.3)', 'rgba(176, 106, 31,0.3)', 'rgba(251,146,60,0.3)', 'rgba(244,114,182,0.3)'],
+                                backgroundColor: ['rgba(155,27,34,0.3)', 'rgba(201,169,98,0.3)', 'rgba(176,96,58,0.3)', 'rgba(63,111,106,0.3)'],
                                 borderRadius: 8,
                                 borderSkipped: false
                             }]
@@ -13701,20 +13722,20 @@ President, Med&amp;X</textarea>
             // Section definitions for onboarding
             sectionDefs: [
                 { id: 'dashboard', label: 'Home', icon: 'fa-home', color: '#c9a962', desc: 'Dashboard overview', alwaysOn: true },
-                { id: 'plexus', label: 'Plexus Conference', icon: 'fa-users', color: '#c2484e', desc: 'Annual flagship conference' },
-                { id: 'gala', label: 'Gala Evening', icon: 'fa-glass-cheers', color: '#C9A962', desc: 'Plexus 2026 Gala — registrations, invite links, settings' },
-                { id: 'croatians-abroad', label: 'Croatians Abroad', icon: 'fa-globe-europe', color: '#ef4444', desc: 'Diaspora multi-event invitations (Conference + Bridges + Gala)' },
-                { id: 'accelerator', label: 'Med&X Accelerator', icon: 'fa-rocket', color: '#b06a1f', desc: 'Research internship program' },
-                { id: 'forum', label: 'Biomedical Forum', icon: 'fa-landmark', color: '#fb923c', desc: 'Senior leaders network' },
-                { id: 'bridges', label: 'Building Bridges', icon: 'fa-globe-americas', color: '#c9a962', desc: 'Global networking events' },
-                { id: 'finances', label: 'Finances', icon: 'fa-coins', color: '#4ade80', desc: 'Budget & expense tracking' },
-                { id: 'pr-media', label: 'PR & Media', icon: 'fa-bullhorn', color: '#f87171', desc: 'Press releases & outreach' },
-                { id: 'newsletter', label: 'Newsletter', icon: 'fa-envelope-open-text', color: '#10b981', desc: 'Email newsletter campaigns' },
-                { id: 'user-notifications', label: 'Notifications', icon: 'fa-paper-plane', color: '#b06a1f', desc: 'Push & in-app notifications' },
-                { id: 'portal-content', label: 'Portal Content', icon: 'fa-th-large', color: '#c9a962', desc: 'User-portal content & pages' },
-                { id: 'messages', label: 'Messages', icon: 'fa-envelope', color: '#c2484e', desc: 'Inbound messages from users' },
-                { id: 'contacts', label: 'My Network', icon: 'fa-address-book', color: '#60a5fa', desc: 'Contact management' },
-                { id: 'tech', label: 'Tech', icon: 'fa-server', color: '#9b1b22', desc: 'System health & deployment' },
+                { id: 'plexus', label: 'Plexus Conference', icon: 'fa-users', color: '#c14b52', desc: 'Annual flagship conference' },
+                { id: 'gala', label: 'Gala Evening', icon: 'fa-glass-cheers', color: '#c14b52', desc: 'Plexus 2026 Gala — registrations, invite links, settings' },
+                { id: 'croatians-abroad', label: 'Croatians Abroad', icon: 'fa-globe-europe', color: '#c14b52', desc: 'Diaspora multi-event invitations (Conference + Bridges + Gala)' },
+                { id: 'accelerator', label: 'Med&X Accelerator', icon: 'fa-rocket', color: '#c14b52', desc: 'Research internship program' },
+                { id: 'forum', label: 'Biomedical Forum', icon: 'fa-landmark', color: '#c14b52', desc: 'Senior leaders network' },
+                { id: 'bridges', label: 'Building Bridges', icon: 'fa-globe-americas', color: '#c14b52', desc: 'Global networking events' },
+                { id: 'finances', label: 'Finances', icon: 'fa-coins', color: '#c14b52', desc: 'Budget & expense tracking' },
+                { id: 'pr-media', label: 'PR & Media', icon: 'fa-bullhorn', color: '#c14b52', desc: 'Press releases & outreach' },
+                { id: 'newsletter', label: 'Newsletter', icon: 'fa-envelope-open-text', color: '#c14b52', desc: 'Email newsletter campaigns' },
+                { id: 'user-notifications', label: 'Notifications', icon: 'fa-paper-plane', color: '#c14b52', desc: 'Push & in-app notifications' },
+                { id: 'portal-content', label: 'Portal Content', icon: 'fa-th-large', color: '#c14b52', desc: 'User-portal content & pages' },
+                { id: 'messages', label: 'Messages', icon: 'fa-envelope', color: '#c14b52', desc: 'Inbound messages from users' },
+                { id: 'contacts', label: 'My Network', icon: 'fa-address-book', color: '#c14b52', desc: 'Contact management' },
+                { id: 'tech', label: 'Tech', icon: 'fa-server', color: '#c14b52', desc: 'System health & deployment' },
             ],
 
             userSections: null, // null = all visible (backwards compat), array = filtered
@@ -13747,7 +13768,7 @@ President, Med&amp;X</textarea>
                         <div class="section-card ${isSelected ? 'selected' : ''} ${s.alwaysOn ? 'always-on' : ''}"
                              data-section="${s.id}"
                              onclick="${s.alwaysOn ? '' : 'App.toggleOnboardingSection(this)'}">
-                            <div class="section-card-icon" style="background: ${s.color}20; color: ${s.color};">
+                            <div class="section-card-icon" style="background: rgba(255,255,255,0.05); color: ${s.color};">
                                 <i class="fas ${s.icon}"></i>
                             </div>
                             <div class="section-card-info">
@@ -13898,7 +13919,7 @@ President, Med&amp;X</textarea>
                         <div class="section-card ${isSelected ? 'selected' : ''} ${s.alwaysOn ? 'always-on' : ''}"
                              data-section="${s.id}"
                              onclick="${s.alwaysOn ? '' : 'App.toggleSettingsSection(this)'}">
-                            <div class="section-card-icon" style="background: ${s.color}20; color: ${s.color};">
+                            <div class="section-card-icon" style="background: rgba(255,255,255,0.05); color: ${s.color};">
                                 <i class="fas ${s.icon}"></i>
                             </div>
                             <div class="section-card-info">
@@ -15574,7 +15595,7 @@ President, Med&amp;X</textarea>
                     'tech': 'Tech Dashboard',
                     'settings': 'Settings'
                 };
-                document.title = `Med&X Admin — ${sectionNames[sectionId] || sectionId}`;
+                document.title = `${sectionNames[sectionId] || sectionId} — Med&X Admin`;
 
                 document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
                 const sectionEl = document.getElementById('section-' + sectionId);
@@ -15721,7 +15742,7 @@ President, Med&amp;X</textarea>
                     bridges: 'Building Bridges'
                 };
                 if (projectTitles[projectId]) {
-                    document.title = `Med&X Admin — ${projectTitles[projectId]}`;
+                    document.title = `${projectTitles[projectId]} — Med&X Admin`;
                 }
 
                 // Load project-specific channels
@@ -17990,7 +18011,7 @@ President, Med&amp;X</textarea>
                     'pending': 'Pending',
                     'settings': 'Settings'
                 };
-                document.title = `Med&X Admin — Plexus · ${tabNames[tab] || tab}`;
+                document.title = `Plexus · ${tabNames[tab] || tab} — Med&X Admin`;
 
                 this.plexusCurrentTab = tab;
 
@@ -18055,7 +18076,7 @@ President, Med&amp;X</textarea>
             },
 
             renderPlexusCharts(stats) {
-                const typeColors = ['#c2484e', '#b06a1f', '#c9a962', '#c9a962', '#fb923c', '#10b981'];
+                const typeColors = ['#9b1b22', '#c9a962', '#7e151b', '#6b5d4f', '#b0603a', '#3f6f6a'];
 
                 // Registration by type chart (Doughnut)
                 const typeCtx = document.getElementById('pxChartByTypeCanvas');
@@ -18407,7 +18428,7 @@ President, Med&amp;X</textarea>
                 ov.innerHTML = `
                   <div class="card" style="max-width:520px;width:100%;max-height:88vh;overflow:auto;padding:0;">
                     <div style="padding:22px 22px 16px;background:linear-gradient(135deg,rgba(201,169,98,0.12),transparent);display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--border);">
-                        <div style="width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,#C9A962,#b49650);color:#0f172a;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;flex-shrink:0;">${esc(initials)}</div>
+                        <div style="width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,#C9A962,#b49650);color:#17120f;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;flex-shrink:0;">${esc(initials)}</div>
                         <div style="flex:1;min-width:0;">
                             <div style="font-size:18px;font-weight:700;line-height:1.2;">${esc(name)}</div>
                             <div style="font-size:13px;color:var(--text-muted);margin-top:2px;word-break:break-all;">${esc(email)}</div>
@@ -20357,7 +20378,7 @@ President, Med&amp;X</textarea>
                     try {
                         const ev = await this.api(`/api/bridges/events/${eventId}`);
                         const p = Number(ev?.price) || 0;
-                        priceNote = `<div style="margin-bottom:16px;padding:10px 12px;border:1px solid var(--border-color,#334155);border-radius:8px;background:var(--bg-secondary);font-size:12px;color:var(--text-secondary);">
+                        priceNote = `<div style="margin-bottom:16px;padding:10px 12px;border:1px solid var(--border-color,#2a231d);border-radius:8px;background:var(--bg-secondary);font-size:12px;color:var(--text-secondary);">
                             <i class="fas fa-ticket-alt" style="color:var(--accent-gold,#c9a962);margin-right:6px;"></i>Current price: <strong style="color:var(--accent-gold,#c9a962);">${p > 0 ? '€' + p : 'Free'}</strong>
                             — the link landing always shows the event's live price; editing the event price updates every existing link.
                         </div>`;
@@ -20366,7 +20387,7 @@ President, Med&amp;X</textarea>
 
                 // Sub-event options — composable components fetched from the DB. Each row is a
                 // selectable, individually-priced part; the link price = SUM of checked parts.
-                const cbStyle = 'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--border-color,#334155);border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-primary,#e2e8f0);';
+                const cbStyle = 'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--border-color,#2a231d);border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-primary,#e2e8f0);';
                 const cbInput = 'accent-color:#c9a962;width:16px;height:16px;';
                 let subEventSelect = '';
 
@@ -20729,7 +20750,7 @@ President, Med&amp;X</textarea>
                     ov.style.cssText = 'position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.55);display:flex;align-items:stretch;justify-content:flex-end;';
                     ov.onclick = (e) => { if (e.target === ov) this.closeAssistant(); };
                     ov.innerHTML = `
-                        <div style="width:100%;max-width:440px;height:100vh;display:flex;flex-direction:column;background:var(--bg-secondary,#0f172a);border-left:1px solid var(--border-color);box-shadow:-8px 0 30px rgba(0,0,0,0.4);">
+                        <div style="width:100%;max-width:440px;height:100vh;display:flex;flex-direction:column;background:var(--bg-secondary,#17120f);border-left:1px solid var(--border-color);box-shadow:-8px 0 30px rgba(0,0,0,0.4);">
                             <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border-color);">
                                 <div style="display:flex;align-items:center;gap:10px;">
                                     <span style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#9b1b22,#9b1b22);display:flex;align-items:center;justify-content:center;color:#fff;"><i class="fas fa-robot"></i></span>
@@ -20761,7 +20782,7 @@ President, Med&amp;X</textarea>
                     html += `<div style="color:var(--text-muted);font-size:13px;line-height:1.6;">Hi! I can answer questions like <em>"how many people registered for the Plexus Conference?"</em> or make changes like <em>"change the Gala start time to 19:00"</em> or <em>"add a Bridges event in Zurich on 2026-11-10"</em>.<br><br>Every change is shown to you with a Confirm button first — nothing happens without your OK.</div>`;
                 }
                 for (const m of this._assistHistory) {
-                    if (m.role === 'user') html += `<div style="align-self:flex-end;max-width:85%;background:var(--accent-gold);color:#0f172a;padding:9px 12px;border-radius:12px 12px 2px 12px;font-size:14px;">${escapeHtml(m.content)}</div>`;
+                    if (m.role === 'user') html += `<div style="align-self:flex-end;max-width:85%;background:var(--accent-gold);color:#17120f;padding:9px 12px;border-radius:12px 12px 2px 12px;font-size:14px;">${escapeHtml(m.content)}</div>`;
                     else html += `<div style="align-self:flex-start;max-width:92%;background:var(--bg-primary);color:var(--text-primary);padding:9px 12px;border-radius:12px 12px 12px 2px;font-size:14px;white-space:pre-wrap;">${escapeHtml(m.content)}</div>`;
                 }
                 (this._assistPending || []).forEach((p, i) => {
@@ -20872,16 +20893,16 @@ President, Med&amp;X</textarea>
                                 <div style="display:flex;justify-content:space-between;gap:10px;"><span style="font-size:15px;font-weight:600;color:#fff;">${esc(title)}</span><span style="font-size:13px;font-weight:600;color:${price>0?'#c9a962':'#22c55e'};">${price>0?'€'+price:'FREE'}</span></div>
                                 ${status ? `<div style="font-size:10px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:#c9a962;margin:3px 0;">${esc(status)}</div>` : ''}
                                 ${date ? `<div style="font-size:12px;font-weight:600;color:#e2e8f0;">${esc(date)}</div>` : ''}
-                                ${d ? `<div style="font-size:12.5px;color:#94a3b8;line-height:1.5;margin-top:2px;">${fmtRich(d)}</div>` : ''}
+                                ${d ? `<div style="font-size:12.5px;color:#c9c2ba;line-height:1.5;margin-top:2px;">${fmtRich(d)}</div>` : ''}
                             </div>`;
                         });
                     }
-                    prev.innerHTML = `<div style="background:#0f172a;border:1px solid rgba(201,169,98,0.25);border-radius:14px;padding:22px;">
+                    prev.innerHTML = `<div style="background:#17120f;border:1px solid rgba(201,169,98,0.25);border-radius:14px;padding:22px;">
                         <div style="font-size:20px;font-weight:700;color:#fff;margin-bottom:8px;">Reserve your place</div>
                         ${plexLede.value.trim() ? `<div style="font-size:13px;color:#cbd5e1;line-height:1.5;margin-bottom:14px;">${fmtRich(plexLede.value)}</div>` : ''}
-                        ${cardsHtml || '<div style="color:#64748b;font-size:13px;">Tick events above to include them.</div>'}
+                        ${cardsHtml || '<div style="color:#8f867c;font-size:13px;">Tick events above to include them.</div>'}
                         <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;margin-top:14px;background:rgba(201,169,98,0.12);border-radius:10px;border:1px solid rgba(201,169,98,0.25);">
-                            <span style="font-size:14px;color:#94a3b8;">Total</span>
+                            <span style="font-size:14px;color:#c9c2ba;">Total</span>
                             <span style="font-size:26px;font-weight:700;color:#c9a962;">${totalStr}</span>
                         </div>
                     </div>`;
@@ -20889,13 +20910,13 @@ President, Med&amp;X</textarea>
                 }
                 // Match the live page: newlines → <br>, lines starting with -, *, • → "• " bullets.
                 const descHtml = esc(description).split('\n').map(l => l.replace(/^\s*[-*•]\s+/, '• ')).join('<br>');
-                const metaRow = (icon, val) => val ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#94a3b8;margin-bottom:6px;"><i class="fas ${icon}" style="width:14px;color:#c9a962;"></i>${esc(val)}</div>` : '';
+                const metaRow = (icon, val) => val ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#c9c2ba;margin-bottom:6px;"><i class="fas ${icon}" style="width:14px;color:#c9a962;"></i>${esc(val)}</div>` : '';
                 const partsHtml = included.length
                     ? '<div style="margin:14px 0 18px;">' + included.map(i =>
                         `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:14px;color:#e2e8f0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="color:#22c55e;font-weight:700;">&#10003;</span> ${esc(i)}</div>`).join('') + '</div>'
                     : '<div style="height:8px;"></div>';
                 prev.innerHTML = `
-                    <div style="background:#0f172a;border:1px solid rgba(201,169,98,0.25);border-radius:14px;padding:22px;">
+                    <div style="background:#17120f;border:1px solid rgba(201,169,98,0.25);border-radius:14px;padding:22px;">
                         <div style="font-size:22px;font-weight:700;color:#fff;line-height:1.25;margin-bottom:10px;">${esc(name)}</div>
                         ${metaRow('fa-calendar', date)}
                         ${metaRow('fa-clock', time)}
@@ -20903,10 +20924,10 @@ President, Med&amp;X</textarea>
                         ${description ? `<div style="font-size:13px;color:#cbd5e1;line-height:1.5;margin:12px 0 4px;">${descHtml}</div>` : ''}
                         ${partsHtml}
                         <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:rgba(201,169,98,0.12);border-radius:10px;border:1px solid rgba(201,169,98,0.25);">
-                            <span style="font-size:14px;color:#94a3b8;">Total</span>
+                            <span style="font-size:14px;color:#c9c2ba;">Total</span>
                             <span style="font-size:26px;font-weight:700;color:#c9a962;">${totalStr}</span>
                         </div>
-                        <div style="margin-top:14px;height:42px;border-radius:10px;background:linear-gradient(135deg,#c9a962,#b49650);display:flex;align-items:center;justify-content:center;color:#0f172a;font-weight:700;font-size:14px;">${total > 0 ? 'Proceed to Payment' : 'Complete Registration'}</div>
+                        <div style="margin-top:14px;height:42px;border-radius:10px;background:linear-gradient(135deg,#c9a962,#b49650);display:flex;align-items:center;justify-content:center;color:#17120f;font-weight:700;font-size:14px;">${total > 0 ? 'Proceed to Payment' : 'Complete Registration'}</div>
                     </div>`;
             },
 
@@ -21019,8 +21040,8 @@ President, Med&amp;X</textarea>
                         </div>
 
                         <div style="margin-bottom: 12px;">
-                            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted, #94a3b8); text-transform: uppercase; letter-spacing: 0.5px;">Checking in for:</label>
-                            <select id="qrCheckInContext" onchange="App.loadGlobalCheckinStats()" style="width: 100%; padding: 10px; border: 1px solid var(--border-color, #334155); border-radius: 8px; background: var(--bg-secondary, #1e293b); color: var(--text-primary, #e2e8f0); font-size: 14px; margin-top: 4px;">
+                            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted, #c9c2ba); text-transform: uppercase; letter-spacing: 0.5px;">Checking in for:</label>
+                            <select id="qrCheckInContext" onchange="App.loadGlobalCheckinStats()" style="width: 100%; padding: 10px; border: 1px solid var(--border-color, #2a231d); border-radius: 8px; background: var(--bg-secondary, #211d19); color: var(--text-primary, #e2e8f0); font-size: 14px; margin-top: 4px;">
                                 <option value="general">General Lookup (all events)</option>
                                 <optgroup label="Plexus 2026">
                                     <option value="plexus">Plexus Conference</option>
@@ -21052,14 +21073,14 @@ President, Med&amp;X</textarea>
                                        onkeydown="if(event.key==='Enter') App.globalCheckin()">
                                 <button onclick="App.globalCheckin()"><i class="fas fa-check"></i> Check In</button>
                             </div>
-                            <div style="margin-top:12px; text-align:center; color:var(--text-muted,#94a3b8); font-size:12px;">
+                            <div style="margin-top:12px; text-align:center; color:var(--text-muted,#c9c2ba); font-size:12px;">
                                 <span>— or search by name/email —</span>
                             </div>
                             <div style="display:flex; gap:8px; margin-top:8px; padding:0 4px;">
                                 <input type="text" id="globalNameSearch" placeholder="Search by name or email..."
-                                       style="flex:1; padding:10px 14px; border-radius:8px; border:1px solid var(--border-color,#334155); background:var(--bg-secondary,#1e293b); color:var(--text-primary,#e2e8f0); font-size:13px;"
+                                       style="flex:1; padding:10px 14px; border-radius:8px; border:1px solid var(--border-color,#2a231d); background:var(--bg-secondary,#211d19); color:var(--text-primary,#e2e8f0); font-size:13px;"
                                        onkeydown="if(event.key==='Enter') App.searchMemberByName()">
-                                <button onclick="App.searchMemberByName()" style="padding:10px 16px; background:linear-gradient(135deg,#c9a962,#b49650); color:#0f172a; border:none; border-radius:8px; font-weight:600; font-size:13px; cursor:pointer;">
+                                <button onclick="App.searchMemberByName()" style="padding:10px 16px; background:linear-gradient(135deg,#c9a962,#b49650); color:#17120f; border:none; border-radius:8px; font-weight:600; font-size:13px; cursor:pointer;">
                                     <i class="fas fa-search"></i>
                                 </button>
                             </div>
@@ -21296,12 +21317,12 @@ President, Med&amp;X</textarea>
                     el.innerHTML = `
                         <div style="font-size:18px;font-weight:700;color:${data.status_color || '#22c55e'};">${already ? 'ALREADY CHECKED IN' : 'CHECKED IN ✓'}${data.status_label ? ' · ' + escapeHtml(data.status_label) : ''}</div>
                         <div style="font-size:16px;font-weight:600;color:var(--text-primary,#e2e8f0);margin-top:6px;">${escapeHtml(r.name || '—')}</div>
-                        <div style="font-size:12px;color:var(--text-muted,#94a3b8);">${escapeHtml(r.email || '')}</div>
+                        <div style="font-size:12px;color:var(--text-muted,#c9c2ba);">${escapeHtml(r.email || '')}</div>
                         ${r.applied_for ? `<div style="font-size:12px;color:var(--accent-gold,#c9a962);margin-top:8px;font-weight:600;"><i class="fas fa-ticket"></i> Applied for:</div><ul style="margin:4px 0 0;padding-left:22px;color:var(--accent-gold,#c9a962);font-size:12px;font-weight:600;list-style:disc;">${String(r.applied_for).split(/\s*[,+;]\s*|\n+/).map(s => s.trim()).filter(Boolean).map(s => `<li style="margin:2px 0;">${escapeHtml(s)}</li>`).join('')}</ul>` : ''}
                         ${(r.forum_member || (r.tier && r.tier.length) || (r.returning_count > 1)) ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">${r.forum_member ? `<span style="font-size:11px;font-weight:700;color:#34d399;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.35);border-radius:20px;padding:3px 10px;"><i class="fas fa-star"></i> Forum member${r.forum_status && r.forum_status !== 'active' && r.forum_status !== 'approved' ? ' (' + escapeHtml(r.forum_status) + ')' : ''}</span>` : ''}${r.tier ? `<span style="font-size:11px;font-weight:700;color:#c9a962;background:rgba(201,169,98,0.12);border:1px solid rgba(201,169,98,0.35);border-radius:20px;padding:3px 10px;text-transform:capitalize;"><i class="fas fa-medal"></i> ${escapeHtml(r.tier)}</span>` : ''}${r.returning_count > 1 ? `<span style="font-size:11px;font-weight:700;color:#c2484e;background:rgba(194, 72, 78,0.12);border:1px solid rgba(194, 72, 78,0.35);border-radius:20px;padding:3px 10px;"><i class="fas fa-rotate-left"></i> Returning · ${r.returning_count} on file</span>` : ''}</div>` : ''}
                         ${r.seat ? `<div style="font-size:13px;color:#fff;margin-top:8px;font-weight:700;background:rgba(45,212,191,0.18);border:1px solid rgba(45,212,191,0.5);border-radius:8px;padding:6px 12px;"><i class="fas fa-chair"></i> Table / Seat: ${escapeHtml(r.seat)}</div>` : ''}
                         ${r.guests ? `<div style="font-size:14px;color:#fff;margin-top:8px;font-weight:700;background:rgba(155, 27, 34,0.2);border:1px solid rgba(155, 27, 34,0.55);border-radius:8px;padding:8px 12px;"><i class="fas fa-users"></i> +${r.guests} guest${r.guests > 1 ? 's' : ''} — admit ${Number(r.guests) + 1} people total</div>` : ''}
-                        ${already && data.checked_in_at ? `<div style="font-size:11px;color:var(--text-muted,#94a3b8);margin-top:6px;">First check-in: ${new Date(data.checked_in_at).toLocaleString()}</div>` : ''}`;
+                        ${already && data.checked_in_at ? `<div style="font-size:11px;color:var(--text-muted,#c9c2ba);margin-top:6px;">First check-in: ${new Date(data.checked_in_at).toLocaleString()}</div>` : ''}`;
                 } else {
                     el.className = 'checkin-result error';
                     el.innerHTML = `<div style="font-size:16px;font-weight:700;color:#ef4444;"><i class="fas fa-times-circle"></i> ${escapeHtml(data.message || data.reason || 'Not admitted')}</div>${r.name ? '<div style="margin-top:4px;color:var(--text-primary,#e2e8f0);">' + escapeHtml(r.name) + '</div>' : ''}`;
@@ -21491,10 +21512,10 @@ President, Med&amp;X</textarea>
                     }
                     resultsDiv.innerHTML = users.map(u => {
                         const userId = u.user_id || u.id;
-                        return `<div onclick="showUserProfileFromQR({userId:'${escapeHtml(userId)}', email:'${escapeHtml(u.email || '')}'})" style="display:flex; justify-content:space-between; align-items:center; padding:10px; margin:4px 0; background:var(--bg-secondary,#1e293b); border-radius:8px; cursor:pointer; border:1px solid rgba(255,255,255,0.04);">
+                        return `<div onclick="showUserProfileFromQR({userId:'${escapeHtml(userId)}', email:'${escapeHtml(u.email || '')}'})" style="display:flex; justify-content:space-between; align-items:center; padding:10px; margin:4px 0; background:var(--bg-secondary,#211d19); border-radius:8px; cursor:pointer; border:1px solid rgba(255,255,255,0.04);">
                             <div>
                                 <div style="font-weight:600; color:var(--text-primary,#e2e8f0); font-size:13px;">${escapeHtml(u.name || '')}</div>
-                                <div style="font-size:11px; color:var(--text-muted,#94a3b8);">${escapeHtml(u.email || '')}</div>
+                                <div style="font-size:11px; color:var(--text-muted,#c9c2ba);">${escapeHtml(u.email || '')}</div>
                             </div>
                             <span style="font-size:11px; padding:2px 8px; border-radius:4px; background:rgba(201,169,98,0.1); color:#c9a962;">${escapeHtml(u.event || 'member')}</span>
                         </div>`;
@@ -22450,7 +22471,7 @@ President, Med&amp;X</textarea>
                                         <td style="padding: 10px; text-align: center; font-weight:600; color:#c9a962;">${r.amount_paid ? '€' + r.amount_paid : '-'}</td>
                                         <td style="padding: 10px; text-align: center;">${r.checked_in
                                             ? '<span style="background:rgba(34,197,94,0.2);color:#22c55e;padding:2px 8px;border-radius:12px;font-size:11px;"><i class="fas fa-check"></i> In</span>'
-                                            : '<span style="background:rgba(148,163,184,0.2);color:#94a3b8;padding:2px 8px;border-radius:12px;font-size:11px;">Reg</span>'
+                                            : '<span style="background:rgba(148,163,184,0.2);color:#c9c2ba;padding:2px 8px;border-radius:12px;font-size:11px;">Reg</span>'
                                         }</td>
                                         <td style="padding: 10px; text-align: center; white-space:nowrap;">
                                             ${!r.checked_in
@@ -24520,7 +24541,7 @@ President, Med&amp;X</textarea>
                     ? '<span style="background: rgba(34, 197, 94, 0.2); color: #22c55e; padding: 2px 8px; border-radius: 4px; font-size: 12px;">Valid</span>'
                     : app.validity_status === 'invalid'
                     ? '<span style="background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 2px 8px; border-radius: 4px; font-size: 12px;">Invalid</span>'
-                    : '<span style="background: rgba(148, 163, 184, 0.2); color: #94a3b8; padding: 2px 8px; border-radius: 4px; font-size: 12px;">Pending Review</span>';
+                    : '<span style="background: rgba(148, 163, 184, 0.2); color: #c9c2ba; padding: 2px 8px; border-radius: 4px; font-size: 12px;">Pending Review</span>';
 
                 document.getElementById('accAppModalTitle').textContent = `Candidate #${app.candidate_id || app.application_number}`;
                 document.getElementById('accAppModalBody').innerHTML = `
@@ -24570,7 +24591,7 @@ President, Med&amp;X</textarea>
                         </div>
                         ${app.documents?.length ? app.documents.map(d => {
                             const icon = d.mime_type?.includes('pdf') ? 'fa-file-pdf' : d.mime_type?.includes('image') ? 'fa-file-image' : 'fa-file';
-                            const color = d.mime_type?.includes('pdf') ? '#ef4444' : d.mime_type?.includes('image') ? '#3b82f6' : '#94a3b8';
+                            const color = d.mime_type?.includes('pdf') ? '#ef4444' : d.mime_type?.includes('image') ? '#3b82f6' : '#c9c2ba';
                             return `
                             <div style="display: flex; align-items: center; gap: 10px; padding: 8px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 4px;">
                                 <i class="fas ${icon}" style="color: ${color};"></i>
@@ -25616,7 +25637,7 @@ President, Med&amp;X</textarea>
                     const fileCount = group.files?.length || 0;
                     const filesHtml = (group.files || []).map(f => {
                         const icon = f.mime_type?.includes('pdf') ? 'fa-file-pdf' : f.mime_type?.includes('image') ? 'fa-file-image' : 'fa-file';
-                        const color = f.mime_type?.includes('pdf') ? '#ef4444' : f.mime_type?.includes('image') ? '#3b82f6' : '#94a3b8';
+                        const color = f.mime_type?.includes('pdf') ? '#ef4444' : f.mime_type?.includes('image') ? '#3b82f6' : '#c9c2ba';
                         const sizeStr = f.file_size ? (f.file_size / 1024).toFixed(1) + ' KB' : '';
                         return `
                             <div style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--bg-primary); border-radius: 4px;">
@@ -25633,7 +25654,7 @@ President, Med&amp;X</textarea>
                         <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;">
                             <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; user-select: none;" onclick="AcceleratorApp.toggleApplicantFiles('accFileGroup-${idx}')">
                                 <i class="fas fa-chevron-right" id="accFileGroupIcon-${idx}" style="color: var(--text-muted); transition: transform 0.2s; width: 12px;"></i>
-                                <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--accelerator); color: #0f172a; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;">
+                                <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--accelerator); color: #17120f; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;">
                                     ${(group.applicant?.name || '?')[0].toUpperCase()}
                                 </div>
                                 <div style="flex: 1;">
@@ -26439,7 +26460,7 @@ By applying to this program, I give the following consents:
                     });
                     projContainer.innerHTML = Object.entries(projects).map(([name, data]) => `
                         <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border);">
-                            <span style="text-transform: capitalize;">${escapeHtml(name)}</span>
+                            <span>${escapeHtml(name === 'pr-media' ? 'PR & Media' : (name.charAt(0).toUpperCase() + name.slice(1)))}</span>
                             <span><span style="color: var(--success);">${this.formatCurrency(data.income)}</span> / <span style="color: var(--danger);">${this.formatCurrency(data.expenses)}</span></span>
                         </div>
                     `).join('');
@@ -27312,7 +27333,7 @@ By applying to this program, I give the following consents:
             _getSourceBadge(source) {
                 const colors = { plexus: '#9b1b22', gala: '#C9A962', accelerator: '#3b82f6', forum: '#b06a1f' };
                 const labels = { plexus: 'Plexus', gala: 'Gala', accelerator: 'Accelerator', forum: 'Forum' };
-                const color = colors[source] || '#64748b';
+                const color = colors[source] || '#8f867c';
                 const label = labels[source] || source;
                 return `<span style="padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; background: ${color}18; color: ${color}; white-space: nowrap;">${label}</span>`;
             },
@@ -27430,7 +27451,7 @@ By applying to this program, I give the following consents:
                 } else {
                     projTable.innerHTML = byProject.map(p => `
                         <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 10px; text-transform: capitalize;">${p.project}</td>
+                            <td style="padding: 10px;">${escapeHtml(p.project === 'pr-media' ? 'PR & Media' : (p.project.charAt(0).toUpperCase() + p.project.slice(1)))}</td>
                             <td style="padding: 10px; text-align: right; color: var(--success);">${this.formatCurrency(p.total_income)}</td>
                             <td style="padding: 10px; text-align: right; color: var(--danger);">${this.formatCurrency(p.total_expenses)}</td>
                             <td style="padding: 10px; text-align: right; font-weight: 600;">${this.formatCurrency(p.total_income - p.total_expenses)}</td>
@@ -27765,7 +27786,7 @@ By applying to this program, I give the following consents:
                     planning: { bg: 'rgba(251, 146, 60, 0.2)', color: '#fb923c' },
                     registration_open: { bg: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6' },
                     ongoing: { bg: 'rgba(155, 27, 34, 0.2)', color: '#9b1b22' },
-                    completed: { bg: 'rgba(148, 163, 184, 0.2)', color: '#94a3b8' },
+                    completed: { bg: 'rgba(148, 163, 184, 0.2)', color: '#c9c2ba' },
                     cancelled: { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' }
                 };
 
@@ -27793,7 +27814,7 @@ By applying to this program, I give the following consents:
                                         <span style="background: ${statusStyle.bg}; color: ${statusStyle.color}; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 500; text-transform: capitalize;">${event.status}</span>
                                         ${event.is_published
                                             ? '<span style="background: rgba(34, 197, 94, 0.15); color: #22c55e; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 500;"><i class="fas fa-globe" style="margin-right: 3px;"></i>Published</span>'
-                                            : '<span style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 500;"><i class="fas fa-eye-slash" style="margin-right: 3px;"></i>Draft</span>'
+                                            : '<span style="background: rgba(148, 163, 184, 0.15); color: #c9c2ba; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 500;"><i class="fas fa-eye-slash" style="margin-right: 3px;"></i>Draft</span>'
                                         }
                                         <span style="font-size: 12px; color: var(--text-muted);"><i class="fas fa-users" style="margin-right: 4px;"></i>${event.registration_count || 0}/${event.capacity || 50}</span>
                                         <span style="font-size: 12px; color: var(--accent-gold, #c9a962); font-weight: 600;"><i class="fas fa-ticket-alt" style="margin-right: 4px;"></i>${Number(event.price) > 0 ? '€' + Number(event.price) : 'Free'}</span>
@@ -27842,7 +27863,7 @@ By applying to this program, I give the following consents:
                     planning: { bg: 'rgba(251, 146, 60, 0.2)', color: '#fb923c' },
                     registration_open: { bg: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6' },
                     ongoing: { bg: 'rgba(155, 27, 34, 0.2)', color: '#9b1b22' },
-                    completed: { bg: 'rgba(148, 163, 184, 0.2)', color: '#94a3b8' },
+                    completed: { bg: 'rgba(148, 163, 184, 0.2)', color: '#c9c2ba' },
                     cancelled: { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' }
                 };
                 const style = statusColors[event.status] || statusColors.planning;
@@ -27924,7 +27945,7 @@ By applying to this program, I give the following consents:
                         : r.payment_status === 'pending'
                         ? `<span style="display:inline-block;margin-top:4px;background:rgba(245,158,11,0.15);color:#f59e0b;padding:2px 8px;border-radius:10px;font-size:10px;">AWAITING PAYMENT</span>`
                         : r.payment_status === 'comp'
-                        ? `<span style="display:inline-block;margin-top:4px;background:rgba(148,163,184,0.15);color:#94a3b8;padding:2px 8px;border-radius:10px;font-size:10px;">COMP</span>`
+                        ? `<span style="display:inline-block;margin-top:4px;background:rgba(148,163,184,0.15);color:#c9c2ba;padding:2px 8px;border-radius:10px;font-size:10px;">COMP</span>`
                         : '';
                     return `
                     <tr style="border-bottom: 1px solid var(--border);">
@@ -30048,12 +30069,12 @@ By applying to this program, I give the following consents:
                 container.innerHTML = this.keyDates.map((d, i) => '<div style="display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 12px; align-items: end; margin-bottom: 12px; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">' +
                     '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Label</label><input type="text" class="form-input" value="' + (d.label || '').replace(/"/g, '&quot;') + '" onchange="PlexusSettingsAdmin.updateKeyDate(' + i + ', \'label\', this.value)"></div>' +
                     '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Date Text</label><input type="text" class="form-input" value="' + (d.date || '').replace(/"/g, '&quot;') + '" onchange="PlexusSettingsAdmin.updateKeyDate(' + i + ', \'date\', this.value)"></div>' +
-                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Color</label><input type="color" class="form-input" value="' + (d.color && d.color.startsWith('#') ? d.color : '#0f172a') + '" onchange="PlexusSettingsAdmin.updateKeyDate(' + i + ', \'color\', this.value)" style="width:50px;height:36px;padding:2px;"></div>' +
+                    '<div class="form-group" style="margin:0;"><label class="form-label" style="font-size:11px;">Color</label><input type="color" class="form-input" value="' + (d.color && d.color.startsWith('#') ? d.color : '#17120f') + '" onchange="PlexusSettingsAdmin.updateKeyDate(' + i + ', \'color\', this.value)" style="width:50px;height:36px;padding:2px;"></div>' +
                     '<button class="btn btn-secondary" onclick="PlexusSettingsAdmin.removeKeyDate(' + i + ')" style="height:36px;padding:0 12px;color:var(--danger);" title="Remove"><i class="fas fa-trash"></i></button>' +
                 '</div>').join('');
             },
 
-            addKeyDate() { this.keyDates.push({ label: 'New Date', date: 'TBD', color: '#0f172a' }); this.renderKeyDatesEditor(); },
+            addKeyDate() { this.keyDates.push({ label: 'New Date', date: 'TBD', color: '#17120f' }); this.renderKeyDatesEditor(); },
             updateKeyDate(i, field, val) { if (this.keyDates[i]) this.keyDates[i][field] = val; },
             removeKeyDate(i) { this.keyDates.splice(i, 1); this.renderKeyDatesEditor(); },
 
@@ -30851,7 +30872,7 @@ By applying to this program, I give the following consents:
                 overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
                 overlay.onclick = (e) => { if (e.target === overlay) this.close(); };
                 overlay.innerHTML = `
-                    <div style="background:var(--bg-primary,#0f172a);border:1px solid var(--border);border-radius:18px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto;padding:24px;position:relative;">
+                    <div style="background:var(--bg-primary,#17120f);border:1px solid var(--border);border-radius:18px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto;padding:24px;position:relative;">
                         <button onclick="EventCheckin.close()" style="position:absolute;top:14px;right:14px;width:32px;height:32px;border-radius:50%;border:none;background:rgba(255,255,255,0.06);color:var(--text-primary);cursor:pointer;font-size:14px;"><i class="fas fa-times"></i></button>
                         <h2 style="font-size:18px;color:var(--text-primary);margin:0 0 4px;display:flex;align-items:center;gap:10px;">
                             <i class="fas fa-qrcode" style="color:#22c55e;"></i>Event Check-in
@@ -31035,7 +31056,7 @@ By applying to this program, I give the following consents:
                 overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);';
                 overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
                 overlay.innerHTML = `
-                    <div style="background:var(--bg-primary,#0f172a);border:1px solid var(--border);border-radius:18px;max-width:520px;width:100%;padding:0;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,0.5);">
+                    <div style="background:var(--bg-primary,#17120f);border:1px solid var(--border);border-radius:18px;max-width:520px;width:100%;padding:0;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,0.5);">
                         <div style="padding:22px 26px 18px;background:linear-gradient(180deg,${accentBg},transparent);border-bottom:1px solid var(--border);">
                             <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
                                 <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
@@ -31549,7 +31570,7 @@ By applying to this program, I give the following consents:
                         const icon = this.ICONS[r.action] || 'fa-circle-dot';
                         const when = r.created_at ? new Date(r.created_at.replace(' ', 'T') + (/[Zz]|[+\-]\d\d:?\d\d$/.test(r.created_at) ? '' : 'Z')).toLocaleString() : '';
                         return `<div style="display:flex;align-items:flex-start;gap:12px;padding:11px 14px;border-bottom:1px solid var(--border);">
-                            <span style="flex-shrink:0;width:26px;height:26px;border-radius:6px;background:rgba(148,163,184,0.15);color:#94a3b8;display:inline-flex;align-items:center;justify-content:center;font-size:12px;margin-top:1px;"><i class="fas ${icon}"></i></span>
+                            <span style="flex-shrink:0;width:26px;height:26px;border-radius:6px;background:rgba(148,163,184,0.15);color:#c9c2ba;display:inline-flex;align-items:center;justify-content:center;font-size:12px;margin-top:1px;"><i class="fas ${icon}"></i></span>
                             <div style="flex:1;min-width:0;">
                                 <div style="font-size:13.5px;color:var(--text-primary);"><strong>${this.esc(r.action)}</strong> ${r.detail ? '· ' + this.esc(r.detail) : ''}</div>
                                 <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">${this.esc(r.actor_email || 'unknown')} · ${when}</div>
@@ -31889,7 +31910,7 @@ By applying to this program, I give the following consents:
                             <div style="flex:1;min-width:0;">
                                 <div style="font-weight:600;color:var(--text-primary);font-size:14px;">${this.esc(c.name)}
                                     <span style="font-size:10px;font-weight:700;letter-spacing:0.5px;color:${cs.color};margin-left:6px;">${cs.label}</span></div>
-                                ${c.detail ? `<div style="font-size:12.5px;color:var(--text-secondary,#94a3b8);margin-top:3px;">${this.esc(c.detail)}</div>` : ''}
+                                ${c.detail ? `<div style="font-size:12.5px;color:var(--text-secondary,#c9c2ba);margin-top:3px;">${this.esc(c.detail)}</div>` : ''}
                                 ${c.fix ? `<div style="font-size:12px;color:${cs.color};margin-top:4px;"><i class="fas fa-wrench" style="font-size:10px;opacity:0.8;"></i> ${this.esc(c.fix)}</div>` : ''}
                             </div>
                         </div>`;
@@ -32784,11 +32805,11 @@ By applying to this program, I give the following consents:
                 if (document.getElementById('medxStaffInstall')) return;
                 var b = document.createElement('div');
                 b.id = 'medxStaffInstall';
-                b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;max-width:520px;margin:0 auto;background:#0f172a;color:#fff;border:1px solid rgba(201,169,98,0.4);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 30px rgba(0,0,0,0.4);font-family:system-ui,-apple-system,sans-serif;';
-                b.innerHTML = '<div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#C9A962,#b49650);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#0f172a;font-size:18px;">⚕️</div>'
-                    + '<div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:14px;">Install the Staff app</div><div style="font-size:12px;color:#94a3b8;">Scanner & admin tools, one tap from your home screen.</div></div>'
-                    + '<button id="medxStaffGo" style="background:linear-gradient(135deg,#C9A962,#b49650);color:#0f172a;border:none;border-radius:9px;padding:9px 14px;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0;">Install</button>'
-                    + '<button id="medxStaffX" aria-label="Dismiss" style="background:transparent;border:none;color:#64748b;font-size:18px;cursor:pointer;flex-shrink:0;padding:4px 6px;">×</button>';
+                b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;max-width:520px;margin:0 auto;background:#17120f;color:#fff;border:1px solid rgba(201,169,98,0.4);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 30px rgba(0,0,0,0.4);font-family:system-ui,-apple-system,sans-serif;';
+                b.innerHTML = '<div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#C9A962,#b49650);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#17120f;font-size:18px;">⚕️</div>'
+                    + '<div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:14px;">Install the Staff app</div><div style="font-size:12px;color:#c9c2ba;">Scanner & admin tools, one tap from your home screen.</div></div>'
+                    + '<button id="medxStaffGo" style="background:linear-gradient(135deg,#C9A962,#b49650);color:#17120f;border:none;border-radius:9px;padding:9px 14px;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0;">Install</button>'
+                    + '<button id="medxStaffX" aria-label="Dismiss" style="background:transparent;border:none;color:#8f867c;font-size:18px;cursor:pointer;flex-shrink:0;padding:4px 6px;">×</button>';
                 document.body.appendChild(b);
                 document.getElementById('medxStaffX').onclick = function () { b.remove(); localStorage.setItem('medx_staff_install_dismissed', '1'); };
                 document.getElementById('medxStaffGo').onclick = async function () {
@@ -32796,7 +32817,7 @@ By applying to this program, I give the following consents:
                     else {
                         var m = document.createElement('div');
                         m.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;padding:20px;font-family:system-ui,-apple-system,sans-serif;';
-                        m.innerHTML = '<div style="background:#fff;color:#0f172a;border-radius:16px;max-width:360px;width:100%;padding:22px;text-align:center;"><div style="font-size:34px;margin-bottom:8px;">📲</div><h3 style="margin:0 0 8px;font-size:18px;">Add to Home Screen</h3><p style="margin:0 0 6px;font-size:14px;color:#475569;line-height:1.6;">1. Tap the <strong>Share</strong> icon ↑ in Safari</p><p style="margin:0 0 16px;font-size:14px;color:#475569;line-height:1.6;">2. Choose <strong>“Add to Home Screen”</strong></p><button id="medxStaffIosClose" style="background:#0f172a;color:#fff;border:none;border-radius:10px;padding:10px 22px;font-weight:600;cursor:pointer;">Got it</button></div>';
+                        m.innerHTML = '<div style="background:#fff;color:#17120f;border-radius:16px;max-width:360px;width:100%;padding:22px;text-align:center;"><div style="font-size:34px;margin-bottom:8px;">📲</div><h3 style="margin:0 0 8px;font-size:18px;">Add to Home Screen</h3><p style="margin:0 0 6px;font-size:14px;color:#3a2f27;line-height:1.6;">1. Tap the <strong>Share</strong> icon ↑ in Safari</p><p style="margin:0 0 16px;font-size:14px;color:#3a2f27;line-height:1.6;">2. Choose <strong>“Add to Home Screen”</strong></p><button id="medxStaffIosClose" style="background:#17120f;color:#fff;border:none;border-radius:10px;padding:10px 22px;font-weight:600;cursor:pointer;">Got it</button></div>';
                         document.body.appendChild(m);
                         m.onclick = function (e) { if (e.target === m || e.target.id === 'medxStaffIosClose') m.remove(); };
                     }
