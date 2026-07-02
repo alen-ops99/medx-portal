@@ -58176,6 +58176,28 @@ button,input,select,textarea{font-family:var(--sans);}
                     })();
                     </script>
 
+                    <!-- SECTION STATUS BINDING — fills every [data-mx-status="<project>"] element in the section heros
+                         from GET /api/project-status (admin-owned). Graceful: if the fetch fails the baked text stays. -->
+                    <script>
+                    (function(){
+                      function apiBase(){ return (typeof API_BASE!=='undefined')?API_BASE:''; }
+                      function token(){ return (typeof UserPortal!=='undefined'&&UserPortal.token)||localStorage.getItem('medx_user_token'); }
+                      var S={ _rows:null,
+                        fill:function(){ if(!S._rows) return; var map={}; S._rows.forEach(function(r){ map[r.project_key]=r; });
+                          document.querySelectorAll('[data-mx-status]').forEach(function(el){ var r=map[el.getAttribute('data-mx-status')]; if(r&&r.status_label) el.textContent=r.status_label; });
+                          document.querySelectorAll('[data-mx-detail]').forEach(function(el){ var r=map[el.getAttribute('data-mx-detail')]; if(r&&r.detail_line) el.textContent=r.detail_line; }); },
+                        refresh:function(){ var h={'Accept':'application/json'}; var tk=token(); if(tk) h['Authorization']='Bearer '+tk;
+                          fetch(apiBase()+'/api/project-status',{headers:h})
+                            .then(function(r){return r.ok?r.json():Promise.reject();})
+                            .then(function(rows){ S._rows=Array.isArray(rows)?rows:[]; S.fill(); })
+                            .catch(function(){ /* keep baked fallback text */ }); },
+                        apply:function(){ if(S._rows) S.fill(); else S.refresh(); } };
+                      window.MedXSectionStatus=S;
+                      if(document.readyState!=='loading') S.refresh(); else window.addEventListener('load',function(){ S.refresh(); });
+                      window.addEventListener('hashchange',function(){ if(S._rows) S.fill(); else S.refresh(); });
+                    })();
+                    </script>
+
                     <!-- Membership value strip — what belonging includes (quiet, informational) -->
                     <style>
                     .mx-value-strip{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;margin:0 0 18px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
@@ -58399,7 +58421,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 <div class="hub-program-tile-icon accelerator"><i class="fas fa-rocket"></i></div>
                                 <div class="hub-program-tile-content">
                                     <h4>Accelerator</h4>
-                                    <p>Apply by Apr 1</p>
+                                    <p>Applications open Nov 2026</p>
                                 </div>
                                 <i class="fas fa-chevron-right hub-program-tile-arrow"></i>
                             </div>
@@ -58968,7 +58990,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     <div class="px-hero">
                         <div class="px-hero-badge">
                             <i class="fas fa-calendar-check"></i>
-                            Registration Open
+                            <span data-mx-status="plexus">Registration Open</span>
                         </div>
                         <h1>Plexus Conference 2026</h1>
                         <p>December 4-5, 2026 in Zagreb, Croatia</p>
@@ -61803,7 +61825,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     <div class="gala-hero">
                         <div class="gala-hero-content">
                             <div class="gala-hero-badge">
-                                <i class="fas fa-star"></i> Exclusive Event
+                                <i class="fas fa-star"></i> <span data-mx-status="gala">Exclusive Event</span>
                             </div>
                             <h1>Gala Evening 2026</h1>
                             <p class="gala-hero-tagline">The Pinnacle of Biomedical Excellence</p>
@@ -62209,7 +62231,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     <div class="ax-hero">
                         <div class="ax-hero-badge">
                             <i class="fas fa-rocket"></i>
-                            Applications Open for Summer 2026
+                            <span data-mx-status="accelerator">Applications open in November 2026</span>
                         </div>
                         <h1>Med&X Accelerator</h1>
                         <p>Launch your research career with summer internships at Harvard, Yale, Mayo Clinic, and more</p>
@@ -62266,6 +62288,79 @@ button,input,select,textarea{font-family:var(--sans);}
 
                     <!-- Overview Panel -->
                     <div class="ax-panel active" id="ax-panel-overview">
+                        <!-- ===== Accelerator depth: application status strip + "Where you could go" host-site board + Ask the coordinators (data-driven, cream/ink) ===== -->
+                        <style>
+                        .axd-strip{display:flex;align-items:center;gap:14px;background:var(--up-bg,#fbf9f6);border:1px solid var(--up-border,#e7e2da);border-radius:14px;padding:14px 18px;margin-bottom:22px;}
+                        .axd-strip-ico{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--up-bg-subtle,#f3efe9);border:1px solid var(--up-border,#e7e2da);color:var(--up-gold,#c9a962);font-size:16px;}
+                        .axd-strip-body{flex:1;min-width:0;}
+                        .axd-strip-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--up-text-muted,#8a847b);margin-bottom:3px;}
+                        .axd-strip-main{font-size:14.5px;font-weight:600;color:var(--up-text,#15110f);line-height:1.3;}
+                        .axd-strip-sub{font-size:12.5px;color:var(--up-text-secondary,#6e6e73);margin-top:2px;line-height:1.4;}
+                        .axd-strip-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:5px 11px;border-radius:999px;flex-shrink:0;}
+                        .axd-strip-cta{flex-shrink:0;background:none;border:none;color:var(--crimson,#9b1b22);font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-family:inherit;white-space:nowrap;}
+                        .axd-board{margin-bottom:24px;}
+                        .axd-board-head{margin-bottom:16px;}
+                        .axd-board-title{font-size:20px;font-weight:700;color:var(--up-text,#15110f);margin:0 0 4px;letter-spacing:-.01em;}
+                        .axd-board-sub{font-size:13.5px;color:var(--up-text-secondary,#6e6e73);margin:0;line-height:1.5;}
+                        .axd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:14px;}
+                        .axd-card{background:var(--up-bg,#fbf9f6);border:1px solid var(--up-border,#e7e2da);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;box-shadow:0 1px 2px rgba(21,17,15,.04);}
+                        .axd-card:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(21,17,15,.09);border-color:rgba(201,169,98,.5);}
+                        .axd-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+                        .axd-card-inst{font-family:var(--serif,'Fraunces',Georgia,serif);font-size:16px;font-weight:600;color:var(--up-text,#15110f);line-height:1.18;letter-spacing:-.01em;}
+                        .axd-card-chip{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;color:var(--up-text-secondary,#6e6e73);background:var(--up-bg-subtle,#f3efe9);border:1px solid var(--up-border,#e7e2da);border-radius:999px;padding:4px 9px;white-space:nowrap;flex-shrink:0;}
+                        .axd-card-lab{font-size:13px;color:var(--up-text-secondary,#6e6e73);line-height:1.4;display:flex;gap:7px;align-items:flex-start;}
+                        .axd-card-lab i{color:var(--up-gold,#c9a962);font-size:12px;margin-top:2px;flex-shrink:0;}
+                        .axd-card-mentor{font-size:12.5px;color:var(--up-text-muted,#8a847b);line-height:1.4;font-style:italic;}
+                        .axd-card-foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:10px;border-top:1px solid var(--up-border,#e7e2da);}
+                        .axd-card-spots{font-size:12px;font-weight:600;color:var(--up-text,#15110f);display:inline-flex;align-items:center;gap:6px;}
+                        .axd-card-spots i{color:var(--up-gold,#c9a962);}
+                        .axd-card-year{font-size:11px;font-weight:700;color:var(--up-text-muted,#8a847b);letter-spacing:.04em;}
+                        .axd-empty{grid-column:1/-1;padding:28px;text-align:center;color:var(--up-text-muted,#8a847b);font-size:13.5px;}
+                        .axd-ask{background:var(--up-bg,#fbf9f6);border:1px solid var(--up-border,#e7e2da);border-radius:16px;padding:22px;margin-bottom:24px;}
+                        .axd-ask-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;}
+                        .axd-ask-ico{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--up-bg-subtle,#f3efe9);border:1px solid var(--up-border,#e7e2da);color:var(--up-gold,#c9a962);font-size:17px;}
+                        .axd-ask-title{font-size:16px;font-weight:700;color:var(--up-text,#15110f);margin:0;}
+                        .axd-ask-sub{font-size:12.5px;color:var(--up-text-secondary,#6e6e73);margin:3px 0 0;line-height:1.5;}
+                        .axd-ask-input,.axd-ask-textarea{width:100%;box-sizing:border-box;background:var(--up-bg-subtle,#fff);border:1px solid var(--up-border,#e7e2da);border-radius:10px;padding:11px 13px;font-size:13.5px;font-family:inherit;color:var(--up-text,#15110f);margin-bottom:10px;}
+                        .axd-ask-textarea{resize:vertical;min-height:90px;line-height:1.5;}
+                        .axd-ask-input:focus,.axd-ask-textarea:focus{outline:none;border-color:var(--up-gold,#c9a962);}
+                        .axd-ask-send{background:var(--crimson,#9b1b22);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-weight:600;font-size:13.5px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;}
+                        .axd-ask-send:disabled{opacity:.6;cursor:default;}
+                        .axd-ask-ok{display:flex;align-items:center;gap:10px;background:rgba(21,120,79,.08);border:1px solid rgba(21,120,79,.25);border-radius:12px;padding:16px 18px;color:#15784f;font-size:13.5px;font-weight:600;line-height:1.45;}
+                        @media(max-width:640px){.axd-grid{grid-template-columns:1fr;}.axd-strip{flex-wrap:wrap;}.axd-strip-cta{margin-left:52px;}}
+                        </style>
+
+                        <!-- Application status strip (populated by AcceleratorPortal.loadAppStatus) -->
+                        <div class="axd-strip" id="axAppStatusStrip" style="display:none;"></div>
+
+                        <!-- "Where you could go" host-site board (populated by AcceleratorPortal.loadSites from /api/accelerator/sites) -->
+                        <section class="axd-board" id="axSitesBoard" style="display:none;">
+                            <div class="axd-board-head">
+                                <h3 class="axd-board-title">Where you could go</h3>
+                                <p class="axd-board-sub">Host labs and clinics that welcome Med&amp;X Accelerator fellows. Placements are confirmed each spring.</p>
+                            </div>
+                            <div class="axd-grid" id="axSitesGrid">
+                                <div class="axd-empty"><i class="fas fa-spinner fa-spin"></i> Loading host sites&hellip;</div>
+                            </div>
+                        </section>
+
+                        <!-- Ask the coordinators (routes into the existing member&harr;admin messaging channel via /api/accelerator/ask-coordinator) -->
+                        <div class="axd-ask" id="axAskCoordinators">
+                            <div class="axd-ask-head">
+                                <div class="axd-ask-ico"><i class="fas fa-comments"></i></div>
+                                <div>
+                                    <h4 class="axd-ask-title">Ask the coordinators</h4>
+                                    <p class="axd-ask-sub">A question about placements, eligibility, or documents? Send it to the Accelerator team and they reply inside your portal inbox.</p>
+                                </div>
+                            </div>
+                            <div id="axAskForm">
+                                <input type="text" class="axd-ask-input" id="axAskSubject" placeholder="Subject (optional)" maxlength="120">
+                                <textarea class="axd-ask-textarea" id="axAskMessage" placeholder="Write your question&hellip;" maxlength="2000"></textarea>
+                                <button class="axd-ask-send" id="axAskSend" onclick="AcceleratorPortal.askCoordinator()"><i class="fas fa-paper-plane"></i> Send to coordinators</button>
+                            </div>
+                            <div id="axAskConfirm" style="display:none;"></div>
+                        </div>
+
                         <!-- Key Stats (dynamically populated from /api/accelerator/overview-config) -->
                         <div class="ax-dates-grid">
                             <div class="ax-date-card">
@@ -63347,7 +63442,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     <div class="fm-hero">
                         <div class="fm-hero-badge">
                             <i class="fas fa-crown"></i>
-                            Invite-Only Community
+                            <span data-mx-status="forum">Invite-Only Community</span>
                         </div>
                         <h1>Biomedical Forum</h1>
                         <p>An exclusive network of senior leaders in medicine, science, and industry dedicated to advancing Croatian biomedicine</p>
@@ -63404,7 +63499,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                     <i class="fas fa-calendar-star" style="font-size: 24px; color: #fb923c;"></i>
                                     <div>
                                         <div style="font-size: 16px; font-weight: 700; color: var(--up-text, #1d1d1f);">Annual Biomedical Forum 2026</div>
-                                        <div style="font-size: 13px; color: var(--up-text-secondary, var(--muted));">May 25-27, 2026 · Split &amp; Zagreb, Croatia</div>
+                                        <div style="font-size: 13px; color: var(--up-text-secondary, var(--muted));">May 25-27, 2027 · Split &amp; Zagreb, Croatia</div>
                                     </div>
                                 </div>
                                 <button onclick="ForumPortal.registerEvent('annual-forum', this)" style="width: 100%; padding: 12px; background: #fb923c; color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer;">
@@ -63512,7 +63607,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 <div class="fm-timeline-event upcoming" data-event="annual-forum" style="border-left: 4px solid var(--gold);" onclick="ForumPortal.toggleEventDetails(this)">
                                     <div class="fm-event-date-badge">
                                         <i class="fas fa-calendar"></i>
-                                        <span>May 25-27, 2026</span>
+                                        <span>May 25-27, 2027</span>
                                     </div>
                                     <div class="fm-event-name">Annual Biomedical Forum <i class="fas fa-chevron-down fm-event-chevron"></i></div>
                                     <div class="fm-event-location">
@@ -65099,7 +65194,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         <p>Three days bringing together leaders in medicine, science, and industry &mdash; conference program across Split and Zagreb, closing with the Gala &amp; Awards evening.</p>
                         <div class="af-hero-date">
                             <i class="fas fa-calendar-alt"></i>
-                            <span>May 25-27, 2026 | Split &amp; Zagreb, Croatia</span>
+                            <span>May 25-27, 2027 | Split &amp; Zagreb, Croatia</span>
                         </div>
                         <div style="margin-top: 32px; display: flex; gap: 16px; justify-content: center; position: relative;">
                             <button class="af-btn af-btn-primary" onclick="AF26Portal.showRegistration()">
@@ -65278,7 +65373,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     <div id="af-panel-registration" style="display: none;">
                         <div class="af-registration">
                             <h3>RSVP for the Annual Biomedical Forum 2026</h3>
-                            <p class="subtitle">May 25-27, 2026 | Split &amp; Zagreb, Croatia</p>
+                            <p class="subtitle">May 25-27, 2027 | Split &amp; Zagreb, Croatia</p>
 
                             <form id="af26RegistrationForm" onsubmit="AF26Portal.submitRegistration(event)">
                                 <div class="af-form-row">
@@ -66987,7 +67082,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         <div class="bb-hero-content">
                             <div class="bb-hero-badge">
                                 <i class="fas fa-globe-europe"></i>
-                                Global Networking Initiative
+                                <span data-mx-status="bridges">Global Networking Initiative</span>
                             </div>
                             <h1>Building Bridges in Biomedicine</h1>
                             <p>Connecting Croatian biomedical excellence with institutions worldwide</p>
@@ -70475,7 +70570,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                     <div>
                                         <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 4px;">Featured Event</div>
                                         <h2 style="margin: 0 0 8px 0; font-size: 24px;">Annual Biomedical Forum 2026</h2>
-                                        <div style="color: var(--text-secondary);"><i class="fas fa-calendar" style="margin-right: 8px;"></i>May 25-27, 2026 | Split &amp; Zagreb, Croatia</div>
+                                        <div style="color: var(--text-secondary);"><i class="fas fa-calendar" style="margin-right: 8px;"></i>May 25-27, 2027 | Split &amp; Zagreb, Croatia</div>
                                     </div>
                                     <div style="display: flex; gap: 30px; text-align: center;">
                                         <div>
@@ -71363,7 +71458,7 @@ The Med&amp;X Team" maxlength="5000"></textarea>
                                         <button class="btn btn-secondary" onclick="App.editAF26Settings()"><i class="fas fa-edit"></i> Edit</button>
                                     </div>
                                     <div class="card-body" id="af26Details">
-                                        <div style="margin-bottom: 12px;"><strong>Date:</strong> May 25-27, 2026</div>
+                                        <div style="margin-bottom: 12px;"><strong>Date:</strong> May 25-27, 2027</div>
                                         <div style="margin-bottom: 12px;"><strong>Location:</strong> Split &amp; Zagreb, Croatia</div>
                                         <div style="margin-bottom: 12px;"><strong>Venue:</strong> TBD</div>
                                         <div style="margin-bottom: 12px;"><strong>Capacity:</strong> 150-200</div>
@@ -74988,7 +75083,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 day2EndAt: '2026-12-05T18:00:00',
                 endOfDay: '2026-12-05T23:59:59'
             },
-            af26: { start: '2026-05-25', end: '2026-05-27' }
+            af26: { start: '2027-05-25', end: '2027-05-27' }
         };
         window.AF26_EVENT_START = window.MEDX_DATES.af26.start;
 
@@ -78684,19 +78779,19 @@ You can use variables like {first_name} that will be personalized for each recip
         const ANONYMOUS_FORUM_EVENTS = {
             'forum-2026-day1': {
                 title: 'Annual Biomedical Forum 2026 — Day 1',
-                dateLine: 'Monday, 25 May 2026',
+                dateLine: 'Monday, 25 May 2027',
                 venueLine: 'Split, Croatia',
                 description: 'Conference program featuring keynote lectures, panel discussions, and networking sessions in Split.'
             },
             'forum-2026-day2': {
                 title: 'Annual Biomedical Forum 2026 — Day 2',
-                dateLine: 'Tuesday, 26 May 2026',
+                dateLine: 'Tuesday, 26 May 2027',
                 venueLine: 'Zagreb, Croatia',
                 description: 'Conference program featuring keynote lectures, panel discussions, and networking sessions in Zagreb.'
             },
             'annual-forum-2026': {
                 title: 'Annual Biomedical Forum 2026',
-                dateLine: '25–27 May 2026',
+                dateLine: '25–27 May 2027',
                 venueLine: 'Split & Zagreb, Croatia',
                 description: 'Three days bringing together leaders in medicine, science, and industry — conference program across Split and Zagreb, closing with the Gala & Awards evening.'
             }
@@ -85823,6 +85918,9 @@ You can use variables like {first_name} that will be personalized for each recip
                 this.loadOverviewConfig();
                 this.loadDynamicInstitutions();
                 this.loadDocChecklist();
+                this.loadSites();
+                this.loadAppStatus();
+                if (window.MedXSectionStatus) MedXSectionStatus.apply('accelerator');
             },
 
             // Load key dates from DB and render dynamic timeline
@@ -85933,6 +86031,117 @@ You can use variables like {first_name} that will be personalized for each recip
                     }
                 } catch (err) {
                     console.log('Could not load overview config:', err.message);
+                }
+            },
+
+            // ===== Accelerator depth: host-site board, application status strip, ask the coordinators =====
+
+            // "Where you could go" — render curated host sites from /api/accelerator/sites (public read)
+            async loadSites() {
+                const grid = document.getElementById('axSitesGrid');
+                const board = document.getElementById('axSitesBoard');
+                if (!grid) return;
+                try {
+                    const res = await fetch('/api/accelerator/sites');
+                    const data = res.ok ? await res.json() : null;
+                    const sites = (data && Array.isArray(data.sites)) ? data.sites : [];
+                    if (!sites.length) { if (board) board.style.display = 'none'; return; }
+                    grid.innerHTML = sites.map(s => {
+                        const loc = [s.city, s.country].filter(Boolean).join(', ');
+                        const hasSpots = (s.spots !== null && s.spots !== undefined && s.spots !== '');
+                        const spotsTxt = hasSpots ? (String(s.spots) + (Number(s.spots) === 1 ? ' spot' : ' spots')) : 'Spots TBC';
+                        return `<div class="axd-card">
+                            <div class="axd-card-top">
+                                <div class="axd-card-inst">${escapeHtml(s.institution || '')}</div>
+                                ${loc ? `<span class="axd-card-chip"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(loc)}</span>` : ''}
+                            </div>
+                            ${s.lab_or_clinic ? `<div class="axd-card-lab"><i class="fas fa-flask"></i> <span>${escapeHtml(s.lab_or_clinic)}</span></div>` : ''}
+                            ${s.mentor_line ? `<div class="axd-card-mentor">${escapeHtml(s.mentor_line)}</div>` : ''}
+                            <div class="axd-card-foot">
+                                <span class="axd-card-spots"><i class="fas fa-user-graduate"></i> ${escapeHtml(spotsTxt)}</span>
+                                ${s.year ? `<span class="axd-card-year">${escapeHtml(String(s.year))}</span>` : ''}
+                            </div>
+                        </div>`;
+                    }).join('');
+                    if (board) board.style.display = 'block';
+                } catch (e) {
+                    if (board) board.style.display = 'none';
+                }
+            },
+
+            // Application status strip — shows the member's latest application, or a quiet no-application state
+            async loadAppStatus() {
+                const strip = document.getElementById('axAppStatusStrip');
+                if (!strip) return;
+                let apps = [];
+                try { apps = await UserPortal.api('/api/accelerator/my-applications'); } catch (e) { apps = []; }
+                if (!Array.isArray(apps)) apps = [];
+                if (!apps.length) {
+                    strip.innerHTML = `
+                        <div class="axd-strip-ico"><i class="far fa-folder"></i></div>
+                        <div class="axd-strip-body">
+                            <div class="axd-strip-label">Your application</div>
+                            <div class="axd-strip-main">No application yet</div>
+                            <div class="axd-strip-sub">Applications open in November 2026. Ready your CV and a mentor letter in the meantime.</div>
+                        </div>`;
+                    strip.style.display = 'flex';
+                    return;
+                }
+                const app = apps[0];
+                const status = String(app.status || 'draft').toLowerCase();
+                const palette = {
+                    submitted: ['rgba(201,169,98,.16)', '#a8842f'],
+                    accepted:  ['rgba(21,120,79,.12)', '#15784f'],
+                    waitlisted:['rgba(201,169,98,.16)', '#a8842f'],
+                    rejected:  ['rgba(155,27,34,.10)', '#9b1b22'],
+                    draft:     ['#f3efe9', '#6e6e73']
+                };
+                const pal = palette[status] || palette.draft;
+                const label = status.charAt(0).toUpperCase() + status.slice(1);
+                const inst = app.institution_name || app.selected_institution || 'Institution pending';
+                const num = app.application_number || 'Your application';
+                const when = app.submitted_at ? new Date(app.submitted_at).toLocaleDateString()
+                           : (app.created_at ? new Date(app.created_at).toLocaleDateString() : null);
+                strip.innerHTML = `
+                    <div class="axd-strip-ico"><i class="fas fa-folder-open"></i></div>
+                    <div class="axd-strip-body">
+                        <div class="axd-strip-label">Your application</div>
+                        <div class="axd-strip-main">${escapeHtml(num)} &middot; ${escapeHtml(inst)}</div>
+                        <div class="axd-strip-sub">${when ? (status === 'submitted' ? 'Submitted ' : 'Updated ') + escapeHtml(when) : 'In progress'}</div>
+                    </div>
+                    <span class="axd-strip-chip" style="background:${pal[0]};color:${pal[1]};">${escapeHtml(label)}</span>
+                    <button class="axd-strip-cta" onclick="AcceleratorPortal.showTab('myapplications')">View <i class="fas fa-arrow-right"></i></button>`;
+                strip.style.display = 'flex';
+            },
+
+            // Ask the coordinators — posts into the existing member->admin direct_messages channel
+            async askCoordinator() {
+                const subjEl = document.getElementById('axAskSubject');
+                const msgEl = document.getElementById('axAskMessage');
+                const btn = document.getElementById('axAskSend');
+                const msg = String((msgEl && msgEl.value) || '').trim();
+                if (!msg) {
+                    if (typeof Toast !== 'undefined') Toast.warning('Please write your question first.');
+                    if (msgEl) msgEl.focus();
+                    return;
+                }
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending&hellip;'; }
+                try {
+                    await UserPortal.api('/api/accelerator/ask-coordinator', {
+                        method: 'POST',
+                        body: JSON.stringify({ subject: String((subjEl && subjEl.value) || '').trim(), message: msg })
+                    });
+                    const form = document.getElementById('axAskForm');
+                    const ok = document.getElementById('axAskConfirm');
+                    if (form) form.style.display = 'none';
+                    if (ok) {
+                        ok.innerHTML = '<div class="axd-ask-ok"><i class="fas fa-check-circle"></i><div>Your question is on its way to the coordinators. They will reply in your portal inbox.</div></div>';
+                        ok.style.display = 'block';
+                    }
+                    if (typeof Toast !== 'undefined') Toast.success('Message sent to the coordinators');
+                } catch (e) {
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send to coordinators'; }
+                    if (typeof Toast !== 'undefined') Toast.error('Could not send right now. Please try again.');
                 }
             },
 
@@ -86145,7 +86354,7 @@ You can use variables like {first_name} that will be personalized for each recip
                         const heroText = document.getElementById('axHeroDeadlineText');
                         if (heroText) heroText.innerHTML = '<i class="far fa-clock"></i> Applications for this cohort have closed. The next call opens soon.';
                         const badge = document.querySelector('#up-section-accelerator .ax-hero-badge');
-                        if (badge) badge.innerHTML = '<i class="fas fa-rocket"></i> Next cohort announced soon';
+                        if (badge) { badge.innerHTML = '<i class="fas fa-rocket"></i> <span data-mx-status="accelerator">Applications open in November 2026</span>'; if (window.MedXSectionStatus) MedXSectionStatus.apply('accelerator'); }
                         // Overview deadline card mirrors the closed state
                         const overviewDeadline = document.getElementById('axOverviewDeadline');
                         if (overviewDeadline) overviewDeadline.textContent = 'Closed — next call opens soon';
@@ -95697,7 +95906,7 @@ ${'='.repeat(70)}
 
             events: [
                 { id: 'plexus-2026', name: 'Plexus Conference 2026', date: 'December 4-5, 2026', location: 'Zagreb, Croatia', color: '#c2484e', icon: 'fa-calendar-alt' },
-                { id: 'af26', name: 'Annual Biomedical Forum 2026', date: 'May 25-27, 2026', location: 'Split & Zagreb, Croatia', color: '#f59e0b', icon: 'fa-users' },
+                { id: 'af26', name: 'Annual Biomedical Forum 2026', date: 'May 25-27, 2027', location: 'Split & Zagreb, Croatia', color: '#f59e0b', icon: 'fa-users' },
                 { id: 'bb-zurich-2026', name: 'Building Bridges: Zurich', date: 'March 15, 2026', location: 'Zurich, Switzerland', color: '#3b82f6', icon: 'fa-globe-europe' }
             ],
 
@@ -121421,7 +121630,7 @@ By applying to this program, I give the following consents:
                     icon: 'fas fa-rocket',
                     iconClass: 'deadline',
                     title: 'Accelerator Applications',
-                    description: 'Apply by April 1 for Harvard, Yale, Mayo positions',
+                    description: 'Applications open November 2026 for Harvard, Yale, Mayo and more',
                     action: 'Apply',
                     actionFn: () => UserPortal.showSection('accelerator'),
                     match: hasNoPrefs ? 92 : (programs.includes('accelerator') ? 92 : 75),

@@ -6744,10 +6744,25 @@
                     <span>Portal Content</span>
                 </a>
 
+                <a class="nav-item" data-section="website-content" onclick="App.showSection('website-content', this)">
+                    <i class="fas fa-globe" style="color: #c9a962;"></i>
+                    <span>Website content</span>
+                </a>
+
                 <a class="nav-item" data-section="member-feed" onclick="App.showSection('member-feed', this)">
                     <i class="fas fa-rss" style="color: #c9a962;"></i>
                     <span>Member Feed</span>
                     <span id="mfOppNav" style="background: #b45309; color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
+                </a>
+
+                <a class="nav-item" data-section="announce" onclick="App.showSection('announce', this)">
+                    <i class="fas fa-bullhorn" style="color: #9b1b22;"></i>
+                    <span>Announce</span>
+                </a>
+
+                <a class="nav-item" data-section="member-ops" onclick="App.showSection('member-ops', this)">
+                    <i class="fas fa-sliders-h" style="color: #c9a962;"></i>
+                    <span>Member Ops</span>
                 </a>
 
                 <a class="nav-item" data-section="messages" onclick="App.showSection('messages', this)">
@@ -10588,6 +10603,27 @@ President, Med&amp;X</textarea>
                     </div>
                 </div>
 
+                <!-- WEBSITE CONTENT — admin-authored copy for the public medx.hr site -->
+                <div class="section" id="section-website-content">
+                    <div class="back-link" onclick="App.showSection('dashboard')">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </div>
+
+                    <div class="section-header" style="margin-bottom: 18px;">
+                        <h1 style="font-size: 28px; font-weight: 700; margin-bottom: 4px;">
+                            <i class="fas fa-globe" style="color: #c9a962; margin-right: 12px;"></i>
+                            Website content
+                        </h1>
+                        <p style="color: var(--text-muted); max-width: 720px;">Edit the words shown on the public medx.hr website. Pick a page, open a block, write your text and save. Leave a block blank to use the built-in default.</p>
+                    </div>
+
+                    <div id="wcAccordions">
+                        <div class="card" style="padding: 40px; text-align: center; color: var(--text-muted);">
+                            <i class="fas fa-spinner fa-spin"></i> Loading website content…
+                        </div>
+                    </div>
+                </div>
+
                 <!-- MESSAGES -->
                 <div class="section" id="section-messages">
                     <div class="back-link" onclick="App.showSection('dashboard')">
@@ -10682,6 +10718,141 @@ President, Med&amp;X</textarea>
                     </div>
                 </div>
 
+                <!-- ANNOUNCE — the one door to reach members (item 2) -->
+                <div class="section" id="section-announce">
+                    <div class="back-link" onclick="App.showSection('dashboard')">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </div>
+
+                    <div class="section-header" style="margin-bottom: 20px;">
+                        <h1 style="font-size: 28px; font-weight: 700; margin-bottom: 4px;">
+                            <i class="fas fa-bullhorn" style="color: #9b1b22; margin-right: 12px;"></i>
+                            Announce
+                        </h1>
+                        <p style="color: var(--text-muted);">The one place to reach members. Choose who should see it, write it, and publish. Members see it in their notification bell.</p>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: 20px; align-items: start;">
+                        <!-- Composer -->
+                        <div class="card" style="padding: 22px;">
+                            <div style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Write an announcement</div>
+
+                            <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Who should see this?</label>
+                            <select id="annAudience" onchange="AnnounceApp.renderPreview()" style="width:100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary); font-size: 15px; margin-bottom: 4px;">
+                                <option value="">Everyone</option>
+                                <option value="plexus">Plexus attendees</option>
+                                <option value="gala">Gala Evening guests</option>
+                                <option value="accelerator">Accelerator followers</option>
+                                <option value="forum">Biomedical Forum followers</option>
+                                <option value="bridges">Building Bridges followers</option>
+                            </select>
+                            <div id="annFollowerHint" style="font-size:12px; color: var(--text-muted); margin-bottom: 16px; min-height: 16px;"></div>
+
+                            <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Title</label>
+                            <input id="annTitle" oninput="AnnounceApp.renderPreview()" maxlength="140" placeholder="e.g. Plexus 2026 abstracts close Friday" style="width:100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary); font-size: 15px; margin-bottom: 16px;">
+
+                            <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Message</label>
+                            <textarea id="annBody" oninput="AnnounceApp.renderPreview()" rows="4" placeholder="Write the details members should read." style="width:100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary); font-size: 14px; margin-bottom: 16px; resize: vertical; font-family: inherit;"></textarea>
+
+                            <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Where should it go when tapped? (optional)</label>
+                            <select id="annDest" onchange="AnnounceApp.onDestChange()" style="width:100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary); font-size: 15px; margin-bottom: 10px;">
+                                <option value="">Stay in the notification bell</option>
+                                <optgroup label="Open a page on the website">
+                                    <option value="site:plexus">Plexus page</option>
+                                    <option value="site:gala">Gala Evening page</option>
+                                    <option value="site:accelerator">Accelerator page</option>
+                                    <option value="site:forum">Biomedical Forum page</option>
+                                    <option value="site:bridges">Building Bridges page</option>
+                                </optgroup>
+                                <optgroup label="Open in the member app">
+                                    <option value="app:mymedx">My Med&amp;X</option>
+                                    <option value="app:dashboard">Home</option>
+                                    <option value="app:talks">Talks</option>
+                                    <option value="app:network">My Network</option>
+                                </optgroup>
+                                <option value="__url__">Custom link…</option>
+                            </select>
+                            <input id="annDestUrl" oninput="AnnounceApp.renderPreview()" placeholder="https://…" style="display:none; width:100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary); font-size: 15px; margin-bottom: 16px;">
+                            <div style="height: 6px;"></div>
+
+                            <label style="display:flex; align-items:center; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-tertiary); cursor: pointer; margin-bottom: 18px;">
+                                <input type="checkbox" id="annPush" style="width: 18px; height: 18px; accent-color: #9b1b22;">
+                                <span style="font-size: 14px; font-weight: 600; color: var(--text-primary);">Also send a push notification to followers</span>
+                            </label>
+
+                            <button class="btn btn-primary" onclick="AnnounceApp.publish()" style="width:100%; padding: 14px; font-size: 15px; font-weight: 700;">
+                                <i class="fas fa-paper-plane"></i> Publish announcement
+                            </button>
+                            <p style="font-size: 11px; color: var(--text-muted); margin: 12px 0 0; line-height: 1.5;">Push delivery is handled by the member app's outbox. Publishing only records the announcement and, if ticked, flags it for the app to deliver. Nothing is emailed from here.</p>
+                        </div>
+
+                        <!-- Preview + past -->
+                        <div>
+                            <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">Preview — how members see it</div>
+                            <div class="card" style="padding: 16px; margin-bottom: 24px;">
+                                <div id="annPreview"></div>
+                            </div>
+
+                            <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">Recent announcements</div>
+                            <div class="card" id="annPastList" style="padding: 0;">
+                                <div style="padding: 22px; color: var(--text-muted); font-size: 13px;">Loading…</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MEMBER OPS — home screen editor, accelerator sites, tasks (items 1, 3, 4) -->
+                <div class="section" id="section-member-ops">
+                    <div class="back-link" onclick="App.showSection('dashboard')">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </div>
+
+                    <div class="section-header" style="margin-bottom: 18px;">
+                        <h1 style="font-size: 28px; font-weight: 700; margin-bottom: 4px;">
+                            <i class="fas fa-sliders-h" style="color: #c9a962; margin-right: 12px;"></i>
+                            Member Ops
+                        </h1>
+                        <p style="color: var(--text-muted);">The everyday controls for the member app — the home screen cards, the accelerator sites list, and the to-do lists.</p>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; margin-bottom: 22px; border-bottom: 1px solid var(--border); padding-bottom: 12px; overflow-x: auto; white-space: nowrap;">
+                        <button class="btn btn-primary" id="moTabHome" onclick="MemberOpsApp.showTab('home')" style="font-size: 13px; flex-shrink: 0;"><i class="fas fa-home"></i> Home screen</button>
+                        <button class="btn btn-secondary" id="moTabSites" onclick="MemberOpsApp.showTab('sites')" style="font-size: 13px; flex-shrink: 0;"><i class="fas fa-flask"></i> Accelerator sites</button>
+                        <button class="btn btn-secondary" id="moTabTasks" onclick="MemberOpsApp.showTab('tasks')" style="font-size: 13px; flex-shrink: 0;"><i class="fas fa-check-square"></i> Tasks</button>
+                    </div>
+
+                    <!-- HOME SCREEN PANEL -->
+                    <div id="moHomePanel">
+                        <div style="margin-bottom: 16px;">
+                            <div style="font-size: 18px; font-weight: 700;">What members see on their home screen</div>
+                            <p style="color: var(--text-muted); font-size: 13px; margin: 4px 0 0;">Each card below is one row on the member home screen. Edit the words, pick a state, and press Save on that row. Changes appear for members right away.</p>
+                        </div>
+                        <div id="moHomeRows"><div style="padding: 22px; color: var(--text-muted);">Loading…</div></div>
+                    </div>
+
+                    <!-- ACCELERATOR SITES PANEL -->
+                    <div id="moSitesPanel" style="display:none;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
+                            <div>
+                                <div style="font-size: 18px; font-weight: 700;">Accelerator sites</div>
+                                <p style="color: var(--text-muted); font-size: 13px; margin: 4px 0 0;">The "where you could go" list members browse. Add or edit a host institution below.</p>
+                            </div>
+                            <button class="btn btn-primary" onclick="MemberOpsApp.openSiteForm()" style="flex-shrink:0;"><i class="fas fa-plus"></i> Add site</button>
+                        </div>
+                        <div id="moSiteForm"></div>
+                        <div class="card" id="moSitesList" style="padding:0;"><div style="padding:22px;color:var(--text-muted);">Loading…</div></div>
+                    </div>
+
+                    <!-- TASKS PANEL -->
+                    <div id="moTasksPanel" style="display:none;">
+                        <div style="margin-bottom: 16px;">
+                            <div style="font-size: 18px; font-weight: 700;">Tasks</div>
+                            <p style="color: var(--text-muted); font-size: 13px; margin: 4px 0 0;">A simple to-do list per project. Tick a box when it is done. Overdue dates show in red.</p>
+                        </div>
+                        <div id="moTasksGroups"><div style="padding: 22px; color: var(--text-muted);">Loading…</div></div>
+                    </div>
+                </div>
+
                 <!-- GALA EVENING MANAGEMENT -->
                 <div class="section" id="section-gala">
                     <div class="back-link" onclick="App.showSection('dashboard')">
@@ -10718,6 +10889,28 @@ President, Med&amp;X</textarea>
                         <div class="card" style="padding: 20px; text-align: center;">
                             <div style="font-size: 32px; font-weight: 700; color: #16a34a;" id="galaStatPaid">0</div>
                             <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Paid / Confirmed</div>
+                        </div>
+                    </div>
+
+                    <!-- Catering headline (item 5) — read-only, aggregated from dietary in confirmed registrations -->
+                    <div class="card" id="galaCateringCard" style="padding: 22px; margin-bottom: 16px; border-left: 5px solid #9b1b22; background: var(--bg-secondary);">
+                        <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                            <i class="fas fa-utensils" style="color:#9b1b22; font-size:18px;"></i>
+                            <span style="font-size:16px; font-weight:700;">Dinner headcount for the caterer</span>
+                            <span style="font-size:11px; color:var(--text-muted); font-weight:600;">confirmed &amp; paid guests · read-only</span>
+                        </div>
+                        <div id="galaCateringLine" style="font-size:22px; font-weight:700; color:var(--text-primary); line-height:1.4;">—</div>
+                    </div>
+
+                    <!-- Attendance (checked-in) card (item 6) -->
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:16px; margin-bottom:24px;">
+                        <div class="card" style="padding:20px; text-align:center;">
+                            <div style="font-size:32px; font-weight:700; color:#15803d;" id="galaStatCheckedIn">0</div>
+                            <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">Checked in on the night</div>
+                        </div>
+                        <div class="card" style="padding:20px; text-align:center;">
+                            <div style="font-size:32px; font-weight:700; color:#6b6258;" id="galaStatToArrive">0</div>
+                            <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">Paid, not yet arrived</div>
                         </div>
                     </div>
 
@@ -14039,9 +14232,12 @@ President, Med&amp;X</textarea>
                     el.style.display = this.userSections.includes(projectId) ? '' : 'none';
                 });
 
-                // Filter static nav items (Finances, PR & Media)
+                // Filter static nav items (Finances, PR & Media). Core member-ops tools
+                // (Announce, Member Ops) are always visible — they are not part of the
+                // per-user onboarding toggle, so never hide them for already-onboarded users.
+                const OPS_ALWAYS_VISIBLE = ['announce', 'member-ops', 'website-content'];
                 document.querySelectorAll('#sidebarNav [data-section]').forEach(el => {
-                    el.style.display = this.userSections.includes(el.dataset.section) ? '' : 'none';
+                    el.style.display = (OPS_ALWAYS_VISIBLE.includes(el.dataset.section) || this.userSections.includes(el.dataset.section)) ? '' : 'none';
                 });
 
                 // Filter My Network button
@@ -15801,6 +15997,8 @@ President, Med&amp;X</textarea>
                     'newsletter': 'Newsletter',
                     'portal-content': 'Portal Content',
                     'member-feed': 'Member Feed',
+                    'announce': 'Announce',
+                    'member-ops': 'Member Ops',
                     'messages': 'Messages',
                     'gala': 'Gala Evening',
                     'conferences': 'Conferences',
@@ -15880,10 +16078,22 @@ President, Med&amp;X</textarea>
                     this.currentView = 'portal-content';
                     this.switchChatPanel('team');
                     PortalContentApp.init();
+                } else if (sectionId === 'website-content') {
+                    this.currentView = 'website-content';
+                    this.switchChatPanel('team');
+                    if (typeof WebsiteContentApp !== 'undefined') WebsiteContentApp.init();
                 } else if (sectionId === 'member-feed') {
                     this.currentView = 'member-feed';
                     this.switchChatPanel('team');
                     if (typeof FeedAdmin !== 'undefined') FeedAdmin.init();
+                } else if (sectionId === 'announce') {
+                    this.currentView = 'announce';
+                    this.switchChatPanel('team');
+                    if (typeof AnnounceApp !== 'undefined') AnnounceApp.init();
+                } else if (sectionId === 'member-ops') {
+                    this.currentView = 'member-ops';
+                    this.switchChatPanel('team');
+                    if (typeof MemberOpsApp !== 'undefined') MemberOpsApp.init();
                 } else if (sectionId === 'messages') {
                     this.currentView = 'messages';
                     this.switchChatPanel('team');
@@ -30795,6 +31005,9 @@ By applying to this program, I give the following consents:
                 document.getElementById('galaStatApproved').textContent = approved;
                 document.getElementById('galaStatPaid').textContent = paid;
 
+                // Catering headline + attendance (items 5 & 6) — read-only, from dietary/checked_in.
+                this.updateCateringAndAttendance();
+
                 // Update sidebar badge
                 const badge = document.getElementById('galaPendingCount');
                 if (badge) {
@@ -30809,6 +31022,41 @@ By applying to this program, I give the following consents:
                     awaitingBadge.textContent = awaitingCount;
                     awaitingBadge.style.display = awaitingCount > 0 ? 'inline-block' : 'none';
                 }
+            },
+
+            // Read-only catering headline + attendance from the already-loaded registrations.
+            // Meal type is mutually exclusive per guest (vegan > vegetarian > meat/standard);
+            // allergies is a separate overlapping flag scanned across dietary + requests text.
+            updateCateringAndAttendance() {
+                const attending = this.registrations.filter(r => r.payment_status === 'paid' || r.status === 'confirmed');
+                let meat = 0, vegetarian = 0, vegan = 0, allergies = 0;
+                attending.forEach(r => {
+                    const diet = String(r.dietary || '').toLowerCase();
+                    const extra = (diet + ' ' + String(r.requests || '')).toLowerCase();
+                    if (/\bvegan\b/.test(diet)) vegan++;
+                    else if (/vegetarian|veggie|pescatarian/.test(diet)) vegetarian++;
+                    else meat++;
+                    if (/allerg|gluten|coeliac|celiac|lactose|nut allergy|peanut|shellfish|dairy-free|dairy free|halal|kosher/.test(extra)) allergies++;
+                });
+                const lineEl = document.getElementById('galaCateringLine');
+                if (lineEl) {
+                    if (!attending.length) {
+                        lineEl.innerHTML = '<span style="font-size:15px; font-weight:600; color:var(--text-muted);">No confirmed dinner guests yet.</span>';
+                    } else {
+                        const seg = (n, label, color) => `<span style="color:${color};">${n}</span> <span style="font-size:14px; font-weight:600; color:var(--text-muted);">${label}</span>`;
+                        lineEl.innerHTML = [
+                            seg(meat, 'meat', '#9b1b22'),
+                            seg(vegetarian, 'vegetarian', '#15803d'),
+                            seg(vegan, 'vegan', '#047857'),
+                            seg(allergies, 'allergies', '#b45309')
+                        ].join('<span style="color:var(--border); margin:0 10px;">/</span>');
+                    }
+                }
+                const checkedIn = attending.filter(r => r.checked_in == 1 || r.checked_in === true).length;
+                const ci = document.getElementById('galaStatCheckedIn');
+                const ta = document.getElementById('galaStatToArrive');
+                if (ci) ci.textContent = checkedIn;
+                if (ta) ta.textContent = Math.max(0, attending.length - checkedIn);
             },
 
             showTab(tab) {
@@ -32167,6 +32415,512 @@ By applying to this program, I give the following consents:
                         </div>`;
                     }).join('') + '</div>';
                 } catch (e) { el.innerHTML = '<div class="card" style="padding:16px;">Failed to load the audit log.</div>'; }
+            }
+        };
+
+        // ==================== ADMIN OPS: shared member section list ====================
+        // Deep-link / CTA targets map to UserPortal.showSection(target) on the member app.
+        const MEMBER_SECTIONS = [
+            ['plexus', 'Plexus'], ['gala', 'Gala Evening'], ['accelerator', 'Accelerator'],
+            ['forum', 'Biomedical Forum'], ['bridges', 'Building Bridges'], ['af26', 'Croatians Abroad'],
+            ['network', 'My Network'], ['mymedx', 'My Med&X'], ['talks', 'Talks'],
+            ['dashboard', 'Home'], ['settings', 'Settings']
+        ];
+        const OPS_PROJECTS = [
+            ['plexus', 'Plexus', 'fa-flask'], ['gala', 'Gala Evening', 'fa-glass-cheers'],
+            ['accelerator', 'Accelerator', 'fa-rocket'], ['forum', 'Biomedical Forum', 'fa-comments'],
+            ['bridges', 'Building Bridges', 'fa-people-arrows']
+        ];
+        const OPS_KINDS = [['open', 'Open now'], ['soon', 'Coming soon'], ['closed', 'Closed'], ['info', 'Info']];
+        const opsEsc = (s) => (s == null ? '' : String(s)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        async function opsApi(path, opts = {}) {
+            const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}`, ...(opts.headers || {}) } });
+            let d = {}; try { d = await res.json(); } catch (e) {}
+            return { ok: res.ok, status: res.status, d };
+        }
+
+        // ==================== ANNOUNCE — the one door to reach members ====================
+        const AnnounceApp = {
+            _projStatus: {},
+            init() {
+                this.onDestChange();
+                this.loadProjectStatus();
+                this.loadPast();
+                this.renderPreview();
+            },
+            // Destination picker → the bell-feed routing token stored in link_section:
+            //   site:<page>  opens a page on the public website
+            //   app:<section> opens a section inside the member app
+            //   a full https URL opens that link
+            onDestChange() {
+                const sel = document.getElementById('annDest');
+                const url = document.getElementById('annDestUrl');
+                if (url) url.style.display = (sel && sel.value === '__url__') ? 'block' : 'none';
+                this.renderPreview();
+            },
+            destValue() {
+                const sel = document.getElementById('annDest');
+                if (!sel || !sel.value) return '';
+                if (sel.value === '__url__') return (document.getElementById('annDestUrl')?.value || '').trim();
+                return sel.value;
+            },
+            destLabel() {
+                const sel = document.getElementById('annDest');
+                if (!sel || !sel.value) return '';
+                if (sel.value === '__url__') {
+                    const u = (document.getElementById('annDestUrl')?.value || '').trim();
+                    return u ? ('Opens ' + u) : '';
+                }
+                const opt = sel.options[sel.selectedIndex];
+                return opt ? ('Opens ' + opt.textContent) : '';
+            },
+            async loadProjectStatus() {
+                const r = await opsApi('/api/admin/project-status');
+                (r.d || []).forEach(p => { this._projStatus[p.project_key] = p; });
+                this.renderPreview();
+            },
+            renderPreview() {
+                const audience = document.getElementById('annAudience')?.value || '';
+                const title = document.getElementById('annTitle')?.value || '';
+                const body = document.getElementById('annBody')?.value || '';
+                const NAMES = { plexus: 'Plexus attendees', gala: 'Gala Evening guests', accelerator: 'Accelerator followers', forum: 'Biomedical Forum followers', bridges: 'Building Bridges followers' };
+                // Follower hint
+                const hint = document.getElementById('annFollowerHint');
+                if (hint) {
+                    if (audience && this._projStatus[audience]) {
+                        hint.textContent = `${this._projStatus[audience].waiting_count || 0} members follow ${NAMES[audience] || audience}.`;
+                    } else {
+                        hint.textContent = 'Goes to every member.';
+                    }
+                }
+                const badge = audience ? `<span style="display:inline-block;background:#9b1b2214;color:#9b1b22;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;margin-bottom:8px;">${opsEsc(NAMES[audience] || audience)}</span>` : `<span style="display:inline-block;background:#c9a96222;color:#8a6d17;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;margin-bottom:8px;">Everyone</span>`;
+                const destHint = this.destLabel();
+                const prev = document.getElementById('annPreview');
+                if (prev) {
+                    prev.innerHTML = `${badge}
+                        <div style="font-weight:700;font-size:15px;color:var(--text-primary);">${opsEsc(title) || '<span style=\"color:var(--text-muted);font-weight:500;\">Your title appears here</span>'}</div>
+                        <div style="font-size:13px;color:var(--text-secondary);margin-top:6px;line-height:1.5;white-space:pre-wrap;">${opsEsc(body) || '<span style=\"color:var(--text-muted);\">The message body appears here.</span>'}</div>
+                        ${destHint ? `<div style="font-size:12px;color:var(--accent-primary);margin-top:10px;font-weight:600;"><i class="fas fa-arrow-up-right-from-square" style="font-size:10px;"></i> ${opsEsc(destHint)}</div>` : ''}`;
+                }
+            },
+            async publish() {
+                const title = (document.getElementById('annTitle')?.value || '').trim();
+                if (!title) { Toast.error('Add a title first'); return; }
+                const sel = document.getElementById('annDest');
+                const dest = this.destValue();
+                if (sel && sel.value === '__url__' && dest && !/^https?:\/\/[^\s]+$/i.test(dest)) { Toast.error('Enter a valid http(s) link'); return; }
+                const payload = {
+                    project_key: document.getElementById('annAudience')?.value || null,
+                    title,
+                    body: document.getElementById('annBody')?.value || '',
+                    link_section: dest || null,
+                    push: document.getElementById('annPush')?.checked ? 1 : 0
+                };
+                const r = await opsApi('/api/admin/member-announcements', { method: 'POST', body: JSON.stringify(payload) });
+                if (r.ok) {
+                    Toast.success('Announcement published');
+                    document.getElementById('annTitle').value = '';
+                    document.getElementById('annBody').value = '';
+                    document.getElementById('annPush').checked = false;
+                    if (sel) sel.value = '';
+                    const durl = document.getElementById('annDestUrl');
+                    if (durl) { durl.value = ''; durl.style.display = 'none'; }
+                    this.renderPreview();
+                    this.loadPast();
+                } else {
+                    Toast.error(r.d.error || 'Could not publish');
+                }
+            },
+            async loadPast() {
+                const el = document.getElementById('annPastList'); if (!el) return;
+                const r = await opsApi('/api/admin/member-announcements');
+                const rows = r.d || [];
+                if (!rows.length) { el.innerHTML = '<div style="padding:22px;color:var(--text-muted);font-size:13px;">No announcements yet.</div>'; return; }
+                const NAMES = { plexus: 'Plexus', gala: 'Gala Evening', accelerator: 'Accelerator', forum: 'Forum', bridges: 'Building Bridges' };
+                el.innerHTML = rows.map(a => {
+                    const who = a.project_key ? (NAMES[a.project_key] || a.project_key) : 'Everyone';
+                    const when = a.created_at ? new Date(String(a.created_at).replace(' ', 'T') + 'Z').toLocaleDateString() : '';
+                    return `<div style="display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-bottom:1px solid var(--border);">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:600;font-size:14px;">${opsEsc(a.title)}</div>
+                            <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${opsEsc(who)} · ${when}${a.push ? ' · <i class=\"fas fa-bell\" title=\"Push flagged\" style=\"color:#9b1b22;\"></i> push' : ''}${a.project_key ? ' · ' + (a.followers || 0) + ' following' : ''}</div>
+                        </div>
+                        <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;color:#dc2626;flex-shrink:0;" onclick="AnnounceApp.del('${a.id}')" title="Delete"><i class="fas fa-trash"></i></button>
+                    </div>`;
+                }).join('');
+            },
+            async del(id) {
+                if (!confirm('Delete this announcement? Members will no longer see it.')) return;
+                const r = await opsApi('/api/admin/member-announcements/' + id, { method: 'DELETE' });
+                if (r.ok) { Toast.success('Deleted'); this.loadPast(); } else { Toast.error('Could not delete'); }
+            }
+        };
+
+        // ==================== WEBSITE CONTENT — admin-authored copy for medx.hr ====================
+        // Reads the whitelisted content_blocks (GET /api/admin/content-blocks), one accordion per
+        // page, and writes edits back through PUT /api/admin/content-blocks/:key. The public site
+        // then reads them via GET /api/public/content. Only whitelisted blocks exist, so an admin
+        // can only edit regions that already have a slot on the static site.
+        const WebsiteContentApp = {
+            _blocks: [],
+            _openPage: null,
+            // Page display order + human names for the accordions. Keys match content_blocks.page.
+            PAGES: [
+                ['homepage', 'Homepage'], ['plexus', 'Plexus'], ['gala', 'Gala'],
+                ['accelerator', 'Accelerator'], ['forum', 'Forum'],
+                ['bridges', 'Building Bridges'], ['global', 'Site-wide']
+            ],
+            // Where "Preview on site" opens per page. These files are served both locally (:8899)
+            // and on medx.hr.
+            PAGE_URL: {
+                homepage: '/', plexus: '/plexus.html', gala: '/plexus-gala.html',
+                accelerator: '/accelerator.html', forum: '/biomedical-forum.html',
+                bridges: '/building-bridges.html', global: '/'
+            },
+            siteBase() {
+                const h = location.hostname;
+                return (h === 'localhost' || h === '127.0.0.1') ? 'http://localhost:8899' : 'https://medx.hr';
+            },
+            fieldId(key) { return 'wc-' + String(key).replace(/[^a-zA-Z0-9]+/g, '_'); },
+            esc(s) { return opsEsc(s); },
+            relTime(iso) {
+                if (!iso) return '';
+                const t = new Date(String(iso).replace(' ', 'T'));
+                if (isNaN(t.getTime())) return '';
+                const secs = Math.max(0, (Date.now() - t.getTime()) / 1000);
+                if (secs < 60) return 'just now';
+                const mins = Math.floor(secs / 60); if (mins < 60) return mins + (mins === 1 ? ' minute ago' : ' minutes ago');
+                const hrs = Math.floor(mins / 60); if (hrs < 24) return hrs + (hrs === 1 ? ' hour ago' : ' hours ago');
+                const days = Math.floor(hrs / 24); if (days < 30) return days + (days === 1 ? ' day ago' : ' days ago');
+                return t.toLocaleDateString();
+            },
+            async init() { await this.load(); },
+            async load() {
+                const host = document.getElementById('wcAccordions'); if (!host) return;
+                const r = await opsApi('/api/admin/content-blocks');
+                if (!r.ok) { host.innerHTML = '<div class="card" style="padding:28px;color:var(--text-muted);">Could not load website content.</div>'; return; }
+                this._blocks = r.d.blocks || [];
+                this.render();
+            },
+            render() {
+                const host = document.getElementById('wcAccordions'); if (!host) return;
+                const byPage = {};
+                this._blocks.forEach(b => { (byPage[b.page] = byPage[b.page] || []).push(b); });
+                const pages = this.PAGES.filter(([k]) => byPage[k] && byPage[k].length);
+                if (this._openPage == null && pages.length) this._openPage = pages[0][0];
+                host.innerHTML = pages.map(([key, name]) => {
+                    const open = this._openPage === key;
+                    const rows = byPage[key].map(b => this.rowHtml(b)).join('');
+                    const count = byPage[key].length;
+                    return `<div class="card" style="padding:0;margin-bottom:12px;overflow:hidden;">
+                        <button type="button" onclick="WebsiteContentApp.toggle('${key}')" aria-expanded="${open}" style="width:100%;display:flex;align-items:center;gap:12px;padding:16px 18px;background:${open ? 'var(--bg-tertiary)' : 'var(--bg-secondary)'};border:none;border-bottom:${open ? '1px solid var(--border)' : 'none'};cursor:pointer;text-align:left;">
+                            <i class="fas fa-chevron-${open ? 'down' : 'right'}" style="color:var(--text-muted);font-size:13px;width:14px;"></i>
+                            <span style="font-weight:700;font-size:16px;color:var(--text-primary);">${this.esc(name)}</span>
+                            <span style="font-size:12px;color:var(--text-muted);font-weight:600;">${count} ${count === 1 ? 'block' : 'blocks'}</span>
+                            <a href="${this.siteBase() + (this.PAGE_URL[key] || '/')}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="margin-left:auto;font-size:12px;color:var(--accent-primary);font-weight:600;text-decoration:none;"><i class="fas fa-arrow-up-right-from-square" style="font-size:10px;"></i> Preview on site</a>
+                        </button>
+                        <div style="display:${open ? 'block' : 'none'};padding:2px 18px;">${rows}</div>
+                    </div>`;
+                }).join('') || '<div class="card" style="padding:28px;color:var(--text-muted);">No website blocks are configured yet.</div>';
+            },
+            toggle(key) { this._openPage = (this._openPage === key) ? null : key; this.render(); },
+            rowHtml(b) {
+                const fid = this.fieldId(b.block_key);
+                const type = b.block_type || 'text';
+                const max = b.max_len || 280;
+                const body = b.body || '';
+                const len = body.length;
+                const over = len > max;
+                let control = '';
+                if (type === 'url') {
+                    control = `<input id="${fid}" type="url" value="${this.esc(body)}" oninput="WebsiteContentApp.onInput('${b.block_key}')" placeholder="https://…" style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);color:var(--text-primary);font-size:14px;">`;
+                } else if (type === 'richtext') {
+                    control = `<div style="display:flex;gap:6px;margin-bottom:6px;">
+                            <button type="button" title="Bold" onclick="WebsiteContentApp.wrap('${fid}','${b.block_key}','b')" style="width:34px;height:32px;border:1px solid var(--border);background:var(--bg-secondary);border-radius:6px;cursor:pointer;font-weight:800;color:var(--text-primary);">B</button>
+                            <button type="button" title="Italic" onclick="WebsiteContentApp.wrap('${fid}','${b.block_key}','i')" style="width:34px;height:32px;border:1px solid var(--border);background:var(--bg-secondary);border-radius:6px;cursor:pointer;font-style:italic;color:var(--text-primary);">I</button>
+                            <button type="button" title="Add a link" onclick="WebsiteContentApp.linkify('${fid}','${b.block_key}')" style="height:32px;padding:0 12px;border:1px solid var(--border);background:var(--bg-secondary);border-radius:6px;cursor:pointer;color:var(--text-primary);font-size:13px;"><i class="fas fa-link" style="font-size:11px;"></i> Link</button>
+                        </div>
+                        <textarea id="${fid}" rows="3" oninput="WebsiteContentApp.onInput('${b.block_key}')" placeholder="Leave blank to use the built-in default." style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);color:var(--text-primary);font-size:14px;resize:vertical;font-family:inherit;line-height:1.5;">${this.esc(body)}</textarea>`;
+                } else {
+                    control = `<textarea id="${fid}" rows="2" oninput="WebsiteContentApp.onInput('${b.block_key}')" placeholder="Leave blank to use the built-in default." style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);color:var(--text-primary);font-size:14px;resize:vertical;font-family:inherit;line-height:1.5;">${this.esc(body)}</textarea>`;
+                }
+                const edited = b.updated_by ? `Last edited by ${this.esc(b.updated_by)}, ${this.relTime(b.updated_at)}` : 'Not edited yet — showing the built-in default.';
+                const typeLabel = type === 'url' ? 'link' : type;
+                return `<div style="padding:14px 0;border-bottom:1px solid var(--border);" data-wc-row="${this.esc(b.block_key)}">
+                    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
+                        <label for="${fid}" style="font-weight:600;font-size:14px;color:var(--text-primary);">${this.esc(b.label)}</label>
+                        <span style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;">${typeLabel}</span>
+                    </div>
+                    ${control}
+                    <div style="display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap;">
+                        <span id="${fid}-count" style="font-size:12px;color:${over ? '#b91c1c' : 'var(--text-muted)'};font-weight:600;">${len} / ${max}</span>
+                        <span style="font-size:12px;color:var(--text-muted);">${edited}</span>
+                        <button id="${fid}-save" class="btn btn-primary" ${over ? 'disabled' : ''} onclick="WebsiteContentApp.save('${b.block_key}')" style="margin-left:auto;padding:8px 18px;font-size:13px;${over ? 'opacity:.5;cursor:not-allowed;' : ''}"><i class="fas fa-save"></i> Save</button>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">Leave blank to use the built-in default.</div>
+                </div>`;
+            },
+            onInput(key) {
+                const fid = this.fieldId(key);
+                const ta = document.getElementById(fid); if (!ta) return;
+                const b = this._blocks.find(x => x.block_key === key); if (!b) return;
+                const max = b.max_len || 280;
+                const len = ta.value.length;
+                const over = len > max;
+                const c = document.getElementById(fid + '-count');
+                if (c) { c.textContent = len + ' / ' + max; c.style.color = over ? '#b91c1c' : 'var(--text-muted)'; }
+                const btn = document.getElementById(fid + '-save');
+                if (btn) { btn.disabled = over; btn.style.opacity = over ? '.5' : ''; btn.style.cursor = over ? 'not-allowed' : ''; }
+            },
+            wrap(fid, key, tag) {
+                const ta = document.getElementById(fid); if (!ta) return;
+                const s = ta.selectionStart, e = ta.selectionEnd;
+                const sel = ta.value.slice(s, e) || 'text';
+                const open = '<' + tag + '>';
+                ta.value = ta.value.slice(0, s) + open + sel + '</' + tag + '>' + ta.value.slice(e);
+                ta.focus();
+                ta.selectionStart = s + open.length;
+                ta.selectionEnd = ta.selectionStart + sel.length;
+                this.onInput(key);
+            },
+            linkify(fid, key) {
+                const ta = document.getElementById(fid); if (!ta) return;
+                const url = prompt('Link address (must start with http:// or https://)', 'https://');
+                if (!url) return;
+                if (!/^https?:\/\/[^\s]+$/i.test(url.trim())) { Toast.error('Enter a valid http(s) link'); return; }
+                const s = ta.selectionStart, e = ta.selectionEnd;
+                const sel = ta.value.slice(s, e) || url.trim();
+                ta.value = ta.value.slice(0, s) + '<a href="' + url.trim() + '">' + sel + '</a>' + ta.value.slice(e);
+                ta.focus();
+                this.onInput(key);
+            },
+            async save(key) {
+                const fid = this.fieldId(key);
+                const ta = document.getElementById(fid); if (!ta) return;
+                const b = this._blocks.find(x => x.block_key === key); if (!b) return;
+                const val = ta.value;
+                if (val.length > (b.max_len || 280)) { Toast.error('Too long — shorten it first.'); return; }
+                if (b.block_type === 'url' && val.trim() && !/^https?:\/\/[^\s]+$/i.test(val.trim())) { Toast.error('Enter a valid http(s) link, or leave blank.'); return; }
+                const btn = document.getElementById(fid + '-save');
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…'; }
+                const r = await opsApi('/api/admin/content-blocks/' + encodeURIComponent(key), { method: 'PUT', body: JSON.stringify({ body: val }) });
+                if (r.ok) {
+                    Toast.success('Saved to the website');
+                    await this.refreshRow(key);
+                } else {
+                    Toast.error((r.d && r.d.error) || 'Could not save');
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save'; }
+                }
+            },
+            async refreshRow(key) {
+                const r = await opsApi('/api/admin/content-blocks/' + encodeURIComponent(key));
+                if (!r.ok || !r.d) return;
+                const b = r.d;
+                const idx = this._blocks.findIndex(x => x.block_key === key);
+                if (idx >= 0) this._blocks[idx] = b; else this._blocks.push(b);
+                const rowEl = document.querySelector('[data-wc-row="' + (window.CSS && CSS.escape ? CSS.escape(key) : key) + '"]');
+                if (rowEl) rowEl.outerHTML = this.rowHtml(b);
+            }
+        };
+
+        // ==================== MEMBER OPS — home editor, sites, tasks ====================
+        const MemberOpsApp = {
+            tab: 'home',
+            _team: [],
+            _tasks: [],
+            _sites: [],
+            _siteEditingId: null,
+            init() {
+                this.showTab(this.tab || 'home');
+                this.loadHome();
+                this.loadSites();
+                this.loadTeamThenTasks();
+            },
+            showTab(t) {
+                this.tab = t;
+                const map = { home: 'moHomePanel', sites: 'moSitesPanel', tasks: 'moTasksPanel' };
+                Object.entries(map).forEach(([k, id]) => { const el = document.getElementById(id); if (el) el.style.display = (k === t) ? '' : 'none'; });
+                [['home', 'moTabHome'], ['sites', 'moTabSites'], ['tasks', 'moTabTasks']].forEach(([k, id]) => {
+                    const b = document.getElementById(id);
+                    if (b) { b.className = 'btn ' + (k === t ? 'btn-primary' : 'btn-secondary'); b.style.fontSize = '13px'; b.style.flexShrink = '0'; }
+                });
+            },
+
+            // ---------- HOME SCREEN EDITOR (item 1) ----------
+            async loadHome() {
+                const host = document.getElementById('moHomeRows'); if (!host) return;
+                const r = await opsApi('/api/admin/project-status');
+                const byKey = {}; (r.d || []).forEach(p => { byKey[p.project_key] = p; });
+                const kindOpts = (cur) => OPS_KINDS.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('');
+                const targetOpts = (cur) => MEMBER_SECTIONS.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('');
+                host.innerHTML = OPS_PROJECTS.map(([key, name, icon]) => {
+                    const p = byKey[key] || {};
+                    const fld = 'mo-home-' + key;
+                    return `<div class="card" style="padding:18px;margin-bottom:14px;">
+                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+                            <i class="fas ${icon}" style="color:#9b1b22;"></i>
+                            <span style="font-weight:700;font-size:15px;">${name}</span>
+                            <span style="font-size:11px;color:var(--text-muted);font-weight:600;margin-left:6px;">${p.waiting_count || 0} members following</span>
+                            <button class="btn btn-primary" style="margin-left:auto;padding:8px 18px;font-size:13px;" onclick="MemberOpsApp.saveHomeRow('${key}')"><i class="fas fa-save"></i> Save</button>
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+                            <div>
+                                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">Status label</label>
+                                <input id="${fld}-label" value="${opsEsc(p.status_label || '')}" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;">
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">State</label>
+                                <select id="${fld}-kind" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;">${kindOpts(p.status_kind || 'info')}</select>
+                            </div>
+                            <div style="grid-column:1 / -1;">
+                                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">Detail line</label>
+                                <input id="${fld}-detail" value="${opsEsc(p.detail_line || '')}" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;">
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">Button label</label>
+                                <input id="${fld}-cta" value="${opsEsc(p.cta_label || '')}" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;">
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">Button opens</label>
+                                <select id="${fld}-target" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;">${targetOpts(p.cta_target || key)}</select>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+            },
+            async saveHomeRow(key) {
+                const g = (suffix) => document.getElementById('mo-home-' + key + '-' + suffix);
+                const payload = {
+                    status_label: g('label').value,
+                    status_kind: g('kind').value,
+                    detail_line: g('detail').value,
+                    cta_label: g('cta').value,
+                    cta_target: g('target').value
+                };
+                const r = await opsApi('/api/admin/project-status/' + key, { method: 'PUT', body: JSON.stringify(payload) });
+                if (r.ok) { Toast.success('Saved — members see it now'); } else { Toast.error(r.d.error || 'Could not save'); }
+            },
+
+            // ---------- ACCELERATOR SITES (item 3) ----------
+            async loadSites() {
+                const el = document.getElementById('moSitesList'); if (!el) return;
+                const r = await opsApi('/api/admin/accelerator-sites');
+                this._sites = r.d || [];
+                if (!this._sites.length) { el.innerHTML = '<div style="padding:22px;color:var(--text-muted);font-size:13px;">No sites yet. Add the first one.</div>'; return; }
+                el.innerHTML = this._sites.map(s => `<div style="display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-bottom:1px solid var(--border);${s.active ? '' : 'opacity:0.55;'}">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:600;font-size:14px;">${opsEsc(s.institution)}${s.active ? '' : ' <span style=\"font-size:10px;color:var(--text-muted);font-weight:700;\">(hidden)</span>'}</div>
+                            <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${opsEsc([s.city, s.country].filter(Boolean).join(', '))}${s.lab_or_clinic ? ' · ' + opsEsc(s.lab_or_clinic) : ''}${s.spots != null ? ' · ' + s.spots + ' spots' : ''}${s.year ? ' · ' + s.year : ''}</div>
+                            ${s.mentor_line ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">${opsEsc(s.mentor_line)}</div>` : ''}
+                        </div>
+                        <div style="display:flex;gap:5px;flex-shrink:0;">
+                            <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="MemberOpsApp.toggleSiteActive('${s.id}', ${s.active ? 0 : 1})" title="${s.active ? 'Hide from members' : 'Show to members'}"><i class="fas fa-${s.active ? 'eye-slash' : 'eye'}"></i></button>
+                            <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="MemberOpsApp.openSiteForm('${s.id}')" title="Edit"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;color:#dc2626;" onclick="MemberOpsApp.delSite('${s.id}')" title="Delete"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>`).join('');
+            },
+            openSiteForm(id) {
+                this._siteEditingId = id || null;
+                const s = id ? (this._sites.find(x => x.id === id) || {}) : {};
+                const inp = (sfx, ph, val, type) => `<input id="mo-site-${sfx}" type="${type || 'text'}" placeholder="${ph}" value="${opsEsc(val == null ? '' : val)}" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;">`;
+                document.getElementById('moSiteForm').innerHTML = `<div class="card" style="padding:18px;margin-bottom:16px;border-left:3px solid #9b1b22;">
+                    <div style="font-weight:700;margin-bottom:14px;">${id ? 'Edit site' : 'New site'}</div>
+                    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+                        <div style="grid-column:1 / -1;"><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">Institution *</label>${inp('institution', 'Harvard Medical School', s.institution)}</div>
+                        <div><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">City</label>${inp('city', 'Boston', s.city)}</div>
+                        <div><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">Country</label>${inp('country', 'United States', s.country)}</div>
+                        <div style="grid-column:1 / -1;"><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">Lab or clinic</label>${inp('lab', 'Department of Neurobiology', s.lab_or_clinic)}</div>
+                        <div style="grid-column:1 / -1;"><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">Mentor line</label>${inp('mentor', 'Prof. E. Hartley (sleep and circuits)', s.mentor_line)}</div>
+                        <div><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">Spots</label>${inp('spots', '2', s.spots, 'number')}</div>
+                        <div><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">Year</label>${inp('year', '2026', s.year, 'number')}</div>
+                    </div>
+                    <div style="display:flex;gap:10px;margin-top:16px;">
+                        <button class="btn btn-primary" onclick="MemberOpsApp.saveSite()"><i class="fas fa-save"></i> ${id ? 'Save changes' : 'Add site'}</button>
+                        <button class="btn btn-secondary" onclick="document.getElementById('moSiteForm').innerHTML='';MemberOpsApp._siteEditingId=null;">Cancel</button>
+                    </div>
+                </div>`;
+            },
+            async saveSite() {
+                const v = (sfx) => document.getElementById('mo-site-' + sfx)?.value;
+                const institution = (v('institution') || '').trim();
+                if (!institution) { Toast.error('Institution is required'); return; }
+                const payload = { institution, city: v('city'), country: v('country'), lab_or_clinic: v('lab'), mentor_line: v('mentor'), spots: v('spots'), year: v('year') };
+                const id = this._siteEditingId;
+                const r = id
+                    ? await opsApi('/api/admin/accelerator-sites/' + id, { method: 'PUT', body: JSON.stringify(payload) })
+                    : await opsApi('/api/admin/accelerator-sites', { method: 'POST', body: JSON.stringify(payload) });
+                if (r.ok) { Toast.success(id ? 'Site updated' : 'Site added'); document.getElementById('moSiteForm').innerHTML = ''; this._siteEditingId = null; this.loadSites(); } else { Toast.error(r.d.error || 'Could not save'); }
+            },
+            async toggleSiteActive(id, active) {
+                const r = await opsApi('/api/admin/accelerator-sites/' + id, { method: 'PUT', body: JSON.stringify({ active }) });
+                if (r.ok) { this.loadSites(); } else { Toast.error('Could not update'); }
+            },
+            async delSite(id) {
+                if (!confirm('Delete this site? Members will no longer see it.')) return;
+                const r = await opsApi('/api/admin/accelerator-sites/' + id, { method: 'DELETE' });
+                if (r.ok) { Toast.success('Deleted'); this.loadSites(); } else { Toast.error('Could not delete'); }
+            },
+
+            // ---------- TASKS (item 4) ----------
+            async loadTeamThenTasks() {
+                try { const t = await opsApi('/api/team'); this._team = (t.d || []).filter(m => m && m.name); } catch (e) { this._team = []; }
+                this.loadTasks();
+            },
+            async loadTasks() {
+                const host = document.getElementById('moTasksGroups'); if (!host) return;
+                const r = await opsApi('/api/admin/tasks');
+                this._tasks = r.d || [];
+                const today = new Date().toISOString().slice(0, 10);
+                const assigneeOpts = (cur) => ['<option value="">Unassigned</option>'].concat(this._team.map(m => `<option value="${m.id}" ${cur === m.id ? 'selected' : ''}>${opsEsc(m.name)}</option>`)).join('');
+                host.innerHTML = OPS_PROJECTS.map(([key, name, icon]) => {
+                    const rows = this._tasks.filter(t => t.project === key);
+                    const list = rows.length ? rows.map(t => {
+                        const done = t.status === 'done';
+                        const overdue = !done && t.due_date && t.due_date < today;
+                        const dueTxt = t.due_date ? new Date(t.due_date + 'T00:00:00').toLocaleDateString() : '';
+                        return `<div style="display:flex;gap:11px;align-items:center;padding:11px 16px;border-bottom:1px solid var(--border);">
+                            <input type="checkbox" ${done ? 'checked' : ''} onchange="MemberOpsApp.toggleTask('${t.id}', this.checked)" style="width:18px;height:18px;accent-color:#15803d;flex-shrink:0;cursor:pointer;">
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-size:14px;font-weight:600;${done ? 'text-decoration:line-through;color:var(--text-muted);' : ''}">${opsEsc(t.title)}</div>
+                                <div style="font-size:12px;margin-top:2px;color:var(--text-muted);">${t.assignee_name ? '<i class=\"fas fa-user\" style=\"font-size:10px;\"></i> ' + opsEsc(t.assignee_name) : 'Unassigned'}${dueTxt ? ' · <span style=\"' + (overdue ? 'color:#dc2626;font-weight:700;' : '') + '\">' + (overdue ? 'Overdue ' : 'Due ') + dueTxt + '</span>' : ''}</div>
+                            </div>
+                            <button class="btn btn-secondary" style="padding:5px 9px;font-size:11px;color:#dc2626;flex-shrink:0;" onclick="MemberOpsApp.delTask('${t.id}')" title="Delete"><i class="fas fa-trash"></i></button>
+                        </div>`;
+                    }).join('') : '<div style="padding:16px;color:var(--text-muted);font-size:13px;">No tasks yet.</div>';
+                    return `<div class="card" style="padding:0;margin-bottom:16px;">
+                        <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);">
+                            <i class="fas ${icon}" style="color:#9b1b22;"></i><span style="font-weight:700;font-size:15px;">${name}</span>
+                            <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">${rows.filter(t => t.status !== 'done').length} open</span>
+                        </div>
+                        ${list}
+                        <div style="display:flex;gap:8px;padding:12px 16px;flex-wrap:wrap;align-items:center;background:var(--bg-tertiary);">
+                            <input id="mo-task-title-${key}" placeholder="Add a task…" style="flex:2;min-width:160px;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:13px;">
+                            <select id="mo-task-assignee-${key}" style="flex:1;min-width:120px;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:13px;">${assigneeOpts('')}</select>
+                            <input id="mo-task-due-${key}" type="date" style="padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:13px;">
+                            <button class="btn btn-primary" style="padding:9px 16px;font-size:13px;" onclick="MemberOpsApp.addTask('${key}')"><i class="fas fa-plus"></i> Add</button>
+                        </div>
+                    </div>`;
+                }).join('');
+            },
+            async addTask(project) {
+                const title = (document.getElementById('mo-task-title-' + project)?.value || '').trim();
+                if (!title) { Toast.error('Type a task first'); return; }
+                const payload = {
+                    project, title,
+                    assigned_to: document.getElementById('mo-task-assignee-' + project)?.value || null,
+                    due_date: document.getElementById('mo-task-due-' + project)?.value || null
+                };
+                const r = await opsApi('/api/admin/tasks', { method: 'POST', body: JSON.stringify(payload) });
+                if (r.ok) { Toast.success('Task added'); this.loadTasks(); } else { Toast.error(r.d.error || 'Could not add'); }
+            },
+            async toggleTask(id, done) {
+                const r = await opsApi('/api/admin/tasks/' + id, { method: 'PUT', body: JSON.stringify({ done: done ? 1 : 0 }) });
+                if (r.ok) { this.loadTasks(); } else { Toast.error('Could not update'); }
+            },
+            async delTask(id) {
+                const r = await opsApi('/api/admin/tasks/' + id, { method: 'DELETE' });
+                if (r.ok) { this.loadTasks(); } else { Toast.error('Could not delete'); }
             }
         };
 

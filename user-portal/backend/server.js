@@ -6005,6 +6005,25 @@ async function initializeApp() {
         year INTEGER,
         active INTEGER DEFAULT 1
     )`);
+
+    // content_blocks: admin-authored free-form copy for named regions of the public website
+    // (medx.hr). block_key is a whitelisted slot that maps to a data-medx-slot target in the
+    // static HTML — an admin can ONLY edit regions that already exist, never inject new
+    // structure. block_type in ('text'|'richtext'|'url'): text renders via textContent (no HTML),
+    // richtext through the shared allowlist sanitizer (b,i,em,strong,br,a[http] only), url is a
+    // single validated link. Read publicly (no auth) via GET /api/public/content; edited by admins
+    // via PUT /api/admin/content-blocks/:key. Byte-identical in both portal server.js files.
+    db.run(`CREATE TABLE IF NOT EXISTS content_blocks (
+        block_key TEXT PRIMARY KEY,
+        page TEXT,
+        label TEXT,
+        block_type TEXT DEFAULT 'text',
+        body TEXT,
+        is_published INTEGER DEFAULT 1,
+        max_len INTEGER DEFAULT 280,
+        updated_at TEXT,
+        updated_by TEXT
+    )`);
     // ====================== SCHEMA-MIRROR:END ======================
 
     db.run(`CREATE TABLE IF NOT EXISTS member_rewards (
@@ -6154,6 +6173,27 @@ async function initializeApp() {
             if (!query.get('SELECT id FROM accelerator_sites WHERE id = ?', [s[0]])) {
                 db.run(`INSERT INTO accelerator_sites (id, institution, city, country, lab_or_clinic, mentor_line, spots, year, active)
                     VALUES (?,?,?,?,?,?,?,?,1)`, [s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7]]);
+            }
+        });
+
+        // ===== Seed content_blocks whitelist (admin-authored website copy) =====
+        // THE SEED LIST IS THE WHITELIST: the admin PUT 400s on any block_key not seeded here, so
+        // admins can only target regions that already have a matching data-medx-slot in the static
+        // HTML. Idempotent per block_key. Blank body = the site falls back to its baked default
+        // copy. Same rows seeded by both portals (shared Turso DB in prod).
+        const contentBlockSeeds = [
+            ['homepage.news_banner', 'homepage', 'Homepage: news banner', 'richtext', '', 400],
+            ['plexus.announcement', 'plexus', 'Plexus page: announcement strip', 'text', '', 280],
+            ['gala.announcement', 'gala', 'Gala page: announcement strip', 'text', '', 280],
+            ['accelerator.announcement', 'accelerator', 'Accelerator page: announcement strip', 'text', '', 280],
+            ['forum.announcement', 'forum', 'Forum page: announcement strip', 'text', '', 280],
+            ['bridges.announcement', 'bridges', 'Building Bridges page: announcement strip', 'text', '', 280],
+            ['global.members_prompt', 'global', 'Site-wide: members sign-in prompt copy', 'text', 'Sign in to keep your Med&X tickets, registrations, and updates in one place.', 200]
+        ];
+        contentBlockSeeds.forEach(c => {
+            if (!query.get('SELECT block_key FROM content_blocks WHERE block_key = ?', [c[0]])) {
+                db.run(`INSERT INTO content_blocks (block_key, page, label, block_type, body, is_published, max_len, updated_at)
+                    VALUES (?,?,?,?,?,1,?,?)`, [c[0], c[1], c[2], c[3], c[4], c[5], new Date().toISOString()]);
             }
         });
 
@@ -6906,14 +6946,47 @@ async function submitReset(e){
             let phase = 'late';
             if (conf.early_bird_deadline && today <= conf.early_bird_deadline) phase = 'early_bird';
             else if (conf.regular_deadline && today <= conf.regular_deadline) phase = 'regular';
+            // Typed money fields the site binds to (never free-text). The "primary" paid ticket is
+            // the lowest-sort_order ticket with a non-zero price (the standard seat that the "from
+            // EUR X" copy refers to). `current` is phase-derived server-side so the shown price
+            // always equals the Stripe charge — the site never recomputes price from its own clock.
+            const primary = tickets.filter(t => (t.price_early_bird || 0) > 0)[0] || tickets[0] || {};
+            const currency = primary.currency || 'EUR';
+            const currentPrice = phase === 'early_bird' ? primary.price_early_bird
+                : (phase === 'regular' ? primary.price_regular : primary.price_late);
+            // Pre-format the date range once, server-side, so the site never does locale date math.
+            const MN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            let date_range = '';
+            if (conf.start_date) {
+                const sa = String(conf.start_date).slice(0, 10).split('-');
+                if (conf.end_date) {
+                    const sb = String(conf.end_date).slice(0, 10).split('-');
+                    if (sa[0] === sb[0] && sa[1] === sb[1]) date_range = MN[(+sa[1]) - 1] + ' ' + (+sa[2]) + '–' + (+sb[2]) + ', ' + sa[0];
+                    else if (sa[0] === sb[0]) date_range = MN[(+sa[1]) - 1] + ' ' + (+sa[2]) + ' – ' + MN[(+sb[1]) - 1] + ' ' + (+sb[2]) + ', ' + sa[0];
+                    else date_range = (+sa[2]) + ' ' + MN[(+sa[1]) - 1] + ' ' + sa[0] + ' – ' + (+sb[2]) + ' ' + MN[(+sb[1]) - 1] + ' ' + sb[0];
+                } else {
+                    date_range = (+sa[2]) + ' ' + MN[(+sa[1]) - 1] + ' ' + sa[0];
+                }
+            }
             res.json({
                 conference: {
                     name: conf.name, year: conf.year, slug: conf.slug, description: conf.description,
-                    start_date: conf.start_date, end_date: conf.end_date,
+                    start_date: conf.start_date, end_date: conf.end_date, date_range: date_range,
                     venue_name: conf.venue_name, venue_city: conf.venue_city, venue_country: conf.venue_country,
                     registration_open: !!conf.registration_open,
                     early_bird_deadline: conf.early_bird_deadline, regular_deadline: conf.regular_deadline,
                     pricing_phase: phase
+                },
+                price: {
+                    early_bird: primary.price_early_bird != null ? primary.price_early_bird : null,
+                    regular: primary.price_regular != null ? primary.price_regular : null,
+                    late: primary.price_late != null ? primary.price_late : null,
+                    current: currentPrice != null ? currentPrice : null,
+                    currency: currency
+                },
+                deadline: {
+                    early_bird: conf.early_bird_deadline || null,
+                    regular: conf.regular_deadline || null
                 },
                 tickets, speakers,
                 generated_at: new Date().toISOString()
@@ -6921,6 +6994,135 @@ async function submitReset(e){
         } catch (e) {
             res.status(500).json({ error: 'Failed to load site data' });
         }
+    });
+
+    // ================= PUBLIC WEBSITE HYDRATION (no-auth, rate-limited) =================
+    // The static marketing site (medx.hr) reads these to fill data-medx-slot targets so admin
+    // edits reach the site with no redeploy. No auth, no PII. A short in-process memo + a 60/300s
+    // Cache-Control let a CDN/browser absorb repeat hits so scrapers can't hammer the free tier.
+    // Byte-identical block in both portal server.js files.
+    const publicLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many requests.' } });
+    const PUBLIC_MEMO = {};
+    function memo(key, ttlMs, build) {
+        const now = Date.now();
+        const hit = PUBLIC_MEMO[key];
+        if (hit && (now - hit.at) < ttlMs) return hit.val;
+        const val = build();
+        PUBLIC_MEMO[key] = { at: now, val };
+        return val;
+    }
+    function publicCacheHeaders(res) {
+        res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    }
+
+    // Website content blocks (admin-authored). Optional ?page= filter. Published rows only.
+    app.get('/api/public/content', publicLimiter, (req, res) => {
+        try {
+            const page = req.query.page ? String(req.query.page) : null;
+            const payload = memo('content:' + (page || 'all'), 45000, () => {
+                const rows = page
+                    ? query.all('SELECT block_key, page, block_type, body, updated_at FROM content_blocks WHERE is_published = 1 AND page = ?', [page])
+                    : query.all('SELECT block_key, page, block_type, body, updated_at FROM content_blocks WHERE is_published = 1');
+                const blocks = {};
+                rows.forEach(r => { blocks[r.block_key] = { type: r.block_type, body: r.body || '', updated_at: r.updated_at }; });
+                return { blocks, generated_at: new Date().toISOString() };
+            });
+            publicCacheHeaders(res);
+            res.json(payload);
+        } catch (e) {
+            res.status(500).json({ error: 'Failed to load content' });
+        }
+    });
+
+    // Public mirror of the member project-status cards (same rows, no auth, no waiting counts).
+    app.get('/api/public/status', publicLimiter, (req, res) => {
+        try {
+            const payload = memo('status', 30000, () => {
+                const HUB_ORDER = ['plexus', 'gala', 'accelerator', 'forum', 'bridges'];
+                const rows = query.all('SELECT project_key, status_label, status_kind, detail_line, cta_label, cta_target, updated_at FROM project_status');
+                const byKey = {}; rows.forEach(r => { byKey[r.project_key] = r; });
+                const ordered = [];
+                HUB_ORDER.forEach(k => { if (byKey[k]) { ordered.push(byKey[k]); delete byKey[k]; } });
+                Object.values(byKey).forEach(r => ordered.push(r));
+                return { projects: ordered, generated_at: new Date().toISOString() };
+            });
+            publicCacheHeaders(res);
+            res.json(payload);
+        } catch (e) {
+            res.status(500).json({ error: 'Failed to load status' });
+        }
+    });
+
+    // ================= ADMIN: WEBSITE CONTENT EDITOR =================
+    // Whitelist-validated (seed list = whitelist), sanitized by block_type, length-capped, audited.
+    const CONTENT_BLOCK_ALLOWED_TAGS = ['b', 'i', 'em', 'strong', 'br'];
+    function sanitizeRichText(input) {
+        if (input == null) return '';
+        let s = String(input);
+        s = s.replace(/<\s*(script|style)[\s\S]*?<\s*\/\s*\1\s*>/gi, '');
+        s = s.replace(/<[^>]*>/g, function (tag) {
+            const close = tag.match(/^<\s*\/\s*([a-zA-Z0-9]+)/);
+            if (close) {
+                const tn = close[1].toLowerCase();
+                if (CONTENT_BLOCK_ALLOWED_TAGS.indexOf(tn) >= 0 || tn === 'a') return '</' + tn + '>';
+                return '';
+            }
+            const open = tag.match(/^<\s*([a-zA-Z0-9]+)/);
+            if (!open) return '';
+            const name = open[1].toLowerCase();
+            if (CONTENT_BLOCK_ALLOWED_TAGS.indexOf(name) >= 0) return '<' + name + '>';
+            if (name === 'a') {
+                const hrefM = tag.match(/href\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+                const href = hrefM ? (hrefM[2] || hrefM[3] || hrefM[4] || '') : '';
+                if (/^https?:\/\//i.test(href)) return '<a href="' + href.replace(/["<>]/g, '') + '" target="_blank" rel="noopener nofollow">';
+                return '<a>';
+            }
+            return '';
+        });
+        return s;
+    }
+    function isSafeHttpUrl(v) { return !!v && /^https?:\/\/[^\s]+$/i.test(String(v).trim()); }
+    function bumpPublicMemo() { delete PUBLIC_MEMO['status']; Object.keys(PUBLIC_MEMO).forEach(k => { if (k.indexOf('content:') === 0) delete PUBLIC_MEMO[k]; }); }
+
+    app.get('/api/admin/content-blocks', auth, adminOnly, (req, res) => {
+        const rows = query.all('SELECT block_key, page, label, block_type, body, is_published, max_len, updated_at, updated_by FROM content_blocks ORDER BY page, block_key');
+        const byPage = {};
+        rows.forEach(r => { (byPage[r.page || 'other'] = byPage[r.page || 'other'] || []).push(r); });
+        res.json({ pages: byPage, blocks: rows });
+    });
+
+    app.get('/api/admin/content-blocks/:key', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT block_key, page, label, block_type, body, is_published, max_len, updated_at, updated_by FROM content_blocks WHERE block_key = ?', [req.params.key]);
+        if (!row) return res.status(404).json({ error: 'Not found' });
+        res.json(row);
+    });
+
+    app.put('/api/admin/content-blocks/:key', auth, adminOnly, (req, res) => {
+        const key = req.params.key;
+        const existing = query.get('SELECT * FROM content_blocks WHERE block_key = ?', [key]);
+        if (!existing) return res.status(400).json({ error: 'Unknown content block' });
+        const b = req.body || {};
+        let body = b.body != null ? String(b.body) : '';
+        const maxLen = existing.max_len || 280;
+        if (existing.block_type === 'richtext') {
+            body = sanitizeRichText(body);
+        } else if (existing.block_type === 'url') {
+            body = body.trim();
+            if (body && !isSafeHttpUrl(body)) return res.status(400).json({ error: 'Enter a valid http(s) link, or leave blank.' });
+        } else {
+            body = body.replace(/<[^>]*>/g, '');
+        }
+        if (body.length > maxLen) return res.status(400).json({ error: 'Too long — max ' + maxLen + ' characters.' });
+        const isPub = b.is_published === undefined ? existing.is_published : (b.is_published ? 1 : 0);
+        db.run('UPDATE content_blocks SET body = ?, is_published = ?, updated_at = ?, updated_by = ? WHERE block_key = ?',
+            [body, isPub, new Date().toISOString(), (req.user && req.user.email) || 'admin', key]);
+        try {
+            db.run('INSERT INTO audit_log (id, actor_id, actor_email, action, detail) VALUES (?,?,?,?,?)',
+                [require('crypto').randomUUID(), (req.user && req.user.id) || null, (req.user && req.user.email) || 'unknown', 'content_block.update', key]);
+        } catch (e) { /* audit is best-effort */ }
+        saveDb();
+        bumpPublicMemo();
+        res.json({ success: true, block_key: key });
     });
 
     app.get('/api/conferences/:slug', (req, res) => {
@@ -15536,9 +15738,10 @@ By applying to this program, I provide the following consents:
         }
     });
 
-    // Mark user notification as read
+    // Mark user notification as read — scoped to the caller so one member can never mark another
+    // member's row read (the site now calls this on read, so the scoping had to land first).
     app.put('/api/user-notifications/:id/read', auth, (req, res) => {
-        db.run('UPDATE user_notifications SET is_read = 1 WHERE id = ?', [req.params.id]);
+        db.run(`UPDATE user_notifications SET is_read = 1 WHERE id = ? AND (user_id = ? OR user_id IS NULL OR user_group = 'all')`, [req.params.id, req.user.id]);
         saveDb();
         res.json({ success: true });
     });
@@ -15548,6 +15751,95 @@ By applying to this program, I provide the following consents:
         db.run(`UPDATE user_notifications SET is_read = 1 WHERE (user_id = ? OR user_id IS NULL OR user_group = 'all')`, [req.user.id]);
         saveDb();
         res.json({ success: true });
+    });
+
+    // ===== WEBSITE BELL FEED + NEXT-EVENT (auth) =====
+    // The static site's bell reads GET /api/bell-feed (NOT /api/feed — that name is taken by
+    // feed_items). It unions this member's user_notifications with the active conference's
+    // announcements, normalized to one shape, urgent items first then newest. Announcements carry no
+    // per-user read column, so the site tracks their read-state locally as 'ann:'+id; notification
+    // ids stay raw so the site can still PUT /api/user-notifications/:id/read. An optional `target`
+    // token routes deep-links (site:*|app:*|absolute url) before the site's keyword fallback.
+    // Mirrored byte-for-byte in the admin tree.
+    app.get('/api/bell-feed', auth, (req, res) => {
+        try {
+            const limit = Math.min(parseInt(req.query.limit) || 30, 60);
+            const tokenish = v => (v && /^(https?:\/\/|site:|app:)/i.test(String(v))) ? String(v) : null;
+            const notifs = query.all(
+                `SELECT * FROM user_notifications
+                 WHERE (user_id = ? OR user_id IS NULL OR user_group = 'all')
+                   AND (expires_at IS NULL OR expires_at = '' OR expires_at > datetime('now'))
+                 ORDER BY created_at DESC LIMIT ?`, [req.user.id, limit]);
+            const nItems = (notifs || []).map(n => ({
+                id: String(n.id), source: 'notification',
+                title: n.title || 'Update', message: n.message || '',
+                created_at: n.created_at, is_read: n.is_read ? 1 : 0,
+                link: n.link || null, category: n.category || null, project: n.project || null,
+                is_urgent: 0, target: tokenish(n.link)
+            }));
+            let aItems = [];
+            try {
+                const conf = query.get('SELECT id FROM conferences WHERE is_active = 1 ORDER BY year DESC LIMIT 1');
+                if (conf) {
+                    const anns = query.all('SELECT * FROM announcements WHERE conference_id = ? ORDER BY is_urgent DESC, published_at DESC LIMIT ?', [conf.id, limit]);
+                    aItems = (anns || []).map(a => ({
+                        id: 'ann:' + a.id, source: 'announcement',
+                        title: a.title || 'Announcement', message: a.content || '',
+                        created_at: a.published_at, is_read: 0,
+                        link: null, category: a.type || 'announcement', project: null,
+                        is_urgent: a.is_urgent ? 1 : 0, target: tokenish(a.type)
+                    }));
+                }
+            } catch (e) {}
+            const items = aItems.concat(nItems).sort((x, y) =>
+                ((y.is_urgent || 0) - (x.is_urgent || 0)) || (new Date(y.created_at || 0) - new Date(x.created_at || 0)));
+            res.json({ items });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // GET /api/me/next-event (auth) — the signed-in member's registration for the active conference,
+    // powering the nav "My next event" chip. Short date label is formatted server-side (no client
+    // locale math). Verified against this tree's schema: registrations(user_id, conference_id,
+    // ticket_type_id, status, payment_status, amount_paid) + ticket_types + gala_registrations(email).
+    app.get('/api/me/next-event', auth, (req, res) => {
+        try {
+            const conf = query.get('SELECT * FROM conferences WHERE is_active = 1 ORDER BY year DESC LIMIT 1');
+            if (!conf) return res.json({ registered: false, event: null });
+            const MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            let date_short = '';
+            if (conf.start_date) { const s = String(conf.start_date).slice(0, 10).split('-'); if (s.length === 3) date_short = MN[(+s[1]) - 1] + ' ' + (+s[2]); }
+            const base = { event_name: conf.name, event_slug: conf.slug, date: conf.start_date, date_short };
+            const reg = query.get(
+                `SELECT r.status, r.payment_status, r.amount_paid, t.name AS ticket_name, t.includes_gala,
+                        t.price_early_bird, t.price_regular, t.price_late, t.currency
+                 FROM registrations r LEFT JOIN ticket_types t ON t.id = r.ticket_type_id
+                 WHERE r.user_id = ? AND r.conference_id = ? ORDER BY r.created_at DESC LIMIT 1`,
+                [req.user.id, conf.id]);
+            if (!reg) return res.json(Object.assign({ registered: false }, base));
+            let has_gala = !!reg.includes_gala;
+            if (!has_gala && req.user.email) {
+                try { const g = query.get(`SELECT id FROM gala_registrations WHERE lower(email) = lower(?) AND COALESCE(status,'') != 'declined' ORDER BY created_at DESC LIMIT 1`, [req.user.email]); if (g) has_gala = true; } catch (e) {}
+            }
+            let balance_due = 0;
+            if ((reg.payment_status || '') !== 'paid') {
+                const today = new Date().toISOString().slice(0, 10);
+                let price = reg.price_late;
+                if (conf.early_bird_deadline && today <= conf.early_bird_deadline) price = reg.price_early_bird;
+                else if (conf.regular_deadline && today <= conf.regular_deadline) price = reg.price_regular;
+                const paid = reg.amount_paid || 0;
+                if (price != null) balance_due = Math.max(0, price - paid);
+            }
+            res.json(Object.assign({
+                registered: true,
+                registration_status: reg.status || 'pending',
+                ticket_type: reg.ticket_name || null,
+                has_gala, balance_due, currency: reg.currency || 'EUR'
+            }, base));
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
     });
 
     // ========== MEMBER ANNOUNCEMENTS (admin-owned; merged into the notification center) ==========
