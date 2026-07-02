@@ -17102,6 +17102,157 @@
             }
         }
 
+        /* ===== Member Home feed / Opportunity board / Talk library (menu 9 & 23) ===== */
+        .feed-list { display:flex; flex-direction:column; gap:10px; }
+        .feed-card { text-align:left; background:var(--up-bg,#ffffff); border:1px solid var(--up-border,var(--line,rgba(20,15,12,.1))); border-radius:14px; padding:14px 16px; cursor:pointer; transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease; display:flex; flex-direction:column; gap:8px; }
+        .feed-card:hover { transform:translateY(-1px); border-color:rgba(201,169,98,.45); box-shadow:0 6px 18px rgba(20,15,12,.06); }
+        .feed-card-top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+        .feed-card-title { margin:0; font-size:14px; font-weight:700; line-height:1.35; color:var(--up-text,#1d1d1f); }
+        .feed-card-body { margin:0; font-size:12.5px; line-height:1.5; color:var(--up-text-secondary,var(--muted)); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+        .feed-card-date { font-size:11px; font-weight:600; color:var(--up-text-muted,var(--muted)); white-space:nowrap; }
+        .feed-card-link { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--crimson,#9b1b22); }
+        .feed-card-link i { transition:transform .16s ease; }
+        .feed-card:hover .feed-card-link i { transform:translateX(3px); }
+        .feed-chip { display:inline-flex; align-items:center; gap:6px; font-size:10.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; padding:3px 9px; border-radius:999px; border:1px solid transparent; }
+        .feed-chip.opportunity, .feed-chip.call { color:#9b1b22; background:rgba(155,27,34,.10); border-color:rgba(155,27,34,.22); }
+        .feed-chip.spotlight { color:#a07c1f; background:rgba(201,169,98,.16); border-color:rgba(201,169,98,.38); }
+        .feed-chip.recording { color:#2f6b3a; background:rgba(47,107,58,.12); border-color:rgba(47,107,58,.26); }
+        .feed-chip.news { color:#6b5b4a; background:rgba(20,15,12,.06); border-color:rgba(20,15,12,.12); }
+        .feed-empty, .opp-empty, .talk-empty { text-align:center; padding:44px 20px; color:var(--up-text-muted,var(--muted)); }
+        .feed-empty i, .opp-empty i, .talk-empty i { font-size:30px; opacity:.4; display:block; margin-bottom:12px; }
+
+        /* Feed "See all" modal */
+        .feed-modal-overlay { position:fixed; inset:0; background:rgba(20,15,12,.55); backdrop-filter:blur(4px); z-index:10000; display:flex; align-items:flex-start; justify-content:center; padding:40px 16px; overflow-y:auto; }
+        .feed-modal { background:var(--up-bg,#ffffff); width:100%; max-width:640px; border-radius:18px; border:1px solid var(--up-border,var(--line)); box-shadow:0 24px 60px rgba(20,15,12,.25); overflow:hidden; }
+        .feed-modal-head { display:flex; align-items:center; justify-content:space-between; padding:20px 22px; border-bottom:1px solid var(--up-border,var(--line)); }
+        .feed-modal-head h3 { margin:0; font-family:'Fraunces',Georgia,serif; font-size:22px; color:var(--up-text,var(--ink,#15110f)); }
+        .feed-modal-head p { margin:2px 0 0; font-size:12.5px; color:var(--up-text-secondary,var(--muted)); }
+        .feed-modal-body { padding:16px 22px 24px; max-height:70vh; overflow-y:auto; }
+        .feed-modal-close { background:none; border:none; font-size:18px; color:var(--up-text-muted,var(--muted)); cursor:pointer; width:36px; height:36px; border-radius:50%; flex-shrink:0; }
+        .feed-modal-close:hover { background:rgba(20,15,12,.06); }
+
+        /* Opportunity board (Network tab) */
+        .opp-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+        .opp-pills, .talk-filters { display:flex; gap:8px; flex-wrap:wrap; }
+        .opp-pill { font-size:13px; font-weight:600; padding:7px 14px; border-radius:999px; border:1px solid var(--up-border,var(--line)); background:var(--up-bg,#fff); color:var(--up-text-secondary,var(--muted)); cursor:pointer; transition:all .15s; }
+        .opp-pill:hover { border-color:rgba(201,169,98,.45); color:var(--up-text,var(--ink)); }
+        .opp-pill.active { background:var(--ink,#15110f); color:#fff; border-color:var(--ink,#15110f); }
+        .opp-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
+        .opp-card { display:flex; flex-direction:column; gap:10px; }
+        .opp-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+        .opp-card h4 { margin:0; font-size:15px; font-weight:700; line-height:1.3; color:var(--up-text,#1d1d1f); }
+        .opp-org { font-size:13px; color:var(--up-text-secondary,var(--muted)); margin-top:3px; }
+        .opp-org i { width:14px; color:var(--up-text-muted,var(--muted)); }
+        .opp-desc { font-size:13px; line-height:1.5; color:var(--up-text-secondary,var(--muted)); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; margin:0; }
+        .opp-kind-chip { font-size:10.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; padding:3px 9px; border-radius:999px; color:#a07c1f; background:rgba(201,169,98,.16); border:1px solid rgba(201,169,98,.38); white-space:nowrap; }
+        .opp-deadline { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#9b1b22; background:rgba(155,27,34,.08); border:1px solid rgba(155,27,34,.2); padding:3px 9px; border-radius:8px; }
+        .opp-deadline.none { color:var(--up-text-muted,var(--muted)); background:rgba(20,15,12,.05); border-color:rgba(20,15,12,.12); }
+
+        /* Opportunity submit form */
+        .opp-form-field { margin-bottom:14px; }
+        .opp-form-field label { display:block; font-size:12.5px; font-weight:600; color:var(--up-text,#1d1d1f); margin-bottom:6px; }
+        .opp-form-field input, .opp-form-field select, .opp-form-field textarea { width:100%; padding:10px 12px; border:1px solid var(--up-border,var(--line)); border-radius:10px; font-size:14px; font-family:inherit; background:var(--up-bg,#fff); color:var(--up-text,#1d1d1f); }
+        .opp-form-field textarea { resize:vertical; min-height:88px; }
+        .opp-form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+        /* Talk library */
+        .talks-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(258px,1fr)); gap:18px; }
+        .talk-card { background:var(--up-bg,#fff); border:1px solid var(--up-border,var(--line)); border-radius:16px; overflow:hidden; transition:transform .16s ease, box-shadow .16s ease; display:flex; flex-direction:column; cursor:pointer; }
+        .talk-card:hover { transform:translateY(-2px); box-shadow:0 10px 26px rgba(20,15,12,.10); }
+        .talk-thumb { position:relative; aspect-ratio:16/9; background:linear-gradient(135deg,#15110f,#3a2f28); display:flex; align-items:center; justify-content:center; overflow:hidden; }
+        .talk-thumb img { width:100%; height:100%; object-fit:cover; }
+        .talk-play { width:52px; height:52px; border-radius:50%; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.32); display:flex; align-items:center; justify-content:center; color:#fff; font-size:17px; transition:background .16s ease; }
+        .talk-card:hover .talk-play { background:rgba(155,27,34,.85); border-color:rgba(155,27,34,.9); }
+        .talk-year { position:absolute; top:10px; right:10px; background:rgba(20,15,12,.6); color:#fff; font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; }
+        .talk-example { position:absolute; bottom:10px; left:10px; background:rgba(201,169,98,.92); color:var(--ink,#15110f); font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; padding:3px 7px; border-radius:5px; }
+        .talk-body { padding:14px 16px 16px; }
+        .talk-body h4 { margin:0 0 6px; font-family:'Fraunces',Georgia,serif; font-size:16px; line-height:1.3; color:var(--up-text,var(--ink,#15110f)); }
+        .talk-speaker { font-size:13px; color:var(--up-text-secondary,var(--muted)); }
+        .talk-event { display:inline-block; margin-top:10px; font-size:11px; font-weight:600; color:var(--up-text-muted,var(--muted)); border:1px solid var(--up-border,var(--line)); padding:2px 8px; border-radius:6px; }
+
+        /* ===== Mentorship matching (menu 10) ===== */
+        .ment-status-card { background:var(--up-bg,#fff); border:1px solid var(--up-border,var(--line)); border-radius:16px; padding:18px 20px; margin-bottom:22px; }
+        .ment-status-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+        .ment-status-head h3 { margin:0; font-family:'Fraunces',Georgia,serif; font-size:18px; color:var(--up-text,var(--ink,#15110f)); }
+        .ment-status-head p { margin:3px 0 0; font-size:12.5px; color:var(--up-text-secondary,var(--muted)); }
+        .ment-role-toggle { display:inline-flex; background:rgba(20,15,12,.05); border:1px solid var(--up-border,var(--line)); border-radius:10px; padding:3px; gap:2px; }
+        .ment-role-toggle button { border:none; background:none; font-family:inherit; font-size:12.5px; font-weight:600; color:var(--up-text-secondary,var(--muted)); padding:7px 14px; border-radius:8px; cursor:pointer; transition:all .14s; white-space:nowrap; }
+        .ment-role-toggle button.active { background:var(--ink,#15110f); color:#fff; }
+        .ment-fields { display:grid; grid-template-columns:2fr 1fr; gap:14px; margin-top:16px; }
+        .ment-field label { display:block; font-size:12px; font-weight:600; color:var(--up-text,#1d1d1f); margin-bottom:6px; }
+        .ment-field input, .ment-field textarea { width:100%; padding:10px 12px; border:1px solid var(--up-border,var(--line)); border-radius:10px; font-size:14px; font-family:inherit; background:var(--up-bg,#fff); color:var(--up-text,#1d1d1f); }
+        .ment-field textarea { resize:vertical; min-height:44px; }
+        .ment-status-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; flex-wrap:wrap; }
+        .ment-active-toggle { display:inline-flex; align-items:center; gap:9px; font-size:13px; color:var(--up-text-secondary,var(--muted)); cursor:pointer; }
+        .ment-active-toggle input { width:16px; height:16px; accent-color:var(--crimson,#9b1b22); }
+        .ment-cap-chip { display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:999px; color:#2f6b3a; background:rgba(47,107,58,.12); border:1px solid rgba(47,107,58,.26); white-space:nowrap; }
+        .ment-cap-chip.full { color:var(--up-text-muted,var(--muted)); background:rgba(20,15,12,.05); border-color:rgba(20,15,12,.12); }
+        .ment-topics { display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+        .ment-topic { font-size:11px; font-weight:600; color:var(--up-text-secondary,var(--muted)); background:rgba(20,15,12,.05); border:1px solid var(--up-border,var(--line)); padding:2px 8px; border-radius:6px; }
+        .ment-section-label { font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--up-text-muted,var(--muted)); margin:26px 0 12px; }
+        .ment-pair { display:flex; align-items:center; gap:12px; background:var(--up-bg,#fff); border:1px solid var(--up-border,var(--line)); border-radius:12px; padding:12px 14px; margin-bottom:10px; }
+        .ment-pair-avatar { width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg,var(--crimson,#9b1b22),#c2484e); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; flex-shrink:0; }
+        .ment-pair-info { flex:1; min-width:0; }
+        .ment-pair-info h4 { margin:0; font-size:14px; font-weight:700; color:var(--up-text,#1d1d1f); }
+        .ment-pair-info p { margin:2px 0 0; font-size:12px; color:var(--up-text-secondary,var(--muted)); }
+        .ment-pair-status { font-size:11px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; padding:3px 9px; border-radius:999px; white-space:nowrap; }
+        .ment-pair-status.pending { color:#a07c1f; background:rgba(201,169,98,.16); border:1px solid rgba(201,169,98,.38); }
+        .ment-pair-status.accepted { color:#2f6b3a; background:rgba(47,107,58,.12); border:1px solid rgba(47,107,58,.26); }
+        .ment-pair-status.declined, .ment-pair-status.ended { color:var(--up-text-muted,var(--muted)); background:rgba(20,15,12,.05); border:1px solid rgba(20,15,12,.12); }
+        .ment-pair-actions { display:flex; gap:6px; }
+
+        /* Dashboard "mentors match your goals" prompt */
+        .ment-prompt { display:flex; align-items:center; gap:14px; background:linear-gradient(135deg,rgba(155,27,34,.06),rgba(201,169,98,.06)); border:1px solid rgba(201,169,98,.32); border-radius:16px; padding:16px 18px; margin-bottom:16px; cursor:pointer; transition:transform .16s ease, box-shadow .16s ease; }
+        .ment-prompt:hover { transform:translateY(-1px); box-shadow:0 8px 22px rgba(20,15,12,.08); }
+        .ment-prompt-icon { width:46px; height:46px; border-radius:12px; background:rgba(155,27,34,.1); display:flex; align-items:center; justify-content:center; color:var(--crimson,#9b1b22); font-size:20px; flex-shrink:0; }
+        .ment-prompt-body { flex:1; min-width:0; }
+        .ment-prompt-body strong { display:block; font-size:15px; color:var(--up-text,#1d1d1f); }
+        .ment-prompt-body span { font-size:12.5px; color:var(--up-text-secondary,var(--muted)); }
+        .ment-prompt-arrow { color:var(--gold,#c9a962); font-size:14px; }
+
+        /* ===== Directory power-ups (menu 25) ===== */
+        .match-basis { font-size:11px; color:var(--up-text-muted,var(--muted)); margin:6px 0 0; line-height:1.4; }
+        .match-basis i { color:var(--gold,#c9a962); margin-right:4px; }
+        .saved-search-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:14px 0 4px; }
+        .saved-search-lead { font-size:12px; font-weight:600; color:var(--up-text-muted,var(--muted)); }
+        .saved-chip { display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; padding:6px 6px 6px 12px; border-radius:999px; border:1px solid var(--up-border,var(--line)); background:var(--up-bg,#fff); color:var(--up-text-secondary,var(--muted)); cursor:pointer; transition:all .14s; }
+        .saved-chip:hover { border-color:rgba(201,169,98,.5); color:var(--up-text,var(--ink)); }
+        .saved-chip .saved-chip-del { border:none; background:rgba(20,15,12,.06); color:var(--up-text-muted,var(--muted)); width:18px; height:18px; border-radius:50%; font-size:10px; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
+        .saved-chip .saved-chip-del:hover { background:rgba(155,27,34,.14); color:var(--crimson,#9b1b22); }
+        .save-search-btn { display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; padding:6px 13px; border-radius:999px; border:1px dashed var(--up-border,var(--line)); background:none; color:var(--up-text-secondary,var(--muted)); cursor:pointer; transition:all .14s; }
+        .save-search-btn:hover { border-color:var(--crimson,#9b1b22); color:var(--crimson,#9b1b22); }
+        .intro-btn { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; padding:7px 12px; border-radius:8px; border:1px solid rgba(201,169,98,.45); background:rgba(201,169,98,.1); color:#a07c1f; cursor:pointer; transition:all .14s; }
+        .intro-btn:hover { background:rgba(201,169,98,.2); }
+        .intro-btn i { font-size:11px; }
+        .msg-status-tag { display:inline-block; font-size:10px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; padding:1px 7px; border-radius:5px; margin-left:6px; vertical-align:middle; }
+        .msg-status-tag.sent { color:var(--up-text-muted,var(--muted)); background:rgba(20,15,12,.06); }
+        .msg-status-tag.replied { color:#2f6b3a; background:rgba(47,107,58,.12); }
+
+        /* Shared power-up modal (via-picker, request message, intro list) */
+        .dp-modal-overlay { position:fixed; inset:0; background:rgba(20,15,12,.55); backdrop-filter:blur(4px); z-index:10001; display:flex; align-items:flex-start; justify-content:center; padding:48px 16px; overflow-y:auto; }
+        .dp-modal { background:var(--up-bg,#fff); width:100%; max-width:480px; border-radius:18px; border:1px solid var(--up-border,var(--line)); box-shadow:0 24px 60px rgba(20,15,12,.25); overflow:hidden; }
+        .dp-modal-head { display:flex; align-items:flex-start; justify-content:space-between; padding:18px 20px; border-bottom:1px solid var(--up-border,var(--line)); }
+        .dp-modal-head h3 { margin:0; font-family:'Fraunces',Georgia,serif; font-size:19px; color:var(--up-text,var(--ink,#15110f)); }
+        .dp-modal-head p { margin:3px 0 0; font-size:12.5px; color:var(--up-text-secondary,var(--muted)); }
+        .dp-modal-close { background:none; border:none; font-size:18px; color:var(--up-text-muted,var(--muted)); cursor:pointer; width:34px; height:34px; border-radius:50%; flex-shrink:0; }
+        .dp-modal-close:hover { background:rgba(20,15,12,.06); }
+        .dp-modal-body { padding:18px 20px; }
+        .dp-field { margin-bottom:14px; }
+        .dp-field label { display:block; font-size:12px; font-weight:600; color:var(--up-text,#1d1d1f); margin-bottom:6px; }
+        .dp-field select, .dp-field textarea { width:100%; padding:10px 12px; border:1px solid var(--up-border,var(--line)); border-radius:10px; font-size:14px; font-family:inherit; background:var(--up-bg,#fff); color:var(--up-text,#1d1d1f); }
+        .dp-field textarea { resize:vertical; min-height:80px; }
+        .dp-modal-foot { display:flex; justify-content:flex-end; gap:10px; padding:0 20px 20px; }
+        .dp-btn { font-size:13px; font-weight:600; padding:9px 16px; border-radius:10px; cursor:pointer; font-family:inherit; border:1px solid var(--up-border,var(--line)); background:var(--up-bg,#fff); color:var(--up-text-secondary,var(--muted)); }
+        .dp-btn.primary { background:var(--crimson,#9b1b22); color:#fff; border-color:var(--crimson,#9b1b22); }
+        .dp-list-item { display:flex; align-items:center; gap:12px; padding:11px 0; border-bottom:1px solid var(--up-border,var(--line)); }
+        .dp-list-item:last-child { border-bottom:none; }
+        .dp-list-avatar { width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg,var(--gold,#c9a962),#e8d5a3); color:var(--ink,#15110f); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; flex-shrink:0; }
+        .dp-list-info { flex:1; min-width:0; }
+        .dp-list-info h5 { margin:0; font-size:13.5px; font-weight:700; color:var(--up-text,#1d1d1f); }
+        .dp-list-info p { margin:1px 0 0; font-size:11.5px; color:var(--up-text-secondary,var(--muted)); }
+        .dp-empty { text-align:center; padding:30px 16px; color:var(--up-text-muted,var(--muted)); font-size:13px; }
+        @media (max-width:640px){ .ment-fields { grid-template-columns:1fr; } }
+
         /* ===== Latest from Med&X Card ===== */
         .hub-medx-updates-list {
             display: flex;
@@ -56050,7 +56201,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     <div class="feature-icon"><i class="fas fa-users"></i></div>
                     <h3 class="feature-title">Plexus Conference</h3>
                     <p class="feature-desc">
-                        Croatia's premier biomedical conference featuring keynote speakers, world-renowned researchers, and cutting-edge science. Join 2,500+ attendees in Zagreb.
+                        Croatia's premier biomedical conference featuring keynote speakers, world-renowned researchers, and cutting-edge science. Join a community of 2,500+ from across our Plexus conferences.
                     </p>
                     <span class="feature-link">
                         Register Now <i class="fas fa-arrow-right"></i>
@@ -56406,15 +56557,15 @@ button,input,select,textarea{font-family:var(--sans);}
                     <span class="up-float-badge" id="upFloatNotifBadge">2</span>
                 </button>
                 <button class="up-float-btn up-float-user" id="upFloatUser" onclick="UserPortal.toggleUserMenu(event)" aria-label="User menu">
-                    <span id="upUserAvatar">JD</span>
+                    <span id="upUserAvatar">M</span>
                 </button>
                 <!-- Floating User Menu Dropdown -->
                 <div class="up-float-user-dropdown" id="upFloatUserDropdown">
                     <div class="up-float-user-header">
-                        <div class="up-float-user-avatar" id="upFloatDropdownAvatar">JD</div>
+                        <div class="up-float-user-avatar" id="upFloatDropdownAvatar">M</div>
                         <div class="up-float-user-info">
-                            <div class="up-float-user-name" id="upFloatDropdownName">John Doe</div>
-                            <div class="up-float-user-email" id="upFloatDropdownEmail">john@example.com</div>
+                            <div class="up-float-user-name" id="upFloatDropdownName">Member</div>
+                            <div class="up-float-user-email" id="upFloatDropdownEmail"></div>
                         </div>
                     </div>
                     <div class="up-float-user-menu">
@@ -56586,6 +56737,10 @@ button,input,select,textarea{font-family:var(--sans);}
                     <div class="up-project-icon" style="background: rgba(155, 27, 34, 0.15); color: #9b1b22;"><i class="fas fa-globe-europe"></i></div>
                     <span>Bridges</span>
                 </div>
+                <div class="up-project-item" onclick="UserPortal.showSection('talks'); UserPortal.closeProjectsMenu();">
+                    <div class="up-project-icon" style="background: rgba(47, 107, 58, 0.15); color: #2f6b3a;"><i class="fas fa-play-circle"></i></div>
+                    <span>Talks</span>
+                </div>
                 <div class="up-project-item" id="upProjectsSpeakerItem" style="display: none;" onclick="UserPortal.showSection('speaker'); UserPortal.closeProjectsMenu();">
                     <div class="up-project-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981;"><i class="fas fa-microphone-alt"></i></div>
                     <span>Speaker</span>
@@ -56645,19 +56800,16 @@ button,input,select,textarea{font-family:var(--sans);}
                 <button class="profile-panel-close" onclick="MemberProfile.close()">
                     <i class="fas fa-times"></i>
                 </button>
-                <div class="profile-panel-avatar" id="profilePanelAvatar">JD</div>
+                <div class="profile-panel-avatar" id="profilePanelAvatar">M</div>
                 <div class="profile-panel-name" id="profilePanelName">
-                    Dr. John Doe
+                    Member
                     <i class="fas fa-check-circle person-verified"></i>
                 </div>
-                <div class="profile-panel-title" id="profilePanelTitle">Professor of Medicine · Harvard Medical School</div>
-                <div class="profile-panel-location" id="profilePanelLocation">
-                    <i class="fas fa-map-marker-alt"></i>
-                    Boston, MA
-                </div>
+                <div class="profile-panel-title" id="profilePanelTitle">Med&X Member</div>
+                <div class="profile-panel-location" id="profilePanelLocation"></div>
                 <div class="profile-panel-stats">
                     <div class="profile-stat">
-                        <div class="profile-stat-value" id="profilePanelConnections">124</div>
+                        <div class="profile-stat-value" id="profilePanelConnections">6</div>
                         <div class="profile-stat-label">Connections</div>
                     </div>
                     <div class="profile-stat">
@@ -56756,7 +56908,7 @@ button,input,select,textarea{font-family:var(--sans);}
                 <div class="connect-modal-header">
                     <div class="connect-modal-avatar" id="connectModalAvatar">JD</div>
                     <div class="connect-modal-info">
-                        <h3 id="connectModalName">Connect with Dr. John Doe</h3>
+                        <h3 id="connectModalName">Connect with this member</h3>
                         <p id="connectModalTitle">Professor of Medicine</p>
                     </div>
                 </div>
@@ -57878,6 +58030,24 @@ button,input,select,textarea{font-family:var(--sans);}
                     })();
                     </script>
 
+                    <!-- Membership value strip — what belonging includes (quiet, informational) -->
+                    <style>
+                    .mx-value-strip{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;margin:0 0 18px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+                    .mx-value-strip::-webkit-scrollbar{display:none;}
+                    .mx-value-chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;background:var(--up-bg,#fbf9f6);border:1px solid var(--up-border,#e7e2da);border-radius:999px;padding:8px 14px;font-family:var(--sans,'Inter',sans-serif);font-size:12.5px;font-weight:600;color:var(--up-text-secondary,#6e6e73);cursor:pointer;white-space:nowrap;transition:border-color .2s ease,color .2s ease;line-height:1;}
+                    .mx-value-chip i{font-size:12px;color:var(--gold,#c9a962);}
+                    .mx-value-chip:not(.static):hover{border-color:rgba(201,169,98,.55);color:var(--up-text,#15110f);}
+                    .mx-value-chip.static{cursor:default;}
+                    </style>
+                    <nav class="mx-value-strip" id="mxValueStrip" aria-label="What your membership includes">
+                        <button type="button" class="mx-value-chip" onclick="UserPortal.showSection('network')"><i class="fas fa-address-book"></i><span>Member directory</span></button>
+                        <button type="button" class="mx-value-chip" onclick="UserPortal.showSection('mymedx')"><i class="fas fa-ticket-alt"></i><span>Event tickets</span></button>
+                        <span class="mx-value-chip static"><i class="fas fa-hands-helping"></i><span>Mentorship</span></span>
+                        <span class="mx-value-chip static"><i class="fas fa-certificate"></i><span>Certificates</span></span>
+                        <button type="button" class="mx-value-chip" onclick="UserPortal.showSection('forum')"><i class="fas fa-briefcase"></i><span>Opportunity board</span></button>
+                        <button type="button" class="mx-value-chip" onclick="UserPortal.showSection('forum')"><i class="fas fa-comments"></i><span>Forum eligibility</span></button>
+                    </nav>
+
                     <!-- Milestone Progress Banner -->
                     <div class="milestone-banner" id="milestoneBanner">
                         <div class="milestone-content" onclick="UserPortal.showSection('mymedx')" style="cursor: pointer">
@@ -57947,7 +58117,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                         Registration Open
                                     </div>
                                     <h2 class="featured-title">Plexus Conference 2026</h2>
-                                    <p class="featured-desc">Join 2,500+ researchers and clinicians from 30+ countries. December 4-5, Zagreb.</p>
+                                    <p class="featured-desc">Join a community of 2,500+ researchers and clinicians from 30+ countries across our Plexus conferences. December 4-5, Zagreb.</p>
                                     <button class="featured-cta" onclick="event.stopPropagation(); FeaturedCarousel.navigateTo('plexus')">
                                         Register Now <i class="fas fa-arrow-right"></i>
                                     </button>
@@ -58047,8 +58217,8 @@ button,input,select,textarea{font-family:var(--sans);}
                                         <i class="fas fa-spinner fa-spin"></i> Loading news...
                                     </div>
                                 </div>
-                                <button class="news-view-more" onclick="NewsWidget.viewAll()">
-                                    View All <i class="fas fa-arrow-right"></i>
+                                <button class="news-view-more" onclick="MemberFeed.viewAll()">
+                                    See all <i class="fas fa-arrow-right"></i>
                                 </button>
                             </div>
                         </div>
@@ -58787,7 +58957,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                                 <div class="gala-featured-text">
                                     <h3>Gala Evening & Awards Ceremony</h3>
-                                    <p class="gala-featured-date"><i class="far fa-calendar"></i> December 5, 2026 &mdash; Grand Ballroom</p>
+                                    <p class="gala-featured-date"><i class="far fa-calendar"></i> Saturday, December 5, 2026 &mdash; Grand Ballroom, Hotel Esplanade Zagreb</p>
                                     <p class="gala-featured-desc">An unforgettable evening celebrating biomedical excellence. Join biomedical leaders, leading researchers, and fellow attendees for the Annual Awards Ceremony, fine dining, and live entertainment. Formal attire required.</p>
                                 </div>
                             </div>
@@ -58866,7 +59036,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         <div class="px-gallery-section">
                             <div class="px-gallery-header">
                                 <h3>Moments from Past Conferences</h3>
-                                <p>Join 2,500+ researchers and clinicians in Zagreb this December</p>
+                                <p>Join a community of 2,500+ researchers and clinicians built across our Plexus conferences</p>
                             </div>
                             <div class="px-gallery-grid">
                                 <div class="px-gallery-item">
@@ -61490,7 +61660,7 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                             <h1>Gala Evening 2026</h1>
                             <p class="gala-hero-tagline">The Pinnacle of Biomedical Excellence</p>
-                            <p class="gala-hero-details"><i class="fas fa-calendar"></i> December 5, 2026 &nbsp;|&nbsp; <i class="fas fa-map-marker-alt"></i> Grand Ballroom, Zagreb</p>
+                            <p class="gala-hero-details"><i class="fas fa-calendar"></i> Saturday, December 5, 2026 &nbsp;|&nbsp; <i class="fas fa-map-marker-alt"></i> Grand Ballroom, Hotel Esplanade Zagreb</p>
 
                             <!-- Countdown -->
                             <div class="gala-countdown">
@@ -61575,7 +61745,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                     The Gala Evening is the crown jewel of Plexus 2026 – an exclusive evening that brings together 150+ of the most influential figures in biomedicine for an unforgettable celebration of excellence and innovation.
                                 </p>
                                 <p style="color: var(--up-text-secondary); line-height: 1.8; margin-bottom: 16px;">
-                                    The evening features the prestigious Biomedical Forum Annual Awards ceremony, recognizing outstanding contributions to medical research and healthcare. Following the ceremony, guests will enjoy a world-class gala dinner with opportunities for high-level networking.
+                                    The evening brings together the Biomedical Forum Awards ceremony, a five-course dinner with paired wines, keynote addresses, and live music by Tatiana Cameron and Ante Gelo.
                                 </p>
                                 <p style="color: var(--up-text-secondary); line-height: 1.8;">
                                     <strong>Dress Code:</strong> Black Tie / Formal Evening Attire
@@ -61695,7 +61865,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     <div class="gala-panel" id="gala-panel-schedule">
                         <div class="gala-schedule-header">
                             <h2>Evening Schedule</h2>
-                            <p>December 5, 2026 | Grand Ballroom</p>
+                            <p>Saturday, December 5, 2026 | Grand Ballroom, Hotel Esplanade Zagreb</p>
                         </div>
                         <div class="gala-timeline">
                             <div class="gala-timeline-item">
@@ -63110,7 +63280,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </button>
                             </div>
                             <div style="text-align: center; margin-top: 12px; font-size: 13px; color: var(--up-text-secondary, var(--muted));">
-                                <span id="fmStatConnections">24</span> connections · <span id="fmStatPosts">8</span> posts · <span id="fmStatEvents">5</span> events
+                                <span id="fmStatConnections">6</span> connections · <span id="fmStatPosts">8</span> posts · <span id="fmStatEvents">5</span> events
                             </div>
                             <!-- Hero Quick Action - Upcoming Event -->
                             <div class="fm-hero-quick-action">
@@ -63930,7 +64100,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                     </div>
                                     <div class="fm-network-stat-card">
                                         <i class="fas fa-user-friends"></i>
-                                        <div class="fm-network-stat-value" id="fmNetConnections">24</div>
+                                        <div class="fm-network-stat-value" id="fmNetConnections">6</div>
                                         <div class="fm-network-stat-label">Your Connections</div>
                                     </div>
                                     <div class="fm-network-stat-card">
@@ -65099,7 +65269,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         <button class="network-tab active" onclick="NetworkingPortal.showTab('connections')">
                             <i class="fas fa-users"></i>
                             <span>Connections</span>
-                            <span class="network-tab-badge" id="connectionsCount">47</span>
+                            <span class="network-tab-badge" id="connectionsCount">6</span>
                         </button>
                         <button class="network-tab" onclick="NetworkingPortal.showTab('discover')">
                             <i class="fas fa-search"></i>
@@ -65118,6 +65288,14 @@ button,input,select,textarea{font-family:var(--sans);}
                             <i class="fas fa-envelope"></i>
                             <span>Messages</span>
                             <span class="network-tab-badge" id="messagesCount">3</span>
+                        </button>
+                        <button class="network-tab" onclick="NetworkingPortal.showTab('opportunities')">
+                            <i class="fas fa-briefcase"></i>
+                            <span>Opportunities</span>
+                        </button>
+                        <button class="network-tab" onclick="NetworkingPortal.showTab('mentorship')">
+                            <i class="fas fa-hands-helping"></i>
+                            <span>Mentorship</span>
                         </button>
                         <button class="network-tab" onclick="UserPortal.showSection('settings'); setTimeout(() => { const profileTab = document.querySelector('[data-settings-tab=&quot;profile&quot;]'); if (profileTab) profileTab.click(); }, 200);">
                             <i class="fas fa-user-cog"></i>
@@ -65167,7 +65345,7 @@ button,input,select,textarea{font-family:var(--sans);}
 
                         <!-- My Connections -->
                         <div class="network-section-header">
-                            <h3>My Connections (<span id="connectionsTotal">47</span>)</h3>
+                            <h3>My Connections (<span id="connectionsTotal">6</span>)</h3>
                             <a href="#" onclick="NetworkingPortal.showTab('discover'); return false;">Find new connections</a>
                         </div>
 
@@ -65582,6 +65760,67 @@ button,input,select,textarea{font-family:var(--sans);}
                         </div>
                     </div>
 
+                    <!-- Opportunity Board Panel (menu item 23a) -->
+                    <div class="network-panel" id="network-panel-opportunities">
+                        <div class="opp-toolbar">
+                            <div class="opp-pills" id="oppPills">
+                                <button class="opp-pill active" data-kind="" onclick="OpportunityBoard.filter('')">All</button>
+                                <button class="opp-pill" data-kind="lab_opening" onclick="OpportunityBoard.filter('lab_opening')">Lab openings</button>
+                                <button class="opp-pill" data-kind="fellowship" onclick="OpportunityBoard.filter('fellowship')">Fellowships</button>
+                                <button class="opp-pill" data-kind="abstract_call" onclick="OpportunityBoard.filter('abstract_call')">Calls for abstracts</button>
+                                <button class="opp-pill" data-kind="grant" onclick="OpportunityBoard.filter('grant')">Grants</button>
+                                <button class="opp-pill" data-kind="job" onclick="OpportunityBoard.filter('job')">Jobs</button>
+                            </div>
+                            <button class="connection-btn primary" style="white-space:nowrap;" onclick="OpportunityBoard.openForm()"><i class="fas fa-plus"></i> Post an opportunity</button>
+                        </div>
+                        <div class="opp-grid" id="oppGrid">
+                            <div class="opp-empty" style="grid-column:1/-1;"><i class="fas fa-spinner fa-spin"></i><p>Loading opportunities…</p></div>
+                        </div>
+                    </div>
+
+                    <!-- Mentorship Panel (menu item 10) -->
+                    <div class="network-panel" id="network-panel-mentorship">
+                        <!-- My mentorship status -->
+                        <div class="ment-status-card">
+                            <div class="ment-status-head">
+                                <div>
+                                    <h3>Your mentorship</h3>
+                                    <p>Offer to guide others, ask for a mentor, or both. The flagship Med&amp;X promise is placing people in great labs — this is where matches begin.</p>
+                                </div>
+                                <div class="ment-role-toggle" id="mentRoleToggle">
+                                    <button data-role="mentee" onclick="Mentorship.setRole('mentee')">Request a mentor</button>
+                                    <button data-role="mentor" onclick="Mentorship.setRole('mentor')">Offer mentorship</button>
+                                    <button data-role="both" onclick="Mentorship.setRole('both')">Both</button>
+                                </div>
+                            </div>
+                            <div class="ment-fields">
+                                <div class="ment-field">
+                                    <label for="mentTopics">Topics you mentor or want guidance on</label>
+                                    <textarea id="mentTopics" placeholder="e.g. PhD applications, clinical research, study abroad" maxlength="400"></textarea>
+                                </div>
+                                <div class="ment-field" id="mentCapacityField">
+                                    <label for="mentCapacity">Mentees you can take</label>
+                                    <input type="number" id="mentCapacity" min="0" max="20" value="2">
+                                </div>
+                            </div>
+                            <div class="ment-status-foot">
+                                <label class="ment-active-toggle"><input type="checkbox" id="mentActive" checked> Show me in the mentor directory while I have capacity</label>
+                                <button class="connection-btn primary" onclick="Mentorship.saveProfile(this)"><i class="fas fa-check"></i> Save mentorship status</button>
+                            </div>
+                        </div>
+
+                        <!-- My matches -->
+                        <div id="mentMatches"></div>
+
+                        <!-- Browse mentors -->
+                        <div class="network-section-header" style="margin-top:8px;">
+                            <h3>Mentors ready to help (<span id="mentMentorCount">0</span>)</h3>
+                        </div>
+                        <div class="connection-grid" id="mentMentorGrid">
+                            <div class="opp-empty" style="grid-column:1/-1;"><i class="fas fa-spinner fa-spin"></i><p>Loading mentors…</p></div>
+                        </div>
+                    </div>
+
                     <!-- Profile Panel - Networking Preferences -->
                     <div class="network-panel" id="network-panel-profile">
                         <div class="networking-profile-card">
@@ -65879,6 +66118,32 @@ button,input,select,textarea{font-family:var(--sans);}
                         <button class="profile-action-btn secondary" onclick="NetworkingPortal.scheduleFromProfile()">
                             <i class="fas fa-calendar"></i> Schedule
                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Talk Library Section (menu item 23b) -->
+            <div class="up-section" id="up-section-talks">
+                <div class="network-container">
+                    <div class="network-header">
+                        <button class="network-back-btn section-home-btn-inline" onclick="UserPortal.showSection('dashboard')" title="Back to Home">
+                            <div class="home-house home-house-dark">
+                                <div class="home-house-chimney"></div>
+                                <div class="home-house-smoke"></div>
+                                <div class="home-house-roof"></div>
+                                <div class="home-house-body">
+                                    <div class="home-house-door"></div>
+                                </div>
+                            </div>
+                        </button>
+                        <div class="network-header-text">
+                            <h1>Talk Library</h1>
+                            <p>Keynotes and sessions from past Plexus conferences, on demand</p>
+                        </div>
+                    </div>
+                    <div class="talk-filters" id="talkFilters" style="margin-bottom:18px;"></div>
+                    <div class="talks-grid" id="talksGrid">
+                        <div class="talk-empty" style="grid-column:1/-1;"><i class="fas fa-spinner fa-spin"></i><p>Loading the talk library…</p></div>
                     </div>
                 </div>
             </div>
@@ -76700,8 +76965,10 @@ You can use variables like {first_name} that will be personalized for each recip
                 const container = document.getElementById('mymedxNetworkStats');
                 if (!container) return;
 
+                const connectionCount = (typeof UserPortal !== 'undefined' && typeof UserPortal.getConnectionCount === 'function')
+                    ? UserPortal.getConnectionCount() : 6;
                 const stats = [
-                    { label: 'Connections', value: 24, icon: 'fa-users', color: '#9b1b22' },
+                    { label: 'Connections', value: connectionCount, icon: 'fa-users', color: '#9b1b22' },
                     { label: 'Pending', value: 3, icon: 'fa-user-clock', color: '#f59e0b' },
                     { label: 'Favorites', value: 8, icon: 'fa-star', color: '#9b1b22' }
                 ];
@@ -77766,7 +78033,9 @@ You can use variables like {first_name} that will be personalized for each recip
                         Dashboard.init();
                         if (typeof QuizSystem !== 'undefined') QuizSystem.init();
                         if (typeof HubEvents !== 'undefined') HubEvents.render();
+                        if (typeof MemberFeed !== 'undefined') MemberFeed.load();
                     }
+                    if (sectionId === 'talks' && typeof TalkLibrary !== 'undefined') TalkLibrary.init();
                     if (sectionId === 'plexus') PlexusPortal.init();
                     if (sectionId === 'accelerator') AcceleratorPortal.init();
                     if (sectionId === 'forum') ForumPortal.init();
@@ -80944,7 +81213,7 @@ You can use variables like {first_name} that will be personalized for each recip
                         text: `<p>Plexus Conference 2026 will be held on <strong>December 4-5, 2026</strong> in Zagreb, Croatia.</p>
                         <p>Key dates:</p>
                         <ul>
-                            <li>Early Bird Registration: Until September 30</li>
+                            <li>Early Bird Registration: Until September 1</li>
                             <li>Abstract Deadline: October 15</li>
                         </ul>
                         <button class="alan-action-btn" onclick="UserPortal.showSection('plexus'); AlanChat.toggle();">
@@ -81006,7 +81275,7 @@ You can use variables like {first_name} that will be personalized for each recip
                         text: `<p>Plexus 2026 registration options:</p>
                         <ul>
                             <li><strong>Student:</strong> €50</li>
-                            <li><strong>Early Bird:</strong> €100 (until Sep 30)</li>
+                            <li><strong>Early Bird:</strong> €100 (until Sep 1)</li>
                             <li><strong>Regular:</strong> €150</li>
                             <li><strong>VIP:</strong> €300 (includes Gala Evening)</li>
                         </ul>
@@ -81352,7 +81621,7 @@ You can use variables like {first_name} that will be personalized for each recip
 
             // Key dates config — edit this array to update the Key Dates card
             keyDates: [
-                { label: 'Early Bird Registration', date: 'Until September 30, 2026', color: 'var(--up-success)' },
+                { label: 'Early Bird Registration', date: 'Until September 1, 2026', color: 'var(--up-success)' },
                 { label: 'Abstract Submission Deadline', date: 'October 15, 2026', color: 'var(--up-warning)' },
                 { label: 'Conference', date: 'December 4-5, 2026', color: '#0f172a' }
             ],
@@ -88651,17 +88920,15 @@ You can use variables like {first_name} that will be personalized for each recip
                 try {
                     const connections = await UserPortal.api('/api/networking/connections');
                     if (!Array.isArray(connections) || connections.length === 0) {
-                        grid.innerHTML = '<div style="text-align:center;padding:40px;grid-column:1/-1;color:var(--up-text-muted,var(--muted));"><i class="fas fa-users" style="font-size:32px;opacity:0.3;display:block;margin-bottom:12px;"></i><h3>No connections yet</h3><p>Find and connect with other members!</p></div>';
-                        const countEl = document.getElementById('connectionsTotal');
-                        if (countEl) countEl.textContent = '0';
-                        const badgeEl = document.getElementById('connectionsCount');
-                        if (badgeEl) badgeEl.textContent = '0';
+                        // No live connections — keep the example directory already in the grid
+                        // and let every surface show one consistent (Example) count.
+                        UserPortal._connectionCount = null;
+                        UserPortal.syncConnectionCounts();
                         return;
                     }
-                    const countEl = document.getElementById('connectionsTotal');
-                    if (countEl) countEl.textContent = connections.length;
-                    const badgeEl = document.getElementById('connectionsCount');
-                    if (badgeEl) badgeEl.textContent = connections.length;
+                    // Live data available — this is now the single source of truth.
+                    UserPortal._connectionCount = connections.length;
+                    UserPortal.syncConnectionCounts(connections.length);
                     grid.innerHTML = connections.map(c => {
                         const name = escapeHtml(c.name || ((c.first_name || '') + ' ' + (c.last_name || '')).trim() || c.partner_name || 'Member');
                         const inst = escapeHtml(c.institution || '');
@@ -88794,6 +89061,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (tabName === 'connections') this.loadConnections();
                 if (tabName === 'requests') this.loadPendingRequests();
                 if (tabName === 'discover') this.loadDiscover();
+                if (tabName === 'opportunities' && typeof OpportunityBoard !== 'undefined') OpportunityBoard.load();
                 if(tabName==='messages'){this.loadConversationsList();this.startMessagePolling();}else{this.stopMessagePolling();}
 
                 // Profile completeness banner
@@ -91399,8 +91667,8 @@ END:VCALENDAR`;
                     eventName: 'Plexus 2026',
                     date: '2026-12-05',
                     time: '19:00 - 23:00',
-                    venue: 'Hotel Esplanade, Zagreb',
-                    description: 'Black-tie gala dinner with awards ceremony'
+                    venue: 'Grand Ballroom, Hotel Esplanade Zagreb',
+                    description: 'Black-tie evening with the Biomedical Forum Awards, a five-course dinner with paired wines, keynote addresses, and live music'
                 },
                 {
                     id: 'af26-dinner',
@@ -95628,6 +95896,83 @@ ${'='.repeat(70)}
             }
         };
 
+        // =========================================
+        // First-screen trust: one connection count + real identity
+        // (single source of truth reused by every surface)
+        // =========================================
+        UserPortal.EXAMPLE_CONNECTION_COUNT = 6; // Example fallback — matches the seeded directory
+        UserPortal._connectionCount = null;      // set to a number once live data arrives
+
+        // The one place a connection count comes from.
+        UserPortal.getConnectionCount = function() {
+            if (typeof this._connectionCount === 'number' && this._connectionCount >= 0) {
+                return this._connectionCount;
+            }
+            // Fall back to the real list the Network section renders.
+            const grid = document.getElementById('connectionsGrid');
+            if (grid) {
+                const n = grid.querySelectorAll('.connection-card').length;
+                if (n > 0) return n;
+            }
+            return this.EXAMPLE_CONNECTION_COUNT;
+        };
+
+        // Write the canonical count to every surface that shows it.
+        UserPortal.syncConnectionCounts = function(n) {
+            if (typeof n !== 'number') n = this.getConnectionCount();
+            ['connectionsCount', 'connectionsTotal', 'fmStatConnections', 'fmNetConnections'].forEach(function(id) {
+                const el = document.getElementById(id);
+                if (el) el.textContent = n;
+            });
+            // Profile modal shows the count only while it is resting on the member's own identity.
+            const noOtherMember = (typeof MemberProfile === 'undefined') || !MemberProfile.currentMember;
+            if (noOtherMember) {
+                const pc = document.getElementById('profilePanelConnections');
+                if (pc) pc.textContent = n;
+            }
+            // My Med&X network stat card regenerates from the same source.
+            if (typeof MyMedXPortal !== 'undefined' && document.getElementById('mymedxNetworkStats')) {
+                try { MyMedXPortal.renderNetworkStats(); } catch (e) {}
+            }
+        };
+
+        // Render the logged-in member (never a fake third person) into the profile modal + user menu.
+        UserPortal.syncMemberIdentity = function() {
+            let u = this.user;
+            if (!u || (!u.first_name && !u.name)) {
+                try { u = JSON.parse(localStorage.getItem('medx_user_data') || '{}') || u || {}; } catch (e) { u = u || {}; }
+            }
+            const esc = function(s) {
+                return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            };
+            const fullName = (u.name || ((u.first_name || '') + ' ' + (u.last_name || '')).trim() || 'Member');
+            const initials = fullName.split(' ').filter(Boolean).map(function(w) { return w[0]; }).join('').substring(0, 2).toUpperCase() || 'M';
+            const institution = u.institution || '';
+            const locText = u.location || u.city || u.country || '';
+
+            // Profile modal — only overwrite the default while no other member is open.
+            const noOtherMember = (typeof MemberProfile === 'undefined') || !MemberProfile.currentMember;
+            if (noOtherMember) {
+                const av = document.getElementById('profilePanelAvatar'); if (av) av.textContent = initials;
+                const nm = document.getElementById('profilePanelName'); if (nm) nm.innerHTML = esc(fullName) + ' <i class="fas fa-check-circle person-verified"></i>';
+                const tt = document.getElementById('profilePanelTitle'); if (tt) tt.textContent = institution || 'Med&X Member';
+                const loc = document.getElementById('profilePanelLocation');
+                if (loc) loc.innerHTML = locText ? '<i class="fas fa-map-marker-alt"></i> ' + esc(locText) : '';
+            }
+
+            // Floating user menu + avatar.
+            const fdn = document.getElementById('upFloatDropdownName'); if (fdn) fdn.textContent = fullName;
+            const fde = document.getElementById('upFloatDropdownEmail'); if (fde) fde.textContent = u.email || '';
+            const fda = document.getElementById('upFloatDropdownAvatar'); if (fda) fda.textContent = initials;
+            const ua = document.getElementById('upUserAvatar'); if (ua) ua.textContent = initials;
+        };
+
+        // Bring the first screen into a trustworthy state (identity + one count everywhere).
+        UserPortal.hydrateFirstScreen = function() {
+            try { this.syncMemberIdentity(); } catch (e) {}
+            try { this.syncConnectionCounts(); } catch (e) {}
+        };
+
         // Initialize all portals when user portal is shown
         const originalShowUserPortal = UserPortal.showUserPortal.bind(UserPortal);
         UserPortal.showUserPortal = function() {
@@ -95639,6 +95984,7 @@ ${'='.repeat(70)}
             AF26Portal.init();
             NetworkingPortal.init();
             SettingsPortal.init();
+            this.hydrateFirstScreen();
         };
 
         // =========================================
@@ -95727,11 +96073,11 @@ ${'='.repeat(70)}
                     { id: 'S-008', date: '2026-12-04', start_time: '14:00', end_time: '15:30', title: 'Poster Session I', type: 'poster', room: 'Exhibition Hall' },
                     { id: 'S-009', date: '2026-12-04', start_time: '15:30', end_time: '16:00', title: 'Coffee Break', type: 'break', room: 'Foyer' },
                     { id: 'S-010', date: '2026-12-04', start_time: '16:00', end_time: '17:30', title: 'Panel: AI in Medicine', type: 'panel', room: 'Main Hall', speakers: ['Lisa Chen', 'James Wilson', 'Sophie Dubois'] },
-                    { id: 'S-011', date: '2026-12-04', start_time: '19:00', end_time: '23:00', title: 'Gala Dinner', type: 'networking', room: 'Grand Ballroom' },
                     { id: 'S-012', date: '2026-12-05', start_time: '09:00', end_time: '10:00', title: 'Keynote: Precision Medicine Revolution', type: 'keynote', room: 'Main Hall', speakers: ['Lisa Chen'] },
                     { id: 'S-013', date: '2026-12-05', start_time: '10:00', end_time: '10:30', title: 'Coffee Break', type: 'break', room: 'Foyer' },
                     { id: 'S-014', date: '2026-12-05', start_time: '10:30', end_time: '12:00', title: 'Workshop: Research Grant Writing', type: 'workshop', room: 'Room C', speakers: ['Peter Andersson'] },
-                    { id: 'S-015', date: '2026-12-05', start_time: '12:00', end_time: '13:00', title: 'Closing Ceremony & Awards', type: 'ceremony', room: 'Main Hall' }
+                    { id: 'S-015', date: '2026-12-05', start_time: '12:00', end_time: '13:00', title: 'Closing Ceremony & Awards', type: 'ceremony', room: 'Main Hall' },
+                    { id: 'S-011', date: '2026-12-05', start_time: '19:00', end_time: '23:00', title: 'Gala Evening & Awards Ceremony', type: 'networking', room: 'Grand Ballroom, Hotel Esplanade' }
                 ],
                 speakers: [
                     { id: 'SPK-001', name: 'Prof. James Wilson', title: 'Professor of Neuroscience', institution: 'Harvard Medical School', country: 'USA', topic: 'The Future of Sleep Medicine', type: 'keynote', photo: '', confirmed: true },
@@ -113974,7 +114320,7 @@ By applying to this program, I give the following consents:
         // =========================================
         const NotificationCenter = {
             notifications: [
-                { id: 'n1', type: 'event', title: 'Plexus 2026 Registration Open', body: 'Early bird pricing available until September 30', time: '2 hours ago', read: false },
+                { id: 'n1', type: 'event', title: 'Plexus 2026 Registration Open', body: 'Early bird pricing available until September 1', time: '2 hours ago', read: false },
                 { id: 'n2', type: 'connection', title: 'Dr. Sarah Chen accepted your request', body: 'You are now connected', time: '5 hours ago', read: false },
                 { id: 'n3', type: 'achievement', title: 'Achievement Unlocked!', body: 'You earned the "Networker" badge', time: '1 day ago', read: true },
                 { id: 'n4', type: 'reminder', title: 'Complete your profile', body: 'Add your bio and interests to connect with more people', time: '2 days ago', read: true }
@@ -116446,7 +116792,7 @@ By applying to this program, I give the following consents:
                 { id: 's3', title: 'Sleep and Cancer: New Insights', speaker: 'Dr. Dragana Rogulja', date: '2026-12-04', time: '11:30', duration: 45, room: 'Room A', track: 'neuroscience' },
                 { id: 's4', title: 'AI in Radiology: Current State', speaker: 'Dr. Michael Torres', date: '2026-12-04', time: '11:30', duration: 45, room: 'Room B', track: 'ai' },
                 { id: 's5', title: 'CAR-T Cell Therapy Workshop', speaker: 'Dr. Sarah Chen', date: '2026-12-04', time: '14:00', duration: 120, room: 'Workshop Room', track: 'oncology' },
-                { id: 's6', title: 'Gala Dinner & Awards', speaker: '', date: '2026-12-05', time: '19:00', duration: 180, room: 'Grand Ballroom', track: 'social' }
+                { id: 's6', title: 'Gala Evening & Awards Ceremony', speaker: '', date: '2026-12-05', time: '19:00', duration: 180, room: 'Grand Ballroom, Hotel Esplanade', track: 'social' }
             ],
 
             init() {
@@ -118409,10 +118755,368 @@ By applying to this program, I give the following consents:
             },
 
             viewAll() {
-                // For now, show all news in a modal or navigate to news section
-                if (typeof App !== 'undefined' && App.showToast) {
-                    App.showToast('Full news view coming soon!', 'info');
+                // Delegated to the live Member Home feed (menu item 9).
+                if (typeof MemberFeed !== 'undefined') MemberFeed.viewAll();
+            }
+        };
+
+        // =========================================
+        // MEMBER HOME FEED - Living dashboard feed (menu item 9)
+        // Live /api/feed items replace the static "Latest from Med&X" strip.
+        // =========================================
+        const MemberFeed = {
+            items: [],
+            _loaded: false,
+            TYPE_META: {
+                opportunity: { label: 'Opportunity', icon: 'fa-briefcase' },
+                spotlight:   { label: 'Spotlight',   icon: 'fa-star' },
+                recording:   { label: 'Recording',   icon: 'fa-play' },
+                call:        { label: 'Call',        icon: 'fa-bullhorn' },
+                news:        { label: 'News',        icon: 'fa-newspaper' }
+            },
+
+            async load() {
+                const container = document.getElementById('newsCompactList');
+                if (container && !this._loaded) {
+                    container.innerHTML = '<div class="feed-empty"><i class="fas fa-spinner fa-spin"></i><p>Loading the latest from Med&amp;X…</p></div>';
                 }
+                try {
+                    const items = await UserPortal.api('/api/feed');
+                    this.items = Array.isArray(items) ? items : [];
+                    this._loaded = true;
+                    this.renderCompact();
+                } catch (e) {
+                    console.error('[MemberFeed] load failed:', e);
+                    if (container) {
+                        container.innerHTML = '<div class="feed-empty"><i class="fas fa-triangle-exclamation"></i><p>We could not load the feed right now. Please try again shortly.</p></div>';
+                    }
+                }
+            },
+
+            fmtDate(s) {
+                if (!s) return '';
+                const d = new Date(String(s).replace(' ', 'T'));
+                if (isNaN(d.getTime())) return '';
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            },
+
+            typeMeta(type) { return this.TYPE_META[type] || this.TYPE_META.news; },
+
+            chip(type) {
+                const m = this.typeMeta(type);
+                const t = this.TYPE_META[type] ? type : 'news';
+                return `<span class="feed-chip ${t}"><i class="fas ${m.icon}"></i>${m.label}</span>`;
+            },
+
+            cardHtml(it) {
+                const link = it.link_url
+                    ? `<span class="feed-card-link">${escapeHtml(it.link_label || 'Open')} <i class="fas fa-arrow-right"></i></span>`
+                    : '';
+                const body = it.body ? `<p class="feed-card-body">${escapeHtml(it.body)}</p>` : '';
+                const safeLink = String(it.link_url || '').replace(/'/g, "\\'");
+                return `<div class="feed-card" onclick="MemberFeed.open('${safeLink}')">
+                    <div class="feed-card-top">${this.chip(it.type)}<span class="feed-card-date">${this.fmtDate(it.posted_at)}</span></div>
+                    <h5 class="feed-card-title">${escapeHtml(it.title || '')}</h5>
+                    ${body}
+                    ${link}
+                </div>`;
+            },
+
+            renderCompact() {
+                const container = document.getElementById('newsCompactList');
+                if (!container) return;
+                if (!this.items.length) {
+                    container.innerHTML = '<div class="feed-empty"><i class="fas fa-newspaper"></i><p>Nothing new right now. Check back soon.</p></div>';
+                    return;
+                }
+                container.innerHTML = '<div class="feed-list">' + this.items.slice(0, 5).map(it => this.cardHtml(it)).join('') + '</div>';
+            },
+
+            open(link) {
+                if (!link) return;
+                if (/^https?:\/\//i.test(link)) { window.open(link, '_blank', 'noopener'); return; }
+                this.closeModal();
+                if (typeof UserPortal !== 'undefined' && UserPortal.showSection) UserPortal.showSection(link);
+            },
+
+            async viewAll() {
+                if (!this._loaded) { try { const items = await UserPortal.api('/api/feed'); this.items = Array.isArray(items) ? items : []; this._loaded = true; } catch (e) {} }
+                let overlay = document.getElementById('feedModalOverlay');
+                if (overlay) overlay.remove();
+                overlay = document.createElement('div');
+                overlay.className = 'feed-modal-overlay';
+                overlay.id = 'feedModalOverlay';
+                overlay.onclick = (e) => { if (e.target === overlay) MemberFeed.closeModal(); };
+                const body = this.items.length
+                    ? '<div class="feed-list">' + this.items.map(it => this.cardHtml(it)).join('') + '</div>'
+                    : '<div class="feed-empty"><i class="fas fa-newspaper"></i><p>Nothing new right now. Check back soon.</p></div>';
+                overlay.innerHTML = `<div class="feed-modal">
+                    <div class="feed-modal-head">
+                        <div><h3>Latest from Med&amp;X</h3><p>Opportunities, spotlights, recordings and calls</p></div>
+                        <button class="feed-modal-close" onclick="MemberFeed.closeModal()" aria-label="Close"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="feed-modal-body">${body}</div>
+                </div>`;
+                document.body.appendChild(overlay);
+                this._escHandler = (e) => { if (e.key === 'Escape') MemberFeed.closeModal(); };
+                document.addEventListener('keydown', this._escHandler);
+            },
+
+            closeModal() {
+                const overlay = document.getElementById('feedModalOverlay');
+                if (overlay) overlay.remove();
+                if (this._escHandler) { document.removeEventListener('keydown', this._escHandler); this._escHandler = null; }
+            }
+        };
+
+        // =========================================
+        // OPPORTUNITY BOARD - Network tab (menu item 23a)
+        // Filterable lab openings / fellowships / calls / grants / jobs.
+        // Members can submit -> lands as 'pending' for admin curation.
+        // =========================================
+        const OpportunityBoard = {
+            currentKind: '',
+            items: [],
+            KIND_META: {
+                lab_opening:   'Lab opening',
+                fellowship:    'Fellowship',
+                abstract_call: 'Call for abstracts',
+                grant:         'Grant',
+                job:           'Job'
+            },
+
+            async load() {
+                const grid = document.getElementById('oppGrid');
+                if (grid) grid.innerHTML = '<div class="opp-empty" style="grid-column:1/-1;"><i class="fas fa-spinner fa-spin"></i><p>Loading opportunities…</p></div>';
+                try {
+                    const q = this.currentKind ? ('?kind=' + encodeURIComponent(this.currentKind)) : '';
+                    const items = await UserPortal.api('/api/opportunities' + q);
+                    this.items = Array.isArray(items) ? items : [];
+                    this.render();
+                } catch (e) {
+                    console.error('[OpportunityBoard] load failed:', e);
+                    if (grid) grid.innerHTML = '<div class="opp-empty" style="grid-column:1/-1;"><i class="fas fa-triangle-exclamation"></i><p>We could not load opportunities right now. Please try again shortly.</p></div>';
+                }
+            },
+
+            filter(kind) {
+                this.currentKind = kind || '';
+                document.querySelectorAll('#oppPills .opp-pill').forEach(p => {
+                    p.classList.toggle('active', (p.dataset.kind || '') === this.currentKind);
+                });
+                this.load();
+            },
+
+            fmtDeadline(s) {
+                if (!s) return null;
+                const d = new Date(String(s).replace(' ', 'T'));
+                if (isNaN(d.getTime())) return escapeHtml(String(s));
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            },
+
+            render() {
+                const grid = document.getElementById('oppGrid');
+                if (!grid) return;
+                if (!this.items.length) {
+                    grid.innerHTML = '<div class="opp-empty" style="grid-column:1/-1;"><i class="fas fa-briefcase"></i><p>No opportunities here yet. Be the first to post one for the community.</p></div>';
+                    return;
+                }
+                grid.innerHTML = this.items.map(o => {
+                    const kindLabel = this.KIND_META[o.kind] || 'Opportunity';
+                    const dl = this.fmtDeadline(o.deadline);
+                    const deadline = dl
+                        ? `<span class="opp-deadline"><i class="fas fa-calendar-day"></i> ${dl}</span>`
+                        : '<span class="opp-deadline none"><i class="fas fa-calendar"></i> Rolling</span>';
+                    const org = o.org ? `<div class="opp-org"><i class="fas fa-building"></i> ${escapeHtml(o.org)}${o.location ? ' &middot; ' + escapeHtml(o.location) : ''}</div>` : (o.location ? `<div class="opp-org"><i class="fas fa-location-dot"></i> ${escapeHtml(o.location)}</div>` : '');
+                    const desc = o.description ? `<p class="opp-desc">${escapeHtml(o.description)}</p>` : '';
+                    const link = o.link_url ? `<div class="connection-actions" style="margin-top:auto;"><a class="connection-btn primary" href="${escapeHtml(o.link_url)}" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;"><i class="fas fa-arrow-up-right-from-square"></i> View details</a></div>` : '';
+                    return `<div class="connection-card opp-card">
+                        <div class="opp-card-head">
+                            <div><h4>${escapeHtml(o.title || '')}</h4>${org}</div>
+                            <span class="opp-kind-chip">${escapeHtml(kindLabel)}</span>
+                        </div>
+                        ${desc}
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${deadline}</div>
+                        ${link}
+                    </div>`;
+                }).join('');
+            },
+
+            openForm() {
+                let overlay = document.getElementById('oppFormOverlay');
+                if (overlay) overlay.remove();
+                overlay = document.createElement('div');
+                overlay.className = 'feed-modal-overlay';
+                overlay.id = 'oppFormOverlay';
+                overlay.onclick = (e) => { if (e.target === overlay) OpportunityBoard.closeForm(); };
+                overlay.innerHTML = `<div class="feed-modal">
+                    <div class="feed-modal-head">
+                        <div><h3>Post an opportunity</h3><p>Shared with members after a quick review</p></div>
+                        <button class="feed-modal-close" onclick="OpportunityBoard.closeForm()" aria-label="Close"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="feed-modal-body">
+                        <div class="opp-form-field">
+                            <label for="oppFType">Type</label>
+                            <select id="oppFType">
+                                <option value="lab_opening">Lab opening</option>
+                                <option value="fellowship">Fellowship</option>
+                                <option value="abstract_call">Call for abstracts</option>
+                                <option value="grant">Grant</option>
+                                <option value="job">Job</option>
+                            </select>
+                        </div>
+                        <div class="opp-form-field">
+                            <label for="oppFTitle">Title <span style="color:var(--crimson,#9b1b22);">*</span></label>
+                            <input type="text" id="oppFTitle" maxlength="200" placeholder="e.g. Research assistant — cardiology lab">
+                        </div>
+                        <div class="opp-form-row">
+                            <div class="opp-form-field">
+                                <label for="oppFOrg">Organization</label>
+                                <input type="text" id="oppFOrg" maxlength="160" placeholder="Institution or company">
+                            </div>
+                            <div class="opp-form-field">
+                                <label for="oppFLocation">Location</label>
+                                <input type="text" id="oppFLocation" maxlength="160" placeholder="City, country">
+                            </div>
+                        </div>
+                        <div class="opp-form-row">
+                            <div class="opp-form-field">
+                                <label for="oppFDeadline">Deadline</label>
+                                <input type="date" id="oppFDeadline">
+                            </div>
+                            <div class="opp-form-field">
+                                <label for="oppFLink">Link</label>
+                                <input type="url" id="oppFLink" maxlength="500" placeholder="https://…">
+                            </div>
+                        </div>
+                        <div class="opp-form-field">
+                            <label for="oppFDesc">Description</label>
+                            <textarea id="oppFDesc" maxlength="4000" placeholder="Who it is for, what it offers, how to apply."></textarea>
+                        </div>
+                        <button class="connection-btn primary" id="oppSubmitBtn" style="width:100%;justify-content:center;" onclick="OpportunityBoard.submit()"><i class="fas fa-paper-plane"></i> Submit for review</button>
+                    </div>
+                </div>`;
+                document.body.appendChild(overlay);
+                this._escHandler = (e) => { if (e.key === 'Escape') OpportunityBoard.closeForm(); };
+                document.addEventListener('keydown', this._escHandler);
+            },
+
+            closeForm() {
+                const overlay = document.getElementById('oppFormOverlay');
+                if (overlay) overlay.remove();
+                if (this._escHandler) { document.removeEventListener('keydown', this._escHandler); this._escHandler = null; }
+            },
+
+            async submit() {
+                const title = (document.getElementById('oppFTitle')?.value || '').trim();
+                if (!title) { Toast.error('Please add a title.'); return; }
+                const payload = {
+                    kind: document.getElementById('oppFType')?.value || 'job',
+                    title,
+                    org: (document.getElementById('oppFOrg')?.value || '').trim(),
+                    location: (document.getElementById('oppFLocation')?.value || '').trim(),
+                    deadline: (document.getElementById('oppFDeadline')?.value || '').trim(),
+                    link_url: (document.getElementById('oppFLink')?.value || '').trim(),
+                    description: (document.getElementById('oppFDesc')?.value || '').trim()
+                };
+                const btn = document.getElementById('oppSubmitBtn');
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting…'; }
+                try {
+                    await UserPortal.api('/api/opportunities', { method: 'POST', body: JSON.stringify(payload) });
+                    this.closeForm();
+                    Toast.success('Submitted for review. Thank you for sharing with the community.');
+                } catch (e) {
+                    console.error('[OpportunityBoard] submit failed:', e);
+                    Toast.error('Could not submit right now. Please try again.');
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit for review'; }
+                }
+            }
+        };
+
+        // =========================================
+        // TALK LIBRARY - On-demand past-conference sessions (menu item 23b)
+        // =========================================
+        const TalkLibrary = {
+            items: [],
+            _loaded: false,
+            yearFilter: '',
+            eventFilter: '',
+
+            async init() {
+                const grid = document.getElementById('talksGrid');
+                if (grid && !this._loaded) grid.innerHTML = '<div class="talk-empty" style="grid-column:1/-1;"><i class="fas fa-spinner fa-spin"></i><p>Loading the talk library…</p></div>';
+                try {
+                    const items = await UserPortal.api('/api/talks');
+                    this.items = Array.isArray(items) ? items : [];
+                    this._loaded = true;
+                    this.renderFilters();
+                    this.render();
+                } catch (e) {
+                    console.error('[TalkLibrary] load failed:', e);
+                    if (grid) grid.innerHTML = '<div class="talk-empty" style="grid-column:1/-1;"><i class="fas fa-triangle-exclamation"></i><p>We could not load the talk library right now. Please try again shortly.</p></div>';
+                }
+            },
+
+            renderFilters() {
+                const bar = document.getElementById('talkFilters');
+                if (!bar) return;
+                const years = [...new Set(this.items.map(t => t.year).filter(Boolean))].sort((a, b) => b - a);
+                const events = [...new Set(this.items.map(t => t.event_label).filter(Boolean))];
+                let html = `<button class="opp-pill ${this.yearFilter === '' && this.eventFilter === '' ? 'active' : ''}" onclick="TalkLibrary.setFilter('all','')">All sessions</button>`;
+                years.forEach(y => {
+                    html += `<button class="opp-pill ${this.yearFilter === String(y) ? 'active' : ''}" onclick="TalkLibrary.setFilter('year','${y}')">${y}</button>`;
+                });
+                events.forEach(ev => {
+                    const safe = String(ev).replace(/'/g, "\\'");
+                    html += `<button class="opp-pill ${this.eventFilter === ev ? 'active' : ''}" onclick="TalkLibrary.setFilter('event','${safe}')">${escapeHtml(ev)}</button>`;
+                });
+                bar.innerHTML = html;
+            },
+
+            setFilter(type, val) {
+                if (type === 'all') { this.yearFilter = ''; this.eventFilter = ''; }
+                else if (type === 'year') { this.yearFilter = String(val); this.eventFilter = ''; }
+                else if (type === 'event') { this.eventFilter = val; this.yearFilter = ''; }
+                this.renderFilters();
+                this.render();
+            },
+
+            render() {
+                const grid = document.getElementById('talksGrid');
+                if (!grid) return;
+                let list = this.items;
+                if (this.yearFilter) list = list.filter(t => String(t.year) === this.yearFilter);
+                if (this.eventFilter) list = list.filter(t => t.event_label === this.eventFilter);
+                if (!list.length) {
+                    grid.innerHTML = '<div class="talk-empty" style="grid-column:1/-1;"><i class="fas fa-film"></i><p>No sessions in the library yet. Recordings from past conferences will appear here.</p></div>';
+                    return;
+                }
+                grid.innerHTML = list.map(t => {
+                    const isPlaceholder = !t.video_url || t.video_url === '#placeholder';
+                    const thumb = t.thumb_url
+                        ? `<img src="${escapeHtml(t.thumb_url)}" alt="">`
+                        : `<div class="talk-play"><i class="fas fa-play"></i></div>`;
+                    const year = t.year ? `<span class="talk-year">${escapeHtml(String(t.year))}</span>` : '';
+                    const example = isPlaceholder ? '<span class="talk-example">Example</span>' : '';
+                    const speaker = t.speaker ? `<div class="talk-speaker">${escapeHtml(t.speaker)}</div>` : '';
+                    const event = t.event_label ? `<span class="talk-event">${escapeHtml(t.event_label)}</span>` : '';
+                    return `<div class="talk-card" onclick="TalkLibrary.play('${String(t.video_url || '').replace(/'/g, "\\'")}')">
+                        <div class="talk-thumb">${thumb}${year}${example}</div>
+                        <div class="talk-body">
+                            <h4>${escapeHtml(t.title || '')}</h4>
+                            ${speaker}
+                            ${event}
+                        </div>
+                    </div>`;
+                }).join('');
+            },
+
+            play(url) {
+                if (!url || url === '#placeholder') {
+                    Toast.info ? Toast.info('This recording will be available soon.') : Toast.success('This recording will be available soon.');
+                    return;
+                }
+                window.open(url, '_blank', 'noopener');
             }
         };
 
@@ -121388,6 +122092,7 @@ By applying to this program, I give the following consents:
                 ProfileCard.init();
                 CountdownWidget.init();
                 NewsWidget.init();
+                if (typeof MemberFeed !== 'undefined') MemberFeed.load();
                 SplitLayout.init();
                 CardManager.init();
                 // Initialize Connection Recommendations

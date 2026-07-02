@@ -6442,7 +6442,7 @@
         <div class="cmd-palette" onclick="event.stopPropagation()">
             <div class="cmd-palette-input-wrap">
                 <i class="fas fa-search"></i>
-                <input class="cmd-palette-input" id="cmdPaletteInput" type="text" placeholder="Search sections, tabs, actions..." autocomplete="off" oninput="CmdPalette.filter()" onkeydown="CmdPalette.handleKey(event)">
+                <input class="cmd-palette-input" id="cmdPaletteInput" type="text" placeholder="Search sections, people, registrations, invoice #..." autocomplete="off" oninput="CmdPalette.filter()" onkeydown="CmdPalette.handleKey(event)">
                 <span class="cmd-palette-kbd">esc</span>
             </div>
             <div class="cmd-palette-results" id="cmdPaletteResults"></div>
@@ -6717,6 +6717,12 @@
                 <a class="nav-item" data-section="portal-content" onclick="App.showSection('portal-content', this)">
                     <i class="fas fa-th-large" style="color: #c9a962;"></i>
                     <span>Portal Content</span>
+                </a>
+
+                <a class="nav-item" data-section="member-feed" onclick="App.showSection('member-feed', this)">
+                    <i class="fas fa-rss" style="color: #c9a962;"></i>
+                    <span>Member Feed</span>
+                    <span id="mfOppNav" style="background: #f59e0b; color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
                 </a>
 
                 <a class="nav-item" data-section="messages" onclick="App.showSection('messages', this)">
@@ -10565,6 +10571,63 @@ President, Med&amp;X</textarea>
                     </div>
                 </div>
 
+                <!-- MEMBER FEED / OPPORTUNITY / TALKS CURATION (items 9 & 23) -->
+                <div class="section" id="section-member-feed">
+                    <div class="back-link" onclick="App.showSection('dashboard')">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </div>
+
+                    <div class="section-header" style="margin-bottom: 20px;">
+                        <h1 style="font-size: 28px; font-weight: 700; margin-bottom: 4px;">
+                            <i class="fas fa-rss" style="color: #c9a962; margin-right: 12px;"></i>
+                            Member Feed
+                        </h1>
+                        <p style="color: var(--text-muted);">Curate the living Member Home feed, moderate member-submitted opportunities, and manage the on-demand talk library.</p>
+                    </div>
+
+                    <div class="mf-tabbar" style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:12px;overflow-x:auto;white-space:nowrap;">
+                        <button class="btn btn-primary" id="mfTabFeed" onclick="FeedAdmin.showTab('feed')" style="font-size:13px;flex-shrink:0;"><i class="fas fa-stream"></i> Feed items</button>
+                        <button class="btn btn-secondary" id="mfTabOpps" onclick="FeedAdmin.showTab('opps')" style="font-size:13px;flex-shrink:0;"><i class="fas fa-briefcase"></i> Opportunities <span id="mfOppBadge" style="background:#f59e0b;color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;margin-left:4px;display:none;">0</span></button>
+                        <button class="btn btn-secondary" id="mfTabTalks" onclick="FeedAdmin.showTab('talks')" style="font-size:13px;flex-shrink:0;"><i class="fas fa-video"></i> Talk library</button>
+                    </div>
+
+                    <!-- FEED PANEL -->
+                    <div id="mfFeedPanel">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap;">
+                            <p style="margin:0;color:var(--text-muted);font-size:13px;">Dated items shown on the member dashboard's Latest-from-Med&amp;X feed. Unpublished drafts stay hidden from members. The <strong>Digest</strong> flag marks an item for the email/notification digest.</p>
+                            <button class="btn btn-primary" onclick="FeedAdmin.openFeedForm()" style="flex-shrink:0;"><i class="fas fa-plus"></i> New item</button>
+                        </div>
+                        <div id="mfFeedForm"></div>
+                        <div id="mfFeedList" class="card" style="padding:0;"></div>
+                    </div>
+
+                    <!-- OPPORTUNITIES PANEL -->
+                    <div id="mfOppsPanel" style="display:none;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap;">
+                            <p style="margin:0;color:var(--text-muted);font-size:13px;">Members submit opportunities that land here as <strong>pending</strong>. Approve to publish them to the board, or archive to remove.</p>
+                            <div style="display:flex;gap:6px;flex-shrink:0;">
+                                <select id="mfOppFilter" onchange="FeedAdmin.loadOpps()" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;">
+                                    <option value="pending">Pending</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="archived">Archived</option>
+                                    <option value="">All</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="mfOppsList" class="card" style="padding:0;"></div>
+                    </div>
+
+                    <!-- TALKS PANEL -->
+                    <div id="mfTalksPanel" style="display:none;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap;">
+                            <p style="margin:0;color:var(--text-muted);font-size:13px;">The on-demand talk library members can browse between events. Unpublished talks stay hidden.</p>
+                            <button class="btn btn-primary" onclick="FeedAdmin.openTalkForm()" style="flex-shrink:0;"><i class="fas fa-plus"></i> New talk</button>
+                        </div>
+                        <div id="mfTalkForm"></div>
+                        <div id="mfTalksList" class="card" style="padding:0;"></div>
+                    </div>
+                </div>
+
                 <!-- GALA EVENING MANAGEMENT -->
                 <div class="section" id="section-gala">
                     <div class="back-link" onclick="App.showSection('dashboard')">
@@ -10605,14 +10668,20 @@ President, Med&amp;X</textarea>
                     </div>
 
                     <!-- Gala Tabs -->
-                    <div style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
-                        <button class="btn btn-primary" id="galaTabRegs" onclick="GalaAdmin.showTab('registrations')" style="font-size: 13px;">
+                    <div style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 12px; overflow-x: auto; white-space: nowrap;">
+                        <button class="btn btn-primary" id="galaTabRegs" onclick="GalaAdmin.showTab('registrations')" style="font-size: 13px; flex-shrink: 0;">
                             <i class="fas fa-users"></i> Registrations
                         </button>
-                        <button class="btn btn-secondary" id="galaTabInvites" onclick="App.generateRegistrationLink('gala')" style="font-size: 13px;">
+                        <button class="btn btn-secondary" id="galaTabAwaiting" onclick="GalaAdmin.showTab('awaiting')" style="font-size: 13px; flex-shrink: 0;">
+                            <i class="fas fa-hourglass-half"></i> Awaiting payment <span id="galaAwaitingBadge" style="display:none;margin-left:5px;background:#f59e0b;color:#17120f;font-size:11px;font-weight:700;padding:1px 7px;border-radius:10px;">0</span>
+                        </button>
+                        <button class="btn btn-secondary" id="galaTabSeating" onclick="GalaAdmin.showTab('seating')" style="font-size: 13px; flex-shrink: 0;">
+                            <i class="fas fa-chair"></i> Seating
+                        </button>
+                        <button class="btn btn-secondary" id="galaTabInvites" onclick="App.generateRegistrationLink('gala')" style="font-size: 13px; flex-shrink: 0;">
                             <i class="fas fa-link"></i> Links
                         </button>
-                        <button class="btn btn-secondary" id="galaTabSettings" onclick="GalaAdmin.showTab('settings')" style="font-size: 13px;">
+                        <button class="btn btn-secondary" id="galaTabSettings" onclick="GalaAdmin.showTab('settings')" style="font-size: 13px; flex-shrink: 0;">
                             <i class="fas fa-cog"></i> Settings
                         </button>
                     </div>
@@ -10638,6 +10707,49 @@ President, Med&amp;X</textarea>
                                     <p>Loading registrations...</p>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Awaiting Payment Tab (abandoned-checkout recovery worklist) -->
+                    <div id="galaAwaitingTab" style="display: none;">
+                        <div class="card">
+                            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                                <div>
+                                    <h3 class="card-title" style="margin:0;">Awaiting payment</h3>
+                                    <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0;">Guests who started a Gala checkout and did not finish. Resend their payment link to recover the seat.</p>
+                                </div>
+                            </div>
+                            <div class="card-body" id="galaAwaitingList" style="padding: 0;">
+                                <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                                    <i class="fas fa-spinner fa-spin" style="font-size: 24px;"></i>
+                                    <p>Loading...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seating / Table Plan Tab (item 21) -->
+                    <div id="galaSeatingTab" style="display: none;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+                            <div id="galaSeatingStats" style="font-size:13px;color:var(--text-muted);">Loading seating…</div>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button class="btn btn-secondary" onclick="GalaAdmin.exportSeatingCSV('plan')" style="font-size:12px;"><i class="fas fa-file-csv"></i> Table plan CSV</button>
+                                <button class="btn btn-secondary" onclick="GalaAdmin.exportSeatingCSV('placecards')" style="font-size:12px;"><i class="fas fa-id-badge"></i> Place-card CSV</button>
+                                <button class="btn btn-primary" onclick="GalaAdmin.newTable()" style="font-size:12px;"><i class="fas fa-plus"></i> Add table</button>
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:minmax(240px,320px) 1fr;gap:16px;align-items:start;">
+                            <!-- Unassigned guests -->
+                            <div class="card" style="padding:0;position:sticky;top:12px;">
+                                <div class="card-header" style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+                                    <span style="font-weight:600;font-size:13px;">Unassigned</span>
+                                    <span id="galaUnassignedCount" style="font-size:11px;color:var(--text-muted);">0</span>
+                                </div>
+                                <div id="galaSeatingHint" style="padding:8px 14px;font-size:11px;color:var(--text-muted);border-bottom:1px solid var(--border);">Confirmed-paid guests only. Click a table's <i class="fas fa-user-plus"></i> to seat the selected guest.</div>
+                                <div id="galaUnassignedList" style="max-height:60vh;overflow:auto;padding:6px;"></div>
+                            </div>
+                            <!-- Tables grid -->
+                            <div id="galaTablesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;"></div>
                         </div>
                     </div>
 
@@ -14123,24 +14235,29 @@ President, Med&amp;X</textarea>
                     </div>`;
                 }
 
-                // Pending actions row -- only show if there are pending items
-                if (stats.pending && stats.pending.total > 0) {
-                    const p = stats.pending;
+                // Pending actions row -- only show if there are pending items.
+                // Every tag is clickable and deep-links to the pre-filtered list where the
+                // work happens (money and inbox items lead — they are the closest to revenue).
+                const p = stats.pending || {};
+                const pendTotal = p.total || 0;
+                if (pendTotal > 0) {
                     const items = [];
-                    if (p.abstracts > 0) items.push({label: p.abstracts + ' abstracts', active: true});
-                    if (p.speakerApps > 0) items.push({label: p.speakerApps + ' speaker apps', active: true});
-                    if (p.scholarships > 0) items.push({label: p.scholarships + ' scholarships', active: true});
-                    if (p.visas > 0) items.push({label: p.visas + ' visas', active: true});
-                    if (p.refunds > 0) items.push({label: p.refunds + ' refunds', active: true});
+                    if (p.galaAwaiting > 0) items.push({label: p.galaAwaiting + ' awaiting payment', active: true, onClick: "App.openGalaAwaiting()"});
+                    if (p.unreadMessages > 0) items.push({label: p.unreadMessages + ' unread message' + (p.unreadMessages === 1 ? '' : 's'), active: true, onClick: "App.showSection('messages')"});
+                    if (p.abstracts > 0) items.push({label: p.abstracts + ' abstracts', active: true, onClick: "App.showProject('plexus'); App.showPlexusTab('abstracts')"});
+                    if (p.speakerApps > 0) items.push({label: p.speakerApps + ' speaker apps', active: true, onClick: "App.showProject('plexus'); App.showPlexusTab('pending')"});
+                    if (p.scholarships > 0) items.push({label: p.scholarships + ' scholarships', active: true, onClick: "App.showProject('plexus'); App.showPlexusTab('pending')"});
+                    if (p.visas > 0) items.push({label: p.visas + ' visas', active: true, onClick: "App.showProject('plexus'); App.showPlexusTab('pending')"});
+                    if (p.refunds > 0) items.push({label: p.refunds + ' refunds', active: true, onClick: "App.showProject('plexus'); App.showPlexusTab('pending')"});
                     // Add task alerts
-                    if (stats.tasks && stats.tasks.overdue > 0) items.push({label: stats.tasks.overdue + ' overdue tasks', active: true});
-                    if (stats.tasks && stats.tasks.urgent > 0) items.push({label: stats.tasks.urgent + ' urgent tasks', active: false});
+                    if (stats.tasks && stats.tasks.overdue > 0) items.push({label: stats.tasks.overdue + ' overdue tasks', active: true, onClick: "App.showSection('dashboard')"});
+                    if (stats.tasks && stats.tasks.urgent > 0) items.push({label: stats.tasks.urgent + ' urgent tasks', active: false, onClick: "App.showSection('dashboard')"});
 
                     cells += `
                     <div class="pulse-pending-row">
-                        <div class="pulse-pending-header"><i class="fas fa-exclamation-circle"></i><span>Needs Attention (${p.total})</span></div>
+                        <div class="pulse-pending-header"><i class="fas fa-exclamation-circle"></i><span>Needs Attention (${pendTotal})</span></div>
                         <div class="pulse-pending-items">
-                            ${items.map(i => `<span class="pulse-pending-tag${i.active ? ' pulse-pending-tag--active' : ''}">${i.label}</span>`).join('')}
+                            ${items.map(i => `<span class="pulse-pending-tag${i.active ? ' pulse-pending-tag--active' : ''}" role="button" tabindex="0" title="Open" style="cursor:pointer;" onclick="${i.onClick}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${i.onClick}}">${i.label} <i class="fas fa-arrow-right" style="font-size:9px;opacity:0.55;margin-left:3px;"></i></span>`).join('')}
                         </div>
                     </div>`;
                 }
@@ -15585,6 +15702,7 @@ President, Med&amp;X</textarea>
                     'user-notifications': 'User Notifications',
                     'newsletter': 'Newsletter',
                     'portal-content': 'Portal Content',
+                    'member-feed': 'Member Feed',
                     'messages': 'Messages',
                     'gala': 'Gala Evening',
                     'conferences': 'Conferences',
@@ -15653,6 +15771,10 @@ President, Med&amp;X</textarea>
                     this.currentView = 'portal-content';
                     this.switchChatPanel('team');
                     PortalContentApp.init();
+                } else if (sectionId === 'member-feed') {
+                    this.currentView = 'member-feed';
+                    this.switchChatPanel('team');
+                    if (typeof FeedAdmin !== 'undefined') FeedAdmin.init();
                 } else if (sectionId === 'messages') {
                     this.currentView = 'messages';
                     this.switchChatPanel('team');
@@ -18432,7 +18554,7 @@ President, Med&amp;X</textarea>
                         <div style="flex:1;min-width:0;">
                             <div style="font-size:18px;font-weight:700;line-height:1.2;">${esc(name)}</div>
                             <div style="font-size:13px;color:var(--text-muted);margin-top:2px;word-break:break-all;">${esc(email)}</div>
-                            <div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap;">${opts.kind?pill(opts.kind,'#c2484e'):''} ${pill(paid?'PAID':'UNPAID',paid?'#22c55e':'#f59e0b')} ${checked?pill('CHECKED IN','#22c55e'):''}</div>
+                            <div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap;">${opts.kind?pill(opts.kind,'#c2484e'):''} ${opts.hidePayment?'':pill(paid?'PAID':'UNPAID',paid?'#22c55e':'#f59e0b')} ${checked?pill('CHECKED IN','#22c55e'):''}</div>
                         </div>
                         <button onclick="this.closest('.modal-overlay').remove()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;align-self:flex-start;">&times;</button>
                     </div>
@@ -18441,8 +18563,8 @@ President, Med&amp;X</textarea>
                         ${row('Country', r.country)}
                         ${row('Phone', r.phone)}
                         ${row('Ticket', r.ticket_type || r.ticket_name || r.pricing)}
-                        ${row('Status', r.status)}
-                        ${row('Payment', (r.payment_status || '—') + (r.amount_paid ? ' · €' + r.amount_paid : ''))}
+                        ${row('Status', r.status || r.membership_status)}
+                        ${opts.hidePayment ? '' : row('Payment', (r.payment_status || '—') + (r.amount_paid ? ' · €' + r.amount_paid : ''))}
                         ${row('Invoice', r.invoice_number)}
                         ${row('Dietary', r.dietary || r.dietary_requirements)}
                         ${row('Allergies', r.allergies)}
@@ -18490,9 +18612,23 @@ President, Med&amp;X</textarea>
             // Refresh whichever registrant list is on screen after a mutation.
             refreshActiveRegList(type) {
                 try {
-                    if (type === 'gala' && typeof GalaAdmin !== 'undefined') GalaAdmin.load && GalaAdmin.load();
+                    if (type === 'gala' && typeof GalaAdmin !== 'undefined') { GalaAdmin.loadRegistrations && GalaAdmin.loadRegistrations(); }
                     else if ((type === 'conference' || type === 'plexus') && this.loadPlexusRegistrations) this.loadPlexusRegistrations();
                 } catch (e) {}
+            },
+
+            // Open the Gala section straight onto its Awaiting-payment recovery worklist.
+            // Used by the dashboard "N awaiting payment" chip so the filter is pre-applied.
+            openGalaAwaiting() {
+                this.showSection('gala');
+                const tryOpen = (n) => {
+                    if (typeof GalaAdmin !== 'undefined' && document.getElementById('galaAwaitingTab')) {
+                        GalaAdmin.showTab('awaiting');
+                    } else if (n < 20) {
+                        setTimeout(() => tryOpen(n + 1), 100);
+                    }
+                };
+                tryOpen(0);
             },
 
             // Abstract state for sorting/grouping
@@ -30331,6 +30467,7 @@ By applying to this program, I give the following consents:
                     if (res.ok) {
                         this.registrations = await res.json();
                         this.renderRegistrations();
+                        this.renderAwaiting();
                         this.updateStats();
                     }
                 } catch (err) {
@@ -30447,26 +30584,50 @@ By applying to this program, I give the following consents:
                     badge.textContent = pending;
                     badge.style.display = pending > 0 ? 'inline' : 'none';
                 }
+
+                // Awaiting-payment tab badge (abandoned checkouts)
+                const awaitingCount = this._awaitingRegs().length;
+                const awaitingBadge = document.getElementById('galaAwaitingBadge');
+                if (awaitingBadge) {
+                    awaitingBadge.textContent = awaitingCount;
+                    awaitingBadge.style.display = awaitingCount > 0 ? 'inline-block' : 'none';
+                }
             },
 
             showTab(tab) {
                 const regsTab = document.getElementById('galaRegistrationsTab');
+                const awaitingTab = document.getElementById('galaAwaitingTab');
+                const seatingTab = document.getElementById('galaSeatingTab');
                 const settingsTab = document.getElementById('galaSettingsTab');
                 const invitesTab = document.getElementById('galaInvitesTab');
                 const regsBtn = document.getElementById('galaTabRegs');
+                const awaitingBtn = document.getElementById('galaTabAwaiting');
+                const seatingBtn = document.getElementById('galaTabSeating');
                 const settingsBtn = document.getElementById('galaTabSettings');
                 const invitesBtn = document.getElementById('galaTabInvites');
 
                 if (regsTab) regsTab.style.display = 'none';
+                if (awaitingTab) awaitingTab.style.display = 'none';
+                if (seatingTab) seatingTab.style.display = 'none';
                 if (settingsTab) settingsTab.style.display = 'none';
                 if (invitesTab) invitesTab.style.display = 'none';
                 if (regsBtn) regsBtn.className = 'btn btn-secondary';
+                if (awaitingBtn) awaitingBtn.className = 'btn btn-secondary';
+                if (seatingBtn) seatingBtn.className = 'btn btn-secondary';
                 if (settingsBtn) settingsBtn.className = 'btn btn-secondary';
                 if (invitesBtn) invitesBtn.className = 'btn btn-secondary';
 
                 if (tab === 'registrations') {
                     if (regsTab) regsTab.style.display = 'block';
                     if (regsBtn) regsBtn.className = 'btn btn-primary';
+                } else if (tab === 'awaiting') {
+                    if (awaitingTab) awaitingTab.style.display = 'block';
+                    if (awaitingBtn) awaitingBtn.className = 'btn btn-primary';
+                    this.renderAwaiting();
+                } else if (tab === 'seating') {
+                    if (seatingTab) seatingTab.style.display = 'block';
+                    if (seatingBtn) seatingBtn.className = 'btn btn-primary';
+                    this.loadSeating();
                 } else if (tab === 'invites') {
                     if (invitesTab) invitesTab.style.display = 'block';
                     if (invitesBtn) invitesBtn.className = 'btn btn-primary';
@@ -30475,6 +30636,213 @@ By applying to this program, I give the following consents:
                     if (settingsTab) settingsTab.style.display = 'block';
                     if (settingsBtn) settingsBtn.className = 'btn btn-primary';
                 }
+            },
+
+            // ===== Seating / table plan (item 21) =====
+            _seat: null,
+            _selectedGuest: null,
+            esc(s) { return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); },
+            async seatApi(path, opts = {}) {
+                const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}`, ...(opts.headers || {}) } });
+                let d = {}; try { d = await res.json(); } catch (e) {}
+                return { ok: res.ok, d };
+            },
+            async loadSeating() {
+                const grid = document.getElementById('galaTablesGrid');
+                if (grid) grid.innerHTML = '<div style="color:var(--text-muted);padding:20px;">Loading…</div>';
+                const r = await this.seatApi('/api/admin/gala/seating');
+                if (!r.ok) { if (grid) grid.innerHTML = '<div style="padding:20px;color:#ef4444;">Failed to load seating.</div>'; return; }
+                this._seat = r.d;
+                // Drop the selected guest if they are no longer unassigned.
+                if (this._selectedGuest && !this._seat.unassigned.some(g => g.registration_id === this._selectedGuest)) this._selectedGuest = null;
+                this.renderSeating();
+            },
+            renderSeating() {
+                const s = this._seat; if (!s) return;
+                const stats = document.getElementById('galaSeatingStats');
+                if (stats) stats.innerHTML = `<strong style="color:var(--text-primary);">${s.totalPaid}</strong> confirmed-paid guests · <strong style="color:var(--text-primary);">${s.seated}</strong> seated · <strong style="color:var(--text-primary);">${s.unassigned.length}</strong> unassigned · <strong style="color:var(--text-primary);">${s.tables.length}</strong> table${s.tables.length === 1 ? '' : 's'}`;
+                document.getElementById('galaUnassignedCount').textContent = s.unassigned.length;
+                // Unassigned list
+                const ul = document.getElementById('galaUnassignedList');
+                if (!s.unassigned.length) {
+                    ul.innerHTML = s.totalPaid ? '<div style="padding:14px;color:#22c55e;font-size:12px;">All confirmed guests are seated.</div>' : '<div style="padding:14px;color:var(--text-muted);font-size:12px;">No confirmed-paid guests yet.</div>';
+                } else {
+                    ul.innerHTML = s.unassigned.map(g => {
+                        const sel = this._selectedGuest === g.registration_id;
+                        return `<div onclick="GalaAdmin.selectGuest('${g.registration_id}')" style="padding:8px 10px;border-radius:8px;margin-bottom:4px;cursor:pointer;border:1px solid ${sel ? '#9b1b22' : 'transparent'};background:${sel ? 'rgba(155,27,34,0.12)' : 'var(--bg-primary)'};">
+                            <div style="font-size:13px;font-weight:600;">${this.esc(g.name)}</div>
+                            <div style="font-size:11px;color:var(--text-muted);">${g.dietary ? '<i class="fas fa-utensils" style="color:#c9a962;"></i> ' + this.esc(g.dietary) : 'no dietary data'}</div>
+                        </div>`;
+                    }).join('');
+                }
+                // Tables grid
+                const grid = document.getElementById('galaTablesGrid');
+                if (!s.tables.length) {
+                    grid.innerHTML = '<div class="card" style="padding:22px;color:var(--text-muted);grid-column:1/-1;">No tables yet. Click <strong>Add table</strong> to start the plan (default capacity 10).</div>';
+                } else {
+                    const canSeat = !!this._selectedGuest;
+                    grid.innerHTML = s.tables.map(t => {
+                        const full = t.occupancy >= t.capacity;
+                        const diet = Object.entries(t.dietary || {}).filter(([k]) => k !== 'None').map(([k, v]) => `<span style="font-size:10px;background:rgba(201,169,98,0.15);color:#c9a962;padding:1px 7px;border-radius:10px;margin:0 3px 3px 0;display:inline-block;">${this.esc(k)} ${v}</span>`).join('');
+                        return `<div class="card" style="padding:12px;">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
+                                <div style="font-weight:700;font-size:14px;">${this.esc(t.label)}</div>
+                                <div style="display:flex;gap:4px;flex-shrink:0;">
+                                    <button class="btn btn-secondary" style="padding:3px 7px;font-size:10px;" title="Edit table" onclick="GalaAdmin.editTable('${t.id}')"><i class="fas fa-edit"></i></button>
+                                    <button class="btn btn-secondary" style="padding:3px 7px;font-size:10px;color:#ef4444;" title="Delete table" onclick="GalaAdmin.deleteTable('${t.id}')"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                            <div style="font-size:11px;color:${full ? '#ef4444' : 'var(--text-muted)'};margin-top:2px;">${t.occupancy} / ${t.capacity} seated${full ? ' · full' : ''}</div>
+                            ${t.notes ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;font-style:italic;">${this.esc(t.notes)}</div>` : ''}
+                            ${diet ? `<div style="margin-top:6px;">${diet}</div>` : ''}
+                            <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;">
+                                ${t.guests.map(g => `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12px;padding:3px 6px;border-radius:6px;background:var(--bg-primary);">
+                                    <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${this.esc(g.name)}${g.dietary ? ' <i class="fas fa-utensils" title="' + this.esc(g.dietary) + '" style="color:#c9a962;font-size:10px;"></i>' : ''}</span>
+                                    <i class="fas fa-times" title="Unassign" style="cursor:pointer;color:var(--text-muted);flex-shrink:0;" onclick="GalaAdmin.unassign('${g.registration_id}')"></i>
+                                </div>`).join('')}
+                            </div>
+                            <button class="btn ${canSeat ? 'btn-primary' : 'btn-secondary'}" style="width:100%;margin-top:8px;padding:6px;font-size:12px;${canSeat ? '' : 'opacity:0.55;'}" ${canSeat ? '' : 'disabled'} onclick="GalaAdmin.assignTo('${t.id}')"><i class="fas fa-user-plus"></i> Seat selected guest</button>
+                        </div>`;
+                    }).join('');
+                }
+            },
+            selectGuest(id) { this._selectedGuest = (this._selectedGuest === id ? null : id); this.renderSeating(); },
+            async assignTo(tableId) {
+                if (!this._selectedGuest) { Toast.warning('Pick an unassigned guest first'); return; }
+                const r = await this.seatApi(`/api/admin/gala/tables/${tableId}/assign`, { method: 'POST', body: JSON.stringify({ registration_id: this._selectedGuest }) });
+                if (r.d && r.d.success) { this._selectedGuest = null; Toast.success('Seated'); this.loadSeating(); } else Toast.error((r.d && r.d.error) || 'Failed');
+            },
+            async unassign(regId) {
+                const r = await this.seatApi('/api/admin/gala/unassign', { method: 'POST', body: JSON.stringify({ registration_id: regId }) });
+                if (r.d && r.d.success) { Toast.success('Unassigned'); this.loadSeating(); } else Toast.error('Failed');
+            },
+            newTable() { this.tableModal(null); },
+            editTable(id) { const t = (this._seat && this._seat.tables.find(x => x.id === id)) || null; this.tableModal(t); },
+            tableModal(t) {
+                const isEdit = !!t;
+                const esc = (s) => this.esc(s);
+                const ov = document.createElement('div');
+                ov.className = 'modal-overlay active';
+                ov.style.cssText = 'position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;padding:20px;';
+                ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+                ov.innerHTML = `<div class="card" style="max-width:400px;width:100%;padding:20px;">
+                    <div style="font-weight:700;font-size:16px;margin-bottom:14px;">${isEdit ? 'Edit table' : 'New table'}</div>
+                    <label style="font-size:12px;color:var(--text-muted);">Label *</label>
+                    <input id="gtLabel" value="${isEdit ? esc(t.label) : ''}" placeholder="e.g. Table 1" style="width:100%;padding:9px 11px;margin:4px 0 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);">
+                    <label style="font-size:12px;color:var(--text-muted);">Capacity</label>
+                    <input id="gtCap" type="number" min="1" value="${isEdit ? t.capacity : 10}" style="width:100%;padding:9px 11px;margin:4px 0 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);">
+                    <label style="font-size:12px;color:var(--text-muted);">Notes</label>
+                    <input id="gtNotes" value="${isEdit ? esc(t.notes || '') : ''}" placeholder="e.g. near stage, sponsor table" style="width:100%;padding:9px 11px;margin:4px 0 16px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);">
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+                        <button class="btn btn-primary" onclick="GalaAdmin.saveTable('${isEdit ? t.id : ''}', this)">${isEdit ? 'Save' : 'Create'}</button>
+                    </div>
+                </div>`;
+                document.body.appendChild(ov);
+                setTimeout(() => { const el = document.getElementById('gtLabel'); if (el) el.focus(); }, 50);
+            },
+            async saveTable(id, btn) {
+                const label = document.getElementById('gtLabel').value.trim();
+                if (!label) { Toast.warning('Label is required'); return; }
+                const body = { label, capacity: parseInt(document.getElementById('gtCap').value, 10) || 10, notes: document.getElementById('gtNotes').value.trim() || null };
+                const r = await this.seatApi(id ? `/api/admin/gala/tables/${id}` : '/api/admin/gala/tables', { method: id ? 'PUT' : 'POST', body: JSON.stringify(body) });
+                if (r.d && r.d.success) { if (btn) btn.closest('.modal-overlay').remove(); Toast.success(id ? 'Saved' : 'Table created'); this.loadSeating(); } else Toast.error((r.d && r.d.error) || 'Failed');
+            },
+            async deleteTable(id) {
+                const t = this._seat && this._seat.tables.find(x => x.id === id);
+                if (t && t.occupancy > 0 && !confirm(`Table "${t.label}" has ${t.occupancy} seated guest(s). Delete it and unseat them?`)) return;
+                if (!t && !confirm('Delete this table?')) return;
+                const r = await this.seatApi(`/api/admin/gala/tables/${id}`, { method: 'DELETE' });
+                if (r.d && r.d.success) { Toast.success('Table deleted'); this.loadSeating(); } else Toast.error('Failed');
+            },
+            exportSeatingCSV(kind) {
+                const s = this._seat; if (!s) { Toast.warning('Nothing to export yet'); return; }
+                const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+                let rows = [];
+                if (kind === 'placecards') {
+                    rows.push(['Name', 'Table']);
+                    s.tables.forEach(t => t.guests.forEach(g => rows.push([g.name, t.label])));
+                } else {
+                    rows.push(['Table', 'Capacity', 'Seated', 'Guest', 'Email', 'Dietary', 'Table notes']);
+                    s.tables.forEach(t => {
+                        if (!t.guests.length) rows.push([t.label, t.capacity, 0, '', '', '', t.notes || '']);
+                        t.guests.forEach(g => rows.push([t.label, t.capacity, t.occupancy, g.name, g.email, g.dietary, t.notes || '']));
+                    });
+                    if (s.unassigned.length) s.unassigned.forEach(g => rows.push(['(unassigned)', '', '', g.name, g.email, g.dietary, '']));
+                }
+                const csv = rows.map(r => r.map(q).join(',')).join('\r\n');
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = kind === 'placecards' ? 'gala_place_cards.csv' : 'gala_table_plan.csv';
+                document.body.appendChild(a); a.click(); a.remove();
+                Toast.success('Exported ' + a.download);
+            },
+
+            // Rows that started a Gala checkout and never paid — the recovery worklist.
+            // Test-looking rows are excluded so this matches the dashboard "awaiting" chip.
+            _awaitingRegs() {
+                return (this.registrations || []).filter(r => {
+                    const isTest = /TEST/i.test(`${r.requests || ''} ${r.admin_notes || ''}`);
+                    return r.status === 'awaiting_payment' && !isTest;
+                });
+            },
+
+            renderAwaiting() {
+                const container = document.getElementById('galaAwaitingList');
+                if (!container) return;
+                const regs = this._awaitingRegs();
+                if (regs.length === 0) {
+                    container.innerHTML = `<div style="text-align:center;padding:44px;color:var(--text-muted);">
+                        <i class="fas fa-circle-check" style="font-size:44px;margin-bottom:14px;opacity:0.3;color:#10b981;"></i>
+                        <p style="margin:0;font-weight:600;">No abandoned checkouts</p>
+                        <p style="font-size:12px;margin:6px 0 0;">Everyone who started a Gala checkout has finished paying.</p>
+                    </div>`;
+                    return;
+                }
+                const s = this.settings || {};
+                const priceFor = (r) => {
+                    if (r.amount_paid) return '€' + r.amount_paid;
+                    const p = r.pricing === 'bundle' ? (s.price_bundle || s.price_gala_regular) : (s.price_gala_only || s.price_gala_regular);
+                    return p ? '€' + p : '—';
+                };
+                let html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table style="width:100%;min-width:640px;border-collapse:collapse;">
+                    <thead><tr style="border-bottom:1px solid var(--border);">
+                        <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Name</th>
+                        <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Email</th>
+                        <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Started</th>
+                        <th style="text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Amount</th>
+                        <th style="text-align:right;padding:12px 16px;font-size:12px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Recover</th>
+                    </tr></thead><tbody>`;
+                regs.forEach(r => {
+                    const date = r.created_at ? new Date(r.created_at).toLocaleDateString() : '—';
+                    const safeEmail = (r.email || '').replace(/'/g, '');
+                    html += `<tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:12px 16px;font-weight:500;">${escapeHtml(r.first_name || '')} ${escapeHtml(r.last_name || '')}</td>
+                        <td style="padding:12px 16px;font-size:13px;color:var(--text-secondary);">${escapeHtml(r.email || '')}</td>
+                        <td style="padding:12px 16px;font-size:13px;color:var(--text-secondary);">${date}</td>
+                        <td style="padding:12px 16px;font-size:13px;font-weight:600;">${priceFor(r)}</td>
+                        <td style="padding:12px 16px;text-align:right;white-space:nowrap;">
+                            <button class="btn btn-secondary" style="padding:4px 9px;font-size:12px;margin-right:4px;" title="Details" onclick="GalaAdmin.viewGuest('${r.id}')"><i class="fas fa-id-card"></i></button>
+                            <button class="btn btn-secondary" style="padding:4px 9px;font-size:12px;margin-right:4px;" title="Email ${escapeHtml(r.email || '')}" onclick="App.emailPerson('${safeEmail}','Plexus 2026 — Gala Evening')"><i class="fas fa-envelope"></i></button>
+                            <button class="btn btn-primary" style="padding:4px 12px;font-size:12px;background:linear-gradient(135deg,#9b1b22,#7e151b);border:none;" title="Open the invite-link tool to send this guest a payment link" onclick="GalaAdmin.resendPaymentLink('${r.id}')"><i class="fas fa-link"></i> Send payment link</button>
+                        </td>
+                    </tr>`;
+                });
+                html += '</tbody></table></div>';
+                container.innerHTML = html;
+            },
+
+            // No dedicated per-person "resend payment link" endpoint exists and payment-link
+            // generation is frozen, so this opens the EXISTING invite-link tool (the same UI
+            // the admin already uses to mint a paid Gala link) and copies the guest email so it
+            // can be pasted. It never creates a new payment path and never bulk-sends.
+            async resendPaymentLink(id) {
+                const r = (this.registrations || []).find(x => x.id === id);
+                if (r && r.email) {
+                    try { await navigator.clipboard.writeText(r.email); Toast.info ? Toast.info('Guest email copied — paste it when sending the link') : Toast.success('Guest email copied'); } catch(e) {}
+                }
+                App.generateRegistrationLink('gala');
             },
 
             // ========== GALA INVITE LINKS ==========
@@ -31581,6 +31949,227 @@ By applying to this program, I give the following consents:
             }
         };
 
+        // ==================== MEMBER FEED / OPPORTUNITY / TALK CURATION ====================
+        const FeedAdmin = {
+            tab: 'feed',
+            _feed: [], _opps: [], _talks: [],
+            esc(s) { return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); },
+            attr(s) { return this.esc(s); },
+            async api(path, opts = {}) {
+                const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}`, ...(opts.headers || {}) } });
+                let d = {}; try { d = await res.json(); } catch (e) {}
+                return { ok: res.ok, status: res.status, d };
+            },
+            fmtDate(s) { if (!s) return ''; try { return new Date(s.replace(' ', 'T') + (/[Zz]|[+\-]\d\d:?\d\d$/.test(s) ? '' : 'Z')).toLocaleDateString(); } catch (e) { return s; } },
+            init() { this.showTab(this.tab || 'feed'); this.loadFeed(); this.loadOpps(); this.loadTalks(); },
+            showTab(t) {
+                this.tab = t;
+                const map = { feed: 'mfFeedPanel', opps: 'mfOppsPanel', talks: 'mfTalksPanel' };
+                Object.entries(map).forEach(([k, id]) => { const el = document.getElementById(id); if (el) el.style.display = (k === t) ? '' : 'none'; });
+                [['feed', 'mfTabFeed'], ['opps', 'mfTabOpps'], ['talks', 'mfTabTalks']].forEach(([k, id]) => {
+                    const b = document.getElementById(id);
+                    if (b) { b.className = 'btn ' + (k === t ? 'btn-primary' : 'btn-secondary'); b.style.fontSize = '13px'; b.style.flexShrink = '0'; }
+                });
+            },
+
+            // ---------- FEED ITEMS ----------
+            FEED_META: { opportunity: ['Opportunity', '#c9a962'], spotlight: ['Spotlight', '#c2484e'], recording: ['Recording', '#6366f1'], call: ['Call', '#22c55e'], news: ['News', '#94a3b8'] },
+            async loadFeed() {
+                const el = document.getElementById('mfFeedList'); if (!el) return;
+                try {
+                    const r = await this.api('/api/admin/feed-items');
+                    this._feed = r.d || [];
+                    if (!this._feed.length) { el.innerHTML = '<div style="padding:22px;color:var(--text-muted);">No feed items yet. Create the first one.</div>'; return; }
+                    el.innerHTML = this._feed.map(f => {
+                        const m = this.FEED_META[f.type] || ['News', '#94a3b8'];
+                        return `<div style="display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-bottom:1px solid var(--border);">
+                            <span style="flex-shrink:0;background:${m[1]}22;color:${m[1]};font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;margin-top:2px;">${m[0]}</span>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-weight:600;font-size:14px;">${this.esc(f.title)}${f.digest ? ' <i class="fas fa-envelope" title="Flagged for digest" style="color:#c9a962;font-size:11px;margin-left:4px;"></i>' : ''}</div>
+                                <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${this.fmtDate(f.posted_at)}${f.body ? ' · ' + this.esc(String(f.body).slice(0, 90)) : ''}</div>
+                            </div>
+                            <div style="display:flex;gap:5px;flex-shrink:0;align-items:center;">
+                                <span style="font-size:11px;font-weight:700;color:${f.published ? '#22c55e' : '#f59e0b'};">${f.published ? 'LIVE' : 'DRAFT'}</span>
+                                <button class="btn btn-secondary" style="padding:4px 9px;font-size:11px;" onclick="FeedAdmin.togglePublish('${f.id}')" title="${f.published ? 'Unpublish' : 'Publish'}"><i class="fas fa-${f.published ? 'eye-slash' : 'globe'}"></i></button>
+                                <button class="btn btn-secondary" style="padding:4px 9px;font-size:11px;" onclick="FeedAdmin.openFeedForm('${f.id}')" title="Edit"><i class="fas fa-edit"></i></button>
+                                <button class="btn btn-secondary" style="padding:4px 9px;font-size:11px;color:#ef4444;" onclick="FeedAdmin.deleteFeed('${f.id}')" title="Delete"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>`;
+                    }).join('');
+                } catch (e) { el.innerHTML = '<div style="padding:18px;">Failed to load feed items.</div>'; }
+            },
+            openFeedForm(id) {
+                const f = id ? (this._feed.find(x => x.id === id) || {}) : {};
+                const opt = (v, cur) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${this.FEED_META[v][0]}</option>`;
+                const inp = (ph, val, oid) => `<input id="${oid}" placeholder="${ph}" value="${this.attr(val || '')}" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;">`;
+                document.getElementById('mfFeedForm').innerHTML = `
+                <div class="card" style="padding:18px;margin-bottom:16px;border-left:3px solid #c9a962;">
+                    <div style="font-weight:700;margin-bottom:12px;">${id ? 'Edit feed item' : 'New feed item'}</div>
+                    <div style="display:grid;grid-template-columns:150px 1fr;gap:10px 12px;align-items:center;">
+                        <label style="font-size:12px;color:var(--text-muted);">Type</label>
+                        <select id="mfFType" style="padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;">${['opportunity','spotlight','recording','call','news'].map(v => opt(v, f.type || 'news')).join('')}</select>
+                        <label style="font-size:12px;color:var(--text-muted);">Title *</label>${inp('Headline', f.title, 'mfFTitle')}
+                        <label style="font-size:12px;color:var(--text-muted);align-self:start;padding-top:8px;">Body</label>
+                        <textarea id="mfFBody" rows="3" placeholder="Short description (optional)" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;resize:vertical;">${this.esc(f.body || '')}</textarea>
+                        <label style="font-size:12px;color:var(--text-muted);">Link URL</label>${inp('https://…', f.link_url, 'mfFLink')}
+                        <label style="font-size:12px;color:var(--text-muted);">Link label</label>${inp('e.g. Read more', f.link_label, 'mfFLinkLabel')}
+                        <label style="font-size:12px;color:var(--text-muted);">Image URL</label>${inp('https://… (optional)', f.image_url, 'mfFImage')}
+                        <label style="font-size:12px;color:var(--text-muted);">Date</label>
+                        <input id="mfFDate" type="date" value="${f.posted_at ? String(f.posted_at).slice(0,10) : ''}" style="padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;">
+                    </div>
+                    <div style="display:flex;gap:20px;margin-top:14px;align-items:center;">
+                        <label style="font-size:13px;display:flex;gap:7px;align-items:center;cursor:pointer;"><input type="checkbox" id="mfFPublished" ${(f.published === undefined || f.published) ? 'checked' : ''}> Published (visible to members)</label>
+                        <label style="font-size:13px;display:flex;gap:7px;align-items:center;cursor:pointer;"><input type="checkbox" id="mfFDigest" ${f.digest ? 'checked' : ''}> Include in digest</label>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:16px;">
+                        <button class="btn btn-primary" onclick="FeedAdmin.saveFeed('${id || ''}')"><i class="fas fa-save"></i> ${id ? 'Save changes' : 'Create item'}</button>
+                        <button class="btn btn-secondary" onclick="document.getElementById('mfFeedForm').innerHTML='';">Cancel</button>
+                    </div>
+                </div>`;
+                document.getElementById('mfFeedForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            },
+            async saveFeed(id) {
+                const title = document.getElementById('mfFTitle').value.trim();
+                if (!title) { Toast.warning('Title is required'); return; }
+                const body = {
+                    type: document.getElementById('mfFType').value,
+                    title, body: document.getElementById('mfFBody').value.trim() || null,
+                    link_url: document.getElementById('mfFLink').value.trim() || null,
+                    link_label: document.getElementById('mfFLinkLabel').value.trim() || null,
+                    image_url: document.getElementById('mfFImage').value.trim() || null,
+                    published: document.getElementById('mfFPublished').checked ? 1 : 0,
+                    digest: document.getElementById('mfFDigest').checked ? 1 : 0,
+                };
+                const dv = document.getElementById('mfFDate').value;
+                if (dv) body.posted_at = dv;
+                const r = await this.api(id ? `/api/admin/feed-items/${id}` : '/api/admin/feed-items', { method: id ? 'PUT' : 'POST', body: JSON.stringify(body) });
+                if (r.d && r.d.success) { Toast.success(id ? 'Saved' : 'Created'); document.getElementById('mfFeedForm').innerHTML = ''; this.loadFeed(); }
+                else Toast.error((r.d && r.d.error) || 'Failed');
+            },
+            async togglePublish(id) {
+                const f = this._feed.find(x => x.id === id); if (!f) return;
+                const r = await this.api(`/api/admin/feed-items/${id}`, { method: 'PUT', body: JSON.stringify({ published: f.published ? 0 : 1 }) });
+                if (r.d && r.d.success) { Toast.success(f.published ? 'Unpublished' : 'Published'); this.loadFeed(); } else Toast.error('Failed');
+            },
+            async deleteFeed(id) {
+                if (!confirm('Delete this feed item? This cannot be undone.')) return;
+                const r = await this.api(`/api/admin/feed-items/${id}`, { method: 'DELETE' });
+                if (r.d && r.d.success) { Toast.success('Deleted'); this.loadFeed(); } else Toast.error('Failed');
+            },
+
+            // ---------- OPPORTUNITIES (moderation) ----------
+            OPP_META: { lab_opening: 'Lab opening', fellowship: 'Fellowship', abstract_call: 'Call for abstracts', grant: 'Grant', job: 'Job' },
+            updateOppBadge(pendingCount) {
+                ['mfOppBadge', 'mfOppNav'].forEach(id => { const b = document.getElementById(id); if (b) { b.textContent = pendingCount; b.style.display = pendingCount > 0 ? '' : 'none'; } });
+            },
+            async loadOpps() {
+                const el = document.getElementById('mfOppsList'); if (!el) return;
+                const status = document.getElementById('mfOppFilter') ? document.getElementById('mfOppFilter').value : 'pending';
+                try {
+                    // Always fetch pending count for the badge, plus the filtered view.
+                    const pend = await this.api('/api/admin/opportunities?status=pending');
+                    this.updateOppBadge((pend.d || []).length);
+                    const r = await this.api('/api/admin/opportunities' + (status ? '?status=' + status : ''));
+                    this._opps = r.d || [];
+                    if (!this._opps.length) { el.innerHTML = `<div style="padding:22px;color:var(--text-muted);">No ${status || ''} opportunities.</div>`; return; }
+                    el.innerHTML = this._opps.map(o => {
+                        const sc = { pending: '#f59e0b', approved: '#22c55e', archived: '#94a3b8' }[o.status] || '#94a3b8';
+                        return `<div style="padding:14px 16px;border-bottom:1px solid var(--border);">
+                            <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
+                                <div style="flex:1;min-width:0;">
+                                    <div style="font-weight:600;font-size:14px;">${this.esc(o.title)} <span style="font-size:10px;font-weight:700;color:#c9a962;margin-left:4px;">${this.esc(this.OPP_META[o.kind] || o.kind)}</span></div>
+                                    <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${[o.org, o.location, o.deadline ? 'Deadline ' + this.esc(o.deadline) : ''].filter(Boolean).map(s => this.esc(s)).join(' · ')}</div>
+                                    ${o.description ? `<div style="font-size:12.5px;color:var(--text-secondary,#cbd5e1);margin-top:6px;">${this.esc(String(o.description).slice(0, 220))}</div>` : ''}
+                                    ${o.link_url ? `<a href="${this.attr(o.link_url)}" target="_blank" rel="noopener" style="font-size:12px;color:#c9a962;">${this.esc(o.link_url)}</a>` : ''}
+                                </div>
+                                <span style="flex-shrink:0;font-size:10px;font-weight:700;color:${sc};background:${sc}22;padding:3px 9px;border-radius:20px;text-transform:uppercase;">${this.esc(o.status)}</span>
+                            </div>
+                            <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
+                                ${o.status !== 'approved' ? `<button class="btn btn-primary" style="padding:5px 12px;font-size:12px;" onclick="FeedAdmin.setOpp('${o.id}','approved')"><i class="fas fa-check"></i> Approve</button>` : ''}
+                                ${o.status !== 'archived' ? `<button class="btn btn-secondary" style="padding:5px 12px;font-size:12px;" onclick="FeedAdmin.setOpp('${o.id}','archived')"><i class="fas fa-box-archive"></i> Archive</button>` : ''}
+                                ${o.status === 'archived' ? `<button class="btn btn-secondary" style="padding:5px 12px;font-size:12px;" onclick="FeedAdmin.setOpp('${o.id}','pending')"><i class="fas fa-rotate-left"></i> Restore to pending</button>` : ''}
+                            </div>
+                        </div>`;
+                    }).join('');
+                } catch (e) { el.innerHTML = '<div style="padding:18px;">Failed to load opportunities.</div>'; }
+            },
+            async setOpp(id, status) {
+                const r = await this.api(`/api/admin/opportunities/${id}`, { method: 'PUT', body: JSON.stringify({ status }) });
+                if (r.d && r.d.success) { Toast.success('Set to ' + status); this.loadOpps(); } else Toast.error((r.d && r.d.error) || 'Failed');
+            },
+
+            // ---------- TALKS ----------
+            async loadTalks() {
+                const el = document.getElementById('mfTalksList'); if (!el) return;
+                try {
+                    const r = await this.api('/api/admin/talks');
+                    this._talks = r.d || [];
+                    if (!this._talks.length) { el.innerHTML = '<div style="padding:22px;color:var(--text-muted);">No talks yet. Add one from the past-conference archive.</div>'; return; }
+                    el.innerHTML = this._talks.map(t => `<div style="display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-bottom:1px solid var(--border);">
+                        <span style="flex-shrink:0;width:34px;height:34px;border-radius:8px;background:rgba(99,102,241,0.15);color:#818cf8;display:inline-flex;align-items:center;justify-content:center;"><i class="fas fa-play"></i></span>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:600;font-size:14px;">${this.esc(t.title)}</div>
+                            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${[t.speaker, t.event_label, t.year].filter(Boolean).map(s => this.esc(s)).join(' · ')}</div>
+                        </div>
+                        <div style="display:flex;gap:5px;flex-shrink:0;align-items:center;">
+                            <span style="font-size:11px;font-weight:700;color:${t.published ? '#22c55e' : '#f59e0b'};">${t.published ? 'LIVE' : 'DRAFT'}</span>
+                            <button class="btn btn-secondary" style="padding:4px 9px;font-size:11px;" onclick="FeedAdmin.toggleTalk('${t.id}')" title="${t.published ? 'Unpublish' : 'Publish'}"><i class="fas fa-${t.published ? 'eye-slash' : 'globe'}"></i></button>
+                            <button class="btn btn-secondary" style="padding:4px 9px;font-size:11px;" onclick="FeedAdmin.openTalkForm('${t.id}')" title="Edit"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-secondary" style="padding:4px 9px;font-size:11px;color:#ef4444;" onclick="FeedAdmin.deleteTalk('${t.id}')" title="Delete"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>`).join('');
+                } catch (e) { el.innerHTML = '<div style="padding:18px;">Failed to load talks.</div>'; }
+            },
+            openTalkForm(id) {
+                const t = id ? (this._talks.find(x => x.id === id) || {}) : {};
+                const inp = (ph, val, oid, type) => `<input id="${oid}" ${type ? 'type="' + type + '"' : ''} placeholder="${ph}" value="${this.attr(val == null ? '' : val)}" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;">`;
+                document.getElementById('mfTalkForm').innerHTML = `
+                <div class="card" style="padding:18px;margin-bottom:16px;border-left:3px solid #6366f1;">
+                    <div style="font-weight:700;margin-bottom:12px;">${id ? 'Edit talk' : 'New talk'}</div>
+                    <div style="display:grid;grid-template-columns:150px 1fr;gap:10px 12px;align-items:center;">
+                        <label style="font-size:12px;color:var(--text-muted);">Title *</label>${inp('Talk title', t.title, 'mfTTitle')}
+                        <label style="font-size:12px;color:var(--text-muted);">Speaker</label>${inp('Speaker name', t.speaker, 'mfTSpeaker')}
+                        <label style="font-size:12px;color:var(--text-muted);">Event label</label>${inp('e.g. Plexus 2025', t.event_label, 'mfTEvent')}
+                        <label style="font-size:12px;color:var(--text-muted);">Year</label>${inp('2025', t.year, 'mfTYear', 'number')}
+                        <label style="font-size:12px;color:var(--text-muted);">Video URL</label>${inp('https://…', t.video_url, 'mfTVideo')}
+                        <label style="font-size:12px;color:var(--text-muted);">Thumbnail URL</label>${inp('https://… (optional)', t.thumb_url, 'mfTThumb')}
+                    </div>
+                    <div style="margin-top:14px;"><label style="font-size:13px;display:flex;gap:7px;align-items:center;cursor:pointer;"><input type="checkbox" id="mfTPublished" ${(t.published === undefined || t.published) ? 'checked' : ''}> Published (visible to members)</label></div>
+                    <div style="display:flex;gap:8px;margin-top:16px;">
+                        <button class="btn btn-primary" onclick="FeedAdmin.saveTalk('${id || ''}')"><i class="fas fa-save"></i> ${id ? 'Save changes' : 'Create talk'}</button>
+                        <button class="btn btn-secondary" onclick="document.getElementById('mfTalkForm').innerHTML='';">Cancel</button>
+                    </div>
+                </div>`;
+                document.getElementById('mfTalkForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            },
+            async saveTalk(id) {
+                const title = document.getElementById('mfTTitle').value.trim();
+                if (!title) { Toast.warning('Title is required'); return; }
+                const yr = document.getElementById('mfTYear').value.trim();
+                const body = {
+                    title, speaker: document.getElementById('mfTSpeaker').value.trim() || null,
+                    event_label: document.getElementById('mfTEvent').value.trim() || null,
+                    year: yr ? parseInt(yr, 10) : null,
+                    video_url: document.getElementById('mfTVideo').value.trim() || null,
+                    thumb_url: document.getElementById('mfTThumb').value.trim() || null,
+                    published: document.getElementById('mfTPublished').checked ? 1 : 0,
+                };
+                const r = await this.api(id ? `/api/admin/talks/${id}` : '/api/admin/talks', { method: id ? 'PUT' : 'POST', body: JSON.stringify(body) });
+                if (r.d && r.d.success) { Toast.success(id ? 'Saved' : 'Created'); document.getElementById('mfTalkForm').innerHTML = ''; this.loadTalks(); }
+                else Toast.error((r.d && r.d.error) || 'Failed');
+            },
+            async toggleTalk(id) {
+                const t = this._talks.find(x => x.id === id); if (!t) return;
+                const r = await this.api(`/api/admin/talks/${id}`, { method: 'PUT', body: JSON.stringify({ published: t.published ? 0 : 1 }) });
+                if (r.d && r.d.success) { Toast.success(t.published ? 'Unpublished' : 'Published'); this.loadTalks(); } else Toast.error('Failed');
+            },
+            async deleteTalk(id) {
+                if (!confirm('Delete this talk? This cannot be undone.')) return;
+                const r = await this.api(`/api/admin/talks/${id}`, { method: 'DELETE' });
+                if (r.d && r.d.success) { Toast.success('Deleted'); this.loadTalks(); } else Toast.error('Failed');
+            }
+        };
+
         // ==================== BULK EMAIL TO REGISTRANTS ====================
         const BulkApp = {
             _count: 0,
@@ -32483,27 +33072,102 @@ By applying to this program, I give the following consents:
                 document.getElementById('cmdPalette').classList.remove('active');
             },
 
+            // Cached people/registration results and the query they belong to.
+            _query: '',
+            _dataItems: [],
+            _dataQuery: null,
+            _dataLoading: false,
+            _dataDebounce: null,
+
+            _staticMatches(query) {
+                if (!query) return [...this.registry];
+                return this.registry.filter(item =>
+                    item.title.toLowerCase().includes(query) ||
+                    item.sub.toLowerCase().includes(query) ||
+                    item.group.toLowerCase().includes(query)
+                );
+            },
+
             filter() {
-                const query = document.getElementById('cmdPaletteInput').value.toLowerCase().trim();
-                const container = document.getElementById('cmdPaletteResults');
-
-                if (!query) {
-                    this.filteredItems = [...this.registry];
-                } else {
-                    this.filteredItems = this.registry.filter(item =>
-                        item.title.toLowerCase().includes(query) ||
-                        item.sub.toLowerCase().includes(query) ||
-                        item.group.toLowerCase().includes(query)
-                    );
-                }
-
+                this._query = document.getElementById('cmdPaletteInput').value.toLowerCase().trim();
                 this.selectedIndex = 0;
-                this.render(container);
+                this._rebuild();
+                this._scheduleDataSearch(this._query);
+            },
+
+            // Merge static section/tab/action matches with any cached people & registration
+            // results for the current query into one flat list, so keyboard nav stays uniform.
+            _rebuild() {
+                const query = this._query || '';
+                const staticItems = this._staticMatches(query);
+                const dataItems = (this._dataQuery === query) ? (this._dataItems || []) : [];
+                this.filteredItems = [...staticItems, ...dataItems];
+                if (this.selectedIndex >= this.filteredItems.length) this.selectedIndex = 0;
+                this.render(document.getElementById('cmdPaletteResults'));
+            },
+
+            // Debounced (250ms) cross-entity search once the query reaches 3 characters.
+            _scheduleDataSearch(query) {
+                clearTimeout(this._dataDebounce);
+                if (!query || query.length < 3) {
+                    this._dataItems = [];
+                    this._dataQuery = query;
+                    this._dataLoading = false;
+                    return;
+                }
+                this._dataLoading = true;
+                this._dataDebounce = setTimeout(() => this._runDataSearch(query), 250);
+            },
+
+            async _runDataSearch(query) {
+                try {
+                    const res = await fetch('/api/admin/search?q=' + encodeURIComponent(query), {
+                        headers: { 'Authorization': `Bearer ${App.token}` }
+                    });
+                    if (this._query !== query) return; // user typed on — drop stale response
+                    if (!res.ok) { this._dataLoading = false; this._rebuild(); return; }
+                    const data = await res.json();
+                    if (this._query !== query) return;
+                    this._dataItems = (data.results || []).map(row => this._toItem(row));
+                    this._dataQuery = query;
+                    this._dataLoading = false;
+                    this._rebuild();
+                } catch (e) {
+                    this._dataLoading = false;
+                    if (this._query === query) this._rebuild();
+                }
+            },
+
+            // Turn a search row into a palette item whose action opens the existing detail card
+            // with the right section context. Non-registrant records (members/users) open the
+            // card without payment info or registrant quick actions.
+            _toItem(row) {
+                const CARD_TYPES = { gala: 1, conference: 1, plexus: 1, bridges: 1, 'croatians-abroad': 1 };
+                const icons = { gala: 'fa-champagne-glasses', conference: 'fa-microscope', 'croatians-abroad': 'fa-globe', bridges: 'fa-bridge', 'forum-event': 'fa-dna', member: 'fa-user-md', user: 'fa-user' };
+                const kinds = { gala: 'Gala Evening', conference: 'Plexus Conference', 'croatians-abroad': 'Croatians Abroad', bridges: 'Building Bridges', 'forum-event': 'Forum Event', member: 'Forum Member', user: 'Portal User' };
+                const parts = [];
+                if (row.email) parts.push(row.email);
+                if (row.event) parts.push(row.event);
+                if (row.status) parts.push(row.status);
+                const rec = row.record || row;
+                const passType = CARD_TYPES[row.type] ? row.type : undefined;
+                const hidePayment = (row.type === 'member' || row.type === 'user');
+                const kind = kinds[row.type] || row.event || 'Record';
+                return {
+                    title: row.name || row.email || 'Registrant',
+                    sub: parts.join(' · '),
+                    icon: icons[row.type] || 'fa-user',
+                    color: 'var(--accent-gold)',
+                    group: 'People & registrations',
+                    action: () => App.showRegistrantDetail(rec, { context: 'Search — ' + kind, kind: kind, type: passType, hidePayment: hidePayment })
+                };
             },
 
             render(container) {
                 if (this.filteredItems.length === 0) {
-                    container.innerHTML = '<div class="cmd-palette-empty"><i class="fas fa-search" style="font-size: 24px; margin-bottom: 8px; display: block; opacity: 0.3;"></i>No results found</div>';
+                    container.innerHTML = this._dataLoading
+                        ? '<div class="cmd-palette-empty"><i class="fas fa-spinner fa-spin" style="font-size: 22px; margin-bottom: 8px; display: block; opacity: 0.4;"></i>Searching people &amp; registrations…</div>'
+                        : '<div class="cmd-palette-empty"><i class="fas fa-search" style="font-size: 24px; margin-bottom: 8px; display: block; opacity: 0.3;"></i>No results found</div>';
                     return;
                 }
 
@@ -32511,7 +33175,7 @@ By applying to this program, I give the following consents:
                 let lastGroup = '';
                 this.filteredItems.forEach((item, i) => {
                     if (item.group !== lastGroup) {
-                        html += `<div class="cmd-palette-group">${item.group}</div>`;
+                        html += `<div class="cmd-palette-group">${escapeHtml(item.group)}</div>`;
                         lastGroup = item.group;
                     }
                     html += `<div class="cmd-palette-item${i === this.selectedIndex ? ' selected' : ''}" data-index="${i}" onclick="CmdPalette.execute(${i})" onmouseenter="CmdPalette.select(${i})">
@@ -32519,11 +33183,14 @@ By applying to this program, I give the following consents:
                             <i class="fas ${item.icon}"></i>
                         </div>
                         <div class="cmd-palette-item-text">
-                            <div class="cmd-palette-item-title">${item.title}</div>
-                            <div class="cmd-palette-item-sub">${item.sub}</div>
+                            <div class="cmd-palette-item-title">${escapeHtml(item.title)}</div>
+                            <div class="cmd-palette-item-sub">${escapeHtml(item.sub)}</div>
                         </div>
                     </div>`;
                 });
+                if (this._dataLoading) {
+                    html += `<div class="cmd-palette-empty" style="padding:12px 16px;text-align:left;font-size:12px;opacity:0.8;"><i class="fas fa-spinner fa-spin" style="margin-right:6px;opacity:0.5;"></i>Searching people &amp; registrations…</div>`;
+                }
                 container.innerHTML = html;
             },
 

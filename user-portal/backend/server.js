@@ -5564,6 +5564,118 @@ async function initializeApp() {
     // message). When null, it's a broadcast to everyone. ALTER is idempotent.
     try { db.run('ALTER TABLE push_outbox ADD COLUMN target_email TEXT'); } catch(e) {}
 
+    // ===== Member Home feed, opportunity board, talk library (menu items 9 & 23) =====
+    // Shared across both portals: the member portal reads these, the admin portal curates them.
+    // These CREATE TABLE blocks are kept byte-identical in the admin-portal server.js.
+    db.run(`CREATE TABLE IF NOT EXISTS feed_items (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL DEFAULT 'news',
+        title TEXT NOT NULL,
+        body TEXT,
+        link_url TEXT,
+        link_label TEXT,
+        image_url TEXT,
+        posted_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        published INTEGER DEFAULT 1,
+        digest INTEGER DEFAULT 0,
+        created_by TEXT
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS opportunities (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL DEFAULT 'job',
+        title TEXT NOT NULL,
+        org TEXT,
+        location TEXT,
+        deadline TEXT,
+        link_url TEXT,
+        description TEXT,
+        posted_by_user_id TEXT,
+        status TEXT DEFAULT 'pending',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS talks (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        speaker TEXT,
+        event_label TEXT,
+        year INTEGER,
+        video_url TEXT,
+        thumb_url TEXT,
+        published INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // ===== Mentorship matching (menu 10) + warm-intro requests (menu 25) =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod).
+    db.run(`CREATE TABLE IF NOT EXISTS mentorship_profiles (
+        user_id TEXT PRIMARY KEY,
+        role TEXT DEFAULT 'mentee',
+        topics TEXT,
+        capacity INTEGER DEFAULT 2,
+        active INTEGER DEFAULT 1,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS mentorship_requests (
+        id TEXT PRIMARY KEY,
+        from_user_id TEXT NOT NULL,
+        to_user_id TEXT NOT NULL,
+        message TEXT,
+        status TEXT DEFAULT 'pending',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        responded_at TEXT
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS intro_requests (
+        id TEXT PRIMARY KEY,
+        from_user_id TEXT NOT NULL,
+        via_user_id TEXT,
+        to_user_id TEXT NOT NULL,
+        message TEXT,
+        status TEXT DEFAULT 'pending',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // ===== Registrant activity notes (item 17) + Gala seating (item 21) =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod).
+    db.run(`CREATE TABLE IF NOT EXISTS registrant_notes (
+        id TEXT PRIMARY KEY,
+        registrant_id TEXT NOT NULL,
+        section TEXT,
+        author TEXT,
+        body TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS gala_tables (
+        id TEXT PRIMARY KEY,
+        label TEXT NOT NULL,
+        capacity INTEGER DEFAULT 10,
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS gala_seat_assignments (
+        id TEXT PRIMARY KEY,
+        table_id TEXT NOT NULL,
+        registration_id TEXT NOT NULL,
+        seat_note TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS event_waitlist (
+        id TEXT PRIMARY KEY,
+        section TEXT NOT NULL DEFAULT 'plexus',
+        name TEXT,
+        email TEXT,
+        ticket_type TEXT,
+        note TEXT,
+        status TEXT DEFAULT 'waiting',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
     db.run(`CREATE TABLE IF NOT EXISTS member_rewards (
         id TEXT PRIMARY KEY,
         user_id TEXT UNIQUE NOT NULL,
@@ -5609,6 +5721,77 @@ async function initializeApp() {
     db.run(`CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id)`);
 
     saveDb();
+
+    // ===== Seed Member Home feed + opportunity board + talk library (menu items 9 & 23) =====
+    // Idempotent per-row (INSERT ... WHERE NOT EXISTS on a stable title/key). Generic,
+    // real-sounding, org-level content — no fabricated person names in feed or opportunities.
+    try {
+        const feedSeeds = [
+            ['call', 'Call for abstracts — Plexus 2026 opens', 'Submit your research for the December meeting in Zagreb. Posters and short talks both welcome.', 'plexus', 'Read the call', '2026-06-24 09:00:00', 1],
+            ['news', 'Building Bridges comes to Boston in September', 'Our flagship exchange lands at Harvard Medical School this fall. Members hear the dates first.', 'bridges', 'See details', '2026-06-20 10:00:00', 1],
+            ['recording', 'New in the talk library — three Plexus keynotes', 'Past-conference sessions are now available on demand, from stem cells to genome medicine.', 'talks', 'Open the library', '2026-06-16 12:00:00', 1],
+            ['opportunity', 'Fresh lab openings on the opportunity board', 'Research positions and fellowships across partner institutions, curated for Med&X members.', 'network', 'Browse opportunities', '2026-06-11 08:30:00', 1],
+            ['spotlight', 'Member spotlight — the 2025 Accelerator cohort', 'Where last year’s placements landed, in their own words. A living record of the two-way bridge.', 'accelerator', 'Read more', '2026-06-05 15:00:00', 1],
+            ['news', 'Plexus 2026 — Friday Dec 4 and Saturday Dec 5 in Zagreb', 'Two days of science and connection, closing with the Gala at Hotel Esplanade on the Saturday evening.', 'plexus', 'View the program', '2026-05-28 11:00:00', 1]
+        ];
+        feedSeeds.forEach(f => {
+            if (!query.get('SELECT id FROM feed_items WHERE title = ?', [f[1]])) {
+                db.run(`INSERT INTO feed_items (id, type, title, body, link_url, link_label, posted_at, published, digest, created_by)
+                    VALUES (?,?,?,?,?,?,?,?,0,'seed')`,
+                    [uuidv4(), f[0], f[1], f[2], f[3], f[4], f[5], f[6]]);
+            }
+        });
+
+        const oppSeeds = [
+            ['lab_opening', 'Research assistant — neuroscience lab', 'Harvard Medical School', 'Boston, USA', '2026-09-15', 'Wet-lab position for an early-career Croatian scientist. Bench training and mentorship provided.'],
+            ['fellowship', 'Visiting research fellowship', 'Mayo Clinic', 'Rochester, USA', '2026-10-01', 'Three-month funded fellowship open to Med&X Forum members across specialties.'],
+            ['abstract_call', 'Call for abstracts — Plexus 2026', 'Med&X', 'Zagreb, Croatia', '2026-10-01', 'Present your work at the December meeting. Posters and short talks both welcome.'],
+            ['grant', 'Travel grant — spend a summer in a lab abroad', 'Med&X', 'Croatia to worldwide', '2026-08-31', 'Support for a Croatian medical student to train at one of our partner institutions.'],
+            ['job', 'Clinical research coordinator', 'Cleveland Clinic', 'Cleveland, USA', '2026-11-30', 'Full-time coordinator role suited to a recent medical graduate looking for research exposure.']
+        ];
+        oppSeeds.forEach(o => {
+            if (!query.get('SELECT id FROM opportunities WHERE title = ? AND org = ?', [o[1], o[2]])) {
+                db.run(`INSERT INTO opportunities (id, kind, title, org, location, deadline, description, posted_by_user_id, status)
+                    VALUES (?,?,?,?,?,?,?,NULL,'approved')`,
+                    [uuidv4(), o[0], o[1], o[2], o[3], o[4], o[5]]);
+            }
+        });
+
+        // Talk library — real-sounding past-conference sessions. Video/thumb slots are
+        // intentional (Example) placeholders until real recordings are attached.
+        const talkSeeds = [
+            ['From stem cells to therapies — opening keynote', 'George Q. Daley', 'Plexus 2023', 2023],
+            ['The two-way bridge — building global science from Croatia', 'Med&X Founders Panel', 'Plexus 2024', 2024],
+            ['CRISPR and the next decade of genome medicine', 'Plenary session', 'Plexus 2024', 2024],
+            ['Sleep, the brain, and systemic health', 'Research keynote', 'Plexus 2025', 2025],
+            ['Careers across borders — a fireside with Nobel laureates', 'Fireside session', 'Plexus 2025', 2025],
+            ['Immunotherapy — where the frontier is now', 'Plenary session', 'Plexus 2023', 2023]
+        ];
+        talkSeeds.forEach(t => {
+            if (!query.get('SELECT id FROM talks WHERE title = ? AND event_label = ?', [t[0], t[2]])) {
+                db.run(`INSERT INTO talks (id, title, speaker, event_label, year, video_url, thumb_url, published)
+                    VALUES (?,?,?,?,?, '#placeholder', NULL, 1)`,
+                    [uuidv4(), t[0], t[1], t[2], t[3]]);
+            }
+        });
+
+        // ===== Seed mentor profiles on generic dev users (menu 10) =====
+        // Idempotent per user_id. Only touches the *.test.medx.hr placeholder
+        // accounts if they exist — never fabricates a mentor on a real member.
+        const mentorSeeds = [
+            ['ivan.horvat@test.medx.hr', 'mentor', 'Neuroscience, PhD applications, Study abroad', 2],
+            ['maria.kovac@test.medx.hr', 'both', 'Clinical research, Oncology, Abstract writing', 3],
+            ['petra.babic@test.medx.hr', 'mentor', 'Immunology, Bench techniques, Grant writing', 2]
+        ];
+        mentorSeeds.forEach(m => {
+            const u = query.get('SELECT id FROM users WHERE LOWER(email) = LOWER(?)', [m[0]]);
+            if (u && !query.get('SELECT user_id FROM mentorship_profiles WHERE user_id = ?', [u.id])) {
+                db.run(`INSERT INTO mentorship_profiles (user_id, role, topics, capacity, active)
+                    VALUES (?,?,?,?,1)`, [u.id, m[1], m[2], m[3]]);
+            }
+        });
+        saveDb();
+    } catch (e) { console.error('[Seed] member content seed skipped:', e.message); }
 
     // Seed data
     let conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
@@ -6572,6 +6755,403 @@ async function submitReset(e){
     // ========== RESOURCES ==========
     app.get('/api/conferences/:confId/resources', (req, res) => {
         res.json(query.all('SELECT * FROM resources WHERE conference_id = ? ORDER BY category, title', [req.params.confId]));
+    });
+
+    // ========== MEMBER HOME FEED / OPPORTUNITY BOARD / TALK LIBRARY (menu 9 & 23) ==========
+    // Member-facing reads are token-authed like their neighbors. The admin-authed CRUD
+    // below is called by the admin portal with its admin JWT (shared JWT_SECRET + Turso DB).
+    const OPP_KINDS = ['lab_opening', 'fellowship', 'abstract_call', 'grant', 'job'];
+    const FEED_TYPES = ['opportunity', 'spotlight', 'recording', 'call', 'news'];
+
+    // Living Member Home feed — published items, newest first, capped at 20.
+    app.get('/api/feed', auth, (req, res) => {
+        res.json(query.all(`SELECT id, type, title, body, link_url, link_label, image_url, posted_at, digest
+            FROM feed_items WHERE published = 1 ORDER BY datetime(posted_at) DESC LIMIT 20`));
+    });
+
+    // Opportunity board — approved only, optional ?kind= filter.
+    app.get('/api/opportunities', auth, (req, res) => {
+        const kind = req.query.kind;
+        if (kind && OPP_KINDS.includes(kind)) {
+            return res.json(query.all(`SELECT id, kind, title, org, location, deadline, link_url, description, created_at
+                FROM opportunities WHERE status = 'approved' AND kind = ? ORDER BY datetime(created_at) DESC`, [kind]));
+        }
+        res.json(query.all(`SELECT id, kind, title, org, location, deadline, link_url, description, created_at
+            FROM opportunities WHERE status = 'approved' ORDER BY datetime(created_at) DESC`));
+    });
+
+    // Member submit-for-review — always lands as status='pending' for admin curation.
+    app.post('/api/opportunities', auth, (req, res) => {
+        const b = req.body || {};
+        if (!b.title || !String(b.title).trim()) return res.status(400).json({ error: 'Title is required' });
+        const kind = OPP_KINDS.includes(b.kind) ? b.kind : 'job';
+        const id = uuidv4();
+        const clip = (v, n) => (v == null ? null : String(v).trim().slice(0, n) || null);
+        db.run(`INSERT INTO opportunities (id, kind, title, org, location, deadline, link_url, description, posted_by_user_id, status)
+            VALUES (?,?,?,?,?,?,?,?,?, 'pending')`,
+            [id, kind, clip(b.title, 200), clip(b.org, 160), clip(b.location, 160), clip(b.deadline, 40),
+             clip(b.link_url, 500), clip(b.description, 4000), req.user.id]);
+        saveDb();
+        res.json({ success: true, id, status: 'pending' });
+    });
+
+    // On-demand talk library — published sessions only.
+    app.get('/api/talks', auth, (req, res) => {
+        res.json(query.all(`SELECT id, title, speaker, event_label, year, video_url, thumb_url
+            FROM talks WHERE published = 1 ORDER BY year DESC, title ASC`));
+    });
+
+    // ---- Admin curation (admin JWT; shared secret + DB across both portals) ----
+    // The admin portal calls these with its admin token — mirrors how existing admin
+    // routes here (e.g. /api/accelerator/years) gate on auth + adminOnly.
+    app.get('/api/admin/feed-items', auth, adminOnly, (req, res) => {
+        res.json(query.all('SELECT * FROM feed_items ORDER BY datetime(posted_at) DESC'));
+    });
+
+    app.post('/api/admin/feed-items', auth, adminOnly, (req, res) => {
+        const b = req.body || {};
+        if (!b.title || !String(b.title).trim()) return res.status(400).json({ error: 'Title is required' });
+        const type = FEED_TYPES.includes(b.type) ? b.type : 'news';
+        const id = uuidv4();
+        db.run(`INSERT INTO feed_items (id, type, title, body, link_url, link_label, image_url, posted_at, published, digest, created_by)
+            VALUES (?,?,?,?,?,?,?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?)`,
+            [id, type, String(b.title).trim(), b.body || null, b.link_url || null, b.link_label || null,
+             b.image_url || null, b.posted_at || null, b.published === 0 ? 0 : 1, b.digest ? 1 : 0, req.user.email || null]);
+        saveDb();
+        res.json({ success: true, id });
+    });
+
+    app.put('/api/admin/feed-items/:id', auth, adminOnly, (req, res) => {
+        const existing = query.get('SELECT * FROM feed_items WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Feed item not found' });
+        const b = req.body || {};
+        const type = FEED_TYPES.includes(b.type) ? b.type : existing.type;
+        db.run(`UPDATE feed_items SET type=?, title=?, body=?, link_url=?, link_label=?, image_url=?, posted_at=?, published=?, digest=? WHERE id=?`,
+            [type,
+             b.title !== undefined ? b.title : existing.title,
+             b.body !== undefined ? b.body : existing.body,
+             b.link_url !== undefined ? b.link_url : existing.link_url,
+             b.link_label !== undefined ? b.link_label : existing.link_label,
+             b.image_url !== undefined ? b.image_url : existing.image_url,
+             b.posted_at !== undefined ? b.posted_at : existing.posted_at,
+             b.published !== undefined ? (b.published ? 1 : 0) : existing.published,
+             b.digest !== undefined ? (b.digest ? 1 : 0) : existing.digest,
+             req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    app.delete('/api/admin/feed-items/:id', auth, adminOnly, (req, res) => {
+        const existing = query.get('SELECT id FROM feed_items WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Feed item not found' });
+        db.run('DELETE FROM feed_items WHERE id = ?', [req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    // Admin opportunity queue + approve/archive/edit.
+    app.get('/api/admin/opportunities', auth, adminOnly, (req, res) => {
+        const status = req.query.status;
+        if (status && ['pending', 'approved', 'archived'].includes(status)) {
+            return res.json(query.all('SELECT * FROM opportunities WHERE status = ? ORDER BY datetime(created_at) DESC', [status]));
+        }
+        res.json(query.all('SELECT * FROM opportunities ORDER BY datetime(created_at) DESC'));
+    });
+
+    app.put('/api/admin/opportunities/:id', auth, adminOnly, (req, res) => {
+        const existing = query.get('SELECT * FROM opportunities WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Opportunity not found' });
+        const b = req.body || {};
+        const status = ['pending', 'approved', 'archived'].includes(b.status) ? b.status : existing.status;
+        const kind = OPP_KINDS.includes(b.kind) ? b.kind : existing.kind;
+        db.run(`UPDATE opportunities SET kind=?, title=?, org=?, location=?, deadline=?, link_url=?, description=?, status=? WHERE id=?`,
+            [kind,
+             b.title !== undefined ? b.title : existing.title,
+             b.org !== undefined ? b.org : existing.org,
+             b.location !== undefined ? b.location : existing.location,
+             b.deadline !== undefined ? b.deadline : existing.deadline,
+             b.link_url !== undefined ? b.link_url : existing.link_url,
+             b.description !== undefined ? b.description : existing.description,
+             status, req.params.id]);
+        saveDb();
+        res.json({ success: true, status });
+    });
+
+    // Admin talk-library management (optional companion to the member GET /api/talks).
+    app.get('/api/admin/talks', auth, adminOnly, (req, res) => {
+        res.json(query.all('SELECT * FROM talks ORDER BY year DESC, title ASC'));
+    });
+
+    app.post('/api/admin/talks', auth, adminOnly, (req, res) => {
+        const b = req.body || {};
+        if (!b.title || !String(b.title).trim()) return res.status(400).json({ error: 'Title is required' });
+        const id = uuidv4();
+        db.run(`INSERT INTO talks (id, title, speaker, event_label, year, video_url, thumb_url, published)
+            VALUES (?,?,?,?,?,?,?,?)`,
+            [id, String(b.title).trim(), b.speaker || null, b.event_label || null,
+             b.year != null ? parseInt(b.year, 10) || null : null, b.video_url || null, b.thumb_url || null,
+             b.published === 0 ? 0 : 1]);
+        saveDb();
+        res.json({ success: true, id });
+    });
+
+    app.put('/api/admin/talks/:id', auth, adminOnly, (req, res) => {
+        const existing = query.get('SELECT * FROM talks WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Talk not found' });
+        const b = req.body || {};
+        db.run(`UPDATE talks SET title=?, speaker=?, event_label=?, year=?, video_url=?, thumb_url=?, published=? WHERE id=?`,
+            [b.title !== undefined ? b.title : existing.title,
+             b.speaker !== undefined ? b.speaker : existing.speaker,
+             b.event_label !== undefined ? b.event_label : existing.event_label,
+             b.year !== undefined ? (parseInt(b.year, 10) || null) : existing.year,
+             b.video_url !== undefined ? b.video_url : existing.video_url,
+             b.thumb_url !== undefined ? b.thumb_url : existing.thumb_url,
+             b.published !== undefined ? (b.published ? 1 : 0) : existing.published,
+             req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    app.delete('/api/admin/talks/:id', auth, adminOnly, (req, res) => {
+        const existing = query.get('SELECT id FROM talks WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Talk not found' });
+        db.run('DELETE FROM talks WHERE id = ?', [req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    // ================= MENTORSHIP MATCHING (menu item 10) =================
+    // Member-auth throughout. Mentors set an offer profile, mentees browse and
+    // request, mentors accept/decline/end. Seeded from the dev mentor profiles.
+    const MENTOR_ROLES = ['mentor', 'mentee', 'both'];
+
+    // Own mentorship profile (or null).
+    app.get('/api/mentorship/profile', auth, (req, res) => {
+        const p = query.get('SELECT user_id, role, topics, capacity, active, updated_at FROM mentorship_profiles WHERE user_id = ?', [req.user.id]);
+        res.json(p || null);
+    });
+
+    // Upsert own mentorship profile.
+    app.put('/api/mentorship/profile', auth, (req, res) => {
+        const b = req.body || {};
+        const role = MENTOR_ROLES.includes(b.role) ? b.role : 'mentee';
+        const topics = b.topics == null ? null : (String(b.topics).trim().slice(0, 400) || null);
+        let capacity = parseInt(b.capacity, 10);
+        if (!Number.isFinite(capacity) || capacity < 0) capacity = 2;
+        if (capacity > 20) capacity = 20;
+        const active = (b.active === 0 || b.active === false || b.active === '0') ? 0 : 1;
+        const existing = query.get('SELECT user_id FROM mentorship_profiles WHERE user_id = ?', [req.user.id]);
+        if (existing) {
+            db.run(`UPDATE mentorship_profiles SET role=?, topics=?, capacity=?, active=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?`,
+                [role, topics, capacity, active, req.user.id]);
+        } else {
+            db.run(`INSERT INTO mentorship_profiles (user_id, role, topics, capacity, active) VALUES (?,?,?,?,?)`,
+                [req.user.id, role, topics, capacity, active]);
+        }
+        saveDb();
+        res.json({ success: true, role, topics, capacity, active });
+    });
+
+    // Active mentors with remaining capacity (excludes me). role in mentor|both, active=1.
+    app.get('/api/mentorship/mentors', auth, (req, res) => {
+        const rows = query.all(`
+            SELECT mp.user_id, mp.role, mp.topics, mp.capacity,
+                   u.first_name, u.last_name, u.institution, u.country,
+                   (SELECT COUNT(*) FROM mentorship_requests r
+                     WHERE r.to_user_id = mp.user_id AND r.status = 'accepted') AS accepted_count,
+                   (SELECT r2.status FROM mentorship_requests r2
+                     WHERE r2.to_user_id = mp.user_id AND r2.from_user_id = ?
+                     ORDER BY datetime(r2.created_at) DESC LIMIT 1) AS my_status
+            FROM mentorship_profiles mp
+            JOIN users u ON u.id = mp.user_id
+            WHERE mp.active = 1 AND mp.role IN ('mentor','both') AND mp.user_id != ?
+              AND u.is_public_profile = 1
+            ORDER BY datetime(mp.updated_at) DESC
+            LIMIT 60
+        `, [req.user.id, req.user.id]);
+        res.json(rows.map(r => ({
+            user_id: r.user_id,
+            name: `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Member',
+            institution: r.institution || '',
+            country: r.country || '',
+            topics: r.topics || '',
+            capacity: r.capacity,
+            accepted_count: r.accepted_count || 0,
+            remaining: Math.max(0, (r.capacity || 0) - (r.accepted_count || 0)),
+            my_status: r.my_status || null
+        })));
+    });
+
+    // Send a mentorship request (mentee -> mentor).
+    app.post('/api/mentorship/requests', auth, (req, res) => {
+        const b = req.body || {};
+        const to = b.to_user_id;
+        if (!to) return res.status(400).json({ error: 'to_user_id is required' });
+        if (to === req.user.id) return res.status(400).json({ error: 'You cannot request yourself' });
+        const target = query.get('SELECT id FROM users WHERE id = ?', [to]);
+        if (!target) return res.status(404).json({ error: 'Mentor not found' });
+        const open = query.get(`SELECT id FROM mentorship_requests WHERE from_user_id = ? AND to_user_id = ? AND status IN ('pending','accepted')`, [req.user.id, to]);
+        if (open) return res.status(409).json({ error: 'You already have an open request with this mentor' });
+        const id = uuidv4();
+        const message = b.message == null ? null : (String(b.message).trim().slice(0, 1000) || null);
+        db.run(`INSERT INTO mentorship_requests (id, from_user_id, to_user_id, message, status) VALUES (?,?,?,?, 'pending')`,
+            [id, req.user.id, to, message]);
+        saveDb();
+        try {
+            const sender = query.get('SELECT first_name, last_name FROM users WHERE id = ?', [req.user.id]);
+            const senderName = sender ? `${sender.first_name || ''} ${sender.last_name || ''}`.trim() : 'A member';
+            sendPushToUser(to, { title: 'New mentorship request', body: `${senderName} would like you as a mentor`, url: '/?section=network' });
+        } catch (e) {}
+        res.json({ success: true, id, status: 'pending' });
+    });
+
+    // My mentorship requests, both directions, with names.
+    app.get('/api/mentorship/requests', auth, (req, res) => {
+        const me = req.user.id;
+        const rows = query.all(`
+            SELECT r.*,
+                   fu.first_name AS from_first, fu.last_name AS from_last, fu.institution AS from_inst,
+                   tu.first_name AS to_first, tu.last_name AS to_last, tu.institution AS to_inst
+            FROM mentorship_requests r
+            JOIN users fu ON fu.id = r.from_user_id
+            JOIN users tu ON tu.id = r.to_user_id
+            WHERE r.from_user_id = ? OR r.to_user_id = ?
+            ORDER BY datetime(r.created_at) DESC
+            LIMIT 100
+        `, [me, me]);
+        res.json(rows.map(r => ({
+            id: r.id, status: r.status, message: r.message, created_at: r.created_at, responded_at: r.responded_at,
+            direction: r.from_user_id === me ? 'outgoing' : 'incoming',
+            from_user_id: r.from_user_id, to_user_id: r.to_user_id,
+            from_name: `${r.from_first || ''} ${r.from_last || ''}`.trim() || 'Member',
+            from_institution: r.from_inst || '',
+            to_name: `${r.to_first || ''} ${r.to_last || ''}`.trim() || 'Member',
+            to_institution: r.to_inst || ''
+        })));
+    });
+
+    // Respond to a mentorship request — only the recipient (to_user_id).
+    app.put('/api/mentorship/requests/:id', auth, (req, res) => {
+        const status = (req.body || {}).status;
+        if (!['accepted', 'declined', 'ended'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
+        const r = query.get('SELECT * FROM mentorship_requests WHERE id = ?', [req.params.id]);
+        if (!r) return res.status(404).json({ error: 'Request not found' });
+        if (r.to_user_id !== req.user.id) return res.status(403).json({ error: 'Only the mentor can respond to this request' });
+        if (status === 'accepted') {
+            const prof = query.get('SELECT capacity FROM mentorship_profiles WHERE user_id = ?', [req.user.id]);
+            const cap = prof ? (prof.capacity || 0) : 0;
+            const cnt = (query.get(`SELECT COUNT(*) AS n FROM mentorship_requests WHERE to_user_id = ? AND status = 'accepted'`, [req.user.id]) || {}).n || 0;
+            if (cap > 0 && cnt >= cap) return res.status(409).json({ error: 'You are at your mentee capacity' });
+        }
+        db.run(`UPDATE mentorship_requests SET status = ?, responded_at = CURRENT_TIMESTAMP WHERE id = ?`, [status, req.params.id]);
+        saveDb();
+        res.json({ success: true, status });
+    });
+
+    // ============ DIRECTORY WARM INTROS + MUTUALS (menu item 25) ============
+    // Count of my accepted connections shared with each other member (for card badges).
+    app.get('/api/networking/mutual-counts', auth, (req, res) => {
+        const me = req.user.id;
+        const rows = query.all(`
+            WITH mine AS (
+                SELECT CASE WHEN requester_id = ? THEN receiver_id ELSE requester_id END AS uid
+                FROM networking_connections
+                WHERE (requester_id = ? OR receiver_id = ?) AND status = 'accepted'
+            )
+            SELECT other_uid AS user_id, COUNT(*) AS mutual_count FROM (
+                SELECT (CASE WHEN nc.requester_id = mine.uid THEN nc.receiver_id ELSE nc.requester_id END) AS other_uid
+                FROM networking_connections nc
+                JOIN mine ON (nc.requester_id = mine.uid OR nc.receiver_id = mine.uid)
+                WHERE nc.status = 'accepted'
+            )
+            WHERE other_uid != ?
+            GROUP BY other_uid
+        `, [me, me, me, me]);
+        res.json(rows);
+    });
+
+    // The actual list of my connections who are mutual with :userId (for the via-picker).
+    app.get('/api/networking/mutuals/:userId', auth, (req, res) => {
+        const me = req.user.id;
+        const target = req.params.userId;
+        const rows = query.all(`
+            SELECT u.id, u.first_name, u.last_name, u.institution
+            FROM users u
+            WHERE u.id IN (
+                SELECT CASE WHEN requester_id = ? THEN receiver_id ELSE requester_id END
+                FROM networking_connections WHERE status='accepted' AND (requester_id = ? OR receiver_id = ?)
+            )
+            AND u.id IN (
+                SELECT CASE WHEN requester_id = ? THEN receiver_id ELSE requester_id END
+                FROM networking_connections WHERE status='accepted' AND (requester_id = ? OR receiver_id = ?)
+            )
+            AND u.id != ?
+            LIMIT 25
+        `, [me, me, me, target, target, target, me]);
+        res.json(rows.map(r => ({ id: r.id, name: `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Member', institution: r.institution || '' })));
+    });
+
+    // Create a warm-intro request (from me, via a connector, to a target).
+    app.post('/api/intro-requests', auth, (req, res) => {
+        const b = req.body || {};
+        const to = b.to_user_id;
+        if (!to) return res.status(400).json({ error: 'to_user_id is required' });
+        if (to === req.user.id) return res.status(400).json({ error: 'You cannot request an intro to yourself' });
+        const target = query.get('SELECT id FROM users WHERE id = ?', [to]);
+        if (!target) return res.status(404).json({ error: 'Member not found' });
+        let via = b.via_user_id || null;
+        if (via && !query.get('SELECT id FROM users WHERE id = ?', [via])) via = null;
+        const id = uuidv4();
+        const message = b.message == null ? null : (String(b.message).trim().slice(0, 1000) || null);
+        db.run(`INSERT INTO intro_requests (id, from_user_id, via_user_id, to_user_id, message, status) VALUES (?,?,?,?,?, 'pending')`,
+            [id, req.user.id, via, to, message]);
+        saveDb();
+        try {
+            if (via) {
+                const requester = query.get('SELECT first_name, last_name FROM users WHERE id = ?', [req.user.id]);
+                const rn = requester ? `${requester.first_name || ''} ${requester.last_name || ''}`.trim() : 'A member';
+                sendPushToUser(via, { title: 'Warm intro requested', body: `${rn} asked you for an introduction`, url: '/?section=network' });
+            }
+        } catch (e) {}
+        res.json({ success: true, id, status: 'pending' });
+    });
+
+    // My intro requests: sent (from me) + to-forward (via me), with names + status.
+    app.get('/api/intro-requests', auth, (req, res) => {
+        const me = req.user.id;
+        const rows = query.all(`
+            SELECT ir.*,
+                   fu.first_name AS from_first, fu.last_name AS from_last,
+                   vu.first_name AS via_first, vu.last_name AS via_last,
+                   tu.first_name AS to_first, tu.last_name AS to_last, tu.institution AS to_inst
+            FROM intro_requests ir
+            JOIN users fu ON fu.id = ir.from_user_id
+            LEFT JOIN users vu ON vu.id = ir.via_user_id
+            JOIN users tu ON tu.id = ir.to_user_id
+            WHERE ir.from_user_id = ? OR ir.via_user_id = ?
+            ORDER BY datetime(ir.created_at) DESC
+            LIMIT 100
+        `, [me, me]);
+        const nm = (a, b) => `${a || ''} ${b || ''}`.trim() || 'Member';
+        res.json(rows.map(r => ({
+            id: r.id, status: r.status, message: r.message, created_at: r.created_at,
+            direction: r.from_user_id === me ? 'sent' : 'to_forward',
+            from_name: nm(r.from_first, r.from_last),
+            via_user_id: r.via_user_id, via_name: r.via_user_id ? nm(r.via_first, r.via_last) : null,
+            to_user_id: r.to_user_id, to_name: nm(r.to_first, r.to_last), to_institution: r.to_inst || ''
+        })));
+    });
+
+    // The connector acts on an intro request routed via them.
+    app.put('/api/intro-requests/:id', auth, (req, res) => {
+        const status = (req.body || {}).status;
+        if (!['forwarded', 'declined'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
+        const r = query.get('SELECT * FROM intro_requests WHERE id = ?', [req.params.id]);
+        if (!r) return res.status(404).json({ error: 'Intro request not found' });
+        if (r.via_user_id !== req.user.id) return res.status(403).json({ error: 'Only the connector can act on this intro request' });
+        db.run('UPDATE intro_requests SET status = ? WHERE id = ?', [status, req.params.id]);
+        saveDb();
+        res.json({ success: true, status });
     });
 
     // ========== ACCELERATOR ROUTES ==========

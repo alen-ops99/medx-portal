@@ -1496,6 +1496,118 @@ async function initializeApp() {
     )`);
     try { db.run('ALTER TABLE push_outbox ADD COLUMN target_email TEXT'); } catch(e) {}
 
+    // ===== Member Home feed, opportunity board, talk library (menu items 9 & 23) =====
+    // Shared across both portals: the member portal reads these, the admin portal curates them.
+    // These CREATE TABLE blocks are kept byte-identical in the admin-portal server.js.
+    db.run(`CREATE TABLE IF NOT EXISTS feed_items (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL DEFAULT 'news',
+        title TEXT NOT NULL,
+        body TEXT,
+        link_url TEXT,
+        link_label TEXT,
+        image_url TEXT,
+        posted_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        published INTEGER DEFAULT 1,
+        digest INTEGER DEFAULT 0,
+        created_by TEXT
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS opportunities (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL DEFAULT 'job',
+        title TEXT NOT NULL,
+        org TEXT,
+        location TEXT,
+        deadline TEXT,
+        link_url TEXT,
+        description TEXT,
+        posted_by_user_id TEXT,
+        status TEXT DEFAULT 'pending',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS talks (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        speaker TEXT,
+        event_label TEXT,
+        year INTEGER,
+        video_url TEXT,
+        thumb_url TEXT,
+        published INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // ===== Mentorship matching (menu 10) + warm-intro requests (menu 25) =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod).
+    db.run(`CREATE TABLE IF NOT EXISTS mentorship_profiles (
+        user_id TEXT PRIMARY KEY,
+        role TEXT DEFAULT 'mentee',
+        topics TEXT,
+        capacity INTEGER DEFAULT 2,
+        active INTEGER DEFAULT 1,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS mentorship_requests (
+        id TEXT PRIMARY KEY,
+        from_user_id TEXT NOT NULL,
+        to_user_id TEXT NOT NULL,
+        message TEXT,
+        status TEXT DEFAULT 'pending',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        responded_at TEXT
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS intro_requests (
+        id TEXT PRIMARY KEY,
+        from_user_id TEXT NOT NULL,
+        via_user_id TEXT,
+        to_user_id TEXT NOT NULL,
+        message TEXT,
+        status TEXT DEFAULT 'pending',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // ===== Registrant activity notes (item 17) + Gala seating (item 21) =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod).
+    db.run(`CREATE TABLE IF NOT EXISTS registrant_notes (
+        id TEXT PRIMARY KEY,
+        registrant_id TEXT NOT NULL,
+        section TEXT,
+        author TEXT,
+        body TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS gala_tables (
+        id TEXT PRIMARY KEY,
+        label TEXT NOT NULL,
+        capacity INTEGER DEFAULT 10,
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS gala_seat_assignments (
+        id TEXT PRIMARY KEY,
+        table_id TEXT NOT NULL,
+        registration_id TEXT NOT NULL,
+        seat_note TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS event_waitlist (
+        id TEXT PRIMARY KEY,
+        section TEXT NOT NULL DEFAULT 'plexus',
+        name TEXT,
+        email TEXT,
+        ticket_type TEXT,
+        note TEXT,
+        status TEXT DEFAULT 'waiting',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
     // Audit log — who did what (for a multi-person team).
     db.run(`CREATE TABLE IF NOT EXISTS audit_log (
         id TEXT PRIMARY KEY,
@@ -6153,6 +6265,322 @@ async function initializeApp() {
         res.json(query.all('SELECT * FROM resources WHERE conference_id = ? ORDER BY category, title', [req.params.confId]));
     });
 
+    // ========== MEMBER-FEED CURATION (items 9 & 23) ==========
+    // Mirror of the user-portal admin curation handlers. Both portals share the same
+    // Turso DB + JWT secret in prod, but the established cross-portal pattern is the
+    // SHARED DB (not cross-origin HTTP), and the user backend CORS allowlist does not
+    // include the admin origin — so the admin portal curates these tables via ITS OWN
+    // origin here. Kept behaviorally identical to /api/admin/feed-items on the user backend.
+    const FEED_TYPES = ['opportunity', 'spotlight', 'recording', 'call', 'news'];
+    const OPP_KINDS = ['lab_opening', 'fellowship', 'abstract_call', 'grant', 'job'];
+
+    app.get('/api/admin/feed-items', auth, adminOnly, (req, res) => {
+        res.json(query.all('SELECT * FROM feed_items ORDER BY datetime(posted_at) DESC'));
+    });
+
+    app.post('/api/admin/feed-items', auth, adminOnly, (req, res) => {
+        const b = req.body || {};
+        if (!b.title || !String(b.title).trim()) return res.status(400).json({ error: 'Title is required' });
+        const type = FEED_TYPES.includes(b.type) ? b.type : 'news';
+        const id = uuidv4();
+        db.run(`INSERT INTO feed_items (id, type, title, body, link_url, link_label, image_url, posted_at, published, digest, created_by)
+            VALUES (?,?,?,?,?,?,?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?)`,
+            [id, type, String(b.title).trim(), b.body || null, b.link_url || null, b.link_label || null,
+             b.image_url || null, b.posted_at || null, b.published === 0 ? 0 : 1, b.digest ? 1 : 0, req.user.email || null]);
+        saveDb();
+        logAudit(req, 'feed.create', String(b.title).trim());
+        res.json({ success: true, id });
+    });
+
+    app.put('/api/admin/feed-items/:id', auth, adminOnly, (req, res) => {
+        const existing = query.get('SELECT * FROM feed_items WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Feed item not found' });
+        const b = req.body || {};
+        const type = FEED_TYPES.includes(b.type) ? b.type : existing.type;
+        db.run(`UPDATE feed_items SET type=?, title=?, body=?, link_url=?, link_label=?, image_url=?, posted_at=?, published=?, digest=? WHERE id=?`,
+            [type,
+             b.title !== undefined ? b.title : existing.title,
+             b.body !== undefined ? b.body : existing.body,
+             b.link_url !== undefined ? b.link_url : existing.link_url,
+             b.link_label !== undefined ? b.link_label : existing.link_label,
+             b.image_url !== undefined ? b.image_url : existing.image_url,
+             b.posted_at !== undefined ? b.posted_at : existing.posted_at,
+             b.published !== undefined ? (b.published ? 1 : 0) : existing.published,
+             b.digest !== undefined ? (b.digest ? 1 : 0) : existing.digest,
+             req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    app.delete('/api/admin/feed-items/:id', auth, adminOnly, (req, res) => {
+        const existing = query.get('SELECT id FROM feed_items WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Feed item not found' });
+        db.run('DELETE FROM feed_items WHERE id = ?', [req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    app.get('/api/admin/opportunities', auth, adminOnly, (req, res) => {
+        const status = req.query.status;
+        if (status && ['pending', 'approved', 'archived'].includes(status)) {
+            return res.json(query.all('SELECT * FROM opportunities WHERE status = ? ORDER BY datetime(created_at) DESC', [status]));
+        }
+        res.json(query.all('SELECT * FROM opportunities ORDER BY datetime(created_at) DESC'));
+    });
+
+    app.put('/api/admin/opportunities/:id', auth, adminOnly, (req, res) => {
+        const existing = query.get('SELECT * FROM opportunities WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Opportunity not found' });
+        const b = req.body || {};
+        const status = ['pending', 'approved', 'archived'].includes(b.status) ? b.status : existing.status;
+        const kind = OPP_KINDS.includes(b.kind) ? b.kind : existing.kind;
+        db.run(`UPDATE opportunities SET kind=?, title=?, org=?, location=?, deadline=?, link_url=?, description=?, status=? WHERE id=?`,
+            [kind,
+             b.title !== undefined ? b.title : existing.title,
+             b.org !== undefined ? b.org : existing.org,
+             b.location !== undefined ? b.location : existing.location,
+             b.deadline !== undefined ? b.deadline : existing.deadline,
+             b.link_url !== undefined ? b.link_url : existing.link_url,
+             b.description !== undefined ? b.description : existing.description,
+             status, req.params.id]);
+        saveDb();
+        res.json({ success: true, status });
+    });
+
+    app.get('/api/admin/talks', auth, adminOnly, (req, res) => {
+        res.json(query.all('SELECT * FROM talks ORDER BY year DESC, title ASC'));
+    });
+
+    app.post('/api/admin/talks', auth, adminOnly, (req, res) => {
+        const b = req.body || {};
+        if (!b.title || !String(b.title).trim()) return res.status(400).json({ error: 'Title is required' });
+        const id = uuidv4();
+        db.run(`INSERT INTO talks (id, title, speaker, event_label, year, video_url, thumb_url, published)
+            VALUES (?,?,?,?,?,?,?,?)`,
+            [id, String(b.title).trim(), b.speaker || null, b.event_label || null,
+             b.year != null ? parseInt(b.year, 10) || null : null, b.video_url || null, b.thumb_url || null,
+             b.published === 0 ? 0 : 1]);
+        saveDb();
+        res.json({ success: true, id });
+    });
+
+    app.put('/api/admin/talks/:id', auth, adminOnly, (req, res) => {
+        const existing = query.get('SELECT * FROM talks WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Talk not found' });
+        const b = req.body || {};
+        db.run(`UPDATE talks SET title=?, speaker=?, event_label=?, year=?, video_url=?, thumb_url=?, published=? WHERE id=?`,
+            [b.title !== undefined ? b.title : existing.title,
+             b.speaker !== undefined ? b.speaker : existing.speaker,
+             b.event_label !== undefined ? b.event_label : existing.event_label,
+             b.year !== undefined ? (parseInt(b.year, 10) || null) : existing.year,
+             b.video_url !== undefined ? b.video_url : existing.video_url,
+             b.thumb_url !== undefined ? b.thumb_url : existing.thumb_url,
+             b.published !== undefined ? (b.published ? 1 : 0) : existing.published,
+             req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    app.delete('/api/admin/talks/:id', auth, adminOnly, (req, res) => {
+        const existing = query.get('SELECT id FROM talks WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Talk not found' });
+        db.run('DELETE FROM talks WHERE id = ?', [req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    // ========== REGISTRANT ACTIVITY TIMELINE + APPEND-ONLY NOTES (item 17) ==========
+    // Read-only aggregation over data that already exists (audit_log, direct_messages,
+    // payment/check-in fields) plus the new append-only registrant_notes table. Never
+    // touches payment internals — it only reads them.
+    app.get('/api/admin/registrant/:type/:id/activity', auth, adminOnly, (req, res) => {
+        const t = regTarget(req.params.type, req.params.id);
+        if (!t) return res.status(404).json({ error: 'Registrant not found' });
+        const r = t.row;
+        const email = (r.email || '').trim();
+        const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || email;
+        const events = [];
+        const push = (kind, title, detail, at) => { if (at) events.push({ kind, title, detail: detail || null, at }); };
+        try {
+            // Lifecycle events derived from the registrant row itself.
+            push('registered', 'Registered', t.evtName, r.created_at || r.registered_at);
+            const paid = (r.payment_status === 'paid' || r.gala_payment_status === 'paid'
+                || (['gala', 'bridges'].includes(req.params.type) && ['confirmed', 'paid'].includes(String(r.status || '').toLowerCase())));
+            if (paid) push('payment', 'Marked paid / confirmed', r.amount_paid ? ('€' + r.amount_paid) : null, r.reviewed_at || r.created_at || r.registered_at);
+            if (r.checked_in == 1 || r.checked_in === true) push('checkin', 'Checked in', null, r.checked_in_at);
+        } catch (e) {}
+        // Audit-log entries that reference this person (mark-paid, resend-ticket, bulk email…).
+        try {
+            if (email) {
+                const rows = query.all("SELECT action, detail, actor_email, created_at FROM audit_log WHERE detail LIKE ? ORDER BY created_at DESC LIMIT 50", ['%' + email + '%']);
+                rows.forEach(a => push('admin', a.action, (a.detail || '') + (a.actor_email ? ' · by ' + a.actor_email : ''), a.created_at));
+            }
+        } catch (e) {}
+        // Direct messages, if this registrant maps to a portal user account by email.
+        try {
+            if (email) {
+                const u = query.get('SELECT id FROM users WHERE lower(email) = lower(?)', [email]);
+                if (u) {
+                    const msgs = query.all(`SELECT title, content, sender_type, receiver_type, is_read, created_at
+                        FROM direct_messages WHERE sender_id = ? OR receiver_id = ? ORDER BY created_at DESC LIMIT 50`, [u.id, u.id]);
+                    msgs.forEach(m => {
+                        const outbound = m.sender_type === 'admin';
+                        push('message', outbound ? 'Message sent' : 'Message received',
+                            (m.title ? m.title + ' — ' : '') + String(m.content || '').slice(0, 140) + (!outbound && !m.is_read ? '  (unread)' : ''),
+                            m.created_at);
+                    });
+                }
+            }
+        } catch (e) {}
+        // Append-only admin notes.
+        try {
+            const notes = query.all('SELECT author, body, created_at FROM registrant_notes WHERE registrant_id = ? ORDER BY created_at DESC', [req.params.id]);
+            notes.forEach(n => push('note', 'Note' + (n.author ? ' · ' + n.author : ''), n.body, n.created_at));
+        } catch (e) {}
+        events.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+        res.json({ registrant: { name, email }, events });
+    });
+
+    // Append a note to the registrant timeline (append-only — never overwrites).
+    app.post('/api/admin/registrant/:type/:id/notes', auth, adminOnly, (req, res) => {
+        const t = regTarget(req.params.type, req.params.id);
+        if (!t) return res.status(404).json({ error: 'Registrant not found' });
+        const body = String((req.body && req.body.body) || '').trim();
+        if (!body) return res.status(400).json({ error: 'Note body is required' });
+        const id = uuidv4();
+        db.run('INSERT INTO registrant_notes (id, registrant_id, section, author, body) VALUES (?,?,?,?,?)',
+            [id, req.params.id, req.params.type, req.user.email || 'admin', body.slice(0, 4000)]);
+        saveDb();
+        res.json({ success: true, id });
+    });
+
+    // ========== GALA SEATING / TABLE PLAN (item 21) ==========
+    const galaGuestPaid = (r) => (r.payment_status === 'paid' || ['confirmed', 'paid'].includes(String(r.status || '').toLowerCase()));
+    const galaGuestName = (r) => `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email || 'Guest';
+
+    app.get('/api/admin/gala/seating', auth, adminOnly, (req, res) => {
+        try {
+            const tables = query.all('SELECT * FROM gala_tables ORDER BY label');
+            const assigns = query.all('SELECT * FROM gala_seat_assignments');
+            const regs = query.all('SELECT * FROM gala_registrations');
+            const paid = regs.filter(galaGuestPaid);
+            const byId = {}; paid.forEach(r => byId[r.id] = r);
+            const assignedIds = new Set();
+            const guestOf = (r, seat_note) => ({ registration_id: r.id, name: galaGuestName(r), email: r.email || '', dietary: (r.dietary || '').trim(), title: r.title || '', pricing: r.pricing || '', seat_note: seat_note || '' });
+            const tablesOut = tables.map(t => {
+                const seated = assigns.filter(a => a.table_id === t.id);
+                const guests = []; const dietary = {};
+                seated.forEach(a => {
+                    const r = byId[a.registration_id];
+                    if (r) { assignedIds.add(a.registration_id); guests.push(guestOf(r, a.seat_note)); const d = (r.dietary || '').trim() || 'None'; dietary[d] = (dietary[d] || 0) + 1; }
+                });
+                return { id: t.id, label: t.label, capacity: t.capacity, notes: t.notes, guests, occupancy: guests.length, dietary };
+            });
+            const unassigned = paid.filter(r => !assignedIds.has(r.id)).map(r => guestOf(r)).sort((a, b) => a.name.localeCompare(b.name));
+            res.json({ tables: tablesOut, unassigned, dietaryCaptured: true, totalPaid: paid.length, seated: assignedIds.size });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    app.post('/api/admin/gala/tables', auth, adminOnly, (req, res) => {
+        const b = req.body || {};
+        const label = String(b.label || '').trim();
+        if (!label) return res.status(400).json({ error: 'Table label is required' });
+        const id = uuidv4();
+        const cap = parseInt(b.capacity, 10);
+        db.run('INSERT INTO gala_tables (id, label, capacity, notes) VALUES (?,?,?,?)',
+            [id, label, (cap > 0 ? cap : 10), b.notes || null]);
+        saveDb();
+        logAudit(req, 'gala.table_create', label);
+        res.json({ success: true, id });
+    });
+
+    app.put('/api/admin/gala/tables/:id', auth, adminOnly, (req, res) => {
+        const existing = query.get('SELECT * FROM gala_tables WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Table not found' });
+        const b = req.body || {};
+        const cap = parseInt(b.capacity, 10);
+        db.run('UPDATE gala_tables SET label=?, capacity=?, notes=? WHERE id=?',
+            [b.label !== undefined ? String(b.label).trim() || existing.label : existing.label,
+             b.capacity !== undefined ? (cap > 0 ? cap : existing.capacity) : existing.capacity,
+             b.notes !== undefined ? b.notes : existing.notes,
+             req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    app.delete('/api/admin/gala/tables/:id', auth, adminOnly, (req, res) => {
+        const existing = query.get('SELECT id FROM gala_tables WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Table not found' });
+        db.run('DELETE FROM gala_seat_assignments WHERE table_id = ?', [req.params.id]);
+        db.run('DELETE FROM gala_tables WHERE id = ?', [req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    app.post('/api/admin/gala/tables/:id/assign', auth, adminOnly, (req, res) => {
+        const table = query.get('SELECT id FROM gala_tables WHERE id = ?', [req.params.id]);
+        if (!table) return res.status(404).json({ error: 'Table not found' });
+        const regId = String((req.body && req.body.registration_id) || '');
+        if (!regId) return res.status(400).json({ error: 'registration_id is required' });
+        const reg = query.get('SELECT id FROM gala_registrations WHERE id = ?', [regId]);
+        if (!reg) return res.status(404).json({ error: 'Guest registration not found' });
+        // One seat per guest — clear any prior assignment first.
+        db.run('DELETE FROM gala_seat_assignments WHERE registration_id = ?', [regId]);
+        db.run('INSERT INTO gala_seat_assignments (id, table_id, registration_id, seat_note) VALUES (?,?,?,?)',
+            [uuidv4(), req.params.id, regId, (req.body && req.body.seat_note) || null]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    app.post('/api/admin/gala/unassign', auth, adminOnly, (req, res) => {
+        const regId = String((req.body && req.body.registration_id) || '');
+        if (!regId) return res.status(400).json({ error: 'registration_id is required' });
+        db.run('DELETE FROM gala_seat_assignments WHERE registration_id = ?', [regId]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    // ========== TICKET WAITLIST (item 26) ==========
+    // Uses the new event_waitlist table (the pre-existing conference-scoped `waitlist`
+    // table has an incompatible schema and must not be altered). Promote is UI-only and
+    // opens the existing invite/confirmation-link mechanism — no new payment path here.
+    app.get('/api/admin/waitlist', auth, adminOnly, (req, res) => {
+        try {
+            const section = req.query.section;
+            if (section) return res.json(query.all('SELECT * FROM event_waitlist WHERE section = ? ORDER BY datetime(created_at) ASC', [section]));
+            res.json(query.all('SELECT * FROM event_waitlist ORDER BY datetime(created_at) ASC'));
+        } catch (e) { res.json([]); }
+    });
+
+    app.post('/api/admin/waitlist', auth, adminOnly, (req, res) => {
+        const b = req.body || {};
+        if (!b.name && !b.email) return res.status(400).json({ error: 'A name or email is required' });
+        const id = uuidv4();
+        db.run('INSERT INTO event_waitlist (id, section, name, email, ticket_type, note, status) VALUES (?,?,?,?,?,?,?)',
+            [id, b.section || 'plexus', b.name || null, b.email || null, b.ticket_type || null, b.note || null, 'waiting']);
+        saveDb();
+        res.json({ success: true, id });
+    });
+
+    app.put('/api/admin/waitlist/:id', auth, adminOnly, (req, res) => {
+        const existing = query.get('SELECT * FROM event_waitlist WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Waitlist entry not found' });
+        const b = req.body || {};
+        const status = ['waiting', 'promoted', 'removed'].includes(b.status) ? b.status : existing.status;
+        db.run('UPDATE event_waitlist SET status=?, note=? WHERE id=?',
+            [status, b.note !== undefined ? b.note : existing.note, req.params.id]);
+        saveDb();
+        res.json({ success: true, status });
+    });
+
+    app.delete('/api/admin/waitlist/:id', auth, adminOnly, (req, res) => {
+        const existing = query.get('SELECT id FROM event_waitlist WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Waitlist entry not found' });
+        db.run('DELETE FROM event_waitlist WHERE id = ?', [req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
     // ========== ACCELERATOR ROUTES ==========
 
     // Accelerator-specific multer for multi-file upload
@@ -9348,6 +9776,12 @@ By applying to this program, I provide the following consents:
         const pendingScholarships = query.get("SELECT COUNT(*) as c FROM scholarship_applications WHERE status = 'submitted'")?.c || 0;
         const pendingSpeakerApps = query.get("SELECT COUNT(*) as c FROM speaker_applications WHERE status = 'submitted'")?.c || 0;
         const pendingAbstracts = query.get("SELECT COUNT(*) as c FROM abstracts WHERE decision IS NULL OR decision = ''")?.c || 0;
+        // Money + inbox: gala checkouts that started Stripe and never finished (abandoned),
+        // and messages from users the admin has not yet read. Test-looking gala rows are
+        // excluded so the count matches the recovery worklist in the Gala section.
+        let galaAwaiting = 0, unreadMessages = 0;
+        try { galaAwaiting = query.get("SELECT COUNT(*) as c FROM gala_registrations WHERE status = 'awaiting_payment' AND UPPER(COALESCE(requests,'')) NOT LIKE '%TEST%'")?.c || 0; } catch(e) {}
+        try { unreadMessages = query.get("SELECT COUNT(*) as c FROM direct_messages WHERE sender_type != 'admin' AND (is_read = 0 OR is_read IS NULL)")?.c || 0; } catch(e) {}
 
         // Tasks needing attention
         const overdueTasks = query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status != 'done' AND due_date < date('now') AND due_date IS NOT NULL")?.c || 0;
@@ -9401,7 +9835,9 @@ By applying to this program, I provide the following consents:
                 scholarships: pendingScholarships,
                 speakerApps: pendingSpeakerApps,
                 abstracts: pendingAbstracts,
-                total: pendingVisas + pendingRefunds + pendingScholarships + pendingSpeakerApps + pendingAbstracts
+                galaAwaiting: galaAwaiting,
+                unreadMessages: unreadMessages,
+                total: pendingVisas + pendingRefunds + pendingScholarships + pendingSpeakerApps + pendingAbstracts + galaAwaiting + unreadMessages
             },
             tasks: {
                 overdue: overdueTasks,
@@ -17750,6 +18186,112 @@ By applying to this program, I provide the following consents:
             }
             res.json({ ok: true, message: 'Ticket re-sent to ' + r.email });
         } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ==================== CROSS-ENTITY PEOPLE SEARCH (admin omnibox) ====================
+    // Read-only, additive. Searches registrant tables + members/users by name, email, and
+    // (where the column exists) invoice number. Returns typed rows the Cmd-K palette renders
+    // in a "People & registrations" group; each carries `record` (the full row) so a click
+    // can open the existing showRegistrantDetail card without a second round-trip. Capped at 20.
+    app.get('/api/admin/search', auth, adminOnly, (req, res) => {
+        const q = String(req.query.q || '').trim();
+        if (q.length < 2) return res.json({ results: [] });
+        // Escape LIKE wildcards so a literal % or _ in the query cannot broaden the match.
+        const esc = q.replace(/[\\%_]/g, m => '\\' + m);
+        const like = `%${esc}%`;
+        const CAP = 20;
+        const results = [];
+        const fullName = r => `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email || '(no name)';
+
+        // Run one table's search, tolerate a missing table/column, map each row, respect the cap.
+        const runSearch = (sql, nParams, mapper) => {
+            if (results.length >= CAP) return;
+            try {
+                const rows = query.all(sql, Array(nParams).fill(like));
+                for (const r of rows) {
+                    if (results.length >= CAP) break;
+                    results.push(mapper(r));
+                }
+            } catch (e) { /* table/column may not exist on this DB — skip */ }
+        };
+
+        // Plexus conference registrations (name / email / invoice number)
+        runSearch(
+            `SELECT * FROM registrations
+             WHERE first_name LIKE ? ESCAPE '\\' OR last_name LIKE ? ESCAPE '\\'
+                OR (COALESCE(first_name,'')||' '||COALESCE(last_name,'')) LIKE ? ESCAPE '\\'
+                OR email LIKE ? ESCAPE '\\' OR invoice_number LIKE ? ESCAPE '\\'
+             ORDER BY created_at DESC LIMIT 8`, 5,
+            r => ({ type: 'conference', id: r.id, name: fullName(r), email: r.email || '',
+                status: r.payment_status === 'paid' ? 'Paid' : (r.status || 'pending'),
+                event: 'Plexus Conference', section: 'plexus', record: r }));
+
+        // Gala Evening registrations (no invoice column)
+        runSearch(
+            `SELECT * FROM gala_registrations
+             WHERE first_name LIKE ? ESCAPE '\\' OR last_name LIKE ? ESCAPE '\\'
+                OR (COALESCE(first_name,'')||' '||COALESCE(last_name,'')) LIKE ? ESCAPE '\\'
+                OR email LIKE ? ESCAPE '\\'
+             ORDER BY created_at DESC LIMIT 8`, 4,
+            r => ({ type: 'gala', id: r.id, name: fullName(r), email: r.email || '',
+                status: (r.payment_status === 'paid' || r.status === 'confirmed') ? 'Paid'
+                    : (r.status === 'awaiting_payment' ? 'Awaiting payment' : (r.status || 'pending')),
+                event: 'Gala Evening', section: 'gala', record: r }));
+
+        // Croatians Abroad registrations (has invoice number)
+        runSearch(
+            `SELECT * FROM croatians_abroad_registrations
+             WHERE first_name LIKE ? ESCAPE '\\' OR last_name LIKE ? ESCAPE '\\'
+                OR (COALESCE(first_name,'')||' '||COALESCE(last_name,'')) LIKE ? ESCAPE '\\'
+                OR email LIKE ? ESCAPE '\\' OR invoice_number LIKE ? ESCAPE '\\'
+             ORDER BY created_at DESC LIMIT 6`, 5,
+            r => ({ type: 'croatians-abroad', id: r.id, name: fullName(r), email: r.email || '',
+                status: r.gala_payment_status === 'paid' ? 'Gala paid' : (r.country || ''),
+                event: 'Croatians Abroad', section: 'gala', record: r }));
+
+        // Building Bridges registrations
+        runSearch(
+            `SELECT * FROM bridges_registrations
+             WHERE first_name LIKE ? ESCAPE '\\' OR last_name LIKE ? ESCAPE '\\'
+                OR (COALESCE(first_name,'')||' '||COALESCE(last_name,'')) LIKE ? ESCAPE '\\'
+                OR email LIKE ? ESCAPE '\\'
+             ORDER BY registered_at DESC LIMIT 6`, 4,
+            r => ({ type: 'bridges', id: r.id, name: fullName(r), email: r.email || '',
+                status: r.status || 'registered', event: 'Building Bridges', section: 'bridges', record: r }));
+
+        // Forum event registrations
+        runSearch(
+            `SELECT * FROM forum_event_registrations
+             WHERE first_name LIKE ? ESCAPE '\\' OR last_name LIKE ? ESCAPE '\\'
+                OR (COALESCE(first_name,'')||' '||COALESCE(last_name,'')) LIKE ? ESCAPE '\\'
+                OR email LIKE ? ESCAPE '\\'
+             ORDER BY registered_at DESC LIMIT 6`, 4,
+            r => ({ type: 'forum-event', id: r.id, name: fullName(r), email: r.email || '',
+                status: r.payment_status === 'paid' ? 'Paid' : (r.status || 'registered'),
+                event: 'Biomedical Forum', section: 'forum', record: r }));
+
+        // Forum members (directory)
+        runSearch(
+            `SELECT * FROM forum_members
+             WHERE first_name LIKE ? ESCAPE '\\' OR last_name LIKE ? ESCAPE '\\'
+                OR (COALESCE(first_name,'')||' '||COALESCE(last_name,'')) LIKE ? ESCAPE '\\'
+                OR email LIKE ? ESCAPE '\\'
+             ORDER BY created_at DESC LIMIT 6`, 4,
+            r => ({ type: 'member', id: r.id, name: fullName(r), email: r.email || '',
+                status: r.membership_status || 'member', event: 'Forum Member', section: 'forum', record: r }));
+
+        // Portal user accounts
+        runSearch(
+            `SELECT id, first_name, last_name, email, institution, country, phone, is_admin, created_at
+             FROM users
+             WHERE first_name LIKE ? ESCAPE '\\' OR last_name LIKE ? ESCAPE '\\'
+                OR (COALESCE(first_name,'')||' '||COALESCE(last_name,'')) LIKE ? ESCAPE '\\'
+                OR email LIKE ? ESCAPE '\\'
+             ORDER BY created_at DESC LIMIT 6`, 4,
+            r => ({ type: 'user', id: r.id, name: fullName(r), email: r.email || '',
+                status: r.is_admin ? 'Admin' : 'Member', event: 'Portal User', section: null, record: r }));
+
+        res.json({ results: results.slice(0, CAP) });
     });
 
     // ==================== TECH DASHBOARD ====================
