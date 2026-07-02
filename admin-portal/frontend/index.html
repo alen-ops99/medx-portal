@@ -6096,6 +6096,26 @@
         .unsaved-bar-actions button:hover { opacity: 0.85; }
         .unsaved-bar-actions .btn-save { background: #fff; color: #b45309; }
         .unsaved-bar-actions .btn-discard { background: rgba(255,255,255,0.2); color: #fff; }
+        /* Mobile: the unsaved-changes banner becomes a full-width TOP bar so it never overflows (item 26) */
+        @media (max-width: 768px) {
+            .unsaved-bar { top: 0; bottom: auto; left: 0; right: 0; width: 100%; border-radius: 0; flex-wrap: wrap; padding: 8px 12px; font-size: 12px; transform: translateY(-100%); }
+            .unsaved-bar.visible { transform: translateY(0); }
+            .unsaved-bar-actions { margin-left: 0; }
+        }
+
+        /* Tab bars scroll, labels never truncate (item 26) */
+        .plexus-tab { flex: 0 0 auto; }
+
+        /* ===== BULK ROW SELECTION + ACTION BAR (item 16) ===== */
+        .bs-cb { width: 15px; height: 15px; accent-color: #9b1b22; cursor: pointer; vertical-align: middle; }
+        .bulk-bar { position: fixed; bottom: 18px; left: 50%; transform: translate(-50%, 200%); z-index: 9500; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 14px; padding: 10px 16px; box-shadow: 0 14px 44px rgba(0,0,0,0.5); transition: transform 0.25s cubic-bezier(0.4,0,0.2,1); max-width: min(94vw, 940px); }
+        .bulk-bar.visible { transform: translate(-50%, 0); }
+        .bulk-bar .bb-count { font-weight: 700; font-size: 13px; white-space: nowrap; }
+        .bulk-bar .btn { padding: 6px 11px; font-size: 12px; white-space: nowrap; }
+        @media (max-width: 768px) { .bulk-bar { bottom: 8px; padding: 8px 10px; gap: 6px; } }
+
+        /* Email composer: form + live preview side by side (item 16) */
+        @media (max-width: 1100px) { .blast-grid { grid-template-columns: 1fr !important; } }
 
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -6455,6 +6475,8 @@
     </div>
 
     <!-- UNSAVED CHANGES BAR -->
+    <div class="bulk-bar" id="bulkBar" role="toolbar" aria-label="Bulk actions for selected registrants"></div>
+
     <div class="unsaved-bar" id="unsavedBar">
         <i class="fas fa-exclamation-circle"></i>
         You have unsaved changes
@@ -7121,6 +7143,7 @@
                         <button class="plexus-tab" onclick="App.showPlexusTab('volunteers')"><i class="fas fa-hand-holding-heart"></i> Volunteers</button>
                         <button class="plexus-tab" onclick="App.showPlexusTab('checkin')"><i class="fas fa-qrcode"></i> Check-in</button>
                         <button class="plexus-tab" onclick="App.showPlexusTab('pending')"><i class="fas fa-tasks"></i> Pending</button>
+                        <button class="plexus-tab" onclick="App.showPlexusTab('waitlist')"><i class="fas fa-user-clock"></i> Waitlist</button>
                         <button class="plexus-tab" onclick="App.showPlexusTab('settings')"><i class="fas fa-cog"></i> Settings</button>
                     </div>
 
@@ -7248,6 +7271,7 @@
                                 <table class="data-table" id="pxRegTable">
                                     <thead>
                                         <tr>
+                                            <th style="width:34px;"><input type="checkbox" class="bs-cb" id="bsAllPlexus" onclick="BulkSelect.toggleAll('plexus', this.checked)" title="Select all"></th>
                                             <th class="px-sortable" onclick="App.sortPlexusRegistrations('name')">Name <span class="px-sort-icon" id="pxRegSort-name"></span></th>
                                             <th class="px-sortable" onclick="App.sortPlexusRegistrations('email')">Email <span class="px-sort-icon" id="pxRegSort-email"></span></th>
                                             <th class="px-sortable" onclick="App.sortPlexusRegistrations('institution')">Institution <span class="px-sort-icon" id="pxRegSort-institution"></span></th>
@@ -7641,6 +7665,29 @@ President, Med&amp;X</textarea>
                         <div class="card">
                             <div class="card-header"><span class="card-title">Speaker Applications</span></div>
                             <div class="card-body" id="pxPendingSpeakersList"></div>
+                        </div>
+                    </div>
+
+                    <!-- WAITLIST TAB (item 26) -->
+                    <div class="plexus-content" id="plexus-waitlist">
+                        <div class="card">
+                            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                                <div>
+                                    <span class="card-title">Ticket waitlist</span>
+                                    <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0;max-width:560px;">When a ticket type sells out, capture the demand here instead of losing it. Promote opens the existing invite-link editor for that person, so payment always flows through the normal registration path.</p>
+                                </div>
+                                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                    <select id="wlSection" onchange="WaitlistAdmin.load()" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:12px;">
+                                        <option value="">All events</option>
+                                        <option value="plexus">Plexus Conference</option>
+                                        <option value="gala">Gala Evening</option>
+                                        <option value="forum">Biomedical Forum</option>
+                                        <option value="bridges">Building Bridges</option>
+                                    </select>
+                                    <button class="btn btn-primary" style="font-size:12px;" onclick="WaitlistAdmin.addModal()"><i class="fas fa-user-plus"></i> Add to waitlist</button>
+                                </div>
+                            </div>
+                            <div class="card-body" id="wlList" style="padding:0;"></div>
                         </div>
                     </div>
 
@@ -10550,7 +10597,7 @@ President, Med&amp;X</textarea>
                                 <i class="fas fa-envelope" style="color: #c14b52; margin-right: 12px;"></i>
                                 Messages
                             </h1>
-                            <p style="color: var(--text-muted);">Direct messaging with users</p>
+                            <p style="color: var(--text-muted);">Member conversations. The inbox shows what needs a reply first.</p>
                         </div>
                         <div style="display: flex; gap: 10px;">
                             <button class="btn btn-secondary" onclick="App.openBulkMessageModal()"><i class="fas fa-users"></i> Bulk Message</button>
@@ -10559,8 +10606,12 @@ President, Med&amp;X</textarea>
                     </div>
 
                     <div class="card">
-                        <div class="card-header" style="padding: 16px 20px; border-bottom: 1px solid var(--border);">
-                            <span style="font-weight: 600; font-size: 14px;">Sent Messages</span>
+                        <div class="card-header" style="padding: 12px 20px; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                            <div style="display:flex;gap:6px;">
+                                <button class="btn btn-primary" id="msgViewInboxBtn" style="padding:6px 14px;font-size:12px;" onclick="App.setMsgView('inbox')"><i class="fas fa-inbox"></i> Inbox <span id="msgInboxBadge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 7px;margin-left:4px;">0</span></button>
+                                <button class="btn btn-secondary" id="msgViewAllBtn" style="padding:6px 14px;font-size:12px;" onclick="App.setMsgView('all')"><i class="fas fa-list"></i> All conversations</button>
+                            </div>
+                            <span id="msgViewLabel" style="font-size:12px;color:var(--text-muted);">Conversations that need a reply, unread first</span>
                         </div>
                         <div class="card-body" id="adminMessagesList" style="padding: 0;">
                             <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
@@ -11093,28 +11144,72 @@ President, Med&amp;X</textarea>
                     <div class="back-link" onclick="App.showSection('dashboard')"><i class="fas fa-arrow-left"></i> Back to Dashboard</div>
                     <h2 style="margin:0 0 6px;font-size:22px;display:flex;align-items:center;gap:10px;"><i class="fas fa-envelope-open-text" style="color:#c9a962;"></i> Email Registrants</h2>
                     <p style="margin:0 0 18px;color:var(--text-muted);font-size:13px;">Send an announcement to everyone registered for an event (e.g. final details the week before). Test rows are excluded automatically.</p>
-                    <div class="card" style="padding:18px;max-width:640px;">
-                        <div style="margin-bottom:12px;">
-                            <label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Audience</label>
-                            <select id="blastAudience" onchange="BulkApp.previewCount()" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);">
-                                <option value="all">Everyone (all events)</option>
-                                <option value="gala">Gala registrants</option>
-                                <option value="croatians-abroad">Croatians Abroad</option>
-                                <option value="conference">Conference registrants</option>
-                                <option value="bridges">Bridges registrants</option>
-                            </select>
-                            <div id="blastCount" style="font-size:12px;color:var(--text-muted);margin-top:6px;">…</div>
+                    <div class="blast-grid" style="display:grid;grid-template-columns:minmax(320px,560px) minmax(300px,470px);gap:18px;align-items:start;">
+                        <div class="card" style="padding:18px;">
+                            <div id="blastCustomChip" style="display:none;margin-bottom:12px;background:rgba(155,27,34,0.12);border:1px solid rgba(155,27,34,0.4);border-radius:10px;padding:9px 12px;font-size:12.5px;">
+                                <i class="fas fa-user-check" style="color:#c2484e;"></i> <strong>Custom selection</strong> — <span id="blastCustomCount">0</span> recipient(s) preloaded from a registration table.
+                                <a href="#" onclick="BulkApp.clearCustom(); return false;" style="color:#c2484e;margin-left:6px;">Clear</a>
+                            </div>
+                            <div id="blastAudienceWrap" style="margin-bottom:12px;">
+                                <label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Audience</label>
+                                <select id="blastAudience" onchange="BulkApp.previewCount()" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);">
+                                    <option value="all">Everyone (all events)</option>
+                                    <option value="gala">Gala registrants</option>
+                                    <option value="croatians-abroad">Croatians Abroad</option>
+                                    <option value="conference">Conference registrants</option>
+                                    <option value="bridges">Bridges registrants</option>
+                                </select>
+                            </div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+                                <div>
+                                    <label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Payment status</label>
+                                    <select id="blastFilterPayment" onchange="BulkApp.previewCount()" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;">
+                                        <option value="">Any</option>
+                                        <option value="paid">Paid / confirmed</option>
+                                        <option value="unpaid">Unpaid</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Checked in</label>
+                                    <select id="blastFilterChecked" onchange="BulkApp.previewCount()" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;">
+                                        <option value="">Any</option>
+                                        <option value="yes">Checked in</option>
+                                        <option value="no">Not checked in</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Ticket type contains</label>
+                                    <input id="blastFilterTicket" oninput="BulkApp.previewCountDebounced()" placeholder="e.g. Student" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;">
+                                </div>
+                                <div>
+                                    <label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Country contains</label>
+                                    <input id="blastFilterCountry" oninput="BulkApp.previewCountDebounced()" placeholder="e.g. Croatia" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;">
+                                </div>
+                            </div>
+                            <div id="blastCount" style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">…</div>
+                            <div style="margin-bottom:12px;">
+                                <label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Subject</label>
+                                <input id="blastSubject" oninput="BulkApp.renderPreview()" placeholder="e.g. Plexus 2026 — final details" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);">
+                            </div>
+                            <div style="margin-bottom:14px;">
+                                <label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Message</label>
+                                <textarea id="blastMessage" rows="7" oninput="BulkApp.renderPreview()" placeholder="Plain text. Each empty line starts a new paragraph. Recipients are greeted by first name automatically." style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></textarea>
+                            </div>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button class="btn btn-secondary" onclick="BulkApp.sendTest()" id="blastTestBtn" title="Sends one rendered copy to your own inbox only"><i class="fas fa-flask"></i> Send test to myself</button>
+                                <button class="btn btn-primary" onclick="BulkApp.send()" id="blastSendBtn"><i class="fas fa-paper-plane"></i> Send to registrants</button>
+                            </div>
+                            <div id="blastResult" style="margin-top:14px;"></div>
                         </div>
-                        <div style="margin-bottom:12px;">
-                            <label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Subject</label>
-                            <input id="blastSubject" placeholder="e.g. Plexus 2026 — final details" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);">
+                        <div class="card" style="padding:0;overflow:hidden;">
+                            <div class="card-header" style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                                <span style="font-weight:600;font-size:13px;"><i class="fas fa-eye" style="color:#c9a962;"></i> Preview</span>
+                                <span style="font-size:11px;color:var(--text-muted);">rendered with the automatic greeting</span>
+                            </div>
+                            <div style="padding:16px;background:#eceef1;">
+                                <div id="blastPreview" style="background:#fff;color:#1f2937;border-radius:12px;padding:22px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;box-shadow:0 2px 8px rgba(0,0,0,0.08);min-height:180px;"></div>
+                            </div>
                         </div>
-                        <div style="margin-bottom:14px;">
-                            <label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Message</label>
-                            <textarea id="blastMessage" rows="7" placeholder="Plain text. Each empty line starts a new paragraph. Recipients are greeted by first name automatically." style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></textarea>
-                        </div>
-                        <button class="btn btn-primary" onclick="BulkApp.send()" id="blastSendBtn"><i class="fas fa-paper-plane"></i> Send to registrants</button>
-                        <div id="blastResult" style="margin-top:14px;"></div>
                     </div>
                 </div>
 
@@ -15734,13 +15829,24 @@ President, Med&amp;X</textarea>
                 if (navItem) navItem.classList.add('active');
                 else document.querySelector('.nav-item').classList.add('active');
 
-                // Only show chat panel for sections that use team chat
+                // The bulk-action bar belongs to the table it was opened on — hide it when
+                // navigating sections (the selection survives and the bar returns on re-render).
+                document.getElementById('bulkBar')?.classList.remove('visible');
+
+                // Team chat rail: always available on chat-first sections, collapsed by default
+                // on the data-dense Plexus workspace — pin the chat to keep it open there (item 26).
                 const chatPanel = document.getElementById('chatPanel');
-                const chatSections = ['dashboard', 'plexus', 'finances', 'pr-media'];
-                if (chatSections.includes(sectionId)) {
+                const chatShowBtn = document.getElementById('chatShowBtn');
+                const chatSections = ['dashboard', 'finances', 'pr-media'];
+                const denseChatSections = ['plexus'];
+                const chatOpenHere = (chatSections.includes(sectionId) && !this.chatHidden)
+                    || (denseChatSections.includes(sectionId) && this.chatPinned && !this.chatHidden);
+                if (chatOpenHere) {
                     chatPanel?.classList.remove('hidden');
+                    chatShowBtn?.classList.remove('visible');
                 } else {
                     chatPanel?.classList.add('hidden');
+                    chatShowBtn?.classList.toggle('visible', chatSections.includes(sectionId) || denseChatSections.includes(sectionId));
                 }
 
                 // Check-in scanner FAB stays visible on every section (universal scanner).
@@ -15794,7 +15900,7 @@ President, Med&amp;X</textarea>
                 } else if (sectionId === 'email-blast') {
                     this.currentView = 'email-blast';
                     this.switchChatPanel('team');
-                    if (typeof BulkApp !== 'undefined') BulkApp.previewCount();
+                    if (typeof BulkApp !== 'undefined') { BulkApp.previewCount(); BulkApp.renderPreview(); }
                 } else if (sectionId === 'audit') {
                     this.currentView = 'audit';
                     this.switchChatPanel('team');
@@ -16514,35 +16620,65 @@ President, Med&amp;X</textarea>
                 }
             },
 
+            msgView: 'inbox',
+            setMsgView(v) {
+                this.msgView = v;
+                const bi = document.getElementById('msgViewInboxBtn');
+                const ba = document.getElementById('msgViewAllBtn');
+                if (bi) bi.className = v === 'inbox' ? 'btn btn-primary' : 'btn btn-secondary';
+                if (ba) ba.className = v === 'all' ? 'btn btn-primary' : 'btn btn-secondary';
+                const lbl = document.getElementById('msgViewLabel');
+                if (lbl) lbl.textContent = v === 'inbox' ? 'Conversations that need a reply, unread first' : 'Every conversation, newest first';
+                this.renderAdminMessages();
+            },
             renderAdminMessages() {
                 const container = document.getElementById('adminMessagesList');
                 if (!container) return;
 
                 const messages = this.adminMessages || [];
-                if (messages.length === 0) {
-                    container.innerHTML = '<div style="text-align: center; padding: 60px 20px; color: var(--text-muted);"><i class="fas fa-envelope" style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;"></i><p>No messages sent yet</p></div>';
-                    return;
-                }
-
-                // Group by receiver
+                // Group into conversations (same key the rest of the messaging code uses).
                 const grouped = {};
                 messages.forEach(m => {
                     if (!grouped[m.receiver_id]) grouped[m.receiver_id] = [];
                     grouped[m.receiver_id].push(m);
                 });
-
-                container.innerHTML = Object.entries(grouped).map(([userId, msgs]) => {
+                let convos = Object.entries(grouped).map(([userId, msgs]) => {
                     const latest = msgs[0];
                     const unread = msgs.filter(m => !m.is_read && m.sender_type !== 'admin').length;
-                    const escapedUserId = userId.replace(/'/g, "\\'");
-                    return `<div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s;" onmouseover="this.style.background='var(--bg-tertiary)'" onmouseout="this.style.background=''" onclick="App.openConversation('${escapedUserId}')">
+                    const needsReply = unread > 0 || (latest && latest.sender_type !== 'admin');
+                    return { userId, latest, unread, needsReply };
+                });
+                // The Inbox badge always shows the needs-reply count, whichever view is open.
+                const needCount = convos.filter(c => c.needsReply).length;
+                const badge = document.getElementById('msgInboxBadge');
+                if (badge) { badge.textContent = needCount; badge.style.display = needCount ? 'inline-block' : 'none'; }
+
+                if (this.msgView === 'inbox') convos = convos.filter(c => c.needsReply);
+                convos.sort((a, b) => (b.unread - a.unread) || String(b.latest?.created_at || '').localeCompare(String(a.latest?.created_at || '')));
+
+                if (!convos.length) {
+                    container.innerHTML = this.msgView === 'inbox'
+                        ? '<div style="text-align:center;padding:54px 20px;color:var(--text-muted);"><i class="fas fa-inbox" style="font-size:44px;margin-bottom:14px;opacity:0.35;color:#22c55e;"></i><p style="margin:0;font-weight:600;">Inbox zero</p><p style="font-size:12px;margin:6px 0 0;">Nothing needs a reply. Switch to All conversations for the full history.</p></div>'
+                        : '<div style="text-align:center;padding:54px 20px;color:var(--text-muted);"><i class="fas fa-envelope" style="font-size:44px;margin-bottom:14px;opacity:0.3;"></i><p style="margin:0;">No conversations yet</p></div>';
+                    return;
+                }
+
+                container.innerHTML = convos.map(c => {
+                    const escapedUserId = c.userId.replace(/'/g, "\\'");
+                    const latest = c.latest || {};
+                    const preview = latest.title || (latest.content ? latest.content.substring(0, 60) : 'No content');
+                    const chips = [
+                        c.unread ? `<span style="background:#ef4444;color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;font-weight:700;">${c.unread} unread</span>` : '',
+                        (!c.unread && c.needsReply) ? '<span style="background:rgba(245,158,11,0.18);color:#f59e0b;font-size:11px;padding:2px 7px;border-radius:10px;font-weight:700;">needs reply</span>' : '',
+                    ].filter(Boolean).join(' ');
+                    return `<div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s;" onmouseover="this.style.background='var(--bg-tertiary)'" onmouseout="this.style.background=''" onclick="App.openConversation('${escapedUserId}')">
                         <div style="min-width: 0;">
-                            <div style="font-weight: 600; font-size: 14px; color: var(--text-primary);">${escapeHtml(userId)}</div>
-                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 400px;">${escapeHtml(latest.title || (latest.content ? latest.content.substring(0, 60) : 'No content'))}${latest.content && latest.content.length > 60 ? '...' : ''}</div>
+                            <div style="font-weight: ${c.needsReply ? 700 : 600}; font-size: 14px; color: var(--text-primary);">${escapeHtml(c.userId)}</div>
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 420px;">${latest.sender_type === 'admin' ? 'You: ' : ''}${escapeHtml(preview)}${latest.content && latest.content.length > 60 ? '...' : ''}</div>
                         </div>
                         <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-                            ${unread > 0 ? `<span style="background: var(--danger, #ef4444); color: white; font-size: 11px; padding: 2px 6px; border-radius: 10px; font-weight: 600;">${unread}</span>` : ''}
-                            <span style="font-size: 11px; color: var(--text-muted);">${new Date(latest.created_at).toLocaleDateString()}</span>
+                            ${chips}
+                            <span style="font-size: 11px; color: var(--text-muted);">${latest.created_at ? new Date(latest.created_at).toLocaleDateString() : ''}</span>
                         </div>
                     </div>`;
                 }).join('');
@@ -17695,7 +17831,7 @@ President, Med&amp;X</textarea>
 
             loadChatPreferences() {
                 const hidden = localStorage.getItem('chatHidden') === 'true';
-                const pinned = localStorage.getItem('chatPinned') !== 'false'; // Default to pinned
+                const pinned = localStorage.getItem('chatPinned') === 'true'; // Default unpinned — the rail stays collapsed on data-dense sections unless pinned
 
                 this.chatHidden = hidden;
                 this.chatPinned = pinned;
@@ -18131,6 +18267,7 @@ President, Med&amp;X</textarea>
                     'volunteers': 'Volunteers',
                     'checkin': 'Check-in',
                     'pending': 'Pending',
+                    'waitlist': 'Waitlist',
                     'settings': 'Settings'
                 };
                 document.title = `Plexus · ${tabNames[tab] || tab} — Med&X Admin`;
@@ -18160,6 +18297,7 @@ President, Med&amp;X</textarea>
                     case 'volunteers': this.loadPlexusVolunteers(); break;
                     case 'checkin': this.loadPlexusCheckinStats(); break;
                     case 'pending': this.loadPlexusPending(); break;
+                    case 'waitlist': WaitlistAdmin.load(); break;
                     case 'settings': PlexusSettingsAdmin.loadSettings(); break;
                 }
             },
@@ -18338,7 +18476,8 @@ President, Med&amp;X</textarea>
                     groupedContainer.innerHTML = '';
                     groupedContainer.style.display = 'none';
                     table.style.display = '';
-                    tbody.innerHTML = '<tr><td colspan="8" class="table-empty"><i class="fas fa-users"></i><p>No registrations yet</p></td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="9" class="table-empty"><i class="fas fa-users"></i><p>No registrations yet</p></td></tr>';
+                    BulkSelect.sync('plexus');
                     return;
                 }
 
@@ -18365,7 +18504,7 @@ President, Med&amp;X</textarea>
                             <div class="px-group-body">
                                 <table class="data-table" style="margin: 0;">
                                     <thead>
-                                        <tr><th>Name</th><th>Email</th><th>Institution</th><th>Ticket</th><th>Status</th><th>Payment</th><th>Checked In</th><th>Actions</th></tr>
+                                        <tr><th style="width:34px;"></th><th>Name</th><th>Email</th><th>Institution</th><th>Ticket</th><th>Status</th><th>Payment</th><th>Checked In</th><th>Actions</th></tr>
                                     </thead>
                                     <tbody>${groups[key].map(r => this.renderRegRow(r)).join('')}</tbody>
                                 </table>
@@ -18379,10 +18518,12 @@ President, Med&amp;X</textarea>
                     table.style.display = '';
                     tbody.innerHTML = regs.map(r => this.renderRegRow(r)).join('');
                 }
+                BulkSelect.sync('plexus');
             },
 
             renderRegRow(r) {
                 return `<tr>
+                    <td>${BulkSelect.cb('plexus', r.id)}</td>
                     <td><strong>${this.escapeHtml(r.first_name || '')} ${this.escapeHtml(r.last_name || '')}</strong></td>
                     <td>${this.escapeHtml(r.email || '')}</td>
                     <td>${this.escapeHtml(r.institution || '-')}</td>
@@ -18558,7 +18699,12 @@ President, Med&amp;X</textarea>
                         </div>
                         <button onclick="this.closest('.modal-overlay').remove()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;align-self:flex-start;">&times;</button>
                     </div>
-                    <div style="padding:8px 22px 4px;">
+                    ${opts.type ? `
+                    <div style="display:flex;gap:6px;padding:12px 22px 0;">
+                        <button class="btn btn-primary" id="regDetBtnDetails" style="padding:5px 14px;font-size:12px;" onclick="App.regDetailTab('details')">Details</button>
+                        <button class="btn btn-secondary" id="regDetBtnActivity" style="padding:5px 14px;font-size:12px;" onclick="App.regDetailTab('activity','${opts.type}','${r.id}')"><i class="fas fa-stream"></i> Activity</button>
+                    </div>` : ''}
+                    <div id="regDetTabDetails" style="padding:8px 22px 4px;">
                         ${row('Institution', r.institution || r.current_institution)}
                         ${row('Country', r.country)}
                         ${row('Phone', r.phone)}
@@ -18573,6 +18719,14 @@ President, Med&amp;X</textarea>
                         ${row('Registered', r.created_at ? new Date(r.created_at).toLocaleString() : '')}
                         ${row('Checked in', checked ? (r.checked_in_at ? new Date(r.checked_in_at).toLocaleString() : 'Yes') : '')}
                     </div>
+                    ${opts.type ? `
+                    <div id="regDetTabActivity" style="display:none;padding:12px 22px 8px;">
+                        <div style="display:flex;gap:8px;margin-bottom:12px;">
+                            <input id="regNoteInput" placeholder="Add an internal note (append-only)" style="flex:1;min-width:0;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;" onkeydown="if(event.key==='Enter')App.regTimelineAddNote('${opts.type}','${r.id}')">
+                            <button class="btn btn-secondary" style="white-space:nowrap;font-size:12px;" onclick="App.regTimelineAddNote('${opts.type}','${r.id}')"><i class="fas fa-plus"></i> Note</button>
+                        </div>
+                        <div id="regActivityBody" style="max-height:44vh;overflow:auto;"><div style="padding:20px;text-align:center;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i></div></div>
+                    </div>` : ''}
                     <div style="padding:14px 22px 20px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border);margin-top:6px;">
                         <button class="btn btn-primary" onclick="App.emailPerson('${e2}','${ctx}')"><i class="fas fa-envelope"></i> Email</button>
                         <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove();App.messagePerson('${e2}','${ctx}')"><i class="fas fa-comment-dots"></i> Message</button>
@@ -18609,6 +18763,63 @@ President, Med&amp;X</textarea>
                     if ((await res.json()).success) Toast.success('Note saved'); else Toast.error('Failed');
                 } catch (e) { Toast.error('Failed'); }
             },
+            // ===== Registrant activity timeline (item 17) =====
+            regDetailTab(which, type, id) {
+                const det = document.getElementById('regDetTabDetails');
+                const act = document.getElementById('regDetTabActivity');
+                const bDet = document.getElementById('regDetBtnDetails');
+                const bAct = document.getElementById('regDetBtnActivity');
+                if (!det || !act) return;
+                const showAct = which === 'activity';
+                det.style.display = showAct ? 'none' : 'block';
+                act.style.display = showAct ? 'block' : 'none';
+                if (bDet) bDet.className = showAct ? 'btn btn-secondary' : 'btn btn-primary';
+                if (bAct) bAct.className = showAct ? 'btn btn-primary' : 'btn btn-secondary';
+                if (showAct) this.loadRegActivity(type, id);
+            },
+            async loadRegActivity(type, id) {
+                const el = document.getElementById('regActivityBody');
+                if (!el) return;
+                try {
+                    const d = await this.api(`/api/admin/registrant/${type}/${id}/activity`);
+                    const events = (d && d.events) || [];
+                    if (!events.length) {
+                        el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No recorded activity yet. Notes you add appear here with your name and time.</div>';
+                        return;
+                    }
+                    const meta = {
+                        registered: ['fa-user-plus', '#38bdf8'], payment: ['fa-money-check-alt', '#22c55e'],
+                        checkin: ['fa-qrcode', '#22c55e'], admin: ['fa-user-shield', '#c9a962'],
+                        message: ['fa-comment-dots', '#c2484e'], note: ['fa-note-sticky', '#c9a962']
+                    };
+                    el.innerHTML = events.map(ev => {
+                        const m = meta[ev.kind] || ['fa-circle', '#6b7280'];
+                        const when = ev.at ? new Date(ev.at).toLocaleString() : '';
+                        return `<div style="display:flex;gap:10px;padding:9px 2px;border-bottom:1px solid var(--border);">
+                            <div style="width:26px;height:26px;border-radius:8px;background:${m[1]}22;color:${m[1]};display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas ${m[0]}" style="font-size:11px;"></i></div>
+                            <div style="min-width:0;flex:1;">
+                                <div style="font-size:13px;font-weight:600;">${escapeHtml(ev.title || '')}</div>
+                                ${ev.detail ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:1px;word-break:break-word;">${escapeHtml(ev.detail)}</div>` : ''}
+                                <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${escapeHtml(when)}</div>
+                            </div>
+                        </div>`;
+                    }).join('');
+                } catch (e) {
+                    el.innerHTML = '<div style="padding:20px;color:#ef4444;font-size:13px;">Could not load the activity timeline.</div>';
+                }
+            },
+            async regTimelineAddNote(type, id) {
+                const input = document.getElementById('regNoteInput');
+                const body = ((input && input.value) || '').trim();
+                if (!body) { Toast.warning('Write the note first'); return; }
+                try {
+                    await this.api(`/api/admin/registrant/${type}/${id}/notes`, { method: 'POST', body: JSON.stringify({ body }) });
+                    if (input) input.value = '';
+                    Toast.success('Note added');
+                    this.loadRegActivity(type, id);
+                } catch (e) { Toast.error('Could not save the note'); }
+            },
+
             // Refresh whichever registrant list is on screen after a mutation.
             refreshActiveRegList(type) {
                 try {
@@ -22584,6 +22795,7 @@ President, Med&amp;X</textarea>
                         <div style="overflow-x:auto;">
                         <table style="width: 100%; border-collapse: collapse;">
                             <thead><tr style="border-bottom: 2px solid var(--border);">
+                                <th style="width:30px;padding:10px;"><input type="checkbox" class="bs-cb" id="bsAllForum" onclick="BulkSelect.toggleAll('forum', this.checked)" title="Select all"></th>
                                 <th style="text-align: left; padding: 10px; font-weight: 600; font-size: 12px;">Name</th>
                                 <th style="text-align: left; padding: 10px; font-weight: 600; font-size: 12px;">Email</th>
                                 <th style="text-align: left; padding: 10px; font-weight: 600; font-size: 12px;">Registered For</th>
@@ -22599,6 +22811,7 @@ President, Med&amp;X</textarea>
                                     let pkgDisplay = '-';
                                     try { const items = r.package_items ? JSON.parse(r.package_items) : []; pkgDisplay = items.length ? items.map(i => '<div style="font-size:11px;">• ' + this.escapeHtml(i) + '</div>').join('') : '-'; } catch(e) {}
                                     return `<tr style="border-bottom: 1px solid var(--border);">
+                                        <td style="padding:10px;">${BulkSelect.cb('forum', r.id)}</td>
                                         <td style="padding: 10px; font-weight:600;">${name}</td>
                                         <td style="padding: 10px; font-size: 12px;">${this.escapeHtml(r.email || '-')}</td>
                                         <td style="padding: 10px;">${pkgDisplay}</td>
@@ -22622,6 +22835,7 @@ President, Med&amp;X</textarea>
                         </table>
                         </div>
                     `;
+                    BulkSelect.sync('forum');
                 } catch (err) {
                     console.error('Failed to load registrations:', err);
                     container.innerHTML = '<div class="table-empty"><i class="fas fa-exclamation-triangle"></i><p>Failed to load registrations</p></div>';
@@ -31111,12 +31325,14 @@ By applying to this program, I give the following consents:
                         <i class="fas fa-glass-cheers" style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;"></i>
                         <p>No registrations found</p>
                     </div>`;
+                    BulkSelect.sync('gala');
                     return;
                 }
 
-                let html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table style="width: 100%; min-width: 680px; border-collapse: collapse;">
+                let html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table style="width: 100%; min-width: 720px; border-collapse: collapse;">
                     <thead>
                         <tr style="border-bottom: 1px solid var(--border);">
+                            <th style="width:34px;padding:12px 8px 12px 16px;"><input type="checkbox" class="bs-cb" id="bsAllGala" onclick="BulkSelect.toggleAll('gala', this.checked)" title="Select all"></th>
                             <th style="text-align: left; padding: 12px 16px; font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Name</th>
                             <th style="text-align: left; padding: 12px 16px; font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Email</th>
                             <th style="text-align: left; padding: 12px 16px; font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Institution</th>
@@ -31138,6 +31354,7 @@ By applying to this program, I give the following consents:
                         : '<span style="background: rgba(107, 114, 128, 0.15); color: #6b7280; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;">Unpaid</span>';
 
                     html += `<tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding:12px 8px 12px 16px;">${BulkSelect.cb('gala', r.id)}</td>
                         <td style="padding: 12px 16px; font-weight: 500;">${escapeHtml(r.first_name)} ${escapeHtml(r.last_name)}</td>
                         <td style="padding: 12px 16px; font-size: 13px; color: var(--text-secondary);">${escapeHtml(r.email)}</td>
                         <td style="padding: 12px 16px; font-size: 13px; color: var(--text-secondary);">${escapeHtml(r.institution || '-')}</td>
@@ -31173,6 +31390,7 @@ By applying to this program, I give the following consents:
 
                 html += '</tbody></table></div>';
                 container.innerHTML = html;
+                BulkSelect.sync('gala');
             },
 
             viewGuest(id) {
@@ -32170,35 +32388,373 @@ By applying to this program, I give the following consents:
             }
         };
 
+        // ==================== BULK ROW SELECTION + ACTION BAR (item 16) ====================
+        // One shared floating bar. Sections: plexus / gala / forum. Every action routes through
+        // EXISTING per-person mechanisms — nothing here talks to payment internals.
+        const BulkSelect = {
+            sel: { plexus: new Set(), gala: new Set(), forum: new Set() },
+            active: null,
+            CFG: {
+                plexus: {
+                    label: 'Plexus', type: 'conference', ctx: 'Plexus Conference 2026',
+                    rows: () => App.plexusRegistrations || [],
+                    paid: r => r.payment_status === 'paid',
+                    canMarkPaid: true, canCheckin: true,
+                    checkin: id => App.api(`/api/admin/registrations/${id}/checkin`, { method: 'POST' }),
+                    refresh: () => App.loadPlexusRegistrations()
+                },
+                gala: {
+                    label: 'Gala', type: 'gala', ctx: 'Plexus 2026 — Gala Evening',
+                    rows: () => GalaAdmin.registrations || [],
+                    paid: r => r.payment_status === 'paid' || r.status === 'confirmed',
+                    canMarkPaid: true, canCheckin: false,
+                    refresh: () => GalaAdmin.loadRegistrations()
+                },
+                forum: {
+                    label: 'Forum', type: null, ctx: 'Annual Biomedical Forum',
+                    rows: () => App._forumRegs || [],
+                    paid: r => !!r.amount_paid,
+                    canMarkPaid: false, canCheckin: true,
+                    checkin: id => App.api(`/api/admin/forum/events/${App.currentForumEventId}/checkin`, { method: 'POST', body: JSON.stringify({ registration_id: id }) }),
+                    refresh: () => { const c = document.getElementById('eventDetailContent'); if (c) App.renderEventDetailRegistrations(c); }
+                }
+            },
+            masterId(section) { return { plexus: 'bsAllPlexus', gala: 'bsAllGala', forum: 'bsAllForum' }[section]; },
+            has(section, id) { return this.sel[section].has(id); },
+            cb(section, id) {
+                return `<input type="checkbox" class="bs-cb" data-bs="${section}"${this.has(section, id) ? ' checked' : ''} onclick="event.stopPropagation();BulkSelect.toggle('${section}','${id}', this.checked)">`;
+            },
+            toggle(section, id, on) {
+                if (on) this.sel[section].add(id); else this.sel[section].delete(id);
+                this.active = section;
+                const master = document.getElementById(this.masterId(section));
+                if (master) master.checked = this.sel[section].size > 0 && this.sel[section].size === this.CFG[section].rows().length;
+                this.render(section);
+            },
+            toggleAll(section, on) {
+                this.sel[section].clear();
+                if (on) this.CFG[section].rows().forEach(r => this.sel[section].add(r.id));
+                document.querySelectorAll(`.bs-cb[data-bs="${section}"]`).forEach(cb => { cb.checked = on; });
+                this.active = section;
+                this.render(section);
+            },
+            clear(section) {
+                this.sel[section].clear();
+                document.querySelectorAll(`.bs-cb[data-bs="${section}"]`).forEach(cb => { cb.checked = false; });
+                const master = document.getElementById(this.masterId(section));
+                if (master) master.checked = false;
+                this.render(section);
+            },
+            // After a table re-render: drop ids that no longer exist, restore the master checkbox.
+            sync(section) {
+                const valid = new Set(this.CFG[section].rows().map(r => r.id));
+                [...this.sel[section]].forEach(id => { if (!valid.has(id)) this.sel[section].delete(id); });
+                const master = document.getElementById(this.masterId(section));
+                if (master) master.checked = valid.size > 0 && this.sel[section].size === valid.size;
+                this.render(section);
+            },
+            selectedRows(section) {
+                const ids = this.sel[section];
+                return this.CFG[section].rows().filter(r => ids.has(r.id));
+            },
+            emails(rows) { return [...new Set(rows.map(r => (r.email || '').trim()).filter(Boolean))]; },
+            render(section) {
+                const bar = document.getElementById('bulkBar');
+                if (!bar) return;
+                if (section) this.active = section;
+                const s = this.active;
+                const n = s ? this.sel[s].size : 0;
+                if (!s || n === 0) { bar.classList.remove('visible'); return; }
+                const cfg = this.CFG[s];
+                const unpaid = this.selectedRows(s).filter(r => !cfg.paid(r)).length;
+                bar.innerHTML = `
+                    <span class="bb-count">${n} selected · ${cfg.label}</span>
+                    <button class="btn btn-primary" onclick="BulkSelect.emailSelected()"><i class="fas fa-envelope-open-text"></i> Send email</button>
+                    <button class="btn btn-secondary"${unpaid ? '' : ' disabled style="opacity:0.5;"'} onclick="BulkSelect.remindSelected()"><i class="fas fa-bell"></i> Payment reminder (${unpaid})</button>
+                    ${cfg.canMarkPaid ? `<button class="btn btn-secondary"${unpaid ? '' : ' disabled style="opacity:0.5;"'} onclick="BulkSelect.markPaidSelected()"><i class="fas fa-money-check-alt"></i> Mark paid (${unpaid})</button>` : ''}
+                    ${cfg.canCheckin ? `<button class="btn btn-secondary" onclick="BulkSelect.checkinSelected()"><i class="fas fa-qrcode"></i> Check in</button>` : ''}
+                    <button class="btn btn-secondary" onclick="BulkSelect.exportSelected()"><i class="fas fa-file-csv"></i> Export CSV</button>
+                    <button class="btn btn-secondary" onclick="BulkSelect.clear('${s}')" title="Clear selection"><i class="fas fa-times"></i></button>`;
+                bar.classList.add('visible');
+            },
+            emailSelected() {
+                const s = this.active;
+                const emails = this.emails(this.selectedRows(s));
+                if (!emails.length) { Toast.warning('No email addresses in the selection'); return; }
+                BulkApp.preloadSelection(emails, this.CFG[s].ctx);
+            },
+            remindSelected() {
+                const s = this.active; const cfg = this.CFG[s];
+                const emails = this.emails(this.selectedRows(s).filter(r => !cfg.paid(r)));
+                if (!emails.length) { Toast.info('Everyone selected is already paid'); return; }
+                if (!confirm(`Prepare a payment reminder for ${emails.length} unpaid registrant(s)?\n\nThe composer opens preloaded with only those people. Nothing is sent until you press Send.`)) return;
+                BulkApp.preloadSelection(emails, cfg.ctx, {
+                    subject: `Payment reminder — ${cfg.ctx}`,
+                    message: `We can see your registration for ${cfg.ctx} is still awaiting payment.\n\nTo confirm your place, please complete the payment using the link from your registration email. If the link has expired or you need any help, simply reply to this email and we will send a fresh one.\n\nWarm regards,\nThe Med&X team`
+                });
+            },
+            async markPaidSelected() {
+                const s = this.active; const cfg = this.CFG[s];
+                if (!cfg.canMarkPaid || !cfg.type) return;
+                const unpaidRows = this.selectedRows(s).filter(r => !cfg.paid(r));
+                if (!unpaidRows.length) { Toast.info('Everyone selected is already paid'); return; }
+                if (!confirm(`Mark ${unpaidRows.length} registrant(s) as PAID (manual or bank-transfer payments)?\n\nEach change goes through the per-registrant mechanism and lands in the audit log.`)) return;
+                let ok = 0, fail = 0;
+                for (const r of unpaidRows) {
+                    try {
+                        const res = await fetch(`/api/admin/registrant/${cfg.type}/${r.id}/mark-paid`, { method: 'POST', headers: { 'Authorization': `Bearer ${App.token}` } });
+                        const d = await res.json();
+                        if (d.success) ok++; else fail++;
+                    } catch (e) { fail++; }
+                }
+                Toast[fail ? 'warning' : 'success'](`Marked paid: ${ok}${fail ? ` · failed: ${fail}` : ''}`);
+                this.clear(s);
+                cfg.refresh();
+            },
+            async checkinSelected() {
+                const s = this.active; const cfg = this.CFG[s];
+                if (!cfg.canCheckin) return;
+                const rows = this.selectedRows(s).filter(r => !(r.checked_in == 1 || r.checked_in === true));
+                if (!rows.length) { Toast.info('Everyone selected is already checked in'); return; }
+                if (!confirm(`Check in ${rows.length} registrant(s)?\n\nUses the same per-person check-in the scanner fallback uses.`)) return;
+                let ok = 0, fail = 0;
+                for (const r of rows) { try { await cfg.checkin(r.id); ok++; } catch (e) { fail++; } }
+                Toast[fail ? 'warning' : 'success'](`Checked in: ${ok}${fail ? ` · failed: ${fail}` : ''}`);
+                this.clear(s);
+                cfg.refresh();
+            },
+            exportSelected() {
+                const s = this.active; const cfg = this.CFG[s];
+                const rows = this.selectedRows(s);
+                if (!rows.length) return;
+                const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+                const head = ['First name', 'Last name', 'Email', 'Institution', 'Country', 'Ticket', 'Status', 'Payment', 'Checked in', 'Dietary', 'Registered'];
+                const csv = [head].concat(rows.map(r => [
+                    r.first_name || '', r.last_name || '', r.email || '', r.institution || '', r.country || '',
+                    r.ticket_type || r.ticket_name || r.pricing || '', r.status || '',
+                    cfg.paid(r) ? 'paid' : (r.payment_status || 'unpaid'),
+                    (r.checked_in == 1 || r.checked_in === true) ? 'yes' : 'no',
+                    r.dietary || r.dietary_requirements || '', r.created_at || ''
+                ])).map(rw => rw.map(q).join(',')).join('\r\n');
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+                a.download = `${s}_selected_${new Date().toISOString().slice(0, 10)}.csv`;
+                document.body.appendChild(a); a.click(); a.remove();
+                Toast.success(`Exported ${rows.length} row(s)`);
+            }
+        };
+
+        // ==================== TICKET WAITLIST (item 26) ====================
+        // Demand capture for sold-out tickets. Promote opens the EXISTING invite-link
+        // editor (App.generateRegistrationLink) — payment always flows through the
+        // normal registration path, never a new one.
+        const WaitlistAdmin = {
+            _rows: [],
+            esc(s) { return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); },
+            async api(path, opts = {}) {
+                const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}`, ...(opts.headers || {}) } });
+                let d = null; try { d = await res.json(); } catch (e) {}
+                return { ok: res.ok, d };
+            },
+            async load() {
+                const el = document.getElementById('wlList'); if (!el) return;
+                el.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i></div>';
+                const section = document.getElementById('wlSection')?.value || '';
+                const r = await this.api('/api/admin/waitlist' + (section ? '?section=' + encodeURIComponent(section) : ''));
+                this._rows = Array.isArray(r.d) ? r.d : [];
+                this.render();
+            },
+            render() {
+                const el = document.getElementById('wlList'); if (!el) return;
+                const rows = this._rows;
+                if (!rows.length) {
+                    el.innerHTML = `<div style="text-align:center;padding:44px;color:var(--text-muted);">
+                        <i class="fas fa-user-clock" style="font-size:40px;opacity:0.3;margin-bottom:12px;"></i>
+                        <p style="margin:0;font-weight:600;">Waitlist is empty</p>
+                        <p style="font-size:12px;margin:6px 0 0;">Add someone manually when they ask for a sold-out ticket, in first-come order.</p>
+                    </div>`;
+                    return;
+                }
+                const badge = st => ({ waiting: '#f59e0b', promoted: '#22c55e', removed: '#6b7280' }[st] || '#6b7280');
+                el.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:680px;">
+                    <thead><tr style="border-bottom:1px solid var(--border);">
+                        ${['#', 'Name', 'Email', 'Event', 'Ticket', 'Added', 'Status', 'Actions'].map(h => `<th style="text-align:left;padding:10px 14px;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">${h}</th>`).join('')}
+                    </tr></thead><tbody>
+                    ${rows.map((w, i) => `<tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:10px 14px;color:var(--text-muted);font-size:12px;">${i + 1}</td>
+                        <td style="padding:10px 14px;font-weight:600;font-size:13px;">${this.esc(w.name || '—')}</td>
+                        <td style="padding:10px 14px;font-size:12.5px;color:var(--text-secondary);">${this.esc(w.email || '—')}</td>
+                        <td style="padding:10px 14px;font-size:12.5px;text-transform:capitalize;">${this.esc(w.section || '—')}</td>
+                        <td style="padding:10px 14px;font-size:12.5px;">${this.esc(w.ticket_type || '—')}</td>
+                        <td style="padding:10px 14px;font-size:12px;color:var(--text-muted);">${w.created_at ? new Date(w.created_at).toLocaleDateString() : '—'}</td>
+                        <td style="padding:10px 14px;"><span style="background:${badge(w.status)}22;color:${badge(w.status)};padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700;text-transform:capitalize;">${this.esc(w.status || 'waiting')}</span></td>
+                        <td style="padding:10px 14px;white-space:nowrap;">
+                            ${w.status === 'waiting' ? `<button class="btn btn-primary" style="padding:4px 10px;font-size:11px;" onclick="WaitlistAdmin.promote('${w.id}')"><i class="fas fa-arrow-up"></i> Promote</button>` : ''}
+                            <button class="btn btn-secondary" style="padding:4px 9px;font-size:11px;margin-left:4px;color:#ef4444;" title="Remove from waitlist" onclick="WaitlistAdmin.remove('${w.id}')"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>`).join('')}</tbody></table></div>`;
+            },
+            addModal() {
+                const ov = document.createElement('div');
+                ov.className = 'modal-overlay active';
+                ov.style.cssText = 'position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;padding:20px;';
+                ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+                const inp = 'width:100%;padding:9px 11px;margin:4px 0 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);';
+                ov.innerHTML = `<div class="card" style="max-width:420px;width:100%;padding:20px;">
+                    <div style="font-weight:700;font-size:16px;margin-bottom:14px;">Add to waitlist</div>
+                    <label style="font-size:12px;color:var(--text-muted);">Name</label>
+                    <input id="wlName" placeholder="e.g. Ivana Horvat" style="${inp}">
+                    <label style="font-size:12px;color:var(--text-muted);">Email</label>
+                    <input id="wlEmail" type="email" placeholder="name@example.com" style="${inp}">
+                    <label style="font-size:12px;color:var(--text-muted);">Event</label>
+                    <select id="wlAddSection" style="${inp}">
+                        <option value="plexus">Plexus Conference</option>
+                        <option value="gala">Gala Evening</option>
+                        <option value="forum">Biomedical Forum</option>
+                        <option value="bridges">Building Bridges</option>
+                    </select>
+                    <label style="font-size:12px;color:var(--text-muted);">Ticket type (the one that sold out)</label>
+                    <input id="wlTicket" placeholder="e.g. Student" style="${inp}">
+                    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+                        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+                        <button class="btn btn-primary" onclick="WaitlistAdmin.saveNew(this)">Add</button>
+                    </div>
+                </div>`;
+                document.body.appendChild(ov);
+                setTimeout(() => document.getElementById('wlName')?.focus(), 50);
+            },
+            async saveNew(btn) {
+                const name = document.getElementById('wlName').value.trim();
+                const email = document.getElementById('wlEmail').value.trim();
+                if (!name && !email) { Toast.warning('A name or email is required'); return; }
+                const body = { name: name || null, email: email || null, section: document.getElementById('wlAddSection').value, ticket_type: document.getElementById('wlTicket').value.trim() || null };
+                const r = await this.api('/api/admin/waitlist', { method: 'POST', body: JSON.stringify(body) });
+                if (r.d && r.d.success) {
+                    btn.closest('.modal-overlay').remove();
+                    Toast.success('Added to the waitlist');
+                    const filterSel = document.getElementById('wlSection');
+                    if (filterSel && filterSel.value && filterSel.value !== body.section) filterSel.value = '';
+                    this.load();
+                } else Toast.error((r.d && r.d.error) || 'Failed');
+            },
+            async promote(id) {
+                const w = this._rows.find(x => x.id === id); if (!w) return;
+                const who = w.name || w.email || 'this person';
+                if (!confirm(`Promote ${who} from the waitlist?\n\nThis opens the existing invite-link editor so you can send them the registration link yourself. They are then marked as promoted here.`)) return;
+                // EXISTING mechanism only — the invite/registration-link Live Editor.
+                if (w.section === 'forum') App.generateRegistrationLink('forum', '9799cb97-e3a7-493a-ac23-ee2910e8457b', 'Annual Biomedical Forum 2026');
+                else App.generateRegistrationLink(['plexus', 'gala', 'bridges'].includes(w.section) ? w.section : 'plexus');
+                if (w.email) { try { await navigator.clipboard.writeText(w.email); Toast.info('Copied their email: ' + w.email); } catch (e) {} }
+                const r = await this.api(`/api/admin/waitlist/${id}`, { method: 'PUT', body: JSON.stringify({ status: 'promoted' }) });
+                if (r.d && r.d.success) this.load();
+            },
+            async remove(id) {
+                if (!confirm('Remove this entry from the waitlist?')) return;
+                const r = await this.api(`/api/admin/waitlist/${id}`, { method: 'DELETE' });
+                if (r.d && r.d.success) { Toast.success('Removed'); this.load(); } else Toast.error('Failed');
+            }
+        };
+
         // ==================== BULK EMAIL TO REGISTRANTS ====================
         const BulkApp = {
             _count: 0,
+            _customEmails: null,
+            _t: null,
+            filters() {
+                const f = {};
+                const pay = document.getElementById('blastFilterPayment')?.value; if (pay) f.payment = pay;
+                const chk = document.getElementById('blastFilterChecked')?.value; if (chk) f.checked_in = chk;
+                const tik = document.getElementById('blastFilterTicket')?.value.trim(); if (tik) f.ticket = tik;
+                const cty = document.getElementById('blastFilterCountry')?.value.trim(); if (cty) f.country = cty;
+                return f;
+            },
+            previewCountDebounced() { clearTimeout(this._t); this._t = setTimeout(() => this.previewCount(), 350); },
             async previewCount() {
                 const el = document.getElementById('blastCount');
-                const aud = document.getElementById('blastAudience')?.value || 'all';
+                const aud = this._customEmails ? 'all' : (document.getElementById('blastAudience')?.value || 'all');
                 if (el) el.textContent = 'Counting…';
                 try {
-                    const res = await fetch('/api/admin/bulk-email/count?audience=' + encodeURIComponent(aud), { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    const res = await fetch('/api/admin/bulk-email/preview', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify({ audience: aud, filters: this.filters(), emails: this._customEmails || undefined }) });
                     const d = await res.json();
                     this._count = d.count || 0;
-                    if (el) el.innerHTML = `<strong style="color:var(--text-primary);">${this._count}</strong> recipient${this._count === 1 ? '' : 's'} (test rows excluded)`;
+                    const sample = (d.sample || []).slice(0, 3).map(s => s.email).join(', ');
+                    if (el) el.innerHTML = `<strong style="color:var(--text-primary);">${this._count}</strong> recipient${this._count === 1 ? '' : 's'} after filters (test rows excluded)${sample ? ` · e.g. ${sample}` : ''}`;
                 } catch (e) { if (el) el.textContent = 'Could not count recipients'; }
             },
+            // Preload the composer from a bulk selection (item 16). Nothing is sent here.
+            preloadSelection(emails, ctx, prefill = {}) {
+                this._customEmails = emails;
+                App.showSection('email-blast');
+                const chip = document.getElementById('blastCustomChip');
+                if (chip) { chip.style.display = 'block'; document.getElementById('blastCustomCount').textContent = emails.length; }
+                const audWrap = document.getElementById('blastAudienceWrap');
+                if (audWrap) audWrap.style.display = 'none';
+                if (prefill.subject !== undefined) document.getElementById('blastSubject').value = prefill.subject;
+                if (prefill.message !== undefined) document.getElementById('blastMessage').value = prefill.message;
+                this.renderPreview();
+                this.previewCount();
+                Toast.info(`${emails.length} recipient(s) preloaded — nothing sends until you press Send`);
+            },
+            clearCustom() {
+                this._customEmails = null;
+                const chip = document.getElementById('blastCustomChip');
+                if (chip) chip.style.display = 'none';
+                const audWrap = document.getElementById('blastAudienceWrap');
+                if (audWrap) audWrap.style.display = '';
+                this.previewCount();
+            },
+            // Client-side render of exactly what the backend template does with the message.
+            renderPreview() {
+                const el = document.getElementById('blastPreview'); if (!el) return;
+                const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const subject = document.getElementById('blastSubject')?.value.trim();
+                const message = document.getElementById('blastMessage')?.value.trim();
+                const first = (App.user && App.user.first_name) || 'Ana';
+                const paras = message
+                    ? esc(message).split(/\n{2,}/).map(pp => `<p style="margin:0 0 14px;">${pp.replace(/\n/g, '<br>')}</p>`).join('')
+                    : '<p style="color:#9ca3af;">Start typing the message to see it rendered here…</p>';
+                el.innerHTML = `
+                    <div style="background:#0f172a;border-radius:10px 10px 0 0;margin:-22px -24px 18px;padding:18px;text-align:center;font-weight:700;font-size:20px;letter-spacing:1px;"><span style="color:#C9A962;">Med</span><span style="color:#fff;">&amp;</span><span style="color:#C9A962;">X</span></div>
+                    ${subject ? `<div style="font-weight:700;font-size:16px;margin-bottom:12px;color:#0f172a;">${esc(subject)}</div>` : ''}
+                    <p style="margin:0 0 14px;">Dear ${esc(first)},</p>
+                    ${paras}
+                    <div style="border-top:1px solid #e5e7eb;margin-top:18px;padding-top:10px;font-size:11px;color:#9ca3af;">Each recipient is greeted with their own first name.</div>`;
+            },
+            // One rendered copy to the logged-in admin only — never to registrants.
+            async sendTest() {
+                const subject = document.getElementById('blastSubject').value.trim();
+                const message = document.getElementById('blastMessage').value.trim();
+                if (!subject || !message) { Toast.warning('Subject and message are required'); return; }
+                const btn = document.getElementById('blastTestBtn');
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending test…'; }
+                try {
+                    const res = await fetch('/api/admin/bulk-email/test', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify({ subject, message }) });
+                    const d = await res.json();
+                    if (d.ok) Toast.success(d.message); else Toast.warning(d.message || d.error || 'Test failed');
+                } catch (e) { Toast.error('Test failed'); }
+                finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-flask"></i> Send test to myself'; } }
+            },
             async send() {
-                const audience = document.getElementById('blastAudience').value;
+                const custom = !!this._customEmails;
+                const audience = custom ? 'all' : document.getElementById('blastAudience').value;
                 const subject = document.getElementById('blastSubject').value.trim();
                 const message = document.getElementById('blastMessage').value.trim();
                 const out = document.getElementById('blastResult');
                 const btn = document.getElementById('blastSendBtn');
                 if (!subject || !message) { Toast.warning('Subject and message are required'); return; }
-                if (!confirm(`Send "${subject}" to ${this._count} registrant(s)? This cannot be undone.`)) return;
+                const f = this.filters();
+                const fDesc = Object.keys(f).length ? ` (filters: ${Object.entries(f).map(([k, v]) => k + '=' + v).join(', ')})` : '';
+                const who = custom ? `the ${this._count} selected registrant(s)` : `${this._count} registrant(s)${fDesc}`;
+                if (!confirm(`Send "${subject}" to ${who}? This cannot be undone.`)) return;
                 if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…'; }
                 try {
-                    const res = await fetch('/api/admin/bulk-email/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify({ audience, subject, message }) });
+                    const res = await fetch('/api/admin/bulk-email/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify({ audience, subject, message, filters: f, emails: this._customEmails || undefined }) });
                     const d = await res.json();
                     if (d.success) {
                         out.innerHTML = `<div class="card" style="padding:12px 16px;border-left:4px solid #22c55e;"><i class="fas fa-check-circle" style="color:#22c55e;"></i> Queued to ${d.queued} recipient(s). Sending in the background (~8/sec). Delivery depends on your email provider + verified sender domain.</div>`;
                         document.getElementById('blastSubject').value = ''; document.getElementById('blastMessage').value = '';
+                        this.clearCustom();
+                        this.renderPreview();
                     } else { out.innerHTML = `<div class="card" style="padding:12px 16px;border-left:4px solid #ef4444;">${(d.error || 'Send failed')}</div>`; }
                 } catch (e) { out.innerHTML = `<div class="card" style="padding:12px 16px;border-left:4px solid #ef4444;">Request failed: ${e.message}</div>`; }
                 finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send to registrants'; } }

@@ -1,0 +1,39 @@
+name: Keep portals warm
+
+# Free Render web services sleep after ~15 min idle. This pings both portal
+# /health endpoints so a visitor never lands on a 30-50s cold-start blank tab
+# at the moment of payment intent.
+#
+# CAVEATS (documented for whoever owns hosting):
+#  - GitHub scheduled cron has a ~5 min MINIMUM granularity and is best-effort.
+#    Under Actions load, runs are delayed or skipped, so the real interval
+#    drifts well past 10 min (10-20+ min is common). This is a belt, NOT a
+#    guarantee — the in-process 14-min self-ping in each server.js stays as the
+#    primary keep-warm (belt and suspenders).
+#  - If uptime actually matters, move the user portal to Render Starter
+#    (~$7/mo). It never sleeps, and then this workflow (and the splash) become
+#    unnecessary. See the delivery report for the free-hour math.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+# Don't let backed-up runs pile up if a run is slow.
+concurrency:
+  group: keepalive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping user + admin portal health
+        run: |
+          for url in \
+            https://medx-user-portal.onrender.com/health \
+            https://medx-admin-portal.onrender.com/health; do
+            echo "Pinging $url"
+            curl -fsS --max-time 30 "$url" || true
+            echo
+          done

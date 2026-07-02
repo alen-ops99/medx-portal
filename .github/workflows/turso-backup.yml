@@ -1,0 +1,72 @@
+name: Turso nightly backup
+
+# Nightly logical dump of the production Turso DB. The ~3,000 paid records
+# currently have exactly one copy (the live DB) and no point-in-time restore.
+# Each run stores a gzipped .dump as a workflow artifact with 30 rolling days
+# of retention.
+#
+# RESTORE (any night's dump):
+#   1) Download the artifact from the Actions run, then: gunzip medx-turso-*.sql.gz
+#   2) turso db create medx-restore
+#   3) turso db shell medx-restore < medx-turso-*.sql
+#
+# REQUIRED SECRET: TURSO_AUTH_TOKEN — a Turso PLATFORM token, created with:
+#   turso auth login
+#   turso auth token | gh secret set TURSO_AUTH_TOKEN --repo alen-ops99/medx-portal
+# OPTIONAL VARIABLE: TURSO_DB_NAME (defaults to medx-portal, the current db).
+on:
+  schedule:
+    - cron: '17 3 * * *'   # 03:17 UTC nightly — off-peak and off the round hour
+  workflow_dispatch:
+
+concurrency:
+  group: turso-backup
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # The turso CLI reads a platform token from TURSO_API_TOKEN for non-interactive auth.
+      TURSO_API_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      TURSO_DB_NAME: ${{ vars.TURSO_DB_NAME || 'medx-portal' }}
+    steps:
+      - name: Guard — secret present
+        run: |
+          if [ -z "${TURSO_API_TOKEN}" ]; then
+            echo "::error::TURSO_AUTH_TOKEN secret is not set. Create it with: turso auth login && turso auth token | gh secret set TURSO_AUTH_TOKEN --repo alen-ops99/medx-portal"
+            exit 1
+          fi
+
+      - name: Install Turso CLI
+        run: |
+          curl -sSfL https://get.tur.so/install.sh | bash
+          echo "$HOME/.turso" >> "$GITHUB_PATH"
+
+      - name: Logical dump
+        run: |
+          set -euo pipefail
+          ts="$(date -u +%Y%m%d-%H%M%SZ)"
+          out="medx-turso-${ts}.sql"
+          echo "Dumping ${TURSO_DB_NAME} -> ${out}"
+          turso db shell "${TURSO_DB_NAME}" ".dump" > "${out}"
+          bytes="$(wc -c < "${out}")"
+          echo "Dump size: ${bytes} bytes"
+          # A tiny dump means auth or db-name failed — fail loudly rather than
+          # archive an empty "backup".
+          if [ "${bytes}" -lt 1000 ]; then
+            echo "::error::Dump is only ${bytes} bytes — likely an auth or db-name failure."
+            head -c 500 "${out}" || true
+            exit 1
+          fi
+          gzip -9 "${out}"
+          echo "ARTIFACT=${out}.gz" >> "$GITHUB_ENV"
+
+      - name: Upload dump artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: turso-backup-${{ github.run_id }}
+          path: ${{ env.ARTIFACT }}
+          retention-days: 30
+          if-no-files-found: error

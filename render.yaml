@@ -3,8 +3,14 @@ services:
     name: medx-user-portal
     runtime: node
     rootDir: user-portal/backend
-    buildCommand: npm install
+    # stamp-sw.sh cache-busts the service worker CACHE_NAME with the deploy's git
+    # SHA. It self-locates the repo root (../../scripts) and never fails the build.
+    buildCommand: npm install && bash ../../scripts/stamp-sw.sh
     startCommand: node server.js
+    # Render probes this on every deploy — a new instance only takes traffic once
+    # /health returns 200, so a boot that crashes rolls back to the old instance
+    # instead of taking the portal down (pairs with the boot-smoke CI net).
+    healthCheckPath: /health
     # Deploy when EITHER the backend or the served frontend changes. Without this,
     # a frontend-only commit (e.g. index.html) is skipped because rootDir is the backend.
     buildFilter:
@@ -65,8 +71,13 @@ services:
     name: medx-admin-portal
     runtime: node
     rootDir: admin-portal/backend
-    buildCommand: npm install
+    # stamp-sw.sh cache-busts the service worker CACHE_NAME with the deploy's git
+    # SHA. It self-locates the repo root (../../scripts) and never fails the build.
+    buildCommand: npm install && bash ../../scripts/stamp-sw.sh
     startCommand: node server.js
+    # Render probes this on every deploy — a new instance only takes traffic once
+    # /health returns 200, so a boot that crashes rolls back to the old instance.
+    healthCheckPath: /health
     # Deploy on any admin-portal change (backend OR the served frontend/index.html).
     buildFilter:
       paths:

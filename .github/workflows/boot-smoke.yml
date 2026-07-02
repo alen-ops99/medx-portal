@@ -1,0 +1,118 @@
+name: Boot smoke (pre-deploy)
+
+# Guards the two ~enormous single-file servers: one bad edit to server.js can
+# break boot with no test net. On every push to main this boots BOTH backends
+# against a throwaway SQLite file (never Turso, never production) and verifies
+# they actually serve — so a broken boot surfaces the moment code lands, before
+# Render builds it.
+#
+# NOTE: this is deliberately SEPARATE from smoke.yml. smoke.yml probes LIVE
+# production for drift (npm run smoke) and is intentionally NOT on push-to-main
+# (it races Render's deploy). This one never touches production — it boots the
+# code locally in CI. Two different jobs, kept in two files on purpose.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: boot-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Static pre-deploy guard (menu 14): the shared CREATE TABLE block must stay byte-identical
+  # across both portal server.js files (both boot the SAME Turso DB in prod). Runs on push to
+  # main before Render builds, so schema drift is caught the moment it lands.
+  schema-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dual-portal schema mirror must be byte-identical
+        run: bash scripts/check-schema-sync.sh
+
+  boot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: user
+            dir: user-portal/backend
+            port: 3101
+          - name: admin
+            dir: admin-portal/backend
+            port: 3102
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install deps
+        working-directory: ${{ matrix.dir }}
+        run: npm install --no-audit --no-fund
+
+      - name: Boot ${{ matrix.name }} portal on a scratch DB and probe it
+        working-directory: ${{ matrix.dir }}
+        env:
+          TURSO_DATABASE_URL: ''
+          NODE_ENV: test
+          PORT: ${{ matrix.port }}
+          JWT_SECRET: ci-boot-smoke-secret
+          DATABASE_PATH: ${{ runner.temp }}/medx-boot-${{ matrix.name }}.db
+        run: |
+          set -uo pipefail
+          node server.js > /tmp/boot.log 2>&1 &
+          server_pid=$!
+          echo "SERVER_PID=${server_pid}" >> "$GITHUB_ENV"
+
+          base="http://127.0.0.1:${{ matrix.port }}"
+          # Wait up to 40s for the health endpoint to come up.
+          up=0
+          for i in $(seq 1 40); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$base/health" || true)"
+            if [ "$code" = "200" ]; then up=1; break; fi
+            # Bail early with logs if the process died.
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              echo "::error::${{ matrix.name }} server process exited during boot"
+              break
+            fi
+            sleep 1
+          done
+
+          echo "----- boot log (tail) -----"
+          tail -n 40 /tmp/boot.log || true
+          echo "----- checks -----"
+
+          fail=0
+          if [ "$up" != "1" ]; then
+            echo "::error::${{ matrix.name }} portal never answered /health"
+            fail=1
+          fi
+
+          h="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$base/health" || echo 000)"
+          echo "GET /health -> $h"
+          [ "$h" = "200" ] || { echo "::error::/health expected 200, got $h"; fail=1; }
+
+          r="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$base/" || echo 000)"
+          echo "GET / -> $r"
+          [ "$r" = "200" ] || { echo "::error::GET / expected 200, got $r"; fail=1; }
+
+          # Bad credentials must be handled (400/401), never a 500 crash.
+          l="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -X POST "$base/api/auth/login" \
+                -H 'Content-Type: application/json' \
+                -d '{"email":"nobody@example.com","password":"wrong"}' || echo 000)"
+          echo "POST /api/auth/login (bad creds) -> $l"
+          case "$l" in
+            400|401) ;;
+            *) echo "::error::login expected 400/401, got $l"; fail=1 ;;
+          esac
+
+          exit $fail
+
+      - name: Stop server
+        if: always()
+        run: kill "${SERVER_PID}" 2>/dev/null || true

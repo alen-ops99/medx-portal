@@ -18,6 +18,17 @@ on:
     - cron: '0 7 * * *'
 
 jobs:
+  # Static guard (menu 14): the shared CREATE TABLE block must stay byte-identical across both
+  # portal server.js files (both boot the SAME Turso DB in prod). No production dependency, so
+  # this fails PRs loudly on drift — unlike the smoke job below, which tolerates PR-time misses.
+  schema-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v5
+      - name: Dual-portal schema mirror must be byte-identical
+        run: bash scripts/check-schema-sync.sh
+
   smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 5

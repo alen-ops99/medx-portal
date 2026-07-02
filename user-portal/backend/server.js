@@ -2242,6 +2242,32 @@ if (process.env.CLOUDINARY_URL) {
     console.log('[Storage] No CLOUDINARY_URL — using local disk storage');
 }
 
+// ===== Menu 14: fail loud when persistent object storage is missing in production =====
+// On Render's free tier the local disk is EPHEMERAL — anything multer writes vanishes on the
+// next redeploy or cold start. In production, if there is no persistent store (CLOUDINARY_URL),
+// we refuse file uploads (503) instead of silently accepting a file that will be lost. Dev is
+// unchanged, and data-only multipart posts that parse-and-discard (CSV imports) are exempt.
+const IS_PRODUCTION = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
+const STORAGE_IS_EPHEMERAL = IS_PRODUCTION && !cloudinaryConfigured;
+if (STORAGE_IS_EPHEMERAL) {
+    console.error('============================================================');
+    console.error('  [Storage] ERROR: running in PRODUCTION with no persistent');
+    console.error('  object store (CLOUDINARY_URL is unset). Uploaded files would');
+    console.error('  be written to EPHEMERAL disk and lost on the next redeploy or');
+    console.error('  restart. File-upload endpoints will return 503 until');
+    console.error('  CLOUDINARY_URL is configured (see render.yaml / menu 14).');
+    console.error('============================================================');
+}
+// Endpoints whose multipart body is parsed then discarded (never persisted) — always allowed.
+const UPLOAD_EXEMPT_SUFFIXES = ['/import', '/prospects/preview'];
+app.use((req, res, next) => {
+    if (!STORAGE_IS_EPHEMERAL) return next();
+    if (req.method !== 'POST' && req.method !== 'PUT' && req.method !== 'PATCH') return next();
+    if (!(req.headers['content-type'] || '').includes('multipart/form-data')) return next();
+    if (UPLOAD_EXEMPT_SUFFIXES.some(s => req.path.endsWith(s))) return next();
+    return res.status(503).json({ error: 'File uploads are temporarily unavailable. Persistent storage is not configured, so an uploaded file would be lost on the next restart. Please contact the administrator.' });
+});
+
 async function uploadToCloud(filePath, folder) {
     if (!cloudinaryConfigured) return null;
     try {
@@ -5553,7 +5579,13 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // Shared push outbox: the admin portal (no VAPID) enqueues here; this portal drains + sends.
+    // ===================== SCHEMA-MIRROR:BEGIN =====================
+    // MIRROR RULE: this block must stay byte-identical with the other portal's server.js.
+    // Both portals boot the same Turso DB in production, so these shared tables are declared
+    // in BOTH user-portal/backend/server.js and admin-portal/backend/server.js. After ANY
+    // edit here, run scripts/check-schema-sync.sh (also enforced in CI) — it exits 1 on drift.
+    // Shared push outbox: the admin portal (no VAPID) enqueues here; the user portal (which
+    // holds the VAPID keys + push_subscriptions) drains the queue and actually sends the push.
     db.run(`CREATE TABLE IF NOT EXISTS push_outbox (
         id TEXT PRIMARY KEY,
         title TEXT, body TEXT, url TEXT,
@@ -5638,6 +5670,19 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    // ===== Member class + standing (menu 22) =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod).
+    // member_type: student | physician | senior_forum | alumni.
+    // standing: good_standing | pending | lapsed.
+    // Bronze/Platinum gamification lives ONLY in member_rewards, never here.
+    db.run(`CREATE TABLE IF NOT EXISTS member_meta (
+        user_id TEXT PRIMARY KEY,
+        member_type TEXT DEFAULT 'student',
+        member_since TEXT,
+        standing TEXT DEFAULT 'good_standing',
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
     // ===== Registrant activity notes (item 17) + Gala seating (item 21) =====
     // Byte-identical in both portal server.js files (shared Turso DB in prod).
     db.run(`CREATE TABLE IF NOT EXISTS registrant_notes (
@@ -5675,6 +5720,16 @@ async function initializeApp() {
         status TEXT DEFAULT 'waiting',
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+
+    // Audit log — who did what (for a multi-person team). Admin writes it; declared here too
+    // so the shared Turso DB always has the table regardless of which portal boots first.
+    db.run(`CREATE TABLE IF NOT EXISTS audit_log (
+        id TEXT PRIMARY KEY,
+        actor_id TEXT, actor_email TEXT,
+        action TEXT, detail TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    // ====================== SCHEMA-MIRROR:END ======================
 
     db.run(`CREATE TABLE IF NOT EXISTS member_rewards (
         id TEXT PRIMARY KEY,
@@ -6622,6 +6677,117 @@ async function submitReset(e){
             return res.status(403).json({ error: 'Access denied' });
         }
         res.json(reg);
+    });
+
+    // ========== MEMBER CLASS + STANDING + RECORD (menu 22) ==========
+    // Read-only member state. Bronze/Platinum gamification stays out of here.
+    const MEMBER_TYPE_LABELS = { student: 'Student', physician: 'Physician', senior_forum: 'Senior Forum Member', alumni: 'Alumni' };
+    const MEMBER_STANDING_LABELS = { good_standing: 'Member in good standing', pending: 'Standing under review', lapsed: 'Membership lapsed' };
+    function deriveMemberType(user) {
+        try {
+            const fm = query.get('SELECT membership_level, career_stage FROM forum_members WHERE user_id = ? LIMIT 1', [user.id]);
+            if (fm) {
+                const lvl = String(fm.membership_level || '').toLowerCase();
+                if (lvl.includes('senior') || lvl.includes('fellow') || lvl.includes('lead')) return 'senior_forum';
+                const stage = String(fm.career_stage || '').toLowerCase();
+                if (stage.includes('student')) return 'student';
+                if (stage.includes('alumni')) return 'alumni';
+                return 'physician';
+            }
+        } catch (e) { /* forum tables optional */ }
+        return (user.institution && String(user.institution).trim()) ? 'physician' : 'student';
+    }
+    function getOrCreateMemberMeta(user) {
+        let row = query.get('SELECT * FROM member_meta WHERE user_id = ?', [user.id]);
+        if (!row) {
+            const since = user.created_at ? String(user.created_at).slice(0, 10) : new Date().toISOString().slice(0, 10);
+            const type = deriveMemberType(user);
+            db.run('INSERT INTO member_meta (user_id, member_type, member_since, standing) VALUES (?,?,?,?)',
+                [user.id, type, since, 'good_standing']);
+            saveDb();
+            row = query.get('SELECT * FROM member_meta WHERE user_id = ?', [user.id]);
+        }
+        return row;
+    }
+
+    app.get('/api/member/meta', auth, (req, res) => {
+        const user = query.get('SELECT id, email, institution, created_at FROM users WHERE id = ?', [req.user.id]);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        const m = getOrCreateMemberMeta(user);
+        res.json({
+            member_type: m.member_type,
+            member_type_label: MEMBER_TYPE_LABELS[m.member_type] || 'Member',
+            member_since: m.member_since,
+            standing: m.standing,
+            standing_label: MEMBER_STANDING_LABELS[m.standing] || 'Member in good standing'
+        });
+    });
+
+    // Member's gala seat/table — reads the admin seating plan (item 21). Display only.
+    // Looks across BOTH gala sources: standalone gala_registrations (by email) and
+    // gala-type tickets in the main registrations table (by user id).
+    app.get('/api/gala/my-seat', auth, (req, res) => {
+        try {
+            const user = query.get('SELECT id, email FROM users WHERE id = ?', [req.user.id]);
+            if (!user) return res.json({ assigned: false });
+            const ids = [];
+            query.all('SELECT id FROM gala_registrations WHERE LOWER(email) = LOWER(?)', [user.email || '']).forEach(r => ids.push(r.id));
+            query.all("SELECT id FROM registrations WHERE user_id = ? AND (registration_type = 'gala' OR includes_gala = 1)", [user.id]).forEach(r => ids.push(r.id));
+            if (!ids.length) return res.json({ assigned: false });
+            const placeholders = ids.map(() => '?').join(',');
+            const seat = query.get(`SELECT * FROM gala_seat_assignments WHERE registration_id IN (${placeholders}) LIMIT 1`, ids);
+            if (!seat) return res.json({ assigned: false });
+            const table = query.get('SELECT * FROM gala_tables WHERE id = ?', [seat.table_id]);
+            res.json({ assigned: true, table_label: table ? table.label : null, seat_note: seat.seat_note || null });
+        } catch (e) { res.json({ assigned: false }); }
+    });
+
+    // The member's permanent record — events, certificates, badges across years.
+    app.get('/api/member/record', auth, (req, res) => {
+        try {
+            const user = query.get('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [req.user.id]);
+            if (!user) return res.status(404).json({ error: 'User not found' });
+            const regs = query.all(`SELECT r.id, r.registration_type, r.status, r.payment_status, r.checked_in, r.checked_in_at, r.invoice_number,
+                    c.name as conference_name, c.start_date, c.end_date, c.venue_name, c.venue_city, t.name as ticket_name
+                FROM registrations r
+                JOIN conferences c ON r.conference_id = c.id
+                JOIN ticket_types t ON r.ticket_type_id = t.id
+                WHERE r.user_id = ? ORDER BY c.start_date DESC`, [user.id]);
+            const events = regs.map(r => ({
+                id: r.id,
+                title: r.conference_name || 'Med&X event',
+                ticket_name: r.ticket_name || r.registration_type || 'Ticket',
+                start_date: r.start_date,
+                end_date: r.end_date,
+                venue: [r.venue_name, r.venue_city].filter(Boolean).join(', '),
+                paid: r.payment_status === 'paid' || r.status === 'confirmed',
+                attended: !!r.checked_in,
+                checked_in_at: r.checked_in_at || null,
+                invoice_number: r.invoice_number || null
+            }));
+            const certs = query.all(`SELECT ct.* FROM certificates ct
+                JOIN registrations r ON ct.registration_id = r.id
+                WHERE r.user_id = ? ORDER BY ct.issue_date DESC`, [user.id]);
+            const certificates = certs.map(ct => ({
+                id: ct.id,
+                title: ct.conference_name ? (ct.conference_name + ' — Certificate of Attendance') : 'Certificate of Attendance',
+                number: ct.certificate_number,
+                issue_date: ct.issue_date,
+                type: ct.certificate_type || 'attendance'
+            }));
+            let badges = [];
+            try {
+                badges = query.all(`SELECT b.name, b.description, b.icon, mb.earned_at
+                    FROM forum_member_badges mb
+                    JOIN forum_badges b ON mb.badge_id = b.id
+                    JOIN forum_members fm ON mb.member_id = fm.id
+                    WHERE fm.user_id = ?
+                    ORDER BY mb.earned_at DESC`, [user.id]).map(x => ({
+                        name: x.name, description: x.description, icon: x.icon, awarded_at: x.earned_at
+                    }));
+            } catch (e) { badges = []; }
+            res.json({ events, certificates, badges });
+        } catch (e) { console.error(e); res.status(500).json({ error: 'Failed to load record' }); }
     });
 
     // ========== ABSTRACT ROUTES ==========
@@ -20287,6 +20453,17 @@ By applying to this program, I provide the following consents:
 
     // Start watching shared DB for cross-portal sync
     watchSharedDb();
+
+    // Schema fingerprint (menu 14): both portals boot the SAME Turso DB in production, so they
+    // should print an IDENTICAL fingerprint here. A mismatch between the two portals' startup
+    // logs is the earliest signal the shared CREATE TABLE blocks (see the SCHEMA-MIRROR markers)
+    // have drifted — then run scripts/check-schema-sync.sh, which also gates CI.
+    try {
+        const _tbls = query.all("SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+        const _norm = _tbls.map(t => t.name + ':' + String(t.sql || '').replace(/\s+/g, ' ').trim()).join('\n');
+        const _fp = require('crypto').createHash('sha256').update(_norm).digest('hex').slice(0, 16);
+        console.log('[Schema] ' + _tbls.length + ' tables, fingerprint ' + _fp);
+    } catch (_e) { console.error('[Schema] fingerprint failed:', _e.message); }
 
     app.listen(PORT, () => {
         console.log(`Med&X User Portal running on http://localhost:${PORT}`);

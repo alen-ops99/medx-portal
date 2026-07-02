@@ -348,6 +348,33 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// ===== Menu 14: fail loud when persistent object storage is missing in production =====
+// On Render's free tier the local disk is EPHEMERAL — anything multer writes vanishes on the
+// next redeploy or cold start. This portal writes uploads to disk, so CLOUDINARY_URL is the
+// codebase-wide "persistence is configured" signal (see the storage health check). In
+// production without it we refuse file uploads (503) instead of silently accepting a file that
+// will be lost. Dev is unchanged, and parse-and-discard multipart posts (CSV imports) are exempt.
+const IS_PRODUCTION = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
+const STORAGE_IS_EPHEMERAL = IS_PRODUCTION && !process.env.CLOUDINARY_URL;
+if (STORAGE_IS_EPHEMERAL) {
+    console.error('============================================================');
+    console.error('  [Storage] ERROR: running in PRODUCTION with no persistent');
+    console.error('  object store (CLOUDINARY_URL is unset). Uploaded files would');
+    console.error('  be written to EPHEMERAL disk and lost on the next redeploy or');
+    console.error('  restart. File-upload endpoints will return 503 until');
+    console.error('  CLOUDINARY_URL is configured (see render.yaml / menu 14).');
+    console.error('============================================================');
+}
+// Endpoints whose multipart body is parsed then discarded (never persisted) — always allowed.
+const UPLOAD_EXEMPT_SUFFIXES = ['/import', '/prospects/preview'];
+app.use((req, res, next) => {
+    if (!STORAGE_IS_EPHEMERAL) return next();
+    if (req.method !== 'POST' && req.method !== 'PUT' && req.method !== 'PATCH') return next();
+    if (!(req.headers['content-type'] || '').includes('multipart/form-data')) return next();
+    if (UPLOAD_EXEMPT_SUFFIXES.some(s => req.path.endsWith(s))) return next();
+    return res.status(503).json({ error: 'File uploads are temporarily unavailable. Persistent storage is not configured, so an uploaded file would be lost on the next restart. Please contact the administrator.' });
+});
+
 // Create uploads directory
 const uploadsDir = path.join(__dirname, 'uploads');
 ['abstracts', 'posters', 'documents', 'badges', 'photos', 'tickets', 'accelerator', 'chat'].forEach(dir => {
@@ -1486,14 +1513,21 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // Shared push outbox — this portal enqueues; the user portal (which holds VAPID +
-    // subscriptions) drains and actually sends the web-push. Dual-file table definition.
+    // ===================== SCHEMA-MIRROR:BEGIN =====================
+    // MIRROR RULE: this block must stay byte-identical with the other portal's server.js.
+    // Both portals boot the same Turso DB in production, so these shared tables are declared
+    // in BOTH user-portal/backend/server.js and admin-portal/backend/server.js. After ANY
+    // edit here, run scripts/check-schema-sync.sh (also enforced in CI) — it exits 1 on drift.
+    // Shared push outbox: the admin portal (no VAPID) enqueues here; the user portal (which
+    // holds the VAPID keys + push_subscriptions) drains the queue and actually sends the push.
     db.run(`CREATE TABLE IF NOT EXISTS push_outbox (
         id TEXT PRIMARY KEY,
         title TEXT, body TEXT, url TEXT,
         sent INTEGER DEFAULT 0, sent_at TEXT, sent_count INTEGER,
         created_by TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+    // target_email (optional): when set, the push goes ONLY to that user (e.g. a 1:1 admin
+    // message). When null, it's a broadcast to everyone. ALTER is idempotent.
     try { db.run('ALTER TABLE push_outbox ADD COLUMN target_email TEXT'); } catch(e) {}
 
     // ===== Member Home feed, opportunity board, talk library (menu items 9 & 23) =====
@@ -1570,6 +1604,19 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    // ===== Member class + standing (menu 22) =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod).
+    // member_type: student | physician | senior_forum | alumni.
+    // standing: good_standing | pending | lapsed.
+    // Bronze/Platinum gamification lives ONLY in member_rewards, never here.
+    db.run(`CREATE TABLE IF NOT EXISTS member_meta (
+        user_id TEXT PRIMARY KEY,
+        member_type TEXT DEFAULT 'student',
+        member_since TEXT,
+        standing TEXT DEFAULT 'good_standing',
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
     // ===== Registrant activity notes (item 17) + Gala seating (item 21) =====
     // Byte-identical in both portal server.js files (shared Turso DB in prod).
     db.run(`CREATE TABLE IF NOT EXISTS registrant_notes (
@@ -1608,13 +1655,15 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // Audit log — who did what (for a multi-person team).
+    // Audit log — who did what (for a multi-person team). Admin writes it; declared here too
+    // so the shared Turso DB always has the table regardless of which portal boots first.
     db.run(`CREATE TABLE IF NOT EXISTS audit_log (
         id TEXT PRIMARY KEY,
         actor_id TEXT, actor_email TEXT,
         action TEXT, detail TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+    // ====================== SCHEMA-MIRROR:END ======================
 
     // Monthly reminder tracking
     db.run(`CREATE TABLE IF NOT EXISTS monthly_reminders_sent (
@@ -6317,6 +6366,34 @@ async function initializeApp() {
         if (!existing) return res.status(404).json({ error: 'Feed item not found' });
         db.run('DELETE FROM feed_items WHERE id = ?', [req.params.id]);
         saveDb();
+        res.json({ success: true });
+    });
+
+    // ========== MEMBER CLASS + STANDING (menu 22) ==========
+    // Admin edits the membership layer surfaced on the member card + Settings.
+    const MEMBER_META_TYPES = ['student', 'physician', 'senior_forum', 'alumni'];
+    const MEMBER_META_STANDINGS = ['good_standing', 'pending', 'lapsed'];
+
+    app.get('/api/admin/member-meta/:userId', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT * FROM member_meta WHERE user_id = ?', [req.params.userId]);
+        res.json(row || { user_id: req.params.userId, member_type: null, member_since: null, standing: null });
+    });
+
+    app.put('/api/admin/member-meta/:userId', auth, adminOnly, (req, res) => {
+        const b = req.body || {};
+        const existing = query.get('SELECT * FROM member_meta WHERE user_id = ?', [req.params.userId]);
+        const member_type = MEMBER_META_TYPES.includes(b.member_type) ? b.member_type : (existing ? existing.member_type : 'student');
+        const standing = MEMBER_META_STANDINGS.includes(b.standing) ? b.standing : (existing ? existing.standing : 'good_standing');
+        const member_since = b.member_since !== undefined ? b.member_since : (existing ? existing.member_since : null);
+        if (existing) {
+            db.run('UPDATE member_meta SET member_type=?, member_since=?, standing=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?',
+                [member_type, member_since, standing, req.params.userId]);
+        } else {
+            db.run('INSERT INTO member_meta (user_id, member_type, member_since, standing) VALUES (?,?,?,?)',
+                [req.params.userId, member_type, member_since, standing]);
+        }
+        saveDb();
+        logAudit(req, 'member.meta_update', req.params.userId);
         res.json({ success: true });
     });
 
@@ -17996,20 +18073,41 @@ By applying to this program, I provide the following consents:
 
     // ==================== BULK EMAIL TO REGISTRANTS ====================
     // Collect a deduped recipient list for an audience, excluding test-tagged rows.
-    function collectBulkRecipients(audience) {
+    // opts.filters: { payment: paid|unpaid, ticket: substring, checked_in: yes|no, country: substring }
+    // opts.emails: explicit allowlist (the bulk-bar "email selected" path). Back-compatible —
+    // both are optional and the one-argument call behaves exactly as before.
+    function collectBulkRecipients(audience, opts = {}) {
+        const f = (opts && opts.filters) || {};
+        const allow = (opts && Array.isArray(opts.emails) && opts.emails.length)
+            ? new Set(opts.emails.map(e => String(e).trim().toLowerCase()).filter(Boolean)) : null;
         const seen = new Set();
         const out = [];
+        // Each registrant table tracks "paid" differently — same tolerant rule as the detail card.
+        const isPaid = (r) => (r.payment_status === 'paid' || r.gala_payment_status === 'paid'
+            || ['confirmed', 'paid'].includes(String(r.status || '').toLowerCase()));
+        const isCheckedIn = (r) => (r.checked_in == 1 || r.checked_in === true);
+        const matches = (r) => {
+            if (f.payment === 'paid' && !isPaid(r)) return false;
+            if (f.payment === 'unpaid' && isPaid(r)) return false;
+            if (f.checked_in === 'yes' && !isCheckedIn(r)) return false;
+            if (f.checked_in === 'no' && isCheckedIn(r)) return false;
+            if (f.ticket && !String(r.ticket_type || r.ticket_name || r.pricing || '').toLowerCase().includes(String(f.ticket).toLowerCase())) return false;
+            if (f.country && !String(r.country || '').toLowerCase().includes(String(f.country).toLowerCase())) return false;
+            return true;
+        };
         const add = (rows) => rows.forEach(r => {
             const e = (r.email || '').trim().toLowerCase();
             if (!e || seen.has(e)) return;
             if (/TEST/i.test(`${r.requests || ''} ${r.notes || ''} ${r.invoice_number || ''}`)) return; // skip test rows
+            if (allow && !allow.has(e)) return;
+            if (!matches(r)) return;
             seen.add(e); out.push({ email: r.email.trim(), first_name: r.first_name || '' });
         });
         try {
-            if (audience === 'gala' || audience === 'all') add(query.all("SELECT first_name, email, requests, invoice_number FROM gala_registrations WHERE email IS NOT NULL AND email != ''"));
-            if (audience === 'croatians-abroad' || audience === 'all') add(query.all("SELECT first_name, email, notes, invoice_number FROM croatians_abroad_registrations WHERE email IS NOT NULL AND email != ''"));
-            if (audience === 'conference' || audience === 'all') add(query.all("SELECT first_name, email, invoice_number FROM registrations WHERE email IS NOT NULL AND email != ''"));
-            if (audience === 'bridges' || audience === 'all') add(query.all("SELECT first_name, email, requests FROM bridges_registrations WHERE email IS NOT NULL AND email != ''"));
+            if (audience === 'gala' || audience === 'all') add(query.all("SELECT * FROM gala_registrations WHERE email IS NOT NULL AND email != ''"));
+            if (audience === 'croatians-abroad' || audience === 'all') add(query.all("SELECT * FROM croatians_abroad_registrations WHERE email IS NOT NULL AND email != ''"));
+            if (audience === 'conference' || audience === 'all') add(query.all("SELECT * FROM registrations WHERE email IS NOT NULL AND email != ''"));
+            if (audience === 'bridges' || audience === 'all') add(query.all("SELECT * FROM bridges_registrations WHERE email IS NOT NULL AND email != ''"));
         } catch (e) { console.warn('[Bulk] collect failed:', e.message); }
         return out;
     }
@@ -18020,10 +18118,37 @@ By applying to this program, I provide the following consents:
         res.json(recips.map(r => ({ email: r.email, name: r.first_name })).slice(0, 2000));
     });
 
-    // Preview the recipient count for an audience (no send).
+    // Preview the recipient count for an audience (no send). Optional filter params.
     app.get('/api/admin/bulk-email/count', auth, adminOnly, (req, res) => {
         const audience = req.query.audience || 'all';
-        res.json({ audience, count: collectBulkRecipients(audience).length });
+        const filters = { payment: req.query.payment, ticket: req.query.ticket, checked_in: req.query.checked_in, country: req.query.country };
+        res.json({ audience, count: collectBulkRecipients(audience, { filters }).length });
+    });
+
+    // Full recipient preview (no send): audience + filters + optional explicit email list.
+    // POST so a large selected-emails list never hits URL length limits.
+    app.post('/api/admin/bulk-email/preview', auth, adminOnly, (req, res) => {
+        const b = req.body || {};
+        const recips = collectBulkRecipients(b.audience || 'all', { filters: b.filters, emails: b.emails });
+        res.json({ count: recips.length, sample: recips.slice(0, 6) });
+    });
+
+    // Send ONE rendered test email to the logged-in admin only (never to registrants).
+    app.post('/api/admin/bulk-email/test', auth, adminOnly, async (req, res) => {
+        try {
+            const { subject, message } = req.body || {};
+            if (!subject || !message) return res.status(400).json({ error: 'subject and message are required' });
+            const to = req.user && req.user.email;
+            if (!to) return res.status(400).json({ error: 'No admin email on the session' });
+            const bodyHtml = String(message).split(/\n{2,}/).map(p => `<p>${p.replace(/</g, '&lt;').replace(/\n/g, '<br>')}</p>`).join('');
+            const greeting = `<p>Dear ${String((req.user.first_name || 'colleague')).replace(/</g, '&lt;')},</p>`;
+            const html = buildEmailTemplate(subject, greeting + bodyHtml + '<p style="font-size:12px;color:#94a3b8;"><em>Self-test preview — sent only to you. Registrants did not receive this.</em></p>');
+            const result = await sendEmail(to, '[TEST] ' + subject, html);
+            logAudit(req, 'bulk_email.self_test', `"${subject}" → ${to}`);
+            if (result && result.mock) return res.json({ ok: false, mock: true, to, message: 'No email provider configured — nothing was actually sent. In production this lands in your own inbox.' });
+            if (result && result.success === false) return res.json({ ok: false, to, message: 'Provider rejected the send: ' + (result.error || 'unknown') });
+            res.json({ ok: true, to, message: 'Test sent to ' + to + ' — check your inbox.' });
+        } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
     // Send a bulk email. Responds immediately with the recipient count and sends in the
@@ -18031,12 +18156,15 @@ By applying to this program, I provide the following consents:
     // <first name>". Skips test rows; dedupes by email. Capped at 2000 for safety.
     app.post('/api/admin/bulk-email/send', auth, adminOnly, async (req, res) => {
         try {
-            const { audience, subject, message } = req.body || {};
+            const { audience, subject, message, filters, emails } = req.body || {};
             if (!subject || !message) return res.status(400).json({ error: 'subject and message are required' });
-            const recipients = collectBulkRecipients(audience || 'all').slice(0, 2000);
+            const recipients = collectBulkRecipients(audience || 'all', { filters, emails }).slice(0, 2000);
             if (!recipients.length) return res.status(400).json({ error: 'No recipients for this audience.' });
 
-            logAudit(req, 'bulk_email.send', `"${subject}" → ${recipients.length} (${audience || 'all'})`);
+            const fParts = [];
+            if (emails && emails.length) fParts.push('selection:' + emails.length);
+            if (filters) ['payment', 'ticket', 'checked_in', 'country'].forEach(k => { if (filters[k]) fParts.push(k + '=' + filters[k]); });
+            logAudit(req, 'bulk_email.send', `"${subject}" → ${recipients.length} (${audience || 'all'}${fParts.length ? ' | ' + fParts.join(', ') : ''})`);
             res.json({ success: true, queued: recipients.length, audience: audience || 'all' });
 
             // Background send (after responding). Plain text becomes simple HTML paragraphs.
@@ -19167,6 +19295,17 @@ By applying to this program, I provide the following consents:
 
     // Start watching shared DB for cross-portal sync
     watchSharedDb();
+
+    // Schema fingerprint (menu 14): both portals boot the SAME Turso DB in production, so they
+    // should print an IDENTICAL fingerprint here. A mismatch between the two portals' startup
+    // logs is the earliest signal the shared CREATE TABLE blocks (see the SCHEMA-MIRROR markers)
+    // have drifted — then run scripts/check-schema-sync.sh, which also gates CI.
+    try {
+        const _tbls = query.all("SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+        const _norm = _tbls.map(t => t.name + ':' + String(t.sql || '').replace(/\s+/g, ' ').trim()).join('\n');
+        const _fp = require('crypto').createHash('sha256').update(_norm).digest('hex').slice(0, 16);
+        console.log('[Schema] ' + _tbls.length + ' tables, fingerprint ' + _fp);
+    } catch (_e) { console.error('[Schema] fingerprint failed:', _e.message); }
 
     app.listen(PORT, () => {
         console.log(`Med&X Admin Portal running on http://localhost:${PORT}`);

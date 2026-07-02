@@ -61063,6 +61063,15 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                         </div>
 
+                        <!-- Who from your network attends (Example until connection RSVP data exists) -->
+                        <div class="up-card" style="margin-top: 24px;">
+                            <div class="up-card-header" style="display:flex;align-items:center;justify-content:space-between;">
+                                <h3 class="up-card-title"><i class="fas fa-users" style="margin-right: 8px;"></i> Who from your network attends</h3>
+                                <span style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--up-text-muted);border:1px solid var(--up-border, var(--line));border-radius:999px;padding:3px 8px;">Example</span>
+                            </div>
+                            <div class="up-card-body" id="pxNetworkAttendees"></div>
+                        </div>
+
                         <!-- Conference Check-in -->
                         <div class="up-card" style="margin-top: 24px;" id="pxCheckinCard">
                             <div class="up-card-header">
@@ -61695,6 +61704,9 @@ button,input,select,textarea{font-family:var(--sans);}
 
                     <!-- Gala Sub-Navigation -->
                     <div class="gala-tabs">
+                        <button class="gala-tab" onclick="GalaPortal.showTab('mypass')" data-tab="mypass" id="galaMyPassTab" style="display:none;">
+                            <i class="fas fa-id-badge"></i> My Pass
+                        </button>
                         <button class="gala-tab active" onclick="GalaPortal.showTab('overview')" data-tab="overview">
                             <i class="fas fa-info-circle"></i> Overview
                         </button>
@@ -61707,6 +61719,11 @@ button,input,select,textarea{font-family:var(--sans);}
                         <button class="gala-tab" onclick="GalaPortal.showTab('register')" data-tab="register">
                             <i class="fas fa-ticket-alt"></i> Register
                         </button>
+                    </div>
+
+                    <!-- Gala My Pass Panel (attendee state — shown only for confirmed guests) -->
+                    <div class="gala-panel" id="gala-panel-mypass">
+                        <div id="galaMyPassBody"></div>
                     </div>
 
                     <!-- Gala Overview Panel -->
@@ -66198,6 +66215,13 @@ button,input,select,textarea{font-family:var(--sans);}
                         <div class="settings-content">
                             <!-- Profile Tab -->
                             <div class="settings-panel active" id="settings-panel-profile">
+                                <div class="settings-card" id="settingsMembershipCard">
+                                    <h3>Membership</h3>
+                                    <p class="settings-card-desc">Your Med&amp;X membership class and standing. Contact us to update your details.</p>
+                                    <div id="settingsMembershipBody" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-top:4px;">
+                                        <span style="color:var(--muted);font-size:13px;">Loading membership…</span>
+                                    </div>
+                                </div>
                                 <div class="settings-card">
                                     <div class="form-header-with-points">
                                         <h3>Profile Information</h3>
@@ -67838,6 +67862,15 @@ button,input,select,textarea{font-family:var(--sans);}
                     <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0 0 12px; padding-left: 4px;">My Network</h3>
                     <div id="mymedxNetworkStats" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px;">
                         <!-- Populated by MyMedXPortal.renderNetworkStats() -->
+                    </div>
+
+                    <!-- My Record — permanent wall of events, certificates, badges (menu 22) -->
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;padding-left:4px;">
+                        <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0;">My Record</h3>
+                        <button onclick="MyMedXPortal.shareRecord()" style="background:transparent;border:1px solid var(--up-border, var(--line));color:var(--up-text, var(--ink));border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-link" style="margin-right:6px;"></i>Share my Med&amp;X record</button>
+                    </div>
+                    <div id="mymedxRecord" style="margin-bottom: 24px;">
+                        <!-- Populated by MyMedXPortal.renderRecord() -->
                     </div>
                 </div>
             </div>
@@ -76733,6 +76766,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 this.renderQRCodes();
                 this.renderInterests();
                 this.renderNetworkStats();
+                this.renderRecord();
             },
 
             // ===== Member data (single fetch → Recognition + Wallet) =====
@@ -76784,7 +76818,159 @@ You can use variables like {first_name} that will be personalized for each recip
                       + '<div style="flex:1;min-width:0;"><div style="font-size:18px;font-weight:700;color:var(--ink);font-family:var(--serif);">'+name+'</div>'
                       + '<div style="font-size:13px;color:var(--muted);">Med&X member</div></div>'
                     + '</div>'
+                    + '<div id="mymedxMembershipMeta"></div>'
                     + badgesHtml;
+                this._renderMembershipMeta();
+            },
+
+            // Membership layer (menu 22) — member type / member-since / standing.
+            // Bronze/Platinum tier language stays out of here (rewards only).
+            _renderMembershipMeta() {
+                var el = document.getElementById('mymedxMembershipMeta');
+                if (!el || typeof MemberState === 'undefined') return;
+                MemberState.loadMeta().then(function(m){
+                    if (!m) { el.innerHTML = ''; return; }
+                    var chip = function(icon, label){
+                        return '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:600;color:var(--ink-soft, var(--ink));background:var(--paper-2);border:1px solid var(--line);"><i class="fas '+icon+'" style="color:var(--gold-dim, var(--gold));"></i>'+label+'</span>';
+                    };
+                    var chips = [];
+                    if (m.member_type_label) chips.push(chip('fa-user-md', m.member_type_label));
+                    var sinceY = m.member_since ? String(m.member_since).slice(0,4) : '';
+                    if (sinceY) chips.push(chip('fa-calendar-check', 'Member since ' + sinceY));
+                    chips.push(chip('fa-shield-halved', m.standing_label || 'Member in good standing'));
+                    el.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">' + chips.join('') + '</div>';
+                });
+            },
+
+            // My Record — permanent wall of events, certificates, badges (menu 22).
+            renderRecord() {
+                var el = document.getElementById('mymedxRecord');
+                if (!el) return;
+                el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Loading your record…</div>';
+                var t = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
+                var base = (typeof API_BASE !== 'undefined' ? API_BASE : '');
+                fetch(base + '/api/member/record', { headers: t ? { 'Authorization': 'Bearer ' + t } : {} })
+                    .then(function(r){ return r.ok ? r.json() : Promise.reject('err'); })
+                    .then(function(data){ MyMedXPortal._record = data; MyMedXPortal._renderRecordHtml(data); })
+                    .catch(function(){ MyMedXPortal._renderRecordHtml(null); });
+            },
+
+            _fmtRecordDate(start, end) { return this._fmtDateRange(start, end); },
+
+            _renderRecordHtml(data) {
+                var el = document.getElementById('mymedxRecord');
+                if (!el) return;
+                if (!data) {
+                    el.innerHTML = '<div style="text-align:center;padding:22px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);font-size:13px;">Couldn\'t load your record right now. Please try again in a moment.</div>';
+                    return;
+                }
+                var card = function(inner){ return '<div style="background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:var(--shadow-sm);">' + inner + '</div>'; };
+                var sectionTitle = function(icon, label){ return '<div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--ink);margin-bottom:12px;"><i class="fas '+icon+'" style="color:var(--crimson);"></i>' + label + '</div>'; };
+
+                // Events
+                var events = (data.events || []);
+                var eventsHtml;
+                if (events.length) {
+                    eventsHtml = events.map(function(ev){
+                        var chipColor, chipLabel;
+                        if (ev.attended) { chipColor = 'var(--success)'; chipLabel = 'Attended'; }
+                        else if (ev.paid) { chipColor = 'var(--success)'; chipLabel = 'Confirmed'; }
+                        else { chipColor = 'var(--warning)'; chipLabel = 'Registered'; }
+                        var dates = MyMedXPortal._fmtDateRange(ev.start_date, ev.end_date);
+                        return '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line);">'
+                            + '<div style="width:34px;height:34px;border-radius:9px;background:var(--paper-2);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-calendar-day" style="color:var(--crimson);font-size:14px;"></i></div>'
+                            + '<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;color:var(--ink);">' + escapeHtml(ev.title) + '</div>'
+                            + '<div style="font-size:12px;color:var(--muted);">' + escapeHtml(ev.ticket_name || '') + (dates ? (' · ' + dates) : '') + '</div></div>'
+                            + '<span style="white-space:nowrap;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:' + chipColor + ';background:var(--paper-2);border:1px solid var(--line);padding:4px 9px;border-radius:999px;">' + chipLabel + '</span>'
+                        + '</div>';
+                    }).join('');
+                    eventsHtml = eventsHtml.replace('border-top:1px solid var(--line);', ''); // first row flush
+                } else {
+                    eventsHtml = '<div style="font-size:13px;color:var(--muted);">Your events appear here after you register. <a href="#" onclick="event.preventDefault();UserPortal.showSection(\'plexus\');" style="color:var(--crimson);font-weight:600;">Browse events</a></div>';
+                }
+
+                // Certificates
+                var certs = (data.certificates || []);
+                var certsHtml;
+                if (certs.length) {
+                    certsHtml = certs.map(function(c){
+                        var y = c.issue_date ? String(c.issue_date).slice(0,4) : '';
+                        return '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;">'
+                            + '<div style="width:34px;height:34px;border-radius:9px;background:var(--paper-2);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-certificate" style="color:var(--gold-dim, var(--gold));font-size:14px;"></i></div>'
+                            + '<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;color:var(--ink);">' + escapeHtml(c.title) + '</div>'
+                            + '<div style="font-size:12px;color:var(--muted);">' + (c.number ? escapeHtml(c.number) : 'Certificate') + (y ? (' · ' + y) : '') + '</div></div>'
+                            + '<button onclick="MyMedXPortal.downloadCertificate(\'' + escapeHtml(c.id) + '\')" style="white-space:nowrap;background:transparent;border:1px solid var(--line-strong, var(--line));color:var(--ink);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-download" style="margin-right:5px;"></i>Download</button>'
+                        + '</div>';
+                    }).join('');
+                } else {
+                    certsHtml = '<div style="display:flex;align-items:center;gap:12px;padding:12px;border:1px dashed var(--line);border-radius:12px;">'
+                        + '<div style="width:34px;height:34px;border-radius:9px;background:var(--paper-2);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-certificate" style="color:var(--muted);font-size:14px;"></i></div>'
+                        + '<div><div style="font-size:13px;font-weight:600;color:var(--ink-soft, var(--ink));">Certificate of Attendance <span style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 7px;margin-left:6px;">Example</span></div>'
+                        + '<div style="font-size:12px;color:var(--muted);">Certificates appear here after events you attend.</div></div></div>';
+                }
+
+                // Badges (quiet recognition)
+                var badges = (data.badges || []);
+                var badgesHtml;
+                if (badges.length) {
+                    badgesHtml = '<div style="display:flex;flex-wrap:wrap;gap:8px;">' + badges.map(function(b){
+                        return '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:600;color:var(--ink-soft, var(--ink));background:var(--paper-2);border:1px solid var(--line);"><i class="fas ' + (b.icon || 'fa-award') + '" style="color:var(--gold-dim, var(--gold));"></i>' + escapeHtml(b.name || 'Badge') + '</span>';
+                    }).join('') + '</div>';
+                } else {
+                    badgesHtml = '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">'
+                        + '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:600;color:var(--muted);background:var(--paper-2);border:1px dashed var(--line);"><i class="fas fa-award"></i>First conference</span>'
+                        + '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:600;color:var(--muted);background:var(--paper-2);border:1px dashed var(--line);"><i class="fas fa-microphone"></i>Presenter</span>'
+                        + '<span style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 8px;">Example</span>'
+                        + '</div><div style="font-size:12px;color:var(--muted);margin-top:8px;">Recognition you earn across Med&X events collects here.</div>';
+                }
+
+                el.innerHTML =
+                    card(sectionTitle('fa-calendar-check', 'Events') + eventsHtml)
+                  + card(sectionTitle('fa-certificate', 'Certificates') + certsHtml)
+                  + card(sectionTitle('fa-medal', 'Badges') + badgesHtml);
+            },
+
+            // Client-side certificate render — printable page from the stored cert data.
+            downloadCertificate(certId) {
+                var cert = ((this._record && this._record.certificates) || []).filter(function(c){ return c.id === certId; })[0];
+                if (!cert) { if (typeof Toast !== 'undefined') Toast.error('Certificate not found'); return; }
+                var user = (typeof UserPortal !== 'undefined' && UserPortal.user) || {};
+                var name = (user.name || ((user.first_name||'') + ' ' + (user.last_name||'')).trim() || 'Med&X Member');
+                var win = window.open('', '_blank');
+                if (!win) { if (typeof Toast !== 'undefined') Toast.error('Please allow pop-ups to download'); return; }
+                var issued = cert.issue_date ? new Date(cert.issue_date).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}) : '';
+                win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + escapeHtml(cert.title) + '</title>'
+                    + '<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">'
+                    + '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Inter,sans-serif;color:#15110f;padding:0}'
+                    + '.cert{width:100%;max-width:900px;margin:24px auto;border:2px solid #c9a962;padding:56px;text-align:center;background:#fbf9f6;position:relative}'
+                    + '.cert:before{content:"";position:absolute;inset:12px;border:1px solid #c9a962;pointer-events:none}'
+                    + '.brand{font-family:Fraunces,serif;font-size:26px;font-weight:600;color:#9b1b22;letter-spacing:.04em}'
+                    + '.kicker{font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:#6b6258;margin:28px 0 12px}'
+                    + '.name{font-family:Fraunces,serif;font-size:40px;font-weight:600;margin:8px 0 18px}'
+                    + '.body{font-size:15px;color:#403a36;line-height:1.7;max-width:560px;margin:0 auto}'
+                    + '.meta{margin-top:36px;font-size:13px;color:#6b6258}@media print{body{padding:0}.cert{margin:0;border:2px solid #c9a962}}</style></head><body>'
+                    + '<div class="cert"><div class="brand">Med&amp;X</div>'
+                    + '<div class="kicker">Certificate of Attendance</div>'
+                    + '<div class="name">' + escapeHtml(name) + '</div>'
+                    + '<div class="body">has attended ' + escapeHtml(cert.title.replace(' — Certificate of Attendance','')) + ' and is recognized for their participation.</div>'
+                    + '<div class="meta">' + (cert.number ? ('Certificate No. ' + escapeHtml(cert.number)) : '') + (issued ? (' &nbsp;·&nbsp; Issued ' + issued) : '') + '</div>'
+                    + '</div><script>setTimeout(function(){window.print();},400);<\/script></body></html>');
+                win.document.close();
+            },
+
+            // Share stub — copies a record link client-side. No new public pages.
+            shareRecord() {
+                var link = window.location.origin + '/#my-record';
+                var done = function(){ if (typeof Toast !== 'undefined' && Toast.success) Toast.success('Record link copied to clipboard'); };
+                try {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(link).then(done).catch(function(){ done(); });
+                    } else {
+                        var ta = document.createElement('textarea'); ta.value = link; document.body.appendChild(ta); ta.select();
+                        try { document.execCommand('copy'); } catch (e) {}
+                        document.body.removeChild(ta); done();
+                    }
+                } catch (e) { done(); }
             },
 
             renderPrograms() {
@@ -81658,6 +81844,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 this.loadRegistrationCount();
                 this.initLiveDateGating();
                 this.initCheckinButtons();
+                this.applyMemberState();
 
                 // Handle return from Stripe Checkout (URL params: ?payment=success/cancelled&reg=xxx)
                 this.handleStripeReturn();
@@ -82501,7 +82688,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (targetPanel) {
                     targetPanel.classList.add('active');
                 }
-                if (tab === 'connect') this.loadAttendees();
+                if (tabId === 'connect') this.loadAttendees();
             },
 
             async loadAttendees() {
@@ -84131,6 +84318,67 @@ You can use variables like {first_name} that will be personalized for each recip
             },
 
             // Update My Plexus info panel
+            // menu 22 — open the attendee view for confirmed conference guests, keep the
+            // Register/countdown sell view only for members who have not bought a ticket.
+            applyMemberState() {
+                if (typeof MemberState === 'undefined') return;
+                var self = this;
+                MemberState.load().then(function(state){ self.renderAttendeeState(state); });
+            },
+
+            renderAttendeeState(state) {
+                var section = document.getElementById('up-section-plexus');
+                if (!section) return;
+                if (!state || !state.hasPaidPlexus) {
+                    this.renderPlexusNetworkAttendees();
+                    return; // non-holder keeps the sell view
+                }
+                var reg = state.plexusReg || {};
+                var countdown = document.getElementById('pxCountdown');
+                var heroActions = section.querySelector('.px-hero-actions');
+                var heroBadge = section.querySelector('.px-hero-badge');
+                if (countdown) countdown.style.display = 'none';
+                if (heroBadge) heroBadge.innerHTML = '<i class="fas fa-check-circle"></i> You’re going';
+                if (heroActions) heroActions.innerHTML =
+                    '<button class="px-hero-btn px-hero-btn-primary" onclick="UserPortal.showSection(\'mymedx\')"><i class="fas fa-qrcode"></i> Show my ticket</button>'
+                  + '<button class="px-hero-btn px-hero-btn-secondary" onclick="PlexusPortal.showTab(\'myplexus\')"><i class="fas fa-id-badge"></i> My Plexus</button>'
+                  + '<button class="px-hero-btn px-hero-btn-secondary" onclick="PlexusPortal.showTab(\'schedule\')">View schedule</button>';
+                // Reflect the real paid state in the existing badge gate + program status.
+                try { localStorage.setItem('plexus_registered', 'true'); } catch (e) {}
+                var badgeReg = document.getElementById('pxBadgeRegistered');
+                var badgeNotReg = document.getElementById('pxBadgeNotRegistered');
+                if (badgeReg) badgeReg.style.display = '';
+                if (badgeNotReg) badgeNotReg.style.display = 'none';
+                var badgeName = document.getElementById('pxBadgeName');
+                if (badgeName && UserPortal.user) {
+                    var nm = ((UserPortal.user.first_name || '') + ' ' + (UserPortal.user.last_name || '')).trim();
+                    badgeName.textContent = nm || 'Registered Attendee';
+                }
+                var badgePkg = document.getElementById('pxBadgePackage');
+                if (badgePkg && reg.ticket_name) badgePkg.textContent = reg.ticket_name;
+                this.renderPlexusNetworkAttendees();
+                this.showTab('myplexus');
+            },
+
+            renderPlexusNetworkAttendees() {
+                var el = document.getElementById('pxNetworkAttendees');
+                if (!el || el.dataset.rendered) return;
+                el.dataset.rendered = '1';
+                var people = [
+                    { name: 'Dr. Emma Wilson', role: 'Johns Hopkins Medicine', img: 'https://randomuser.me/api/portraits/women/68.jpg' },
+                    { name: 'Luka Horvat', role: 'University of Zagreb', img: 'https://randomuser.me/api/portraits/men/28.jpg' },
+                    { name: 'Dr. James Chen', role: 'Stanford University', img: 'https://randomuser.me/api/portraits/men/52.jpg' }
+                ];
+                var rows = people.map(function(p){
+                    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;">'
+                        + '<img src="' + p.img + '" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">'
+                        + '<div><div style="font-size:13px;font-weight:600;color:var(--up-text);">' + p.name + '</div>'
+                        + '<div style="font-size:12px;color:var(--up-text-muted);">' + p.role + '</div></div></div>';
+                }).join('');
+                el.innerHTML = rows
+                    + '<button onclick="UserPortal.showSection(\'network\')" style="margin-top:8px;background:transparent;border:1px solid var(--up-border, var(--line));color:var(--up-text, var(--ink));border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-address-book" style="margin-right:6px;"></i>Open member directory</button>';
+            },
+
             updateMyPlexusInfo() {
                 const userName = UserPortal.user ? `${UserPortal.user.first_name} ${UserPortal.user.last_name}` : '';
                 const packageItems = this.selectedPackageItems || ['day1', 'day2'];
@@ -84805,6 +85053,49 @@ You can use variables like {first_name} that will be personalized for each recip
         // =========================================
         // GALA PORTAL - Gala Evening functionality
         // =========================================
+        // ===== Member state — one source of truth for the member's real event state =====
+        // (menu 22) Reads /api/registrations/my once and classifies paid Plexus / paid
+        // Gala tickets, so the Plexus + Gala sections open on the attendee view instead of
+        // re-selling a seat the member already bought. Display logic only — never touches
+        // registration or checkout code paths. Tests may set MemberState._override.
+        const MemberState = {
+            _promise: null,
+            _data: null,
+            _metaPromise: null,
+            _override: null,
+            _token() { return (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token'); },
+            _base() { return (typeof API_BASE !== 'undefined' ? API_BASE : ''); },
+            _isPaid(r) { return !!r && (r.payment_status === 'paid' || r.status === 'confirmed'); },
+            _isGala(r) { return !!r && (r.registration_type === 'gala' || r.includes_gala === 1 || r.includes_gala === true); },
+            _classify(regs) {
+                regs = Array.isArray(regs) ? regs : [];
+                var self = this;
+                var paidGala = regs.filter(function(r){ return self._isGala(r) && self._isPaid(r); })[0] || null;
+                var paidPlexus = regs.filter(function(r){ return !self._isGala(r) && self._isPaid(r); })[0] || null;
+                return { regs: regs, galaReg: paidGala, plexusReg: paidPlexus, hasPaidGala: !!paidGala, hasPaidPlexus: !!paidPlexus };
+            },
+            load(force) {
+                if (this._override) return Promise.resolve(this._override);
+                if (this._promise && !force) return this._promise;
+                var self = this;
+                var t = this._token();
+                this._promise = fetch(this._base() + '/api/registrations/my', { headers: t ? { 'Authorization': 'Bearer ' + t } : {} })
+                    .then(function(r){ return r.ok ? r.json() : []; })
+                    .then(function(regs){ self._data = self._classify(regs); return self._data; })
+                    .catch(function(){ self._data = self._classify([]); return self._data; });
+                return this._promise;
+            },
+            loadMeta(force) {
+                if (this._metaPromise && !force) return this._metaPromise;
+                var t = this._token();
+                this._metaPromise = fetch(this._base() + '/api/member/meta', { headers: t ? { 'Authorization': 'Bearer ' + t } : {} })
+                    .then(function(r){ return r.ok ? r.json() : null; })
+                    .catch(function(){ return null; });
+                return this._metaPromise;
+            },
+            reset() { this._promise = null; this._data = null; this._metaPromise = null; }
+        };
+
         const GalaPortal = {
             selectedPricing: null,
             countdownInterval: null,
@@ -84845,6 +85136,115 @@ You can use variables like {first_name} that will be personalized for each recip
                 this.checkMyStatus();
                 this.startCountdown();
                 this.prefillUserData();
+                this.applyMemberState();
+            },
+
+            // menu 22 — open the attendee view for confirmed guests, keep the sell view for others
+            applyMemberState() {
+                if (typeof MemberState === 'undefined') return;
+                var self = this;
+                MemberState.load().then(function(state){ self.renderAttendeeView(state); });
+            },
+
+            renderAttendeeView(state) {
+                var section = document.getElementById('up-section-gala');
+                if (!section) return;
+                var tab = document.getElementById('galaMyPassTab');
+                var regTab = section.querySelector('.gala-tab[data-tab="register"]');
+                var countdown = section.querySelector('.gala-countdown');
+                var heroActions = section.querySelector('.gala-hero-actions');
+                var heroBadge = section.querySelector('.gala-hero-badge');
+                if (!state || !state.hasPaidGala) {
+                    if (tab) tab.style.display = 'none';
+                    return; // non-holder keeps the Reserve-Your-Seat sell view
+                }
+                var reg = state.galaReg;
+                if (countdown) countdown.style.display = 'none';
+                if (heroBadge) heroBadge.innerHTML = '<i class="fas fa-check-circle"></i> You’re going';
+                if (heroActions) heroActions.innerHTML =
+                    '<button class="gala-btn gala-btn-primary" onclick="UserPortal.showSection(\'mymedx\')"><i class="fas fa-qrcode"></i> Show my ticket</button>'
+                  + '<button class="gala-btn gala-btn-secondary" onclick="GalaPortal.showTab(\'schedule\')">View schedule</button>';
+                if (tab) tab.style.display = '';
+                if (regTab) regTab.style.display = 'none';
+                this.renderPassCard(reg);
+                this.showTab('mypass');
+            },
+
+            renderPassCard(reg) {
+                var body = document.getElementById('galaMyPassBody');
+                if (!body) return;
+                reg = reg || {};
+                var s = this.settings || {};
+                var venue = s.venue || 'Grand Ballroom, Hotel Esplanade Zagreb';
+                var dress = s.dress_code || 'Black Tie / Formal Evening Attire';
+                var timeStr = s.time || '18:00';
+                var ticketName = reg.ticket_name || (reg.registration_type === 'gala' ? 'Gala Evening & Awards' : 'Gala Evening');
+                var invoice = reg.invoice_number ? String(reg.invoice_number) : '';
+                var row = function(label, value, id) {
+                    return '<div><div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--up-text-muted);margin-bottom:4px;">' + label + '</div>'
+                        + '<div ' + (id ? ('id="' + id + '" ') : '') + 'style="font-size:14px;font-weight:600;color:var(--up-text);">' + value + '</div></div>';
+                };
+                body.innerHTML =
+                    '<div class="up-card" style="border:2px solid var(--up-gold);position:relative;overflow:hidden;margin-bottom:24px;">'
+                      + '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--up-gold),var(--up-gold-light,#E8D5A8),var(--up-gold));"></div>'
+                      + '<div class="up-card-header" style="display:flex;align-items:center;justify-content:space-between;">'
+                        + '<h3 class="up-card-title"><i class="fas fa-id-badge" style="margin-right:8px;color:var(--up-gold);"></i> My Gala Pass</h3>'
+                        + '<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--up-success);background:rgba(47,107,58,.1);padding:4px 10px;border-radius:999px;">Confirmed</span>'
+                      + '</div>'
+                      + '<div class="up-card-body">'
+                        + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:18px;">'
+                          + row('Ticket', escapeHtml(ticketName))
+                          + row('Date', 'Saturday, December 5, 2026')
+                          + row('Doors', escapeHtml(timeStr))
+                          + row('Venue', escapeHtml(venue))
+                          + row('Dress code', escapeHtml(dress))
+                          + row('Your table', '<span style="color:var(--up-text-muted);font-weight:500;">Loading…</span>', 'galaSeatValue')
+                        + '</div>'
+                        + (invoice ? '<div style="font-size:12px;color:var(--up-text-muted);margin-top:16px;"><i class="fas fa-file-invoice" style="margin-right:6px;"></i>Invoice ' + escapeHtml(invoice) + '</div>' : '')
+                        + '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;">'
+                          + '<button class="gala-btn gala-btn-primary" onclick="UserPortal.showSection(\'mymedx\')"><i class="fas fa-qrcode"></i> Show my ticket</button>'
+                          + '<button class="gala-btn gala-btn-secondary" onclick="GalaPortal.showTab(\'schedule\')"><i class="fas fa-clock"></i> Evening schedule</button>'
+                        + '</div>'
+                      + '</div>'
+                    + '</div>'
+                    + '<div class="up-card">'
+                      + '<div class="up-card-header" style="display:flex;align-items:center;justify-content:space-between;">'
+                        + '<h3 class="up-card-title"><i class="fas fa-users" style="margin-right:8px;"></i> Who from your network attends</h3>'
+                        + '<span style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--up-text-muted);border:1px solid var(--up-border, var(--line));border-radius:999px;padding:3px 8px;">Example</span>'
+                      + '</div>'
+                      + '<div class="up-card-body" id="galaNetworkAttendees"></div>'
+                    + '</div>';
+                this.loadSeat();
+                this.renderNetworkAttendees();
+            },
+
+            loadSeat() {
+                var el = document.getElementById('galaSeatValue');
+                if (!el) return;
+                var fallback = '<span style="color:var(--up-text-muted);font-weight:500;">Shared closer to the event</span>';
+                UserPortal.api('/api/gala/my-seat').then(function(res){
+                    if (res && res.assigned) {
+                        el.textContent = res.table_label || 'Assigned';
+                    } else { el.innerHTML = fallback; }
+                }).catch(function(){ el.innerHTML = fallback; });
+            },
+
+            renderNetworkAttendees() {
+                var el = document.getElementById('galaNetworkAttendees');
+                if (!el) return;
+                var people = [
+                    { name: 'Dr. Sarah Chen', role: 'Stanford', img: 'https://randomuser.me/api/portraits/women/56.jpg' },
+                    { name: 'Marco Rossi', role: 'University of Milan', img: 'https://randomuser.me/api/portraits/men/45.jpg' },
+                    { name: 'Dr. Ana Markovic', role: 'Max Planck Institute', img: 'https://randomuser.me/api/portraits/women/32.jpg' }
+                ];
+                var avatars = people.map(function(p){
+                    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;">'
+                        + '<img src="' + p.img + '" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">'
+                        + '<div><div style="font-size:13px;font-weight:600;color:var(--up-text);">' + p.name + '</div>'
+                        + '<div style="font-size:12px;color:var(--up-text-muted);">' + p.role + '</div></div></div>';
+                }).join('');
+                el.innerHTML = avatars
+                    + '<button onclick="UserPortal.showSection(\'network\')" style="margin-top:8px;background:transparent;border:1px solid var(--up-border, var(--line));color:var(--up-text, var(--ink));border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-address-book" style="margin-right:6px;"></i>Open member directory</button>';
             },
 
             // Load gala settings from API
@@ -95467,6 +95867,7 @@ ${'='.repeat(70)}
                     if (UserPortal.user) {
                         this.loadUserProfile();
                     }
+                    this.renderMembership();
                     this.loadThemeSetting();
                     this.loadNotificationSettings();
                     this.loadPrivacySettings();
@@ -95474,6 +95875,23 @@ ${'='.repeat(70)}
                 } catch (err) {
                     console.error('SettingsPortal init error:', err);
                 }
+            },
+
+            // Membership layer (menu 22) — read-only member class + standing.
+            renderMembership() {
+                var el = document.getElementById('settingsMembershipBody');
+                if (!el || typeof MemberState === 'undefined') return;
+                MemberState.loadMeta().then(function(m){
+                    if (!m) { el.innerHTML = '<span style="color:var(--muted);font-size:13px;">Membership details are being set up.</span>'; return; }
+                    var cell = function(label, value){
+                        return '<div><div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:4px;">' + label + '</div>'
+                            + '<div style="font-size:15px;font-weight:600;color:var(--ink, var(--up-text));">' + value + '</div></div>';
+                    };
+                    var sinceY = m.member_since ? String(m.member_since).slice(0,4) : '';
+                    el.innerHTML = cell('Member type', escapeHtml(m.member_type_label || 'Member'))
+                        + cell('Member since', sinceY || '—')
+                        + cell('Standing', escapeHtml(m.standing_label || 'Member in good standing'));
+                });
             },
 
             showTab(tabId) {
