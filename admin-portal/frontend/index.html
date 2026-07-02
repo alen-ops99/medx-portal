@@ -30836,7 +30836,7 @@ By applying to this program, I give the following consents:
         // EVENT CHECK-IN SCANNER (per-event QR verification)
         // =========================================
         const EventCheckin = {
-            event: null, // 'gala' | 'conference' | 'bridges'
+            event: null, // 'gala' | 'conference' | 'bridges' | 'donor'
             stream: null,
             lastScan: null,
             lastScanTime: 0,
@@ -30863,9 +30863,9 @@ By applying to this program, I give the following consents:
             renderModal() {
                 const existing = document.getElementById('eventCheckinOverlay');
                 if (existing) existing.remove();
-                const eventLabel = { gala: 'Plexus Gala Evening', conference: 'Plexus Conference', bridges: 'Croatian Biomedical Bridges' };
-                const eventColor = { gala: '#c9a962', conference: '#c2484e', bridges: '#c9a962' };
-                const eventIcon = { gala: 'fa-glass-cheers', conference: 'fa-microscope', bridges: 'fa-handshake' };
+                const eventLabel = { gala: 'Plexus Gala Evening', conference: 'Plexus Conference', bridges: 'Croatian Biomedical Bridges', donor: 'Donor Night' };
+                const eventColor = { gala: '#c9a962', conference: '#c2484e', bridges: '#c9a962', donor: '#c9a962' };
+                const eventIcon = { gala: 'fa-glass-cheers', conference: 'fa-microscope', bridges: 'fa-handshake', donor: 'fa-utensils' };
                 const sel = this.event;
                 const overlay = document.createElement('div');
                 overlay.id = 'eventCheckinOverlay';
@@ -30881,7 +30881,7 @@ By applying to this program, I give the following consents:
 
                         ${!sel ? `
                             <div style="display:grid;gap:10px;">
-                                ${['gala','conference','bridges'].map(ev => `
+                                ${['gala','conference','bridges','donor'].map(ev => `
                                     <button onclick="EventCheckin.selectEvent('${ev}')" style="display:flex;align-items:center;gap:14px;padding:18px 20px;border:2px solid ${eventColor[ev]};background:rgba(255,255,255,0.03);border-radius:12px;color:var(--text-primary);cursor:pointer;text-align:left;font-family:inherit;">
                                         <span style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:10px;background:${eventColor[ev]}33;color:${eventColor[ev]};font-size:18px;flex-shrink:0;"><i class="fas ${eventIcon[ev]}"></i></span>
                                         <div style="flex:1;">

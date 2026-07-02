@@ -3358,6 +3358,9 @@ async function initializeApp() {
     // Phase 6A: Building Bridges publish + sync columns
     try { db.run(`ALTER TABLE bridges_events ADD COLUMN is_published INTEGER DEFAULT 0`); } catch(e) {}
     try { db.run(`ALTER TABLE bridges_events ADD COLUMN updated_at TEXT`); } catch(e) {}
+    // Immutable slug — seeded by the user portal for the two invitation-only Plexus Week events
+    // ('building-bridges' / 'donor-night'); rename-safe key used by check-in scoping below.
+    try { db.run(`ALTER TABLE bridges_events ADD COLUMN slug TEXT`); } catch(e) {}
 
     // Phase 7: Per-event Bridges pricing (0 = free)
     try { db.run(`ALTER TABLE bridges_events ADD COLUMN price REAL DEFAULT 0`); } catch(e) {}
@@ -5150,15 +5153,20 @@ async function initializeApp() {
     // this never deletes again — so a real future Zagreb/Split Bridges event is safe.
     const realBridgesExist = query.get("SELECT id FROM bridges_events WHERE city IN ('Zurich','Washington DC','Boston') LIMIT 1");
     const placeholderCities = ['Zagreb', 'Split', 'Rijeka', 'Osijek'];
+    // The user portal seeds the two invitation-only Plexus Week events (Building Bridges /
+    // Donor Night) with city='Zagreb' and created_by='seed'. They are REAL events, not legacy
+    // placeholders — without this exclusion, an un-migrated DB where the user portal booted
+    // first would have them (and every guest registration, via FK CASCADE) deleted here.
+    const notSeeded = `AND COALESCE(created_by,'') <> 'seed'`;
     const hasPlaceholders = !bridgesMigrationDone && !realBridgesExist && query.get(
-        `SELECT id FROM bridges_events WHERE city IN (${placeholderCities.map(() => '?').join(',')})`,
+        `SELECT id FROM bridges_events WHERE city IN (${placeholderCities.map(() => '?').join(',')}) ${notSeeded}`,
         placeholderCities
     );
     if (hasPlaceholders) {
         // Remove fake registrations tied to placeholder events
-        db.run(`DELETE FROM bridges_registrations WHERE event_id IN (SELECT id FROM bridges_events WHERE city IN (${placeholderCities.map(() => '?').join(',')}))`, placeholderCities);
+        db.run(`DELETE FROM bridges_registrations WHERE event_id IN (SELECT id FROM bridges_events WHERE city IN (${placeholderCities.map(() => '?').join(',')}) ${notSeeded})`, placeholderCities);
         // Remove the placeholder events
-        db.run(`DELETE FROM bridges_events WHERE city IN (${placeholderCities.map(() => '?').join(',')})`, placeholderCities);
+        db.run(`DELETE FROM bridges_events WHERE city IN (${placeholderCities.map(() => '?').join(',')}) ${notSeeded}`, placeholderCities);
 
         // Insert the correct events
         const realEvents = [
@@ -16328,8 +16336,8 @@ By applying to this program, I provide the following consents:
     // ========== UNIVERSAL EVENT CHECK-IN VERIFY (mirror of user-portal endpoint) ==========
     app.post('/api/admin/checkin/verify', auth, staffOrAdmin, (req, res) => {
         const { event, code, mark } = req.body || {};
-        if (!event || !['gala', 'conference', 'bridges'].includes(event)) {
-            return res.status(400).json({ valid: false, error: "event must be 'gala', 'conference', or 'bridges'" });
+        if (!event || !['gala', 'conference', 'bridges', 'donor'].includes(event)) {
+            return res.status(400).json({ valid: false, error: "event must be 'gala', 'conference', 'bridges', or 'donor'" });
         }
         if (!code) return res.status(400).json({ valid: false, error: 'code required' });
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code);
@@ -16371,9 +16379,9 @@ By applying to this program, I provide the following consents:
         // page + email). Resolve it by prefix-matching the registration UUID (dashes stripped).
         const isShort = !isUuid && /^[0-9a-f]{4,12}$/i.test(codeClean) && !codeClean.includes('@');
         const codeNorm = codeClean.toLowerCase().replace(/[^0-9a-f]/g, '');
-        const prefixMatch = (table) => {
+        const prefixMatch = (table, orderCol = 'created_at') => {
             if (!isShort || codeNorm.length < 4) return null;
-            try { return query.get(`SELECT * FROM ${table} WHERE replace(lower(id), '-', '') LIKE ? ORDER BY created_at DESC LIMIT 1`, [codeNorm + '%']); } catch(e) { return null; }
+            try { return query.get(`SELECT * FROM ${table} WHERE replace(lower(id), '-', '') LIKE ? ORDER BY ${orderCol} DESC LIMIT 1`, [codeNorm + '%']); } catch(e) { return null; }
         };
 
         if (event === 'gala') {
@@ -16420,49 +16428,102 @@ By applying to this program, I provide the following consents:
             });
         }
 
+        // 'donor' (Plexus Donor Night) is an alias of the bridges lookup — its guests register on
+        // the public /donor-night page straight into bridges_registrations, never through
+        // Croatians Abroad, so skip the CA path and fall through to the standalone table below
+        // (also keeps a same-email CA row from shadowing the donor seat).
         let caReg = null;
-        if (isUuid) {
-            caReg = query.get(
-                `SELECT * FROM croatians_abroad_registrations WHERE id = ? OR gala_registration_id = ?`,
-                [codeClean, codeClean]
-            );
+        if (event !== 'donor') {
+            if (isUuid) {
+                caReg = query.get(
+                    `SELECT * FROM croatians_abroad_registrations WHERE id = ? OR gala_registration_id = ?`,
+                    [codeClean, codeClean]
+                );
+            }
+            if (!caReg) caReg = query.get('SELECT * FROM croatians_abroad_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
+            if (!caReg && isShort) caReg = prefixMatch('croatians_abroad_registrations');
         }
-        if (!caReg) caReg = query.get('SELECT * FROM croatians_abroad_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
-        if (!caReg && isShort) caReg = prefixMatch('croatians_abroad_registrations');
         if (!caReg) {
             // Fallback: standalone (non-diaspora) registrants live in their own tables, not
-            // croatians_abroad_registrations. Conference → registrations; Bridges → bridges_registrations.
+            // croatians_abroad_registrations. Conference → registrations; Bridges/Donor → bridges_registrations.
             // Without this, a paid Plexus conference invitee is rejected at the conference door.
             const standaloneTable = event === 'conference' ? 'registrations' : 'bridges_registrations';
+            // bridges_registrations keeps registered_at (no created_at) — ordering by the wrong
+            // column throws inside the try/catch and silently loses email/short-code lookups.
+            const standaloneOrderCol = standaloneTable === 'bridges_registrations' ? 'registered_at' : 'created_at';
+            // Building Bridges and Donor Night SHARE bridges_registrations, so the lookup must be
+            // scoped by event: 'donor' resolves only Donor Night seats, 'bridges' never does — a
+            // guest registered for both (same email) would otherwise check in the WRONG seat and
+            // later show "already checked in" at the right door.
+            let donorEvtId = null;
+            if (standaloneTable === 'bridges_registrations') {
+                try {
+                    donorEvtId = (query.get("SELECT id FROM bridges_events WHERE slug = 'donor-night'")
+                               || query.get("SELECT id FROM bridges_events WHERE name = 'Plexus Donor Night'"))?.id || null;
+                } catch(e) {}
+            }
+            const scoped = standaloneTable === 'bridges_registrations' && donorEvtId;
+            const scopeWhere = scoped ? (event === 'donor' ? 'AND event_id = ?' : 'AND event_id != ?') : '';
+            const scopeArgs = scoped ? [donorEvtId] : [];
             let sReg = null;
             if (isUuid) { try { sReg = query.get(`SELECT * FROM ${standaloneTable} WHERE id = ?`, [codeClean]); } catch(e) {} }
-            if (!sReg) { try { sReg = query.get(`SELECT * FROM ${standaloneTable} WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1`, [codeClean]); } catch(e) {} }
-            if (!sReg && isShort) sReg = prefixMatch(standaloneTable);
+            if (sReg && scoped && (event === 'donor' ? sReg.event_id !== donorEvtId : sReg.event_id === donorEvtId)) {
+                // A UUID is unambiguous — reject a seat that belongs to the other event's door
+                // instead of checking it in here.
+                let rowEvtName = '';
+                try { rowEvtName = query.get('SELECT name FROM bridges_events WHERE id = ?', [sReg.event_id])?.name || 'a different event'; } catch(e) {}
+                return res.json({
+                    valid: false, event, code, reason: 'wrong_event',
+                    message: `This code is registered for ${rowEvtName}, not ${event === 'donor' ? 'Plexus Donor Night' : 'this event'}. Do NOT admit here.`,
+                    registrant: { name: `${sReg.first_name || ''} ${sReg.last_name || ''}`.trim(), email: sReg.email, institution: sReg.institution || '' }
+                });
+            }
+            if (!sReg) { try { sReg = query.get(`SELECT * FROM ${standaloneTable} WHERE LOWER(email) = LOWER(?) ${scopeWhere} ORDER BY ${standaloneOrderCol} DESC LIMIT 1`, [codeClean, ...scopeArgs]); } catch(e) {} }
+            if (!sReg && isShort && codeNorm.length >= 4) {
+                try { sReg = query.get(`SELECT * FROM ${standaloneTable} WHERE replace(lower(id), '-', '') LIKE ? ${scopeWhere} ORDER BY ${standaloneOrderCol} DESC LIMIT 1`, [codeNorm + '%', ...scopeArgs]); } catch(e) {}
+            }
+            if (sReg && String(sReg.status || '') === 'cancelled') {
+                return res.json({
+                    valid: false, event, code, reason: 'cancelled',
+                    message: 'This registration was cancelled. Do NOT admit.',
+                    registrant: { name: `${sReg.first_name || ''} ${sReg.last_name || ''}`.trim(), email: sReg.email, institution: sReg.institution || '' }
+                });
+            }
             if (sReg) {
+                // Joined event name — Building Bridges and Donor Night share bridges_registrations,
+                // so door staff must see which event the seat belongs to.
+                let sEventName = '';
+                if (standaloneTable === 'bridges_registrations' && sReg.event_id) {
+                    try { sEventName = query.get('SELECT name FROM bridges_events WHERE id = ?', [sReg.event_id])?.name || ''; } catch(e) {}
+                }
+                const sInfo = appliedInfo(sReg);
+                if (!sInfo.applied_for && sEventName) sInfo.applied_for = sEventName;
                 const sAlready = !!sReg.checked_in;
                 if (mark && !sAlready) {
                     db.run(`UPDATE ${standaloneTable} SET checked_in = 1, checked_in_at = ? WHERE id = ?`, [now, sReg.id]);
                     saveDb();
                 }
                 return res.json({
-                    valid: true, event, code, already_checked_in: sAlready,
+                    valid: true, event, code, event_name: sEventName,
+                    already_checked_in: sAlready,
                     checked_in_at: sAlready ? sReg.checked_in_at : (mark ? now : null),
                     status_label: 'REGISTERED', status_color: '#22c55e',
                     registrant: {
                         name: `${sReg.first_name || ''} ${sReg.last_name || ''}`.trim() || sReg.email,
                         email: sReg.email, institution: sReg.institution || '',
+                        role: sReg.position || '',
                         // registrations/bridges_registrations store dietary_requirements (not dietary)
                         dietary: sReg.dietary_requirements || sReg.dietary || '',
                         guests: sReg.guest_count || 0,
                         seat: sReg.seat_number || '',
                         ...welcomeInfo(sReg.email),
-                        ...appliedInfo(sReg)
+                        ...sInfo
                     }
                 });
             }
             const totalCA = query.get("SELECT COUNT(*) as c FROM croatians_abroad_registrations")?.c || 0;
             return res.json({ valid: false, event, code, reason: 'not_found',
-                message: `No ${event === 'conference' ? 'Conference' : 'Bridges'} registration found for this code.`,
+                message: `No ${event === 'conference' ? 'Conference' : event === 'donor' ? 'Donor Night' : 'Bridges'} registration found for this code.`,
                 debug: { code_used: codeClean, is_uuid: isUuid, total_ca_rows: totalCA, also_searched: standaloneTable }
             });
         }

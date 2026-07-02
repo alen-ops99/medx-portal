@@ -1277,6 +1277,154 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
     }
 });
 
+// ========== PLEXUS WEEK 2026 — PUBLIC INVITATION PAGES (Building Bridges / Donor Night) ==========
+// Two free, invitation-only events. Server-rendered like /plexus above (must sit BEFORE
+// express.static so they take priority over the SPA). Both pages share one premium shell in the
+// PLEXUS_SHELL design language; the slug picks the accent, copy and form fields. The form posts
+// to /api/public-events/register, which resolves the seeded bridges_events row by exact NAME
+// server-side — the client never supplies an event identity.
+const PUBLIC_EVENT_PAGES = {
+    'building-bridges': {
+        accent: '#2dd4bf',
+        pageTitle: 'Building Bridges in Biomedicine Croatia — Plexus Week 2026',
+        heading: 'Building Bridges in Biomedicine Croatia',
+        framing: 'A working morning that brings Croatia’s biomedical diaspora to the same table as the country’s institutions. A theatre-style program gives way to networking in the garden, and the morning closes with the signing of the Bridges Compact.',
+        facts: ['December 2026', 'Zagreb', '09:00–12:30', 'By invitation'],
+        note: 'The exact date and venue follow with your invitation.',
+        dietary: false,
+        submitLabel: 'Confirm your participation',
+        successHeading: 'Your participation is confirmed'
+    },
+    'donor-night': {
+        accent: '#c9a962',
+        pageTitle: 'Plexus Donor Night — Plexus Week 2026',
+        heading: 'Plexus Donor Night',
+        framing: 'An evening in the circle. An invitation-only supper with the leadership of Cambridge, Massachusetts General Hospital, University Health Network Toronto and UCLA Health. What gathers around this table advances the Plexus Fellowship and the 2027 Accelerator.',
+        facts: ['Friday 4 December 2026', '19:30–22:30', 'Esplanade Zagreb, private salon', 'Invitation only'],
+        note: '',
+        dietary: true,
+        submitLabel: 'Confirm your seat',
+        successHeading: 'Your seat is confirmed'
+    }
+};
+
+function renderPublicEventPage(slug) {
+    const cfg = PUBLIC_EVENT_PAGES[slug];
+    const factLine = cfg.facts.map(f => `<span>${f}</span>`).join('<span class="dot">&middot;</span>');
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${cfg.pageTitle}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { min-height:100vh; background:linear-gradient(160deg,#0f172a,#1e293b); font-family:'Inter',-apple-system,BlinkMacSystemFont,system-ui,sans-serif; color:#e2e8f0; padding:48px 20px 40px; }
+    .container { max-width:1020px; margin:0 auto; }
+    .logo { text-align:center; margin-bottom:34px; }
+    .logo img { height:36px; width:auto; display:inline-block; filter:brightness(0) invert(1); opacity:0.92; }
+    .hero { position:relative; text-align:center; padding:58px 40px 54px; margin-bottom:26px; }
+    .hero::before, .hero::after { content:''; position:absolute; width:46px; height:46px; }
+    .hero::before { top:0; left:0; border-top:1px solid rgba(201,169,98,0.6); border-left:1px solid rgba(201,169,98,0.6); }
+    .hero::after { bottom:0; right:0; border-bottom:1px solid rgba(201,169,98,0.6); border-right:1px solid rgba(201,169,98,0.6); }
+    .eyebrow { font-size:11px; font-weight:600; letter-spacing:4px; text-transform:uppercase; color:${cfg.accent}; margin-bottom:22px; }
+    h1 { font-family:'Cormorant Garamond',Georgia,serif; font-weight:600; font-size:clamp(34px,5.5vw,52px); line-height:1.12; color:#fff; margin-bottom:20px; }
+    .framing { max-width:640px; margin:0 auto 26px; font-size:15.5px; line-height:1.75; color:#94a3b8; }
+    .facts { display:flex; flex-wrap:wrap; justify-content:center; gap:6px 12px; font-size:13.5px; font-weight:500; color:#e2e8f0; letter-spacing:0.3px; }
+    .facts .dot { color:${cfg.accent}; }
+    .note { margin-top:14px; font-family:'Cormorant Garamond',Georgia,serif; font-style:italic; font-size:16.5px; color:#c9a962; }
+    .form-wrap { max-width:520px; margin:0 auto; }
+    .card { background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,98,0.22); border-radius:20px; padding:38px 36px; }
+    .section-label { font-size:11px; font-weight:600; letter-spacing:2.5px; text-transform:uppercase; color:${cfg.accent}; margin-bottom:22px; text-align:center; }
+    .form-grid { display:grid; gap:16px; }
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    label { display:block; font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:#94a3b8; margin-bottom:6px; }
+    input { width:100%; padding:12px 14px; border:1px solid rgba(255,255,255,0.1); border-radius:10px; background:rgba(255,255,255,0.05); color:#fff; font-size:14px; font-family:inherit; }
+    input:focus { border-color:${cfg.accent}; outline:none; box-shadow:0 0 0 3px ${cfg.accent}1f; }
+    input::placeholder { color:#64748b; }
+    .submit-btn { width:100%; margin-top:22px; padding:16px; border:none; border-radius:11px; background:linear-gradient(135deg,#c9a962,#b8965a); color:#0f172a; font-size:15px; font-weight:600; letter-spacing:0.4px; cursor:pointer; font-family:inherit; transition:all 0.2s; }
+    .submit-btn:hover { transform:translateY(-1px); box-shadow:0 8px 22px rgba(201,169,98,0.25); }
+    .submit-btn:disabled { opacity:0.55; cursor:not-allowed; transform:none; box-shadow:none; }
+    .msg { margin-top:14px; padding:12px 14px; border-radius:9px; font-size:13px; display:none; }
+    .msg.err { display:block; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); color:#fca5a5; }
+    .confirm-heading { font-family:'Cormorant Garamond',Georgia,serif; font-weight:600; font-size:30px; color:#fff; text-align:center; margin-bottom:8px; }
+    .qr-tile { background:#fff; border-radius:16px; padding:18px; width:fit-content; margin:24px auto 14px; box-shadow:0 6px 24px rgba(0,0,0,0.35); }
+    .qr-tile img { display:block; width:200px; height:200px; }
+    .manual-code { text-align:center; font-family:'Courier New',monospace; font-size:14px; letter-spacing:3px; color:#e2e8f0; }
+    .manual-code .mc-label { font-family:'Inter',sans-serif; font-size:9px; letter-spacing:1.5px; color:#94a3b8; margin-right:8px; }
+    .confirm-line { max-width:400px; margin:18px auto 0; text-align:center; font-size:13.5px; line-height:1.7; color:#94a3b8; }
+    .foot { text-align:center; font-size:12px; color:#64748b; margin-top:32px; }
+    .foot a { color:#c9a962; text-decoration:none; }
+    @media (max-width: 640px) {
+        body { padding:30px 14px; }
+        .hero { padding:44px 18px 40px; }
+        .card { padding:28px 20px; }
+        .form-row { grid-template-columns:1fr; gap:16px; }
+        input { font-size:16px; } /* <16px makes iOS Safari zoom the page on focus */
+    }
+</style></head><body><div class="container">
+    <div class="logo"><img src="${MEDX_LOGO_URL}" alt="Med&amp;X" /></div>
+    <div class="hero">
+        <div class="eyebrow">Plexus Week 2026 &middot; Zagreb</div>
+        <h1>${cfg.heading}</h1>
+        <p class="framing">${cfg.framing}</p>
+        <div class="facts">${factLine}</div>
+        ${cfg.note ? `<div class="note">${cfg.note}</div>` : ''}
+    </div>
+    <div class="form-wrap">
+        <div class="card" id="peCard">
+            <form id="peForm" onsubmit="return peSubmit(event)">
+                <div class="section-label">Your details</div>
+                <div class="form-grid">
+                    <div class="form-row">
+                        <div><label for="pe_first">First name</label><input id="pe_first" name="first_name" autocomplete="given-name" required maxlength="100"></div>
+                        <div><label for="pe_last">Last name</label><input id="pe_last" name="last_name" autocomplete="family-name" required maxlength="100"></div>
+                    </div>
+                    <div><label for="pe_email">Email</label><input id="pe_email" name="email" type="email" autocomplete="email" inputmode="email" required maxlength="160"></div>
+                    <div><label for="pe_inst">Institution</label><input id="pe_inst" name="organization" autocomplete="organization" required maxlength="160"></div>
+                    <div><label for="pe_role">Role / Title</label><input id="pe_role" name="organization_title" autocomplete="organization-title" required maxlength="120"></div>
+                    ${cfg.dietary ? `<div><label for="pe_diet">Dietary requirements <span style="text-transform:none;letter-spacing:0;color:#64748b;font-weight:400;">(optional)</span></label><input id="pe_diet" name="dietary" autocomplete="off" maxlength="200"></div>` : ''}
+                </div>
+                <button type="submit" class="submit-btn" id="peBtn">${cfg.submitLabel}</button>
+                <div class="msg" id="peMsg"></div>
+            </form>
+        </div>
+    </div>
+    <div class="foot">Questions? <a href="mailto:laura.rodman@medx.hr">laura.rodman@medx.hr</a> &middot; <a href="https://medx.hr">medx.hr</a></div>
+</div>
+<script>
+    var PE_SLUG = ${JSON.stringify(slug)};
+    function peEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
+    function peErr(m){ var e = document.getElementById('peMsg'); e.className = 'msg err'; e.textContent = m; }
+    async function peSubmit(ev){
+        ev.preventDefault();
+        var btn = document.getElementById('peBtn'); btn.disabled = true; btn.textContent = 'One moment\\u2026';
+        var diet = document.getElementById('pe_diet');
+        var body = {
+            event: PE_SLUG,
+            first_name: document.getElementById('pe_first').value.trim(),
+            last_name: document.getElementById('pe_last').value.trim(),
+            email: document.getElementById('pe_email').value.trim(),
+            institution: document.getElementById('pe_inst').value.trim(),
+            role: document.getElementById('pe_role').value.trim(),
+            dietary: diet ? diet.value.trim() : ''
+        };
+        try {
+            var r = await fetch('/api/public-events/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+            var d = await r.json();
+            if (!r.ok) { peErr(d.error || 'Something went wrong. Please try again.'); btn.disabled = false; btn.textContent = ${JSON.stringify(cfg.submitLabel)}; return false; }
+            document.getElementById('peCard').innerHTML =
+                '<div class="confirm-heading">${cfg.successHeading}</div>' +
+                (d.qrDataUrl ? '<div class="qr-tile"><img src="' + peEsc(d.qrDataUrl) + '" alt="Your entry QR"></div>' : '') +
+                (d.manualCode ? '<div class="manual-code"><span class="mc-label">MANUAL CODE</span>' + peEsc(d.manualCode) + '</div>' : '') +
+                '<p class="confirm-line">' + (d.resent
+                    ? peEsc(d.message || ('You are already confirmed. Your entry QR has been re-sent to ' + body.email + '.'))
+                    : 'A confirmation email with your entry QR is on its way to ' + peEsc(body.email) + '. Present it at arrival.') + '</p>';
+        } catch(e) { peErr('Network error. Please try again.'); btn.disabled = false; btn.textContent = ${JSON.stringify(cfg.submitLabel)}; }
+        return false;
+    }
+</script></body></html>`;
+}
+
+app.get('/building-bridges', (req, res) => res.send(renderPublicEventPage('building-bridges')));
+app.get('/donor-night', (req, res) => res.send(renderPublicEventPage('donor-night')));
+
 app.get('/invite/:data', async (req, res) => {
     try {
         // Show the admin's latest edits immediately (throttled Turso pull) instead of
@@ -5321,6 +5469,39 @@ async function initializeApp() {
         registered_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (event_id) REFERENCES bridges_events(id) ON DELETE CASCADE
     )`);
+
+    // Seed the two invitation-only Plexus Week 2026 public events (Building Bridges + Donor Night).
+    // Guarded on an immutable SLUG (mirroring the forum-event seeds above), NOT the display name —
+    // the name is also the runtime join key for /api/public-events/register, so a rename must never
+    // fork a fresh default row or repoint new registrations. Admin edits (date, venue, capacity,
+    // open/closed) are never overwritten on reboot. is_published stays 0: these pages are reached by
+    // their public URLs only, and is_published=1 would list them in the member portal's
+    // /api/bridges/events + let any logged-in member self-register past the invitation flow.
+    // is_published is added by an earlier ALTER (Phase 6A) that runs before this table exists on a
+    // fresh boot, so re-assert it (and slug) here before the inserts reference them.
+    try { db.run(`ALTER TABLE bridges_events ADD COLUMN is_published INTEGER DEFAULT 0`); } catch(e) {}
+    try { db.run(`ALTER TABLE bridges_events ADD COLUMN slug TEXT`); } catch(e) {}
+    // Backfill: rows seeded before the slug column existed are re-keyed by their original names.
+    db.run(`UPDATE bridges_events SET slug = 'building-bridges' WHERE slug IS NULL AND name = 'Building Bridges in Biomedicine Croatia'`);
+    db.run(`UPDATE bridges_events SET slug = 'donor-night' WHERE slug IS NULL AND name = 'Plexus Donor Night'`);
+    if (!query.get("SELECT id FROM bridges_events WHERE slug = 'building-bridges'")) {
+        // event_date stays '' until the admin confirms it — the real date is still "4 or 5 December
+        // 2026" TBC. A hard date here would (a) flip the /invite Croatians-Abroad card's deliberate
+        // TBC copy to a fabricated confirmed date and (b) make this row a target for the
+        // "next upcoming bridges event" invite-link fallbacks.
+        db.run(`INSERT INTO bridges_events (id, slug, name, city, venue_name, event_date, event_time, end_time, description, capacity, registration_open, status, price, is_published, created_by)
+            VALUES (?, 'building-bridges', 'Building Bridges in Biomedicine Croatia', 'Zagreb', 'To be announced', '', '09:00', '12:30', ?, 40, 1, 'upcoming', 0, 0, 'seed')`,
+            [uuidv4(), 'A working morning that brings the diaspora together with Croatia’s institutions. A theatre-style program is followed by garden networking, and the morning produces the signed Bridges Compact.']);
+    }
+    if (!query.get("SELECT id FROM bridges_events WHERE slug = 'donor-night'")) {
+        db.run(`INSERT INTO bridges_events (id, slug, name, city, venue_name, venue_address, event_date, event_time, end_time, description, capacity, registration_open, status, price, is_published, created_by)
+            VALUES (?, 'donor-night', 'Plexus Donor Night', 'Zagreb', 'Esplanade Zagreb', 'Esplanade Zagreb, private salon', '2026-12-04', '19:30', '22:30', ?, 40, 1, 'upcoming', 0, 0, 'seed')`,
+            [uuidv4(), 'An invitation-only supper with the leadership of Cambridge, Massachusetts General Hospital, University Health Network Toronto and UCLA Health, advancing the Plexus Fellowship and the 2027 Accelerator.']);
+    }
+    // Normalize: invitation-only events must never surface in the member portal's published list
+    // (re-asserted every boot, like the forum free-pricing normalization above — this flag is not
+    // an admin-editable property of these two events, the public pages are their only front door).
+    db.run(`UPDATE bridges_events SET is_published = 0 WHERE slug IN ('building-bridges','donor-night') AND is_published = 1`);
 
     // Building Bridges speakers
     db.run(`CREATE TABLE IF NOT EXISTS bridges_speakers (
@@ -18120,13 +18301,13 @@ By applying to this program, I provide the following consents:
 
     // ========== UNIVERSAL EVENT CHECK-IN VERIFY ==========
     // Single endpoint serving the Event Check-in scanner UI. Pick an event
-    // (gala / conference / bridges), scan a QR or paste a code, get back
+    // (gala / conference / bridges / donor), scan a QR or paste a code, get back
     // {valid, registrant, status, already_checked_in}. If mark=true and the
     // registration is valid, marks them checked in for THAT event.
     app.post('/api/admin/checkin/verify', auth, adminOnly, (req, res) => {
         const { event, code, mark } = req.body || {};
-        if (!event || !['gala', 'conference', 'bridges'].includes(event)) {
-            return res.status(400).json({ valid: false, error: "event must be 'gala', 'conference', or 'bridges'" });
+        if (!event || !['gala', 'conference', 'bridges', 'donor'].includes(event)) {
+            return res.status(400).json({ valid: false, error: "event must be 'gala', 'conference', 'bridges', or 'donor'" });
         }
         if (!code) return res.status(400).json({ valid: false, error: 'code required' });
 
@@ -18180,6 +18361,73 @@ By applying to this program, I provide the following consents:
             });
         }
 
+        // Manual failsafe (donor/bridges): the 8-char short code printed under the QR is the
+        // registration UUID's prefix (dashes stripped) — same resolution as the admin portal.
+        const isShort = !isUuid && /^[0-9a-f]{4,12}$/i.test(codeClean) && !codeClean.includes('@');
+        const codeNorm = codeClean.toLowerCase().replace(/[^0-9a-f]/g, '');
+        // Building Bridges and Donor Night share bridges_registrations, so both modes must be
+        // SCOPED by event — a guest registered for both (same email) would otherwise resolve to
+        // whichever row is newest and be checked into the WRONG seat.
+        const donorEvtId = (query.get("SELECT id FROM bridges_events WHERE slug = 'donor-night'")
+                         || query.get("SELECT id FROM bridges_events WHERE name = 'Plexus Donor Night'"))?.id || null;
+        const bridgesEventName = (id) => { try { return query.get('SELECT name FROM bridges_events WHERE id = ?', [id])?.name || ''; } catch(e) { return ''; } };
+        const bridgesRegResponse = (reg) => {
+            const evName = bridgesEventName(reg.event_id);
+            if (String(reg.status || '') === 'cancelled') {
+                return res.json({
+                    valid: false, event, code, reason: 'cancelled',
+                    message: 'This registration was cancelled. Do NOT admit.',
+                    registrant: { name: `${reg.first_name} ${reg.last_name || ''}`.trim(), email: reg.email, institution: reg.institution || '' }
+                });
+            }
+            const already = !!reg.checked_in;
+            if (mark && !already) {
+                db.run('UPDATE bridges_registrations SET checked_in = 1, checked_in_at = ? WHERE id = ?', [now, reg.id]);
+                saveDb();
+            }
+            return res.json({
+                valid: true, event, code, event_name: evName,
+                already_checked_in: already,
+                checked_in_at: already ? reg.checked_in_at : (mark ? now : null),
+                status_label: 'REGISTERED', status_color: '#22c55e',
+                registrant: {
+                    name: `${reg.first_name} ${reg.last_name || ''}`.trim(),
+                    email: reg.email,
+                    institution: reg.institution || '',
+                    role: reg.position || '',
+                    dietary: reg.dietary_requirements || '',
+                    applied_for: evName
+                }
+            });
+        };
+
+        // ===== DONOR NIGHT (Plexus Donor Night — seats live in bridges_registrations) =====
+        // Donor guests register on the public /donor-night page straight into
+        // bridges_registrations, never through Croatians Abroad, so resolve directly.
+        if (event === 'donor') {
+            let reg = null;
+            if (isUuid) {
+                reg = query.get('SELECT * FROM bridges_registrations WHERE id = ?', [codeClean]);
+                // A UUID is unambiguous — if it belongs to another bridges event, say so instead
+                // of checking the seat in at the wrong door.
+                if (reg && reg.event_id !== donorEvtId) {
+                    return res.json({
+                        valid: false, event, code, reason: 'wrong_event',
+                        message: `This code is registered for ${bridgesEventName(reg.event_id) || 'a different event'}, not Plexus Donor Night. Do NOT admit here.`,
+                        registrant: { name: `${reg.first_name} ${reg.last_name || ''}`.trim(), email: reg.email, institution: reg.institution || '' }
+                    });
+                }
+            }
+            if (!reg && donorEvtId) {
+                reg = query.get('SELECT * FROM bridges_registrations WHERE event_id = ? AND LOWER(email) = LOWER(?) ORDER BY registered_at DESC LIMIT 1', [donorEvtId, codeClean]);
+                if (!reg && isShort && codeNorm.length >= 4) {
+                    try { reg = query.get(`SELECT * FROM bridges_registrations WHERE event_id = ? AND replace(lower(id), '-', '') LIKE ? ORDER BY registered_at DESC LIMIT 1`, [donorEvtId, codeNorm + '%']); } catch(e) {}
+                }
+            }
+            if (!reg) return res.json({ valid: false, event, code, reason: 'not_found', message: 'No Donor Night registration found for this code.' });
+            return bridgesRegResponse(reg);
+        }
+
         // ===== CONFERENCE or BRIDGES (via Croatians Abroad registration) =====
         // The QR for CA carries croatians_abroad_registrations.id. For CA Gala-bundle
         // tickets the QR carries gala_registrations.id, so we also try gala_registration_id.
@@ -18191,6 +18439,29 @@ By applying to this program, I provide the following consents:
             );
         }
         if (!caReg) caReg = query.get('SELECT * FROM croatians_abroad_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
+        if (!caReg && event === 'bridges') {
+            // Standalone fallback (mirrors the admin portal): guests from the public
+            // /building-bridges page live ONLY in bridges_registrations, never in Croatians
+            // Abroad. Donor Night rows are excluded — those are verified via event='donor'.
+            let sReg = null;
+            if (isUuid) {
+                sReg = query.get('SELECT * FROM bridges_registrations WHERE id = ?', [codeClean]);
+                if (sReg && donorEvtId && sReg.event_id === donorEvtId) {
+                    return res.json({
+                        valid: false, event, code, reason: 'wrong_event',
+                        message: 'This code is registered for Plexus Donor Night — check in at the Donor Night door, not Bridges.',
+                        registrant: { name: `${sReg.first_name} ${sReg.last_name || ''}`.trim(), email: sReg.email, institution: sReg.institution || '' }
+                    });
+                }
+            }
+            const notDonor = donorEvtId ? 'AND event_id != ?' : '';
+            const notDonorArgs = donorEvtId ? [donorEvtId] : [];
+            if (!sReg) sReg = query.get(`SELECT * FROM bridges_registrations WHERE LOWER(email) = LOWER(?) ${notDonor} ORDER BY registered_at DESC LIMIT 1`, [codeClean, ...notDonorArgs]);
+            if (!sReg && isShort && codeNorm.length >= 4) {
+                try { sReg = query.get(`SELECT * FROM bridges_registrations WHERE replace(lower(id), '-', '') LIKE ? ${notDonor} ORDER BY registered_at DESC LIMIT 1`, [codeNorm + '%', ...notDonorArgs]); } catch(e) {}
+            }
+            if (sReg) return bridgesRegResponse(sReg);
+        }
         if (!caReg) {
             // Debug — count rows so we can see if the DB is empty or the lookup is wrong
             const totalCA = query.get("SELECT COUNT(*) as c FROM croatians_abroad_registrations")?.c || 0;
@@ -19193,9 +19464,12 @@ By applying to this program, I provide the following consents:
                 }
                 if (!bridgesEvent) {
                     // No explicit event → free interest registration against a placeholder event row.
+                    // Seeded rows (the invitation-only /building-bridges and /donor-night events) are
+                    // excluded — a generic bridges link must never silently write into the Donor Night
+                    // guest list or consume its capacity. Pin links to explicit event_ids to target them.
                     const today = new Date().toISOString().slice(0, 10);
-                    bridgesEvent = query.get(`SELECT id, price, capacity FROM bridges_events WHERE event_date >= ? ORDER BY event_date ASC LIMIT 1`, [today])
-                                 || query.get(`SELECT id, price, capacity FROM bridges_events ORDER BY event_date DESC LIMIT 1`);
+                    bridgesEvent = query.get(`SELECT id, price, capacity FROM bridges_events WHERE COALESCE(created_by,'') <> 'seed' AND event_date >= ? ORDER BY event_date ASC LIMIT 1`, [today])
+                                 || query.get(`SELECT id, price, capacity FROM bridges_events WHERE COALESCE(created_by,'') <> 'seed' ORDER BY event_date DESC LIMIT 1`);
                 }
                 if (bridgesEvent) {
                     // Price (hence Stripe) only applies when the event was explicitly identified.
@@ -19465,6 +19739,167 @@ By applying to this program, I provide the following consents:
         }
     });
 
+    // ========== PUBLIC EVENTS — free invitation-only registration (Building Bridges / Donor Night) ==========
+    // Backs the server-rendered /building-bridges and /donor-night pages. The slug — never a raw
+    // event id — resolves to the seeded bridges_events row, so a client cannot register against an
+    // arbitrary event. Free only, no Stripe path here by design.
+    // NOTE the accepted posture: these are OPEN pages (reached from printed brochure QR codes), the
+    // same as /api/forum/events/:id/register — no per-invitee token. The registrationLimiter plus
+    // the 40-seat capacity gate are the abuse controls; the guest list is curated at the door.
+    // NOTE display copy: the whenLine below and the PUBLIC_EVENT_PAGES facts hardcode date/venue —
+    // the bridges_events row governs capacity and open/closed only. If the admin confirms a new
+    // date/venue, update the strings here and in PUBLIC_EVENT_PAGES too.
+    const PUBLIC_EVENT_REG = {
+        'building-bridges': {
+            name: 'Building Bridges in Biomedicine Croatia',
+            sheetKey: 'bridges',
+            subject: 'Your participation is confirmed — Building Bridges in Biomedicine',
+            emailTitle: 'Participation Confirmed',
+            emailLede: 'It is our pleasure to confirm your participation in <strong>Building Bridges in Biomedicine Croatia</strong>.',
+            whenLine: 'December 2026 &middot; Zagreb &middot; 09:00&ndash;12:30',
+            whenNote: 'The exact date and venue follow with your invitation.'
+        },
+        'donor-night': {
+            name: 'Plexus Donor Night',
+            sheetKey: 'donor-night',
+            subject: 'Your seat is confirmed — Plexus Donor Night',
+            emailTitle: 'Your Seat Is Confirmed',
+            emailLede: 'It is our pleasure to confirm your seat at the <strong>Plexus Donor Night</strong>.',
+            whenLine: 'Friday 4 December 2026 &middot; 19:30&ndash;22:30 &middot; Esplanade Zagreb, private salon',
+            whenNote: ''
+        }
+    };
+    // Re-send throttle: one ticket re-send per (event, email) per window. Keeps a duplicate-submit
+    // idempotent while stopping the "resubmit 20x per rate-limit window" email-bomb of a guest's
+    // inbox. In-memory is fine — worst case after a redeploy is one extra re-send.
+    const PUBLIC_EVENT_RESEND_WINDOW_MS = 15 * 60 * 1000;
+    const publicEventLastSend = new Map();
+    app.post('/api/public-events/register', registrationLimiter, async (req, res) => {
+        try {
+            const slug = String(req.body.event || '');
+            const cfg = Object.hasOwn(PUBLIC_EVENT_REG, slug) ? PUBLIC_EVENT_REG[slug] : null;
+            if (!cfg) return res.status(400).json({ error: 'Unknown event' });
+            const clean = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
+            const first_name = clean(req.body.first_name, 100);
+            const last_name = clean(req.body.last_name, 100);
+            const email = clean(req.body.email, 160);
+            const institution = clean(req.body.institution, 160);
+            const role = clean(req.body.role, 120);
+            const dietary = clean(req.body.dietary, 200);
+            if (!first_name || !last_name || !institution || !role) return res.status(400).json({ error: 'Please fill in all fields.' });
+            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'A valid email address is required.' });
+
+            // Resolve by immutable slug (matches the seed guard); the name fallback covers rows
+            // seeded before the slug column existed.
+            const evt = query.get('SELECT * FROM bridges_events WHERE slug = ?', [slug])
+                     || query.get('SELECT * FROM bridges_events WHERE name = ?', [cfg.name]);
+            if (!evt) return res.status(404).json({ error: 'This event is not open for registration at the moment. Write to laura.rodman@medx.hr and we will help.' });
+            if (!evt.registration_open) return res.status(403).json({ error: 'Registration for this event has closed. Write to laura.rodman@medx.hr and we will help.' });
+
+            // Ticket email body — universal hosted-QR pattern (buildTicketQrBlock + PNG attachment).
+            const ticketEmailHtml = (rid, greetName) => buildEmailTemplate(cfg.emailTitle, `
+                    <p>Dear <strong>${escapeHtml(greetName)}</strong>,</p>
+                    <p>${cfg.emailLede}</p>
+                    <p style="font-size:14px;color:#475569;"><strong>${cfg.whenLine}</strong>${cfg.whenNote ? `<br><em style="color:#94a3b8;">${cfg.whenNote}</em>` : ''}</p>
+                    ${buildTicketQrBlock(rid, { label: cfg.name, caption: 'Present this QR at arrival' })}
+                    <p>We look forward to welcoming you in Zagreb.</p>
+                    <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Warm regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
+                `);
+
+            // Dedup by (event, email) — a duplicate submission re-sends the existing ticket email
+            // instead of creating a second seat. Only rows that actually HOLD a seat match (same
+            // predicate as the capacity gate below), so an admin-cancelled guest falls through to
+            // the capacity gate and a fresh insert rather than getting their old seat re-confirmed.
+            const prior = query.get(`SELECT id, first_name FROM bridges_registrations
+                WHERE event_id = ? AND LOWER(email) = LOWER(?)
+                  AND (status IN ('confirmed','registered') OR payment_status IN ('paid','comp'))`, [evt.id, email]);
+            if (prior) {
+                // Already confirmed → re-send the ticket to the ON-FILE address and return NOTHING
+                // that opens the door. Echoing regId/qrDataUrl/manualCode here would hand the
+                // guest's working check-in credential to any unauthenticated caller who knows their
+                // email (this guest list is publicly announced) — /api/register-invite, the sibling
+                // public dedup path, likewise never returns the prior ticket in the response.
+                // Throttled per (event, email) and without the Laura CC so resubmits can't be used
+                // to bomb either inbox within a rate-limiter window.
+                const throttleKey = evt.id + '|' + email.toLowerCase();
+                if (Date.now() - (publicEventLastSend.get(throttleKey) || 0) > PUBLIC_EVENT_RESEND_WINDOW_MS) {
+                    publicEventLastSend.set(throttleKey, Date.now());
+                    try {
+                        const atts = await qrPngAttachment({ regId: prior.id, evt: 'bridges' });
+                        await sendEmail(email, cfg.subject, ticketEmailHtml(prior.id, prior.first_name || first_name), atts);
+                    } catch (emailErr) { console.warn('[Public events] re-send email failed:', emailErr.message); }
+                }
+                // Sheets is not re-posted either — the sheet stays one row per seat.
+                return res.json({
+                    status: 'confirmed', resent: true,
+                    message: 'You are already confirmed. Your entry QR has been re-sent to ' + email + '.'
+                });
+            }
+
+            // Capacity gate — only held seats count (mirrors the /api/register-invite bridges branch).
+            if (evt.capacity) {
+                const held = query.get(`SELECT COUNT(*) AS n FROM bridges_registrations
+                    WHERE event_id = ? AND (status IN ('confirmed','registered') OR payment_status IN ('paid','comp'))`, [evt.id])?.n || 0;
+                if (held >= evt.capacity) {
+                    return res.status(409).json({ error: 'The guest list is now full. Write to laura.rodman@medx.hr and we will let you know the moment a seat opens.' });
+                }
+            }
+            const regId = uuidv4();
+            db.run(`INSERT INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, position, dietary_requirements, status, payment_status, registered_at)
+                VALUES (?,?,?,?,?,?,?,?,'registered','n/a',CURRENT_TIMESTAMP)`,
+                [regId, evt.id, first_name, last_name, email, institution, role, dietary || null]);
+            saveDb();
+            flushDb(); // durability: a confirmed seat must survive a redeploy
+
+            const manualCode = String(regId).substring(0, 8).toUpperCase();
+
+            // Ticket email — CC'd to Laura via sendEventConfirmation like every other event
+            // confirmation. Also primes the re-send throttle above.
+            publicEventLastSend.set(evt.id + '|' + email.toLowerCase(), Date.now());
+            try {
+                const atts = await qrPngAttachment({ regId, evt: 'bridges' });
+                await sendEventConfirmation(email, cfg.subject, ticketEmailHtml(regId, first_name), atts);
+            } catch (emailErr) { console.warn('[Public events] confirmation email failed:', emailErr.message); }
+
+            // Google Sheets — events[] routes the row to its tab ('donor-night' auto-creates one).
+            try {
+                const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
+                if (sheetsWebhook) {
+                    fetch(sheetsWebhook, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            timestamp: new Date().toISOString(),
+                            events: [cfg.sheetKey],
+                            name: first_name + ' ' + last_name,
+                            email,
+                            institution,
+                            role,
+                            dietary: dietary || '',
+                            event: cfg.name,
+                            event_type: cfg.sheetKey,
+                            registration_id: regId,
+                            ticket_code: manualCode
+                        })
+                    }).catch(err => console.warn('[Sync] external POST (Sheets/admin) failed:', err.message));
+                }
+            } catch(e) {}
+
+            // On-screen ticket — inline data-URL QR carrying the same slim payload the hosted PNG
+            // serves (email clients strip data: URIs, the browser renders them fine). Only ever
+            // computed on the fresh-seat branch: the caller just created this registration.
+            let qrDataUrl = '';
+            try {
+                qrDataUrl = await QRCode.toDataURL(JSON.stringify({ type: 'MEDX_MEMBER', regId, evt: 'bridges' }), { width: 220, margin: 2 });
+            } catch(qrErr) { console.warn('[Public events] QR gen failed:', qrErr.message); }
+
+            res.json({ status: 'confirmed', regId, qrDataUrl, manualCode });
+        } catch (error) {
+            console.error('Public event registration error:', error);
+            res.status(500).json({ error: 'Registration failed. Please try again.' });
+        }
+    });
+
     // Validate direct registration link
     app.get('/api/register-direct/:token', (req, res) => {
         try {
@@ -19571,9 +20006,11 @@ By applying to this program, I provide the following consents:
                 // dropped by OR IGNORE (which would still email "confirmed" + burn a use).
                 let beId = link.event_id ? query.get('SELECT id FROM bridges_events WHERE id = ?', [link.event_id])?.id : null;
                 if (!beId) {
+                    // Seed rows excluded — same reasoning as the /api/register-invite bridges fallback:
+                    // a generic link must not land registrations in the invitation-only seeded events.
                     const today = new Date().toISOString().slice(0, 10);
-                    beId = query.get('SELECT id FROM bridges_events WHERE event_date >= ? ORDER BY event_date ASC LIMIT 1', [today])?.id
-                         || query.get('SELECT id FROM bridges_events ORDER BY event_date DESC LIMIT 1')?.id;
+                    beId = query.get(`SELECT id FROM bridges_events WHERE COALESCE(created_by,'') <> 'seed' AND event_date >= ? ORDER BY event_date ASC LIMIT 1`, [today])?.id
+                         || query.get(`SELECT id FROM bridges_events WHERE COALESCE(created_by,'') <> 'seed' ORDER BY event_date DESC LIMIT 1`)?.id;
                 }
                 if (!beId) return res.status(409).json({ error: 'No Building Bridges event is open for registration right now.' });
                 db.run('INSERT OR IGNORE INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, status, registered_at) VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
