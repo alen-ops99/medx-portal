@@ -19530,6 +19530,21 @@
             isolation: isolate;
         }
 
+        /* Clean cream/ink Home breadcrumb chip (replaces dead home-house / back-arrow controls) */
+        .mx-home-crumb {
+            display: inline-flex; align-items: center; gap: 8px;
+            margin: 0 0 20px; padding: 8px 15px 8px 13px;
+            background: var(--paper-2, #f3efe9); border: 1px solid var(--line, #e2dcd3);
+            border-radius: 999px; color: var(--ink-soft, #4a4440);
+            font-family: var(--sans, 'Inter', sans-serif); font-size: 13px; font-weight: 600;
+            letter-spacing: .01em; line-height: 1; cursor: pointer;
+            transition: background .18s ease, border-color .18s ease, color .18s ease;
+        }
+        .mx-home-crumb i { font-size: 11px; color: var(--crimson, #9b1b22); transition: transform .18s ease; }
+        .mx-home-crumb:hover { background: #fff; border-color: var(--ink-soft, #8a847b); color: var(--ink, #15110f); }
+        .mx-home-crumb:hover i { transform: translateX(-2px); }
+        .mx-home-crumb.inrow { margin: 0; }
+
         .section-home-btn,
         .section-back-btn {
             width: 44px;
@@ -30763,6 +30778,35 @@
             outline: none;
             border-color: var(--up-gold);
         }
+
+        /* ===== Member Directory (internal-Facebook, cream/ink) ===== */
+        .directory-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+        .directory-count-line { font-size: 13px; color: var(--muted, #6e6e73); font-weight: 500; }
+        .directory-count-line span { font-weight: 700; color: var(--ink, #15110f); }
+        .directory-view-toggle { margin-left: auto; }
+        .directory-card { display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line, #e2dcd3); border-radius: 16px; box-shadow: none; }
+        .directory-card:hover { transform: translateY(-2px); border-color: rgba(201, 169, 98, .55); box-shadow: 0 10px 26px -14px rgba(21, 17, 15, .28); }
+        .directory-card .connection-card-header { margin-bottom: 12px; }
+        .directory-role { font-size: 13px; color: var(--ink-soft, #4a4440); line-height: 1.4; margin-bottom: 4px; }
+        .directory-location { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--crimson, #9b1b22); letter-spacing: .01em; }
+        .directory-location i { font-size: 11px; }
+        .directory-chips { margin: 2px 0 12px; }
+        .directory-mutual { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-soft, #4a4440); margin-bottom: 2px; line-height: 1.4; }
+        .directory-mutual i { font-size: 12px; color: var(--gold, #c9a962); }
+        .directory-mutual.muted { color: var(--muted, #9a948b); }
+        .directory-mutual.muted i { color: var(--muted, #c3bcb0); }
+        .directory-mutual strong { color: var(--ink, #15110f); font-weight: 600; }
+        .directory-example { display: inline-block; margin-left: 7px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #a8842f; background: rgba(201, 169, 98, .16); border: 1px solid rgba(201, 169, 98, .4); padding: 1px 6px; border-radius: 5px; vertical-align: middle; }
+        .connection-grid.directory-grouped { display: block; }
+        .directory-city-group { margin-bottom: 26px; }
+        .directory-city-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 16px; margin-bottom: 14px; background: var(--emph-bg, #14110f); border-radius: 12px; }
+        .directory-city-name { font-family: var(--serif, 'Fraunces', Georgia, serif); font-size: 16px; font-weight: 600; color: var(--paper, #fbf9f6); letter-spacing: -.01em; }
+        .directory-city-name i { color: var(--gold, #c9a962); font-size: 13px; margin-right: 5px; }
+        .directory-city-count { font-size: 12px; font-weight: 600; color: rgba(251, 249, 246, .62); }
+        .directory-city-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+        .profile-location { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--crimson, #9b1b22); margin-top: 6px; }
+        .profile-location i { font-size: 12px; }
+        @media (max-width: 640px) { .directory-city-cards { grid-template-columns: 1fr; } }
 
         /* Meeting Scheduler */
         .meetings-list {
@@ -55550,7 +55594,7 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
 .auth-modal-close,.up-generic-modal-close,.up-help-close{min-width:44px !important;min-height:44px !important;display:inline-flex !important;align-items:center !important;justify-content:center !important;}
 /* ===== Editorial dashboard hero (greeting + next event, website-style photographic) ===== */
 #upNextEvent{margin:0 0 22px;}
-.up-hero{position:relative;overflow:hidden;border-radius:18px;min-height:300px;display:flex;flex-direction:column;justify-content:flex-end;padding:26px 24px;color:#f3efe9;box-shadow:var(--shadow-md);background:linear-gradient(180deg, rgba(18,15,13,.28) 0%, rgba(18,15,13,.55) 48%, rgba(18,15,13,.92) 100%), url('/assets/photos/plexus_25_gala_grupna.jpg') center/cover;}
+.up-hero{position:relative;overflow:hidden;border-radius:18px;min-height:352px;display:flex;flex-direction:column;justify-content:flex-end;padding:26px 24px;color:#f3efe9;box-shadow:var(--shadow-md);background:linear-gradient(180deg, rgba(18,15,13,.28) 0%, rgba(18,15,13,.55) 48%, rgba(18,15,13,.92) 100%), url('/assets/photos/plexus_25_gala_grupna.jpg') center/cover;}
 .up-hero-greeting{font-family:var(--serif);font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1.05;margin-bottom:16px;}
 .up-hero-eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(243,239,233,.78);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .up-hero-status{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22);padding:3px 9px;border-radius:999px;}
@@ -55561,7 +55605,7 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
 .up-hero-btn.primary{background:var(--crimson);color:#fff;}
 .up-hero-btn.primary:hover{background:var(--crimson-deep);}
 .up-hero-btn.ghost{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.28);font-weight:600;}
-@media(min-width:768px){.up-hero{min-height:344px;padding:36px 34px;} .up-hero-greeting{font-size:42px;} .up-hero-event{font-size:28px;}}
+@media(min-width:768px){.up-hero{min-height:412px;padding:40px 38px;} .up-hero-greeting{font-size:44px;} .up-hero-event{font-size:30px;}}
 /* greeting now lives in the hero — hide the old plain greeting block */
 .hub-welcome-section{display:none !important;}
 /* ============================================================
@@ -56073,6 +56117,11 @@ button,input,select,textarea{font-family:var(--sans);}
         </div>
 
         <!-- Notification Center -->
+        <style>
+        .mx-notif-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#9b1b22;margin-right:7px;vertical-align:middle;}
+        .mx-ann-chip{display:inline-block;margin-left:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:999px;background:rgba(201,169,98,.16);color:#a8842f;vertical-align:middle;}
+        .mx-ann-chip.followed{background:rgba(155,27,34,.10);color:#9b1b22;}
+        </style>
         <div class="notification-center" id="notificationCenter">
             <div class="notification-center-header">
                 <h3>Notifications</h3>
@@ -58014,12 +58063,16 @@ button,input,select,textarea{font-family:var(--sans);}
                               +'<div class="up-hero-event">'+esc(r.conference_name||'Med&X event')+'</div>'
                               +'<div class="up-hero-meta">'+esc(fmtRange(r.start_date,r.end_date))+(venue?(' · '+esc(venue)):'')+'</div>'
                               +'<div class="up-hero-actions"><button onclick="UserPortal.showSection(\'mymedx\')" class="up-hero-btn primary"><i class="fas fa-qrcode"></i> Show ticket</button>'
-                              +'<button onclick="medxICS(MedXNextEvent._reg)" class="up-hero-btn ghost"><i class="fas fa-calendar-plus"></i> Add to calendar</button></div>';
+                              +'<button onclick="medxICS(MedXNextEvent._reg)" class="up-hero-btn ghost"><i class="fas fa-calendar-plus"></i> Add to calendar</button>'
+                              +'<button onclick="if(typeof showQuickQR===\'function\')showQuickQR()" class="up-hero-btn ghost"><i class="fas fa-qrcode"></i> Check in</button>'
+                              +'<button onclick="UserPortal.showSection(\'mymedx\')" class="up-hero-btn ghost"><i class="fas fa-user-circle"></i> My Med&amp;X</button></div>';
                           } else {
                             body='<div class="up-hero-eyebrow">Your next event</div>'
                               +'<div class="up-hero-event">Discover what’s next</div>'
                               +'<div class="up-hero-meta">Plexus 2026 is open for registration — Zagreb, this December.</div>'
-                              +'<div class="up-hero-actions"><button onclick="UserPortal.showSection(\'plexus\')" class="up-hero-btn primary"><i class="fas fa-arrow-right"></i> Explore Plexus</button></div>';
+                              +'<div class="up-hero-actions"><button onclick="UserPortal.showSection(\'plexus\')" class="up-hero-btn primary"><i class="fas fa-arrow-right"></i> Explore Plexus</button>'
+                              +'<button onclick="if(typeof showQuickQR===\'function\')showQuickQR()" class="up-hero-btn ghost"><i class="fas fa-qrcode"></i> Check in</button>'
+                              +'<button onclick="UserPortal.showSection(\'mymedx\')" class="up-hero-btn ghost"><i class="fas fa-user-circle"></i> My Med&amp;X</button></div>';
                           }
                           host.innerHTML='<div class="up-hero"><div class="up-hero-greeting">'+greet+(name?(', '+esc(name)):'')+'</div>'+body+'</div>'; }
                       };
@@ -58027,6 +58080,99 @@ button,input,select,textarea{font-family:var(--sans);}
                       function maybeRender(){ var h=(location.hash||'').replace('#',''); if(!h||h==='dashboard'){ NE.render(); } }
                       if(document.readyState!=='loading') setTimeout(maybeRender,250); else window.addEventListener('load',function(){ setTimeout(maybeRender,250); });
                       window.addEventListener('hashchange',maybeRender);
+                    })();
+                    </script>
+
+                    <!-- PROJECT HUB — live status from /api/project-status (admin-owned), get-notified bells persist to notify_topics -->
+                    <style>
+                    .mx-project-hub{margin:2px 0 26px;}
+                    .mx-hub-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+                    .mx-hub-card{position:relative;background:var(--paper,#fbf9f6);border:1px solid var(--line,#e2dcd3);border-radius:16px;padding:15px 15px 14px;display:flex;flex-direction:column;gap:9px;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;box-shadow:0 1px 2px rgba(21,17,15,.05);min-height:178px;}
+                    .mx-hub-card:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(21,17,15,.10);border-color:rgba(201,169,98,.5);}
+                    .mx-hub-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+                    .mx-hub-idname{display:flex;align-items:center;gap:9px;min-width:0;}
+                    .mx-hub-ico{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;background:var(--paper-2,#f3efe9);border:1px solid var(--line,#e2dcd3);color:var(--ink,#15110f);}
+                    .mx-hub-name{font-family:var(--serif,'Fraunces',Georgia,serif);font-size:15.5px;font-weight:600;color:var(--ink,#15110f);letter-spacing:-.01em;line-height:1.12;}
+                    .mx-hub-chip{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 9px;border-radius:999px;width:fit-content;line-height:1.28;}
+                    .mx-hub-chip.open{background:var(--crimson,#9b1b22);color:#fff;}
+                    .mx-hub-chip.soon{background:transparent;border:1px solid var(--ink,#15110f);color:var(--ink,#15110f);}
+                    .mx-hub-chip.info{background:var(--paper-2,#f3efe9);color:var(--muted,#6e6e73);border:1px solid var(--line,#e2dcd3);}
+                    .mx-hub-chip.closed{background:#ece8e2;color:#9a948b;}
+                    .mx-hub-detail{font-size:12px;color:var(--muted,#6e6e73);line-height:1.45;}
+                    .mx-hub-cta{margin-top:auto;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--crimson,#9b1b22);background:none;border:none;padding:2px 0 0;cursor:pointer;font-family:var(--sans,'Inter',sans-serif);}
+                    .mx-hub-bell{border:1px solid var(--line,#e2dcd3);background:transparent;color:var(--muted,#8a847b);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:12px;flex-shrink:0;transition:all .15s ease;}
+                    .mx-hub-bell:hover{color:var(--ink,#15110f);border-color:var(--ink-soft,#8a847b);}
+                    .mx-hub-bell.on{background:rgba(201,169,98,.18);border-color:rgba(201,169,98,.6);color:#a8842f;}
+                    .mx-hub-empty{grid-column:1/-1;padding:18px;text-align:center;color:var(--muted,#6e6e73);font-size:13px;}
+                    @media(max-width:760px){.mx-hub-grid{grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:80%;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px;}.mx-hub-grid::-webkit-scrollbar{display:none;}.mx-hub-card{scroll-snap-align:start;}}
+                    /* Warm-ink chapter band (monograph grammar, echoes the website's numbered chapters) */
+                    .mx-chapter-band{display:flex;align-items:center;gap:18px;background:var(--emph-bg,#14110f);border-radius:16px;padding:20px 24px;margin:6px 0 20px;}
+                    .mx-chapter-num{font-family:var(--serif,'Fraunces',Georgia,serif);font-size:30px;font-weight:600;line-height:1;color:var(--gold,#c9a962);letter-spacing:-.02em;flex-shrink:0;}
+                    .mx-chapter-text h2{font-family:var(--serif,'Fraunces',Georgia,serif);font-size:20px;font-weight:600;color:var(--paper,#fbf9f6);letter-spacing:-.01em;margin:0 0 3px;line-height:1.1;}
+                    .mx-chapter-text p{font-size:13px;color:rgba(251,249,246,.66);margin:0;line-height:1.45;}
+                    @media(max-width:640px){.mx-chapter-band{padding:16px 18px;gap:14px;}.mx-chapter-num{font-size:24px;}.mx-chapter-text h2{font-size:17px;}}
+                    </style>
+                    <section class="mx-project-hub" id="mxProjectHubWrap">
+                        <div class="mx-chapter-band">
+                            <span class="mx-chapter-num">01</span>
+                            <div class="mx-chapter-text">
+                                <h2>Your programmes</h2>
+                                <p>Apply, register, and follow every Med&amp;X project from here.</p>
+                            </div>
+                        </div>
+                        <div class="mx-hub-grid" id="mxProjectHub">
+                            <div class="mx-hub-empty"><i class="fas fa-spinner fa-spin"></i> Loading projects…</div>
+                        </div>
+                    </section>
+                    <script>
+                    (function(){
+                      function apiBase(){ return (typeof API_BASE!=='undefined')?API_BASE:''; }
+                      function token(){ return (typeof UserPortal!=='undefined'&&UserPortal.token)||localStorage.getItem('medx_user_token'); }
+                      function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+                      var ICONS={plexus:'fa-users',gala:'fa-glass-cheers',accelerator:'fa-rocket',forum:'fa-landmark',bridges:'fa-globe-americas'};
+                      var NAMES={plexus:'Plexus',gala:'Gala Evening',accelerator:'Accelerator',forum:'Biomedical Forum',bridges:'Building Bridges'};
+                      var KINDS={open:'open',soon:'soon',info:'info',closed:'closed'};
+                      var NOTIFY_KEY='medx_notify_topics';
+                      function cacheGet(){ try{ return JSON.parse(localStorage.getItem(NOTIFY_KEY)||'[]')||[]; }catch(e){ return []; } }
+                      function cacheSet(a){ try{ localStorage.setItem(NOTIFY_KEY, JSON.stringify(a||[])); }catch(e){} }
+                      var PH={ _projects:[], _subs:cacheGet(),
+                        render:function(){ var host=document.getElementById('mxProjectHub'); if(!host) return; var tk=token(); if(!tk) return;
+                          PH._subs=cacheGet(); if(PH._projects.length) PH._paint();
+                          fetch(apiBase()+'/api/project-status',{headers:{'Authorization':'Bearer '+tk}})
+                            .then(function(r){return r.ok?r.json():Promise.reject();})
+                            .then(function(rows){ PH._projects=Array.isArray(rows)?rows:[]; PH._paint(); PH._loadSubs(tk); })
+                            .catch(function(){ }); },
+                        _loadSubs:function(tk){ fetch(apiBase()+'/api/notify-topics',{headers:{'Authorization':'Bearer '+tk}})
+                            .then(function(r){return r.ok?r.json():Promise.reject();})
+                            .then(function(d){ PH._subs=(d&&Array.isArray(d.projects))?d.projects:[]; cacheSet(PH._subs); PH._paint(); })
+                            .catch(function(){}); },
+                        _paint:function(){ var host=document.getElementById('mxProjectHub'); if(!host) return;
+                          if(!PH._projects.length){ host.innerHTML='<div class="mx-hub-empty">Projects will appear here.</div>'; return; }
+                          host.innerHTML=PH._projects.map(function(p){
+                            var k=p.project_key; var kind=KINDS[p.status_kind]||'info'; var ico=ICONS[k]||'fa-star';
+                            var on=PH._subs.indexOf(k)>=0; var target=p.cta_target||k;
+                            return '<div class="mx-hub-card" onclick="MedXProjectHub.go(\''+esc(target)+'\')">'
+                              +'<div class="mx-hub-top"><div class="mx-hub-idname"><div class="mx-hub-ico"><i class="fas '+ico+'"></i></div>'
+                              +'<div class="mx-hub-name">'+esc(NAMES[k]||k)+'</div></div>'
+                              +'<button class="mx-hub-bell'+(on?' on':'')+'" title="'+(on?'You will be notified':'Get notified')+'" aria-pressed="'+(on?'true':'false')+'" onclick="event.stopPropagation();MedXProjectHub.toggle(\''+esc(k)+'\',this)"><i class="fas fa-bell"></i></button></div>'
+                              +'<span class="mx-hub-chip '+kind+'">'+esc(p.status_label||'')+'</span>'
+                              +'<div class="mx-hub-detail">'+esc(p.detail_line||'')+'</div>'
+                              +'<button class="mx-hub-cta" onclick="event.stopPropagation();MedXProjectHub.go(\''+esc(target)+'\')">'+esc(p.cta_label||'Open')+' <i class="fas fa-arrow-right"></i></button>'
+                              +'</div>';
+                          }).join(''); },
+                        go:function(target){ if(typeof UserPortal!=='undefined'&&UserPortal.showSection) UserPortal.showSection(target); },
+                        toggle:function(key,btn){ var tk=token(); if(!tk) return; var on=!(PH._subs.indexOf(key)>=0);
+                          if(on){ if(PH._subs.indexOf(key)<0) PH._subs.push(key); } else { PH._subs=PH._subs.filter(function(x){return x!==key;}); }
+                          cacheSet(PH._subs);
+                          if(btn){ btn.classList.toggle('on',on); btn.title=on?'You will be notified':'Get notified'; btn.setAttribute('aria-pressed',on?'true':'false'); }
+                          fetch(apiBase()+'/api/notify-topics',{method:'POST',headers:{'Authorization':'Bearer '+tk,'Content-Type':'application/json'},body:JSON.stringify({project:key,on:on})})
+                            .then(function(r){return r.ok?r.json():Promise.reject();})
+                            .catch(function(){ if(on){ PH._subs=PH._subs.filter(function(x){return x!==key;}); } else { PH._subs.push(key); } cacheSet(PH._subs); PH._paint(); }); }
+                      };
+                      window.MedXProjectHub=PH;
+                      function maybe(){ var h=(location.hash||'').replace('#',''); if(!h||h==='dashboard'){ PH.render(); } }
+                      if(document.readyState!=='loading') setTimeout(maybe,300); else window.addEventListener('load',function(){ setTimeout(maybe,300); });
+                      window.addEventListener('hashchange',maybe);
                     })();
                     </script>
 
@@ -58105,7 +58251,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     </div>
 
                     <!-- Featured Carousel -->
-                    <div class="featured-carousel" id="featuredCarousel" data-widget="featured">
+                    <div class="featured-carousel" id="featuredCarousel" data-widget="featured" style="display:none;">
                         <div class="featured-carousel-track" id="featuredCarouselTrack">
                             <!-- Slide 1: Plexus Conference -->
                             <div class="featured-slide active" data-section="plexus" onclick="FeaturedCarousel.navigateTo('plexus')">
@@ -58817,16 +58963,7 @@ button,input,select,textarea{font-family:var(--sans);}
             <div class="up-section" id="up-section-plexus">
                 <div class="up-container" style="position: relative;">
                     <!-- Home Button (outside hero to avoid click interception) -->
-                    <button class="section-home-btn" onclick="UserPortal.showSection('dashboard')" title="Back to Home">
-                        <div class="home-house">
-                            <div class="home-house-chimney"></div>
-                            <div class="home-house-smoke"></div>
-                            <div class="home-house-roof"></div>
-                            <div class="home-house-body">
-                                <div class="home-house-door"></div>
-                            </div>
-                        </div>
-                    </button>
+                    <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
                     <!-- Conference Hero -->
                     <div class="px-hero">
                         <div class="px-hero-badge">
@@ -61661,16 +61798,7 @@ button,input,select,textarea{font-family:var(--sans);}
             <div class="up-section" id="up-section-gala">
                 <div class="up-container" style="position: relative;">
                     <!-- Home Button (outside hero to avoid click interception) -->
-                    <button class="section-home-btn" onclick="UserPortal.showSection('dashboard')" title="Back to Home">
-                        <div class="home-house">
-                            <div class="home-house-chimney"></div>
-                            <div class="home-house-smoke"></div>
-                            <div class="home-house-roof"></div>
-                            <div class="home-house-body">
-                                <div class="home-house-door"></div>
-                            </div>
-                        </div>
-                    </button>
+                    <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
                     <!-- Gala Hero -->
                     <div class="gala-hero">
                         <div class="gala-hero-content">
@@ -62076,21 +62204,7 @@ button,input,select,textarea{font-family:var(--sans);}
             <div class="up-section" id="up-section-accelerator">
                 <div class="up-container" style="position: relative;">
                     <!-- Navigation Buttons (outside hero to avoid click interception) -->
-                    <div class="section-nav-buttons" style="position: absolute; top: 16px; left: 16px; z-index: 100; display: flex; gap: 8px;">
-                        <button class="section-back-btn" onclick="AcceleratorPortal.goBack()" title="Go Back">
-                            <div class="back-arrow"></div>
-                        </button>
-                        <button class="section-home-btn" onclick="UserPortal.showSection('dashboard')" title="Back to Dashboard">
-                            <div class="home-house">
-                                <div class="home-house-chimney"></div>
-                                <div class="home-house-smoke"></div>
-                                <div class="home-house-roof"></div>
-                                <div class="home-house-body">
-                                    <div class="home-house-door"></div>
-                                </div>
-                            </div>
-                        </button>
-                    </div>
+                    <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
                     <!-- Hero Section -->
                     <div class="ax-hero">
                         <div class="ax-hero-badge">
@@ -63228,16 +63342,7 @@ button,input,select,textarea{font-family:var(--sans);}
             <div class="up-section" id="up-section-forum">
                 <div class="up-container" style="position: relative;">
                     <!-- Home Button (outside hero to avoid click interception) -->
-                    <button class="section-home-btn" onclick="UserPortal.showSection('dashboard')" title="Back to Home">
-                        <div class="home-house">
-                            <div class="home-house-chimney"></div>
-                            <div class="home-house-smoke"></div>
-                            <div class="home-house-roof"></div>
-                            <div class="home-house-body">
-                                <div class="home-house-door"></div>
-                            </div>
-                        </div>
-                    </button>
+                    <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
                     <!-- Hero Section -->
                     <div class="fm-hero">
                         <div class="fm-hero-badge">
@@ -65275,16 +65380,7 @@ button,input,select,textarea{font-family:var(--sans);}
                 <div class="network-container">
                     <!-- Network Header -->
                     <div class="network-header">
-                        <button class="network-back-btn section-home-btn-inline" onclick="UserPortal.showSection('dashboard')" title="Back to Home">
-                            <div class="home-house home-house-dark">
-                                <div class="home-house-chimney"></div>
-                                <div class="home-house-smoke"></div>
-                                <div class="home-house-roof"></div>
-                                <div class="home-house-body">
-                                    <div class="home-house-door"></div>
-                                </div>
-                            </div>
-                        </button>
+                        <button class="mx-home-crumb inrow" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
                         <div class="network-header-text">
                             <h1>My Network</h1>
                             <p>Connect with researchers and clinicians worldwide</p>
@@ -65559,7 +65655,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         <div class="discovery-filters">
                             <div class="discovery-search">
                                 <i class="fas fa-search"></i>
-                                <input type="text" id="networkSearch" placeholder="Search by name, institution, or research area..." oninput="debouncedNetworkSearch()" maxlength="100">
+                                <input type="text" id="networkSearch" placeholder="Search by name, institution, city, or specialty..." oninput="debouncedNetworkSearch()" maxlength="100">
                             </div>
                             <div class="discovery-filter">
                                 <select id="filterSpecialty" onchange="NetworkingPortal.filterMembers()">
@@ -65597,24 +65693,32 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </select>
                             </div>
                             <div class="discovery-filter">
-                                <select id="filterCareerStage" onchange="NetworkingPortal.filterMembers()">
-                                    <option value="">All Career Stages</option>
-                                    <option value="student">Student</option>
-                                    <option value="early_career">Early Career</option>
-                                    <option value="mid_career">Mid Career</option>
-                                    <option value="senior">Senior</option>
-                                    <option value="industry">Industry</option>
+                                <select id="filterCountry" onchange="NetworkingPortal.filterMembers()">
+                                    <option value="">All Countries</option>
                                 </select>
                             </div>
                             <div class="discovery-filter">
-                                <select id="filterGoals" onchange="NetworkingPortal.filterMembers()">
-                                    <option value="">All Goals</option>
-                                    <option value="collaborators">Looking for Collaborators</option>
-                                    <option value="mentors">Seeking Mentors</option>
-                                    <option value="mentees">Offering Mentorship</option>
-                                    <option value="jobs">Job Seekers</option>
-                                    <option value="hiring">Hiring</option>
+                                <select id="filterCity" onchange="NetworkingPortal.filterMembers()">
+                                    <option value="">All Cities</option>
                                 </select>
+                            </div>
+                            <div class="discovery-filter">
+                                <select id="filterProject" onchange="NetworkingPortal.filterMembers()">
+                                    <option value="">All Programs</option>
+                                    <option value="plexus">Plexus</option>
+                                    <option value="gala">Gala Evening</option>
+                                    <option value="accelerator">Accelerator</option>
+                                    <option value="forum">Biomedical Forum</option>
+                                    <option value="bridges">Building Bridges</option>
+                                </select>
+                            </div>
+                            <div class="connections-view-toggle directory-view-toggle">
+                                <button class="view-toggle-btn active" id="dirViewList" onclick="NetworkingPortal.setDiscoverView('list', this)" title="List view">
+                                    <i class="fas fa-list"></i>
+                                </button>
+                                <button class="view-toggle-btn" id="dirViewCity" onclick="NetworkingPortal.setDiscoverView('city', this)" title="Group by city">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                </button>
                             </div>
                         </div>
 
@@ -65686,10 +65790,11 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                         </div>
 
-                        <div class="network-section-header" style="margin-top: 32px;">
-                            <h3>All Members (<span id="discoverResultCount">0</span>)</h3>
+                        <div class="network-section-header directory-header" style="margin-top: 32px;">
+                            <h3>Member Directory</h3>
+                            <span class="directory-count-line" id="discoverCountLine">Showing <span id="discoverResultCount">0</span> members</span>
                         </div>
-                        <div class="connection-grid" id="discoverGrid">
+                        <div class="connection-grid directory-grid" id="discoverGrid">
                             <!-- Dynamically rendered by NetworkingPortal.renderDiscover() -->
                         </div>
                     </div>
@@ -66073,6 +66178,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         <div class="profile-name-section">
                             <h2 class="profile-name" id="profileName">Dr. Sarah Wilson</h2>
                             <p class="profile-title" id="profileTitle">Sleep Researcher at Stanford Medicine</p>
+                            <p class="profile-location" id="profileLocation" style="display:none;"></p>
                         </div>
 
                         <div class="profile-stats-row">
@@ -66103,6 +66209,11 @@ button,input,select,textarea{font-family:var(--sans);}
                                 <span class="profile-tag">Memory Consolidation</span>
                                 <span class="profile-tag">fMRI</span>
                             </div>
+                        </div>
+
+                        <div class="profile-section" id="profileProjectsSection" style="display:none;">
+                            <h4 class="profile-section-title">Med&amp;X Programs</h4>
+                            <div class="profile-tags" id="profileProjects"></div>
                         </div>
 
                         <div class="profile-section">
@@ -66165,16 +66276,7 @@ button,input,select,textarea{font-family:var(--sans);}
             <div class="up-section" id="up-section-talks">
                 <div class="network-container">
                     <div class="network-header">
-                        <button class="network-back-btn section-home-btn-inline" onclick="UserPortal.showSection('dashboard')" title="Back to Home">
-                            <div class="home-house home-house-dark">
-                                <div class="home-house-chimney"></div>
-                                <div class="home-house-smoke"></div>
-                                <div class="home-house-roof"></div>
-                                <div class="home-house-body">
-                                    <div class="home-house-door"></div>
-                                </div>
-                            </div>
-                        </button>
+                        <button class="mx-home-crumb inrow" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
                         <div class="network-header-text">
                             <h1>Talk Library</h1>
                             <p>Keynotes and sessions from past Plexus conferences, on demand</p>
@@ -66192,16 +66294,7 @@ button,input,select,textarea{font-family:var(--sans);}
                 <div class="settings-container">
                     <!-- Settings Header -->
                     <div class="settings-header">
-                        <button class="settings-back-btn section-home-btn-inline" onclick="UserPortal.showSection('dashboard')" title="Back to Home">
-                            <div class="home-house home-house-dark">
-                                <div class="home-house-chimney"></div>
-                                <div class="home-house-smoke"></div>
-                                <div class="home-house-roof"></div>
-                                <div class="home-house-body">
-                                    <div class="home-house-door"></div>
-                                </div>
-                            </div>
-                        </button>
+                        <button class="mx-home-crumb inrow" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
                         <div class="settings-header-text">
                             <h1>Settings</h1>
                             <p>Manage your account preferences</p>
@@ -66675,16 +66768,7 @@ button,input,select,textarea{font-family:var(--sans);}
                 <div class="rewards-container">
                     <!-- Rewards Header -->
                     <div class="rewards-header">
-                        <button class="rewards-back-btn section-home-btn-inline" onclick="UserPortal.showSection('dashboard')" title="Back to Home">
-                            <div class="home-house home-house-dark">
-                                <div class="home-house-chimney"></div>
-                                <div class="home-house-smoke"></div>
-                                <div class="home-house-roof"></div>
-                                <div class="home-house-body">
-                                    <div class="home-house-door"></div>
-                                </div>
-                            </div>
-                        </button>
+                        <button class="mx-home-crumb inrow" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
                         <div class="rewards-header-text">
                             <h1>Med&amp;X Rewards</h1>
                             <p>Earn points, unlock exclusive benefits</p>
@@ -66896,16 +66980,7 @@ button,input,select,textarea{font-family:var(--sans);}
             <div class="up-section" id="up-section-bridges">
                 <div class="bb-container">
                     <!-- Home Button (outside hero to avoid overflow:hidden) -->
-                    <button class="section-home-btn" onclick="UserPortal.showSection('dashboard')" title="Back to Home" style="background: rgba(155, 27, 34, 0.15); border-color: rgba(155, 27, 34, 0.3); z-index: 1000;">
-                        <div class="home-house" style="--house-color: #9b1b22;">
-                            <div class="home-house-chimney"></div>
-                            <div class="home-house-smoke"></div>
-                            <div class="home-house-roof" style="border-bottom-color: #9b1b22;"></div>
-                            <div class="home-house-body" style="background: #9b1b22;">
-                                <div class="home-house-door" style="background: rgba(255, 255, 255, 0.3);"></div>
-                            </div>
-                        </div>
-                    </button>
+                    <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
 
                     <!-- Hero -->
                     <div class="bb-hero">
@@ -67416,16 +67491,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     <!-- Speaker Area (shown after verification) -->
                     <div id="spSpeakerArea" style="display: none;">
                         <!-- Home Button -->
-                        <button class="section-home-btn" onclick="UserPortal.showSection('dashboard')" title="Back to Home" style="background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.3); z-index: 1000;">
-                            <div class="home-house" style="--house-color: var(--warning);">
-                                <div class="home-house-chimney"></div>
-                                <div class="home-house-smoke"></div>
-                                <div class="home-house-roof" style="border-bottom-color: var(--warning);"></div>
-                                <div class="home-house-body" style="background: var(--warning);">
-                                    <div class="home-house-door" style="background: rgba(255, 255, 255, 0.3);"></div>
-                                </div>
-                            </div>
-                        </button>
+                        <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
 
                         <!-- Welcome Hero -->
                         <div class="sp-hero">
@@ -67837,16 +67903,7 @@ button,input,select,textarea{font-family:var(--sans);}
             <div class="up-section" id="up-section-mymedx">
                 <div class="mymedx-container" style="max-width: 800px; margin: 0 auto; padding: 20px 16px 40px;">
                     <!-- Home Button -->
-                    <button class="section-home-btn" onclick="UserPortal.showSection('dashboard')" title="Back to Home" style="background: var(--paper-2); border-color: var(--line); z-index: 1000;">
-                        <div class="home-house" style="--house-color: var(--crimson);">
-                            <div class="home-house-chimney"></div>
-                            <div class="home-house-smoke"></div>
-                            <div class="home-house-roof"></div>
-                            <div class="home-house-body">
-                                <div class="home-house-door"></div>
-                            </div>
-                        </div>
-                    </button>
+                    <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
 
                     <!-- Hero Header -->
                     <div style="text-align: center; padding: 40px 0 24px;">
@@ -89407,60 +89464,188 @@ You can use variables like {first_name} that will be personalized for each recip
                 } catch(e) { console.error('Load pending failed:', e); }
             },
 
+            // ===== Member Directory (internal-Facebook style) =====
+            directoryView: 'list',
+            directoryMembers: null,
+            directorySeed: [
+                { id:'seed-maria-garcia', first_name:'Maria', last_name:'Garcia', title:'Neurologist', institution:'Harvard Medical School', city:'Boston', country:'United States', specialtyKey:'neurology', specialtyLabel:'Neurology', interests:['Sleep Disorders','Movement Disorders'], projects:['plexus','forum'], mutuals:['James Kim','Anna Larsson'], mutualCount:2, careerStage:'Senior', online:true, bio:'Clinical neurologist specializing in sleep and movement disorders. Runs the Sleep & Movement Disorders Clinic and mentors early-career researchers in translational neuroscience.' },
+                { id:'seed-ivan-horvat', first_name:'Ivan', last_name:'Horvat', title:'Cardiologist', institution:'University of Zagreb School of Medicine', city:'Zagreb', country:'Croatia', specialtyKey:'cardiology', specialtyLabel:'Cardiology', interests:['Heart Failure','Preventive Cardiology'], projects:['plexus','gala','bridges'], mutuals:['Petra Novak'], mutualCount:1, careerStage:'Mid Career', online:true, bio:'Interventional cardiologist and Plexus programme committee member. Building cross-border research links between Croatian and international cardiology groups.' },
+                { id:'seed-sophie-fischer', first_name:'Sophie', last_name:'Fischer', title:'Cardiovascular Researcher', institution:'ETH Zurich', city:'Zurich', country:'Switzerland', specialtyKey:'cardiology', specialtyLabel:'Cardiology', interests:['Bioengineering','Cardiac Imaging'], projects:['plexus','accelerator'], mutuals:['Ivan Horvat','Thomas Chen'], mutualCount:2, careerStage:'Early Career', online:false, bio:'Bioengineer working on next-generation cardiac imaging. Open to coffee chats and collaborators for a multi-site imaging study.' },
+                { id:'seed-anna-larsson', first_name:'Anna', last_name:'Larsson', title:'Immunologist', institution:'Karolinska Institute', city:'Stockholm', country:'Sweden', specialtyKey:'immunology', specialtyLabel:'Immunology', interests:['Inflammation','Systems Biology'], projects:['forum','plexus'], mutuals:['Maria Garcia','Thomas Chen'], mutualCount:2, careerStage:'Senior', online:true, bio:'Studies the bidirectional relationship between sleep and immune function. Mentors trainees and welcomes new collaborators.' },
+                { id:'seed-elena-weber', first_name:'Elena', last_name:'Weber', title:'Neurologist', institution:'Charite Berlin', city:'Berlin', country:'Germany', specialtyKey:'neurology', specialtyLabel:'Neurology', interests:['Optogenetics','Sleep-Wake Regulation'], projects:['accelerator'], mutuals:['Anna Larsson'], mutualCount:1, careerStage:'Early Career', online:false, bio:'Maps arousal circuits with optogenetics and polysomnography. Looking for senior mentors and translational partners.' },
+                { id:'seed-kenji-osaka', first_name:'Kenji', last_name:'Osaka', title:'Internist', institution:'University of Tokyo Hospital', city:'Tokyo', country:'Japan', specialtyKey:'internal_medicine', specialtyLabel:'Internal Medicine', interests:['Metabolism','Diabetes'], projects:['bridges'], mutuals:[], mutualCount:0, careerStage:'Mid Career', online:true, bio:'General internist with a research focus on metabolic disease. Keen to join international registries and Building Bridges exchanges.' },
+                { id:'seed-mei-lin', first_name:'Mei', last_name:'Lin', title:'Oncologist', institution:'National University of Singapore', city:'Singapore', country:'Singapore', specialtyKey:'oncology', specialtyLabel:'Oncology', interests:['Chronotherapy','Clinical Trials'], projects:['plexus','forum'], mutuals:['James Kim'], mutualCount:1, careerStage:'Senior', online:true, bio:'Medical oncologist pioneering circadian-timed chemotherapy. Hiring a post-doc and open to trial collaborations.' },
+                { id:'seed-james-kim', first_name:'James', last_name:'Kim', title:'Oncologist', institution:'Mayo Clinic', city:'Rochester', country:'United States', specialtyKey:'oncology', specialtyLabel:'Oncology', interests:['Circadian Biology','Chronotherapy'], projects:['plexus'], mutuals:['Maria Garcia','Mei Lin'], mutualCount:2, careerStage:'Mid Career', online:false, bio:'Investigates the intersection of circadian biology and cancer outcomes. Optimizing drug delivery to biological time.' },
+                { id:'seed-petra-novak', first_name:'Petra', last_name:'Novak', title:'Paediatrician', institution:'KBC Split', city:'Split', country:'Croatia', specialtyKey:'pediatrics', specialtyLabel:'Pediatrics', interests:['Neonatology','Sleep'], projects:['gala','bridges'], mutuals:['Ivan Horvat'], mutualCount:1, careerStage:'Mid Career', online:true, bio:'Paediatrician and Gala Evening host committee member. Interested in early-life sleep and neurodevelopment.' },
+                { id:'seed-david-cohen', first_name:'David', last_name:'Cohen', title:'Psychiatrist', institution:'Weill Cornell Medicine', city:'New York', country:'United States', specialtyKey:'psychiatry', specialtyLabel:'Psychiatry', interests:['Mood Disorders','Digital Health'], projects:['forum'], mutuals:[], mutualCount:0, careerStage:'Senior', online:false, bio:'Psychiatrist studying sleep and mood. Building digital-phenotyping tools for depression relapse prediction.' },
+                { id:'seed-lena-hofer', first_name:'Lena', last_name:'Hofer', title:'Endocrinologist', institution:'Medical University of Vienna', city:'Vienna', country:'Austria', specialtyKey:'endocrinology', specialtyLabel:'Endocrinology', interests:['Circadian Endocrinology','Obesity'], projects:['plexus','accelerator'], mutuals:['Elena Weber'], mutualCount:1, careerStage:'Early Career', online:true, bio:'Clinician-scientist in circadian endocrinology. Accelerator alumna seeking collaborators on shift-work metabolic studies.' },
+                { id:'seed-omar-haddad', first_name:'Omar', last_name:'Haddad', title:'Infectious Disease Physician', institution:'American University of Beirut', city:'Beirut', country:'Lebanon', specialtyKey:'infectious_disease', specialtyLabel:'Infectious Disease', interests:['Global Health','Antimicrobial Resistance'], projects:['bridges','forum'], mutuals:[], mutualCount:0, careerStage:'Mid Career', online:false, bio:'ID physician focused on antimicrobial resistance and global health equity. Active in Building Bridges exchanges.' },
+                { id:'seed-clara-mendes', first_name:'Clara', last_name:'Mendes', title:'Geneticist', institution:'University of Lisbon', city:'Lisbon', country:'Portugal', specialtyKey:'genetics', specialtyLabel:'Genetics', interests:['Rare Disease','Genomics'], projects:['plexus'], mutuals:['Miguel Borges'], mutualCount:1, careerStage:'Early Career', online:true, bio:'Genomics researcher working on rare-disease diagnostics. Looking for clinical collaborators across Europe.' },
+                { id:'seed-thomas-chen', first_name:'Thomas', last_name:'Chen', title:'Cardiologist', institution:'Cleveland Clinic', city:'Cleveland', country:'United States', specialtyKey:'cardiology', specialtyLabel:'Cardiology', interests:['Sleep Apnea','Epidemiology'], projects:['plexus','forum'], mutuals:['Anna Larsson','Sophie Fischer'], mutualCount:2, careerStage:'Senior', online:false, bio:'Links sleep quality to cardiovascular risk in large cohorts. Advisory-role and general networking interests.' },
+                { id:'seed-amara-okafor', first_name:'Amara', last_name:'Okafor', title:'Public Health Scientist', institution:'University of Cape Town', city:'Cape Town', country:'South Africa', specialtyKey:'public_health', specialtyLabel:'Public Health', interests:['Epidemiology','Health Systems'], projects:['bridges','plexus'], mutuals:[], mutualCount:0, careerStage:'Mid Career', online:true, bio:'Public-health scientist on health-systems strengthening. Keen to connect Croatian and African biomedical networks.' },
+                { id:'seed-noah-brandt', first_name:'Noah', last_name:'Brandt', title:'Radiologist', institution:'Erasmus MC', city:'Rotterdam', country:'Netherlands', specialtyKey:'radiology', specialtyLabel:'Radiology', interests:['Neuroimaging','Machine Learning'], projects:['accelerator','plexus'], mutuals:['Elena Weber'], mutualCount:1, careerStage:'Mid Career', online:false, bio:'Neuroradiologist building machine-learning tools for brain imaging. Open to Accelerator co-mentoring.' }
+            ],
+
+            _normalizeMember(u, isExample) {
+                const first = u.first_name || '';
+                const last = u.last_name || '';
+                const name = ((first + ' ' + last).trim()) || 'Member';
+                const initials = ((first[0] || (name[0] || '?')) + (last[0] || (name.split(' ')[1] ? name.split(' ')[1][0] : ''))).toUpperCase();
+                let interests = [];
+                if (Array.isArray(u.interests)) interests = u.interests;
+                else if (u.research_interests) interests = String(u.research_interests).split(',').map(t => t.trim()).filter(Boolean);
+                return {
+                    id: u.id, first_name: first, last_name: last, name, initials,
+                    title: u.title || u.career_stage || 'Med&X member',
+                    institution: u.institution || '',
+                    city: u.city || '',
+                    country: u.country || '',
+                    specialtyKey: u.specialtyKey || '',
+                    specialtyLabel: u.specialtyLabel || u.specialty || '',
+                    interests,
+                    projects: Array.isArray(u.projects) ? u.projects : [],
+                    mutuals: Array.isArray(u.mutuals) ? u.mutuals : [],
+                    mutualCount: (typeof u.mutualCount === 'number') ? u.mutualCount : (Array.isArray(u.mutuals) ? u.mutuals.length : 0),
+                    careerStage: u.careerStage || u.career_stage || '',
+                    online: !!u.online,
+                    bio: u.bio || '',
+                    isExample: !!isExample
+                };
+            },
+
             async loadDiscover() {
+                let apiUsers = [];
                 try {
                     const users = await UserPortal.api('/api/networking/discover');
-                    this.discoverUsers = Array.isArray(users) ? users : [];
-                    this.renderDiscover();
+                    apiUsers = Array.isArray(users) ? users : [];
                 } catch (err) {
                     console.error('Failed to load discover users:', err);
-                    this.discoverUsers = [];
-                    this.renderDiscover();
                 }
+                const seen = new Set();
+                const merged = [];
+                apiUsers.forEach(u => { const m = this._normalizeMember(u, false); if (m.id && !seen.has(m.id)) { seen.add(m.id); merged.push(m); } });
+                (this.directorySeed || []).forEach(u => { const m = this._normalizeMember(u, true); if (!seen.has(m.id)) { seen.add(m.id); merged.push(m); } });
+                this.directoryMembers = merged;
+                this.populateDirectoryFilters();
+                this.renderDiscover();
+            },
+
+            populateDirectoryFilters() {
+                const members = this.directoryMembers || [];
+                const fill = (id, values) => {
+                    const sel = document.getElementById(id);
+                    if (!sel) return;
+                    const cur = sel.value;
+                    const keep = sel.querySelector('option');
+                    sel.innerHTML = '';
+                    if (keep) sel.appendChild(keep);
+                    values.sort((a, b) => a.localeCompare(b)).forEach(v => {
+                        const o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o);
+                    });
+                    if (cur && values.includes(cur)) sel.value = cur;
+                };
+                fill('filterCountry', [...new Set(members.map(m => m.country).filter(Boolean))]);
+                fill('filterCity', [...new Set(members.map(m => m.city).filter(Boolean))]);
+            },
+
+            _filteredMembers() {
+                const members = this.directoryMembers || [];
+                const q = (document.getElementById('networkSearch')?.value || '').trim().toLowerCase();
+                const specialty = document.getElementById('filterSpecialty')?.value || '';
+                const country = document.getElementById('filterCountry')?.value || '';
+                const city = document.getElementById('filterCity')?.value || '';
+                const project = document.getElementById('filterProject')?.value || '';
+                return members.filter(m => {
+                    if (specialty && m.specialtyKey !== specialty) return false;
+                    if (country && m.country !== country) return false;
+                    if (city && m.city !== city) return false;
+                    if (project && !(m.projects || []).includes(project)) return false;
+                    if (q) {
+                        const hay = [m.name, m.institution, m.city, m.country, m.specialtyLabel, (m.interests || []).join(' ')].join(' ').toLowerCase();
+                        if (!hay.includes(q)) return false;
+                    }
+                    return true;
+                });
+            },
+
+            _avatarColor(name) {
+                const colors = ['#9b1b22,#c2484e', '#9b1b22,#c9a962', '#b06a1f,#c9a962', '#7a5a2e,#c9a962', '#5a3c2e,#9b1b22', '#3c5a4a,#7a9a86', '#2e4a5a,#6a8aa0'];
+                const s = name || 'M';
+                return colors[Math.abs(s.charCodeAt(0) + s.charCodeAt(s.length - 1)) % colors.length];
+            },
+
+            _directoryCard(m) {
+                const name = escapeHtml(m.name);
+                const initials = escapeHtml(m.initials);
+                const title = escapeHtml(m.title);
+                const inst = escapeHtml(m.institution);
+                const loc = [m.city, m.country].filter(Boolean).map(escapeHtml).join(', ');
+                const color = this._avatarColor(m.name);
+                const chips = [];
+                if (m.specialtyLabel) chips.push(m.specialtyLabel);
+                (m.interests || []).slice(0, m.specialtyLabel ? 2 : 3).forEach(t => chips.push(t));
+                const chipsHtml = chips.length ? '<div class="connection-tags directory-chips">' + chips.map(t => '<span class="connection-tag">' + escapeHtml(t) + '</span>').join('') + '</div>' : '';
+                const mutualHtml = m.mutualCount > 0
+                    ? '<div class="directory-mutual"><i class="fas fa-user-friends"></i> ' + (m.mutuals && m.mutuals.length ? '<strong>' + escapeHtml(m.mutuals[0]) + '</strong>' + (m.mutualCount > 1 ? ' and ' + (m.mutualCount - 1) + ' other' + (m.mutualCount - 1 > 1 ? 's' : '') : '') + ' in common' : m.mutualCount + ' mutual connection' + (m.mutualCount > 1 ? 's' : '')) + '</div>'
+                    : '<div class="directory-mutual muted"><i class="fas fa-user-plus"></i> No mutual connections yet</div>';
+                const ex = m.isExample ? '<span class="directory-example">Example</span>' : '';
+                return `<div class="connection-card directory-card" onclick="NetworkingPortal.viewProfile('${m.id}')" style="cursor:pointer;">
+                    <div class="connection-card-header">
+                        <div class="connection-avatar" style="background:linear-gradient(135deg,${color});">${initials}</div>
+                        <div class="connection-info">
+                            <h4>${name}${ex}</h4>
+                            <p class="directory-role">${title}${inst ? ' · ' + inst : ''}</p>
+                            ${loc ? '<div class="directory-location"><i class="fas fa-map-marker-alt"></i> ' + loc + '</div>' : ''}
+                        </div>
+                    </div>
+                    ${chipsHtml}
+                    ${mutualHtml}
+                    <div class="connection-actions" style="margin-top:12px;">
+                        <button class="connection-btn primary" onclick="event.stopPropagation(); NetworkingPortal.sendConnectionRequest('${m.id}')"><i class="fas fa-user-plus"></i> Connect</button>
+                        <button class="connection-btn" onclick="event.stopPropagation(); NetworkingPortal.messageConnection('${m.id}','${m.name.replace(/'/g, "\\'")}','${m.initials}')"><i class="fas fa-comment"></i> Message</button>
+                    </div>
+                </div>`;
             },
 
             renderDiscover() {
                 const grid = document.getElementById('discoverGrid');
-                const countEl = document.getElementById('discoverResultCount');
+                const lineEl = document.getElementById('discoverCountLine');
                 if (!grid) return;
+                if (!this.directoryMembers) { this.directoryMembers = (this.directorySeed || []).map(u => this._normalizeMember(u, true)); }
+                const total = this.directoryMembers.length;
+                const list = this._filteredMembers();
+                if (lineEl) lineEl.innerHTML = 'Showing <span id="discoverResultCount">' + list.length + '</span>' + (list.length !== total ? ' of ' + total : '') + ' member' + (total === 1 ? '' : 's');
 
-                const users = this.discoverUsers || [];
-                if (countEl) countEl.textContent = users.length;
-
-                if (users.length === 0) {
-                    grid.innerHTML = '<div style="text-align:center; padding:60px 20px; grid-column:1/-1; color:var(--up-text-muted,var(--muted));"><div style="font-size:48px; margin-bottom:16px; opacity:0.3;"><i class="fas fa-users"></i></div><h3 style="color:var(--up-text-secondary,var(--muted)); margin-bottom:8px;">No members yet</h3><p>Be the first! Others will appear here as they join.</p></div>';
+                if (list.length === 0) {
+                    grid.classList.remove('directory-grouped');
+                    grid.innerHTML = '<div style="text-align:center; padding:60px 20px; grid-column:1/-1; color:var(--up-text-muted,var(--muted));"><div style="font-size:44px; margin-bottom:14px; opacity:0.3;"><i class="fas fa-user-slash"></i></div><h3 style="color:var(--up-text-secondary,var(--muted)); margin-bottom:6px;">No members match your filters</h3><p>Try clearing a filter or search term.</p></div>';
                     return;
                 }
 
-                grid.innerHTML = users.map(u => {
-                    const name = escapeHtml((u.first_name || '') + ' ' + (u.last_name || '')).trim() || 'Member';
-                    const initials = ((u.first_name || '?')[0] + (u.last_name || '?')[0]).toUpperCase();
-                    const inst = escapeHtml(u.institution || '');
-                    const country = escapeHtml(u.country || '');
-                    const bio = escapeHtml(u.bio || '');
-                    const bioShort = bio.length > 80 ? bio.substring(0, 80) + '...' : bio;
-                    const tags = [];
-                    if (u.career_stage) tags.push(escapeHtml(u.career_stage));
-                    if (u.research_interests) tags.push(...u.research_interests.split(',').slice(0, 2).map(t => escapeHtml(t.trim())));
-                    const colors = ['#9b1b22,#c2484e','#9b1b22,#c9a962','#b06a1f,#b06a1f','#f59e0b,#fbbf24','#9b1b22,#c2484e','#ef4444,#f87171','#10b981,#34d399'];
-                    const color = colors[Math.abs(name.charCodeAt(0) + name.charCodeAt(name.length-1)) % colors.length];
+                if (this.directoryView === 'city') {
+                    grid.classList.add('directory-grouped');
+                    const groups = {};
+                    list.forEach(m => { const key = m.city || 'Location not set'; (groups[key] = groups[key] || []).push(m); });
+                    const cities = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+                    grid.innerHTML = cities.map(city => {
+                        const gm = groups[city];
+                        const country = gm[0].country ? ' · ' + escapeHtml(gm[0].country) : '';
+                        return '<div class="directory-city-group">'
+                            + '<div class="directory-city-header"><span class="directory-city-name"><i class="fas fa-map-marker-alt"></i> ' + escapeHtml(city) + country + '</span><span class="directory-city-count">' + gm.length + ' member' + (gm.length > 1 ? 's' : '') + '</span></div>'
+                            + '<div class="directory-city-cards">' + gm.map(m => this._directoryCard(m)).join('') + '</div>'
+                            + '</div>';
+                    }).join('');
+                } else {
+                    grid.classList.remove('directory-grouped');
+                    grid.innerHTML = list.map(m => this._directoryCard(m)).join('');
+                }
+            },
 
-                    return `<div class="connection-card" onclick="NetworkingPortal.viewProfile('${u.id}')" style="cursor:pointer;">
-                        <div class="connection-card-header">
-                            <div class="connection-avatar" style="background: linear-gradient(135deg, ${color});">${initials}</div>
-                            <div class="connection-info">
-                                <h4>${name}</h4>
-                                <span class="connection-specialty">${inst}${inst && country ? ' · ' : ''}${country}</span>
-                            </div>
-                        </div>
-                        ${bioShort ? '<p style="font-size:13px; color:var(--up-text-secondary,var(--muted)); margin:8px 0 0; line-height:1.4;">' + bioShort + '</p>' : ''}
-                        ${tags.length ? '<div class="connection-tags" style="margin-top:8px;">' + tags.map(t => '<span class="connection-tag">' + t + '</span>').join('') + '</div>' : ''}
-                        <div class="connection-actions" style="margin-top: 12px;">
-                            <button class="connection-btn primary" onclick="event.stopPropagation(); NetworkingPortal.sendConnectionRequest('${u.id}')"><i class="fas fa-user-plus"></i> Connect</button>
-                            <button class="connection-btn" onclick="event.stopPropagation(); NetworkingPortal.messageConnection('${u.id}', '${name.replace(/'/g,"\\'")}', '${initials}')"><i class="fas fa-comment"></i> Message</button>
-                        </div>
-                    </div>`;
-                }).join('');
+            setDiscoverView(view, btn) {
+                this.directoryView = (view === 'city') ? 'city' : 'list';
+                document.querySelectorAll('.directory-view-toggle .view-toggle-btn').forEach(b => b.classList.remove('active'));
+                if (btn) btn.classList.add('active');
+                this.renderDiscover();
             },
 
             showTab(tabName) {
@@ -89723,6 +89908,7 @@ You can use variables like {first_name} that will be personalized for each recip
                     // Fallback for users not in profiles database
                     const user = this.connections.find(c => c.id === userId) ||
                                  this.pendingRequests.find(r => r.id === userId);
+                    const dir = (this.directoryMembers || []).find(m => m.id === userId);
                     if (user) {
                         this.profiles[userId] = {
                             id: userId,
@@ -89741,6 +89927,30 @@ You can use variables like {first_name} that will be personalized for each recip
                             recentPublications: [],
                             mutualConnections: [],
                             isConnected: this.connections.some(c => c.id === userId)
+                        };
+                    } else if (dir) {
+                        // Directory member (Example seed or public member) — build a fuller profile
+                        const h = Math.abs((dir.name || 'M').split('').reduce((a, c) => a + c.charCodeAt(0), 0));
+                        this.profiles[userId] = {
+                            id: userId,
+                            name: dir.name,
+                            initials: dir.initials,
+                            title: dir.title,
+                            institution: dir.institution,
+                            city: dir.city,
+                            country: dir.country,
+                            careerStage: dir.careerStage || 'Professional',
+                            isOnline: dir.online,
+                            connections: (dir.mutualCount || 0) + 40 + (h % 160),
+                            publications: 6 + (h % 40),
+                            citations: 300 + (h % 50) * 40,
+                            bio: dir.bio || `${dir.name} is a ${dir.specialtyLabel || 'medical'} professional at ${dir.institution}.`,
+                            researchTags: dir.interests || [],
+                            goals: ['General Networking'],
+                            projects: dir.projects || [],
+                            recentPublications: [],
+                            mutualConnections: dir.mutuals || [],
+                            isConnected: false
                         };
                     } else {
                         this.showToast('Profile not found');
@@ -89792,6 +90002,24 @@ You can use variables like {first_name} that will be personalized for each recip
                     <div class="profile-mutual-avatars">${mutualAvatars}</div>
                     <div class="profile-mutual-text">${mutualText}</div>
                 `;
+
+                // Location (city, country)
+                const locEl = document.getElementById('profileLocation');
+                if (locEl) {
+                    const loc = [p.city, p.country].filter(Boolean).join(', ');
+                    if (loc) { locEl.innerHTML = '<i class="fas fa-map-marker-alt"></i> ' + escapeHtml(loc); locEl.style.display = ''; }
+                    else { locEl.style.display = 'none'; }
+                }
+
+                // Shared Med&X programs
+                const projSec = document.getElementById('profileProjectsSection');
+                const projEl = document.getElementById('profileProjects');
+                if (projSec && projEl) {
+                    const projLabels = { plexus: 'Plexus', gala: 'Gala Evening', accelerator: 'Accelerator', forum: 'Biomedical Forum', bridges: 'Building Bridges' };
+                    const projs = (p.projects || []).map(k => projLabels[k] || k);
+                    if (projs.length) { projEl.innerHTML = projs.map(x => '<span class="profile-tag">' + escapeHtml(x) + '</span>').join(''); projSec.style.display = ''; }
+                    else { projSec.style.display = 'none'; }
+                }
 
                 // Update connect button based on connection status
                 const connectBtn = document.getElementById('profileConnectBtn');
@@ -90356,12 +90584,8 @@ You can use variables like {first_name} that will be personalized for each recip
             },
 
             filterMembers() {
-                const search = document.getElementById('networkSearch').value.toLowerCase();
-                const specialty = document.getElementById('filterSpecialty').value;
-                const careerStage = document.getElementById('filterCareerStage').value;
-                const goals = document.getElementById('filterGoals').value;
-
-                // In production, this would filter/search via API
+                // Re-render the member directory applying the current filter + search values.
+                this.renderDiscover();
             },
 
             // Region mapping for institutions
@@ -114780,11 +115004,27 @@ By applying to this program, I give the following consents:
                 document.getElementById('notificationCenter').classList.add('active');
                 // Add backdrop
                 document.body.style.overflow = 'hidden';
+                // Refresh the merged list (admin notifications + member announcements) on open.
+                try { if (typeof NotificationSystem !== 'undefined') { NotificationSystem.render(); NotificationSystem.loadNotifications().then(() => NotificationSystem.render()).catch(() => {}); } } catch (e) {}
+                // Close on Escape, and on a click/tap outside the panel (deferred so the opening
+                // click does not immediately re-close it).
+                this._escHandler = (e) => { if (e.key === 'Escape') this.close(); };
+                document.addEventListener('keydown', this._escHandler);
+                this._outsideHandler = (e) => {
+                    const panel = document.getElementById('notificationCenter');
+                    if (!panel) return;
+                    if (panel.contains(e.target)) return;
+                    if (e.target.closest && e.target.closest('[onclick*="NotificationCenter.toggle"]')) return;
+                    this.close();
+                };
+                setTimeout(() => document.addEventListener('click', this._outsideHandler), 0);
             },
 
             close() {
                 document.getElementById('notificationCenter').classList.remove('active');
                 document.body.style.overflow = '';
+                if (this._escHandler) { document.removeEventListener('keydown', this._escHandler); this._escHandler = null; }
+                if (this._outsideHandler) { document.removeEventListener('click', this._outsideHandler); this._outsideHandler = null; }
             },
 
             toggle() {
@@ -119825,6 +120065,7 @@ By applying to this program, I give the following consents:
                 if (org) parts.push('ORG:' + org);
                 if (title) parts.push('TITLE:' + title);
                 if (email) parts.push('EMAIL;TYPE=INTERNET:' + email);
+                if (p.city || p.country) parts.push('ADR;TYPE=WORK:;;' + (p.city || '') + ';;;' + (p.country || ''));
                 parts.push('NOTE:Med&X member', 'END:VCARD');
                 const blob = new Blob([parts.join('\r\n')], { type: 'text/vcard' });
                 const url = URL.createObjectURL(blob);
@@ -124091,16 +124332,29 @@ By applying to this program, I give the following consents:
                 }
             },
 
+            // Announcement read-marks live client-side (announcements are broadcast, not per-user
+            // rows), so we remember which the member has opened in localStorage.
+            _annReadKey: 'medx_ann_reads',
+            _annReads() { try { return JSON.parse(localStorage.getItem(this._annReadKey) || '[]') || []; } catch (e) { return []; } },
+            _annMarkRead(annId) { const s = this._annReads(); if (s.indexOf(annId) < 0) { s.push(annId); try { localStorage.setItem(this._annReadKey, JSON.stringify(s)); } catch (e) {} } },
+            _projName(k) { return ({ plexus: 'Plexus', gala: 'Gala Evening', accelerator: 'Accelerator', forum: 'Biomedical Forum', bridges: 'Building Bridges' })[k] || (k ? (k.charAt(0).toUpperCase() + k.slice(1)) : ''); },
+            _projIcon(k) { return ({ plexus: 'fa-users', gala: 'fa-glass-cheers', accelerator: 'fa-rocket', forum: 'fa-landmark', bridges: 'fa-globe-americas' })[k] || 'fa-bullhorn'; },
+
             async loadNotifications() {
                 try {
                     const token = localStorage.getItem('medx_user_token');
                     if (!token) return;
-                    const resp = await fetch('/api/user-notifications', {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    if (resp.ok) {
+                    const headers = { 'Authorization': `Bearer ${token}` };
+                    // Load admin-sent user notifications AND member announcements in parallel, then
+                    // merge them into one newest-first list rendered by the same notification center.
+                    const [resp, annResp] = await Promise.all([
+                        fetch('/api/user-notifications', { headers }).catch(() => null),
+                        fetch('/api/announcements', { headers }).catch(() => null)
+                    ]);
+                    let notifs = [];
+                    if (resp && resp.ok) {
                         const data = await resp.json();
-                        this.notifications = (data.notifications || []).map(n => ({
+                        notifs = (data.notifications || []).map(n => ({
                             id: n.id,
                             type: n.category,
                             icon: n.icon || 'fa-bell',
@@ -124110,13 +124364,34 @@ By applying to this program, I give the following consents:
                             time: this.formatTimeAgo(n.created_at),
                             read: !!n.is_read,
                             category: n.category,
-                            link: n.link
+                            link: n.link,
+                            sortTs: Date.parse((n.created_at || '').replace(' ', 'T')) || 0
                         }));
-                        this.unreadCount = data.unreadCount || 0;
-                    } else {
-                        this.notifications = [];
-                        this.unreadCount = 0;
                     }
+                    let annItems = [];
+                    if (annResp && annResp.ok) {
+                        const adata = await annResp.json();
+                        const reads = this._annReads();
+                        annItems = (adata.announcements || []).map(a => ({
+                            id: 'ann:' + a.id,
+                            type: 'announcement',
+                            icon: this._projIcon(a.project_key),
+                            iconClass: 'event',
+                            title: a.title,
+                            message: a.body || '',
+                            time: this.formatTimeAgo(a.created_at),
+                            read: reads.indexOf(a.id) >= 0,
+                            category: 'announcement',
+                            link: a.link_section || null,
+                            isAnnouncement: true,
+                            project: a.project_key || null,
+                            projectName: this._projName(a.project_key),
+                            followed: !!a.followed,
+                            sortTs: Date.parse((a.created_at || '').replace(' ', 'T')) || 0
+                        }));
+                    }
+                    this.notifications = notifs.concat(annItems).sort((x, y) => (y.sortTs || 0) - (x.sortTs || 0));
+                    this.unreadCount = this.notifications.filter(n => !n.read).length;
                 } catch (err) {
                     console.warn('Failed to load notifications:', err);
                     this.notifications = [];
@@ -124237,13 +124512,23 @@ By applying to this program, I give the following consents:
 
             markAsRead(notificationId) {
                 const notif = this.notifications.find(n => n.id === notificationId);
-                if (notif && !notif.read) {
+                if (!notif) return;
+                if (!notif.read) {
                     notif.read = true;
                     this.unreadCount = Math.max(0, this.unreadCount - 1);
                     this.render();
-                    fetch(`/api/user-notifications/${notificationId}/read`, { method: 'PUT', headers: { 'Authorization': `Bearer ${localStorage.getItem('medx_user_token')}` } }).catch(() => {});
-                    // Navigate to link if present
-                    if (notif.link) { window.location.hash = notif.link; }
+                    if (notif.isAnnouncement) {
+                        this._annMarkRead(String(notif.id).replace(/^ann:/, ''));
+                    } else {
+                        fetch(`/api/user-notifications/${notificationId}/read`, { method: 'PUT', headers: { 'Authorization': `Bearer ${localStorage.getItem('medx_user_token')}` } }).catch(() => {});
+                    }
+                }
+                // Navigate + close the center (fires whether the item was already read or not)
+                if (notif.link) {
+                    try { if (typeof NotificationCenter !== 'undefined' && NotificationCenter.close) NotificationCenter.close(); } catch (e) {}
+                    try { this.close(); } catch (e) {}
+                    if (typeof UserPortal !== 'undefined' && UserPortal.showSection) UserPortal.showSection(notif.link);
+                    else window.location.hash = notif.link;
                 }
             },
 
@@ -124270,6 +124555,11 @@ By applying to this program, I give the following consents:
                 badges.forEach(badge => {
                     badge.textContent = this.unreadCount;
                     badge.style.display = this.unreadCount > 0 ? 'flex' : 'none';
+                });
+                // Keep the visible header + floating bell badges in sync (they count announcements too)
+                ['hubBellBadge', 'upFloatNotifBadge'].forEach(id => {
+                    const b = document.getElementById(id);
+                    if (b) { b.textContent = this.unreadCount; b.style.display = this.unreadCount > 0 ? 'flex' : 'none'; }
                 });
 
                 // Render notification list
@@ -124313,13 +124603,16 @@ By applying to this program, I give the following consents:
             },
 
             renderNotification(n) {
+                const chip = (n.isAnnouncement && n.projectName)
+                    ? `<span class="mx-ann-chip${n.followed ? ' followed' : ''}">${n.projectName}</span>` : '';
+                const dot = n.read ? '' : '<span class="mx-notif-dot" aria-label="Unread"></span>';
                 return `
                     <div class="notification-item ${n.read ? '' : 'unread'}" onclick="NotificationSystem.markAsRead('${n.id}')">
                         <div class="notification-icon ${n.iconClass}">
                             <i class="fas ${n.icon}"></i>
                         </div>
                         <div class="notification-content">
-                            <div class="notification-title">${n.title}</div>
+                            <div class="notification-title">${dot}${n.title}${chip}</div>
                             <div class="notification-message">${n.message}</div>
                             <div class="notification-time">${n.time}</div>
                         </div>

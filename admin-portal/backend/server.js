@@ -1663,7 +1663,114 @@ async function initializeApp() {
         action TEXT, detail TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+
+    // ===== Project hub status + get-notified bells (member hub / admin-owned) =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod).
+    // project_status: one row per project (plexus|gala|accelerator|forum|bridges). The admin
+    // portal edits these rows and the member hub reads them via GET /api/project-status, so a
+    // status/label/CTA change PROPAGATES with no code change. status_kind drives the chip color
+    // (open | soon | closed | info). notify_topics persists the per-project get-notified bell so
+    // the admin can see "N members waiting" and the member bell survives reload.
+    db.run(`CREATE TABLE IF NOT EXISTS project_status (
+        project_key TEXT PRIMARY KEY,
+        status_label TEXT,
+        status_kind TEXT DEFAULT 'info',
+        detail_line TEXT,
+        cta_label TEXT,
+        cta_target TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS notify_topics (
+        user_id TEXT NOT NULL,
+        project_key TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, project_key)
+    )`);
+
+    // ===== Member announcements (admin-owned) + accelerator sites (member board) =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod).
+    // member_announcements: the admin posts these; the member notification center reads them via
+    // GET /api/announcements and flags items from projects the member follows (notify_topics).
+    // Named member_announcements (NOT "announcements") because a legacy conference-scoped
+    // `announcements` table already exists in both portals, so reusing that name would be a
+    // no-op CREATE that silently drops these columns. project_key NULL = everyone. push=1 asks
+    // the user portal to fan the item out to that project's notify_topics subscribers through
+    // the shared push_outbox; push_fanned flips to 1 once the fan-out has run (idempotent).
+    db.run(`CREATE TABLE IF NOT EXISTS member_announcements (
+        id TEXT PRIMARY KEY,
+        project_key TEXT,
+        title TEXT NOT NULL,
+        body TEXT,
+        link_section TEXT,
+        push INTEGER DEFAULT 0,
+        push_fanned INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // accelerator_sites: the member "Where you could go" board. The admin curates; the member
+    // reads via GET /api/accelerator/sites. mentor_line names are Example placeholders (invented).
+    db.run(`CREATE TABLE IF NOT EXISTS accelerator_sites (
+        id TEXT PRIMARY KEY,
+        institution TEXT NOT NULL,
+        city TEXT,
+        country TEXT,
+        lab_or_clinic TEXT,
+        mentor_line TEXT,
+        spots INTEGER,
+        year INTEGER,
+        active INTEGER DEFAULT 1
+    )`);
     // ====================== SCHEMA-MIRROR:END ======================
+
+    // ===== Seed project hub status (admin-owned, member reads /api/project-status) =====
+    // Idempotent per project_key. Same canonical values seeded by the user portal — in prod
+    // both boot the one shared Turso DB, so whichever runs first fills the table.
+    try {
+        const projectStatusSeeds = [
+            ['plexus', 'Pre-registration open', 'open', 'December 4-5, 2026 - Zagreb - Free entry', 'Register', 'plexus'],
+            ['gala', 'Reserve your seat', 'open', 'Saturday December 5 - Hotel Esplanade - EUR 150 through 1 Sep', 'Reserve seat', 'gala'],
+            ['accelerator', 'Applications open in November', 'soon', 'Placements across partner labs and clinics - November 2026', 'Learn more', 'accelerator'],
+            ['forum', 'By invitation', 'info', 'Biomedical Forum gathering - May 2027', 'Enter code', 'forum'],
+            ['bridges', 'Boston - September 2026', 'info', 'Building Bridges at Harvard Medical School', 'View program', 'bridges']
+        ];
+        projectStatusSeeds.forEach(p => {
+            if (!query.get('SELECT project_key FROM project_status WHERE project_key = ?', [p[0]])) {
+                db.run(`INSERT INTO project_status (project_key, status_label, status_kind, detail_line, cta_label, cta_target)
+                    VALUES (?,?,?,?,?,?)`, [p[0], p[1], p[2], p[3], p[4], p[5]]);
+            }
+        });
+
+        // Seed member announcements + accelerator sites (same canonical rows the user portal
+        // seeds — in prod both boot the one shared Turso DB, whichever runs first fills them).
+        const announcementSeeds = [
+            ['ann-plexus-abstracts-2026', 'plexus', 'Plexus 2026 - call for abstracts is open', 'Submit your research for the December meeting in Zagreb. Posters and short talks are both welcome.', 'plexus', 0],
+            ['ann-accelerator-nov-2026', 'accelerator', 'Accelerator applications open in November', 'Placements across our partner labs and clinics open next month. Ready your CV and a mentor letter now.', 'accelerator', 1],
+            ['ann-bridges-boston-2026', 'bridges', 'Building Bridges lands at Harvard Medical School', 'Our flagship exchange comes to Boston in September 2026. Members hear the confirmed dates here first.', 'bridges', 0]
+        ];
+        announcementSeeds.forEach(a => {
+            if (!query.get('SELECT id FROM member_announcements WHERE id = ?', [a[0]])) {
+                db.run(`INSERT INTO member_announcements (id, project_key, title, body, link_section, push)
+                    VALUES (?,?,?,?,?,?)`, [a[0], a[1], a[2], a[3], a[4], a[5]]);
+            }
+        });
+        const siteSeeds = [
+            ['site-hms', 'Harvard Medical School', 'Boston', 'United States', 'Department of Neurobiology', 'Prof. Example - E. Hartley (sleep and circuits)', 2, 2026],
+            ['site-mgh', 'Massachusetts General Hospital', 'Boston', 'United States', 'Center for Genomic Medicine', 'Dr. Example - R. Okafor (clinical genomics)', 2, 2026],
+            ['site-mayo', 'Mayo Clinic', 'Rochester', 'United States', 'Regenerative Medicine Lab', 'Dr. Example - L. Petrov (tissue engineering)', 1, 2026],
+            ['site-cleveland', 'Cleveland Clinic', 'Cleveland', 'United States', 'Cardiovascular Research Institute', 'Dr. Example - M. Sandberg (vascular biology)', 1, 2026],
+            ['site-yale', 'Yale School of Medicine', 'New Haven', 'United States', 'Immunobiology Laboratory', 'Prof. Example - A. Fialho (mucosal immunity)', 2, 2026],
+            ['site-columbia', 'Columbia University Irving Medical Center', 'New York', 'United States', 'Zuckerman Institute', 'Dr. Example - S. Nakamura (systems neuroscience)', 1, 2026],
+            ['site-kcl', "King's College London", 'London', 'United Kingdom', 'Institute of Psychiatry, Psychology and Neuroscience', 'Prof. Example - H. Beckett (neuroimaging)', 1, 2026],
+            ['site-osaka', 'Osaka University', 'Osaka', 'Japan', 'Immunology Frontier Research Center', 'Prof. Example - K. Tanabe (innate immunity)', 1, 2026]
+        ];
+        siteSeeds.forEach(s => {
+            if (!query.get('SELECT id FROM accelerator_sites WHERE id = ?', [s[0]])) {
+                db.run(`INSERT INTO accelerator_sites (id, institution, city, country, lab_or_clinic, mentor_line, spots, year, active)
+                    VALUES (?,?,?,?,?,?,?,?,1)`, [s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7]]);
+            }
+        });
+    } catch (e) { /* seed is best-effort */ }
 
     // Monthly reminder tracking
     db.run(`CREATE TABLE IF NOT EXISTS monthly_reminders_sent (
@@ -6320,6 +6427,56 @@ async function initializeApp() {
     // ========== RESOURCES ==========
     app.get('/api/conferences/:confId/resources', (req, res) => {
         res.json(query.all('SELECT * FROM resources WHERE conference_id = ? ORDER BY category, title', [req.params.confId]));
+    });
+
+    // ========== PROJECT HUB STATUS (admin-owned, member reads /api/project-status) ==========
+    // The admin edits these rows and the member hub reflects the change with no code change.
+    // Each row also carries a live "N members waiting" count from notify_topics (the bells).
+    const PROJECT_STATUS_KINDS = ['open', 'soon', 'closed', 'info'];
+    const PROJECT_HUB_ORDER = ['plexus', 'gala', 'accelerator', 'forum', 'bridges'];
+
+    app.get('/api/admin/project-status', auth, adminOnly, (req, res) => {
+        const rows = query.all('SELECT project_key, status_label, status_kind, detail_line, cta_label, cta_target, updated_at FROM project_status');
+        const counts = query.all('SELECT project_key, COUNT(*) AS waiting FROM notify_topics GROUP BY project_key');
+        const waitingBy = {}; counts.forEach(c => { waitingBy[c.project_key] = c.waiting; });
+        rows.forEach(r => { r.waiting_count = waitingBy[r.project_key] || 0; });
+        const byKey = {}; rows.forEach(r => { byKey[r.project_key] = r; });
+        const ordered = [];
+        PROJECT_HUB_ORDER.forEach(k => { if (byKey[k]) { ordered.push(byKey[k]); delete byKey[k]; } });
+        Object.values(byKey).forEach(r => ordered.push(r));
+        res.json(ordered);
+    });
+
+    app.get('/api/admin/project-status/:key', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT project_key, status_label, status_kind, detail_line, cta_label, cta_target, updated_at FROM project_status WHERE project_key = ?', [req.params.key]);
+        if (!row) return res.status(404).json({ error: 'Project not found' });
+        const c = query.get('SELECT COUNT(*) AS waiting FROM notify_topics WHERE project_key = ?', [req.params.key]);
+        row.waiting_count = c ? c.waiting : 0;
+        res.json(row);
+    });
+
+    app.put('/api/admin/project-status/:key', auth, adminOnly, (req, res) => {
+        const key = req.params.key;
+        const existing = query.get('SELECT * FROM project_status WHERE project_key = ?', [key]);
+        const b = req.body || {};
+        const status_kind = PROJECT_STATUS_KINDS.includes(b.status_kind) ? b.status_kind : (existing ? existing.status_kind : 'info');
+        const now = new Date().toISOString();
+        if (existing) {
+            db.run(`UPDATE project_status SET status_label=?, status_kind=?, detail_line=?, cta_label=?, cta_target=?, updated_at=? WHERE project_key=?`,
+                [b.status_label !== undefined ? b.status_label : existing.status_label,
+                 status_kind,
+                 b.detail_line !== undefined ? b.detail_line : existing.detail_line,
+                 b.cta_label !== undefined ? b.cta_label : existing.cta_label,
+                 b.cta_target !== undefined ? b.cta_target : existing.cta_target,
+                 now, key]);
+        } else {
+            db.run(`INSERT INTO project_status (project_key, status_label, status_kind, detail_line, cta_label, cta_target, updated_at)
+                VALUES (?,?,?,?,?,?,?)`,
+                [key, b.status_label || null, status_kind, b.detail_line || null, b.cta_label || null, b.cta_target || key, now]);
+        }
+        saveDb();
+        logAudit(req, 'project_status.update', key);
+        res.json({ success: true, project_key: key });
     });
 
     // ========== MEMBER-FEED CURATION (items 9 & 23) ==========

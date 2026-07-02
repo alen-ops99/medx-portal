@@ -285,6 +285,43 @@ async function drainPushOutbox() {
     finally { _outboxBusy = false; }
 }
 
+// Fan a push=1 member announcement out to the shared push_outbox: one row per subscriber of the
+// announcement's project (notify_topics), or every user for a global (project_key NULL) item.
+// This ENQUEUES only — the actual web-push send happens later in drainPushOutbox, which no-ops
+// unless VAPID is configured. So in dev the rows land in the outbox but nothing ever fires.
+// push_fanned flips to 1 so a given announcement is never fanned twice (idempotent).
+let _annFanBusy = false;
+function fanoutAnnouncements() {
+    if (_annFanBusy) return;
+    _annFanBusy = true;
+    try {
+        let anns = [];
+        try { anns = query.all('SELECT * FROM member_announcements WHERE COALESCE(push,0) = 1 AND COALESCE(push_fanned,0) = 0'); }
+        catch (e) { return; }
+        for (const a of anns) {
+            let emails = [];
+            if (a.project_key) {
+                emails = query.all(
+                    `SELECT DISTINCT u.email AS email FROM notify_topics nt
+                       JOIN users u ON u.id = nt.user_id
+                      WHERE nt.project_key = ? AND u.email IS NOT NULL`, [a.project_key]
+                ).map(r => r.email);
+            } else {
+                emails = query.all('SELECT DISTINCT email FROM users WHERE email IS NOT NULL').map(r => r.email);
+            }
+            const url = a.link_section ? ('/?app=1&section=' + a.link_section) : '/?app=1';
+            for (const em of emails) {
+                db.run('INSERT INTO push_outbox (id, title, body, url, target_email, created_by) VALUES (?,?,?,?,?,?)',
+                    [uuidv4(), a.title, String(a.body || '').slice(0, 140), url, em, 'announcement:' + a.id]);
+            }
+            db.run('UPDATE member_announcements SET push_fanned = 1 WHERE id = ?', [a.id]);
+            saveDb();
+            console.log(`[Announce] Fanned "${a.title}" to ${emails.length} subscriber(s) of ${a.project_key || 'ALL'} (enqueued to outbox).`);
+        }
+    } catch (e) { console.error('[Announce] fanout failed:', e.message); }
+    finally { _annFanBusy = false; }
+}
+
 // Branded email template builder — wraps content in Med&X styled HTML
 // Served from jsDelivr (always-on CDN mirroring the public GitHub repo) so the email logo never
 // breaks when the Render free-tier service is asleep. Override with EMAIL_LOGO_URL if needed.
@@ -5910,6 +5947,64 @@ async function initializeApp() {
         action TEXT, detail TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+
+    // ===== Project hub status + get-notified bells (member hub / admin-owned) =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod).
+    // project_status: one row per project (plexus|gala|accelerator|forum|bridges). The admin
+    // portal edits these rows and the member hub reads them via GET /api/project-status, so a
+    // status/label/CTA change PROPAGATES with no code change. status_kind drives the chip color
+    // (open | soon | closed | info). notify_topics persists the per-project get-notified bell so
+    // the admin can see "N members waiting" and the member bell survives reload.
+    db.run(`CREATE TABLE IF NOT EXISTS project_status (
+        project_key TEXT PRIMARY KEY,
+        status_label TEXT,
+        status_kind TEXT DEFAULT 'info',
+        detail_line TEXT,
+        cta_label TEXT,
+        cta_target TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS notify_topics (
+        user_id TEXT NOT NULL,
+        project_key TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, project_key)
+    )`);
+
+    // ===== Member announcements (admin-owned) + accelerator sites (member board) =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod).
+    // member_announcements: the admin posts these; the member notification center reads them via
+    // GET /api/announcements and flags items from projects the member follows (notify_topics).
+    // Named member_announcements (NOT "announcements") because a legacy conference-scoped
+    // `announcements` table already exists in both portals, so reusing that name would be a
+    // no-op CREATE that silently drops these columns. project_key NULL = everyone. push=1 asks
+    // the user portal to fan the item out to that project's notify_topics subscribers through
+    // the shared push_outbox; push_fanned flips to 1 once the fan-out has run (idempotent).
+    db.run(`CREATE TABLE IF NOT EXISTS member_announcements (
+        id TEXT PRIMARY KEY,
+        project_key TEXT,
+        title TEXT NOT NULL,
+        body TEXT,
+        link_section TEXT,
+        push INTEGER DEFAULT 0,
+        push_fanned INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // accelerator_sites: the member "Where you could go" board. The admin curates; the member
+    // reads via GET /api/accelerator/sites. mentor_line names are Example placeholders (invented).
+    db.run(`CREATE TABLE IF NOT EXISTS accelerator_sites (
+        id TEXT PRIMARY KEY,
+        institution TEXT NOT NULL,
+        city TEXT,
+        country TEXT,
+        lab_or_clinic TEXT,
+        mentor_line TEXT,
+        spots INTEGER,
+        year INTEGER,
+        active INTEGER DEFAULT 1
+    )`);
     // ====================== SCHEMA-MIRROR:END ======================
 
     db.run(`CREATE TABLE IF NOT EXISTS member_rewards (
@@ -6008,6 +6103,57 @@ async function initializeApp() {
                 db.run(`INSERT INTO talks (id, title, speaker, event_label, year, video_url, thumb_url, published)
                     VALUES (?,?,?,?,?, '#placeholder', NULL, 1)`,
                     [uuidv4(), t[0], t[1], t[2], t[3]]);
+            }
+        });
+
+        // ===== Seed project hub status (admin-owned, member reads /api/project-status) =====
+        // Idempotent per project_key. Canonical current values — the admin portal edits these
+        // rows and the member hub reflects the change with no code change.
+        const projectStatusSeeds = [
+            ['plexus', 'Pre-registration open', 'open', 'December 4-5, 2026 - Zagreb - Free entry', 'Register', 'plexus'],
+            ['gala', 'Reserve your seat', 'open', 'Saturday December 5 - Hotel Esplanade - EUR 150 through 1 Sep', 'Reserve seat', 'gala'],
+            ['accelerator', 'Applications open in November', 'soon', 'Placements across partner labs and clinics - November 2026', 'Learn more', 'accelerator'],
+            ['forum', 'By invitation', 'info', 'Biomedical Forum gathering - May 2027', 'Enter code', 'forum'],
+            ['bridges', 'Boston - September 2026', 'info', 'Building Bridges at Harvard Medical School', 'View program', 'bridges']
+        ];
+        projectStatusSeeds.forEach(p => {
+            if (!query.get('SELECT project_key FROM project_status WHERE project_key = ?', [p[0]])) {
+                db.run(`INSERT INTO project_status (project_key, status_label, status_kind, detail_line, cta_label, cta_target)
+                    VALUES (?,?,?,?,?,?)`, [p[0], p[1], p[2], p[3], p[4], p[5]]);
+            }
+        });
+
+        // ===== Seed member announcements (admin-owned; member reads /api/announcements) =====
+        // Idempotent per stable id. project_key ties an item to a project so members who follow
+        // that project (notify_topics) see it flagged. push=1 fans out to subscribers via push_outbox.
+        const announcementSeeds = [
+            ['ann-plexus-abstracts-2026', 'plexus', 'Plexus 2026 - call for abstracts is open', 'Submit your research for the December meeting in Zagreb. Posters and short talks are both welcome.', 'plexus', 0],
+            ['ann-accelerator-nov-2026', 'accelerator', 'Accelerator applications open in November', 'Placements across our partner labs and clinics open next month. Ready your CV and a mentor letter now.', 'accelerator', 1],
+            ['ann-bridges-boston-2026', 'bridges', 'Building Bridges lands at Harvard Medical School', 'Our flagship exchange comes to Boston in September 2026. Members hear the confirmed dates here first.', 'bridges', 0]
+        ];
+        announcementSeeds.forEach(a => {
+            if (!query.get('SELECT id FROM member_announcements WHERE id = ?', [a[0]])) {
+                db.run(`INSERT INTO member_announcements (id, project_key, title, body, link_section, push)
+                    VALUES (?,?,?,?,?,?)`, [a[0], a[1], a[2], a[3], a[4], a[5]]);
+            }
+        });
+
+        // ===== Seed accelerator sites (member "Where you could go" board) =====
+        // Idempotent per stable id. mentor_line names are Example placeholders (invented).
+        const siteSeeds = [
+            ['site-hms', 'Harvard Medical School', 'Boston', 'United States', 'Department of Neurobiology', 'Prof. Example - E. Hartley (sleep and circuits)', 2, 2026],
+            ['site-mgh', 'Massachusetts General Hospital', 'Boston', 'United States', 'Center for Genomic Medicine', 'Dr. Example - R. Okafor (clinical genomics)', 2, 2026],
+            ['site-mayo', 'Mayo Clinic', 'Rochester', 'United States', 'Regenerative Medicine Lab', 'Dr. Example - L. Petrov (tissue engineering)', 1, 2026],
+            ['site-cleveland', 'Cleveland Clinic', 'Cleveland', 'United States', 'Cardiovascular Research Institute', 'Dr. Example - M. Sandberg (vascular biology)', 1, 2026],
+            ['site-yale', 'Yale School of Medicine', 'New Haven', 'United States', 'Immunobiology Laboratory', 'Prof. Example - A. Fialho (mucosal immunity)', 2, 2026],
+            ['site-columbia', 'Columbia University Irving Medical Center', 'New York', 'United States', 'Zuckerman Institute', 'Dr. Example - S. Nakamura (systems neuroscience)', 1, 2026],
+            ['site-kcl', "King's College London", 'London', 'United Kingdom', 'Institute of Psychiatry, Psychology and Neuroscience', 'Prof. Example - H. Beckett (neuroimaging)', 1, 2026],
+            ['site-osaka', 'Osaka University', 'Osaka', 'Japan', 'Immunology Frontier Research Center', 'Prof. Example - K. Tanabe (innate immunity)', 1, 2026]
+        ];
+        siteSeeds.forEach(s => {
+            if (!query.get('SELECT id FROM accelerator_sites WHERE id = ?', [s[0]])) {
+                db.run(`INSERT INTO accelerator_sites (id, institution, city, country, lab_or_clinic, mentor_line, spots, year, active)
+                    VALUES (?,?,?,?,?,?,?,?,1)`, [s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7]]);
             }
         });
 
@@ -7148,6 +7294,45 @@ async function submitReset(e){
             FROM talks WHERE published = 1 ORDER BY year DESC, title ASC`));
     });
 
+    // ===== Project hub status (member reads; admin owns the rows) =====
+    // Returns the five project cards in fixed hub order. The admin portal edits these rows
+    // (PUT /api/admin/project-status/:key) and the change propagates here with no code change.
+    const PROJECT_HUB_ORDER = ['plexus', 'gala', 'accelerator', 'forum', 'bridges'];
+    app.get('/api/project-status', auth, (req, res) => {
+        const rows = query.all('SELECT project_key, status_label, status_kind, detail_line, cta_label, cta_target, updated_at FROM project_status');
+        const byKey = {};
+        rows.forEach(r => { byKey[r.project_key] = r; });
+        // Emit in fixed hub order, keeping any extra admin-added rows after the canonical five.
+        const ordered = [];
+        PROJECT_HUB_ORDER.forEach(k => { if (byKey[k]) { ordered.push(byKey[k]); delete byKey[k]; } });
+        Object.values(byKey).forEach(r => ordered.push(r));
+        res.json(ordered);
+    });
+
+    // ===== Get-notified bells — per-project subscription (persisted in notify_topics) =====
+    // GET returns the caller's subscribed project keys. POST { project, on } toggles one.
+    // This NEVER fires a push — it only records interest so the admin sees "N members waiting".
+    app.get('/api/notify-topics', auth, (req, res) => {
+        const rows = query.all('SELECT project_key FROM notify_topics WHERE user_id = ?', [req.user.id]);
+        res.json({ projects: rows.map(r => r.project_key) });
+    });
+
+    app.post('/api/notify-topics', auth, (req, res) => {
+        const b = req.body || {};
+        const project = String(b.project || '').trim();
+        if (!PROJECT_HUB_ORDER.includes(project)) return res.status(400).json({ error: 'Unknown project' });
+        const on = b.on === undefined ? true : !!b.on;
+        if (on) {
+            if (!query.get('SELECT project_key FROM notify_topics WHERE user_id = ? AND project_key = ?', [req.user.id, project])) {
+                db.run('INSERT INTO notify_topics (user_id, project_key) VALUES (?, ?)', [req.user.id, project]);
+            }
+        } else {
+            db.run('DELETE FROM notify_topics WHERE user_id = ? AND project_key = ?', [req.user.id, project]);
+        }
+        saveDb();
+        res.json({ success: true, project, on });
+    });
+
     // ---- Admin curation (admin JWT; shared secret + DB across both portals) ----
     // The admin portal calls these with its admin token — mirrors how existing admin
     // routes here (e.g. /api/accelerator/years) gate on auth + adminOnly.
@@ -7595,6 +7780,42 @@ By applying to this program, I provide the following consents:
         application.recommendations = query.all('SELECT * FROM accelerator_recommendations WHERE application_id = ?', [application.id]);
 
         res.json(application);
+    });
+
+    // Member "Where you could go" board — active host sites for the Accelerator. Public read
+    // (matches the key-dates endpoint), curated by the admin via accelerator_sites.
+    app.get('/api/accelerator/sites', (req, res) => {
+        try {
+            const y = req.query.year ? parseInt(req.query.year, 10) : null;
+            const sites = y
+                ? query.all('SELECT * FROM accelerator_sites WHERE active = 1 AND year = ? ORDER BY institution', [y])
+                : query.all('SELECT * FROM accelerator_sites WHERE active = 1 ORDER BY year DESC, institution');
+            res.json({ sites: sites || [] });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // "Ask the coordinators" — routes a member question into the EXISTING member<->admin channel
+    // (direct_messages). The admin portal surfaces it through its inbox unread counter (which
+    // counts sender_type != 'admin') and the per-member thread. No application required.
+    app.post('/api/accelerator/ask-coordinator', auth, (req, res) => {
+        try {
+            const { subject, message } = req.body || {};
+            if (!message || !String(message).trim()) return res.status(400).json({ error: 'Message is required' });
+            const admin = query.get("SELECT email FROM users WHERE is_admin = 1 AND email IS NOT NULL ORDER BY created_at ASC LIMIT 1");
+            const to = (admin && admin.email) || 'coordinators@medx.hr';
+            const title = 'Accelerator - ' + ((subject && String(subject).trim()) ? String(subject).trim() : 'Question from ' + (req.user.email || 'member'));
+            const id = uuidv4();
+            db.run(`INSERT INTO direct_messages (id, sender_id, receiver_id, sender_type, receiver_type, title, content, is_read)
+                    VALUES (?, ?, ?, 'user', 'admin', ?, ?, 0)`,
+                [id, req.user.email, to, title, String(message).trim()]);
+            saveDb();
+            res.json({ success: true, id });
+        } catch (err) {
+            console.error('Failed to send coordinator message:', err);
+            res.status(500).json({ error: 'Failed to send message' });
+        }
     });
 
     // Create or update application
@@ -15329,6 +15550,32 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
+    // ========== MEMBER ANNOUNCEMENTS (admin-owned; merged into the notification center) ==========
+
+    // Newest 30 announcements. Each item is flagged `followed` when it belongs to a project the
+    // member follows (notify_topics). Read-marks are held client-side (localStorage), so this is a
+    // pure read. Loading also nudges the push fan-out sweep so a fresh push=1 item queues promptly.
+    app.get('/api/announcements', auth, (req, res) => {
+        try {
+            try { fanoutAnnouncements(); } catch (e) {}
+            const rows = query.all('SELECT * FROM member_announcements ORDER BY created_at DESC LIMIT 30');
+            const subs = query.all('SELECT project_key FROM notify_topics WHERE user_id = ?', [req.user.id]).map(r => r.project_key);
+            const announcements = (rows || []).map(a => ({
+                id: a.id,
+                project_key: a.project_key || null,
+                title: a.title,
+                body: a.body || '',
+                link_section: a.link_section || null,
+                push: a.push ? 1 : 0,
+                created_at: a.created_at,
+                followed: a.project_key ? subs.indexOf(a.project_key) >= 0 : false
+            }));
+            res.json({ announcements, followed_projects: subs });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
     // ========== PUBLIC ACCELERATOR KEY DATES (for user portal timeline) ==========
 
     // Get key dates for current year (public - no auth required for user portal display)
@@ -20931,6 +21178,13 @@ By applying to this program, I provide the following consents:
             setInterval(() => { drainPushOutbox(); }, 45 * 1000);
             console.log('[Push] Outbox drain every 45s');
         }
+
+        // Fan pending push=1 member announcements into the outbox every 20s. This runs even
+        // without VAPID (it only enqueues rows; the send stays gated behind drainPushOutbox), and
+        // once at boot so a freshly-seeded announcement is queued to its subscribers right away.
+        try { fanoutAnnouncements(); } catch (e) {}
+        setInterval(() => { try { fanoutAnnouncements(); } catch (e) {} }, 20 * 1000);
+        console.log('[Announce] Announcement fan-out sweep every 20s');
     });
 }
 
