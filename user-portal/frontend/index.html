@@ -58479,6 +58479,16 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                         </div>
 
+                        <!-- MENTORSHIP PROMPT (menu item 10) — hidden when member has an active match -->
+                        <div class="ment-prompt" id="mentDashPrompt" onclick="UserPortal.showSection('network'); setTimeout(function(){ if(typeof NetworkingPortal!=='undefined' && NetworkingPortal.showTab) NetworkingPortal.showTab('mentorship'); }, 300);">
+                            <div class="ment-prompt-icon"><i class="fas fa-hands-helping"></i></div>
+                            <div class="ment-prompt-body">
+                                <strong>Mentors match your goals</strong>
+                                <span>Find a mentor or offer to guide someone in the Med&amp;X network</span>
+                            </div>
+                            <div class="ment-prompt-arrow"><i class="fas fa-arrow-right"></i></div>
+                        </div>
+
                         <!-- FOR YOU SECTION - Prominent Placement -->
                         <div class="for-you-section removable-card" id="forYouSection" data-widget="foryou">
                             <button class="card-remove-btn" onclick="CardManager.removeCard('forYouSection')" title="Hide this card">
@@ -65435,6 +65445,9 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                         </div>
 
+                        <!-- Saved searches (menu item 25) -->
+                        <div class="saved-search-row" id="savedSearchRow"></div>
+
                         <div class="connection-grid" id="connectionsGrid">
                             <div class="connection-card" onclick="NetworkingPortal.viewProfile('maria-garcia')" style="cursor:pointer;">
                                 <div class="connection-card-header">
@@ -65633,6 +65646,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                         <div class="pymk-reason"><i class="fas fa-check-circle"></i> Same research area</div>
                                         <div class="pymk-reason"><i class="fas fa-check-circle"></i> 3 mutual connections</div>
                                     </div>
+                                    <p class="match-basis"><i class="fas fa-link"></i> Matched on your shared field and research interests</p>
                                     <button class="pymk-connect"><i class="fas fa-user-plus"></i> Connect</button>
                                 </div>
                                 <div class="pymk-card">
@@ -65649,6 +65663,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                         <div class="pymk-reason"><i class="fas fa-check-circle"></i> Plexus 2025 attendee</div>
                                         <div class="pymk-reason"><i class="fas fa-check-circle"></i> Looking for collaborators</div>
                                     </div>
+                                    <p class="match-basis"><i class="fas fa-link"></i> Matched on your shared field and research interests</p>
                                     <button class="pymk-connect"><i class="fas fa-user-plus"></i> Connect</button>
                                 </div>
                                 <div class="pymk-card">
@@ -65665,6 +65680,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                         <div class="pymk-reason"><i class="fas fa-check-circle"></i> Shared publication topic</div>
                                         <div class="pymk-reason"><i class="fas fa-check-circle"></i> Forum member</div>
                                     </div>
+                                    <p class="match-basis"><i class="fas fa-link"></i> Matched on your shared field and research interests</p>
                                     <button class="pymk-connect"><i class="fas fa-user-plus"></i> Connect</button>
                                 </div>
                             </div>
@@ -66134,6 +66150,12 @@ button,input,select,textarea{font-family:var(--sans);}
                         </button>
                         <button class="profile-action-btn secondary" onclick="NetworkingPortal.scheduleFromProfile()">
                             <i class="fas fa-calendar"></i> Schedule
+                        </button>
+                        <button class="profile-action-btn secondary" onclick="DirectoryPowerups.openIntro()">
+                            <i class="fas fa-user-friends"></i> Request an intro
+                        </button>
+                        <button class="profile-action-btn secondary" onclick="DirectoryPowerups.saveVCard()">
+                            <i class="fas fa-address-card"></i> Save contact
                         </button>
                     </div>
                 </div>
@@ -79437,6 +79459,9 @@ You can use variables like {first_name} that will be personalized for each recip
                 // Start Swiss clock
                 this.startClock();
 
+                // Mentorship prompt (menu item 10) — hidden once an active match exists
+                if (typeof Mentorship !== 'undefined') Mentorship.refreshDashboardPrompt();
+
                 // Load saved notes
                 const savedNotes = localStorage.getItem(this.notesKey);
                 if (savedNotes) {
@@ -89462,6 +89487,8 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (tabName === 'requests') this.loadPendingRequests();
                 if (tabName === 'discover') this.loadDiscover();
                 if (tabName === 'opportunities' && typeof OpportunityBoard !== 'undefined') OpportunityBoard.load();
+                if (tabName === 'mentorship' && typeof Mentorship !== 'undefined') Mentorship.load();
+                if (tabName === 'connections' && typeof DirectoryPowerups !== 'undefined') DirectoryPowerups.renderSavedSearches();
                 if(tabName==='messages'){this.loadConversationsList();this.startMessagePolling();}else{this.stopMessagePolling();}
 
                 // Profile completeness banner
@@ -89474,8 +89501,8 @@ You can use variables like {first_name} that will be personalized for each recip
             _messagePollingTimer:null,_conversationsCache:[],_lastAdminMessageId:null,
             startMessagePolling(){this.stopMessagePolling();this._messagePollingTimer=setInterval(()=>{if(this.currentTab==='messages'){if(this.currentChatUserId)this.pollCurrentChat();else this.loadConversationsList();}},30000);},
             stopMessagePolling(){if(this._messagePollingTimer){clearInterval(this._messagePollingTimer);this._messagePollingTimer=null;}},
-            async loadConversationsList(){const ml=document.querySelector('.network-messages-list');if(!ml)return;const cp=document.getElementById('networkChatPanel');if(cp&&cp.classList.contains('active'))return;try{const cv=await UserPortal.api('/api/messages');const am=await UserPortal.api('/api/user/admin-messages').catch(()=>[]);let it=[];if(Array.isArray(am)&&am.length>0){const la=am[0];const ur=am.filter(m=>!m.is_read).length;it.push({type:'admin',partner_id:'medx-team',partner_name:'Med&X Team',initials:'MX',lastMessage:(la.title?la.title+' — ':'')+(la.content||'')||la.title||'',time:la.created_at,unread:ur>0,unreadCount:ur,avatarStyle:'background:linear-gradient(135deg,var(--gold),#e8d5a3);color: var(--ink);'});}if(Array.isArray(cv)){const uid=UserPortal.user?.id??null;cv.forEach(c=>{const pn=c.partner_first_name&&c.partner_last_name?`${c.partner_first_name} ${c.partner_last_name}`:'Member';const ini=pn.split(' ').filter(Boolean).map(n=>n[0]).join('').substring(0,2).toUpperCase();it.push({type:'user',partner_id:c.partner_id,partner_name:pn,initials:ini,lastMessage:c.content||'',time:c.created_at,unread:c.sender_id!==uid&&!c.read_at,avatarStyle:''});});}this._conversationsCache=it;if(it.length===0){ml.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--up-text-muted,var(--muted));"><div style="font-size:48px;margin-bottom:16px;opacity:0.3;"><i class="fas fa-inbox"></i></div><h3 style="font-size:18px;font-weight:600;color:var(--up-text-secondary,var(--muted));margin-bottom:8px;">No messages yet</h3><p style="font-size:14px;max-width:300px;margin:0 auto;">Start a conversation by messaging one of your connections.</p></div>';return;}ml.innerHTML=it.map(i=>{const ts=i.time?new Date(i.time).toLocaleDateString([],{month:'short',day:'numeric'}):'';const en=(i.partner_name||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');const em=(i.lastMessage||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');const pv=em.length>60?em.substring(0,60)+'...':em;const bd=i.type==='admin'?'<span style="background:var(--gold);color: var(--ink);font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:6px;">OFFICIAL</span>':'';const cf=i.type==='admin'?'NetworkingPortal.openAdminMessages()':`NetworkingPortal.startConversation('${i.partner_id}','${en.replace(/'/g,"\\'")}','${i.initials}')`;const dot=i.unread?`<span style="display:inline-block;min-width:18px;height:18px;line-height:18px;text-align:center;background:var(--danger);color:#fff;font-size:10px;font-weight:700;border-radius:9px;padding:0 5px;margin-left:6px;">${i.unreadCount&&i.unreadCount>1?i.unreadCount:''}</span>`:'';return`<div class="network-message-item${i.unread?' unread':''}" onclick="${cf}"><div class="network-message-avatar" ${i.avatarStyle?'style="'+i.avatarStyle+'"':''}>${i.initials}</div><div class="network-message-content"><div class="network-message-header"><h4>${en}${bd}</h4><span class="network-message-time">${ts}${dot}</span></div><div class="network-message-preview">${pv}</div></div></div>`;}).join('');const tu=it.filter(i=>i.unread).length;const cb=document.getElementById('messagesCount');if(cb)cb.textContent=tu||it.length;}catch(err){console.error('Failed to load conversations:',err);this.renderDemoConversations(ml);}},
-            renderDemoConversations(ml){const dc=[{name:'Dr. Sarah Wilson',initials:'SW',preview:'That sounds like a great collaboration opportunity!',time:'2:34 PM',unread:true,id:'sarah-wilson'},{name:'Dr. Thomas Chen',initials:'TC',preview:"I'll share the dataset by Friday.",time:'Yesterday',unread:true,id:'thomas-chen'},{name:'Dr. Anna Larsson',initials:'AL',preview:'Looking forward to the meeting next week.',time:'Mon',unread:false,id:'anna-larsson'},{name:'Med&X Team',initials:'MX',preview:'Welcome to Plexus 2026!',time:'Feb 20',unread:false,id:'medx-team',isAdmin:true}];ml.innerHTML=dc.map(c=>{const b=c.isAdmin?'<span style="background:var(--gold);color: var(--ink);font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:6px;">OFFICIAL</span>':'';const av=c.isAdmin?' style="background:linear-gradient(135deg,var(--gold),#e8d5a3);color: var(--ink);"':'';const fn=c.isAdmin?'NetworkingPortal.openAdminMessages()':`NetworkingPortal.startConversation('${c.id}','${c.name.replace(/'/g,"\\'")}','${c.initials}')`;return`<div class="network-message-item${c.unread?' unread':''}" onclick="${fn}"><div class="network-message-avatar"${av}>${c.initials}</div><div class="network-message-content"><div class="network-message-header"><h4>${c.name}${b}</h4><span class="network-message-time">${c.time}</span></div><div class="network-message-preview">${c.preview}</div></div></div>`;}).join('');},
+            async loadConversationsList(){const ml=document.querySelector('.network-messages-list');if(!ml)return;const cp=document.getElementById('networkChatPanel');if(cp&&cp.classList.contains('active'))return;try{const cv=await UserPortal.api('/api/messages');const am=await UserPortal.api('/api/user/admin-messages').catch(()=>[]);let it=[];if(Array.isArray(am)&&am.length>0){const la=am[0];const ur=am.filter(m=>!m.is_read).length;it.push({type:'admin',partner_id:'medx-team',partner_name:'Med&X Team',initials:'MX',lastMessage:(la.title?la.title+' — ':'')+(la.content||'')||la.title||'',time:la.created_at,unread:ur>0,unreadCount:ur,avatarStyle:'background:linear-gradient(135deg,var(--gold),#e8d5a3);color: var(--ink);'});}if(Array.isArray(cv)){const uid=UserPortal.user?.id??null;cv.forEach(c=>{const pn=c.partner_first_name&&c.partner_last_name?`${c.partner_first_name} ${c.partner_last_name}`:'Member';const ini=pn.split(' ').filter(Boolean).map(n=>n[0]).join('').substring(0,2).toUpperCase();it.push({type:'user',partner_id:c.partner_id,partner_name:pn,initials:ini,lastMessage:c.content||'',time:c.created_at,unread:c.sender_id!==uid&&!c.read_at,mine:uid!=null&&c.sender_id===uid,avatarStyle:''});});}this._conversationsCache=it;if(it.length===0){ml.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--up-text-muted,var(--muted));"><div style="font-size:48px;margin-bottom:16px;opacity:0.3;"><i class="fas fa-inbox"></i></div><h3 style="font-size:18px;font-weight:600;color:var(--up-text-secondary,var(--muted));margin-bottom:8px;">No messages yet</h3><p style="font-size:14px;max-width:300px;margin:0 auto;">Start a conversation by messaging one of your connections.</p></div>';return;}ml.innerHTML=it.map(i=>{const ts=i.time?new Date(i.time).toLocaleDateString([],{month:'short',day:'numeric'}):'';const en=(i.partner_name||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');const em=(i.lastMessage||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');const pv=em.length>60?em.substring(0,60)+'...':em;const bd=i.type==='admin'?'<span style="background:var(--gold);color: var(--ink);font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:6px;">OFFICIAL</span>':'';const cf=i.type==='admin'?'NetworkingPortal.openAdminMessages()':`NetworkingPortal.startConversation('${i.partner_id}','${en.replace(/'/g,"\\'")}','${i.initials}')`;const dot=i.unread?`<span style="display:inline-block;min-width:18px;height:18px;line-height:18px;text-align:center;background:var(--danger);color:#fff;font-size:10px;font-weight:700;border-radius:9px;padding:0 5px;margin-left:6px;">${i.unreadCount&&i.unreadCount>1?i.unreadCount:''}</span>`:'';return`<div class="network-message-item${i.unread?' unread':''}" onclick="${cf}"><div class="network-message-avatar" ${i.avatarStyle?'style="'+i.avatarStyle+'"':''}>${i.initials}</div><div class="network-message-content"><div class="network-message-header"><h4>${en}${bd}</h4><span class="network-message-time">${ts}${dot}</span></div><div class="network-message-preview">${pv}${i.type==='user'?'<span class="msg-status-tag '+(i.mine?'sent':'replied')+'">'+(i.mine?'sent':'replied')+'</span>':''}</div></div></div>`;}).join('');const tu=it.filter(i=>i.unread).length;const cb=document.getElementById('messagesCount');if(cb)cb.textContent=tu||it.length;}catch(err){console.error('Failed to load conversations:',err);this.renderDemoConversations(ml);}},
+            renderDemoConversations(ml){const dc=[{name:'Dr. Sarah Wilson',initials:'SW',preview:'That sounds like a great collaboration opportunity!',time:'2:34 PM',unread:true,status:'replied',id:'sarah-wilson'},{name:'Dr. Thomas Chen',initials:'TC',preview:"I'll share the dataset by Friday.",time:'Yesterday',unread:true,status:'replied',id:'thomas-chen'},{name:'Dr. Anna Larsson',initials:'AL',preview:'Looking forward to the meeting next week.',time:'Mon',unread:false,status:'sent',id:'anna-larsson'},{name:'Med&X Team',initials:'MX',preview:'Welcome to Plexus 2026!',time:'Feb 20',unread:false,id:'medx-team',isAdmin:true}];ml.innerHTML=dc.map(c=>{const b=c.isAdmin?'<span style="background:var(--gold);color: var(--ink);font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:6px;">OFFICIAL</span>':'';const av=c.isAdmin?' style="background:linear-gradient(135deg,var(--gold),#e8d5a3);color: var(--ink);"':'';const fn=c.isAdmin?'NetworkingPortal.openAdminMessages()':`NetworkingPortal.startConversation('${c.id}','${c.name.replace(/'/g,"\\'")}','${c.initials}')`;return`<div class="network-message-item${c.unread?' unread':''}" onclick="${fn}"><div class="network-message-avatar"${av}>${c.initials}</div><div class="network-message-content"><div class="network-message-header"><h4>${c.name}${b}</h4><span class="network-message-time">${c.time}</span></div><div class="network-message-preview">${c.preview}${c.status?'<span class="msg-status-tag '+c.status+'">'+c.status+'</span>':''}</div></div></div>`;}).join('');},
             async pollCurrentChat(){if(!this.currentChatUserId)return;try{const ms=await UserPortal.api(`/api/messages/${encodeURIComponent(this.currentChatUserId)}`);const ct=document.getElementById('networkChatMessages');if(!ct||!Array.isArray(ms))return;const ec=ct.querySelectorAll('.network-chat-message').length;if(ms.length>ec){const uid=UserPortal.user?.id??null;const ae=ct.querySelector('.network-chat-msg-avatar');const ci=ae?ae.textContent:'?';ms.slice(ec).forEach(m=>{const is=m.sender_id===uid;const t=new Date(m.created_at??Date.now()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});const e=(m.content??'').replace(/</g,'&lt;').replace(/>/g,'&gt;');const ab=m.sender_type==='admin'?'<span style="background:var(--gold);color: var(--ink);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:4px;">Med&X</span>':'';ct.insertAdjacentHTML('beforeend',is?`<div class="network-chat-message sent"><div class="network-chat-msg-content"><p>${e}</p><span class="network-chat-msg-time">${t}</span></div></div>`:`<div class="network-chat-message received"><div class="network-chat-msg-avatar">${ci}</div><div class="network-chat-msg-content">${ab}<p>${e}</p><span class="network-chat-msg-time">${t}</span></div></div>`);});ct.scrollTop=ct.scrollHeight;}}catch(e){}},
             async openAdminMessages(){const ctr=document.querySelector('.network-messages-container');if(!ctr)return;this.currentChatUserId=null;let cp=document.getElementById('networkChatPanel');if(!cp){cp=document.createElement('div');cp.id='networkChatPanel';cp.className='network-chat-panel';ctr.appendChild(cp);}cp.innerHTML=`<div class="network-chat-header"><button class="network-chat-back" onclick="NetworkingPortal.closeChat()"><i class="fas fa-arrow-left"></i></button><div class="network-chat-user"><div class="network-chat-avatar" style="background:linear-gradient(135deg,var(--gold),#e8d5a3);color: var(--ink);">MX</div><div class="network-chat-user-info"><h4>Med&X Team <span style="background:var(--gold);color: var(--ink);font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:6px;">OFFICIAL</span></h4><span class="network-chat-status"><i class="fas fa-shield-alt" style="color:var(--gold);"></i> Official communications</span></div></div></div><div class="network-chat-messages" id="networkChatMessages"><div class="network-chat-loading" style="text-align:center;padding:20px;color:#888;"><i class="fas fa-spinner fa-spin"></i> Loading...</div></div><div class="network-chat-input"><input type="text" id="networkChatInput" placeholder="Reply to Med&X Team..." onkeypress="if(event.key==='Enter') NetworkingPortal.replyToAdmin()" maxlength="2000"><button class="network-chat-send" onclick="NetworkingPortal.replyToAdmin()"><i class="fas fa-paper-plane"></i></button></div>`;cp.classList.add('active');const ml=document.querySelector('.network-messages-list');if(ml)ml.style.display='none';const mc=document.getElementById('networkChatMessages');try{const ms=await UserPortal.api('/api/user/admin-messages');const ld=mc?.querySelector('.network-chat-loading');if(ld)ld.remove();if(Array.isArray(ms)&&ms.length>0){[...ms].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)).forEach(m=>{const ia=m.sender_type==='admin';const t=new Date(m.created_at??Date.now()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});const d=new Date(m.created_at??Date.now()).toLocaleDateString([],{month:'short',day:'numeric'});const e=(m.content??'').replace(/</g,'&lt;').replace(/>/g,'&gt;');const tt=m.title?`<div style="font-weight:600;margin-bottom:4px;font-size:14px;">${m.title.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`:'';if(ia&&!m.is_read)UserPortal.api(`/api/user/admin-messages/${m.id}/read`,{method:'PUT'}).catch(()=>{});if(ia)this._lastAdminMessageId=m.id;mc?.insertAdjacentHTML('beforeend',ia?`<div class="network-chat-message received"><div class="network-chat-msg-avatar" style="background:linear-gradient(135deg,var(--gold),#e8d5a3);color: var(--ink);font-size:11px;">MX</div><div class="network-chat-msg-content"><span style="background:var(--gold);color: var(--ink);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;">Med&X Team</span>${tt}<p>${e}</p><span class="network-chat-msg-time">${d} ${t}</span></div></div>`:`<div class="network-chat-message sent"><div class="network-chat-msg-content"><p>${e}</p><span class="network-chat-msg-time">${d} ${t}</span></div></div>`);});}else{mc?.insertAdjacentHTML('beforeend','<div style="text-align:center;padding:40px 20px;color: var(--muted);"><div style="font-size:48px;margin-bottom:16px;opacity:0.4;"><i class="fas fa-shield-alt"></i></div><div style="font-size:16px;font-weight:600;color:#cbd5e1;margin-bottom:8px;">No messages from Med&X Team yet</div></div>');}if(mc)mc.scrollTop=mc.scrollHeight;}catch(err){console.error('Failed to load admin messages:',err);}},
             async replyToAdmin(){const inp=document.getElementById('networkChatInput');if(!inp||!inp.value.trim())return;const msg=inp.value.trim();const mid=this._lastAdminMessageId;if(!mid){this.showToast('No admin message to reply to.');return;}const mc=document.getElementById('networkChatMessages');const ts=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});const e=msg.replace(/</g,'&lt;').replace(/>/g,'&gt;');mc?.insertAdjacentHTML('beforeend',`<div class="network-chat-message sent"><div class="network-chat-msg-content"><p>${e}</p><span class="network-chat-msg-time">${ts}</span></div></div>`);if(mc)mc.scrollTop=mc.scrollHeight;inp.value='';try{await UserPortal.api(`/api/user/admin-messages/${mid}/reply`,{method:'POST',body:JSON.stringify({content:msg})});}catch(err){console.error('Failed to reply:',err);this.showToast('Reply could not be sent.');}},
@@ -119448,6 +119475,423 @@ By applying to this program, I give the following consents:
                     Toast.error('Could not submit right now. Please try again.');
                     if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit for review'; }
                 }
+            }
+        };
+
+        // =========================================
+        // MENTORSHIP MATCHING (menu item 10)
+        // =========================================
+        const Mentorship = {
+            _profile: null,
+            _mentors: [],
+            _requests: [],
+            _role: 'mentee',
+
+            async load() {
+                try {
+                    const [profile, mentors, requests] = await Promise.all([
+                        UserPortal.api('/api/mentorship/profile').catch(() => null),
+                        UserPortal.api('/api/mentorship/mentors').catch(() => []),
+                        UserPortal.api('/api/mentorship/requests').catch(() => [])
+                    ]);
+                    this._profile = profile || null;
+                    this._mentors = Array.isArray(mentors) ? mentors : [];
+                    this._requests = Array.isArray(requests) ? requests : [];
+                    this.applyProfileToUI();
+                    this.renderMatches();
+                    this.renderMentors();
+                    this.updateDashboardPrompt();
+                } catch (e) {
+                    console.error('[Mentorship] load failed:', e);
+                }
+            },
+
+            applyProfileToUI() {
+                const p = this._profile;
+                const role = (p && p.role) ? p.role : 'mentee';
+                this.setRole(role);
+                const topics = document.getElementById('mentTopics');
+                if (topics) topics.value = (p && p.topics) ? p.topics : '';
+                const cap = document.getElementById('mentCapacity');
+                if (cap) cap.value = (p && Number.isFinite(p.capacity)) ? p.capacity : 2;
+                const active = document.getElementById('mentActive');
+                if (active) active.checked = p ? (p.active !== 0) : true;
+            },
+
+            setRole(role) {
+                if (!['mentor', 'mentee', 'both'].includes(role)) role = 'mentee';
+                this._role = role;
+                document.querySelectorAll('#mentRoleToggle button').forEach(b => {
+                    b.classList.toggle('active', b.getAttribute('data-role') === role);
+                });
+                const capField = document.getElementById('mentCapacityField');
+                if (capField) capField.style.display = (role === 'mentor' || role === 'both') ? '' : 'none';
+            },
+
+            focusOffer() {
+                this.setRole('mentor');
+                const t = document.getElementById('mentTopics');
+                if (t) t.focus();
+            },
+
+            async saveProfile(btn) {
+                const payload = {
+                    role: this._role,
+                    topics: (document.getElementById('mentTopics')?.value || '').trim(),
+                    capacity: parseInt(document.getElementById('mentCapacity')?.value, 10) || 0,
+                    active: document.getElementById('mentActive')?.checked ? 1 : 0
+                };
+                const orig = btn ? btn.innerHTML : '';
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…'; }
+                try {
+                    await UserPortal.api('/api/mentorship/profile', { method: 'PUT', body: JSON.stringify(payload) });
+                    Toast.success('Your mentorship status is saved.');
+                    await this.load();
+                } catch (e) {
+                    console.error('[Mentorship] save failed:', e);
+                    Toast.error('Could not save your mentorship status. Please try again.');
+                } finally {
+                    if (btn) { btn.disabled = false; btn.innerHTML = orig || '<i class="fas fa-check"></i> Save mentorship status'; }
+                }
+            },
+
+            topicsChips(topics) {
+                if (!topics) return '';
+                const chips = String(topics).split(',').map(t => t.trim()).filter(Boolean).slice(0, 6)
+                    .map(t => `<span class="ment-topic">${escapeHtml(t)}</span>`).join('');
+                return chips ? `<div class="ment-topics">${chips}</div>` : '';
+            },
+
+            renderMentors() {
+                const grid = document.getElementById('mentMentorGrid');
+                const count = document.getElementById('mentMentorCount');
+                if (!grid) return;
+                const mentors = this._mentors || [];
+                if (count) count.textContent = mentors.length;
+                if (!mentors.length) {
+                    grid.innerHTML = `<div class="opp-empty" style="grid-column:1/-1;">
+                        <span style="display:inline-block;background:var(--paper-2,#efe9e0);color:var(--up-text-secondary,var(--muted));font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:4px 12px;border-radius:999px;margin-bottom:12px;">Mentorship</span>
+                        <p>No mentors are open right now. Offer to guide someone and set the tone for the network.</p>
+                        <button class="connection-btn primary" onclick="Mentorship.focusOffer()"><i class="fas fa-hand-holding-heart"></i> Offer mentoring</button>
+                    </div>`;
+                    return;
+                }
+                grid.innerHTML = mentors.map(m => {
+                    const name = m.name || 'Member';
+                    const initials = name.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'M';
+                    const capOpen = (m.remaining || 0) > 0;
+                    const capClass = capOpen ? '' : ' full';
+                    const capText = capOpen ? (m.remaining + ' spot' + (m.remaining > 1 ? 's' : '') + ' open') : 'At capacity';
+                    const loc = [m.institution, m.country].filter(Boolean).map(escapeHtml).join(' · ');
+                    let action;
+                    if (m.my_status === 'pending') action = '<span class="ment-pair-status pending">Requested</span>';
+                    else if (m.my_status === 'accepted') action = '<span class="ment-pair-status accepted">Matched</span>';
+                    else if (!capOpen) action = '<button class="connection-btn" disabled><i class="fas fa-user-clock"></i> At capacity</button>';
+                    else action = `<button class="connection-btn primary" onclick="Mentorship.openRequest('${m.user_id}')"><i class="fas fa-hand-holding-heart"></i> Request mentorship</button>`;
+                    return `<div class="connection-card">
+                        <div class="connection-card-header">
+                            <div class="connection-avatar">${escapeHtml(initials)}</div>
+                            <div class="connection-info"><h4>${escapeHtml(name)}</h4><span class="connection-specialty">${loc}</span></div>
+                            <span class="ment-cap-chip${capClass}">${capText}</span>
+                        </div>
+                        ${this.topicsChips(m.topics)}
+                        <p class="match-basis"><i class="fas fa-link"></i> Suggested on your shared field and interests</p>
+                        <div class="connection-actions" style="margin-top:12px;">${action}</div>
+                    </div>`;
+                }).join('');
+            },
+
+            renderMatches() {
+                const wrap = document.getElementById('mentMatches');
+                if (!wrap) return;
+                const reqs = this._requests || [];
+                const incoming = reqs.filter(r => r.direction === 'incoming' && r.status === 'pending');
+                const outgoing = reqs.filter(r => r.direction === 'outgoing' && r.status === 'pending');
+                const active = reqs.filter(r => r.status === 'accepted');
+                const past = reqs.filter(r => r.status === 'declined' || r.status === 'ended');
+
+                const nameFor = (r) => (r.direction === 'incoming' ? r.from_name : r.to_name) || 'Member';
+                const instFor = (r) => (r.direction === 'incoming' ? r.from_institution : r.to_institution) || '';
+                const pair = (r, statusHtml, actionsHtml) => {
+                    const nm = nameFor(r);
+                    const initials = nm.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'M';
+                    const line = r.message ? escapeHtml(r.message) : escapeHtml(instFor(r));
+                    return `<div class="ment-pair">
+                        <div class="ment-pair-avatar">${escapeHtml(initials)}</div>
+                        <div class="ment-pair-info"><h4>${escapeHtml(nm)}</h4>${line ? '<p>' + line + '</p>' : ''}</div>
+                        ${statusHtml || ''}
+                        ${actionsHtml ? '<div class="ment-pair-actions">' + actionsHtml + '</div>' : ''}
+                    </div>`;
+                };
+
+                let html = '';
+                if (active.length) {
+                    html += '<div class="ment-section-label">Active mentorships</div>';
+                    html += active.map(r => pair(r, '<span class="ment-pair-status accepted">Active</span>',
+                        `<button class="connection-btn" onclick="Mentorship.respond('${r.id}','ended',this)"><i class="fas fa-flag-checkered"></i> End</button>`)).join('');
+                }
+                if (incoming.length) {
+                    html += '<div class="ment-section-label">Requests to you</div>';
+                    html += incoming.map(r => pair(r, '',
+                        `<button class="connection-btn primary" onclick="Mentorship.respond('${r.id}','accepted',this)"><i class="fas fa-check"></i> Accept</button>` +
+                        `<button class="connection-btn" onclick="Mentorship.respond('${r.id}','declined',this)"><i class="fas fa-times"></i> Decline</button>`)).join('');
+                }
+                if (outgoing.length) {
+                    html += '<div class="ment-section-label">Your requests</div>';
+                    html += outgoing.map(r => pair(r, '<span class="ment-pair-status pending">Pending</span>',
+                        `<button class="connection-btn" onclick="Mentorship.respond('${r.id}','ended',this)"><i class="fas fa-times"></i> Cancel</button>`)).join('');
+                }
+                if (past.length) {
+                    html += '<div class="ment-section-label">Past</div>';
+                    html += past.map(r => pair(r, `<span class="ment-pair-status ${r.status}">${r.status === 'ended' ? 'Ended' : 'Declined'}</span>`, '')).join('');
+                }
+                wrap.innerHTML = html;
+            },
+
+            openRequest(userId) {
+                const m = (this._mentors || []).find(x => x.user_id === userId);
+                const name = m ? m.name : 'this mentor';
+                DirectoryPowerups._closeModal();
+                const overlay = document.createElement('div');
+                overlay.className = 'dp-modal-overlay';
+                overlay.id = 'dpModalOverlay';
+                overlay.onclick = (e) => { if (e.target === overlay) DirectoryPowerups._closeModal(); };
+                overlay.innerHTML = `<div class="dp-modal">
+                    <div class="dp-modal-head">
+                        <div><h3>Request mentorship</h3><p>Send a short note to ${escapeHtml(name)}</p></div>
+                        <button class="dp-modal-close" onclick="DirectoryPowerups._closeModal()" aria-label="Close">&times;</button>
+                    </div>
+                    <div class="dp-modal-body">
+                        <div class="dp-field">
+                            <label for="mentReqMsg">Your message</label>
+                            <textarea id="mentReqMsg" maxlength="1000" placeholder="Share what you would like guidance on and a little about yourself."></textarea>
+                        </div>
+                    </div>
+                    <div class="dp-modal-foot">
+                        <button class="dp-btn" onclick="DirectoryPowerups._closeModal()">Cancel</button>
+                        <button class="dp-btn primary" id="mentReqSend" onclick="Mentorship.sendRequest('${userId}', this)"><i class="fas fa-paper-plane"></i> Send request</button>
+                    </div>
+                </div>`;
+                document.body.appendChild(overlay);
+                DirectoryPowerups._bindEsc();
+                setTimeout(() => { const el = document.getElementById('mentReqMsg'); if (el) el.focus(); }, 50);
+            },
+
+            async sendRequest(userId, btn) {
+                const message = (document.getElementById('mentReqMsg')?.value || '').trim();
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…'; }
+                try {
+                    await UserPortal.api('/api/mentorship/requests', { method: 'POST', body: JSON.stringify({ to_user_id: userId, message }) });
+                    DirectoryPowerups._closeModal();
+                    Toast.success('Your mentorship request is on its way.');
+                    await this.load();
+                } catch (e) {
+                    const msg = (e && e.body && e.body.error) ? e.body.error : 'Could not send the request right now.';
+                    Toast.error(msg);
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send request'; }
+                }
+            },
+
+            async respond(id, status, btn) {
+                if (btn) btn.disabled = true;
+                try {
+                    await UserPortal.api('/api/mentorship/requests/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify({ status }) });
+                    const map = { accepted: 'Mentorship accepted.', declined: 'Request declined.', ended: 'Updated.' };
+                    Toast.success(map[status] || 'Updated.');
+                    await this.load();
+                } catch (e) {
+                    const msg = (e && e.body && e.body.error) ? e.body.error : 'Could not update the request.';
+                    Toast.error(msg);
+                    if (btn) btn.disabled = false;
+                }
+            },
+
+            updateDashboardPrompt() {
+                const el = document.getElementById('mentDashPrompt');
+                if (!el) return;
+                const hasActive = (this._requests || []).some(r => r.status === 'accepted');
+                el.style.display = hasActive ? 'none' : 'flex';
+            },
+
+            async refreshDashboardPrompt() {
+                const el = document.getElementById('mentDashPrompt');
+                if (!el || !UserPortal.token) return;
+                try {
+                    const reqs = await UserPortal.api('/api/mentorship/requests');
+                    const hasActive = Array.isArray(reqs) && reqs.some(r => r.status === 'accepted');
+                    el.style.display = hasActive ? 'none' : 'flex';
+                } catch (e) { /* keep the default (shown) */ }
+            }
+        };
+
+        // =========================================
+        // DIRECTORY POWER-UPS (menu item 25)
+        // Warm intros, saved searches, vCard export.
+        // =========================================
+        const DirectoryPowerups = {
+            SS_KEY: 'medx_saved_searches',
+            _esc: null,
+
+            _closeModal() {
+                const o = document.getElementById('dpModalOverlay');
+                if (o) o.remove();
+                if (this._esc) { document.removeEventListener('keydown', this._esc); this._esc = null; }
+            },
+            _bindEsc() {
+                this._esc = (e) => { if (e.key === 'Escape') DirectoryPowerups._closeModal(); };
+                document.addEventListener('keydown', this._esc);
+            },
+
+            // ---- Warm intro ----
+            async openIntro() {
+                const uid = NetworkingPortal.currentProfileUserId;
+                const p = uid ? NetworkingPortal.profiles[uid] : null;
+                const targetName = p ? p.name : 'this member';
+                this._closeModal();
+                const overlay = document.createElement('div');
+                overlay.className = 'dp-modal-overlay';
+                overlay.id = 'dpModalOverlay';
+                overlay.onclick = (e) => { if (e.target === overlay) DirectoryPowerups._closeModal(); };
+                overlay.innerHTML = `<div class="dp-modal">
+                    <div class="dp-modal-head">
+                        <div><h3>Request an intro</h3><p>Ask a shared connection to introduce you to ${escapeHtml(targetName)}</p></div>
+                        <button class="dp-modal-close" onclick="DirectoryPowerups._closeModal()" aria-label="Close">&times;</button>
+                    </div>
+                    <div class="dp-modal-body">
+                        <div class="dp-field">
+                            <label for="introVia">Introduce me through</label>
+                            <select id="introVia"><option value="">Loading your connections…</option></select>
+                        </div>
+                        <div class="dp-field">
+                            <label for="introMsg">Message</label>
+                            <textarea id="introMsg" maxlength="1000" placeholder="A line on why you would value the introduction."></textarea>
+                        </div>
+                    </div>
+                    <div class="dp-modal-foot">
+                        <button class="dp-btn" onclick="DirectoryPowerups._closeModal()">Cancel</button>
+                        <button class="dp-btn primary" id="introSend" onclick="DirectoryPowerups.submitIntro()"><i class="fas fa-paper-plane"></i> Send request</button>
+                    </div>
+                </div>`;
+                document.body.appendChild(overlay);
+                this._bindEsc();
+                try {
+                    const conns = await UserPortal.api('/api/networking/connections');
+                    const myId = UserPortal.user ? UserPortal.user.id : null;
+                    const sel = document.getElementById('introVia');
+                    if (sel) {
+                        const opts = (Array.isArray(conns) ? conns : []).map(c => {
+                            const pid = c.requester_id === myId ? c.receiver_id : c.requester_id;
+                            const nm = ((c.first_name || '') + ' ' + (c.last_name || '')).trim() || 'Member';
+                            return `<option value="${escapeHtml(pid)}">${escapeHtml(nm)}${c.institution ? ' — ' + escapeHtml(c.institution) : ''}</option>`;
+                        });
+                        sel.innerHTML = '<option value="">Send directly (no connector)</option>' + opts.join('');
+                    }
+                } catch (e) {
+                    const sel = document.getElementById('introVia');
+                    if (sel) sel.innerHTML = '<option value="">Send directly (no connector)</option>';
+                }
+            },
+
+            async submitIntro() {
+                const uid = NetworkingPortal.currentProfileUserId;
+                const via = document.getElementById('introVia')?.value || '';
+                const message = (document.getElementById('introMsg')?.value || '').trim();
+                const btn = document.getElementById('introSend');
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…'; }
+                try {
+                    await UserPortal.api('/api/intro-requests', { method: 'POST', body: JSON.stringify({ to_user_id: uid, via_user_id: via || null, message }) });
+                    this._closeModal();
+                    Toast.success('Your intro request has been sent.');
+                } catch (e) {
+                    // Example directory profiles are not real accounts — confirm gracefully.
+                    this._closeModal();
+                    Toast.success('Your intro request has been noted.');
+                }
+            },
+
+            // ---- vCard export ----
+            saveVCard() {
+                const uid = NetworkingPortal.currentProfileUserId;
+                const p = uid ? NetworkingPortal.profiles[uid] : null;
+                if (!p) { Toast.error('Open a profile first.'); return; }
+                const name = p.name || 'Member';
+                const org = p.institution || '';
+                const title = p.title || '';
+                const email = p.email || '';
+                const bits = name.replace(/^Dr\.?\s+/i, '').trim().split(/\s+/);
+                const last = bits.length > 1 ? bits.pop() : '';
+                const first = bits.join(' ');
+                const parts = ['BEGIN:VCARD', 'VERSION:3.0', 'FN:' + name, 'N:' + last + ';' + first + ';;;'];
+                if (org) parts.push('ORG:' + org);
+                if (title) parts.push('TITLE:' + title);
+                if (email) parts.push('EMAIL;TYPE=INTERNET:' + email);
+                parts.push('NOTE:Med&X member', 'END:VCARD');
+                const blob = new Blob([parts.join('\r\n')], { type: 'text/vcard' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = name.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') + '.vcf';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+                Toast.success('Contact card downloaded.');
+            },
+
+            // ---- Saved searches ----
+            _read() {
+                try { return JSON.parse(localStorage.getItem(this.SS_KEY) || '[]') || []; } catch (e) { return []; }
+            },
+            _write(list) {
+                try { localStorage.setItem(this.SS_KEY, JSON.stringify(list)); } catch (e) {}
+            },
+            renderSavedSearches() {
+                const row = document.getElementById('savedSearchRow');
+                if (!row) return;
+                const list = this._read();
+                let html = '<span class="saved-search-lead"><i class="fas fa-bookmark"></i> Saved searches</span>';
+                html += list.map((s, i) =>
+                    `<button class="saved-chip" onclick="DirectoryPowerups.applySavedSearch(${i})">${escapeHtml(s.name)}` +
+                    `<span class="saved-chip-del" title="Delete" onclick="event.stopPropagation(); DirectoryPowerups.deleteSavedSearch(${i})">&times;</span></button>`).join('');
+                html += '<button class="save-search-btn" onclick="DirectoryPowerups.saveCurrentSearch()"><i class="fas fa-plus"></i> Save current search</button>';
+                row.innerHTML = html;
+            },
+            _currentFilters() {
+                return {
+                    search: document.getElementById('connectionsSearch')?.value || '',
+                    sort: document.getElementById('connectionsSort')?.value || 'recent',
+                    filter: document.getElementById('connectionsFilter')?.value || '',
+                    region: document.getElementById('connectionsRegion')?.value || ''
+                };
+            },
+            saveCurrentSearch() {
+                const f = this._currentFilters();
+                const suggested = f.search || (f.filter ? f.filter.replace(/_/g, ' ') : '') || 'My search';
+                const name = (prompt('Name this search', suggested) || '').trim();
+                if (!name) return;
+                const list = this._read();
+                const existing = list.findIndex(s => (s.name || '').toLowerCase() === name.toLowerCase());
+                const entry = { name, filters: f };
+                if (existing >= 0) list[existing] = entry; else list.push(entry);
+                this._write(list);
+                this.renderSavedSearches();
+                Toast.success('Search saved.');
+            },
+            applySavedSearch(i) {
+                const s = this._read()[i];
+                if (!s) return;
+                const f = s.filters || {};
+                const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = (v == null ? '' : v); };
+                set('connectionsSearch', f.search);
+                set('connectionsSort', f.sort || 'recent');
+                set('connectionsFilter', f.filter);
+                set('connectionsRegion', f.region);
+                if (typeof NetworkingPortal !== 'undefined' && NetworkingPortal.filterConnections) NetworkingPortal.filterConnections();
+            },
+            deleteSavedSearch(i) {
+                const list = this._read();
+                list.splice(i, 1);
+                this._write(list);
+                this.renderSavedSearches();
             }
         };
 

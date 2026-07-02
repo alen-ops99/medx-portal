@@ -7202,7 +7202,13 @@ async function submitReset(e){
         if (!['accepted', 'declined', 'ended'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
         const r = query.get('SELECT * FROM mentorship_requests WHERE id = ?', [req.params.id]);
         if (!r) return res.status(404).json({ error: 'Request not found' });
-        if (r.to_user_id !== req.user.id) return res.status(403).json({ error: 'Only the mentor can respond to this request' });
+        const isRecipient = r.to_user_id === req.user.id;
+        const isSender = r.from_user_id === req.user.id;
+        // Recipient may accept/decline/end. The sender may only withdraw or end their
+        // own request (never accept it) — this powers the "Cancel" on an outgoing ask.
+        if (!isRecipient && !(isSender && status === 'ended')) {
+            return res.status(403).json({ error: 'Only the mentor can respond to this request' });
+        }
         if (status === 'accepted') {
             const prof = query.get('SELECT capacity FROM mentorship_profiles WHERE user_id = ?', [req.user.id]);
             const cap = prof ? (prof.capacity || 0) : 0;
