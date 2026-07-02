@@ -6442,7 +6442,12 @@
         /* ===== USER PORTAL LAYOUT ===== */
         .user-portal {
             min-height: 100vh;
-            background: var(--paper);
+            /* warm laid-paper texture: faint ink grid + soft corner vignette over cream */
+            background:
+                radial-gradient(1200px 600px at 85% -10%, rgba(155,27,34,.025), transparent 60%),
+                repeating-linear-gradient(0deg, rgba(21,17,15,.016) 0 1px, transparent 1px 7px),
+                repeating-linear-gradient(90deg, rgba(21,17,15,.012) 0 1px, transparent 1px 7px),
+                var(--paper);
             color: var(--up-text);
             display: none;
         }
@@ -41941,6 +41946,7 @@
             z-index: 1000;
             transition: transform 0.3s ease;
             transform: translateX(100%);
+            visibility: hidden;
             display: flex;
             flex-direction: column;
             box-shadow: -10px 0 30px rgba(0, 0, 0, 0.3);
@@ -41948,6 +41954,7 @@
 
         .member-360-panel.active {
             transform: translateX(0);
+                    visibility: visible;
         }
 
         .member-360-backdrop {
@@ -55594,7 +55601,7 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
 .auth-modal-close,.up-generic-modal-close,.up-help-close{min-width:44px !important;min-height:44px !important;display:inline-flex !important;align-items:center !important;justify-content:center !important;}
 /* ===== Editorial dashboard hero (greeting + next event, website-style photographic) ===== */
 #upNextEvent{margin:0 0 22px;}
-.up-hero{position:relative;overflow:hidden;border-radius:18px;min-height:352px;display:flex;flex-direction:column;justify-content:flex-end;padding:26px 24px;color:#f3efe9;box-shadow:var(--shadow-md);background:linear-gradient(180deg, rgba(18,15,13,.28) 0%, rgba(18,15,13,.55) 48%, rgba(18,15,13,.92) 100%), url('/assets/photos/plexus_25_gala_grupna.jpg') center/cover;}
+.up-hero{position:relative;overflow:hidden;border-radius:18px;min-height:min(352px,48vh);display:flex;flex-direction:column;justify-content:flex-end;padding:26px 24px;color:#f3efe9;box-shadow:var(--shadow-md);background:linear-gradient(180deg, rgba(18,15,13,.28) 0%, rgba(18,15,13,.55) 48%, rgba(18,15,13,.92) 100%), url('/assets/photos/plexus_25_gala_grupna.jpg') center/cover;}
 .up-hero-greeting{font-family:var(--serif);font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1.05;margin-bottom:16px;}
 .up-hero-eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(243,239,233,.78);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .up-hero-status{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22);padding:3px 9px;border-radius:999px;}
@@ -55605,7 +55612,7 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
 .up-hero-btn.primary{background:var(--crimson);color:#fff;}
 .up-hero-btn.primary:hover{background:var(--crimson-deep);}
 .up-hero-btn.ghost{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.28);font-weight:600;}
-@media(min-width:768px){.up-hero{min-height:412px;padding:40px 38px;} .up-hero-greeting{font-size:44px;} .up-hero-event{font-size:30px;}}
+@media(min-width:768px){.up-hero{min-height:min(412px,50vh);padding:min(40px,4vh) 38px;} .up-hero-greeting{font-size:44px;} .up-hero-event{font-size:30px;}}
 /* greeting now lives in the hero — hide the old plain greeting block */
 .hub-welcome-section{display:none !important;}
 /* ============================================================
@@ -121380,7 +121387,12 @@ By applying to this program, I give the following consents:
 
                 const events = this.getEventData();
                 if (events.length === 0) {
-                    container.innerHTML = '<div style="padding: 14px; text-align: center; color: #86868b; font-size: 12px;">No upcoming events</div>';
+                    container.innerHTML = '<div style="padding: 26px 18px; text-align: center;">' +
+                        '<div style="width:44px;height:44px;border-radius:50%;background:var(--paper-2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;margin:0 auto 10px;"><i class="far fa-calendar" style="color:var(--muted);"></i></div>' +
+                        '<div style="font-family:var(--serif);font-size:15px;color:var(--ink);margin-bottom:4px;">No events yet</div>' +
+                        '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Register for Plexus or reserve a Gala seat and your tickets will live here.</div>' +
+                        '<button onclick="UserPortal.showSection(\'plexus\')" style="background:var(--crimson);color:#fff;border:0;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;">Explore Plexus</button>' +
+                        '</div>';
                     return;
                 }
 
