@@ -34,6 +34,7 @@ var EVENT_TABS = [
   { key: 'conference',       canonical: 'Conference',       match: /conf|plexus/i },
   { key: 'forum',            canonical: 'Forum',            match: /forum/i },
   { key: 'bridges',          canonical: 'Bridges',          match: /bridge/i },
+  { key: 'donor-night',      canonical: 'Donor Night',      match: /donor/i },
   { key: 'croatians-abroad', canonical: 'Croatians Abroad', match: /croat|abroad|diaspor/i }
 ];
 
