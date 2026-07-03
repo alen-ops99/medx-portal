@@ -1362,9 +1362,9 @@ const PUBLIC_EVENT_PAGES = {
         accent: '#2dd4bf',
         pageTitle: 'Building Bridges in Biomedicine Croatia — Plexus Week 2026',
         heading: 'Building Bridges in Biomedicine Croatia',
-        framing: 'A working morning that brings Croatia’s biomedical diaspora to the same table as the country’s institutions. A theatre-style program gives way to networking in the garden, and the morning closes with the signing of the Bridges Compact.',
-        facts: ['December 2026', 'Zagreb', '09:00–12:30', 'By invitation'],
-        note: 'The exact date and venue follow with your invitation.',
+        framing: 'The fifth edition of Building Bridges in Biomedicine — after Washington, New York, London and Zürich — brings Croatia’s biomedical diaspora and the world’s leading institutions to the same table. Panel conversations on international collaboration give way to open networking, and the first steps of new collaborations begin.',
+        facts: ['4 or 5 December 2026', 'Zagreb', 'By invitation'],
+        note: 'The exact date, time and venue follow with your invitation.',
         dietary: false,
         submitLabel: 'Confirm your participation',
         successHeading: 'Your participation is confirmed'
@@ -1373,7 +1373,7 @@ const PUBLIC_EVENT_PAGES = {
         accent: '#c9a962',
         pageTitle: 'Plexus Donor Night — Plexus Week 2026',
         heading: 'Plexus Donor Night',
-        framing: 'An evening in the circle. An invitation-only supper with the leadership of Cambridge, Massachusetts General Hospital, University Health Network Toronto and UCLA Health. What gathers around this table advances the Plexus Fellowship and the 2027 Accelerator.',
+        framing: 'An evening of giving for the future of Croatian biomedicine. An invitation-only supper with the leadership of Cambridge, Massachusetts General Hospital, University Health Network Toronto, UCLA Health and Mass General Brigham. What gathers around this table advances the Plexus Fellowship, the Accelerator, the Plexus Conference and Building Bridges in Biomedicine.',
         facts: ['Friday 4 December 2026', '19:30–22:30', 'Esplanade Zagreb, private salon', 'Invitation only'],
         note: '',
         dietary: true,
@@ -21223,8 +21223,8 @@ By applying to this program, I provide the following consents:
             subject: 'Your participation is confirmed — Building Bridges in Biomedicine',
             emailTitle: 'Participation Confirmed',
             emailLede: 'It is our pleasure to confirm your participation in <strong>Building Bridges in Biomedicine Croatia</strong>.',
-            whenLine: 'December 2026 &middot; Zagreb &middot; 09:00&ndash;12:30',
-            whenNote: 'The exact date and venue follow with your invitation.'
+            whenLine: '4 or 5 December 2026 &middot; Zagreb',
+            whenNote: 'The exact date, time and venue follow with your invitation.'
         },
         'donor-night': {
             name: 'Plexus Donor Night',
