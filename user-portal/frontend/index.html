@@ -19761,7 +19761,7 @@
 
         /* Conference Hero */
         .px-hero {
-            background: linear-gradient(135deg, rgba(18,15,13,0.86) 0%, rgba(18,15,13,0.70) 55%, rgba(126,21,27,0.58) 100%),
+            background: linear-gradient(135deg, rgba(18,15,13,0.86) 0%, rgba(18,15,13,0.70) 55%, rgba(18,15,13,0.58) 100%),
                         url('https://images.squarespace-cdn.com/content/v1/65982200bf95c64c8e823ecc/3d2949c3-41fa-48e2-9c50-df3116cb6800/Plexus+conference+-+Day+1-23.jpg');
             background-size: cover;
             background-position: center;
@@ -22816,7 +22816,7 @@
 
         /* Gala Hero */
         .gala-hero {
-            background: linear-gradient(135deg, rgba(18, 15, 13, 0.86) 0%, rgba(18, 15, 13, 0.66) 55%, rgba(126, 21, 27, 0.62) 100%),
+            background: linear-gradient(135deg, rgba(18, 15, 13, 0.86) 0%, rgba(18, 15, 13, 0.66) 55%, rgba(18, 15, 13, 0.62) 100%),
                         url('/assets/photos/plexus_25_gala.jpg') center/cover no-repeat;
             border-radius: 16px;
             padding: 48px 32px 52px;
@@ -23115,7 +23115,7 @@
 
         /* Gala Hero Light Mode — warm-ink photographic (mirrors the injected default, local photo) */
         [data-theme="light"] .gala-hero {
-            background: linear-gradient(135deg, rgba(18,15,13,.86) 0%, rgba(18,15,13,.66) 55%, rgba(126,21,27,.62) 100%),
+            background: linear-gradient(135deg, rgba(18,15,13,.86) 0%, rgba(18,15,13,.66) 55%, rgba(18,15,13,.62) 100%),
                         url('/assets/photos/plexus_25_gala.jpg') center/cover no-repeat;
         }
         [data-theme="light"] .gala-hero::before {
@@ -24145,7 +24145,7 @@
 
         /* Accelerator Hero */
         .ax-hero {
-            background: linear-gradient(135deg, rgba(18,15,13,0.86) 0%, rgba(18,15,13,0.70) 55%, rgba(126,21,27,0.58) 100%),
+            background: linear-gradient(135deg, rgba(18,15,13,0.86) 0%, rgba(18,15,13,0.70) 55%, rgba(18,15,13,0.58) 100%),
                         url('https://images.squarespace-cdn.com/content/v1/65982200bf95c64c8e823ecc/43fce86e-5811-4cab-a952-f13ef45e630b/375A5023.jpg');
             background-size: cover;
             background-position: center;
@@ -25740,7 +25740,7 @@
 
         /* Forum Hero */
         .fm-hero {
-            background: linear-gradient(135deg, rgba(18,15,13,0.86) 0%, rgba(18,15,13,0.70) 55%, rgba(126,21,27,0.58) 100%),
+            background: linear-gradient(135deg, rgba(18,15,13,0.86) 0%, rgba(18,15,13,0.70) 55%, rgba(18,15,13,0.58) 100%),
                         url('https://images.squarespace-cdn.com/content/v1/65982200bf95c64c8e823ecc/0595d4e3-e9c6-4d84-98c4-f1be67f2a547/375A4748.jpg');
             background-size: cover;
             background-position: center;
@@ -34065,7 +34065,7 @@
         }
 
         .bb-hero {
-            background: linear-gradient(135deg, rgba(18,15,13,.86) 0%, rgba(18,15,13,.70) 55%, rgba(126,21,27,.58) 100%), url('/assets/photos/building_bridges_nyc.jpg') center/cover;
+            background: linear-gradient(135deg, rgba(18,15,13,.86) 0%, rgba(18,15,13,.70) 55%, rgba(18,15,13,.58) 100%), url('/assets/photos/building_bridges_nyc.jpg') center/cover;
             border-radius: 16px;
             padding: 48px;
             margin-bottom: 32px;
@@ -55510,9 +55510,12 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
 #upBottomNav .up-tab.active{color:var(--crimson);font-weight:700;box-shadow:inset 0 2px 0 var(--crimson);}
 #upBottomNav .up-tab.active i{transform:translateY(-1px);}
 #upBottomNav .up-tab:active{opacity:.55;}
+/* FAB clearance (item 3): reserve bottom scroll room so the fixed help "?" button never
+   covers the last row of content on desktop. Mobile clears the tab bar + lifted FAB below. */
+#userPortal .up-section{padding-bottom:84px;}
 @media (max-width:768px){
   #upBottomNav{display:grid;}
-  #userPortal .up-section{padding-bottom:80px;}
+  #userPortal .up-section{padding-bottom:128px;}
   /* lift floating menus above the bar so they never hide behind it */
   #upProjectsMenu{bottom:78px !important;top:auto !important;}
   #upFloatUserDropdown{bottom:78px !important;top:auto !important;}
@@ -55527,6 +55530,41 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
   #upBottomNav .up-tab,#upBottomNav .up-tab i{transition:none;}
   #upBottomNav .up-tab.active i{transform:none;}
 }
+/* ===== Item 9: persistent desktop global nav (left rail, >=1024px) ===== */
+.up-rail{display:none;}
+/* Retire the Quick Access popover everywhere — the rail (desktop) and the
+   bottom-tab "Programs" button (mobile) both cover its destinations. */
+.hub-projects-wrapper{display:none !important;}
+/* Below the rail breakpoint, keep the persistent bottom tab bar (no dead zone). */
+@media (max-width:1023px){ #upBottomNav{display:grid;} }
+@media (min-width:1024px){
+  .up-rail{display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;width:236px;z-index:1250;
+    background:var(--surface);border-right:1px solid var(--line);padding:20px 14px 16px;overflow-y:auto;overflow-x:hidden;}
+  #userPortal .up-main{margin-left:236px;}
+  #upBottomNav{display:none !important;}
+  /* the rail already carries the brand mark — drop the duplicate in-section dashboard header logo */
+  #userPortal .hub-header-left{display:none;}
+}
+.up-rail-logo{display:flex;align-items:center;gap:10px;padding:4px 10px 16px;text-decoration:none;flex-shrink:0;}
+.up-rail-logo img{height:26px;width:auto;}
+.up-rail-nav{display:flex;flex-direction:column;gap:2px;}
+.up-rail-item{display:flex;align-items:center;gap:13px;padding:10px 12px;border-radius:10px;border:0;background:none;cursor:pointer;
+  font-family:var(--sans);font-size:14px;font-weight:600;color:var(--ink-soft,#4a443f);text-align:left;width:100%;text-decoration:none;line-height:1.2;
+  transition:background .15s ease,color .15s ease;}
+.up-rail-item i{width:20px;text-align:center;font-size:15px;color:var(--muted);transition:color .15s ease;flex-shrink:0;}
+.up-rail-item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.up-rail-item:hover{background:var(--paper-2,#f3efe9);color:var(--ink,#15110f);}
+.up-rail-item:hover i{color:var(--ink,#15110f);}
+.up-rail-item.active{background:rgba(155,27,34,.09);color:var(--crimson,#9b1b22);}
+.up-rail-item.active i{color:var(--crimson,#9b1b22);}
+.up-rail-spacer{flex:1 1 auto;min-height:14px;}
+.up-rail-divider{height:1px;background:var(--line);margin:8px 8px;}
+.up-rail-user{display:flex;align-items:center;gap:10px;padding:8px 10px 2px;}
+.up-rail-avatar{width:32px;height:32px;border-radius:50%;background:var(--emph-bg,#14110f);color:#f3efe9;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;}
+.up-rail-user-info{min-width:0;display:flex;flex-direction:column;gap:1px;}
+.up-rail-user-name{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;}
+.up-rail-signout{background:none;border:0;padding:0;cursor:pointer;color:var(--muted);font-family:var(--sans);font-size:11px;font-weight:600;text-align:left;}
+.up-rail-signout:hover{color:var(--crimson,#9b1b22);}
 /* ===== Splash entry — refined warm-dark brand (consistent both themes; white logo stays legible) ===== */
 .splash-entry{background:linear-gradient(180deg, rgba(18,15,13,.70) 0%, rgba(18,15,13,.85) 55%, rgba(18,15,13,.93) 100%), url('/assets/photos/plexus_25_gala_grupna.jpg') center/cover !important;}
 .splash-entry-subtitle{font-family:var(--serif) !important;color:#f3efe9 !important;font-weight:500;letter-spacing:-.01em;}
@@ -55621,10 +55659,10 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
 /* (1) Section heroes were pale-slate in the DEFAULT light theme (a [data-theme=light] override
    re-applied the abandoned style and won). Re-assert warm-ink photographic + white text in light,
    using LOCAL photos (also drops the Squarespace-CDN dependency for these). */
-[data-theme="light"] .px-hero{background:linear-gradient(135deg,rgba(18,15,13,.86) 0%,rgba(18,15,13,.70) 55%,rgba(126,21,27,.58) 100%),url('/assets/photos/plexus_2022.jpg') center/cover !important;}
-[data-theme="light"] .gala-hero{background:linear-gradient(135deg,rgba(18,15,13,.86) 0%,rgba(18,15,13,.66) 55%,rgba(126,21,27,.62) 100%),url('/assets/photos/plexus_25_gala.jpg') center/cover !important;}
-[data-theme="light"] .ax-hero{background:linear-gradient(135deg,rgba(18,15,13,.86) 0%,rgba(18,15,13,.70) 55%,rgba(126,21,27,.58) 100%),url('/assets/photos/plexus_25_acc_panel.jpg') center/cover !important;}
-[data-theme="light"] .fm-hero{background:linear-gradient(135deg,rgba(18,15,13,.86) 0%,rgba(18,15,13,.70) 55%,rgba(126,21,27,.58) 100%),url('/assets/photos/plexus_25_gala_grupna.jpg') center/cover !important;}
+[data-theme="light"] .px-hero{background:linear-gradient(135deg,rgba(18,15,13,.86) 0%,rgba(18,15,13,.70) 55%,rgba(18,15,13,.58) 100%),url('/assets/photos/plexus_2022.jpg') center/cover !important;}
+[data-theme="light"] .gala-hero{background:linear-gradient(135deg,rgba(18,15,13,.86) 0%,rgba(18,15,13,.66) 55%,rgba(18,15,13,.62) 100%),url('/assets/photos/plexus_25_gala.jpg') center/cover !important;}
+[data-theme="light"] .ax-hero{background:linear-gradient(135deg,rgba(18,15,13,.86) 0%,rgba(18,15,13,.70) 55%,rgba(18,15,13,.58) 100%),url('/assets/photos/plexus_25_acc_panel.jpg') center/cover !important;}
+[data-theme="light"] .fm-hero{background:linear-gradient(135deg,rgba(18,15,13,.86) 0%,rgba(18,15,13,.70) 55%,rgba(18,15,13,.58) 100%),url('/assets/photos/plexus_25_gala_grupna.jpg') center/cover !important;}
 [data-theme="light"] .px-hero,[data-theme="light"] .gala-hero,[data-theme="light"] .ax-hero,[data-theme="light"] .fm-hero,
 [data-theme="light"] .px-hero h1,[data-theme="light"] .px-hero p,[data-theme="light"] .gala-hero h1,[data-theme="light"] .gala-hero p,
 [data-theme="light"] .ax-hero h1,[data-theme="light"] .ax-hero p,[data-theme="light"] .fm-hero h1,[data-theme="light"] .fm-hero p{color:#f3efe9 !important;}
@@ -55659,6 +55697,65 @@ button,input,select,textarea{font-family:var(--sans);}
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important;}
 }
+/* ============================================================
+   STAGE 4 — member polish (items 19 + 20)
+   ============================================================ */
+/* (item 20) One tab component: gold-outline pill active-state so crimson stays
+   reserved for CTAs. px/gala/ax tabs already use the gold outline; bring the
+   Network segmented control and the generic .tab-btn into the same language. */
+.network-tab.active{background:var(--surface) !important;color:#a8842f !important;font-weight:600 !important;box-shadow:inset 0 0 0 1px var(--gold), 0 1px 3px rgba(20,15,12,.08) !important;}
+.network-tab.active .network-tab-badge{background:var(--gold) !important;color:var(--ink) !important;}
+.tab-btn.active{background:var(--paper-2) !important;color:#a8842f !important;box-shadow:inset 0 0 0 1px var(--gold) !important;}
+/* ============================================================
+   (item 19) First-run onboarding reskinned to cream / ink / single crimson.
+   Gold stays only as the small progress accent + selection outline.
+   ============================================================ */
+.welcome-tour-overlay{background:var(--paper) !important;}
+.welcome-splash-bg{background:linear-gradient(135deg,var(--paper) 0%,var(--paper-2) 100%) !important;}
+.welcome-tour-overlay .splash-orb{opacity:.10 !important;}
+.welcome-tour-overlay .splash-particle{background:rgba(201,169,98,.45) !important;}
+.welcome-logo-img{filter:none !important;}
+.welcome-splash-title{color:var(--ink) !important;}
+.welcome-splash-subtitle{color:var(--muted) !important;}
+.welcome-splash-btn{background:var(--crimson) !important;color:#fff !important;box-shadow:0 8px 24px rgba(155,27,34,.22) !important;}
+.wt-progress-bar{background:var(--line) !important;}
+.wt-progress-text{color:var(--muted) !important;}
+.welcome-tour-card{background:var(--surface) !important;border:1px solid var(--line) !important;box-shadow:0 16px 48px rgba(21,17,15,.12) !important;backdrop-filter:none !important;}
+.welcome-tour-card h2{color:var(--ink) !important;}
+.welcome-tour-card > p{color:var(--muted) !important;}
+.wt-form-group label{color:var(--muted) !important;}
+.wt-form-group input,.wt-form-group select{background:var(--paper) !important;border:1px solid var(--line) !important;color:var(--ink) !important;}
+.wt-form-group input::placeholder{color:var(--muted) !important;}
+.wt-form-group input:focus,.wt-form-group select:focus{border-color:var(--gold) !important;background:var(--surface) !important;}
+.wt-form-group select option{background:var(--surface) !important;color:var(--ink) !important;}
+.wt-btn.secondary{background:var(--paper-2) !important;color:var(--ink) !important;border:1px solid var(--line) !important;}
+.wt-btn.secondary:hover{background:var(--paper) !important;color:var(--ink) !important;}
+.wt-role-option{background:var(--paper) !important;border:2px solid var(--line) !important;}
+.wt-role-option:hover{background:var(--paper-2) !important;border-color:var(--line-strong) !important;}
+.wt-role-option.selected{background:rgba(201,169,98,.10) !important;border-color:var(--gold) !important;}
+.wt-role-info h4{color:var(--ink) !important;}
+.wt-role-info p{color:var(--muted) !important;}
+.wt-role-check{border-color:var(--line-strong) !important;}
+.wt-interest-chip{background:var(--paper-2) !important;border:1px solid var(--line) !important;color:var(--ink) !important;}
+.wt-interest-chip:hover{background:var(--paper) !important;color:var(--ink) !important;border-color:var(--line-strong) !important;}
+.wt-interest-chip.selected{background:rgba(201,169,98,.14) !important;border-color:var(--gold) !important;color:#a8842f !important;}
+.wt-program-card{background:var(--paper) !important;border:2px solid var(--line) !important;}
+.wt-program-card:hover{background:var(--paper-2) !important;border-color:var(--line-strong) !important;}
+.wt-program-card.selected{background:rgba(201,169,98,.10) !important;border-color:var(--gold) !important;}
+.wt-program-content h4{color:var(--ink) !important;}
+.wt-program-content p{color:var(--muted) !important;}
+.wt-program-tags span{background:var(--paper-2) !important;color:var(--muted) !important;}
+.wt-feature-slide h4{color:var(--ink) !important;}
+.wt-feature-slide p{color:var(--muted) !important;}
+.wt-fdot{background:var(--line-strong) !important;}
+.wt-fdot.active{background:var(--gold) !important;}
+.wt-celebration{background:linear-gradient(135deg,var(--paper) 0%,var(--paper-2) 100%) !important;}
+.wt-celebration-content h1{color:var(--ink) !important;}
+.wt-celebration-content > p{color:var(--muted) !important;}
+.wt-achievement-card,.wt-rewards-explainer{background:var(--surface) !important;border:1px solid var(--line) !important;}
+.wt-achievement-name,.wt-rewards-title{color:var(--ink) !important;}
+.wt-achievement-label,.wt-rewards-desc,.wt-rewards-benefits,.wt-tier span{color:var(--muted) !important;}
+.wt-celebration-btn{background:var(--crimson) !important;color:#fff !important;box-shadow:0 8px 24px rgba(155,27,34,.22) !important;}
 /* === end MEDX-TOKENS-INJECTED === */
 
 </style>
@@ -56549,6 +56646,13 @@ button,input,select,textarea{font-family:var(--sans);}
                         </select>
                     </div>
                 </div>
+                <div class="auth-form-group" style="margin: 4px 0 16px;">
+                    <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; font-size:13px; line-height:1.5; color:var(--muted);">
+                        <input type="checkbox" id="registerConsent" style="margin-top:2px; width:16px; height:16px; accent-color:var(--crimson); flex-shrink:0;">
+                        <span>I agree to the <a href="https://medx-website-preview.netlify.app/privacy.html" target="_blank" rel="noopener" style="color:var(--crimson); font-weight:600;">Terms and Privacy Policy</a>.</span>
+                    </label>
+                    <p style="margin:8px 0 0 26px; font-size:12px; color:var(--muted);"><i class="fas fa-lock" style="color:var(--gold); margin-right:5px;"></i>We never share your data.</p>
+                </div>
                 <button type="submit" class="auth-btn" id="userRegisterBtn">Create Account</button>
             </form>
 
@@ -56663,7 +56767,7 @@ button,input,select,textarea{font-family:var(--sans);}
         </nav>
         <script>
         (function(){
-          var MAP={dashboard:'home',network:'network',mymedx:'mymedx',rewards:'profile',settings:'profile',
+          var MAP={dashboard:'home',network:'network',mymedx:'mymedx',rewards:'profile',settings:'profile',talks:'programs',
                    plexus:'programs',gala:'programs',accelerator:'programs',forum:'programs',bridges:'programs',af26:'programs',speaker:'programs'};
           window.MedXBottomNav={
             set:function(tab){
@@ -56675,6 +56779,55 @@ button,input,select,textarea{font-family:var(--sans);}
           window.addEventListener('hashchange',function(){
             var s=(location.hash||'').replace('#',''); if(s) window.MedXBottomNav.syncFromSection(s);
           });
+        })();
+        </script>
+
+        <!-- ===== Item 9: persistent desktop global nav (left rail, >=1024px) ===== -->
+        <aside class="up-rail" id="upRail" role="navigation" aria-label="Main">
+            <a href="#" class="up-rail-logo" onclick="UserPortal.showSection('dashboard'); return false;" aria-label="Home">
+                <img src="/assets/images/medx-logo.png" alt="Med&amp;X">
+            </a>
+            <nav class="up-rail-nav" id="upRailNav">
+                <button class="up-rail-item active" data-rail="dashboard" onclick="UserPortal.showSection('dashboard')"><i class="fas fa-home"></i><span>Home</span></button>
+                <button class="up-rail-item" data-rail="plexus" onclick="UserPortal.showSection('plexus')"><i class="fas fa-users"></i><span>Plexus</span></button>
+                <button class="up-rail-item" data-rail="gala" onclick="UserPortal.showSection('gala')"><i class="fas fa-glass-cheers"></i><span>Gala</span></button>
+                <button class="up-rail-item" data-rail="accelerator" onclick="UserPortal.showSection('accelerator')"><i class="fas fa-rocket"></i><span>Accelerator</span></button>
+                <button class="up-rail-item" data-rail="forum" onclick="UserPortal.showSection('forum')"><i class="fas fa-landmark"></i><span>Forum</span></button>
+                <button class="up-rail-item" data-rail="bridges" onclick="UserPortal.showSection('bridges')"><i class="fas fa-globe-europe"></i><span>Bridges</span></button>
+                <button class="up-rail-item" data-rail="network" onclick="UserPortal.showSection('network')"><i class="fas fa-user-friends"></i><span>Network</span></button>
+                <button class="up-rail-item" data-rail="talks" onclick="UserPortal.showSection('talks')"><i class="fas fa-play-circle"></i><span>Talk Library</span></button>
+                <button class="up-rail-item" data-rail="mymedx" onclick="UserPortal.showSection('mymedx')"><i class="fas fa-id-badge"></i><span>My Med&amp;X</span></button>
+                <button class="up-rail-item" data-rail="settings" onclick="UserPortal.showSection('settings')"><i class="fas fa-cog"></i><span>Settings</span></button>
+            </nav>
+            <div class="up-rail-spacer"></div>
+            <div class="up-rail-divider"></div>
+            <button class="up-rail-item" onclick="if(typeof NotificationSystem!=='undefined'&amp;&amp;NotificationSystem.toggle)NotificationSystem.toggle();"><i class="fas fa-bell"></i><span>Notifications</span></button>
+            <div class="up-rail-user">
+                <div class="up-rail-avatar" id="upRailAvatar">M</div>
+                <div class="up-rail-user-info">
+                    <div class="up-rail-user-name" id="upRailUserName">Member</div>
+                    <button class="up-rail-signout" onclick="UserPortal.logout()">Sign out</button>
+                </div>
+            </div>
+        </aside>
+        <script>
+        (function(){
+          var RAIL=document.getElementById('upRail');
+          function setActive(sec){ if(!RAIL) return; RAIL.querySelectorAll('.up-rail-item[data-rail]').forEach(function(a){
+            var on=a.getAttribute('data-rail')===sec; a.classList.toggle('active',on);
+            if(on){a.setAttribute('aria-current','page');}else{a.removeAttribute('aria-current');} }); }
+          function setUser(){ try{ var u=JSON.parse(localStorage.getItem('medx_user_data')||'{}')||{};
+            if((!u.first_name)&&typeof UserPortal!=='undefined'&&UserPortal.user) u=UserPortal.user;
+            var nm=((u.first_name||'')+' '+(u.last_name||'')).trim()||(u.email?String(u.email).split('@')[0]:'Member');
+            var av=((u.first_name||u.email||'M').charAt(0)||'M').toUpperCase();
+            var n=document.getElementById('upRailUserName'); if(n)n.textContent=nm;
+            var a=document.getElementById('upRailAvatar'); if(a)a.textContent=av; }catch(e){} }
+          window.MedXRail={ set:function(sec){ setActive(sec); setUser(); }, setUser:setUser };
+          // Hook the existing per-navigation sync so the rail active state always matches the section.
+          if(window.MedXBottomNav){ var _o=window.MedXBottomNav.syncFromSection;
+            window.MedXBottomNav.syncFromSection=function(sec){ if(_o){try{_o.call(this,sec);}catch(e){}} try{ setActive(sec); }catch(e){} }; }
+          window.addEventListener('load',function(){ var s=(location.hash||'').replace('#','')||'dashboard'; setActive(s); setUser(); });
+          if(document.readyState!=='loading'){ setUser(); }
         })();
         </script>
 
@@ -56889,7 +57042,7 @@ button,input,select,textarea{font-family:var(--sans);}
             <div class="profile-panel-section">
                 <h4>About</h4>
                 <p class="profile-bio" id="profilePanelBio">
-                    Leading research in sleep medicine and circadian rhythms. Published 50+ papers on sleep disorders and their impact on health.
+                    <!-- default cleared; the real member bio is injected by MemberProfile.render() -->
                 </p>
             </div>
             <div class="profile-panel-section">
@@ -57947,13 +58100,13 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                             </div>
                             <!-- Standalone Notification Bell -->
-                            <button class="hub-header-btn" onclick="NotificationCenter.toggle()" title="Notifications" style="position:relative;">
+                            <button class="hub-header-btn" onclick="NotificationSystem.toggle()" title="Notifications" style="position:relative;">
                                 <i class="fas fa-bell"></i>
                                 <span id="hubBellBadge" class="hub-header-badge" style="display:none;position:absolute;top:2px;right:2px;background:#ff3b30;color:#fff;border-radius:50%;min-width:16px;height:16px;font-size:10px;align-items:center;justify-content:center;font-weight:600;padding:0 4px;">0</span>
                             </button>
                             <!-- Account/Membership Badge with Dropdown -->
                             <div class="hub-account-wrapper">
-                                <button class="hub-account-btn" onclick="Dashboard.toggleAccountDropdown(event)" title="My Account & Rewards">
+                                <button class="hub-account-btn" onclick="Dashboard.toggleAccountDropdown(event)" title="My Account">
                                     <div class="hub-account-avatar" id="hubAccountAvatar">A</div>
                                     <div class="hub-account-info">
                                         <span class="hub-account-name" id="hubAccountName">Alen</span>
@@ -57998,14 +58151,8 @@ button,input,select,textarea{font-family:var(--sans);}
                                         <div class="hub-account-dropdown-item" onclick="Dashboard.goToProfile()">
                                             <i class="fas fa-user"></i> Edit Profile
                                         </div>
-                                        <div class="hub-account-dropdown-item" onclick="Dashboard.goToSettings('account')">
-                                            <i class="fas fa-cog"></i> Account Settings
-                                        </div>
                                         <div class="hub-account-dropdown-item" onclick="Dashboard.goToSettings('notifications')">
-                                            <i class="fas fa-bell"></i> Notification Preferences
-                                        </div>
-                                        <div class="hub-account-dropdown-item" onclick="UserPortal.toggleTheme(); Dashboard.closeAccountDropdown();">
-                                            <i class="fas fa-moon" id="hubDropdownThemeIcon"></i> Toggle Dark Mode
+                                            <i class="fas fa-bell"></i> Notifications
                                         </div>
                                         <div class="hub-account-dropdown-divider"></div>
                                         <div class="hub-account-dropdown-item danger" onclick="UserPortal.logout()">
@@ -58020,7 +58167,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     <!-- Personalized Welcome Section -->
                     <section class="hub-welcome-section" id="hubWelcomeSection">
                         <div class="hub-welcome-content">
-                            <h1 class="hub-welcome-greeting" id="hubWelcomeGreeting">Good morning, Alen</h1>
+                            <h1 class="hub-welcome-greeting" id="hubWelcomeGreeting">Welcome back</h1>
                             <p class="hub-welcome-subtitle" id="hubWelcomeSubtitle">
                                 <i class="fas fa-lightbulb"></i>
                                 <span id="hubWelcomeContext">Loading your personalized updates...</span>
@@ -58102,11 +58249,10 @@ button,input,select,textarea{font-family:var(--sans);}
                     .mx-hub-name{font-family:var(--serif,'Fraunces',Georgia,serif);font-size:15.5px;font-weight:600;color:var(--ink,#15110f);letter-spacing:-.01em;line-height:1.12;}
                     .mx-hub-chip{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 9px;border-radius:999px;width:fit-content;line-height:1.28;}
                     .mx-hub-chip.open{background:var(--crimson,#9b1b22);color:#fff;}
-                    .mx-hub-chip.soon{background:transparent;border:1px solid var(--ink,#15110f);color:var(--ink,#15110f);}
-                    .mx-hub-chip.info{background:var(--paper-2,#f3efe9);color:var(--muted,#6e6e73);border:1px solid var(--line,#e2dcd3);}
-                    .mx-hub-chip.closed{background:#ece8e2;color:#9a948b;}
+                    .mx-hub-chip.soon,.mx-hub-chip.info,.mx-hub-chip.closed{background:transparent;border:1px solid var(--line-strong,#d9d2c7);color:var(--ink-soft,#6e6e73);}
                     .mx-hub-detail{font-size:12px;color:var(--muted,#6e6e73);line-height:1.45;}
-                    .mx-hub-cta{margin-top:auto;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--crimson,#9b1b22);background:none;border:none;padding:2px 0 0;cursor:pointer;font-family:var(--sans,'Inter',sans-serif);}
+                    .mx-hub-cta{margin-top:auto;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ink,#15110f);background:none;border:none;padding:2px 0 0;cursor:pointer;font-family:var(--sans,'Inter',sans-serif);}
+                    .mx-hub-cta i{color:var(--muted,#6e6e73);}
                     .mx-hub-bell{border:1px solid var(--line,#e2dcd3);background:transparent;color:var(--muted,#8a847b);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:12px;flex-shrink:0;transition:all .15s ease;}
                     .mx-hub-bell:hover{color:var(--ink,#15110f);border-color:var(--ink-soft,#8a847b);}
                     .mx-hub-bell.on{background:rgba(201,169,98,.18);border-color:rgba(201,169,98,.6);color:#a8842f;}
@@ -58123,7 +58269,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         <div class="mx-chapter-band">
                             <span class="mx-chapter-num">01</span>
                             <div class="mx-chapter-text">
-                                <h2>Your programmes</h2>
+                                <h2>Your programs</h2>
                                 <p>Apply, register, and follow every Med&amp;X project from here.</p>
                             </div>
                         </div>
@@ -58308,7 +58454,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                         Applications Open
                                     </div>
                                     <h2 class="featured-title">Med&amp;X Accelerator</h2>
-                                    <p class="featured-desc">Research internships at Harvard, Yale, Mayo Clinic, and more. See the programme page for current application dates.</p>
+                                    <p class="featured-desc">Research internships at Harvard, Yale, Mayo Clinic, and more. See the program page for current application dates.</p>
                                     <button class="featured-cta" onclick="event.stopPropagation(); FeaturedCarousel.navigateTo('accelerator')">
                                         Apply Now <i class="fas fa-arrow-right"></i>
                                     </button>
@@ -58399,17 +58545,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         </div>
                     </div>
 
-                    <!-- Quick Check-in Card -->
-                    <div class="hub-checkin-card" onclick="showQuickQR()" style="background: linear-gradient(135deg, var(--emph-bg) 0%, var(--emph-bg-2) 100%); border: 1px solid var(--emph-line); border-radius: 16px; padding: 20px; cursor: pointer; display: flex; align-items: center; gap: 16px; margin-bottom: 16px; transition: all 0.2s;" onmouseover="this.style.transform='scale(1.01)'" onmouseout="this.style.transform=''">
-                        <div style="width: 48px; height: 48px; background: rgba(201,169,98,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                            <i class="fas fa-qrcode" style="font-size: 22px; color: var(--gold);"></i>
-                        </div>
-                        <div style="flex: 1;">
-                            <div style="font-size: 15px; font-weight: 700; color: #ffffff;">Tap to Check In</div>
-                            <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">Show your QR code at events</div>
-                        </div>
-                        <i class="fas fa-chevron-right" style="color: var(--gold); font-size: 14px;"></i>
-                    </div>
+                    <!-- Item 10: 'Tap to Check In' strip removed — check-in is folded into the hero actions ("Check in" button). -->
 
                     <!-- Simplified Bento Grid -->
                     <section class="hub-bento hub-bento-clean" id="dashboardBento">
@@ -58442,25 +58578,7 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                         </div>
 
-                        <!-- MY NETWORK CARD - Compact & Elegant -->
-                        <div class="hub-section-label">My Network</div>
-                        <div class="my-network-card-compact">
-                            <!-- Header Row -->
-                            <div class="my-network-header">
-                                <div class="my-network-title">
-                                    <i class="fas fa-users"></i>
-                                    <span>My Network</span>
-                                </div>
-                                <button class="my-network-view-all" onclick="UserPortal.showSection('network')">
-                                    Open <i class="fas fa-arrow-right"></i>
-                                </button>
-                            </div>
-                            <!-- Honest empty/CTA state — real connections appear here as you make them (no fabricated people) -->
-                            <div style="text-align:center;padding:18px 12px 6px;">
-                                <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:14px;">Connect with the researchers and clinicians you meet at Med&amp;X events. Your requests and connections will show up here.</div>
-                                <button onclick="UserPortal.showSection('network'); setTimeout(function(){ if(typeof NetworkingPortal!=='undefined' &amp;&amp; NetworkingPortal.showTab) NetworkingPortal.showTab('discover'); },300);" style="background:var(--crimson);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-weight:600;font-size:13px;cursor:pointer;"><i class="fas fa-user-plus"></i> Find people</button>
-                            </div>
-                        </div>
+                        <!-- Item 10: standalone My Network card removed — the persistent left rail + bottom-tab "Network" own this destination. -->
 
                         <!-- QUIZ WIDGET -->
                         <div class="quiz-widget" id="quizWidget" data-widget="quiz">
@@ -58654,15 +58772,7 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                         </div>
 
-                        <!-- MENTORSHIP PROMPT (menu item 10) — hidden when member has an active match -->
-                        <div class="ment-prompt" id="mentDashPrompt" onclick="UserPortal.showSection('network'); setTimeout(function(){ if(typeof NetworkingPortal!=='undefined' && NetworkingPortal.showTab) NetworkingPortal.showTab('mentorship'); }, 300);">
-                            <div class="ment-prompt-icon"><i class="fas fa-hands-helping"></i></div>
-                            <div class="ment-prompt-body">
-                                <strong>Mentors match your goals</strong>
-                                <span>Find a mentor or offer to guide someone in the Med&amp;X network</span>
-                            </div>
-                            <div class="ment-prompt-arrow"><i class="fas fa-arrow-right"></i></div>
-                        </div>
+                        <!-- Item 10: standalone Mentors prompt removed — mentorship lives inside Network (rail owns the destination). -->
 
                         <!-- FOR YOU SECTION - Prominent Placement -->
                         <div class="for-you-section removable-card" id="forYouSection" data-widget="foryou">
@@ -58849,12 +58959,7 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                         </div>
 
-                        <!-- Your Events - Dynamic Compact List -->
-                        <div class="hub-section-label" data-widget="events">Your Events</div>
-                        <div class="hub-events-list-clean" id="hubEventsListDynamic"></div>
-                        <button class="hub-events-browse-link" onclick="UserPortal.showSection('forum'); setTimeout(() => ForumPortal.showTab('events'), 100);">
-                            Browse More Events <i class="fas fa-arrow-right"></i>
-                        </button>
+                        <!-- Item 10: 'Your Events' block removed — the ticket wallet in My Med&X owns tickets/RSVP; the next event lives in the hero and each project-hub card carries its own status. -->
 
                         <!-- Your Status - Minimal Summary -->
                         <div class="hub-status-bar" onclick="UserPortal.showSection('mymedx')">
@@ -58992,7 +59097,7 @@ button,input,select,textarea{font-family:var(--sans);}
             <div class="up-section" id="up-section-plexus">
                 <div class="up-container" style="position: relative;">
                     <!-- Home Button (outside hero to avoid click interception) -->
-                    <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
+                    <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to Home"><i class="fas fa-arrow-left"></i><span>Back to Home</span></button>
                     <!-- Conference Hero -->
                     <div class="px-hero">
                         <div class="px-hero-badge">
@@ -61827,7 +61932,7 @@ button,input,select,textarea{font-family:var(--sans);}
             <div class="up-section" id="up-section-gala">
                 <div class="up-container" style="position: relative;">
                     <!-- Home Button (outside hero to avoid click interception) -->
-                    <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
+                    <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to Home"><i class="fas fa-arrow-left"></i><span>Back to Home</span></button>
                     <!-- Gala Hero -->
                     <div class="gala-hero">
                         <div class="gala-hero-content">
@@ -62233,7 +62338,7 @@ button,input,select,textarea{font-family:var(--sans);}
             <div class="up-section" id="up-section-accelerator">
                 <div class="up-container" style="position: relative;">
                     <!-- Navigation Buttons (outside hero to avoid click interception) -->
-                    <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
+                    <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to Home"><i class="fas fa-arrow-left"></i><span>Back to Home</span></button>
                     <!-- Hero Section -->
                     <div class="ax-hero">
                         <div class="ax-hero-badge">
@@ -63444,7 +63549,7 @@ button,input,select,textarea{font-family:var(--sans);}
             <div class="up-section" id="up-section-forum">
                 <div class="up-container" style="position: relative;">
                     <!-- Home Button (outside hero to avoid click interception) -->
-                    <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
+                    <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to Home"><i class="fas fa-arrow-left"></i><span>Back to Home</span></button>
                     <!-- Hero Section -->
                     <div class="fm-hero">
                         <div class="fm-hero-badge">
@@ -65482,7 +65587,7 @@ button,input,select,textarea{font-family:var(--sans);}
                 <div class="network-container">
                     <!-- Network Header -->
                     <div class="network-header">
-                        <button class="mx-home-crumb inrow" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
+                        <button class="mx-home-crumb inrow" onclick="UserPortal.showSection('dashboard')" title="Back to Home"><i class="fas fa-arrow-left"></i><span>Back to Home</span></button>
                         <div class="network-header-text">
                             <h1>My Network</h1>
                             <p>Connect with researchers and clinicians worldwide</p>
@@ -65491,40 +65596,23 @@ button,input,select,textarea{font-family:var(--sans);}
 
                     <!-- Network Tabs -->
                     <div class="network-tabs">
-                        <button class="network-tab active" onclick="NetworkingPortal.showTab('connections')">
+                        <button class="network-tab active" onclick="NetworkingPortal.showTab('discover')">
                             <i class="fas fa-users"></i>
-                            <span>Connections</span>
-                            <span class="network-tab-badge" id="connectionsCount">6</span>
-                        </button>
-                        <button class="network-tab" onclick="NetworkingPortal.showTab('discover')">
-                            <i class="fas fa-search"></i>
-                            <span>Find Connections</span>
+                            <span>People</span>
                         </button>
                         <button class="network-tab" onclick="NetworkingPortal.showTab('requests')">
                             <i class="fas fa-user-plus"></i>
                             <span>Requests</span>
                             <span class="network-tab-badge" id="requestsCount">3</span>
                         </button>
-                        <button class="network-tab" onclick="NetworkingPortal.showTab('meetings')" style="display: none;">
-                            <i class="fas fa-calendar-alt"></i>
-                            <span>Meetings</span>
-                        </button>
                         <button class="network-tab" onclick="NetworkingPortal.showTab('messages')">
                             <i class="fas fa-envelope"></i>
                             <span>Messages</span>
                             <span class="network-tab-badge" id="messagesCount">3</span>
                         </button>
-                        <button class="network-tab" onclick="NetworkingPortal.showTab('opportunities')">
-                            <i class="fas fa-briefcase"></i>
-                            <span>Opportunities</span>
-                        </button>
-                        <button class="network-tab" onclick="NetworkingPortal.showTab('mentorship')">
-                            <i class="fas fa-hands-helping"></i>
-                            <span>Mentorship</span>
-                        </button>
-                        <button class="network-tab" onclick="UserPortal.showSection('settings'); setTimeout(() => { const profileTab = document.querySelector('[data-settings-tab=&quot;profile&quot;]'); if (profileTab) profileTab.click(); }, 200);">
-                            <i class="fas fa-user-cog"></i>
-                            <span>Profile</span>
+                        <button class="network-tab" onclick="NetworkingPortal.showTab('profile')">
+                            <i class="fas fa-id-badge"></i>
+                            <span>My Card</span>
                         </button>
                     </div>
 
@@ -65539,7 +65627,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     </div>
 
                     <!-- Connections Panel -->
-                    <div class="network-panel active" id="network-panel-connections">
+                    <div class="network-panel" id="network-panel-connections">
                         <!-- Suggested Connection Card -->
                         <div class="todays-match-card" id="todaysMatchCard">
                             <div class="todays-match-header">
@@ -65661,6 +65749,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                                 <div class="connection-status"><i class="fas fa-circle"></i> Active today</div>
                                 <div class="connection-actions">
+                                    <button class="connection-btn" onclick="event.stopPropagation(); NetworkingPortal.viewProfile('maria-garcia')"><i class="fas fa-user"></i> View profile</button>
                                     <button class="connection-btn primary" onclick="event.stopPropagation(); NetworkingPortal.messageConnection('maria-garcia', 'Dr. Maria Garcia', 'MG')"><i class="fas fa-comment"></i> Message</button>
                                 </div>
                             </div>
@@ -65678,6 +65767,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                                 <div class="connection-status"><i class="fas fa-circle"></i> Active yesterday</div>
                                 <div class="connection-actions">
+                                    <button class="connection-btn" onclick="event.stopPropagation(); NetworkingPortal.viewProfile('james-kim')"><i class="fas fa-user"></i> View profile</button>
                                     <button class="connection-btn primary" onclick="event.stopPropagation(); NetworkingPortal.messageConnection('james-kim', 'Dr. James Kim', 'JK')"><i class="fas fa-comment"></i> Message</button>
                                 </div>
                             </div>
@@ -65695,6 +65785,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                                 <div class="connection-status"><i class="fas fa-circle" style="color: var(--muted);"></i> Active 3 days ago</div>
                                 <div class="connection-actions">
+                                    <button class="connection-btn" onclick="event.stopPropagation(); NetworkingPortal.viewProfile('thomas-chen')"><i class="fas fa-user"></i> View profile</button>
                                     <button class="connection-btn primary" onclick="event.stopPropagation(); NetworkingPortal.messageConnection('thomas-chen', 'Dr. Thomas Chen', 'TC')"><i class="fas fa-comment"></i> Message</button>
                                 </div>
                             </div>
@@ -65712,6 +65803,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                                 <div class="connection-status"><i class="fas fa-circle"></i> Active today</div>
                                 <div class="connection-actions">
+                                    <button class="connection-btn" onclick="event.stopPropagation(); NetworkingPortal.viewProfile('anna-larsson')"><i class="fas fa-user"></i> View profile</button>
                                     <button class="connection-btn primary" onclick="event.stopPropagation(); NetworkingPortal.messageConnection('anna-larsson', 'Dr. Anna Larsson', 'AL')"><i class="fas fa-comment"></i> Message</button>
                                 </div>
                             </div>
@@ -65729,6 +65821,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                                 <div class="connection-status"><i class="fas fa-circle"></i> Active today</div>
                                 <div class="connection-actions">
+                                    <button class="connection-btn" onclick="event.stopPropagation(); NetworkingPortal.viewProfile('raj-patel')"><i class="fas fa-user"></i> View profile</button>
                                     <button class="connection-btn primary" onclick="event.stopPropagation(); NetworkingPortal.messageConnection('raj-patel', 'Dr. Raj Patel', 'RP')"><i class="fas fa-comment"></i> Message</button>
                                 </div>
                             </div>
@@ -65746,6 +65839,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                                 <div class="connection-status"><i class="fas fa-circle"></i> Active yesterday</div>
                                 <div class="connection-actions">
+                                    <button class="connection-btn" onclick="event.stopPropagation(); NetworkingPortal.viewProfile('elena-weber')"><i class="fas fa-user"></i> View profile</button>
                                     <button class="connection-btn primary" onclick="event.stopPropagation(); NetworkingPortal.messageConnection('elena-weber', 'Dr. Elena Weber', 'EW')"><i class="fas fa-comment"></i> Message</button>
                                 </div>
                             </div>
@@ -65753,7 +65847,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     </div>
 
                     <!-- Discover Panel -->
-                    <div class="network-panel" id="network-panel-discover">
+                    <div class="network-panel active" id="network-panel-discover">
                         <div class="discovery-filters">
                             <div class="discovery-search">
                                 <i class="fas fa-search"></i>
@@ -66378,7 +66472,7 @@ button,input,select,textarea{font-family:var(--sans);}
             <div class="up-section" id="up-section-talks">
                 <div class="network-container">
                     <div class="network-header">
-                        <button class="mx-home-crumb inrow" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
+                        <button class="mx-home-crumb inrow" onclick="UserPortal.showSection('dashboard')" title="Back to Home"><i class="fas fa-arrow-left"></i><span>Back to Home</span></button>
                         <div class="network-header-text">
                             <h1>Talk Library</h1>
                             <p>Keynotes and sessions from past Plexus conferences, on demand</p>
@@ -66396,7 +66490,7 @@ button,input,select,textarea{font-family:var(--sans);}
                 <div class="settings-container">
                     <!-- Settings Header -->
                     <div class="settings-header">
-                        <button class="mx-home-crumb inrow" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
+                        <button class="mx-home-crumb inrow" onclick="UserPortal.showSection('dashboard')" title="Back to Home"><i class="fas fa-arrow-left"></i><span>Back to Home</span></button>
                         <div class="settings-header-text">
                             <h1>Settings</h1>
                             <p>Manage your account preferences</p>
@@ -66709,6 +66803,13 @@ button,input,select,textarea{font-family:var(--sans);}
                             <!-- Appearance Tab -->
                             <div class="settings-panel" id="settings-panel-appearance">
                                 <div class="settings-card">
+                                    <h3>Install app</h3>
+                                    <p class="settings-card-desc">Add Med&X to your home screen for faster access to your tickets and schedule. Works on iPhone, Android, and desktop.</p>
+                                    <button type="button" class="settings-btn-secondary" onclick="if(window.MedXInstall)MedXInstall.trigger()">
+                                        <i class="fas fa-download"></i> Install Med&X
+                                    </button>
+                                </div>
+                                <div class="settings-card">
                                     <h3>Theme</h3>
                                     <p class="settings-card-desc">Customize the look and feel of your Med&X experience.</p>
 
@@ -66870,7 +66971,7 @@ button,input,select,textarea{font-family:var(--sans);}
                 <div class="rewards-container">
                     <!-- Rewards Header -->
                     <div class="rewards-header">
-                        <button class="mx-home-crumb inrow" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
+                        <button class="mx-home-crumb inrow" onclick="UserPortal.showSection('dashboard')" title="Back to Home"><i class="fas fa-arrow-left"></i><span>Back to Home</span></button>
                         <div class="rewards-header-text">
                             <h1>Med&amp;X Rewards</h1>
                             <p>Earn points, unlock exclusive benefits</p>
@@ -67082,7 +67183,7 @@ button,input,select,textarea{font-family:var(--sans);}
             <div class="up-section" id="up-section-bridges">
                 <div class="bb-container">
                     <!-- Home Button (outside hero to avoid overflow:hidden) -->
-                    <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
+                    <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to Home"><i class="fas fa-arrow-left"></i><span>Back to Home</span></button>
 
                     <!-- Hero -->
                     <div class="bb-hero">
@@ -67593,7 +67694,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     <!-- Speaker Area (shown after verification) -->
                     <div id="spSpeakerArea" style="display: none;">
                         <!-- Home Button -->
-                        <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
+                        <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to Home"><i class="fas fa-arrow-left"></i><span>Back to Home</span></button>
 
                         <!-- Welcome Hero -->
                         <div class="sp-hero">
@@ -68005,7 +68106,7 @@ button,input,select,textarea{font-family:var(--sans);}
             <div class="up-section" id="up-section-mymedx">
                 <div class="mymedx-container" style="max-width: 800px; margin: 0 auto; padding: 20px 16px 40px;">
                     <!-- Home Button -->
-                    <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to dashboard"><i class="fas fa-arrow-left"></i><span>Home</span></button>
+                    <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to Home"><i class="fas fa-arrow-left"></i><span>Back to Home</span></button>
 
                     <!-- Hero Header -->
                     <div style="text-align: center; padding: 40px 0 24px;">
@@ -76997,7 +77098,7 @@ You can use variables like {first_name} that will be personalized for each recip
                     '<div style="display:flex;align-items:center;gap:14px;">'
                       + '<div style="width:48px;height:48px;border-radius:12px;background:var(--paper-2);display:flex;align-items:center;justify-content:center;"><i class="fas fa-id-badge" style="font-size:22px;color:var(--crimson);"></i></div>'
                       + '<div style="flex:1;min-width:0;"><div style="font-size:18px;font-weight:700;color:var(--ink);font-family:var(--serif);">'+name+'</div>'
-                      + '<div style="font-size:13px;color:var(--muted);">Med&X member</div></div>'
+                      + '<div style="font-size:13px;color:var(--muted);">Active member</div></div>'
                     + '</div>'
                     + '<div id="mymedxMembershipMeta"></div>'
                     + badgesHtml;
@@ -77018,7 +77119,7 @@ You can use variables like {first_name} that will be personalized for each recip
                     if (m.member_type_label) chips.push(chip('fa-user-md', m.member_type_label));
                     var sinceY = m.member_since ? String(m.member_since).slice(0,4) : '';
                     if (sinceY) chips.push(chip('fa-calendar-check', 'Member since ' + sinceY));
-                    chips.push(chip('fa-shield-halved', m.standing_label || 'Member in good standing'));
+                    chips.push(chip('fa-shield-halved', m.standing_label || 'Active member in good standing'));
                     el.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">' + chips.join('') + '</div>';
                 });
             },
@@ -77334,10 +77435,11 @@ You can use variables like {first_name} that will be personalized for each recip
 
                 const connectionCount = (typeof UserPortal !== 'undefined' && typeof UserPortal.getConnectionCount === 'function')
                     ? UserPortal.getConnectionCount() : 6;
+                const demo = (typeof UserPortal !== 'undefined' && typeof UserPortal.isDemoPersona === 'function' && UserPortal.isDemoPersona());
                 const stats = [
                     { label: 'Connections', value: connectionCount, icon: 'fa-users', color: '#9b1b22' },
-                    { label: 'Pending', value: 3, icon: 'fa-user-clock', color: '#f59e0b' },
-                    { label: 'Favorites', value: 8, icon: 'fa-star', color: '#9b1b22' }
+                    { label: 'Pending', value: demo ? 3 : 0, icon: 'fa-user-clock', color: '#f59e0b' },
+                    { label: 'Favorites', value: demo ? 8 : 0, icon: 'fa-star', color: '#9b1b22' }
                 ];
 
                 container.innerHTML = stats.map(function(s) {
@@ -78098,6 +78200,12 @@ You can use variables like {first_name} that will be personalized for each recip
                 else if (!email.includes('@')) { showFieldError(emEl, 'Please enter a valid email'); hasErr = true; }
                 if (!password || password.length < 8) { showFieldError(pwEl, 'Password must be at least 8 characters'); hasErr = true; }
                 if (!country) { showFieldError(countryEl, 'Country is required'); hasErr = true; }
+                const consentEl = document.getElementById('registerConsent');
+                if (consentEl && !consentEl.checked) {
+                    const errEl = document.getElementById('userRegisterError');
+                    if (errEl) { errEl.textContent = 'Please agree to the Terms and Privacy Policy to continue.'; errEl.classList.add('show'); }
+                    hasErr = true;
+                }
                 if (hasErr) return;
 
                 btn.disabled = true;
@@ -78480,6 +78588,8 @@ You can use variables like {first_name} that will be personalized for each recip
 
             // Toggle notifications panel
             toggleNotifications() {
+                // Route to the unified notification drawer (real user notifications + announcements).
+                try { if (typeof NotificationSystem !== 'undefined') { NotificationSystem.toggle(); return; } } catch (e) {}
                 const panel = document.getElementById('upNotificationsPanel');
                 if (panel) {
                     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
@@ -78633,9 +78743,9 @@ You can use variables like {first_name} that will be personalized for each recip
                                 <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">1. Information We Collect</h3>
                                 <p style="margin-bottom: 12px;">We collect information you provide directly, including your name, email address, institution, country, and any other data submitted through forms on our platform. We also collect usage data such as pages visited, features used, and interaction patterns to improve our services.</p>
                                 <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">2. How We Use Your Information</h3>
-                                <p style="margin-bottom: 12px;">Your information is used to provide and improve the Med&X User Portal, manage event registrations, facilitate networking features, administer the rewards programme, and communicate important updates about Med&X programmes and events.</p>
+                                <p style="margin-bottom: 12px;">Your information is used to provide and improve the Med&X User Portal, manage event registrations, facilitate networking features, administer the rewards program, and communicate important updates about Med&X programs and events.</p>
                                 <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">3. Data Sharing</h3>
-                                <p style="margin-bottom: 12px;">We do not sell your personal information. Data may be shared with trusted service providers who assist in operating our platform, and as required by law. Event-specific data may be shared with relevant programme organisers within Med&X.</p>
+                                <p style="margin-bottom: 12px;">We do not sell your personal information. Data may be shared with trusted service providers who assist in operating our platform, and as required by law. Event-specific data may be shared with relevant program organizers within Med&X.</p>
                                 <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">4. Data Security</h3>
                                 <p style="margin-bottom: 12px;">We implement industry-standard security measures to protect your personal information, including encryption in transit and at rest, secure authentication, and regular security audits.</p>
                                 <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">5. Your Rights</h3>
@@ -78659,8 +78769,8 @@ You can use variables like {first_name} that will be personalized for each recip
                                 <p style="margin-bottom: 12px;">You agree to use the platform only for lawful purposes related to Med&X activities. You shall not misuse the platform, attempt unauthorised access, or interfere with other users' experience.</p>
                                 <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">4. Intellectual Property</h3>
                                 <p style="margin-bottom: 12px;">All content, trademarks, and intellectual property on the Med&X portal are owned by Med&X or its licensors. You may not reproduce, distribute, or create derivative works without prior written consent.</p>
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">5. Rewards Programme</h3>
-                                <p style="margin-bottom: 12px;">Points earned through the Med&X Rewards programme have no monetary value and cannot be transferred or exchanged for cash. Med&X reserves the right to modify the rewards programme at any time.</p>
+                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">5. Rewards Program</h3>
+                                <p style="margin-bottom: 12px;">Points earned through the Med&X Rewards program have no monetary value and cannot be transferred or exchanged for cash. Med&X reserves the right to modify the rewards program at any time.</p>
                                 <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">6. Limitation of Liability</h3>
                                 <p style="margin-bottom: 12px;">Med&X provides the portal on an "as is" basis. We shall not be liable for any indirect, incidental, or consequential damages arising from your use of the platform.</p>
                                 <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">7. Changes to Terms</h3>
@@ -79756,7 +79866,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (!greetingEl) return;
 
                 const user = UserPortal.user;
-                const firstName = user?.first_name || user?.name?.split(' ')[0] || 'there';
+                const firstName = user?.first_name || user?.name?.split(' ')[0] || '';
 
                 // Get time-based greeting
                 const hour = new Date().getHours();
@@ -79769,7 +79879,7 @@ You can use variables like {first_name} that will be personalized for each recip
                     greeting = 'Good evening';
                 }
 
-                greetingEl.textContent = `${greeting}, ${firstName}`;
+                greetingEl.textContent = firstName ? `${greeting}, ${firstName}` : 'Welcome back';
 
                 // Generate contextual subtitle based on user state — rotate through messages
                 const contextMessages = this.getContextualMessages();
@@ -89568,7 +89678,7 @@ You can use variables like {first_name} that will be personalized for each recip
 
         // ===== NETWORKING PORTAL - Smart Networking =====
         const NetworkingPortal = {
-            currentTab: 'connections',
+            currentTab: 'discover',
             selectedDuration: 30,
             selectedTimeSlot: null,
             selectedDate: null,
@@ -89610,6 +89720,9 @@ You can use variables like {first_name} that will be personalized for each recip
                     datePicker.min = today;
                     datePicker.value = today;
                 }
+                // Item 17: land on the People directory (not the empty connections search),
+                // so members with few or no connections have someone to find right away.
+                this.showTab('discover');
             },
 
             async loadConnections() {
@@ -89618,13 +89731,21 @@ You can use variables like {first_name} that will be personalized for each recip
                 try {
                     const connections = await UserPortal.api('/api/networking/connections');
                     if (!Array.isArray(connections) || connections.length === 0) {
-                        // No live connections — keep the example directory already in the grid
+                        if (!UserPortal.isDemoPersona()) {
+                            // Real / fresh account — show a true zero-state with a CTA into the directory.
+                            grid.innerHTML = UserPortal.connectionsZeroStateHTML();
+                            UserPortal._connectionCount = 0;
+                            UserPortal.syncConnectionCounts(0);
+                            return;
+                        }
+                        // Demo persona — keep the example directory already in the grid
                         // and let every surface show one consistent (Example) count.
                         UserPortal._connectionCount = null;
                         UserPortal.syncConnectionCounts();
                         return;
                     }
                     // Live data available — this is now the single source of truth.
+                    grid.setAttribute('data-live', '1');
                     UserPortal._connectionCount = connections.length;
                     UserPortal.syncConnectionCounts(connections.length);
                     grid.innerHTML = connections.map(c => {
@@ -89638,6 +89759,7 @@ You can use variables like {first_name} that will be personalized for each recip
                                 <div class="connection-info"><h4>${name}</h4><span class="connection-specialty">${inst}</span></div>
                             </div>
                             <div class="connection-actions" style="margin-top:12px;">
+                                <button class="connection-btn" onclick="event.stopPropagation(); NetworkingPortal.viewProfile('${partnerId}')"><i class="fas fa-user"></i> View profile</button>
                                 <button class="connection-btn primary" onclick="event.stopPropagation(); NetworkingPortal.messageConnection('${partnerId}','${name.replace(/'/g,"\\'")}','${initials}')"><i class="fas fa-comment"></i> Message</button>
                             </div>
                         </div>`;
@@ -89655,13 +89777,13 @@ You can use variables like {first_name} that will be personalized for each recip
                         const countEl = document.getElementById('pendingRequestsTotal');
                         if (countEl) countEl.textContent = '0';
                         const badgeEl = document.getElementById('requestsCount');
-                        if (badgeEl) badgeEl.textContent = '0';
+                        if (badgeEl) { badgeEl.textContent = '0'; badgeEl.style.display = 'none'; }
                         return;
                     }
                     const countEl = document.getElementById('pendingRequestsTotal');
                     if (countEl) countEl.textContent = pending.length;
                     const badgeEl = document.getElementById('requestsCount');
-                    if (badgeEl) badgeEl.textContent = pending.length;
+                    if (badgeEl) { badgeEl.textContent = pending.length; badgeEl.style.display = ''; }
                     grid.innerHTML = pending.map(r => {
                         const name = escapeHtml(r.name || ((r.first_name || '') + ' ' + (r.last_name || '')).trim() || r.requester_name || 'Member');
                         const inst = escapeHtml(r.institution || '');
@@ -89685,7 +89807,7 @@ You can use variables like {first_name} that will be personalized for each recip
             directoryMembers: null,
             directorySeed: [
                 { id:'seed-maria-garcia', first_name:'Maria', last_name:'Garcia', title:'Neurologist', institution:'Harvard Medical School', city:'Boston', country:'United States', specialtyKey:'neurology', specialtyLabel:'Neurology', interests:['Sleep Disorders','Movement Disorders'], projects:['plexus','forum'], mutuals:['James Kim','Anna Larsson'], mutualCount:2, careerStage:'Senior', online:true, bio:'Clinical neurologist specializing in sleep and movement disorders. Runs the Sleep & Movement Disorders Clinic and mentors early-career researchers in translational neuroscience.' },
-                { id:'seed-ivan-horvat', first_name:'Ivan', last_name:'Horvat', title:'Cardiologist', institution:'University of Zagreb School of Medicine', city:'Zagreb', country:'Croatia', specialtyKey:'cardiology', specialtyLabel:'Cardiology', interests:['Heart Failure','Preventive Cardiology'], projects:['plexus','gala','bridges'], mutuals:['Petra Novak'], mutualCount:1, careerStage:'Mid Career', online:true, bio:'Interventional cardiologist and Plexus programme committee member. Building cross-border research links between Croatian and international cardiology groups.' },
+                { id:'seed-ivan-horvat', first_name:'Ivan', last_name:'Horvat', title:'Cardiologist', institution:'University of Zagreb School of Medicine', city:'Zagreb', country:'Croatia', specialtyKey:'cardiology', specialtyLabel:'Cardiology', interests:['Heart Failure','Preventive Cardiology'], projects:['plexus','gala','bridges'], mutuals:['Petra Novak'], mutualCount:1, careerStage:'Mid Career', online:true, bio:'Interventional cardiologist and Plexus program committee member. Building cross-border research links between Croatian and international cardiology groups.' },
                 { id:'seed-sophie-fischer', first_name:'Sophie', last_name:'Fischer', title:'Cardiovascular Researcher', institution:'ETH Zurich', city:'Zurich', country:'Switzerland', specialtyKey:'cardiology', specialtyLabel:'Cardiology', interests:['Bioengineering','Cardiac Imaging'], projects:['plexus','accelerator'], mutuals:['Ivan Horvat','Thomas Chen'], mutualCount:2, careerStage:'Early Career', online:false, bio:'Bioengineer working on next-generation cardiac imaging. Open to coffee chats and collaborators for a multi-site imaging study.' },
                 { id:'seed-anna-larsson', first_name:'Anna', last_name:'Larsson', title:'Immunologist', institution:'Karolinska Institute', city:'Stockholm', country:'Sweden', specialtyKey:'immunology', specialtyLabel:'Immunology', interests:['Inflammation','Systems Biology'], projects:['forum','plexus'], mutuals:['Maria Garcia','Thomas Chen'], mutualCount:2, careerStage:'Senior', online:true, bio:'Studies the bidirectional relationship between sleep and immune function. Mentors trainees and welcomes new collaborators.' },
                 { id:'seed-elena-weber', first_name:'Elena', last_name:'Weber', title:'Neurologist', institution:'Charite Berlin', city:'Berlin', country:'Germany', specialtyKey:'neurology', specialtyLabel:'Neurology', interests:['Optogenetics','Sleep-Wake Regulation'], projects:['accelerator'], mutuals:['Anna Larsson'], mutualCount:1, careerStage:'Early Career', online:false, bio:'Maps arousal circuits with optogenetics and polysomnography. Looking for senior mentors and translational partners.' },
@@ -89817,6 +89939,7 @@ You can use variables like {first_name} that will be personalized for each recip
                     ${chipsHtml}
                     ${mutualHtml}
                     <div class="connection-actions" style="margin-top:12px;">
+                        <button class="connection-btn" onclick="event.stopPropagation(); NetworkingPortal.viewProfile('${m.id}')"><i class="fas fa-user"></i> View profile</button>
                         <button class="connection-btn primary" onclick="event.stopPropagation(); NetworkingPortal.sendConnectionRequest('${m.id}')"><i class="fas fa-user-plus"></i> Connect</button>
                         <button class="connection-btn" onclick="event.stopPropagation(); NetworkingPortal.messageConnection('${m.id}','${m.name.replace(/'/g, "\\'")}','${m.initials}')"><i class="fas fa-comment"></i> Message</button>
                     </div>
@@ -96788,11 +96911,52 @@ ${'='.repeat(70)}
         UserPortal.EXAMPLE_CONNECTION_COUNT = 6; // Example fallback — matches the seeded directory
         UserPortal._connectionCount = null;      // set to a number once live data arrives
 
+        // Demo/seed personas (a fictional "your" bio, six example connections, mutual/event counts)
+        // only render for an explicit demo persona. Real and tester sign-ups always get true
+        // zero-states. Turn demo on with localStorage medx_demo_persona = 'true' or a ?demo=1 URL.
+        UserPortal.isDemoPersona = function() {
+            try {
+                return localStorage.getItem('medx_demo_persona') === 'true' || /[?&]demo=1(&|$)/.test(location.search);
+            } catch (e) { return false; }
+        };
+
+        // A true zero-state for the connections grid, with a CTA into the member directory.
+        UserPortal.connectionsZeroStateHTML = function() {
+            return '<div class="network-empty-state" style="grid-column:1/-1">'
+                + '<i class="fas fa-user-friends"></i>'
+                + '<h4>No connections yet</h4>'
+                + '<p style="margin-bottom:16px">Browse the member directory and send your first request to start building your network.</p>'
+                + '<button class="btn btn-primary" style="background:var(--crimson,#9b1b22);color:#fff;border:none;border-radius:10px;padding:10px 18px;font-weight:600;cursor:pointer" '
+                + 'onclick="if(typeof NetworkingPortal!==\'undefined\'&amp;&amp;NetworkingPortal.showTab){NetworkingPortal.showTab(\'discover\')}">Find your first connection</button>'
+                + '</div>';
+        };
+
+        // Replace any example "yours" data with true zero-states for real/tester accounts.
+        UserPortal.applyMemberZeroStates = function() {
+            if (this.isDemoPersona()) return;
+            // Connections grid — clear the example cards unless live data has already arrived.
+            const grid = document.getElementById('connectionsGrid');
+            if (grid && !grid.getAttribute('data-live')) {
+                grid.innerHTML = this.connectionsZeroStateHTML();
+            }
+            if (typeof this._connectionCount !== 'number') this._connectionCount = 0;
+            // Own-profile stats that are relative to the member start at zero (no fake mutuals/events).
+            ['profilePanelMutual', 'profilePanelSharedCount', 'profilePanelEvents'].forEach(function(id) {
+                const el = document.getElementById(id);
+                if (el) el.textContent = '0';
+            });
+            // Pending-requests count pill starts empty until the Requests tab loads live data.
+            const rc = document.getElementById('requestsCount');
+            if (rc) { rc.textContent = '0'; rc.style.display = 'none'; }
+        };
+
         // The one place a connection count comes from.
         UserPortal.getConnectionCount = function() {
             if (typeof this._connectionCount === 'number' && this._connectionCount >= 0) {
                 return this._connectionCount;
             }
+            // Real / fresh accounts start at zero. Only an explicit demo persona sees the example count.
+            if (!this.isDemoPersona()) return 0;
             // Fall back to the real list the Network section renders.
             const grid = document.getElementById('connectionsGrid');
             if (grid) {
@@ -96809,6 +96973,9 @@ ${'='.repeat(70)}
                 const el = document.getElementById(id);
                 if (el) el.textContent = n;
             });
+            // The Connections tab badge is a count pill — hide it at zero instead of showing a red 0.
+            const cc = document.getElementById('connectionsCount');
+            if (cc) cc.style.display = (n > 0) ? '' : 'none';
             // Profile modal shows the count only while it is resting on the member's own identity.
             const noOtherMember = (typeof MemberProfile === 'undefined') || !MemberProfile.currentMember;
             if (noOtherMember) {
@@ -96843,6 +97010,14 @@ ${'='.repeat(70)}
                 const tt = document.getElementById('profilePanelTitle'); if (tt) tt.textContent = institution || 'Med&X Member';
                 const loc = document.getElementById('profilePanelLocation');
                 if (loc) loc.innerHTML = locText ? '<i class="fas fa-map-marker-alt"></i> ' + esc(locText) : '';
+                // Own bio — show the real bio, or a prompt to write one (never a fictional bio).
+                const bioEl = document.getElementById('profilePanelBio');
+                if (bioEl) {
+                    const bio = String(u.bio || '').trim();
+                    bioEl.innerHTML = bio
+                        ? esc(bio)
+                        : '<span style="color:var(--up-text-muted,#6e6e73)">Add a short bio so other members know your work. <a href="#" onclick="UserPortal.showSection(\'settings\');return false;" style="color:var(--crimson,#9b1b22);font-weight:600">Complete your profile</a></span>';
+                }
             }
 
             // Floating user menu + avatar.
@@ -96855,6 +97030,7 @@ ${'='.repeat(70)}
         // Bring the first screen into a trustworthy state (identity + one count everywhere).
         UserPortal.hydrateFirstScreen = function() {
             try { this.syncMemberIdentity(); } catch (e) {}
+            try { this.applyMemberZeroStates(); } catch (e) {}
             try { this.syncConnectionCounts(); } catch (e) {}
         };
 
@@ -115204,12 +115380,9 @@ By applying to this program, I give the following consents:
         // PHASE 5: NOTIFICATION CENTER
         // =========================================
         const NotificationCenter = {
-            notifications: [
-                { id: 'n1', type: 'event', title: 'Plexus 2026 Registration Open', body: 'Early bird pricing available until September 1', time: '2 hours ago', read: false },
-                { id: 'n2', type: 'connection', title: 'Dr. Sarah Chen accepted your request', body: 'You are now connected', time: '5 hours ago', read: false },
-                { id: 'n3', type: 'achievement', title: 'Achievement Unlocked!', body: 'You earned the "Networker" badge', time: '1 day ago', read: true },
-                { id: 'n4', type: 'reminder', title: 'Complete your profile', body: 'Add your bio and interests to connect with more people', time: '2 days ago', read: true }
-            ],
+            // Delivery is unified under NotificationSystem (real per-user notifications + member
+            // announcements). No demo or seed notifications ever render for real or tester accounts.
+            notifications: [],
 
             init() {
                 this.render();
@@ -115217,136 +115390,45 @@ By applying to this program, I give the following consents:
             },
 
             open() {
-                document.getElementById('notificationCenter').classList.add('active');
-                // Add backdrop
-                document.body.style.overflow = 'hidden';
-                // Refresh the merged list (admin notifications + member announcements) on open.
-                try { if (typeof NotificationSystem !== 'undefined') { NotificationSystem.render(); NotificationSystem.loadNotifications().then(() => NotificationSystem.render()).catch(() => {}); } } catch (e) {}
-                // Close on Escape, and on a click/tap outside the panel (deferred so the opening
-                // click does not immediately re-close it).
-                this._escHandler = (e) => { if (e.key === 'Escape') this.close(); };
-                document.addEventListener('keydown', this._escHandler);
-                this._outsideHandler = (e) => {
-                    const panel = document.getElementById('notificationCenter');
-                    if (!panel) return;
-                    if (panel.contains(e.target)) return;
-                    if (e.target.closest && e.target.closest('[onclick*="NotificationCenter.toggle"]')) return;
-                    this.close();
-                };
-                setTimeout(() => document.addEventListener('click', this._outsideHandler), 0);
+                try { if (typeof NotificationSystem !== 'undefined') NotificationSystem.open(); } catch (e) {}
             },
 
             close() {
-                document.getElementById('notificationCenter').classList.remove('active');
-                document.body.style.overflow = '';
-                if (this._escHandler) { document.removeEventListener('keydown', this._escHandler); this._escHandler = null; }
-                if (this._outsideHandler) { document.removeEventListener('click', this._outsideHandler); this._outsideHandler = null; }
+                try { if (typeof NotificationSystem !== 'undefined') NotificationSystem.close(); } catch (e) {}
             },
 
             toggle() {
-                const center = document.getElementById('notificationCenter');
-                if (center.classList.contains('active')) {
-                    this.close();
-                } else {
-                    this.open();
-                }
+                try { if (typeof NotificationSystem !== 'undefined') NotificationSystem.toggle(); } catch (e) {}
             },
 
             render() {
-                const list = document.getElementById('notificationList');
-                if (!list) return;
-
-                if (this.notifications.length === 0) {
-                    list.innerHTML = `
-                        <div class="notification-empty">
-                            <i class="fas fa-bell-slash"></i>
-                            <p>No notifications yet</p>
-                        </div>
-                    `;
-                    return;
-                }
-
-                const icons = {
-                    event: 'fa-calendar',
-                    connection: 'fa-user-plus',
-                    achievement: 'fa-trophy',
-                    reminder: 'fa-bell'
-                };
-
-                list.innerHTML = this.notifications.map(n => `
-                    <div class="notification-item ${n.read ? '' : 'unread'}" onclick="NotificationCenter.handleClick('${n.id}')">
-                        <div class="notification-icon ${n.type}">
-                            <i class="fas ${icons[n.type]}"></i>
-                        </div>
-                        <div class="notification-content">
-                            <div class="notification-title">${n.title}</div>
-                            <div class="notification-body">${n.body}</div>
-                            <div class="notification-time">${n.time}</div>
-                        </div>
-                    </div>
-                `).join('');
+                try { if (typeof NotificationSystem !== 'undefined') NotificationSystem.render(); } catch (e) {}
             },
 
             handleClick(id) {
-                const notification = this.notifications.find(n => n.id === id);
-                if (notification) {
-                    notification.read = true;
-                    this.render();
-                    this.updateBadge();
-                    this.close();
-
-                    // Navigate based on type
-                    switch (notification.type) {
-                        case 'event':
-                            UserPortal.showSection('plexus');
-                            break;
-                        case 'connection':
-                            UserPortal.showSection('network');
-                            break;
-                        case 'achievement':
-                            // Show achievements
-                            break;
-                    }
-                }
+                try { if (typeof NotificationSystem !== 'undefined') NotificationSystem.markAsRead(id); } catch (e) {}
             },
 
             markAllRead() {
-                this.notifications.forEach(n => n.read = true);
-                this.render();
-                this.updateBadge();
+                try { if (typeof NotificationSystem !== 'undefined') NotificationSystem.markAllRead(); } catch (e) {}
             },
 
             updateBadge() {
-                const unread = this.notifications.filter(n => !n.read).length;
-                const badges = document.querySelectorAll('.hub-menu-notif-badge, .hub-menu-btn-badge');
-                badges.forEach(badge => {
-                    badge.textContent = unread;
-                    badge.style.display = unread > 0 ? 'flex' : 'none';
-                });
-                // Also update standalone header bell badge
-                const bellBadge = document.getElementById('hubBellBadge');
-                if (bellBadge) {
-                    bellBadge.textContent = unread;
-                    bellBadge.style.display = unread > 0 ? 'flex' : 'none';
-                }
+                try { if (typeof NotificationSystem !== 'undefined') NotificationSystem.render(); } catch (e) {}
             },
 
             add(notification) {
-                this.notifications.unshift({
-                    id: 'n' + Date.now(),
-                    read: false,
-                    time: 'Just now',
-                    ...notification
-                });
-                this.render();
-                this.updateBadge();
-
-                // Show push notification if permitted
-                if (PushNotifications.permission === 'granted') {
-                    PushNotifications.send(notification.title, {
-                        body: notification.body
-                    });
-                }
+                try {
+                    if (typeof NotificationSystem !== 'undefined' && NotificationSystem.add) {
+                        NotificationSystem.add({
+                            title: notification.title,
+                            message: notification.message || notification.body || '',
+                            category: notification.category || notification.type || 'system',
+                            icon: notification.icon || 'fa-bell',
+                            iconClass: notification.iconClass || notification.type || 'system'
+                        });
+                    }
+                } catch (e) {}
             }
         };
 
@@ -119414,7 +119496,7 @@ By applying to this program, I give the following consents:
                 {
                     id: 'news-002',
                     title: 'Med&X Accelerator — applications open',
-                    description: 'Apply for a research placement at a leading institution through the Med&X Accelerator programme.',
+                    description: 'Apply for a research placement at a leading institution through the Med&X Accelerator program.',
                     type: 'program',
                     link: 'accelerator',
                     featured: false,
@@ -124721,14 +124803,28 @@ By applying to this program, I give the following consents:
             },
 
             open() {
-                document.getElementById('notificationBackdrop').classList.add('active');
-                document.getElementById('notificationPanel').classList.add('active');
+                const bd = document.getElementById('notificationBackdrop');
+                const panel = document.getElementById('notificationPanel');
+                if (bd) bd.classList.add('active');
+                if (panel) panel.classList.add('active');
                 this.render();
+                // Refresh from the server on open so the panel and the badge always agree.
+                this.loadNotifications().then(() => this.render()).catch(() => {});
+                this._escHandler = (e) => { if (e.key === 'Escape') this.close(); };
+                document.addEventListener('keydown', this._escHandler);
+            },
+
+            toggle() {
+                const panel = document.getElementById('notificationPanel');
+                if (panel && panel.classList.contains('active')) { this.close(); } else { this.open(); }
             },
 
             close() {
-                document.getElementById('notificationBackdrop').classList.remove('active');
-                document.getElementById('notificationPanel').classList.remove('active');
+                const bd = document.getElementById('notificationBackdrop');
+                const panel = document.getElementById('notificationPanel');
+                if (bd) bd.classList.remove('active');
+                if (panel) panel.classList.remove('active');
+                if (this._escHandler) { document.removeEventListener('keydown', this._escHandler); this._escHandler = null; }
             },
 
             markAsRead(notificationId) {
@@ -124783,9 +124879,11 @@ By applying to this program, I give the following consents:
                     if (b) { b.textContent = this.unreadCount; b.style.display = this.unreadCount > 0 ? 'flex' : 'none'; }
                 });
 
-                // Render notification list
-                const list = document.getElementById('notificationCenterList');
-                if (!list) return;
+                // Render into the slide-out drawer body (and the legacy dropdown if it is present)
+                // so the visible panel always matches the bell badge.
+                const drawerList = document.getElementById('notificationList');
+                const dropdownList = document.getElementById('notificationCenterList');
+                if (!drawerList && !dropdownList) return;
 
                 // Group by time
                 const today = [];
@@ -124812,15 +124910,15 @@ By applying to this program, I give the following consents:
                 }
 
                 if (!this.notifications.length) {
-                    html = EmptyState.render({
-                        icon: 'fa-bell-slash',
-                        title: 'No notifications',
-                        message: 'You\'re all caught up!',
-                        compact: true
-                    });
+                    html = '<div class="notification-empty" style="text-align:center;padding:48px 24px;color:var(--text-muted)">'
+                        + '<i class="fas fa-check-circle" style="font-size:34px;margin-bottom:12px;display:block;color:var(--accent-gold)"></i>'
+                        + '<div style="font-weight:600;color:var(--text-primary);margin-bottom:4px">You\'re all caught up</div>'
+                        + '<div style="font-size:13px">New notifications will show up here.</div>'
+                        + '</div>';
                 }
 
-                list.innerHTML = html;
+                if (drawerList) drawerList.innerHTML = html;
+                if (dropdownList) dropdownList.innerHTML = html;
             },
 
             renderNotification(n) {
@@ -125502,6 +125600,53 @@ By applying to this program, I give the following consents:
     ">
         <i class="fas fa-qrcode"></i>
     </button>
+
+    <!-- Global install helper so the Settings "Install app" row works on Android (native prompt)
+         and iOS (Add to Home Screen instructions). Isolated so it can never break the app. -->
+    <script>
+    (function () {
+        try {
+            var deferred = null;
+            window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; });
+            function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream; }
+            function isStandalone() { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
+            function iosSheet() {
+                if (document.getElementById('medxIosInstallSheet')) return;
+                var m = document.createElement('div');
+                m.id = 'medxIosInstallSheet';
+                m.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;padding:20px;font-family:system-ui,-apple-system,sans-serif;';
+                m.innerHTML = '<div style="background:#fff;color:#15110f;border-radius:16px;max-width:360px;width:100%;padding:22px;text-align:center;">'
+                    + '<div style="font-size:34px;margin-bottom:8px;">📲</div>'
+                    + '<h3 style="margin:0 0 8px;font-size:18px;">Add Med&X to your Home Screen</h3>'
+                    + '<p style="margin:0 0 6px;font-size:14px;color:#5b5650;line-height:1.6;">1. Tap the <strong>Share</strong> icon in your browser bar</p>'
+                    + '<p style="margin:0 0 16px;font-size:14px;color:#5b5650;line-height:1.6;">2. Choose <strong>Add to Home Screen</strong></p>'
+                    + '<button id="medxIosSheetClose" style="background:#15110f;color:#fff;border:none;border-radius:10px;padding:10px 22px;font-weight:600;cursor:pointer;">Got it</button>'
+                    + '</div>';
+                document.body.appendChild(m);
+                m.onclick = function (e) { if (e.target === m || e.target.id === 'medxIosSheetClose') m.remove(); };
+            }
+            window.MedXInstall = {
+                isIOS: isIOS,
+                isStandalone: isStandalone,
+                hasNativePrompt: function () { return !!deferred; },
+                showIosInstructions: iosSheet,
+                trigger: function () {
+                    if (isStandalone()) {
+                        try { if (typeof ToastSystem !== 'undefined') ToastSystem.info('Med&X is already installed on this device.'); } catch (e) {}
+                        return;
+                    }
+                    if (deferred) {
+                        deferred.prompt();
+                        try { deferred.userChoice.then(function () { deferred = null; }); } catch (e) { deferred = null; }
+                        return;
+                    }
+                    // No native prompt (iOS Safari, or the event has not fired) -> show Add to Home Screen steps.
+                    iosSheet();
+                }
+            };
+        } catch (e) { /* never let the install helper break the app */ }
+    })();
+    </script>
 
     <!-- Self-contained "Install app" banner (attendee-facing PWA install; iOS-aware). -->
     <script>

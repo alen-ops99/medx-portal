@@ -1113,7 +1113,7 @@
 
         .main {
             flex: 1;
-            padding: 32px;
+            padding: 32px 32px 120px;
             overflow-y: auto;
             height: 100vh;
             min-width: 0;
@@ -1668,8 +1668,14 @@
             margin-bottom: 24px;
         }
 
+        /* Item 18: one KPI-card dialect across the admin — left-accent-bar card. */
         .stat-item {
-            text-align: center;
+            text-align: left;
+            padding: 13px 15px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-left: 3px solid #c9a962;
+            border-radius: 10px;
         }
 
         .stat-value {
@@ -3875,6 +3881,30 @@
                 width: 32px;
                 height: 32px;
             }
+        }
+
+        /* Item 16: mobile header + tab-strip polish (<=640px).
+           Stack the two-column headers so titles keep their own line (no
+           "Member"/"Ops" fragments), let tab rows wrap to full-text labels
+           instead of clipping, and clip any off-canvas element that would
+           otherwise bleed a sliver past the left edge. */
+        @media (max-width: 640px) {
+            html, body { overflow-x: hidden; }
+            .page-header,
+            .section-header {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 10px !important;
+            }
+            .page-header > *,
+            .section-header > * { max-width: 100%; }
+            .page-header h1,
+            .section-header h1 { width: 100%; }
+            /* Tab strips that are single-row on desktop wrap here with their
+               full text labels rather than shrinking or clipping. */
+            .settings-tabs,
+            .project-chat-tabs,
+            .mo-tab-row { flex-wrap: wrap !important; overflow-x: visible; white-space: normal; }
         }
 
         /* ===== PLEXUS CONFERENCE MANAGEMENT ===== */
@@ -6501,7 +6531,7 @@
             <form class="login-form" onsubmit="event.preventDefault(); try{App.login(event)}catch(err){console.error(err);document.getElementById('loginError').textContent=err.message;document.getElementById('loginError').classList.add('show')}; return false;">
                 <div class="form-group">
                     <label class="form-label">Email</label>
-                    <input type="email" class="form-input" id="loginEmail" placeholder="juginovic.alen@gmail.com" required>
+                    <input type="email" class="form-input" id="loginEmail" placeholder="you@medx.hr" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Password</label>
@@ -6728,7 +6758,9 @@
                     <span>PR & Media</span>
                 </a>
 
-                <a class="nav-item" data-section="user-notifications" onclick="App.showSection('user-notifications', this)">
+                <!-- Item 11: merged into "Message members" (data-section=announce). Nav entry hidden;
+                     section stays reachable by direct id (cmd palette, quick actions) for back-compat. -->
+                <a class="nav-item" data-section="user-notifications" onclick="App.showSection('user-notifications', this)" style="display:none;">
                     <i class="fas fa-paper-plane" style="color: #b06a1f;"></i>
                     <span>Notifications</span>
                     <span id="userNotifCount" style="background: #ef4444; color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
@@ -6757,7 +6789,7 @@
 
                 <a class="nav-item" data-section="announce" onclick="App.showSection('announce', this)">
                     <i class="fas fa-bullhorn" style="color: #9b1b22;"></i>
-                    <span>Announce</span>
+                    <span>Message members</span>
                 </a>
 
                 <a class="nav-item" data-section="member-ops" onclick="App.showSection('member-ops', this)">
@@ -6915,19 +6947,19 @@
                                 </div>
                             </div>
                             <!-- Total revenue -->
-                            <div class="card" style="padding: 18px; border-left: 4px solid #10b981;">
+                            <div class="card" style="padding: 18px; border-left: 4px solid var(--accent-gold);">
                                 <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                                     <div>
                                         <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;">Revenue Confirmed</div>
                                         <div id="overviewRevenue" style="font-size: 32px; font-weight: 700; color: var(--text-primary); margin-top: 4px; line-height: 1;">—</div>
                                         <div id="overviewRevenueNote" style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">paid Gala tickets</div>
                                     </div>
-                                    <i class="fas fa-coins" style="color: #10b981; font-size: 22px;"></i>
+                                    <i class="fas fa-coins" style="color: var(--accent-gold); font-size: 22px;"></i>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Quick actions: create a link of each type -->
+                        <!-- Quick actions: live event-day actions a volunteer needs (item 15) -->
                         <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
                             <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; flex-shrink: 0;">Quick Actions</div>
                             <button class="btn btn-secondary" onclick="App.generateRegistrationLink('gala')" style="padding: 7px 14px; font-size: 12px;">
@@ -6942,16 +6974,25 @@
                             <button class="btn btn-secondary" onclick="App.showSection('gala'); setTimeout(()=>GalaAdmin.showTab('settings'),200);" style="padding: 7px 14px; font-size: 12px;">
                                 <i class="fas fa-cog" style="color:var(--text-muted);"></i> Edit Event Details
                             </button>
-                            <button class="btn btn-primary" onclick="EventCheckin.open()" style="padding: 7px 14px; font-size: 12px; background:linear-gradient(135deg,#22c55e,#16a34a); margin-left:auto;">
+                            <button class="btn btn-primary" onclick="EventCheckin.open()" style="padding: 7px 14px; font-size: 12px; background:linear-gradient(135deg,#9b1b22,#7e151b); border:none; margin-left:auto;">
                                 <i class="fas fa-qrcode"></i> Event Check-in Scanner
                             </button>
-                            <button class="btn btn-secondary" onclick="EventCheckin.sendTestEmail()" style="padding: 7px 14px; font-size: 12px;" title="Send a test QR to your admin email so you can verify the scanner works">
-                                <i class="fas fa-envelope"></i> Send Test QR
-                            </button>
-                            <button class="btn btn-secondary" onclick="EventCheckin.sendBundleTestEmail()" style="padding: 7px 14px; font-size: 12px;" title="Send a full 3-event Croatians Abroad bundle confirmation email (with real working Gala QR) to any address">
-                                <i class="fas fa-gift" style="color:#ef4444;"></i> Send Bundle Test
-                            </button>
                         </div>
+
+                        <!-- Testing tools: developer-only test sends, kept clear of the live actions above (item 15) -->
+                        <details style="margin-top: 10px; background: rgba(255,255,255,0.02); border: 1px dashed var(--border); border-radius: 12px; padding: 6px 16px;">
+                            <summary style="font-size: 12px; font-weight: 600; color: var(--text-muted); cursor: pointer; padding: 8px 0; list-style: none;">
+                                <i class="fas fa-flask" style="margin-right: 6px; color: var(--text-muted);"></i> Testing tools <span style="font-weight: 400;">— sends test emails, not for event day</span>
+                            </summary>
+                            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 4px 0 12px;">
+                                <button class="btn btn-secondary" onclick="EventCheckin.sendTestEmail()" style="padding: 7px 14px; font-size: 12px;" title="Send a test QR to your admin email so you can verify the scanner works">
+                                    <i class="fas fa-envelope"></i> Send test check-in QR to myself
+                                </button>
+                                <button class="btn btn-secondary" onclick="EventCheckin.sendBundleTestEmail()" style="padding: 7px 14px; font-size: 12px;" title="Send a full 3-event Croatians Abroad bundle confirmation email (with real working Gala QR) to any address">
+                                    <i class="fas fa-gift" style="color: var(--text-muted);"></i> Send sample bundle confirmation email
+                                </button>
+                            </div>
+                        </details>
                     </div>
 
                     <!-- Pinned Items (from any project) -->
@@ -7119,7 +7160,7 @@
                 <!-- PLEXUS CONFERENCE MANAGEMENT -->
                 <div class="section" id="section-plexus">
                     <div class="back-link" onclick="App.showSection('dashboard')">
-                        <i class="fas fa-arrow-left"></i> Back to Home
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
                     </div>
                     <div class="page-header" style="display:flex; justify-content:space-between; align-items:center;">
                         <div>
@@ -7129,6 +7170,21 @@
                         <button class="btn btn-primary" onclick="App.generateRegistrationLink('plexus')" style="white-space:nowrap; background:linear-gradient(135deg,#9b1b22,#7e151b); border:none;">
                             <i class="fas fa-link"></i> Direct Link
                         </button>
+                    </div>
+
+                    <!-- Item 18: primary tab nav sits directly under the page title, above all tab content. -->
+                    <div class="plexus-tabs">
+                        <button class="plexus-tab active" onclick="App.showPlexusTab('dashboard')"><i class="fas fa-chart-line"></i> Dashboard</button>
+                        <button class="plexus-tab" onclick="App.showPlexusTab('registrations')"><i class="fas fa-users"></i> Registrations</button>
+                        <button class="plexus-tab" onclick="App.showPlexusTab('abstracts')"><i class="fas fa-file-alt"></i> Abstracts</button>
+                        <button class="plexus-tab" onclick="App.showPlexusTab('schedule')"><i class="fas fa-calendar-alt"></i> Schedule</button>
+                        <button class="plexus-tab" onclick="App.showPlexusTab('speakers')"><i class="fas fa-microphone"></i> Speakers</button>
+                        <button class="plexus-tab" onclick="App.showPlexusTab('sponsors')"><i class="fas fa-handshake"></i> Sponsors</button>
+                        <button class="plexus-tab" onclick="App.showPlexusTab('volunteers')"><i class="fas fa-hand-holding-heart"></i> Volunteers</button>
+                        <button class="plexus-tab" onclick="App.showPlexusTab('checkin')"><i class="fas fa-qrcode"></i> Check-in</button>
+                        <button class="plexus-tab" onclick="App.showPlexusTab('pending')"><i class="fas fa-tasks"></i> Pending</button>
+                        <button class="plexus-tab" onclick="App.showPlexusTab('waitlist')"><i class="fas fa-user-clock"></i> Waitlist</button>
+                        <button class="plexus-tab" onclick="App.showPlexusTab('settings')"><i class="fas fa-cog"></i> Settings</button>
                     </div>
 
                     <!-- (Registration page text — intro + per-event title/status/date/description —
@@ -7150,20 +7206,7 @@
                         </div>
                     </div>
 
-                    <!-- Plexus Sub-Navigation -->
-                    <div class="plexus-tabs">
-                        <button class="plexus-tab active" onclick="App.showPlexusTab('dashboard')"><i class="fas fa-chart-line"></i> Dashboard</button>
-                        <button class="plexus-tab" onclick="App.showPlexusTab('registrations')"><i class="fas fa-users"></i> Registrations</button>
-                        <button class="plexus-tab" onclick="App.showPlexusTab('abstracts')"><i class="fas fa-file-alt"></i> Abstracts</button>
-                        <button class="plexus-tab" onclick="App.showPlexusTab('schedule')"><i class="fas fa-calendar-alt"></i> Schedule</button>
-                        <button class="plexus-tab" onclick="App.showPlexusTab('speakers')"><i class="fas fa-microphone"></i> Speakers</button>
-                        <button class="plexus-tab" onclick="App.showPlexusTab('sponsors')"><i class="fas fa-handshake"></i> Sponsors</button>
-                        <button class="plexus-tab" onclick="App.showPlexusTab('volunteers')"><i class="fas fa-hand-holding-heart"></i> Volunteers</button>
-                        <button class="plexus-tab" onclick="App.showPlexusTab('checkin')"><i class="fas fa-qrcode"></i> Check-in</button>
-                        <button class="plexus-tab" onclick="App.showPlexusTab('pending')"><i class="fas fa-tasks"></i> Pending</button>
-                        <button class="plexus-tab" onclick="App.showPlexusTab('waitlist')"><i class="fas fa-user-clock"></i> Waitlist</button>
-                        <button class="plexus-tab" onclick="App.showPlexusTab('settings')"><i class="fas fa-cog"></i> Settings</button>
-                    </div>
+                    <!-- Plexus Sub-Navigation moved directly under the page title (item 18). -->
 
                     <!-- DASHBOARD TAB -->
                     <div class="plexus-content active" id="plexus-dashboard">
@@ -7171,7 +7214,7 @@
                             <div class="stat-item"><div class="stat-value" id="pxStatReg">-</div><div class="stat-label">Registered</div></div>
                             <div class="stat-item"><div class="stat-value" id="pxStatPaid">-</div><div class="stat-label">Paid</div></div>
                             <div class="stat-item"><div class="stat-value" id="pxStatChecked">-</div><div class="stat-label">Checked In</div></div>
-                            <div class="stat-item" style="border-left: 3px solid var(--accent-gold);"><div class="stat-value" id="pxStatRevenue">-</div><div class="stat-label">Revenue (EUR)</div></div>
+                            <div class="stat-item"><div class="stat-value" id="pxStatRevenue">-</div><div class="stat-label">Revenue (EUR)</div></div>
                             <div class="stat-item"><div class="stat-value" id="pxStatAbstracts">-</div><div class="stat-label">Abstracts</div></div>
                             <div class="stat-item"><div class="stat-value" id="pxStatAccepted">-</div><div class="stat-label">Accepted</div></div>
                         </div>
@@ -7814,7 +7857,7 @@ President, Med&amp;X</textarea>
                 <!-- ACCELERATOR -->
                 <div class="section" id="section-accelerator">
                     <div class="back-link" onclick="App.showSection('dashboard')">
-                        <i class="fas fa-arrow-left"></i> Back to Home
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
                     </div>
                     <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
@@ -8609,7 +8652,7 @@ President, Med&amp;X</textarea>
                 <!-- BIOMEDICAL FORUM -->
                 <div class="section" id="section-forum">
                     <div class="back-link" onclick="App.showSection('dashboard')">
-                        <i class="fas fa-arrow-left"></i> Back to Home
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
                     </div>
                     <div class="page-header" style="display:flex; justify-content:space-between; align-items:center;">
                         <div>
@@ -9086,7 +9129,7 @@ President, Med&amp;X</textarea>
                 <!-- BRIDGES -->
                 <div class="section" id="section-bridges">
                     <div class="back-link" onclick="App.showSection('dashboard')">
-                        <i class="fas fa-arrow-left"></i> Back to Home
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
                     </div>
                     <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
@@ -9298,7 +9341,7 @@ President, Med&amp;X</textarea>
                 <!-- FINANCES -->
                 <div class="section" id="section-finances">
                     <div class="back-link" onclick="App.showSection('dashboard')">
-                        <i class="fas fa-arrow-left"></i> Back to Home
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
                     </div>
                     <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
                         <div>
@@ -9351,20 +9394,20 @@ President, Med&amp;X</textarea>
                     <!-- Dashboard Tab -->
                     <div class="finance-tab active" id="finance-tab-dashboard">
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
-                            <div class="stat-card" style="background: linear-gradient(135deg, var(--finances), #059669); padding: 20px; border-radius: 12px;">
-                                <div style="font-size: 13px; color: rgba(255,255,255,0.8);">Current Bank Balance</div>
-                                <div style="font-size: 28px; font-weight: 700; color: white;" id="finDashBalance">0.00 EUR</div>
-                                <div style="font-size: 11px; color: rgba(255,255,255,0.6);" id="finDashBalanceDate">-</div>
+                            <div class="stat-item">
+                                <div style="font-size: 13px; color: var(--text-muted);">Current Bank Balance</div>
+                                <div style="font-size: 28px; font-weight: 700; color: var(--text-primary);" id="finDashBalance">0.00 EUR</div>
+                                <div style="font-size: 11px; color: var(--text-muted);" id="finDashBalanceDate">-</div>
                             </div>
-                            <div class="stat-card" style="background: var(--bg-tertiary); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
+                            <div class="stat-item">
                                 <div style="font-size: 13px; color: var(--text-muted);">Total Income</div>
                                 <div style="font-size: 24px; font-weight: 600; color: var(--success);" id="finDashIncome">0.00 EUR</div>
                             </div>
-                            <div class="stat-card" style="background: var(--bg-tertiary); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
+                            <div class="stat-item">
                                 <div style="font-size: 13px; color: var(--text-muted);">Total Expenses</div>
                                 <div style="font-size: 24px; font-weight: 600; color: var(--danger);" id="finDashExpenses">0.00 EUR</div>
                             </div>
-                            <div class="stat-card" style="background: var(--bg-tertiary); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
+                            <div class="stat-item">
                                 <div style="font-size: 13px; color: var(--text-muted);">Net Balance</div>
                                 <div style="font-size: 24px; font-weight: 600;" id="finDashNet">0.00 EUR</div>
                             </div>
@@ -10251,18 +10294,29 @@ President, Med&amp;X</textarea>
 
                 <!-- User Notifications Section -->
                 <div class="section" id="section-user-notifications">
-                    <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <div class="back-link" onclick="App.showSection('dashboard')">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </div>
+                    <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                         <div>
                             <h1 style="font-size: 28px; font-weight: 700; margin-bottom: 4px;">
-                                <i class="fas fa-paper-plane" style="color: #c14b52; margin-right: 12px;"></i>
-                                User Notifications
+                                <i class="fas fa-bullhorn" style="color: #c9a962; margin-right: 12px;"></i>
+                                Message members
                             </h1>
-                            <p style="color: var(--text-muted);">Send announcements and notifications to user portal members</p>
+                            <p style="color: var(--text-muted);">The one place to reach members.</p>
                         </div>
                         <button class="btn btn-primary" onclick="UserNotifApp.showSendForm()">
                             <i class="fas fa-plus"></i> New Notification
                         </button>
                     </div>
+
+                    <!-- Item 11: unified Message members tabs (Direct notification active). -->
+                    <div style="display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:22px; overflow-x:auto;">
+                        <button onclick="App.showSection('announce', document.querySelector('.nav-item[data-section=announce]'))" style="background:none; border:none; border-bottom:2px solid transparent; color:var(--text-muted); font-weight:600; font-size:14px; padding:10px 16px; cursor:pointer; white-space:nowrap;"><i class="fas fa-bullhorn" style="margin-right:7px;"></i>Announcement</button>
+                        <button onclick="App.showSection('user-notifications', document.querySelector('.nav-item[data-section=announce]'))" style="background:none; border:none; border-bottom:2px solid #9b1b22; color:var(--text-primary); font-weight:700; font-size:14px; padding:10px 16px; cursor:pointer; white-space:nowrap;"><i class="fas fa-paper-plane" style="margin-right:7px; color:#9b1b22;"></i>Direct notification</button>
+                    </div>
+
+                    <p style="color: var(--text-muted); font-size:13px; margin:-8px 0 18px;">Use this for a precise send — pick a group or tier, set a homepage banner or expiry, or add a push. Reaches the member notification panel.</p>
 
                     <!-- Send Notification Form -->
                     <div id="notifSendForm" style="display: none; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px;">
@@ -10434,7 +10488,7 @@ President, Med&amp;X</textarea>
                     <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                         <div>
                             <h1 style="font-size: 28px; font-weight: 700; margin-bottom: 4px;">
-                                <i class="fas fa-envelope-open-text" style="color: #c14b52; margin-right: 12px;"></i>
+                                <i class="fas fa-envelope-open-text" style="color: #c9a962; margin-right: 12px;"></i>
                                 Member Newsletter
                             </h1>
                             <p style="color: var(--text-muted);">Create and send email newsletters to user portal members</p>
@@ -10633,7 +10687,7 @@ President, Med&amp;X</textarea>
                     <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                         <div>
                             <h1 style="font-size: 28px; font-weight: 700; margin-bottom: 4px;">
-                                <i class="fas fa-envelope" style="color: #c14b52; margin-right: 12px;"></i>
+                                <i class="fas fa-envelope" style="color: #c9a962; margin-right: 12px;"></i>
                                 Messages
                             </h1>
                             <p style="color: var(--text-muted);">Member conversations. The inbox shows what needs a reply first.</p>
@@ -10724,13 +10778,21 @@ President, Med&amp;X</textarea>
                         <i class="fas fa-arrow-left"></i> Back to Dashboard
                     </div>
 
-                    <div class="section-header" style="margin-bottom: 20px;">
+                    <div class="section-header" style="margin-bottom: 16px;">
                         <h1 style="font-size: 28px; font-weight: 700; margin-bottom: 4px;">
-                            <i class="fas fa-bullhorn" style="color: #9b1b22; margin-right: 12px;"></i>
-                            Announce
+                            <i class="fas fa-bullhorn" style="color: #c9a962; margin-right: 12px;"></i>
+                            Message members
                         </h1>
-                        <p style="color: var(--text-muted);">The one place to reach members. Choose who should see it, write it, and publish. Members see it in their notification bell.</p>
+                        <p style="color: var(--text-muted);">The one place to reach members.</p>
                     </div>
+
+                    <!-- Item 11: unified Message members tabs — Announcement (bell + push) / Direct notification (panel, homepage banner, tier, expiry). Two backends, one screen. -->
+                    <div style="display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:22px; overflow-x:auto;">
+                        <button onclick="App.showSection('announce', document.querySelector('.nav-item[data-section=announce]'))" style="background:none; border:none; border-bottom:2px solid #9b1b22; color:var(--text-primary); font-weight:700; font-size:14px; padding:10px 16px; cursor:pointer; white-space:nowrap;"><i class="fas fa-bullhorn" style="margin-right:7px; color:#9b1b22;"></i>Announcement</button>
+                        <button onclick="App.showSection('user-notifications', document.querySelector('.nav-item[data-section=announce]'))" style="background:none; border:none; border-bottom:2px solid transparent; color:var(--text-muted); font-weight:600; font-size:14px; padding:10px 16px; cursor:pointer; white-space:nowrap;"><i class="fas fa-paper-plane" style="margin-right:7px;"></i>Direct notification</button>
+                    </div>
+
+                    <p style="color: var(--text-muted); font-size:13px; margin:-8px 0 18px;">Use this for a broad post to everyone or a project's followers. Members see it in their notification bell.</p>
 
                     <div style="display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: 20px; align-items: start;">
                         <!-- Composer -->
@@ -10815,7 +10877,7 @@ President, Med&amp;X</textarea>
                         <p style="color: var(--text-muted);">The everyday controls for the member app — the home screen cards, the accelerator sites list, and the to-do lists.</p>
                     </div>
 
-                    <div style="display: flex; gap: 8px; margin-bottom: 22px; border-bottom: 1px solid var(--border); padding-bottom: 12px; overflow-x: auto; white-space: nowrap;">
+                    <div class="mo-tab-row" style="display: flex; gap: 8px; margin-bottom: 22px; border-bottom: 1px solid var(--border); padding-bottom: 12px; overflow-x: auto; white-space: nowrap;">
                         <button class="btn btn-primary" id="moTabHome" onclick="MemberOpsApp.showTab('home')" style="font-size: 13px; flex-shrink: 0;"><i class="fas fa-home"></i> Home screen</button>
                         <button class="btn btn-secondary" id="moTabSites" onclick="MemberOpsApp.showTab('sites')" style="font-size: 13px; flex-shrink: 0;"><i class="fas fa-flask"></i> Accelerator sites</button>
                         <button class="btn btn-secondary" id="moTabTasks" onclick="MemberOpsApp.showTab('tasks')" style="font-size: 13px; flex-shrink: 0;"><i class="fas fa-check-square"></i> Tasks</button>
@@ -10872,23 +10934,29 @@ President, Med&amp;X</textarea>
                         </button>
                     </div>
 
-                    <!-- Gala Stats -->
+                    <!-- Gala Stats (item 20: unified onto the shared .stat-item KPI style,
+                         dropping the per-tile crimson/amber number colors. Forest green is
+                         kept only for the paid money aggregate) -->
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px;">
-                        <div class="card" style="padding: 20px; text-align: center;">
-                            <div style="font-size: 32px; font-weight: 700; color: var(--accent-gold);" id="galaStatTotal">0</div>
-                            <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Total Requests</div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="galaStatTotal">0</div>
+                            <div class="stat-label">Total Requests</div>
                         </div>
-                        <div class="card" style="padding: 20px; text-align: center;">
-                            <div style="font-size: 32px; font-weight: 700; color: #b45309;" id="galaStatPending">0</div>
-                            <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Pending</div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="galaStatPending">0</div>
+                            <div class="stat-label">Pending</div>
                         </div>
-                        <div class="card" style="padding: 20px; text-align: center;">
-                            <div style="font-size: 32px; font-weight: 700; color: #047857;" id="galaStatApproved">0</div>
-                            <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Approved</div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="galaStatApproved">0</div>
+                            <div class="stat-label">Approved</div>
                         </div>
-                        <div class="card" style="padding: 20px; text-align: center;">
-                            <div style="font-size: 32px; font-weight: 700; color: #16a34a;" id="galaStatPaid">0</div>
-                            <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Paid / Confirmed</div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="galaStatPaid">0</div>
+                            <div class="stat-label">Confirmed (RSVP)</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" style="color: #15803d;" id="galaStatPaidOnly">0</div>
+                            <div class="stat-label">Paid <span id="galaStatPaidRevenue" style="color:#15803d; font-weight:600;">· €0</span></div>
                         </div>
                     </div>
 
@@ -10897,22 +10965,26 @@ President, Med&amp;X</textarea>
                         <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
                             <i class="fas fa-utensils" style="color:#9b1b22; font-size:18px;"></i>
                             <span style="font-size:16px; font-weight:700;">Dinner headcount for the caterer</span>
-                            <span style="font-size:11px; color:var(--text-muted); font-weight:600;">confirmed &amp; paid guests · read-only</span>
+                            <span style="font-size:11px; color:var(--text-muted); font-weight:600;">confirmed guests (some unpaid) · read-only</span>
                         </div>
                         <div id="galaCateringLine" style="font-size:22px; font-weight:700; color:var(--text-primary); line-height:1.4;">—</div>
+                        <div id="galaAllergyDetail" style="display:none; margin-top:12px; padding-top:12px; border-top:1px solid var(--border); font-size:13px; color:var(--text-secondary); line-height:1.7;"></div>
                     </div>
 
-                    <!-- Attendance (checked-in) card (item 6) -->
+                    <!-- Attendance (checked-in) card (item 6) — same .stat-item KPI style -->
                     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:16px; margin-bottom:24px;">
-                        <div class="card" style="padding:20px; text-align:center;">
-                            <div style="font-size:32px; font-weight:700; color:#15803d;" id="galaStatCheckedIn">0</div>
-                            <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">Checked in on the night</div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="galaStatCheckedIn">0</div>
+                            <div class="stat-label">Checked in on the night</div>
                         </div>
-                        <div class="card" style="padding:20px; text-align:center;">
-                            <div style="font-size:32px; font-weight:700; color:#6b6258;" id="galaStatToArrive">0</div>
-                            <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">Paid, not yet arrived</div>
+                        <div class="stat-item">
+                            <div class="stat-value" style="color:#6b6258;" id="galaStatToArrive">0</div>
+                            <div class="stat-label">Confirmed, not yet arrived</div>
                         </div>
                     </div>
+
+                    <!-- Reconciliation summary (item 4): requests · confirmed · paid · collected -->
+                    <div id="galaSummaryLine" style="font-size:13px; color:var(--text-muted); font-weight:600; margin:-8px 0 24px;">—</div>
 
                     <!-- Gala Tabs -->
                     <div style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 12px; overflow-x: auto; white-space: nowrap;">
@@ -10943,8 +11015,13 @@ President, Med&amp;X</textarea>
                                         <option value="all">All Statuses</option>
                                         <option value="pending">Pending</option>
                                         <option value="approved">Approved</option>
-                                        <option value="confirmed">Confirmed (Paid)</option>
+                                        <option value="confirmed">Confirmed</option>
                                         <option value="rejected">Rejected</option>
+                                    </select>
+                                    <select id="galaPaymentFilter" onchange="GalaAdmin.filterRegistrations()" style="padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary); font-size: 13px;">
+                                        <option value="all">All Payments</option>
+                                        <option value="paid">Paid</option>
+                                        <option value="unpaid">Unpaid</option>
                                     </select>
                                 </div>
                             </div>
@@ -12769,7 +12846,7 @@ President, Med&amp;X</textarea>
     </div>
 
     <!-- Network Panel (sliding panel from left - wide version) -->
-    <div id="networkPanel" style="position: fixed; top: 0; left: -65%; width: 65%; height: 100vh; background: var(--bg-secondary); border-right: 1px solid var(--border); z-index: 1001; transition: left 0.3s ease; display: flex; flex-direction: column;">
+    <div id="networkPanel" style="position: fixed; top: 0; left: -65%; width: 65%; height: 100vh; background: var(--bg-secondary); border-right: 1px solid var(--border); z-index: 1001; transition: left 0.3s ease; display: flex; flex-direction: column; overflow-x: hidden;">
         <div style="padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
             <h2 style="font-size: 20px; font-weight: 600;"><i class="fas fa-address-book" style="color: var(--accent-gold); margin-right: 10px;"></i>My Network</h2>
             <button onclick="NetworkApp.closePanel()" style="background: none; border: none; color: var(--text-secondary); font-size: 24px; cursor: pointer; padding: 4px 8px;">&times;</button>
@@ -14236,7 +14313,11 @@ President, Med&amp;X</textarea>
                 // (Announce, Member Ops) are always visible — they are not part of the
                 // per-user onboarding toggle, so never hide them for already-onboarded users.
                 const OPS_ALWAYS_VISIBLE = ['announce', 'member-ops', 'website-content'];
+                // Item 11: 'user-notifications' is merged into "Message members" (announce) — its old
+                // nav entry stays hidden. The section is still reachable by direct id for back-compat.
+                const MERGED_HIDDEN = ['user-notifications'];
                 document.querySelectorAll('#sidebarNav [data-section]').forEach(el => {
+                    if (MERGED_HIDDEN.includes(el.dataset.section)) { el.style.display = 'none'; return; }
                     el.style.display = (OPS_ALWAYS_VISIBLE.includes(el.dataset.section) || this.userSections.includes(el.dataset.section)) ? '' : 'none';
                 });
 
@@ -15553,11 +15634,19 @@ President, Med&amp;X</textarea>
                 const ranges = events.filter(e => e.type === 'range');
                 const points = events.filter(e => e.type === 'point');
 
-                // Assign above/below positions for point events with collision detection
-                // Two events overlap if within ~8% of timeline width
-                const cardWidth = 8; // percentage of timeline width a card occupies
-                const stemHeights = [40, 60, 80, 100]; // px - graduated stem heights per tier
-                const maxTiers = stemHeights.length;
+                // Assign above/below positions for point events with collision detection.
+                // Item 18: a rendered card (name + date + padding) is ~145px; on the 600px min-width
+                // track that is ~24% of the width. The old 8% under-counted collisions, so early-year
+                // cards (e.g. Zurich/Washington, Boston/Plexus) overprinted in the same lane. Use a
+                // realistic width so the stagger actually separates neighbours into lanes/tiers.
+                const cardWidth = 23; // percentage of timeline width a card occupies
+                // Item 18: each tier drops the card ~24px away from the centre line and shortens its
+                // stem to keep the dot on the line, so clustered same-lane cards stack into readable
+                // rows instead of overprinting (tiers used to only lengthen the stem, leaving cards
+                // at the same height). Three rows per lane is plenty for the dashboard timeline.
+                const tierStep = 24; // px the card shifts per tier
+                const baseStem = 56; // px stem for tier 0
+                const maxTiers = 3;
 
                 // Occupied bands: track which horizontal ranges are taken at each tier per lane
                 // Each entry: { left: number, right: number, tier: number }
@@ -15599,7 +15688,9 @@ President, Med&amp;X</textarea>
                     }
 
                     event.position_type = bestLane;
-                    event.stemHeight = stemHeights[Math.min(bestTier, maxTiers - 1)];
+                    event.tier = Math.min(bestTier, maxTiers - 1);
+                    event.cardOffset = event.tier * tierStep;
+                    event.stemHeight = Math.max(6, baseStem - event.tier * tierStep);
 
                     // Register the occupied band
                     const band = {
@@ -15641,7 +15732,8 @@ President, Med&amp;X</textarea>
                                     const dateStr = event.eventDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                                     return `
                                         <div class="timeline-event ${event.position_type} ${event.isPast ? 'past' : ''}"
-                                             style="left: ${event.position}%;"
+                                             style="left: ${event.position}%; ${event.position_type === 'above' ? 'top' : 'bottom'}: ${event.cardOffset}px;"
+                                             title="${escapeHtml(event.name)} — ${dateStr}"
                                              onclick="App.showProject('${event.parent}')">
                                             <div class="timeline-dot" style="background: ${event.color};"></div>
                                             <div class="timeline-stem" style="height: ${event.stemHeight}px; background: ${event.color}40;"></div>
@@ -15993,11 +16085,11 @@ President, Med&amp;X</textarea>
                     'bridges': 'Building Bridges',
                     'finances': 'Finances',
                     'pr-media': 'PR & Media',
-                    'user-notifications': 'User Notifications',
+                    'user-notifications': 'Message members',
                     'newsletter': 'Newsletter',
                     'portal-content': 'Portal Content',
                     'member-feed': 'Member Feed',
-                    'announce': 'Announce',
+                    'announce': 'Message members',
                     'member-ops': 'Member Ops',
                     'messages': 'Messages',
                     'gala': 'Gala Evening',
@@ -16030,6 +16122,13 @@ President, Med&amp;X</textarea>
                 if (navItem) navItem.classList.add('active');
                 else document.querySelector('.nav-item').classList.add('active');
 
+                // Item 11: the merged Message members screen has one sidebar entry (data-section=announce);
+                // keep it lit when either tab-section opens programmatically (cmd palette, quick actions).
+                if (!navItem && (sectionId === 'user-notifications' || sectionId === 'announce')) {
+                    document.querySelector('.nav-item').classList.remove('active');
+                    document.querySelector('.nav-item[data-section=announce]')?.classList.add('active');
+                }
+
                 // The bulk-action bar belongs to the table it was opened on — hide it when
                 // navigating sections (the selection survives and the bar returns on re-render).
                 document.getElementById('bulkBar')?.classList.remove('visible');
@@ -16050,9 +16149,14 @@ President, Med&amp;X</textarea>
                     chatShowBtn?.classList.toggle('visible', chatSections.includes(sectionId) || denseChatSections.includes(sectionId));
                 }
 
-                // Check-in scanner FAB stays visible on every section (universal scanner).
+                // The check-in scanner + assistant FABs are universal, but they sit fixed in the
+                // bottom-right and cover the "Preview on site" links on Website Content — scope
+                // both out of that one section so those links stay clickable. Visible elsewhere.
                 const qrFab = document.getElementById('globalQRBtn');
-                if (qrFab && this.user && (this.user.is_admin || this.user.is_staff)) qrFab.style.display = 'flex';
+                const assistFab = document.getElementById('assistantFab');
+                const fabsHiddenHere = (sectionId === 'website-content');
+                if (qrFab && this.user && (this.user.is_admin || this.user.is_staff)) qrFab.style.display = fabsHiddenHere ? 'none' : 'flex';
+                if (assistFab && this.user && this.user.is_admin) assistFab.style.display = fabsHiddenHere ? 'none' : 'flex';
 
                 // Load the Plexus Experience registrations list when the Plexus section opens.
                 if (sectionId === 'plexus' && typeof PlexusRegs !== 'undefined') PlexusRegs.load();
@@ -16871,7 +16975,7 @@ President, Med&amp;X</textarea>
 
                 if (!convos.length) {
                     container.innerHTML = this.msgView === 'inbox'
-                        ? '<div style="text-align:center;padding:54px 20px;color:var(--text-muted);"><i class="fas fa-inbox" style="font-size:44px;margin-bottom:14px;opacity:0.35;color:#22c55e;"></i><p style="margin:0;font-weight:600;">Inbox zero</p><p style="font-size:12px;margin:6px 0 0;">Nothing needs a reply. Switch to All conversations for the full history.</p></div>'
+                        ? '<div style="text-align:center;padding:54px 20px;color:var(--text-muted);"><i class="fas fa-inbox" style="font-size:44px;margin-bottom:14px;opacity:0.35;color:var(--accent-gold);"></i><p style="margin:0;font-weight:600;">Inbox zero</p><p style="font-size:12px;margin:6px 0 0;">Nothing needs a reply. Switch to All conversations for the full history.</p></div>'
                         : '<div style="text-align:center;padding:54px 20px;color:var(--text-muted);"><i class="fas fa-envelope" style="font-size:44px;margin-bottom:14px;opacity:0.3;"></i><p style="margin:0;">No conversations yet</p></div>';
                     return;
                 }
@@ -19441,7 +19545,7 @@ President, Med&amp;X</textarea>
                         <div class="session-block-time">${s.start_time} - ${s.end_time}</div>
                         ${speakerText ? `<div class="session-block-speaker">${this.escapeHtml(speakerText)}</div>` : ''}
                         <div class="session-block-badges">
-                            ${s.is_published ? '<span class="session-block-badge" style="background: rgba(34,197,94,0.3); color: #86efac;">LIVE</span>' : ''}
+                            ${s.is_published ? '<span class="session-block-badge" style="background: rgba(201,169,98,0.25); color: #c9a962;">LIVE</span>' : ''}
                         </div>
                     </div>`;
                 });
@@ -25704,7 +25808,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteInterviewer(id) {
-                if (!confirm('Are you sure you want to delete this interviewer?')) return;
+                if (!confirm('Delete this interviewer?')) return;
                 await this.api(`/api/accelerator/interviewers/${id}`, { method: 'DELETE' });
                 this.loadInterviewers();
             },
@@ -26981,6 +27085,8 @@ By applying to this program, I give the following consents:
                 const data = await this.api(`/api/finance/dashboard?year=${this.currentYear}`);
 
                 document.getElementById('finDashBalance').textContent = this.formatCurrency(data.currentBalance);
+                // Sign-only color: restrained forest for a positive balance, crimson for negative (item 6).
+                document.getElementById('finDashBalance').style.color = Number(data.currentBalance) < 0 ? 'var(--danger)' : '#15803d';
                 document.getElementById('finDashBalanceDate').textContent = data.balanceDate ? `as of ${data.balanceDate}` : '-';
                 document.getElementById('finDashIncome').textContent = this.formatCurrency(data.totalIncome);
                 document.getElementById('finDashExpenses').textContent = this.formatCurrency(data.totalExpenses);
@@ -28609,7 +28715,7 @@ By applying to this program, I give the following consents:
             },
 
             async deleteCurrentEvent() {
-                if (!confirm('Are you sure you want to delete this event and all its registrations?')) return;
+                if (!confirm('Delete this event and all its registrations?')) return;
                 await this.api(`/api/bridges/events/${this.currentEvent.id}`, { method: 'DELETE' });
                 this.showEventsList();
             },
@@ -30999,11 +31105,22 @@ By applying to this program, I give the following consents:
                 const pending = this.registrations.filter(r => r.status === 'pending').length;
                 const approved = this.registrations.filter(r => r.status === 'approved').length;
                 const paid = this.registrations.filter(r => r.payment_status === 'paid' || r.status === 'confirmed').length;
+                // Paid tile is driven ONLY by payment_status (money actually collected), never by RSVP status.
+                const paidOnly = this.registrations.filter(r => r.payment_status === 'paid');
+                const paidCount = paidOnly.length;
+                const revenue = paidOnly.reduce((s, r) => s + (Number(r.amount_paid) || 0), 0);
+                const eur = (n) => '€' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
 
                 document.getElementById('galaStatTotal').textContent = total;
                 document.getElementById('galaStatPending').textContent = pending;
                 document.getElementById('galaStatApproved').textContent = approved;
                 document.getElementById('galaStatPaid').textContent = paid;
+                const paidOnlyEl = document.getElementById('galaStatPaidOnly');
+                if (paidOnlyEl) paidOnlyEl.textContent = paidCount;
+                const revEl = document.getElementById('galaStatPaidRevenue');
+                if (revEl) revEl.textContent = '· ' + eur(revenue);
+                const summaryEl = document.getElementById('galaSummaryLine');
+                if (summaryEl) summaryEl.textContent = `${total} request${total === 1 ? '' : 's'} · ${paid} confirmed · ${paidCount} paid · ${eur(revenue)} collected`;
 
                 // Catering headline + attendance (items 5 & 6) — read-only, from dietary/checked_in.
                 this.updateCateringAndAttendance();
@@ -31030,33 +31147,66 @@ By applying to this program, I give the following consents:
             updateCateringAndAttendance() {
                 const attending = this.registrations.filter(r => r.payment_status === 'paid' || r.status === 'confirmed');
                 let meat = 0, vegetarian = 0, vegan = 0, allergies = 0;
+                const allergyDetails = [];
                 attending.forEach(r => {
                     const diet = String(r.dietary || '').toLowerCase();
                     const extra = (diet + ' ' + String(r.requests || '')).toLowerCase();
                     if (/\bvegan\b/.test(diet)) vegan++;
                     else if (/vegetarian|veggie|pescatarian/.test(diet)) vegetarian++;
                     else meat++;
-                    if (/allerg|gluten|coeliac|celiac|lactose|nut allergy|peanut|shellfish|dairy-free|dairy free|halal|kosher/.test(extra)) allergies++;
+                    if (/allerg|gluten|coeliac|celiac|lactose|nut allergy|peanut|shellfish|dairy-free|dairy free|halal|kosher/.test(extra)) {
+                        allergies++;
+                        const who = `${r.first_name || ''} ${r.last_name || ''}`.trim() || (r.email || 'Guest');
+                        const what = [r.dietary, r.requests].filter(Boolean).join(' — ') || 'unspecified';
+                        allergyDetails.push({ name: who, text: what });
+                    }
                 });
+                this._allergyDetails = allergyDetails;
                 const lineEl = document.getElementById('galaCateringLine');
                 if (lineEl) {
                     if (!attending.length) {
                         lineEl.innerHTML = '<span style="font-size:15px; font-weight:600; color:var(--text-muted);">No confirmed dinner guests yet.</span>';
                     } else {
                         const seg = (n, label, color) => `<span style="color:${color};">${n}</span> <span style="font-size:14px; font-weight:600; color:var(--text-muted);">${label}</span>`;
+                        // Allergies segment is clickable — expands to the per-guest allergen text (item 14).
+                        const allergySeg = allergies
+                            ? `<span onclick="GalaAdmin.toggleAllergyDetail()" title="Show the specific allergens per guest" style="cursor:pointer;"><span style="color:#b45309; text-decoration:underline dotted;">${allergies}</span> <span style="font-size:14px; font-weight:600; color:var(--text-muted);">allergies <i class="fas fa-chevron-down" id="galaAllergyChevron" style="font-size:11px;"></i></span></span>`
+                            : seg(0, 'allergies', '#b45309');
                         lineEl.innerHTML = [
                             seg(meat, 'meat', '#9b1b22'),
                             seg(vegetarian, 'vegetarian', '#15803d'),
                             seg(vegan, 'vegan', '#047857'),
-                            seg(allergies, 'allergies', '#b45309')
+                            allergySeg
                         ].join('<span style="color:var(--border); margin:0 10px;">/</span>');
                     }
                 }
+                // Keep an already-open detail panel in sync after a data refresh.
+                const detailEl = document.getElementById('galaAllergyDetail');
+                if (detailEl && detailEl.style.display === 'block') { detailEl.style.display = 'none'; this.toggleAllergyDetail(); }
                 const checkedIn = attending.filter(r => r.checked_in == 1 || r.checked_in === true).length;
                 const ci = document.getElementById('galaStatCheckedIn');
                 const ta = document.getElementById('galaStatToArrive');
                 if (ci) ci.textContent = checkedIn;
                 if (ta) ta.textContent = Math.max(0, attending.length - checkedIn);
+            },
+
+            // Expand the caterer allergy count into the specific allergens per guest (item 14).
+            toggleAllergyDetail() {
+                const el = document.getElementById('galaAllergyDetail');
+                if (!el) return;
+                const chevron = document.getElementById('galaAllergyChevron');
+                const details = this._allergyDetails || [];
+                if (el.style.display === 'none' || !el.style.display) {
+                    el.innerHTML = details.length
+                        ? '<div style="font-weight:700; color:var(--text-primary); margin-bottom:6px;">Allergens per guest</div>' + details.map(d =>
+                            `<div><i class="fas fa-exclamation-triangle" style="color:#b45309; margin-right:6px;"></i><strong style="color:var(--text-primary);">${escapeHtml(d.name)}:</strong> ${escapeHtml(d.text)}</div>`).join('')
+                        : '<span style="color:var(--text-muted);">No allergen detail recorded.</span>';
+                    el.style.display = 'block';
+                    if (chevron) { chevron.classList.remove('fa-chevron-down'); chevron.classList.add('fa-chevron-up'); }
+                } else {
+                    el.style.display = 'none';
+                    if (chevron) { chevron.classList.remove('fa-chevron-up'); chevron.classList.add('fa-chevron-down'); }
+                }
             },
 
             showTab(tab) {
@@ -31223,17 +31373,19 @@ By applying to this program, I give the following consents:
             exportSeatingCSV(kind) {
                 const s = this._seat; if (!s) { Toast.warning('Nothing to export yet'); return; }
                 const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+                // Combine dietary + requests so the caterer sees the full allergen detail (item 14).
+                const diet = (g) => [g.dietary, g.requests].filter(Boolean).join(' — ');
                 let rows = [];
                 if (kind === 'placecards') {
-                    rows.push(['Name', 'Table']);
-                    s.tables.forEach(t => t.guests.forEach(g => rows.push([g.name, t.label])));
+                    rows.push(['Name', 'Table', 'Dietary / Allergens']);
+                    s.tables.forEach(t => t.guests.forEach(g => rows.push([g.name, t.label, diet(g)])));
                 } else {
-                    rows.push(['Table', 'Capacity', 'Seated', 'Guest', 'Email', 'Dietary', 'Table notes']);
+                    rows.push(['Table', 'Capacity', 'Seated', 'Guest', 'Email', 'Dietary / Allergens', 'Table notes']);
                     s.tables.forEach(t => {
                         if (!t.guests.length) rows.push([t.label, t.capacity, 0, '', '', '', t.notes || '']);
-                        t.guests.forEach(g => rows.push([t.label, t.capacity, t.occupancy, g.name, g.email, g.dietary, t.notes || '']));
+                        t.guests.forEach(g => rows.push([t.label, t.capacity, t.occupancy, g.name, g.email, diet(g), t.notes || '']));
                     });
-                    if (s.unassigned.length) s.unassigned.forEach(g => rows.push(['(unassigned)', '', '', g.name, g.email, g.dietary, '']));
+                    if (s.unassigned.length) s.unassigned.forEach(g => rows.push(['(unassigned)', '', '', g.name, g.email, diet(g), '']));
                 }
                 const csv = rows.map(r => r.map(q).join(',')).join('\r\n');
                 const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -31561,6 +31713,7 @@ By applying to this program, I give the following consents:
             renderRegistrations() {
                 const container = document.getElementById('galaRegistrationsList');
                 const filter = document.getElementById('galaStatusFilter')?.value || 'all';
+                const payFilter = document.getElementById('galaPaymentFilter')?.value || 'all';
                 let regs = this.registrations;
 
                 if (filter !== 'all') {
@@ -31569,6 +31722,11 @@ By applying to this program, I give the following consents:
                     } else {
                         regs = regs.filter(r => r.status === filter);
                     }
+                }
+                if (payFilter === 'paid') {
+                    regs = regs.filter(r => r.payment_status === 'paid');
+                } else if (payFilter === 'unpaid') {
+                    regs = regs.filter(r => r.payment_status !== 'paid');
                 }
 
                 if (regs.length === 0) {
@@ -31588,6 +31746,7 @@ By applying to this program, I give the following consents:
                             <th style="text-align: left; padding: 12px 16px; font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Email</th>
                             <th style="text-align: left; padding: 12px 16px; font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Institution</th>
                             <th style="text-align: left; padding: 12px 16px; font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Ticket</th>
+                            <th style="text-align: left; padding: 12px 16px; font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Dietary</th>
                             <th style="text-align: left; padding: 12px 16px; font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Status</th>
                             <th style="text-align: left; padding: 12px 16px; font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Payment</th>
                             <th style="text-align: center; padding: 12px 16px; font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Actions</th>
@@ -31600,6 +31759,11 @@ By applying to this program, I give the following consents:
                     const effectiveStatus = r.payment_status === 'paid' ? 'confirmed' : r.status;
                     const statusColor = statusColors[effectiveStatus] || '#6b7280';
                     const pricing = r.pricing === 'bundle' ? 'Bundle' : 'Gala Only';
+                    // Dietary column (item 14): dietary + requests carry the allergen detail the caterer needs.
+                    const dietaryText = [
+                        r.dietary && r.dietary !== 'No special requirements' ? r.dietary : '',
+                        r.requests ? r.requests : ''
+                    ].filter(Boolean).join(' — ');
                     const paymentBadge = r.payment_status === 'paid'
                         ? '<span style="background: rgba(16, 185, 129, 0.15); color: #10b981; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;">Paid</span>'
                         : '<span style="background: rgba(107, 114, 128, 0.15); color: #6b7280; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;">Unpaid</span>';
@@ -31610,6 +31774,7 @@ By applying to this program, I give the following consents:
                         <td style="padding: 12px 16px; font-size: 13px; color: var(--text-secondary);">${escapeHtml(r.email)}</td>
                         <td style="padding: 12px 16px; font-size: 13px; color: var(--text-secondary);">${escapeHtml(r.institution || '-')}</td>
                         <td style="padding: 12px 16px; font-size: 13px;">${pricing}</td>
+                        <td style="padding: 12px 16px; font-size: 13px; color: var(--text-secondary); max-width: 220px;">${dietaryText ? '<span title="' + escapeHtml(dietaryText) + '"><i class="fas fa-utensils" style="color:#c9a962; margin-right:6px;"></i>' + escapeHtml(dietaryText) + '</span>' : '<span style="color:var(--text-muted);">—</span>'}</td>
                         <td style="padding: 12px 16px;">
                             <span style="background: ${statusColor}22; color: ${statusColor}; padding: 2px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; text-transform: capitalize;">${effectiveStatus}</span>
                         </td>
@@ -31919,7 +32084,7 @@ By applying to this program, I give the following consents:
                             </div>
                             <div class="form-group" style="margin-bottom:12px;">
                                 <label class="form-label">Send to email <span style="color:var(--text-muted);font-size:11px;">(leave empty = your admin email)</span></label>
-                                <input id="testEmailAddr" type="email" class="form-input" placeholder="e.g. ajuginovic@hms.harvard.edu" style="width:100%;">
+                                <input id="testEmailAddr" type="email" class="form-input" placeholder="e.g. you@medx.hr" style="width:100%;">
                             </div>
                             <div class="form-group" style="margin-bottom:14px;">
                                 <label class="form-label">Name on ticket <span style="color:var(--text-muted);font-size:11px;">(optional)</span></label>
@@ -32516,6 +32681,19 @@ By applying to this program, I give the following consents:
                     link_section: dest || null,
                     push: document.getElementById('annPush')?.checked ? 1 : 0
                 };
+                // Confirm the exact scope before this member-visible, non-recallable action.
+                const SCOPE_NAMES = { plexus: 'Plexus attendees', gala: 'Gala Evening guests', accelerator: 'Accelerator followers', forum: 'Biomedical Forum followers', bridges: 'Building Bridges followers' };
+                const scopeLabel = payload.project_key ? (SCOPE_NAMES[payload.project_key] || payload.project_key) : 'Everyone';
+                let confirmMsg = payload.project_key
+                    ? `Publish to ${scopeLabel} — appears in their notification bell.`
+                    : `Publish to Everyone — appears in every member's notification bell.`;
+                if (payload.push) {
+                    const followerCount = payload.project_key ? (this._projStatus[payload.project_key]?.waiting_count ?? null) : null;
+                    confirmMsg += followerCount != null
+                        ? `\n\n…and send a push to ${followerCount} follower${followerCount === 1 ? '' : 's'}.`
+                        : `\n\n…and send a push to every member with notifications enabled.`;
+                }
+                if (!confirm(confirmMsg)) return;
                 const r = await opsApi('/api/admin/member-announcements', { method: 'POST', body: JSON.stringify(payload) });
                 if (r.ok) {
                     Toast.success('Announcement published');
@@ -32964,7 +33142,7 @@ By applying to this program, I give the following consents:
                                 <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${this.fmtDate(f.posted_at)}${f.body ? ' · ' + this.esc(String(f.body).slice(0, 90)) : ''}</div>
                             </div>
                             <div style="display:flex;gap:5px;flex-shrink:0;align-items:center;">
-                                <span style="font-size:11px;font-weight:700;color:${f.published ? '#22c55e' : '#f59e0b'};">${f.published ? 'LIVE' : 'DRAFT'}</span>
+                                <span style="font-size:11px;font-weight:700;color:${f.published ? '#c9a962' : '#f59e0b'};">${f.published ? 'LIVE' : 'DRAFT'}</span>
                                 <button class="btn btn-secondary" style="padding:4px 9px;font-size:11px;" onclick="FeedAdmin.togglePublish('${f.id}')" title="${f.published ? 'Unpublish' : 'Publish'}"><i class="fas fa-${f.published ? 'eye-slash' : 'globe'}"></i></button>
                                 <button class="btn btn-secondary" style="padding:4px 9px;font-size:11px;" onclick="FeedAdmin.openFeedForm('${f.id}')" title="Edit"><i class="fas fa-edit"></i></button>
                                 <button class="btn btn-secondary" style="padding:4px 9px;font-size:11px;color:#ef4444;" onclick="FeedAdmin.deleteFeed('${f.id}')" title="Delete"><i class="fas fa-trash"></i></button>
@@ -33087,7 +33265,7 @@ By applying to this program, I give the following consents:
                             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${[t.speaker, t.event_label, t.year].filter(Boolean).map(s => this.esc(s)).join(' · ')}</div>
                         </div>
                         <div style="display:flex;gap:5px;flex-shrink:0;align-items:center;">
-                            <span style="font-size:11px;font-weight:700;color:${t.published ? '#22c55e' : '#f59e0b'};">${t.published ? 'LIVE' : 'DRAFT'}</span>
+                            <span style="font-size:11px;font-weight:700;color:${t.published ? '#c9a962' : '#f59e0b'};">${t.published ? 'LIVE' : 'DRAFT'}</span>
                             <button class="btn btn-secondary" style="padding:4px 9px;font-size:11px;" onclick="FeedAdmin.toggleTalk('${t.id}')" title="${t.published ? 'Unpublish' : 'Publish'}"><i class="fas fa-${t.published ? 'eye-slash' : 'globe'}"></i></button>
                             <button class="btn btn-secondary" style="padding:4px 9px;font-size:11px;" onclick="FeedAdmin.openTalkForm('${t.id}')" title="Edit"><i class="fas fa-edit"></i></button>
                             <button class="btn btn-secondary" style="padding:4px 9px;font-size:11px;color:#ef4444;" onclick="FeedAdmin.deleteTalk('${t.id}')" title="Delete"><i class="fas fa-trash"></i></button>
@@ -33544,7 +33722,7 @@ By applying to this program, I give the following consents:
                     return `<div class="card" style="padding:16px 18px;margin-bottom:12px;border-left:4px solid ${active ? '#22c55e' : 'var(--border)'};">
                         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
                             <div>
-                                <div style="font-weight:700;font-size:16px;">${this.esc(c.name)} ${active ? '<span style="font-size:10px;font-weight:700;color:#15803d;border:1px solid rgba(34,197,94,0.4);border-radius:20px;padding:2px 8px;margin-left:6px;">LIVE FOR ATTENDEES</span>' : ''}</div>
+                                <div style="font-weight:700;font-size:16px;">${this.esc(c.name)} ${active ? '<span style="font-size:10px;font-weight:700;color:#c9a962;border:1px solid rgba(201,169,98,0.5);border-radius:20px;padding:2px 8px;margin-left:6px;">LIVE FOR ATTENDEES</span>' : ''}</div>
                                 <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${c.year || ''} · ${this.esc(c.venue_city || '—')} · ${this.esc(c.start_date || 'no date')} · <code style="font-size:11px;">${this.esc(c.slug)}</code></div>
                                 <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${deadlines}</div>
                             </div>
@@ -34314,7 +34492,8 @@ By applying to this program, I give the following consents:
                 { title: 'Dashboard', sub: 'Home', icon: 'fa-home', color: 'var(--accent-gold)', group: 'Sections', action: () => App.showSection('dashboard') },
                 { title: 'Finances', sub: 'Budget, transactions, invoices', icon: 'fa-coins', color: 'var(--finances)', group: 'Sections', action: () => App.showSection('finances') },
                 { title: 'PR & Media', sub: 'Social, newsletters, campaigns', icon: 'fa-bullhorn', color: 'var(--pr-media)', group: 'Sections', action: () => App.showSection('pr-media') },
-                { title: 'Notifications', sub: 'Send user notifications', icon: 'fa-paper-plane', color: '#b06a1f', group: 'Sections', action: () => App.showSection('user-notifications') },
+                { title: 'Message members', sub: 'Announcements + direct notifications', icon: 'fa-bullhorn', color: '#9b1b22', group: 'Sections', action: () => App.showSection('announce') },
+                { title: 'Direct notification', sub: 'Precise send — group, tier, banner, push', icon: 'fa-paper-plane', color: '#b06a1f', group: 'Sections', action: () => App.showSection('user-notifications') },
                 { title: 'Portal Content', sub: 'CMS for user portal', icon: 'fa-th-large', color: 'var(--accent-gold)', group: 'Sections', action: () => App.showSection('portal-content') },
                 { title: 'Messages', sub: 'Direct messaging with users', icon: 'fa-envelope', color: '#c2484e', group: 'Sections', action: () => App.showSection('messages') },
                 { title: 'Settings', sub: 'Profile, security, sections', icon: 'fa-cog', color: 'var(--text-muted)', group: 'Sections', action: () => App.openSettings() },
@@ -34572,7 +34751,8 @@ By applying to this program, I give the following consents:
                 'bridges': { label: 'Building Bridges', icon: 'fa-bridge' },
                 'finances': { label: 'Finances', icon: 'fa-coins' },
                 'pr-media': { label: 'PR & Media', icon: 'fa-bullhorn' },
-                'user-notifications': { label: 'Notifications', icon: 'fa-paper-plane' },
+                'user-notifications': { label: 'Message members', icon: 'fa-bullhorn' },
+                'announce': { label: 'Message members', icon: 'fa-bullhorn' },
                 'portal-content': { label: 'Portal Content', icon: 'fa-th-large' },
                 'settings': { label: 'Settings', icon: 'fa-cog' },
             },

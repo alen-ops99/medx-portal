@@ -2752,10 +2752,22 @@ function auth(req, res, next) {
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
             const user = query.get("SELECT id, email, is_admin, password_changed_at FROM users WHERE id = ?", [decoded.id]);
-            if (user && !tokenPredatesPasswordChange(user, decoded.iat)) { req.user = user; return next(); }
-        } catch(e) { /* token invalid/expired */ }
+            if (user) {
+                if (tokenPredatesPasswordChange(user, decoded.iat)) {
+                    return res.status(401).json({ error: 'Session expired, please sign in again' });
+                }
+                req.user = user; return next();
+            }
+            // A valid token was presented but its id resolves to no current user row (deleted,
+            // not-yet-synced, or a legacy null-id account). NEVER fall back to another user's
+            // row — that leaked the founder's identity to whoever held such a token. Bind to the
+            // token's own verified claims so the caller sees an empty profile, never someone else.
+            req.user = { id: (decoded && decoded.id) || null, email: (decoded && decoded.email) || null, is_admin: 0 };
+            return next();
+        } catch(e) { /* token invalid/expired */ return res.status(401).json({ error: 'Authentication required' }); }
     }
-    // Dev fallback — only in explicit development mode
+    // Dev auto-login convenience — ONLY when no real token is presented (pure local dev).
+    // A present-but-unresolvable token is handled above and never falls through to here.
     if (DEV_AUTH_ENABLED) {
         const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
         req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
@@ -2771,13 +2783,16 @@ function optionalAuth(req, res, next) {
             const decoded = jwt.verify(token, JWT_SECRET);
             const user = query.get("SELECT id, email, is_admin, password_changed_at FROM users WHERE id = ?", [decoded.id]);
             if (user && !tokenPredatesPasswordChange(user, decoded.iat)) { req.user = user; return next(); }
-        } catch(e) { /* token invalid/expired */ }
+            // Valid token but no current row — bind to the token's own claims, never to
+            // another user's row (see auth()). Optional routes still work for this caller.
+            req.user = { id: (decoded && decoded.id) || null, email: (decoded && decoded.email) || null, is_admin: 0 };
+            return next();
+        } catch(e) { /* token invalid/expired — treat as anonymous below */ }
     }
-    // Dev fallback — only fires when a token was actually presented (signal that the
-    // caller wanted to be authed). Without this guard, every anonymous request to
-    // optionalAuth routes (e.g. /api/forum/events/:id/register) gets auto-promoted
-    // to Alen, which makes the anon-register branch unreachable in local dev.
-    if (DEV_AUTH_ENABLED && token) {
+    // Dev auto-login convenience — only for the explicit 'auto-login' sentinel in local dev.
+    // A real token is resolved above; a missing/invalid token stays anonymous so the
+    // anon-register branch (e.g. /api/forum/events/:id/register) remains reachable.
+    if (DEV_AUTH_ENABLED && token === 'auto-login') {
         const user = query.get("SELECT id, email, is_admin FROM users WHERE email = 'juginovic.alen@gmail.com'");
         req.user = user || { id: 'default', email: 'juginovic.alen@gmail.com', is_admin: true };
         return next();
@@ -6911,6 +6926,17 @@ async function submitReset(e){
 
     app.get('/api/auth/me', auth, (req, res) => {
         const user = query.get('SELECT id, email, first_name, last_name, phone, institution, country, bio, photo_url, is_admin, is_public_profile FROM users WHERE id = ?', [req.user.id]);
+        // Never fall back to another user's row. If the JWT resolves to no profile row
+        // (deleted or not yet synced), return an empty profile seeded only from the token
+        // identity so the client can bind to the authenticated user and nobody else.
+        if (!user) {
+            return res.json({
+                id: req.user.id, email: req.user.email || null,
+                first_name: null, last_name: null, phone: null,
+                institution: null, country: null, bio: null, photo_url: null,
+                is_admin: req.user.is_admin || 0, is_public_profile: 0
+            });
+        }
         res.json(user);
     });
 

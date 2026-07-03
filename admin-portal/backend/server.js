@@ -7104,7 +7104,7 @@ async function initializeApp() {
             const paid = regs.filter(galaGuestPaid);
             const byId = {}; paid.forEach(r => byId[r.id] = r);
             const assignedIds = new Set();
-            const guestOf = (r, seat_note) => ({ registration_id: r.id, name: galaGuestName(r), email: r.email || '', dietary: (r.dietary || '').trim(), title: r.title || '', pricing: r.pricing || '', seat_note: seat_note || '' });
+            const guestOf = (r, seat_note) => ({ registration_id: r.id, name: galaGuestName(r), email: r.email || '', dietary: (r.dietary || '').trim(), requests: (r.requests || '').trim(), title: r.title || '', pricing: r.pricing || '', seat_note: seat_note || '' });
             const tablesOut = tables.map(t => {
                 const seated = assigns.filter(a => a.table_id === t.id);
                 const guests = []; const dietary = {};
