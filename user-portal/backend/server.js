@@ -6039,6 +6039,22 @@ async function initializeApp() {
         updated_at TEXT,
         updated_by TEXT
     )`);
+
+    // ===== Email verification tokens (member signup confirmation) =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod). One row per issued
+    // verification link. The user portal issues + consumes these (POST /api/auth/request-verification,
+    // GET /api/auth/verify?token=), flipping users.email_verified=1 on a valid, unused, unexpired token.
+    // Email sending goes through the shared sendEmail() mock boundary — in dev the link is logged, never
+    // actually emailed. used_at is set once a token is redeemed so a given link works exactly once.
+    db.run(`CREATE TABLE IF NOT EXISTS email_verifications (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        email TEXT,
+        token TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        expires_at TEXT,
+        used_at TEXT
+    )`);
     // ====================== SCHEMA-MIRROR:END ======================
 
     db.run(`CREATE TABLE IF NOT EXISTS member_rewards (
@@ -6659,35 +6675,24 @@ async function initializeApp() {
             }
             const id = uuidv4();
             const hash = await bcrypt.hash(password, 10);
-            const verificationToken = crypto.randomBytes(32).toString('hex');
-            const emailEnabled = !!(process.env.RESEND_API_KEY || process.env.SMTP_USER);
+            // Premium signup: always create the account UNVERIFIED and issue a confirmation link, but
+            // still hand back a session token so the new member can browse right away (soft gate — the
+            // "Verify your email" banner nudges them, they are never locked out). email_verified flips
+            // to 1 only when they click the link (GET /api/auth/verify). Email routes through the
+            // sendEmail() mock boundary; in dev the link is logged, never actually emailed.
             db.run(`INSERT INTO users (id, email, password_hash, first_name, last_name, institution, country, email_verified, verification_token)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [id, email, hash, first_name, last_name, institution, country, emailEnabled ? 0 : 1, verificationToken]);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [id, email, hash, first_name, last_name, institution, country, 0, null]);
             saveDb();
 
-            if (emailEnabled) {
-                // Send verification email
-                const baseUrl = `${req.protocol}://${req.get('host')}`;
-                const verifyUrl = `${baseUrl}/api/verify-email?token=${verificationToken}`;
-                const emailHtml = buildEmailTemplate('Verify Your Email', `
-                    <p>Hi ${first_name || 'there'},</p>
-                    <p>Thank you for creating your Med&amp;X account! Please verify your email address by clicking the button below:</p>
-                    <div style="text-align: center; margin: 32px 0;">
-                        <a href="${verifyUrl}" style="display: inline-block; background: #C9A962; color: #0f172a; text-decoration: none; padding: 14px 36px; border-radius: 8px; font-weight: 600; font-size: 16px;">Verify Email Address</a>
-                    </div>
-                    <p style="color: #64748b; font-size: 13px;">If the button doesn't work, copy and paste this link into your browser:</p>
-                    <p style="word-break: break-all; color: #64748b; font-size: 13px;">${verifyUrl}</p>
-                    <p style="color: #64748b; font-size: 13px; margin-top: 24px;">If you didn't create this account, you can safely ignore this email.</p>
-                `);
-                sendEmail(email, 'Verify your Med&X account', emailHtml)
-                    .then(result => { if (!result.success) console.error('Verification email failed for', email, result.error); })
-                    .catch(err => console.error('Verification email error for', email, err));
-                res.json({ success: true, needsVerification: true, message: 'Account created. Please check your email to verify your account.' });
-            } else {
-                // No email provider configured — skip verification, auto-verify account
-                const token = jwt.sign({ id, email, is_admin: 0 }, JWT_SECRET, { expiresIn: '7d' });
-                res.json({ success: true, token, user: { id, email, first_name, last_name, institution, is_admin: 0 }});
-            }
+            await issueEmailVerification({ id, email, first_name }, req);
+
+            const token = jwt.sign({ id, email, is_admin: 0 }, JWT_SECRET, { expiresIn: '7d' });
+            res.json({
+                success: true,
+                token,
+                needsVerification: true,
+                user: { id, email, first_name, last_name, institution, is_admin: 0, email_verified: 0 }
+            });
         } catch (e) { console.error(e); res.status(500).json({ error: 'Registration failed' }); }
     });
 
@@ -6793,6 +6798,89 @@ async function initializeApp() {
         } catch (e) {
             console.error('Resend verification error:', e);
             res.status(500).json({ error: 'Failed to send verification email' });
+        }
+    });
+
+    // ===== Premium signup email confirmation (email_verifications table) =====
+    // NOTE: users.email_verified + users.verification_token columns already exist (added via the
+    // idempotent ALTER TABLE guards near the users CREATE TABLE), so no new column is needed here.
+    // Issue a one-time confirmation link for a user, record it in email_verifications, and route the
+    // email through the shared sendEmail() mock boundary. In dev (no provider) sendEmail no-ops and we
+    // log the link so it can be grabbed from the server log — NEVER a real email in dev.
+    async function issueEmailVerification(user, req) {
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        db.run('INSERT INTO email_verifications (id, user_id, email, token, expires_at) VALUES (?,?,?,?,?)',
+            [uuidv4(), user.id, user.email, token, expiresAt]);
+        // Keep the legacy users.verification_token in sync so the older /api/verify-email link resolves too.
+        try { db.run('UPDATE users SET verification_token = ? WHERE id = ?', [token, user.id]); } catch (e) {}
+        saveDb();
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        const verifyUrl = `${baseUrl}/api/auth/verify?token=${token}`;
+        console.log(`[Auth] Verification link for ${user.email}: ${verifyUrl}`);
+        const emailHtml = buildEmailTemplate('Confirm your email', `
+            <p>Hi ${user.first_name || 'there'},</p>
+            <p>Welcome to Med&amp;X. Please confirm your email address to finish setting up your account.</p>
+            <div style="text-align: center; margin: 32px 0;">
+                <a href="${verifyUrl}" style="display: inline-block; background: #C9A962; color: #0f172a; text-decoration: none; padding: 14px 36px; border-radius: 8px; font-weight: 600; font-size: 16px;">Confirm my email</a>
+            </div>
+            <p style="color: #64748b; font-size: 13px;">If the button doesn't work, copy and paste this link into your browser:</p>
+            <p style="word-break: break-all; color: #64748b; font-size: 13px;">${verifyUrl}</p>
+            <p style="color: #64748b; font-size: 13px; margin-top: 24px;">This link expires in 24 hours. If you didn't create a Med&amp;X account, you can ignore this email.</p>
+        `);
+        try {
+            await sendEmail(user.email, 'Confirm your Med&X account', emailHtml);
+        } catch (e) { console.error('Verification email error for', user.email, e && e.message); }
+        return verifyUrl;
+    }
+
+    // Request (or re-request) a signup confirmation link. Generic success — never leaks whether an
+    // account exists or is already verified.
+    app.post('/api/auth/request-verification', authLimiter, async (req, res) => {
+        try {
+            const { email } = req.body || {};
+            if (!email || typeof email !== 'string') return res.status(400).json({ error: 'Email is required' });
+            const user = query.get('SELECT id, email, first_name, email_verified FROM users WHERE email = ?', [email]);
+            if (user && !user.email_verified) {
+                await issueEmailVerification(user, req);
+            }
+            return res.json({ success: true, message: 'If that account still needs confirming, a link is on its way. Check your inbox.' });
+        } catch (e) {
+            console.error('request-verification error:', e);
+            res.status(500).json({ error: 'Could not send confirmation email' });
+        }
+    });
+
+    // Confirm an email from the link. Flips users.email_verified=1 for a valid, unused, unexpired token,
+    // then redirects back into the app with ?verified=true (already / expired / invalid otherwise).
+    app.get('/api/auth/verify', (req, res) => {
+        try {
+            const { token } = req.query;
+            if (!token) return res.redirect('/?verified=invalid');
+            const row = query.get('SELECT * FROM email_verifications WHERE token = ?', [token]);
+            if (!row) {
+                // Fall back to the legacy users.verification_token path so old links still resolve.
+                const legacy = query.get('SELECT id, email_verified FROM users WHERE verification_token = ?', [token]);
+                if (!legacy) return res.redirect('/?verified=invalid');
+                if (legacy.email_verified) return res.redirect('/?verified=already');
+                db.run('UPDATE users SET email_verified = 1, verification_token = NULL WHERE id = ?', [legacy.id]);
+                saveDb();
+                return res.redirect('/?verified=true');
+            }
+            if (row.used_at) return res.redirect('/?verified=already');
+            if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return res.redirect('/?verified=expired');
+            const user = row.user_id
+                ? query.get('SELECT id, email_verified FROM users WHERE id = ?', [row.user_id])
+                : query.get('SELECT id, email_verified FROM users WHERE email = ?', [row.email]);
+            if (!user) return res.redirect('/?verified=invalid');
+            db.run('UPDATE email_verifications SET used_at = ? WHERE id = ?', [new Date().toISOString(), row.id]);
+            db.run('UPDATE users SET email_verified = 1, verification_token = NULL WHERE id = ?', [user.id]);
+            saveDb();
+            console.log(`[Auth] Email confirmed for ${row.email || user.id}`);
+            return res.redirect('/?verified=true');
+        } catch (e) {
+            console.error('auth/verify error:', e);
+            return res.redirect('/?verified=invalid');
         }
     });
 

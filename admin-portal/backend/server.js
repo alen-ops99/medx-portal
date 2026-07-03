@@ -1740,6 +1740,22 @@ async function initializeApp() {
         updated_at TEXT,
         updated_by TEXT
     )`);
+
+    // ===== Email verification tokens (member signup confirmation) =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod). One row per issued
+    // verification link. The user portal issues + consumes these (POST /api/auth/request-verification,
+    // GET /api/auth/verify?token=), flipping users.email_verified=1 on a valid, unused, unexpired token.
+    // Email sending goes through the shared sendEmail() mock boundary — in dev the link is logged, never
+    // actually emailed. used_at is set once a token is redeemed so a given link works exactly once.
+    db.run(`CREATE TABLE IF NOT EXISTS email_verifications (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        email TEXT,
+        token TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        expires_at TEXT,
+        used_at TEXT
+    )`);
     // ====================== SCHEMA-MIRROR:END ======================
 
     // ===== Seed project hub status (admin-owned, member reads /api/project-status) =====
@@ -16208,11 +16224,13 @@ By applying to this program, I provide the following consents:
     });
 
     app.post('/api/pr/newsletters', auth, (req, res) => {
-        const { project, name, subject, preview_text, content_html, content_json, template, campaign_id } = req.body;
+        const { project, name, subject, preview_text, content_html, content_json, template, campaign_id, status, scheduled_for } = req.body;
         const id = uuidv4();
-        db.run(`INSERT INTO pr_newsletters (id, project, name, subject, preview_text, content_html, content_json, template, campaign_id, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, project || null, name, subject, preview_text || null, content_html || null, content_json || null, template || 'default', campaign_id || null, req.user?.id || null]);
+        // Item 2b: allow creating a scheduled newsletter directly (status/scheduled_for are additive;
+        // the columns already exist). Sending still runs through /:id/send (the outbox boundary).
+        db.run(`INSERT INTO pr_newsletters (id, project, name, subject, preview_text, content_html, content_json, template, campaign_id, created_by, status, scheduled_for)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, project || null, name, subject, preview_text || null, content_html || null, content_json || null, template || 'default', campaign_id || null, req.user?.id || null, status || 'draft', scheduled_for || null]);
         saveDb();
         res.json({ id, success: true });
     });

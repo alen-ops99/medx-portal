@@ -55540,10 +55540,13 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
 @media (min-width:1024px){
   .up-rail{display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;width:236px;z-index:1250;
     background:var(--surface);border-right:1px solid var(--line);padding:20px 14px 16px;overflow-y:auto;overflow-x:hidden;}
-  #userPortal .up-main{margin-left:236px;}
+  /* Left rail retired — replaced by the premium sticky top bar (#upTopbar). */
+  #userPortal .up-main{margin-left:0;}
+  .up-topbar{display:flex;}
   #upBottomNav{display:none !important;}
-  /* the rail already carries the brand mark — drop the duplicate in-section dashboard header logo */
+  /* the top bar carries brand + bell + account — drop the duplicate in-section dashboard header chrome */
   #userPortal .hub-header-left{display:none;}
+  #userPortal .hub-header-right{display:none;}
 }
 .up-rail-logo{display:flex;align-items:center;gap:10px;padding:4px 10px 16px;text-decoration:none;flex-shrink:0;}
 .up-rail-logo img{height:26px;width:auto;}
@@ -55565,6 +55568,59 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
 .up-rail-user-name{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;}
 .up-rail-signout{background:none;border:0;padding:0;cursor:pointer;color:var(--muted);font-family:var(--sans);font-size:11px;font-weight:600;text-align:left;}
 .up-rail-signout:hover{color:var(--crimson,#9b1b22);}
+/* ===== Premium top navigation (desktop + iPad landscape, >=1024px) — replaces the left rail ===== */
+.up-topbar{position:sticky;top:0;z-index:1250;height:64px;display:none;align-items:center;gap:4px;
+  padding:0 24px;background:var(--surface);border-bottom:1px solid var(--line);transition:box-shadow .2s ease;}
+.up-topbar.scrolled{box-shadow:0 6px 20px rgba(20,15,12,.06);}
+.up-tb-brand{display:inline-flex;align-items:center;gap:9px;text-decoration:none;flex-shrink:0;margin-right:14px;cursor:pointer;
+  background:none;border:0;padding:0;}
+.up-tb-brand img{height:24px;width:auto;display:block;}
+.up-tb-nav{display:flex;align-items:stretch;height:100%;gap:1px;}
+.up-tb-item{position:relative;display:inline-flex;align-items:center;gap:6px;padding:0 13px;height:100%;border:0;background:none;cursor:pointer;
+  font-family:var(--sans);font-size:14px;font-weight:600;color:var(--ink-soft,#4a443f);text-decoration:none;line-height:1;white-space:nowrap;
+  transition:color .15s ease;}
+.up-tb-item i.up-tb-caret{font-size:9px;color:var(--muted,#8a847b);transition:transform .18s ease;}
+.up-tb-item:hover{color:var(--ink,#15110f);}
+.up-tb-item.active{color:var(--ink,#15110f);}
+.up-tb-item:hover::after{content:'';position:absolute;left:13px;right:13px;bottom:-1px;height:2px;background:var(--line-strong,#d9d2c7);border-radius:2px;}
+.up-tb-item.active::after{content:'';position:absolute;left:13px;right:13px;bottom:-1px;height:2px;background:var(--gold,#c9a962);border-radius:2px;}
+.up-tb-spacer{flex:1 1 auto;}
+.up-tb-icon{width:38px;height:38px;border-radius:10px;border:0;background:none;cursor:pointer;color:var(--ink-soft,#4a443f);font-size:15px;
+  display:inline-flex;align-items:center;justify-content:center;position:relative;transition:color .15s ease,background .15s ease;flex-shrink:0;}
+.up-tb-icon:hover{color:var(--ink,#15110f);background:var(--paper-2,#f3efe9);}
+.up-tb-icon .up-tb-dot{position:absolute;top:7px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--crimson,#9b1b22);border:1.5px solid var(--surface);}
+.up-tb-account{position:relative;flex-shrink:0;margin-left:2px;}
+.up-tb-account-btn{display:inline-flex;align-items:center;gap:9px;padding:5px 11px 5px 6px;border:1px solid var(--line);background:var(--paper-2,#f6f2ec);
+  border-radius:999px;cursor:pointer;font-family:var(--sans);transition:border-color .15s ease,box-shadow .15s ease;}
+.up-tb-account-btn:hover{border-color:var(--line-strong,#d9d2c7);box-shadow:0 2px 8px rgba(20,15,12,.06);}
+.up-tb-avatar{width:30px;height:30px;border-radius:50%;background:var(--emph-bg,#14110f);color:#f3efe9;display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:12px;flex-shrink:0;font-family:var(--sans);}
+.up-tb-account-meta{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0;line-height:1.15;}
+.up-tb-username{font-size:13px;font-weight:600;color:var(--ink,#15110f);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:132px;}
+.up-tb-tier{font-size:10.5px;font-weight:600;letter-spacing:.02em;color:var(--muted,#8a847b);white-space:nowrap;}
+.up-tb-account-btn .up-tb-caret{font-size:9px;color:var(--muted,#8a847b);margin-left:1px;}
+@media (max-width:1160px){ .up-tb-account-meta{display:none;} .up-tb-account-btn{padding:5px;} .up-tb-account-btn .up-tb-caret{display:none;} }
+.up-tb-menu{position:absolute;top:calc(100% + 10px);right:0;min-width:266px;background:var(--surface,#fff);border:1px solid var(--line);
+  border-radius:16px;box-shadow:0 20px 50px rgba(20,15,12,.15),0 0 0 1px rgba(20,15,12,.02);overflow:hidden;z-index:1300;
+  opacity:0;visibility:hidden;transform:translateY(-8px) scale(.97);transform-origin:top right;
+  transition:opacity .18s ease,transform .2s cubic-bezier(.34,1.4,.64,1),visibility .18s;}
+.up-tb-menu.active{opacity:1;visibility:visible;transform:translateY(0) scale(1);}
+.up-tb-menu-head{display:flex;align-items:flex-start;gap:12px;padding:16px;background:linear-gradient(135deg,var(--emph-bg,#14110f),var(--emph-bg-2,#211d19));}
+.up-tb-menu-avatar{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.14);color:#f3efe9;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex-shrink:0;}
+.up-tb-menu-id{min-width:0;padding-top:1px;}
+.up-tb-menu-name{font-family:var(--serif);font-size:15px;font-weight:600;color:#f7f3ee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.up-tb-menu-email{font-size:12px;color:rgba(247,243,238,.66);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.up-tb-menu-tier{display:inline-flex;align-items:center;gap:5px;margin-top:6px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--gold,#c9a962);}
+.up-tb-menu-list{padding:7px;}
+.up-tb-menu-item{display:flex;align-items:center;gap:11px;width:100%;padding:10px 12px;border:0;background:none;cursor:pointer;text-align:left;
+  font-family:var(--sans);font-size:13.5px;font-weight:600;color:var(--ink,#15110f);border-radius:10px;transition:background .13s ease;}
+.up-tb-menu-item i{width:16px;text-align:center;font-size:13px;color:var(--muted,#8a847b);}
+.up-tb-menu-item:hover{background:var(--paper-2,#f3efe9);}
+.up-tb-menu-item.danger{color:var(--crimson,#9b1b22);}
+.up-tb-menu-item.danger i{color:var(--crimson,#9b1b22);}
+.up-tb-menu-divider{height:1px;background:var(--line);margin:6px 8px;}
+/* Show the top bar on desktop + iPad landscape (id specificity beats the base display:none regardless of source order). */
+@media (min-width:1024px){ #upTopbar.up-topbar{display:flex;} }
 /* ===== Splash entry — refined warm-dark brand (consistent both themes; white logo stays legible) ===== */
 .splash-entry{background:linear-gradient(180deg, rgba(18,15,13,.70) 0%, rgba(18,15,13,.85) 55%, rgba(18,15,13,.93) 100%), url('/assets/photos/plexus_25_gala_grupna.jpg') center/cover !important;}
 .splash-entry-subtitle{font-family:var(--serif) !important;color:#f3efe9 !important;font-weight:500;letter-spacing:-.01em;}
@@ -56604,14 +56660,58 @@ button,input,select,textarea{font-family:var(--sans);}
         </div>
     </div>
 
+    <!-- ===== Premium signup wizard + soft-gate verify banner styles ===== -->
+    <style id="suwizStyles">
+    .suwiz-steps{display:flex;align-items:center;justify-content:center;gap:8px;margin:2px 0 22px;}
+    .suwiz-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:var(--paper-2,#f3efe9);color:var(--muted,#8a847b);border:1px solid var(--line,#e3ddd3);transition:all .2s;}
+    .suwiz-dot.active{background:var(--crimson,#9b1b22);color:#fff;border-color:var(--crimson,#9b1b22);}
+    .suwiz-dot.done{background:rgba(21,128,61,.12);color:#15803d;border-color:rgba(21,128,61,.4);}
+    .suwiz-bar{width:26px;height:2px;background:var(--line,#e3ddd3);}
+    .suwiz-bar.done{background:rgba(21,128,61,.4);}
+    .suwiz-benefits{list-style:none;padding:0;margin:20px 0 24px;display:flex;flex-direction:column;gap:13px;text-align:left;}
+    .suwiz-benefits li{display:flex;align-items:flex-start;gap:12px;font-size:14px;color:var(--ink,#15110f);line-height:1.45;}
+    .suwiz-benefits li i{color:var(--gold,#c9a962);margin-top:3px;flex-shrink:0;width:18px;text-align:center;}
+    .suwiz-confirm-icon{width:74px;height:74px;border-radius:50%;background:rgba(201,169,98,.12);border:1px solid rgba(201,169,98,.35);display:flex;align-items:center;justify-content:center;margin:6px auto 18px;color:var(--gold,#c9a962);font-size:30px;}
+    .suwiz-hint{font-size:12px;color:var(--muted,#8a847b);margin-top:18px;line-height:1.5;}
+    .up-verify-banner{display:flex;align-items:center;gap:12px;background:linear-gradient(90deg,rgba(201,169,98,.14),rgba(201,169,98,.06));border:1px solid rgba(201,169,98,.4);border-radius:12px;padding:11px 14px;margin:14px 16px 0;font-size:13.5px;color:var(--up-text,#15110f);}
+    .up-verify-ico{width:30px;height:30px;border-radius:50%;background:rgba(201,169,98,.2);display:flex;align-items:center;justify-content:center;color:var(--gold,#c9a962);flex-shrink:0;}
+    .up-verify-text{flex:1;min-width:0;line-height:1.4;}
+    .up-verify-btn{background:var(--crimson,#9b1b22);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;}
+    .up-verify-x{background:none;border:none;color:var(--up-text-muted,#8a847b);font-size:20px;line-height:1;cursor:pointer;padding:0 4px;flex-shrink:0;}
+    @media(max-width:560px){.up-verify-banner{flex-wrap:wrap;}.up-verify-text{flex-basis:100%;order:-1;}}
+    </style>
     <!-- ===== USER REGISTER MODAL ===== -->
     <div class="auth-modal-overlay" id="registerModal">
         <div class="auth-modal" style="max-width: 520px;">
             <button class="auth-modal-close" onclick="UserPortal.closeRegisterModal()" aria-label="Close registration">
                 <i class="fas fa-times"></i>
             </button>
-            <h2>Create Account</h2>
-            <p>Join the Med&X community</p>
+            <!-- Signup wizard stepper -->
+            <div class="suwiz-steps" id="regStepper" aria-hidden="true">
+                <span class="suwiz-dot active" data-step="1">1</span>
+                <span class="suwiz-bar"></span>
+                <span class="suwiz-dot" data-step="2">2</span>
+                <span class="suwiz-bar"></span>
+                <span class="suwiz-dot" data-step="3"><i class="fas fa-check"></i></span>
+            </div>
+
+            <!-- STEP 1: welcome -->
+            <div class="suwiz-step" id="regStep1">
+                <h2>Join the Med&X community</h2>
+                <p>Croatia's biomedical network &mdash; one account for the Plexus Conference, the Gala, the Accelerator and the Forum.</p>
+                <ul class="suwiz-benefits">
+                    <li><i class="fas fa-ticket-alt"></i> <span>Register for Plexus, the Gala and Building Bridges in a few taps.</span></li>
+                    <li><i class="fas fa-rocket"></i> <span>Apply to the Accelerator and track your applications and deadlines.</span></li>
+                    <li><i class="fas fa-bell"></i> <span>Follow the projects you care about and be the first to hear the news.</span></li>
+                </ul>
+                <button type="button" class="auth-btn" onclick="UserPortal.regGoStep(2)">Get started <i class="fas fa-arrow-right" style="margin-left:6px;"></i></button>
+                <p class="auth-link" style="margin-top:18px;">Already have an account? <a href="#" onclick="UserPortal.switchToLogin(); return false;">Sign in</a></p>
+            </div>
+
+            <!-- STEP 2: your details -->
+            <div class="suwiz-step" id="regStep2" style="display:none;">
+            <h2>Create your account</h2>
+            <p>Step 2 of 3 &mdash; your details</p>
 
             <div class="auth-error" id="userRegisterError">Registration failed</div>
 
@@ -56653,14 +56753,25 @@ button,input,select,textarea{font-family:var(--sans);}
                     </label>
                     <p style="margin:8px 0 0 26px; font-size:12px; color:var(--muted);"><i class="fas fa-lock" style="color:var(--gold); margin-right:5px;"></i>We never share your data.</p>
                 </div>
-                <button type="submit" class="auth-btn" id="userRegisterBtn">Create Account</button>
+                <button type="submit" class="auth-btn" id="userRegisterBtn">Create account</button>
             </form>
 
-            <div class="auth-divider"><span>or</span></div>
-
-            <p class="auth-link">
+            <p class="auth-link" style="margin-top:16px;">
+                <a href="#" onclick="UserPortal.regGoStep(1); return false;"><i class="fas fa-arrow-left" style="margin-right:6px;"></i>Back</a>
+                &nbsp;&middot;&nbsp;
                 Already have an account? <a href="#" onclick="UserPortal.switchToLogin(); return false;">Sign in</a>
             </p>
+            </div><!-- /regStep2 -->
+
+            <!-- STEP 3: confirm email -->
+            <div class="suwiz-step" id="regStep3" style="display:none; text-align:center;">
+                <div class="suwiz-confirm-icon"><i class="fas fa-envelope-open-text"></i></div>
+                <h2>Check your email</h2>
+                <p>We sent a confirmation link to <strong id="regConfirmEmail" style="color:var(--ink,#15110f);"></strong>. Click it to confirm your account.</p>
+                <button type="button" class="auth-btn" onclick="UserPortal.regFinish()">Continue to Med&X <i class="fas fa-arrow-right" style="margin-left:6px;"></i></button>
+                <p class="auth-link" style="margin-top:16px;">Didn't get it? <a href="#" id="regResendLink" onclick="UserPortal.resendVerification(); return false;">Resend email</a></p>
+                <p class="suwiz-hint">You can start exploring right away &mdash; we'll keep a gentle reminder at the top until your email is confirmed.</p>
+            </div>
         </div>
     </div>
 
@@ -56782,52 +56893,38 @@ button,input,select,textarea{font-family:var(--sans);}
         })();
         </script>
 
-        <!-- ===== Item 9: persistent desktop global nav (left rail, >=1024px) ===== -->
-        <aside class="up-rail" id="upRail" role="navigation" aria-label="Main">
-            <a href="#" class="up-rail-logo" onclick="UserPortal.showSection('dashboard'); return false;" aria-label="Home">
-                <img src="/assets/images/medx-logo.png" alt="Med&amp;X">
-            </a>
-            <nav class="up-rail-nav" id="upRailNav">
-                <button class="up-rail-item active" data-rail="dashboard" onclick="UserPortal.showSection('dashboard')"><i class="fas fa-home"></i><span>Home</span></button>
-                <button class="up-rail-item" data-rail="plexus" onclick="UserPortal.showSection('plexus')"><i class="fas fa-users"></i><span>Plexus</span></button>
-                <button class="up-rail-item" data-rail="gala" onclick="UserPortal.showSection('gala')"><i class="fas fa-glass-cheers"></i><span>Gala</span></button>
-                <button class="up-rail-item" data-rail="accelerator" onclick="UserPortal.showSection('accelerator')"><i class="fas fa-rocket"></i><span>Accelerator</span></button>
-                <button class="up-rail-item" data-rail="forum" onclick="UserPortal.showSection('forum')"><i class="fas fa-landmark"></i><span>Forum</span></button>
-                <button class="up-rail-item" data-rail="bridges" onclick="UserPortal.showSection('bridges')"><i class="fas fa-globe-europe"></i><span>Bridges</span></button>
-                <button class="up-rail-item" data-rail="network" onclick="UserPortal.showSection('network')"><i class="fas fa-user-friends"></i><span>Network</span></button>
-                <button class="up-rail-item" data-rail="talks" onclick="UserPortal.showSection('talks')"><i class="fas fa-play-circle"></i><span>Talk Library</span></button>
-                <button class="up-rail-item" data-rail="mymedx" onclick="UserPortal.showSection('mymedx')"><i class="fas fa-id-badge"></i><span>My Med&amp;X</span></button>
-                <button class="up-rail-item" data-rail="settings" onclick="UserPortal.showSection('settings')"><i class="fas fa-cog"></i><span>Settings</span></button>
-            </nav>
-            <div class="up-rail-spacer"></div>
-            <div class="up-rail-divider"></div>
-            <button class="up-rail-item" onclick="if(typeof NotificationSystem!=='undefined'&amp;&amp;NotificationSystem.toggle)NotificationSystem.toggle();"><i class="fas fa-bell"></i><span>Notifications</span></button>
-            <div class="up-rail-user">
-                <div class="up-rail-avatar" id="upRailAvatar">M</div>
-                <div class="up-rail-user-info">
-                    <div class="up-rail-user-name" id="upRailUserName">Member</div>
-                    <button class="up-rail-signout" onclick="UserPortal.logout()">Sign out</button>
-                </div>
-            </div>
-        </aside>
+        <!-- Left rail retired — the premium sticky top bar (#upTopbar, defined below) is the desktop nav.
+             This script keeps the window.MedXRail contract but repoints it to the top-bar nodes. -->
         <script>
         (function(){
-          var RAIL=document.getElementById('upRail');
-          function setActive(sec){ if(!RAIL) return; RAIL.querySelectorAll('.up-rail-item[data-rail]').forEach(function(a){
-            var on=a.getAttribute('data-rail')===sec; a.classList.toggle('active',on);
-            if(on){a.setAttribute('aria-current','page');}else{a.removeAttribute('aria-current');} }); }
-          function setUser(){ try{ var u=JSON.parse(localStorage.getItem('medx_user_data')||'{}')||{};
-            if((!u.first_name)&&typeof UserPortal!=='undefined'&&UserPortal.user) u=UserPortal.user;
-            var nm=((u.first_name||'')+' '+(u.last_name||'')).trim()||(u.email?String(u.email).split('@')[0]:'Member');
-            var av=((u.first_name||u.email||'M').charAt(0)||'M').toUpperCase();
-            var n=document.getElementById('upRailUserName'); if(n)n.textContent=nm;
-            var a=document.getElementById('upRailAvatar'); if(a)a.textContent=av; }catch(e){} }
+          var PROJECT_SET={plexus:1,gala:1,accelerator:1,forum:1,bridges:1,af26:1,speaker:1};
+          function setActive(sec){
+            var bar=document.getElementById('upTopbar'); if(!bar) return;
+            bar.querySelectorAll('.up-tb-item[data-nav]').forEach(function(el){
+              var nav=el.getAttribute('data-nav');
+              var on=(nav===sec)||(nav==='projects'&&!!PROJECT_SET[sec]);
+              el.classList.toggle('active',on);
+              if(on){el.setAttribute('aria-current','page');}else{el.removeAttribute('aria-current');}
+            });
+          }
+          function readUser(){ var u={}; try{ u=JSON.parse(localStorage.getItem('medx_user_data')||'{}')||{}; }catch(e){}
+            if((!u.first_name)&&typeof UserPortal!=='undefined'&&UserPortal.user) u=UserPortal.user; return u||{}; }
+          function txt(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; }
+          function setUser(){ var u=readUser();
+            var nm=((u.first_name||'')+' '+(u.last_name||'')).trim()||(u.name||'')||(u.email?String(u.email).split('@')[0]:'Member');
+            var av=((u.first_name||u.name||u.email||'M').charAt(0)||'M').toUpperCase();
+            var email=u.email||''; var tier='Med&X Member';
+            txt('upTbUserName',nm); txt('upTbAvatar',av); txt('upTbTier',tier);
+            txt('upAcctName',nm); txt('upAcctAvatar',av); txt('upAcctEmail',email); txt('upAcctTierText',tier);
+          }
           window.MedXRail={ set:function(sec){ setActive(sec); setUser(); }, setUser:setUser };
-          // Hook the existing per-navigation sync so the rail active state always matches the section.
+          // Keep the per-navigation sync hook so the top-bar active state always matches the section.
           if(window.MedXBottomNav){ var _o=window.MedXBottomNav.syncFromSection;
             window.MedXBottomNav.syncFromSection=function(sec){ if(_o){try{_o.call(this,sec);}catch(e){}} try{ setActive(sec); }catch(e){} }; }
-          window.addEventListener('load',function(){ var s=(location.hash||'').replace('#','')||'dashboard'; setActive(s); setUser(); });
+          window.addEventListener('load',function(){ var sc=(location.hash||'').replace('#','')||'dashboard'; setActive(sc); setUser(); });
           if(document.readyState!=='loading'){ setUser(); }
+          // Faint shadow on the sticky top bar after scroll.
+          window.addEventListener('scroll',function(){ var b=document.getElementById('upTopbar'); if(b) b.classList.toggle('scrolled', window.scrollY>4); },{passive:true});
         })();
         </script>
 
@@ -58029,7 +58126,61 @@ button,input,select,textarea{font-family:var(--sans);}
             </div>
         </div>
 
+        <!-- ===== Premium top navigation (desktop + iPad landscape, >=1024px) — replaces the retired left rail ===== -->
+        <header id="upTopbar" class="up-topbar" role="navigation" aria-label="Main">
+          <button class="up-tb-brand" onclick="UserPortal.showSection('dashboard');return false;" aria-label="Med&amp;X home">
+            <img src="/assets/images/medx-logo.png" alt="Med&amp;X">
+          </button>
+          <nav class="up-tb-nav" aria-label="Primary">
+            <button class="up-tb-item" data-nav="dashboard" onclick="UserPortal.showSection('dashboard')">Home</button>
+            <button class="up-tb-item has-menu" data-nav="projects" aria-haspopup="true" onclick="UserPortal.toggleProjectsMenu(event)">Projects <i class="fas fa-chevron-down up-tb-caret"></i></button>
+            <button class="up-tb-item" data-nav="network" onclick="UserPortal.showSection('network')">Network</button>
+            <button class="up-tb-item" data-nav="talks" onclick="UserPortal.showSection('talks')">Talk Library</button>
+            <button class="up-tb-item" data-nav="mymedx" onclick="UserPortal.showSection('mymedx')">My Med&amp;X</button>
+          </nav>
+          <div class="up-tb-spacer"></div>
+          <button class="up-tb-icon" id="upTbBell" aria-label="Notifications" onclick="if(typeof NotificationSystem!=='undefined'&amp;&amp;NotificationSystem.toggle){NotificationSystem.toggle();}else{UserPortal.toggleNotifications();}">
+            <i class="fas fa-bell"></i><span class="up-tb-dot" id="upTbBellDot" style="display:none;"></span>
+          </button>
+          <div class="up-tb-account">
+            <button class="up-tb-account-btn" onclick="UserPortal.toggleAccountMenu(event)" aria-haspopup="true" aria-expanded="false">
+              <span class="up-tb-avatar" id="upTbAvatar">M</span>
+              <span class="up-tb-account-meta">
+                <span class="up-tb-username" id="upTbUserName">Member</span>
+                <span class="up-tb-tier" id="upTbTier">Med&amp;X Member</span>
+              </span>
+              <i class="fas fa-chevron-down up-tb-caret"></i>
+            </button>
+            <div class="up-tb-menu" id="upAccountMenu" role="menu" aria-label="Account">
+              <div class="up-tb-menu-head">
+                <div class="up-tb-menu-avatar" id="upAcctAvatar">M</div>
+                <div class="up-tb-menu-id">
+                  <div class="up-tb-menu-name" id="upAcctName">Member</div>
+                  <div class="up-tb-menu-email" id="upAcctEmail"></div>
+                  <div class="up-tb-menu-tier"><i class="fas fa-crown"></i> <span id="upAcctTierText">Med&amp;X Member</span></div>
+                </div>
+              </div>
+              <div class="up-tb-menu-list">
+                <button class="up-tb-menu-item" role="menuitem" onclick="UserPortal.showSection('mymedx');UserPortal.closeAccountMenu();"><i class="fas fa-id-badge"></i> My Med&amp;X</button>
+                <button class="up-tb-menu-item" role="menuitem" onclick="UserPortal.showSection('settings');UserPortal.closeAccountMenu();"><i class="fas fa-user-edit"></i> Edit profile</button>
+                <button class="up-tb-menu-item" role="menuitem" onclick="UserPortal.showSection('settings');UserPortal.closeAccountMenu();"><i class="fas fa-cog"></i> Settings</button>
+                <button class="up-tb-menu-item" role="menuitem" onclick="UserPortal.closeAccountMenu();if(typeof NotificationSystem!=='undefined'&amp;&amp;NotificationSystem.toggle){NotificationSystem.toggle();}else{UserPortal.toggleNotifications();}"><i class="fas fa-bell"></i> Notifications</button>
+                <button class="up-tb-menu-item" role="menuitem" onclick="UserPortal.installApp();"><i class="fas fa-download"></i> Install app</button>
+                <div class="up-tb-menu-divider"></div>
+                <button class="up-tb-menu-item danger" role="menuitem" onclick="UserPortal.logout()"><i class="fas fa-sign-out-alt"></i> Sign out</button>
+              </div>
+            </div>
+          </div>
+        </header>
+
         <main class="up-main">
+            <!-- Soft-gate email confirmation banner (shown until email_verified) -->
+            <div id="upVerifyBanner" class="up-verify-banner" style="display:none;" role="status">
+                <span class="up-verify-ico"><i class="fas fa-envelope"></i></span>
+                <span class="up-verify-text">Confirm your email to unlock everything. We sent a link to <strong id="upVerifyEmail"></strong>.</span>
+                <button class="up-verify-btn" id="upVerifyResendBtn" onclick="UserPortal.resendVerification()">Resend link</button>
+                <button class="up-verify-x" onclick="UserPortal.dismissVerifyBanner()" aria-label="Dismiss">&times;</button>
+            </div>
             <!-- Dashboard Section -->
             <div class="up-section active" id="up-section-dashboard">
                 <!-- Easter egg: floating particles / twinkling stars -->
@@ -58273,9 +58424,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 <p>Apply, register, and follow every Med&amp;X project from here.</p>
                             </div>
                         </div>
-                        <div class="mx-hub-grid" id="mxProjectHub">
-                            <div class="mx-hub-empty"><i class="fas fa-spinner fa-spin"></i> Loading projects…</div>
-                        </div>
+                        <div class="mx-hub-grid" id="mxProjectHub"></div>
                     </section>
                     <script>
                     (function(){
@@ -58286,25 +58435,40 @@ button,input,select,textarea{font-family:var(--sans);}
                       var NAMES={plexus:'Plexus',gala:'Gala Evening',accelerator:'Accelerator',forum:'Biomedical Forum',bridges:'Building Bridges'};
                       var KINDS={open:'open',soon:'soon',info:'info',closed:'closed'};
                       var NOTIFY_KEY='medx_notify_topics';
+                      var STATUS_KEY='medx_project_status';
+                      // Baked canonical fallback — mirrors the admin seed so the hub renders INSTANTLY
+                      // from cache or this list. The words "Loading projects" are never user-visible.
+                      var FALLBACK=[
+                        {project_key:'plexus',status_label:'Pre-registration open',status_kind:'open',detail_line:'December 4-5, 2026 - Zagreb - Free entry',cta_label:'Register',cta_target:'plexus'},
+                        {project_key:'gala',status_label:'Reserve your seat',status_kind:'open',detail_line:'Saturday December 5 - Hotel Esplanade - EUR 150 through 1 Sep',cta_label:'Reserve seat',cta_target:'gala'},
+                        {project_key:'accelerator',status_label:'Applications open in November',status_kind:'soon',detail_line:'Placements across partner labs and clinics - November 2026',cta_label:'Learn more',cta_target:'accelerator'},
+                        {project_key:'forum',status_label:'By invitation',status_kind:'info',detail_line:'Biomedical Forum gathering - May 2027',cta_label:'Enter code',cta_target:'forum'},
+                        {project_key:'bridges',status_label:'Boston - September 2026',status_kind:'info',detail_line:'Building Bridges at Harvard Medical School',cta_label:'View program',cta_target:'bridges'}
+                      ];
                       function cacheGet(){ try{ return JSON.parse(localStorage.getItem(NOTIFY_KEY)||'[]')||[]; }catch(e){ return []; } }
                       function cacheSet(a){ try{ localStorage.setItem(NOTIFY_KEY, JSON.stringify(a||[])); }catch(e){} }
-                      var PH={ _projects:[], _subs:cacheGet(),
-                        render:function(){ var host=document.getElementById('mxProjectHub'); if(!host) return; var tk=token(); if(!tk) return;
-                          PH._subs=cacheGet(); if(PH._projects.length) PH._paint();
+                      function statusCacheGet(){ try{ var a=JSON.parse(localStorage.getItem(STATUS_KEY)||'null'); return (Array.isArray(a)&&a.length)?a:null; }catch(e){ return null; } }
+                      function statusCacheSet(a){ try{ if(Array.isArray(a)&&a.length) localStorage.setItem(STATUS_KEY, JSON.stringify(a)); }catch(e){} }
+                      var PH={ _projects:(statusCacheGet()||FALLBACK), _subs:cacheGet(),
+                        // render = instant paint (cache/fallback) + silent background revalidate. Never a spinner.
+                        render:function(){ var host=document.getElementById('mxProjectHub'); if(!host) return;
+                          if(!PH._projects||!PH._projects.length) PH._projects=FALLBACK;
+                          PH._subs=cacheGet(); PH._paint();
+                          var tk=token(); if(!tk) return;
                           fetch(apiBase()+'/api/project-status',{headers:{'Authorization':'Bearer '+tk}})
                             .then(function(r){return r.ok?r.json():Promise.reject();})
-                            .then(function(rows){ PH._projects=Array.isArray(rows)?rows:[]; PH._paint(); PH._loadSubs(tk); })
-                            .catch(function(){ }); },
+                            .then(function(rows){ if(Array.isArray(rows)&&rows.length){ PH._projects=rows; statusCacheSet(rows); PH._paint(); } PH._loadSubs(tk); })
+                            .catch(function(){ /* keep the instant cache/fallback paint */ }); },
                         _loadSubs:function(tk){ fetch(apiBase()+'/api/notify-topics',{headers:{'Authorization':'Bearer '+tk}})
                             .then(function(r){return r.ok?r.json():Promise.reject();})
                             .then(function(d){ PH._subs=(d&&Array.isArray(d.projects))?d.projects:[]; cacheSet(PH._subs); PH._paint(); })
                             .catch(function(){}); },
                         _paint:function(){ var host=document.getElementById('mxProjectHub'); if(!host) return;
-                          if(!PH._projects.length){ host.innerHTML='<div class="mx-hub-empty">Projects will appear here.</div>'; return; }
-                          host.innerHTML=PH._projects.map(function(p){
+                          var list=(PH._projects&&PH._projects.length)?PH._projects:FALLBACK;
+                          host.innerHTML=list.map(function(p){
                             var k=p.project_key; var kind=KINDS[p.status_kind]||'info'; var ico=ICONS[k]||'fa-star';
                             var on=PH._subs.indexOf(k)>=0; var target=p.cta_target||k;
-                            return '<div class="mx-hub-card" onclick="MedXProjectHub.go(\''+esc(target)+'\')">'
+                            return '<div class="mx-hub-card" role="button" tabindex="0" onclick="MedXProjectHub.go(\''+esc(target)+'\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();MedXProjectHub.go(\''+esc(target)+'\');}">'
                               +'<div class="mx-hub-top"><div class="mx-hub-idname"><div class="mx-hub-ico"><i class="fas '+ico+'"></i></div>'
                               +'<div class="mx-hub-name">'+esc(NAMES[k]||k)+'</div></div>'
                               +'<button class="mx-hub-bell'+(on?' on':'')+'" title="'+(on?'You will be notified':'Get notified')+'" aria-pressed="'+(on?'true':'false')+'" onclick="event.stopPropagation();MedXProjectHub.toggle(\''+esc(k)+'\',this)"><i class="fas fa-bell"></i></button></div>'
@@ -58323,9 +58487,10 @@ button,input,select,textarea{font-family:var(--sans);}
                             .catch(function(){ if(on){ PH._subs=PH._subs.filter(function(x){return x!==key;}); } else { PH._subs.push(key); } cacheSet(PH._subs); PH._paint(); }); }
                       };
                       window.MedXProjectHub=PH;
-                      function maybe(){ var h=(location.hash||'').replace('#',''); if(!h||h==='dashboard'){ PH.render(); } }
-                      if(document.readyState!=='loading') setTimeout(maybe,300); else window.addEventListener('load',function(){ setTimeout(maybe,300); });
-                      window.addEventListener('hashchange',maybe);
+                      // Instant synchronous paint — the grid element is already parsed just above this script.
+                      try{ PH._paint(); }catch(e){}
+                      if(document.readyState!=='loading'){ PH.render(); } else { document.addEventListener('DOMContentLoaded',function(){ PH.render(); }); }
+                      window.addEventListener('hashchange',function(){ var h=(location.hash||'').replace('#',''); if(!h||h==='dashboard') PH.render(); });
                     })();
                     </script>
 
@@ -59094,6 +59259,37 @@ button,input,select,textarea{font-family:var(--sans);}
             </div>
 
             <!-- Plexus Conference Section -->
+            <!-- ===== Shared project-page lead component (mxlead): the signature "most-important-first" strip reused by Plexus, Gala and Bridges. Cream/ink system, gold eyebrow, ONE crimson primary. ===== -->
+            <style id="mxLeadStyles">
+            .mxlead{margin:0 0 26px;}
+            .mxlead-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:16px;flex-wrap:wrap;}
+            .mxlead-eyebrow{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--up-gold,#c9a962);margin:0 0 6px;display:flex;align-items:center;gap:7px;}
+            .mxlead-title{font-family:'Fraunces',Georgia,serif;font-size:23px;font-weight:600;color:var(--up-text,#15110f);margin:0;letter-spacing:-.01em;line-height:1.14;}
+            .mxlead-sub{font-size:13px;color:var(--up-text-secondary,#6e6e73);margin:6px 0 0;line-height:1.5;max-width:600px;}
+            .mxlead-actions{display:flex;gap:10px;flex-shrink:0;flex-wrap:wrap;align-items:center;}
+            .mxlead-btn{border:none;border-radius:10px;padding:11px 20px;font-weight:600;font-size:13.5px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;transition:transform .12s ease,opacity .12s ease;}
+            .mxlead-btn:hover{transform:translateY(-1px);}
+            .mxlead-btn-primary{background:var(--crimson,#9b1b22);color:#fff;}
+            .mxlead-btn-ghost{background:transparent;color:var(--up-text,#15110f);border:1px solid var(--up-border,#e7e2da);}
+            .mxlead-kn-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+            .mxlead-kn{background:var(--up-bg,#fbf9f6);border:1px solid var(--up-border,#e7e2da);border-radius:16px;padding:16px 12px;text-align:center;box-shadow:0 1px 2px rgba(21,17,15,.04);transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;}
+            .mxlead-kn:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(21,17,15,.09);border-color:rgba(201,169,98,.5);}
+            .mxlead-kn-img{width:80px;height:80px;border-radius:50%;object-fit:cover;object-position:top center;margin:0 auto 11px;display:block;border:2px solid rgba(201,169,98,.4);background:var(--up-bg-subtle,#f3efe9);}
+            .mxlead-kn-badge{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#15803d;background:rgba(21,128,61,.09);border-radius:999px;padding:3px 9px;display:inline-block;margin-bottom:8px;}
+            .mxlead-kn-name{font-size:13.5px;font-weight:700;color:var(--up-text,#15110f);line-height:1.2;margin:0 0 3px;}
+            .mxlead-kn-role{font-size:11.5px;color:var(--up-text-secondary,#6e6e73);line-height:1.35;margin:0;}
+            .mxlead-kn-org{font-size:11px;color:var(--up-text-muted,#8a847b);line-height:1.3;margin:3px 0 0;font-weight:600;}
+            .mxlead-foot{font-size:12px;color:var(--up-text-muted,#8a847b);margin:13px 0 0;text-align:center;line-height:1.5;}
+            .mxlead-rows{display:flex;flex-direction:column;gap:12px;}
+            .mxlead-row{display:flex;align-items:center;gap:14px;background:var(--up-bg,#fbf9f6);border:1px solid var(--up-border,#e7e2da);border-radius:14px;padding:15px 18px;box-shadow:0 1px 2px rgba(21,17,15,.04);}
+            .mxlead-row-ico{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--up-bg-subtle,#f3efe9);border:1px solid var(--up-border,#e7e2da);color:var(--up-gold,#c9a962);font-size:17px;}
+            .mxlead-row-body{flex:1;min-width:0;}
+            .mxlead-row-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--up-text-muted,#8a847b);margin-bottom:3px;}
+            .mxlead-row-main{font-size:15px;font-weight:600;color:var(--up-text,#15110f);line-height:1.3;}
+            .mxlead-row-sub{font-size:12.5px;color:var(--up-text-secondary,#6e6e73);margin-top:2px;line-height:1.4;}
+            @media(max-width:900px){.mxlead-kn-grid{grid-template-columns:repeat(3,1fr);}}
+            @media(max-width:560px){.mxlead-kn-grid{grid-template-columns:1fr 1fr;}.mxlead-kn-img{width:66px;height:66px;}.mxlead-title{font-size:20px;}.mxlead-row{flex-wrap:wrap;}.mxlead-head{gap:12px;}}
+            </style>
             <div class="up-section" id="up-section-plexus">
                 <div class="up-container" style="position: relative;">
                     <!-- Home Button (outside hero to avoid click interception) -->
@@ -59176,6 +59372,59 @@ button,input,select,textarea{font-family:var(--sans);}
 
                     <!-- Overview Panel -->
                     <div class="px-panel active" id="px-panel-overview">
+                        <!-- Signature lead: Plexus leads with its speakers, then register + program -->
+                        <div class="mxlead">
+                            <div class="mxlead-head">
+                                <div>
+                                    <p class="mxlead-eyebrow"><i class="fas fa-microphone"></i> Speakers 2026</p>
+                                    <h2 class="mxlead-title">Meet the people on the Plexus stage</h2>
+                                    <p class="mxlead-sub">Global hospital and university leaders headline Plexus 2026, alongside our full conference speaker programme.</p>
+                                </div>
+                                <div class="mxlead-actions">
+                                    <button class="mxlead-btn mxlead-btn-primary" onclick="PlexusPortal.showTab('register')"><i class="fas fa-ticket-alt"></i> Register now</button>
+                                    <button class="mxlead-btn mxlead-btn-ghost" onclick="PlexusPortal.showTab('speakers')">All speakers</button>
+                                    <button class="mxlead-btn mxlead-btn-ghost" onclick="PlexusPortal.showTab('schedule')">Program</button>
+                                </div>
+                            </div>
+                            <div class="mxlead-kn-grid">
+                                <div class="mxlead-kn">
+                                    <img class="mxlead-kn-img" src="assets/gala/gala_keynote_smith_finsbury.jpg" alt="Lord Smith of Finsbury" loading="lazy">
+                                    <span class="mxlead-kn-badge">Confirmed</span>
+                                    <p class="mxlead-kn-name">Lord Smith of Finsbury</p>
+                                    <p class="mxlead-kn-role">Chancellor</p>
+                                    <p class="mxlead-kn-org">University of Cambridge</p>
+                                </div>
+                                <div class="mxlead-kn">
+                                    <img class="mxlead-kn-img" src="assets/gala/gala_keynote_spisso.jpg" alt="Johnese Spisso, MPA" loading="lazy">
+                                    <span class="mxlead-kn-badge">Confirmed</span>
+                                    <p class="mxlead-kn-name">Johnese Spisso, MPA</p>
+                                    <p class="mxlead-kn-role">President, UCLA Health</p>
+                                    <p class="mxlead-kn-org">UCLA Hospital System CEO</p>
+                                </div>
+                                <div class="mxlead-kn">
+                                    <img class="mxlead-kn-img" src="assets/gala/gala_keynote_delcarmen.jpg" alt="Dr Marcela del Carmen" loading="lazy">
+                                    <span class="mxlead-kn-badge">Confirmed</span>
+                                    <p class="mxlead-kn-name">Dr Marcela del Carmen</p>
+                                    <p class="mxlead-kn-role">President</p>
+                                    <p class="mxlead-kn-org">Massachusetts General Hospital</p>
+                                </div>
+                                <div class="mxlead-kn">
+                                    <img class="mxlead-kn-img" src="assets/gala/gala_keynote_kevin_smith.jpg" alt="Dr Kevin Smith" loading="lazy">
+                                    <span class="mxlead-kn-badge">Confirmed</span>
+                                    <p class="mxlead-kn-name">Dr Kevin Smith</p>
+                                    <p class="mxlead-kn-role">President &amp; CEO</p>
+                                    <p class="mxlead-kn-org">University Health Network</p>
+                                </div>
+                                <div class="mxlead-kn">
+                                    <img class="mxlead-kn-img" src="assets/gala/gala_keynote_anderson.jpg" alt="Dr Paul Anderson" loading="lazy">
+                                    <span class="mxlead-kn-badge">Confirmed</span>
+                                    <p class="mxlead-kn-name">Dr Paul Anderson</p>
+                                    <p class="mxlead-kn-role">Chief Academic Officer</p>
+                                    <p class="mxlead-kn-org">Mass General Brigham</p>
+                                </div>
+                            </div>
+                            <p class="mxlead-foot">Two of our keynote speakers also hold Harvard Medical School professorships.</p>
+                        </div>
                         <!-- Info Cards - Centered -->
                         <div class="px-info-grid" style="max-width: 900px; margin: 0 auto 32px auto;">
                             <div class="px-info-card">
@@ -62000,6 +62249,58 @@ button,input,select,textarea{font-family:var(--sans);}
 
                     <!-- Gala Overview Panel -->
                     <div class="gala-panel active" id="gala-panel-overview">
+                        <!-- Signature lead: the Gala leads with its confirmed 2026 keynotes, then reserve -->
+                        <div class="mxlead">
+                            <div class="mxlead-head">
+                                <div>
+                                    <p class="mxlead-eyebrow"><i class="fas fa-star"></i> Confirmed keynotes 2026</p>
+                                    <h2 class="mxlead-title">The people who lead the world's medicine</h2>
+                                    <p class="mxlead-sub">The heads of the world's foremost hospitals and universities, in Zagreb, in person, for one evening.</p>
+                                </div>
+                                <div class="mxlead-actions">
+                                    <button class="mxlead-btn mxlead-btn-primary" onclick="GalaPortal.showTab('register')"><i class="fas fa-ticket-alt"></i> Reserve your seat</button>
+                                    <button class="mxlead-btn mxlead-btn-ghost" onclick="GalaPortal.showTab('schedule')">Evening program</button>
+                                </div>
+                            </div>
+                            <div class="mxlead-kn-grid">
+                                <div class="mxlead-kn">
+                                    <img class="mxlead-kn-img" src="assets/gala/gala_keynote_smith_finsbury.jpg" alt="Lord Smith of Finsbury" loading="lazy">
+                                    <span class="mxlead-kn-badge">Confirmed</span>
+                                    <p class="mxlead-kn-name">Lord Smith of Finsbury</p>
+                                    <p class="mxlead-kn-role">Chancellor</p>
+                                    <p class="mxlead-kn-org">University of Cambridge</p>
+                                </div>
+                                <div class="mxlead-kn">
+                                    <img class="mxlead-kn-img" src="assets/gala/gala_keynote_spisso.jpg" alt="Johnese Spisso, MPA" loading="lazy">
+                                    <span class="mxlead-kn-badge">Confirmed</span>
+                                    <p class="mxlead-kn-name">Johnese Spisso, MPA</p>
+                                    <p class="mxlead-kn-role">President, UCLA Health</p>
+                                    <p class="mxlead-kn-org">UCLA Hospital System CEO</p>
+                                </div>
+                                <div class="mxlead-kn">
+                                    <img class="mxlead-kn-img" src="assets/gala/gala_keynote_delcarmen.jpg" alt="Dr Marcela del Carmen" loading="lazy">
+                                    <span class="mxlead-kn-badge">Confirmed</span>
+                                    <p class="mxlead-kn-name">Dr Marcela del Carmen</p>
+                                    <p class="mxlead-kn-role">President</p>
+                                    <p class="mxlead-kn-org">Massachusetts General Hospital</p>
+                                </div>
+                                <div class="mxlead-kn">
+                                    <img class="mxlead-kn-img" src="assets/gala/gala_keynote_kevin_smith.jpg" alt="Dr Kevin Smith" loading="lazy">
+                                    <span class="mxlead-kn-badge">Confirmed</span>
+                                    <p class="mxlead-kn-name">Dr Kevin Smith</p>
+                                    <p class="mxlead-kn-role">President &amp; CEO</p>
+                                    <p class="mxlead-kn-org">University Health Network</p>
+                                </div>
+                                <div class="mxlead-kn">
+                                    <img class="mxlead-kn-img" src="assets/gala/gala_keynote_anderson.jpg" alt="Dr Paul Anderson" loading="lazy">
+                                    <span class="mxlead-kn-badge">Confirmed</span>
+                                    <p class="mxlead-kn-name">Dr Paul Anderson</p>
+                                    <p class="mxlead-kn-role">Chief Academic Officer</p>
+                                    <p class="mxlead-kn-org">Mass General Brigham</p>
+                                </div>
+                            </div>
+                            <p class="mxlead-foot">Two of our keynote speakers also hold Harvard Medical School professorships.</p>
+                        </div>
                         <!-- Highlight Cards -->
                         <div class="gala-highlights-grid">
                             <div class="gala-highlight-card">
@@ -62031,10 +62332,7 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                             <div class="up-card-body">
                                 <p style="color: var(--up-text-secondary); line-height: 1.8; margin-bottom: 16px;">
-                                    The Gala Evening is the crown jewel of Plexus 2026 – an exclusive evening that brings together 150+ of the most influential figures in biomedicine for an unforgettable celebration of excellence and innovation.
-                                </p>
-                                <p style="color: var(--up-text-secondary); line-height: 1.8; margin-bottom: 16px;">
-                                    The evening brings together the Biomedical Forum Awards ceremony, a five-course dinner with paired wines, keynote addresses, and live music by Tatiana Cameron and Ante Gelo.
+                                    The anchor dinner of Plexus 2026 &mdash; 150+ leaders in biomedicine for the Biomedical Forum Awards, a five-course dinner, keynote addresses, and live music.
                                 </p>
                                 <p style="color: var(--up-text-secondary); line-height: 1.8;">
                                     <strong>Dress Code:</strong> Black Tie / Formal Evening Attire
@@ -62112,42 +62410,47 @@ button,input,select,textarea{font-family:var(--sans);}
                     <!-- Gala Speakers Panel -->
                     <div class="gala-panel" id="gala-panel-speakers">
                         <div class="gala-speakers-header">
-                            <h2>Featured Speakers</h2>
-                            <p>Distinguished leaders sharing their vision for the future of medicine</p>
+                            <h2>Confirmed Keynotes 2026</h2>
+                            <p>The heads of the world's foremost hospitals and universities, together for one evening</p>
                         </div>
-                        <div class="gala-speakers-grid">
-                            <div class="gala-speaker-card featured" onclick="GalaPortal.showSpeakerModal('chen')">
-                                <div class="gala-speaker-badge">Keynote Speaker</div>
-                                <div class="gala-speaker-image">
-                                    <img src="https://randomuser.me/api/portraits/women/23.jpg" alt="Dr. Elizabeth Chen">
-                                </div>
-                                <div class="gala-speaker-info">
-                                    <h4>Dr. Elizabeth Chen</h4>
-                                    <p class="gala-speaker-title">Director, National Cancer Institute</p>
-                                    <p class="gala-speaker-topic">"The Next Decade of Cancer Research"</p>
-                                </div>
+                        <div class="mxlead-kn-grid">
+                            <div class="mxlead-kn">
+                                <img class="mxlead-kn-img" src="assets/gala/gala_keynote_smith_finsbury.jpg" alt="Lord Smith of Finsbury" loading="lazy">
+                                <span class="mxlead-kn-badge">Confirmed keynote</span>
+                                <p class="mxlead-kn-name">Lord Smith of Finsbury</p>
+                                <p class="mxlead-kn-role">Chancellor</p>
+                                <p class="mxlead-kn-org">University of Cambridge</p>
                             </div>
-                            <div class="gala-speaker-card" onclick="GalaPortal.showSpeakerModal('weber')">
-                                <div class="gala-speaker-image">
-                                    <img src="https://randomuser.me/api/portraits/men/42.jpg" alt="Prof. Michael Weber">
-                                </div>
-                                <div class="gala-speaker-info">
-                                    <h4>Prof. Michael Weber</h4>
-                                    <p class="gala-speaker-title">Keynote Speaker in Medicine</p>
-                                    <p class="gala-speaker-topic">Awards Presenter</p>
-                                </div>
+                            <div class="mxlead-kn">
+                                <img class="mxlead-kn-img" src="assets/gala/gala_keynote_spisso.jpg" alt="Johnese Spisso, MPA" loading="lazy">
+                                <span class="mxlead-kn-badge">Confirmed keynote</span>
+                                <p class="mxlead-kn-name">Johnese Spisso, MPA</p>
+                                <p class="mxlead-kn-role">President, UCLA Health</p>
+                                <p class="mxlead-kn-org">UCLA Hospital System CEO</p>
                             </div>
-                            <div class="gala-speaker-card" onclick="GalaPortal.showSpeakerModal('mitchell')">
-                                <div class="gala-speaker-image">
-                                    <img src="https://randomuser.me/api/portraits/women/45.jpg" alt="Dr. Sarah Mitchell">
-                                </div>
-                                <div class="gala-speaker-info">
-                                    <h4>Dr. Sarah Mitchell</h4>
-                                    <p class="gala-speaker-title">CEO, BioTech Innovations</p>
-                                    <p class="gala-speaker-topic">Industry Address</p>
-                                </div>
+                            <div class="mxlead-kn">
+                                <img class="mxlead-kn-img" src="assets/gala/gala_keynote_delcarmen.jpg" alt="Dr Marcela del Carmen" loading="lazy">
+                                <span class="mxlead-kn-badge">Confirmed keynote</span>
+                                <p class="mxlead-kn-name">Dr Marcela del Carmen</p>
+                                <p class="mxlead-kn-role">President</p>
+                                <p class="mxlead-kn-org">Massachusetts General Hospital</p>
+                            </div>
+                            <div class="mxlead-kn">
+                                <img class="mxlead-kn-img" src="assets/gala/gala_keynote_kevin_smith.jpg" alt="Dr Kevin Smith" loading="lazy">
+                                <span class="mxlead-kn-badge">Confirmed keynote</span>
+                                <p class="mxlead-kn-name">Dr Kevin Smith</p>
+                                <p class="mxlead-kn-role">President &amp; CEO</p>
+                                <p class="mxlead-kn-org">University Health Network</p>
+                            </div>
+                            <div class="mxlead-kn">
+                                <img class="mxlead-kn-img" src="assets/gala/gala_keynote_anderson.jpg" alt="Dr Paul Anderson" loading="lazy">
+                                <span class="mxlead-kn-badge">Confirmed keynote</span>
+                                <p class="mxlead-kn-name">Dr Paul Anderson</p>
+                                <p class="mxlead-kn-role">Chief Academic Officer</p>
+                                <p class="mxlead-kn-org">Mass General Brigham</p>
                             </div>
                         </div>
+                        <p class="mxlead-foot">Two of our keynote speakers also hold Harvard Medical School professorships.</p>
                     </div>
 
                     <!-- Gala Schedule Panel -->
@@ -62172,8 +62475,8 @@ button,input,select,textarea{font-family:var(--sans);}
                                 <div class="gala-timeline-content">
                                     <div class="gala-timeline-icon"><i class="fas fa-microphone"></i></div>
                                     <div class="gala-timeline-details">
-                                        <h4>Opening & Keynote Address</h4>
-                                        <p>Dr. Elizabeth Chen: "The Next Decade of Cancer Research"</p>
+                                        <h4>Opening & Keynote Addresses</h4>
+                                        <p>Remarks from our confirmed 2026 keynote speakers</p>
                                     </div>
                                 </div>
                             </div>
@@ -67256,6 +67559,31 @@ button,input,select,textarea{font-family:var(--sans);}
 
                     <!-- Overview Panel -->
                     <div class="bb-panel active" id="bb-panel-overview">
+                        <!-- Signature lead: most-important-first — where we are headed + apply -->
+                        <div class="mxlead">
+                            <div class="mxlead-head">
+                                <div>
+                                    <p class="mxlead-eyebrow"><i class="fas fa-globe-europe"></i> Building Bridges 2026</p>
+                                    <h2 class="mxlead-title">Croatian biomedicine, city by city</h2>
+                                    <p class="mxlead-sub">Intimate evenings of 40&ndash;50 that connect Croatian professionals with a world-leading institution in their city.</p>
+                                </div>
+                                <div class="mxlead-actions">
+                                    <button class="mxlead-btn mxlead-btn-primary" onclick="BuildingBridgesPortal.showTab('apply')"><i class="fas fa-paper-plane"></i> Apply to join</button>
+                                    <button class="mxlead-btn mxlead-btn-ghost" onclick="BuildingBridgesPortal.showTab('upcoming')">Upcoming events</button>
+                                </div>
+                            </div>
+                            <div class="mxlead-rows">
+                                <div class="mxlead-row">
+                                    <div class="mxlead-row-ico"><i class="fas fa-bolt"></i></div>
+                                    <div class="mxlead-row-body">
+                                        <div class="mxlead-row-label">Next up</div>
+                                        <div class="mxlead-row-main">Zurich &middot; Boston &middot; Washington DC</div>
+                                        <div class="mxlead-row-sub">Three city editions are being scheduled for 2026 &mdash; register your interest to hear dates first.</div>
+                                    </div>
+                                    <button class="mxlead-btn mxlead-btn-ghost" onclick="BuildingBridgesPortal.showTab('upcoming')">See all</button>
+                                </div>
+                            </div>
+                        </div>
                         <div class="bb-overview-grid">
                             <div class="bb-overview-card">
                                 <h3><i class="fas fa-bullseye" style="color: #9b1b22; margin-right: 8px;"></i>Our Mission</h3>
@@ -77587,24 +77915,39 @@ You can use variables like {first_name} that will be personalized for each recip
                     return; // Skip the normal init flow
                 }
 
-                // Handle email verification redirect
+                // Handle email confirmation redirect (from GET /api/auth/verify)
                 const verifiedParam = urlParams.get('verified');
-                if (verifiedParam === 'true' || verifiedParam === 'already') {
+                if (verifiedParam) {
                     window.history.replaceState({}, document.title, window.location.pathname);
-                    // Open login modal with success message after a short delay for DOM readiness
-                    setTimeout(() => {
-                        this.openLoginModal();
-                        const errEl = document.getElementById('userLoginError');
-                        if (errEl) {
-                            errEl.textContent = verifiedParam === 'already'
-                                ? 'Your email is already verified. Please sign in.'
-                                : 'Email verified successfully! You can now sign in.';
-                            errEl.style.background = 'rgba(47, 107, 58,0.12)';
-                            errEl.style.color = '#2f6b3a';
-                            errEl.style.borderColor = '#2f6b3a';
-                            errEl.classList.add('show');
-                        }
-                    }, 300);
+                    const savedToken0 = localStorage.getItem('medx_user_token');
+                    if ((verifiedParam === 'true' || verifiedParam === 'already') && savedToken0) {
+                        // Already signed in (soft gate) — persist verified state so the banner stays cleared,
+                        // then fall through to auto-login which enters the portal with the banner hidden.
+                        try {
+                            const u0 = JSON.parse(localStorage.getItem('medx_user_data') || '{}');
+                            u0.email_verified = 1;
+                            localStorage.setItem('medx_user_data', JSON.stringify(u0));
+                        } catch (e) {}
+                        sessionStorage.removeItem('medx_verify_dismissed');
+                        setTimeout(() => { try { Toast.success(verifiedParam === 'already' ? 'Your email is already confirmed.' : 'Email confirmed — you are all set.'); } catch (e) {} }, 600);
+                    } else if (verifiedParam === 'true' || verifiedParam === 'already') {
+                        // Not signed in — greet at the login modal.
+                        setTimeout(() => {
+                            this.openLoginModal();
+                            const errEl = document.getElementById('userLoginError');
+                            if (errEl) {
+                                errEl.textContent = verifiedParam === 'already'
+                                    ? 'Your email is already confirmed. Please sign in.'
+                                    : 'Email confirmed! You can now sign in.';
+                                errEl.style.background = 'rgba(47, 107, 58,0.12)';
+                                errEl.style.color = '#2f6b3a';
+                                errEl.style.borderColor = '#2f6b3a';
+                                errEl.classList.add('show');
+                            }
+                        }, 300);
+                    } else if (verifiedParam === 'expired' || verifiedParam === 'invalid') {
+                        setTimeout(() => { try { Toast.error(verifiedParam === 'expired' ? 'That confirmation link has expired. Resend a new one from the banner.' : 'That confirmation link is not valid.'); } catch (e) {} }, 600);
+                    }
                 }
 
                 // Preserve session when returning from Stripe payment redirect
@@ -77734,10 +78077,27 @@ You can use variables like {first_name} that will be personalized for each recip
             },
 
             // Toggle projects menu
-            toggleProjectsMenu() {
+            toggleProjectsMenu(e) {
                 const menu = document.getElementById('upProjectsMenu');
                 if (menu) {
-                    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+                    const willOpen = menu.style.display === 'none' || menu.style.display === '';
+                    // On desktop, anchor the popover under its top-bar trigger; on smaller screens
+                    // clear inline positioning so the CSS (bottom bar) governs.
+                    const desktop = window.matchMedia('(min-width:1024px)').matches;
+                    if (willOpen && desktop && e && (e.currentTarget || e.target)) {
+                        const ct = e.currentTarget || e.target;
+                        const anchor = (ct.closest && ct.closest('.up-tb-item')) || ct;
+                        try {
+                            const r = anchor.getBoundingClientRect();
+                            menu.style.top = (r.bottom + 8) + 'px';
+                            menu.style.left = r.left + 'px';
+                            menu.style.right = 'auto';
+                            menu.style.bottom = 'auto';
+                        } catch (err) {}
+                    } else if (willOpen && !desktop) {
+                        menu.style.top = ''; menu.style.left = ''; menu.style.right = ''; menu.style.bottom = '';
+                    }
+                    menu.style.display = willOpen ? 'block' : 'none';
                 }
                 // Speaker portal is invite-only — reveal its shortcut only after a speaker
                 // code unlock (persisted as medx_speaker_data) or a speaker flag on the user
@@ -77747,16 +78107,22 @@ You can use variables like {first_name} that will be personalized for each recip
                     try {
                         isSpeaker = !!(localStorage.getItem('medx_speaker_data')
                             || (this.user && (this.user.is_speaker || this.user.speaker_id)));
-                    } catch (e) {}
+                    } catch (e2) {}
                     speakerItem.style.display = isSpeaker ? '' : 'none';
                 }
-                // Close notifications if open
-                document.getElementById('upNotificationsPanel').style.display = 'none';
+                // Close sibling popovers
+                const notif = document.getElementById('upNotificationsPanel');
+                if (notif) notif.style.display = 'none';
+                if (this.closeAccountMenu) this.closeAccountMenu();
             },
 
             closeProjectsMenu() {
                 const menu = document.getElementById('upProjectsMenu');
-                if (menu) menu.style.display = 'none';
+                if (menu) {
+                    menu.style.display = 'none';
+                    // reset any desktop anchoring so the next mobile open uses the CSS position
+                    menu.style.top = ''; menu.style.left = ''; menu.style.right = ''; menu.style.bottom = '';
+                }
             },
 
             // Theme toggle
@@ -77864,6 +78230,66 @@ You can use variables like {first_name} that will be personalized for each recip
             // Register Modal
             openRegisterModal() {
                 document.getElementById('registerModal').classList.add('active');
+                this.regGoStep(1);
+            },
+
+            // Premium signup wizard: 1 welcome -> 2 details -> 3 confirm email
+            regGoStep(n) {
+                ['regStep1','regStep2','regStep3'].forEach((id, i) => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.display = (i + 1 === n) ? '' : 'none';
+                });
+                document.querySelectorAll('#regStepper .suwiz-dot').forEach(d => {
+                    const s = parseInt(d.getAttribute('data-step'), 10);
+                    d.classList.toggle('active', s === n);
+                    d.classList.toggle('done', s < n);
+                });
+                document.querySelectorAll('#regStepper .suwiz-bar').forEach((b, i) => {
+                    b.classList.toggle('done', (i + 1) < n);
+                });
+            },
+
+            // Step 3 -> enter the portal (already logged in via the register token; soft-gate banner nudges)
+            regFinish() {
+                this.closeRegisterModal();
+                this.showUserPortal(true, true);
+            },
+
+            // Show/hide the soft-gate "confirm your email" banner based on the current user's state.
+            // Only shown when we explicitly know email is unverified (email_verified === 0); legacy/demo
+            // users without the field are never nagged.
+            refreshVerifyBanner() {
+                const b = document.getElementById('upVerifyBanner');
+                if (!b) return;
+                const u = this.user || {};
+                let show = !!(u.email && (u.email_verified === 0 || u.email_verified === false || u.email_verified === '0'));
+                if (show && sessionStorage.getItem('medx_verify_dismissed') === '1') show = false;
+                if (show) {
+                    const e = document.getElementById('upVerifyEmail');
+                    if (e) e.textContent = u.email || '';
+                    if (!this._pendingVerificationEmail) this._pendingVerificationEmail = u.email;
+                    b.style.display = '';
+                } else {
+                    b.style.display = 'none';
+                }
+            },
+
+            dismissVerifyBanner() {
+                sessionStorage.setItem('medx_verify_dismissed', '1');
+                const b = document.getElementById('upVerifyBanner');
+                if (b) b.style.display = 'none';
+            },
+
+            // Mark the current session as verified (called after the ?verified=true return) — clears the
+            // banner and persists email_verified=1 so it stays cleared on reload.
+            markEmailVerified() {
+                if (this.user) {
+                    this.user.email_verified = 1;
+                    try { localStorage.setItem('medx_user_data', JSON.stringify(this.user)); } catch (e) {}
+                }
+                sessionStorage.removeItem('medx_verify_dismissed');
+                const b = document.getElementById('upVerifyBanner');
+                if (b) b.style.display = 'none';
             },
 
             closeRegisterModal() {
@@ -77914,41 +78340,44 @@ You can use variables like {first_name} that will be personalized for each recip
                     Toast.error('No email address found. Please try registering again.');
                     return;
                 }
-                const btn = document.getElementById('resendVerificationBtn');
+                // Works from three places: the login-error resend button, the step-3 confirm link,
+                // and the soft-gate banner. Whichever is present gets the busy/label treatment.
+                const btn = document.getElementById('resendVerificationBtn') || document.getElementById('upVerifyResendBtn');
+                const btnLabel = btn ? btn.textContent : 'Resend link';
                 if (btn) {
                     btn.disabled = true;
                     btn.textContent = 'Sending...';
                 }
                 try {
-                    const res = await fetch('/api/resend-verification', {
+                    const res = await fetch('/api/auth/request-verification', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email })
                     });
                     const data = await res.json();
                     if (data.success) {
-                        Toast.success(data.message || 'Verification email sent! Check your inbox.');
+                        Toast.success(data.message || 'Confirmation email sent! Check your inbox.');
                         if (btn) {
-                            btn.textContent = 'Email Sent!';
+                            btn.textContent = 'Email sent';
                             // Re-enable after 30 seconds to prevent spam
                             setTimeout(() => {
                                 btn.disabled = false;
-                                btn.textContent = 'Resend Verification Email';
+                                btn.textContent = btnLabel;
                             }, 30000);
                         }
                     } else {
-                        Toast.error(data.error || 'Failed to send verification email.');
+                        Toast.error(data.error || 'Failed to send confirmation email.');
                         if (btn) {
                             btn.disabled = false;
-                            btn.textContent = 'Resend Verification Email';
+                            btn.textContent = btnLabel;
                         }
                     }
                 } catch (err) {
                     console.error('Resend verification error:', err);
-                    Toast.error('Failed to send verification email. Please try again later.');
+                    Toast.error('Failed to send confirmation email. Please try again later.');
                     if (btn) {
                         btn.disabled = false;
-                        btn.textContent = 'Resend Verification Email';
+                        btn.textContent = btnLabel;
                     }
                 }
             },
@@ -78228,30 +78657,17 @@ You can use variables like {first_name} that will be personalized for each recip
 
                     const data = await res.json();
 
-                    if (data.success && data.needsVerification) {
-                        // Show verification message instead of auto-login
-                        this.closeRegisterModal();
-                        this.openLoginModal();
-                        const errEl = document.getElementById('userLoginError');
-                        if (errEl) {
-                            errEl.innerHTML = '<i class="fas fa-envelope" style="margin-right: 6px;"></i>Account created! Please check your email to verify your account before signing in.';
-                            errEl.style.background = 'rgba(47, 107, 58,0.12)';
-                            errEl.style.color = '#2f6b3a';
-                            errEl.style.borderColor = '#2f6b3a';
-                            errEl.classList.add('show');
-                        }
-                        // Show resend link
+                    if (data.success) {
+                        // Premium soft-gate: we ARE signed in now (register returns a session token) but
+                        // unverified. Store the session, then show the "Check your email" confirm step.
+                        // The user is never locked out — the verify banner nudges them from inside.
+                        if (data.token) { this.token = data.token; localStorage.setItem('medx_user_token', data.token); }
+                        if (data.user) { this.user = data.user; localStorage.setItem('medx_user_data', JSON.stringify(data.user)); }
                         this._pendingVerificationEmail = email;
-                        const resendEl = document.getElementById('resendVerificationSection');
-                        if (resendEl) resendEl.style.display = 'block';
-                    } else if (data.success) {
-                        this.token = data.token;
-                        this.user = data.user;
-                        localStorage.setItem('medx_user_token', data.token);
-                        localStorage.setItem('medx_user_data', JSON.stringify(data.user));
-                        this.closeRegisterModal();
-                        // New user - show welcome animation with onboarding
-                        this.showUserPortal(true, true);
+                        sessionStorage.removeItem('medx_verify_dismissed');
+                        const ce = document.getElementById('regConfirmEmail');
+                        if (ce) ce.textContent = email;
+                        this.regGoStep(3);
                     } else {
                         document.getElementById('userRegisterError').textContent = data.error || 'Registration failed';
                         document.getElementById('userRegisterError').classList.add('show');
@@ -78322,6 +78738,9 @@ You can use variables like {first_name} that will be personalized for each recip
 
                 // Initialize conference data store
                 if (typeof ConferenceData !== 'undefined') ConferenceData.init();
+
+                // Soft-gate: surface the "confirm your email" banner if this account is unverified
+                this.refreshVerifyBanner();
 
                 // Initialize swipe gestures and browser back/forward navigation (once)
                 if (!this._swipeGesturesInitialized) {
@@ -78666,6 +79085,63 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (dropdown) dropdown.classList.remove('active');
             },
 
+            // ===== Top-bar account menu (anchored under the chip; fixes the "random empty popup") =====
+            _fillAccountMenu() {
+                let u = {};
+                try { u = JSON.parse(localStorage.getItem('medx_user_data') || '{}') || {}; } catch (e) {}
+                if (!u.first_name && this.user) u = this.user;
+                const fullName = ((u.first_name || '') + ' ' + (u.last_name || '')).trim()
+                    || u.name || (u.email ? String(u.email).split('@')[0] : 'Member');
+                const initial = ((u.first_name || u.name || u.email || 'M').charAt(0) || 'M').toUpperCase();
+                const email = u.email || '';
+                const tier = 'Med&X Member';
+                const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+                setTxt('upTbUserName', fullName); setTxt('upTbAvatar', initial); setTxt('upTbTier', tier);
+                setTxt('upAcctName', fullName); setTxt('upAcctAvatar', initial);
+                setTxt('upAcctEmail', email); setTxt('upAcctTierText', tier);
+            },
+
+            toggleAccountMenu(e) {
+                if (e) { e.stopPropagation(); }
+                const menu = document.getElementById('upAccountMenu');
+                if (!menu) return;
+                // Only one popover open at a time
+                this.closeProjectsMenu();
+                const notif = document.getElementById('upNotificationsPanel');
+                if (notif) notif.style.display = 'none';
+                if (menu.classList.contains('active')) { this.closeAccountMenu(); return; }
+                this._fillAccountMenu();
+                menu.classList.add('active');
+                const btn = menu.parentElement && menu.parentElement.querySelector('.up-tb-account-btn');
+                if (btn) btn.setAttribute('aria-expanded', 'true');
+                if (!this._acctEscHandler) {
+                    this._acctEscHandler = (ev) => { if (ev.key === 'Escape') this.closeAccountMenu(); };
+                    document.addEventListener('keydown', this._acctEscHandler);
+                }
+            },
+
+            closeAccountMenu() {
+                const menu = document.getElementById('upAccountMenu');
+                if (menu) menu.classList.remove('active');
+                const btn = document.querySelector('.up-tb-account-btn');
+                if (btn) btn.setAttribute('aria-expanded', 'false');
+                if (this._acctEscHandler) {
+                    document.removeEventListener('keydown', this._acctEscHandler);
+                    this._acctEscHandler = null;
+                }
+            },
+
+            installApp() {
+                try {
+                    if (typeof PWA !== 'undefined' && PWA.deferredPrompt) { PWA.install(); return; }
+                    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+                        if (typeof Toast !== 'undefined') Toast.info('Med&X is already installed on this device.');
+                        return;
+                    }
+                } catch (e) {}
+                if (typeof Toast !== 'undefined') Toast.info('To install, use your browser menu: "Add to Home Screen" on iOS or "Install app" on Android and desktop.');
+            },
+
             // API helper
             async api(endpoint, options = {}) {
                 const controller = new AbortController();
@@ -78863,6 +79339,25 @@ You can use variables like {first_name} that will be personalized for each recip
                 !dropdown.contains(e.target) && userBtn && !userBtn.contains(e.target)) {
                 UserPortal.closeUserMenu();
             }
+        });
+
+        // Close the top-bar account menu when clicking outside its chip wrapper
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('upAccountMenu');
+            if (!menu || !menu.classList.contains('active')) return;
+            const wrap = e.target.closest ? e.target.closest('.up-tb-account') : null;
+            if (!wrap) UserPortal.closeAccountMenu();
+        });
+
+        // Close the projects popover when clicking outside it or its triggers
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('upProjectsMenu');
+            if (!menu || menu.style.display !== 'block') return;
+            const onTrigger = e.target.closest && (
+                e.target.closest('[data-nav="projects"]') ||
+                e.target.closest('[data-tab="programs"]') ||
+                e.target.closest('[onclick*="toggleProjectsMenu"]'));
+            if (!menu.contains(e.target) && !onTrigger) UserPortal.closeProjectsMenu();
         });
 
         // Initialize UserPortal when page loads
