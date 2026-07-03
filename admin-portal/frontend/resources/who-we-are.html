@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Med&X — Who we are</title>
+<link rel="icon" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ===========================================================
+   MED&X — WHO WE ARE
+   Editorial Monument deck: cream/ink monograph plates,
+   numbered chapters, crimson rationed, gold hairlines.
+   =========================================================== */
+:root{
+  --paper:#fbf9f6; --paper-2:#f3efe9;
+  --ink:#15110f; --ink-soft:#403a36; --muted:#6b6258;
+  --crimson:#9b1b22; --crimson-deep:#7e151b;
+  --gold:#c9a962; --line:#e2dcd3;
+  --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif;
+  --ease:cubic-bezier(.16,1,.3,1);
+  --pad:clamp(2rem,5vw,5.5rem);
+  --display:clamp(2.6rem,7vw,6.4rem);
+  --h2:clamp(1.9rem,4.2vw,3.6rem);
+  --body:clamp(.95rem,1.35vw,1.22rem);
+  --small:clamp(.68rem,.9vw,.82rem);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{height:100%;scroll-snap-type:y mandatory;scroll-behavior:smooth}
+body{height:100%;overflow-x:hidden;font-family:var(--sans);background:var(--ink);color:var(--ink)}
+
+/* ---- slide shells ------------------------------------------------ */
+.slide{width:100vw;height:100vh;height:100dvh;overflow:hidden;scroll-snap-align:start;
+  position:relative;display:flex;flex-direction:column;background:var(--paper);
+  /* laid-paper texture */
+  background-image:
+    repeating-linear-gradient(0deg, rgba(21,17,15,.014) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(90deg, rgba(21,17,15,.010) 0 1px, transparent 1px 7px);}
+.slide.ink{background-color:var(--ink);color:var(--paper);background-image:none}
+.slide-inner{flex:1;display:flex;flex-direction:column;justify-content:center;
+  max-height:100%;overflow:hidden;padding:var(--pad);max-width:1500px;width:100%;margin:0 auto}
+
+/* ---- typography -------------------------------------------------- */
+.kicker{font-size:var(--small);font-weight:600;letter-spacing:.32em;text-transform:uppercase;
+  color:var(--crimson);display:flex;align-items:center;gap:16px;margin-bottom:clamp(.8rem,2vh,1.6rem)}
+.kicker::before{content:"";width:44px;height:1px;background:var(--crimson)}
+.ink .kicker{color:var(--gold)}.ink .kicker::before{background:var(--gold)}
+h1{font-family:var(--serif);font-weight:300;font-size:var(--display);line-height:.98;
+  letter-spacing:-.02em;text-wrap:balance}
+h2{font-family:var(--serif);font-weight:300;font-size:var(--h2);line-height:1.04;
+  letter-spacing:-.015em;text-wrap:balance}
+h1 em,h2 em{font-style:italic;color:var(--crimson)}
+.ink h1 em,.ink h2 em{color:var(--gold)}
+.lead{font-size:var(--body);font-weight:300;line-height:1.65;color:var(--ink-soft);max-width:62ch}
+.ink .lead{color:rgba(251,249,246,.78)}
+
+/* ---- chapter numerals -------------------------------------------- */
+.chnum{font-family:var(--serif);font-weight:300;font-size:clamp(3rem,7vw,6rem);
+  line-height:1;color:var(--crimson);opacity:.92}
+.ink .chnum{color:var(--gold)}
+.ch-rule{width:100%;height:1px;background:var(--line);margin:clamp(.7rem,1.6vh,1.2rem) 0}
+.ink .ch-rule{background:rgba(251,249,246,.16)}
+
+/* ---- photo treatment --------------------------------------------- */
+.ph{position:relative;overflow:hidden;background:var(--ink)}
+.ph img{width:100%;height:100%;object-fit:cover;display:block;
+  filter:contrast(1.04) saturate(1.02) sepia(.08)}
+.ph::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(18,15,13,.05) 0%,rgba(18,15,13,.18) 100%)}
+.ph-cap{position:absolute;left:18px;bottom:12px;z-index:2;font-family:var(--serif);
+  font-style:italic;font-weight:300;font-size:var(--small);letter-spacing:.02em;
+  color:rgba(251,249,246,.9)}
+
+/* ---- full-bleed hero slides -------------------------------------- */
+.hero{justify-content:flex-end}
+.hero .bg{position:absolute;inset:0;z-index:0}
+.hero .bg img{width:100%;height:100%;object-fit:cover;
+  filter:contrast(1.05) saturate(1.0) sepia(.12)}
+.hero .bg::after{content:"";position:absolute;inset:0;background:
+  linear-gradient(180deg,rgba(15,11,9,.52) 0%,rgba(15,11,9,.18) 40%,rgba(12,8,6,.9) 100%)}
+.hero .slide-inner{position:relative;z-index:2;justify-content:flex-end;
+  padding-bottom:clamp(2.4rem,7vh,5rem);color:#fff}
+.hero .lead{color:rgba(255,255,255,.86)}
+.hero .kicker{color:#fff}.hero .kicker::before{background:var(--crimson)}
+
+/* ---- grids -------------------------------------------------------- */
+.cols{display:grid;gap:clamp(1.2rem,3vw,3.4rem);align-items:center;min-height:0}
+.c-55{grid-template-columns:1.05fr .95fr}
+.c-46{grid-template-columns:.85fr 1.15fr}
+.statrow{display:flex;gap:clamp(1.2rem,3.5vw,3.6rem);flex-wrap:wrap;
+  margin-top:clamp(1.2rem,3.5vh,2.6rem)}
+.stat{border-left:1px solid var(--line);padding-left:clamp(.9rem,1.6vw,1.5rem)}
+.ink .stat{border-left-color:rgba(251,249,246,.18)}
+.stat b{display:block;font-family:var(--serif);font-weight:300;
+  font-size:clamp(2rem,4.6vw,4rem);line-height:1;letter-spacing:-.02em}
+.stat b i{font-style:italic;color:var(--crimson);font-size:.7em}
+.ink .stat b i{color:var(--gold)}
+.stat span{display:block;margin-top:.45em;font-size:var(--small);font-weight:600;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+.ink .stat span{color:rgba(251,249,246,.55)}
+
+/* project photo cards */
+.projcards{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(.9rem,2vw,1.8rem);
+  margin-top:clamp(1.1rem,3.2vh,2.2rem);flex:1;min-height:0;align-content:stretch}
+.projcard{display:flex;flex-direction:column;min-height:0;border:1px solid rgba(251,249,246,.14);
+  background:rgba(251,249,246,.03)}
+.projcard .ph{height:clamp(180px,34vh,330px);flex:none}
+.projcard .ph::after{background:linear-gradient(180deg,rgba(18,15,13,.02),rgba(18,15,13,.22))}
+.projcard .pcnum{position:absolute;top:10px;left:14px;z-index:2;font-family:var(--serif);
+  font-weight:300;font-size:clamp(1.2rem,1.9vw,1.7rem);color:var(--gold)}
+.projcard b{font-family:var(--serif);font-weight:500;font-size:clamp(.98rem,1.5vw,1.35rem);
+  line-height:1.15;padding:clamp(.7rem,1.8vh,1.1rem) clamp(.8rem,1.4vw,1.2rem) 0}
+.projcard p{font-size:clamp(.72rem,1vw,.92rem);font-weight:300;line-height:1.5;
+  color:rgba(251,249,246,.66);padding:.45em clamp(.8rem,1.4vw,1.2rem) clamp(.8rem,2vh,1.2rem)}
+@media (max-width:900px){.projcards{grid-template-columns:repeat(2,1fr)}.projcard .ph{height:clamp(110px,18vh,200px)}}
+
+/* keynote cards */
+.kn-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:clamp(.7rem,1.6vw,1.4rem);
+  margin-top:clamp(1rem,3vh,2rem)}
+.kn{text-align:center}
+.kn .ph{width:clamp(88px,11vw,168px);height:clamp(88px,11vw,168px);border-radius:50%;
+  margin:0 auto clamp(.6rem,1.6vh,1.1rem);border:2px solid var(--gold);
+  overflow:hidden;-webkit-mask-image:-webkit-radial-gradient(white,black)}
+.kn .ph img{border-radius:50%;transform:scale(1.02)}
+.kn .ph::after{background:none;border-radius:50%}
+.kn b{display:block;font-family:var(--serif);font-weight:500;font-size:clamp(.8rem,1.15vw,1.05rem);line-height:1.2}
+.kn span{display:block;margin-top:.35em;font-size:clamp(.6rem,.8vw,.74rem);line-height:1.45;color:rgba(251,249,246,.6)}
+
+/* people */
+.people{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(1rem,2.6vw,2.6rem);margin-top:clamp(1rem,3vh,2rem)}
+.person{text-align:center}
+.person .ph{width:clamp(110px,13vw,190px);height:clamp(110px,13vw,190px);border-radius:50%;margin:0 auto clamp(.6rem,1.6vh,1rem);
+  overflow:hidden;-webkit-mask-image:-webkit-radial-gradient(white,black);border:2px solid var(--line)}
+.person .ph img{border-radius:50%}
+.person .ph::after{background:none;border-radius:50%}
+.person b{display:block;font-family:var(--serif);font-weight:500;font-size:clamp(1rem,1.5vw,1.35rem)}
+.person span{display:block;margin-top:.3em;font-size:var(--small);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);line-height:1.5}
+
+/* institutions band */
+.instrow{display:flex;flex-wrap:wrap;gap:clamp(.6rem,1.6vw,1.3rem);margin-top:clamp(1rem,2.6vh,1.8rem)}
+.inst{border:1px solid rgba(251,249,246,.2);padding:.55em 1.1em;font-family:var(--serif);
+  font-weight:400;font-size:clamp(.8rem,1.2vw,1.05rem);letter-spacing:.02em;color:rgba(251,249,246,.85)}
+
+/* colophon close */
+.colo{align-items:center;text-align:center}
+.colo .slide-inner{align-items:center}
+.colo img.mark{width:clamp(240px,30vw,430px);height:auto;margin-bottom:clamp(1.2rem,3.5vh,2.4rem)}
+.colo .tag{font-family:var(--serif);font-style:italic;font-weight:300;
+  font-size:clamp(1.05rem,1.9vw,1.6rem);color:rgba(251,249,246,.72)}
+.colo .contact{margin-top:clamp(1.4rem,4vh,2.6rem);font-size:var(--small);font-weight:600;
+  letter-spacing:.26em;text-transform:uppercase;color:var(--gold)}
+
+/* reveal animation */
+.rv{opacity:0;transform:translateY(26px);
+  transition:opacity .9s var(--ease),transform .9s var(--ease)}
+.slide.visible .rv{opacity:1;transform:translateY(0)}
+.rv:nth-child(1){transition-delay:.05s}.rv:nth-child(2){transition-delay:.18s}
+.rv:nth-child(3){transition-delay:.3s}.rv:nth-child(4){transition-delay:.42s}
+.rv:nth-child(5){transition-delay:.54s}
+
+/* progress + dots */
+.progress{position:fixed;top:0;left:0;height:2px;background:var(--crimson);width:0;z-index:50;transition:width .3s}
+.dots{position:fixed;right:18px;top:50%;transform:translateY(-50%);z-index:50;
+  display:flex;flex-direction:column;gap:9px}
+.dots button{width:7px;height:7px;border-radius:50%;border:0;cursor:pointer;
+  background:rgba(120,110,100,.4);padding:0;transition:all .3s}
+.dots button.on{background:var(--crimson);transform:scale(1.5)}
+.pagenum{position:fixed;left:22px;bottom:16px;z-index:50;font-family:var(--serif);
+  font-style:italic;font-size:.78rem;color:rgba(120,110,100,.75)}
+
+@media (max-height:700px){:root{--pad:clamp(1.2rem,3.5vw,3rem)}}
+@media (max-width:900px){
+  .c-55,.c-46{grid-template-columns:1fr}
+  .cols .ph{max-height:30vh}
+  .kn-grid{grid-template-columns:repeat(5,1fr)}
+  .dots{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.2s!important}
+  html{scroll-behavior:auto}
+}
+@media print{
+  .slide{page-break-after:always;height:100vh}
+  .progress,.dots,.pagenum{display:none}
+  .rv{opacity:1!important;transform:none!important}
+}
+</style>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<nav class="dots" id="dots" aria-label="Slides"></nav>
+<div class="pagenum" id="pagenum">1</div>
+
+<!-- 1 · TITLE -->
+<section class="slide hero">
+  <div class="bg"><img src="assets/plexus_25_gala.jpg" alt=""></div>
+  <div class="slide-inner">
+    <img src="assets/logo-white.png" alt="Med&X" class="rv" style="width:clamp(150px,16vw,240px);height:auto;margin-bottom:clamp(1rem,3vh,2rem)">
+    <h1 class="rv">Talent is everywhere.<br>The right encounter changes <em style="color:#fff;font-style:italic">everything</em>.</h1>
+    <p class="lead rv" style="margin-top:clamp(.9rem,2.4vh,1.6rem)">Med&amp;X connects Croatian medicine and science with the world's leading institutions, in both directions.</p>
+  </div>
+</section>
+
+<!-- 2 · THE IDEA -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="cols c-55">
+      <div>
+        <div class="kicker rv">Where it began</div>
+        <h2 class="rv">Med&amp;X began with a doctor from <em>Split</em>.</h2>
+        <p class="lead rv" style="margin-top:clamp(.9rem,2.4vh,1.6rem)">He trained in Croatia, found his way into a lab at Harvard, and kept meeting brilliant people back home who never got that door. Med&amp;X exists to build those doors, so the next encounter is a matter of design, not luck.</p>
+      </div>
+      <div class="ph rv" style="height:min(58vh,520px)">
+        <img src="assets/plexus_25_christos.jpg" alt="A speaker addressing the Plexus audience">
+        <span class="ph-cap">Plexus Conference, Zagreb</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 · WHO WE ARE -->
+<section class="slide">
+  <div class="slide-inner" style="justify-content:stretch;padding-top:clamp(1.5rem,4vh,3rem);padding-bottom:clamp(1.5rem,4vh,3rem)">
+    <div class="cols c-55" style="flex:1;align-items:stretch">
+      <div style="display:flex;flex-direction:column;justify-content:center">
+        <div class="kicker rv">Who we are</div>
+        <h2 class="rv">A Croatian biomedical non-profit, <em>bilateral</em> by design.</h2>
+        <p class="lead rv" style="margin-top:clamp(.9rem,2.4vh,1.5rem)">The exchange runs both ways. Global leaders gain a foothold in a fast-rising biomedical community. Croatian scientists and clinicians gain partners, platforms, and the doors that turn a promising career into a lasting one.</p>
+        <div class="statrow rv" style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(1rem,2.6vh,1.8rem) clamp(1.4rem,3vw,3rem)">
+          <div class="stat"><b>11</b><span>Nobel laureates</span></div>
+          <div class="stat"><b>2,500<i>+</i></b><span>Attendees</span></div>
+          <div class="stat"><b>30<i>+</i></b><span>Countries</span></div>
+          <div class="stat"><b>120<i>+</i></b><span>Speakers</span></div>
+        </div>
+      </div>
+      <div class="rv" style="display:grid;grid-template-rows:1.25fr 1fr;gap:clamp(.7rem,1.6vh,1.1rem);min-height:0">
+        <div class="ph" style="min-height:0"><img src="assets/plexus_23_george_daley.jpg" alt="A keynote at Plexus"><span class="ph-cap">On the Plexus stage</span></div>
+        <div class="ph" style="min-height:0"><img src="assets/building_bridges_nyc.jpeg" alt="Building Bridges in New York"><span class="ph-cap">Building Bridges, New York</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 · FOUR PROJECTS INDEX -->
+<section class="slide ink">
+  <div class="slide-inner">
+    <div class="kicker rv">What we build</div>
+    <h2 class="rv">Four projects, <em>one</em> mission.</h2>
+    <div class="projcards rv">
+      <div class="projcard">
+        <div class="ph"><img src="assets/plexus_25_gala.jpg" alt="The Plexus Gala at the Esplanade"><span class="pcnum">01</span></div>
+        <b>Plexus Conference &amp; Gala</b>
+        <p>Two December days in Zagreb where rising talent meets the people who lead world medicine.</p>
+      </div>
+      <div class="projcard">
+        <div class="ph"><img src="assets/acc_25.jpeg" alt="Accelerator participants"><span class="pcnum">02</span></div>
+        <b>Med&amp;X Accelerator</b>
+        <p>Placements for Croatian talent inside the world's best labs and clinics.</p>
+      </div>
+      <div class="projcard">
+        <div class="ph"><img src="assets/plexus_25_acc_panel.jpg" alt="A Forum panel"><span class="pcnum">03</span></div>
+        <b>Biomedical Forum</b>
+        <p>A working network of the senior leaders steering Croatian biomedicine.</p>
+      </div>
+      <div class="projcard">
+        <div class="ph"><img src="assets/wash_1.jpeg" alt="Building Bridges in Washington"><span class="pcnum">04</span></div>
+        <b>Building Bridges</b>
+        <p>Our travelling forum, connecting Croatians abroad with each host city.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 · PLEXUS -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="cols c-46">
+      <div>
+        <div class="kicker rv">01 — Plexus Conference</div>
+        <h2 class="rv">Where rising talent meets the people who <em>lead</em> medicine.</h2>
+        <p class="lead rv" style="margin-top:clamp(.8rem,2vh,1.3rem)">Two days of keynotes, panels, and candid conversations in Zagreb each December. Free to attend and deliberately intimate, built so a student can ask a real question and a leader has time to answer it. Across our editions, Plexus has brought Nobel laureates, hospital presidents, and university chancellors to the same room as Croatia's next generation.</p>
+        <div class="statrow rv" style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(.9rem,2.4vh,1.6rem) clamp(1.2rem,2.6vw,2.4rem);margin-top:clamp(.9rem,2.4vh,1.6rem)">
+          <div class="stat"><b style="font-size:clamp(1.5rem,3vw,2.6rem)">2,500<i>+</i></b><span>Guests across editions</span></div>
+          <div class="stat"><b style="font-size:clamp(1.5rem,3vw,2.6rem)">120<i>+</i></b><span>Speakers to date</span></div>
+          <div class="stat"><b style="font-size:clamp(1.5rem,3vw,2.6rem)">11</b><span>Nobel laureates</span></div>
+          <div class="stat"><b style="font-size:clamp(1.5rem,3vw,2.6rem)">Free</b><span>Dec 4–5, 2026 · Zagreb</span></div>
+        </div>
+      </div>
+      <div class="ph rv" style="height:min(62vh,560px)">
+        <img src="assets/plexus_2022.jpg" alt="The Plexus Conference audience">
+        <span class="ph-cap">The Plexus stage</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 · GALA HERO -->
+<section class="slide hero">
+  <div class="bg"><img src="assets/plexus_25_gala_grupna.jpg" alt=""></div>
+  <div class="slide-inner">
+    <div class="kicker rv">01 — The Gala Evening</div>
+    <h1 class="rv" style="font-size:clamp(2.2rem,5.6vw,5rem)">One evening. The people who lead the <em style="color:#fff">world's</em> medicine.</h1>
+    <p class="lead rv" style="margin-top:clamp(.8rem,2vh,1.4rem)">Black tie at the Esplanade Zagreb. An awards ceremony, a five-course dinner, keynote addresses, and live music by Tatiana 'Tajči' Cameron and Ante Gelo. Proceeds fund fellowships.</p>
+    <div class="statrow rv" style="margin-top:clamp(.9rem,2.6vh,1.7rem)">
+      <div class="stat" style="border-left-color:rgba(255,255,255,.3)"><b style="color:#fff;font-size:clamp(1.5rem,3vw,2.6rem)">150<i>+</i></b><span style="color:rgba(255,255,255,.65)">Senior leaders</span></div>
+      <div class="stat" style="border-left-color:rgba(255,255,255,.3)"><b style="color:#fff;font-size:clamp(1.5rem,3vw,2.6rem)">5</b><span style="color:rgba(255,255,255,.65)">Keynote speakers</span></div>
+      <div class="stat" style="border-left-color:rgba(255,255,255,.3)"><b style="color:#fff;font-size:clamp(1.5rem,3vw,2.6rem)">Dec 5</b><span style="color:rgba(255,255,255,.65)">Esplanade Zagreb</span></div>
+      <div class="stat" style="border-left-color:rgba(255,255,255,.3)"><b style="color:#fff;font-size:clamp(1.5rem,3vw,2.6rem)">100%</b><span style="color:rgba(255,255,255,.65)">Proceeds fund fellowships</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 · KEYNOTES -->
+<section class="slide ink">
+  <div class="slide-inner">
+    <div class="kicker rv">Keynote speakers · 2026</div>
+    <h2 class="rv">The heads of the world's foremost hospitals and universities, in <em>Zagreb</em>.</h2>
+    <div class="kn-grid rv">
+      <div class="kn"><div class="ph"><img src="assets/gala_keynote_smith_finsbury.jpg" alt="Lord Smith of Finsbury"></div><b>Lord Smith of Finsbury</b><span>Chancellor,<br>University of Cambridge</span></div>
+      <div class="kn"><div class="ph"><img src="assets/gala_keynote_spisso.jpg" alt="Johnese Spisso"></div><b>Johnese Spisso, MPA</b><span>President, UCLA Health<br>CEO, UCLA Hospital System</span></div>
+      <div class="kn"><div class="ph"><img src="assets/gala_keynote_delcarmen.jpg" alt="Dr Marcela del Carmen"></div><b>Dr Marcela del Carmen</b><span>President, Massachusetts<br>General Hospital</span></div>
+      <div class="kn"><div class="ph"><img src="assets/gala_keynote_kevin_smith.jpg" alt="Dr Kevin Smith"></div><b>Dr Kevin Smith</b><span>President &amp; CEO,<br>University Health Network</span></div>
+      <div class="kn"><div class="ph"><img src="assets/gala_keynote_anderson.jpg" alt="Dr Paul Anderson"></div><b>Dr Paul Anderson</b><span>Chief Academic Officer,<br>Mass General Brigham</span></div>
+    </div>
+    <p class="lead rv" style="margin-top:clamp(.9rem,2.4vh,1.5rem);font-family:var(--serif);font-style:italic;text-align:center;max-width:none">Two of our keynote speakers also hold Harvard Medical School professorships.</p>
+    <div class="statrow rv" style="display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(.8rem,2vw,2rem);margin-top:clamp(.9rem,2.6vh,1.7rem)">
+      <div class="stat"><b style="font-size:clamp(1.6rem,3.4vw,2.9rem)">150<i>+</i></b><span>Senior leaders in the room</span></div>
+      <div class="stat"><b style="font-size:clamp(1.6rem,3.4vw,2.9rem)">~80%</b><span>Croatian physicians &amp; scientists</span></div>
+      <div class="stat"><b style="font-size:clamp(1.6rem,3.4vw,2.9rem)">~15%</b><span>Business &amp; policy leaders</span></div>
+      <div class="stat"><b style="font-size:clamp(1.6rem,3.4vw,2.9rem)">~5%</b><span>International partners</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 · ACCELERATOR -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="cols c-55">
+      <div class="ph rv" style="height:min(62vh,560px)">
+        <img src="assets/acc_25.jpeg" alt="Accelerator participants">
+        <span class="ph-cap">Accelerator cohort</span>
+      </div>
+      <div>
+        <div class="kicker rv">02 — Med&amp;X Accelerator</div>
+        <h2 class="rv">We place Croatian talent <em>inside</em> the world's best labs.</h2>
+        <p class="lead rv" style="margin-top:clamp(.8rem,2vh,1.3rem)">Not exchanges with institutions, placements inside specific labs and clinics at Harvard, Mass General, Mayo Clinic, Cleveland Clinic, Yale, Columbia, King's College London, and Osaka. Participants return with frontier skills and lasting mentors. Host teams gain dedicated researchers and a durable link to Croatia.</p>
+        <div class="statrow rv" style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(.9rem,2.4vh,1.6rem) clamp(1.2rem,2.6vw,2.4rem);margin-top:clamp(.9rem,2.4vh,1.6rem)">
+          <div class="stat"><b style="font-size:clamp(1.5rem,3vw,2.6rem)">20<i>+</i></b><span>Alumni to date</span></div>
+          <div class="stat"><b style="font-size:clamp(1.5rem,3vw,2.6rem)">8<i>+</i></b><span>Partner institutions</span></div>
+          <div class="stat"><b style="font-size:clamp(1.5rem,3vw,2.6rem)">€800–1,000</b><span>Co-financing per participant</span></div>
+          <div class="stat"><b style="font-size:clamp(1.5rem,3vw,2.6rem)">Nov</b><span>Applications open</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 · FORUM -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="cols c-46">
+      <div>
+        <div class="kicker rv">03 — Biomedical Forum</div>
+        <h2 class="rv">A working network of <em>senior</em> leaders.</h2>
+        <p class="lead rv" style="margin-top:clamp(.8rem,2vh,1.3rem)">Physicians, scientists, and healthcare leaders who steer Croatian biomedicine from home and abroad. Members mentor Accelerator fellows, open doors for placements, and meet at an annual gathering in Zagreb each May.</p>
+        <div class="statrow rv" style="margin-top:clamp(.9rem,2.4vh,1.6rem)">
+          <div class="stat"><b style="font-size:clamp(1.5rem,3vw,2.6rem)">By invitation</b><span>Membership</span></div>
+          <div class="stat"><b style="font-size:clamp(1.5rem,3vw,2.6rem)">May</b><span>Annual gathering · Zagreb</span></div>
+        </div>
+      </div>
+      <div class="ph rv" style="height:min(58vh,520px)">
+        <img src="assets/plexus_25_acc_panel.jpg" alt="A Forum panel discussion">
+        <span class="ph-cap">In conversation</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 · BUILDING BRIDGES -->
+<section class="slide hero">
+  <div class="bg"><img src="assets/wash_1.jpeg" alt=""></div>
+  <div class="slide-inner">
+    <div class="kicker rv">04 — Building Bridges</div>
+    <h1 class="rv" style="font-size:clamp(2.2rem,5.6vw,5rem)">Our travelling forum, city by <em style="color:#fff">city</em>.</h1>
+    <p class="lead rv" style="margin-top:clamp(.8rem,2vh,1.4rem)">Washington, London, Zurich, New York, and next, Harvard Medical School in Boston. Croatian leaders abroad meet the biomedical community of each host city, and both sides gain.</p>
+    <div class="statrow rv" style="margin-top:clamp(.9rem,2.6vh,1.7rem)">
+      <div class="stat" style="border-left-color:rgba(255,255,255,.3)"><b style="color:#fff;font-size:clamp(1.5rem,3vw,2.6rem)">4</b><span style="color:rgba(255,255,255,.65)">Cities so far</span></div>
+      <div class="stat" style="border-left-color:rgba(255,255,255,.3)"><b style="color:#fff;font-size:clamp(1.5rem,3vw,2.6rem)">40–50</b><span style="color:rgba(255,255,255,.65)">Senior figures per edition</span></div>
+      <div class="stat" style="border-left-color:rgba(255,255,255,.3)"><b style="color:#fff;font-size:clamp(1.5rem,3vw,2.6rem)">150<i>+</i></b><span style="color:rgba(255,255,255,.65)">Leaders across editions</span></div>
+      <div class="stat" style="border-left-color:rgba(255,255,255,.3)"><b style="color:#fff;font-size:clamp(1.5rem,3vw,2.6rem)">Boston</b><span style="color:rgba(255,255,255,.65)">Next · September 2026</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 11 · IMPACT / WHY IT MATTERS -->
+<section class="slide hero">
+  <div class="bg"><img src="assets/plexus_25_gala.jpg" alt="" style="filter:contrast(1.05) saturate(.9) sepia(.18) brightness(.75)"></div>
+  <div class="slide-inner">
+    <div class="kicker rv">Why it matters</div>
+    <h1 class="rv" style="font-size:clamp(2.2rem,5.6vw,5rem)">Every fellowship is a <em style="color:#fff">door</em> that stays open.</h1>
+    <p class="lead rv" style="margin-top:clamp(.8rem,2vh,1.4rem)">Gala proceeds and partner support fund Accelerator fellowships, keep Plexus free for students, and carry the bridges across the year. One placement can shape a career. A community of them can shape a country's medicine.</p>
+    <div class="statrow rv" style="margin-top:clamp(1rem,3vh,2rem)">
+      <div class="stat" style="border-left-color:rgba(255,255,255,.3)"><b style="color:#fff">€800–1,000</b><span style="color:rgba(255,255,255,.65)">Co-financing per participant</span></div>
+      <div class="stat" style="border-left-color:rgba(255,255,255,.3)"><b style="color:#fff">100%</b><span style="color:rgba(255,255,255,.65)">Volunteer-run</span></div>
+      <div class="stat" style="border-left-color:rgba(255,255,255,.3)"><b style="color:#fff">4</b><span style="color:rgba(255,255,255,.65)">Projects, one mission</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 12 · PEOPLE -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker rv">The people behind Med&amp;X</div>
+    <h2 class="rv">Led by physicians, built by <em>volunteers</em>.</h2>
+    <div class="people rv">
+      <div class="person"><div class="ph"><img src="assets/alen_juginovic.jpg" alt="Alen Juginović"></div><b>Alen Juginović, MD</b><span>President &amp; Co-founder<br>Harvard Medical School</span></div>
+      <div class="person"><div class="ph"><img src="assets/miro_vukovic.jpg" alt="Miro Vuković"></div><b>Miro Vuković, MD</b><span>Vice President</span></div>
+      <div class="person"><div class="ph"><img src="assets/marina_grubic.jpg" alt="Marina Grubić"></div><b>Marina Grubić</b><span>Vice President</span></div>
+    </div>
+    <div class="ph rv" style="height:clamp(140px,26vh,260px);margin-top:clamp(1rem,3vh,2rem)">
+      <img src="assets/plexus_25_oc.jpg" alt="The Med&X organizing team" style="object-position:center 30%">
+      <span class="ph-cap">The organizing team, Plexus 2025</span>
+    </div>
+  </div>
+</section>
+
+<!-- 13 · PARTNERS -->
+<section class="slide ink">
+  <div class="slide-inner">
+    <div class="kicker rv">In good company</div>
+    <h2 class="rv">The institutions our speakers <em>lead</em>.</h2>
+    <div class="instrow rv">
+      <span class="inst">University of Cambridge</span>
+      <span class="inst">UCLA Health</span>
+      <span class="inst">Massachusetts General Hospital</span>
+      <span class="inst">University Health Network</span>
+      <span class="inst">Mass General Brigham</span>
+      <span class="inst">Harvard Medical School</span>
+    </div>
+    <p class="lead rv" style="margin-top:clamp(1rem,2.8vh,1.8rem)">Med&amp;X is a registered Croatian non-profit association. Our statute and annual financials are published, and every contribution is confirmed in writing.</p>
+    <div class="rv" style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(.7rem,1.6vw,1.2rem);margin-top:clamp(1rem,3vh,2rem)">
+      <div class="ph" style="height:clamp(130px,24vh,240px)"><img src="assets/harvard.webp" alt="Harvard Medical School"><span class="ph-cap">Harvard Medical School</span></div>
+      <div class="ph" style="height:clamp(130px,24vh,240px)"><img src="assets/plexus_2022.jpg" alt="The Plexus audience"><span class="ph-cap">Plexus, Zagreb</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 14 · INVITATION -->
+<section class="slide hero">
+  <div class="bg"><img src="assets/plexus_25_oc.jpg" alt=""></div>
+  <div class="slide-inner">
+    <div class="kicker rv">Join us</div>
+    <h1 class="rv" style="font-size:clamp(2.2rem,5.6vw,5rem)">Stand beside the <em style="color:#fff">room</em>.</h1>
+    <p class="lead rv" style="margin-top:clamp(.8rem,2vh,1.4rem)">Partner with a project, host a placement, fund a fellowship, or simply take a seat at the table in December. The bridge is built one encounter at a time.</p>
+  </div>
+</section>
+
+<!-- 15 · COLOPHON -->
+<section class="slide ink colo">
+  <div class="slide-inner">
+    <img class="mark rv" src="assets/logo-white.png" alt="Med&X" style="width:clamp(200px,24vw,360px)">
+    <p class="tag rv">Croatian biomedicine, connected to the world.</p>
+    <div class="rv" style="margin-top:clamp(1.2rem,3.5vh,2.2rem);display:flex;align-items:center;gap:clamp(1.4rem,3.5vw,3rem)">
+      <img src="assets/qr_medx.png" alt="QR code to medx.hr" style="width:clamp(110px,13vw,170px);height:auto;border:1px solid rgba(251,249,246,.18);border-radius:4px">
+      <div style="text-align:left">
+        <p class="contact" style="margin:0 0 .9em">medx.hr &nbsp;·&nbsp; president@medx.hr</p>
+        <div style="display:flex;flex-direction:column;gap:.55em;font-size:clamp(.78rem,1.05vw,.95rem);color:rgba(251,249,246,.75)">
+          <span style="display:flex;align-items:center;gap:.7em"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#c9a962" stroke-width="1.8"><rect x="2.5" y="2.5" width="19" height="19" rx="5.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="17.3" cy="6.7" r="1.15" fill="#c9a962" stroke="none"/></svg>@medx_association</span>
+          <span style="display:flex;align-items:center;gap:.7em"><svg width="17" height="17" viewBox="0 0 24 24" fill="#c9a962"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.4h-1.2c-1.2 0-1.6.8-1.6 1.6V12h2.7l-.4 2.9h-2.3v7A10 10 0 0 0 22 12z"/></svg>Med&amp;X Association</span>
+          <span style="display:flex;align-items:center;gap:.7em"><svg width="17" height="17" viewBox="0 0 24 24" fill="#c9a962"><path d="M20.4 20.4h-3.5v-5.6c0-1.3 0-3-1.9-3s-2.1 1.4-2.1 2.9v5.7H9.4V9h3.4v1.6a3.7 3.7 0 0 1 3.4-1.9c3.6 0 4.2 2.4 4.2 5.4v6.3zM5.3 7.4a2 2 0 1 1 0-4.1 2 2 0 0 1 0 4.1zM7.1 20.4H3.6V9h3.5v11.4z"/></svg>med-x-association</span>
+        </div>
+      </div>
+    </div>
+    <p class="rv" style="margin-top:clamp(1rem,3vh,1.8rem);font-family:var(--serif);font-style:italic;font-size:clamp(.85rem,1.2vw,1.05rem);color:rgba(251,249,246,.5)">Scan to visit medx.hr and follow our projects.</p>
+  </div>
+</section>
+
+<script>
+/* ===========================================================
+   Deck controller: keyboard / wheel / touch navigation,
+   reveal-on-view, progress bar, dots, page number.
+   =========================================================== */
+(function(){
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var dots = document.getElementById('dots');
+  var progress = document.getElementById('progress');
+  var pagenum = document.getElementById('pagenum');
+  var current = 0;
+
+  slides.forEach(function(s, i){
+    var b = document.createElement('button');
+    b.setAttribute('aria-label', 'Slide ' + (i + 1));
+    b.addEventListener('click', function(){ go(i); });
+    dots.appendChild(b);
+  });
+  var dotEls = dots.querySelectorAll('button');
+
+  function go(i){
+    i = Math.max(0, Math.min(slides.length - 1, i));
+    slides[i].scrollIntoView({behavior: 'smooth'});
+  }
+  function sync(i){
+    current = i;
+    dotEls.forEach(function(d, j){ d.classList.toggle('on', j === i); });
+    progress.style.width = ((i + 1) / slides.length * 100) + '%';
+    pagenum.textContent = (i + 1) + ' / ' + slides.length;
+  }
+
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if (e.isIntersecting && e.intersectionRatio > .5){
+        e.target.classList.add('visible');
+        sync(slides.indexOf(e.target));
+      }
+    });
+  }, {threshold: .55});
+  slides.forEach(function(s){ io.observe(s); });
+
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown'){ e.preventDefault(); go(current + 1); }
+    if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'PageUp'){ e.preventDefault(); go(current - 1); }
+    if (e.key === 'Home'){ e.preventDefault(); go(0); }
+    if (e.key === 'End'){ e.preventDefault(); go(slides.length - 1); }
+  });
+
+  /* Reduced motion: reveal everything immediately */
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    slides.forEach(function(s){ s.classList.add('visible'); });
+  }
+  /* Safety net: never leave content hidden */
+  setTimeout(function(){
+    slides.forEach(function(s){
+      if (s.getBoundingClientRect().top < window.innerHeight) s.classList.add('visible');
+    });
+  }, 2500);
+})();
+</script>
+</body>
+</html>

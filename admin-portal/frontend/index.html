@@ -6882,6 +6882,11 @@
                     <span>Team Access</span>
                 </a>
 
+                <a class="nav-item" data-section="resources" onclick="App.showSection('resources', this)">
+                    <i class="fas fa-folder-open" style="color: #c9a962;"></i>
+                    <span>Resources</span>
+                </a>
+
                 <a class="nav-item" data-section="tech" onclick="App.showSection('tech', this)">
                     <i class="fas fa-server" style="color: #9b1b22;"></i>
                     <span>Tech</span>
@@ -11632,6 +11637,36 @@ President, Med&amp;X</textarea>
                 </div>
 
                 <!-- TEAM ACCESS -->
+                <div class="section" id="section-resources">
+                    <div class="section-header">
+                        <div>
+                            <h1 style="font-family:'Fraunces',serif">Resources</h1>
+                            <p>Presentations and materials the team can use at events.</p>
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;max-width:980px">
+                        <div class="card" style="padding:26px">
+                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+                                <i class="fas fa-display" style="color:#9b1b22;font-size:20px"></i>
+                                <h3 style="font-family:'Fraunces',serif;margin:0">Who we are — presentation</h3>
+                            </div>
+                            <p style="color:var(--text-muted);font-size:13px;line-height:1.6;margin-bottom:16px">The evergreen Med&amp;X deck for the Gala and high-level events. Opens full screen in the browser, navigate with arrow keys. 15 slides.</p>
+                            <div style="display:flex;gap:10px;flex-wrap:wrap">
+                                <a href="/resources/who-we-are.html" target="_blank" rel="noopener" class="btn btn-primary" style="text-decoration:none"><i class="fas fa-play" style="margin-right:7px"></i>Open the presentation</a>
+                                <a href="/resources/MedX_Who_We_Are.pdf" download class="btn btn-secondary" style="text-decoration:none"><i class="fas fa-file-pdf" style="margin-right:7px"></i>Download PDF</a>
+                            </div>
+                        </div>
+                        <div class="card" style="padding:26px">
+                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+                                <i class="fas fa-file-pdf" style="color:#c9a962;font-size:20px"></i>
+                                <h3 style="font-family:'Fraunces',serif;margin:0">Gala sponsorship brochure</h3>
+                            </div>
+                            <p style="color:var(--text-muted);font-size:13px;line-height:1.6;margin-bottom:16px">The official Plexus Gala partnership brochure, ready to email to prospective sponsors.</p>
+                            <a href="https://medx-website-preview.netlify.app/plexus-gala-sponsor.pdf" target="_blank" rel="noopener" class="btn btn-secondary" style="text-decoration:none"><i class="fas fa-arrow-up-right-from-square" style="margin-right:7px"></i>Open the brochure</a>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="section" id="section-team">
                     <div class="back-link" onclick="App.showSection('dashboard')"><i class="fas fa-arrow-left"></i> Back to Dashboard</div>
                     <h2 style="margin:0 0 6px;font-size:22px;display:flex;align-items:center;gap:10px;"><i class="fas fa-users-gear" style="color:#fbbf24;"></i> Team Access</h2>
@@ -14414,7 +14449,7 @@ President, Med&amp;X</textarea>
                 // Filter static nav items (Finances, PR & Media). Core member-ops tools
                 // (Announce, Member Ops) are always visible — they are not part of the
                 // per-user onboarding toggle, so never hide them for already-onboarded users.
-                const OPS_ALWAYS_VISIBLE = ['announce', 'member-ops', 'content-studio'];
+                const OPS_ALWAYS_VISIBLE = ['announce', 'member-ops', 'content-studio', 'resources'];
                 // Item 11/13: 'user-notifications' merged into "Message members" (announce); Portal Content,
                 // Website content and Member Feed merged into "Content studio". Their old nav entries stay
                 // hidden. Each section is still reachable by direct id for back-compat.
@@ -16142,6 +16177,7 @@ President, Med&amp;X</textarea>
             // ===== NAVIGATION =====
             showSection(sectionId, navItem, skipHistory = false) {
                 const sectionNames = {
+                    'resources': 'Resources',
                     'dashboard': 'Dashboard',
                     'plexus': 'Plexus Conference',
                     'accelerator': 'Accelerator',
