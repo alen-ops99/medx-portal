@@ -285,8 +285,35 @@ async function drainPushOutbox() {
     finally { _outboxBusy = false; }
 }
 
-// Fan a push=1 member announcement out to the shared push_outbox: one row per subscriber of the
-// announcement's project (notify_topics), or every user for a global (project_key NULL) item.
+// Project -> its registration table. The one common join key across every project's registration
+// table is the email column, so audience membership is resolved by email (notify_topics carries
+// user_id -> users.email; each reg table carries email). Whitelisted table names, read-only.
+const AUDIENCE_REG_TABLE = { plexus: 'registrations', gala: 'gala_registrations', accelerator: 'accelerator_applications', forum: 'forum_event_registrations', bridges: 'bridges_registrations' };
+
+// Distinct lower-cased registrant emails for a project (empty on any error / unknown project).
+function registrantEmailsForProject(project) {
+    const table = AUDIENCE_REG_TABLE[project];
+    if (!table) return [];
+    try {
+        return query.all(`SELECT DISTINCT LOWER(TRIM(email)) AS email FROM ${table} WHERE email IS NOT NULL AND TRIM(email) <> ''`).map(r => r.email);
+    } catch (e) { return []; }
+}
+
+// Which project keys a member (by email) has registered for, across all reg tables. Used by the
+// announcement feed filter for 'registered' / 'interested_not_registered' scoped items.
+function memberRegisteredProjects(email) {
+    if (!email) return [];
+    const e = String(email).trim().toLowerCase();
+    if (!e) return [];
+    const out = [];
+    for (const k in AUDIENCE_REG_TABLE) {
+        try { if (query.get(`SELECT 1 FROM ${AUDIENCE_REG_TABLE[k]} WHERE LOWER(TRIM(email)) = ? LIMIT 1`, [e])) out.push(k); } catch (e2) {}
+    }
+    return out;
+}
+
+// Fan a push=1 member announcement out to the shared push_outbox: one row per member in the
+// announcement's chosen audience (see audience_scope), or every user for a global item.
 // This ENQUEUES only — the actual web-push send happens later in drainPushOutbox, which no-ops
 // unless VAPID is configured. So in dev the rows land in the outbox but nothing ever fires.
 // push_fanned flips to 1 so a given announcement is never fanned twice (idempotent).
@@ -300,14 +327,24 @@ function fanoutAnnouncements() {
         catch (e) { return; }
         for (const a of anns) {
             let emails = [];
-            if (a.project_key) {
-                emails = query.all(
-                    `SELECT DISTINCT u.email AS email FROM notify_topics nt
-                       JOIN users u ON u.id = nt.user_id
-                      WHERE nt.project_key = ? AND u.email IS NOT NULL`, [a.project_key]
-                ).map(r => r.email);
-            } else {
+            const scope = a.audience_scope || 'everyone';
+            if (!a.project_key || scope === 'everyone') {
                 emails = query.all('SELECT DISTINCT email FROM users WHERE email IS NOT NULL').map(r => r.email);
+            } else {
+                const subscribers = query.all(
+                    `SELECT DISTINCT LOWER(TRIM(u.email)) AS email FROM notify_topics nt
+                       JOIN users u ON u.id = nt.user_id
+                      WHERE nt.project_key = ? AND u.email IS NOT NULL AND TRIM(u.email) <> ''`, [a.project_key]
+                ).map(r => r.email);
+                if (scope === 'registered') {
+                    emails = registrantEmailsForProject(a.project_key);
+                } else if (scope === 'interested_not_registered') {
+                    const reg = new Set(registrantEmailsForProject(a.project_key));
+                    emails = subscribers.filter(em => !reg.has(em));
+                } else {
+                    // 'interested' — the default for a project-scoped item
+                    emails = subscribers;
+                }
             }
             const url = a.link_section ? ('/?app=1&section=' + a.link_section) : '/?app=1';
             for (const em of emails) {
@@ -6056,6 +6093,14 @@ async function initializeApp() {
         used_at TEXT
     )`);
     // ====================== SCHEMA-MIRROR:END ======================
+
+    // Audience scope for member announcements (additive, guarded — deliberately OUTSIDE the mirror
+    // block so it never disturbs the byte-identical CREATE TABLE region). Values:
+    //   'everyone' | 'interested' | 'registered' | 'interested_not_registered'.
+    // Legacy rows carry NULL, which the member feed treats as 'everyone' (reaches all). New rows
+    // written by the admin composer always carry an explicit scope. Both portals run this idempotent
+    // ALTER so whichever boots first adds the column to the shared DB.
+    try { db.run('ALTER TABLE member_announcements ADD COLUMN audience_scope TEXT'); } catch (e) {}
 
     db.run(`CREATE TABLE IF NOT EXISTS member_rewards (
         id TEXT PRIMARY KEY,
@@ -15966,7 +16011,24 @@ By applying to this program, I provide the following consents:
             try { fanoutAnnouncements(); } catch (e) {}
             const rows = query.all('SELECT * FROM member_announcements ORDER BY created_at DESC LIMIT 30');
             const subs = query.all('SELECT project_key FROM notify_topics WHERE user_id = ?', [req.user.id]).map(r => r.project_key);
-            const announcements = (rows || []).map(a => ({
+            // Audience gating: a project-scoped item only reaches the audience the admin picked.
+            //   everyone (or NULL legacy)  -> every member
+            //   interested                 -> members who follow that project (notify_topics)
+            //   registered                 -> members registered for that project (by email)
+            //   interested_not_registered  -> followers who have not registered
+            const regProjects = memberRegisteredProjects(req.user && req.user.email);
+            const visible = (rows || []).filter(a => {
+                if (!a.project_key) return true;
+                const scope = a.audience_scope || 'everyone';
+                if (scope === 'everyone') return true;
+                const isFollowing = subs.indexOf(a.project_key) >= 0;
+                const isRegistered = regProjects.indexOf(a.project_key) >= 0;
+                if (scope === 'interested') return isFollowing;
+                if (scope === 'registered') return isRegistered;
+                if (scope === 'interested_not_registered') return isFollowing && !isRegistered;
+                return true;
+            });
+            const announcements = visible.map(a => ({
                 id: a.id,
                 project_key: a.project_key || null,
                 title: a.title,

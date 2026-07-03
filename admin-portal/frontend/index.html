@@ -6813,17 +6813,25 @@
                     <span>Newsletter</span>
                 </a>
 
-                <a class="nav-item" data-section="portal-content" onclick="App.showSection('portal-content', this)">
+                <!-- Item 13: one unified "Content studio" replaces Portal Content + Website content +
+                     Member Feed. The three old nav entries are folded in (hidden via MERGED_HIDDEN); their
+                     sections stay reachable by direct id (cmd palette, deep links) for back-compat. -->
+                <a class="nav-item" data-section="content-studio" onclick="App.showSection('content-studio', this)">
+                    <i class="fas fa-th-large" style="color: #c9a962;"></i>
+                    <span>Content studio</span>
+                </a>
+
+                <a class="nav-item" data-section="portal-content" onclick="App.showSection('portal-content', this)" style="display:none;">
                     <i class="fas fa-th-large" style="color: #c9a962;"></i>
                     <span>Portal Content</span>
                 </a>
 
-                <a class="nav-item" data-section="website-content" onclick="App.showSection('website-content', this)">
+                <a class="nav-item" data-section="website-content" onclick="App.showSection('website-content', this)" style="display:none;">
                     <i class="fas fa-globe" style="color: #c9a962;"></i>
                     <span>Website content</span>
                 </a>
 
-                <a class="nav-item" data-section="member-feed" onclick="App.showSection('member-feed', this)">
+                <a class="nav-item" data-section="member-feed" onclick="App.showSection('member-feed', this)" style="display:none;">
                     <i class="fas fa-rss" style="color: #c9a962;"></i>
                     <span>Member Feed</span>
                     <span id="mfOppNav" style="background: #b45309; color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
@@ -10815,6 +10823,65 @@ President, Med&amp;X</textarea>
                     </div>
                 </div>
 
+                <!-- CONTENT STUDIO — one visual editor over Website + Member portal (items 12/13) -->
+                <style>
+                    .cs-wrap { max-width: 1120px; }
+                    .cs-hd { margin-bottom: 6px; }
+                    .cs-hd h1 { font-size: 28px; font-weight: 700; margin: 0 0 4px; }
+                    .cs-sub { color: var(--text-muted); max-width: 760px; margin: 0 0 26px; line-height: 1.55; }
+                    .cs-picker { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+                    .cs-surface { text-align: left; cursor: pointer; border: 1px solid var(--border); background: var(--bg-secondary); border-radius: 16px; padding: 28px; transition: transform .15s, box-shadow .15s, border-color .15s; display: flex; flex-direction: column; gap: 13px; font-family: inherit; }
+                    .cs-surface:hover { border-color: var(--gold); box-shadow: 0 8px 24px rgba(21,17,15,.07); transform: translateY(-2px); }
+                    .cs-surface-ic { width: 54px; height: 54px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 23px; }
+                    .cs-surface h3 { font-size: 21px; font-weight: 700; margin: 0; color: var(--text-primary); }
+                    .cs-surface p { color: var(--text-muted); font-size: 14px; margin: 0; line-height: 1.55; }
+                    .cs-go { margin-top: 4px; color: var(--accent-primary); font-weight: 700; font-size: 13px; }
+                    .cs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(304px, 1fr)); gap: 18px; }
+                    .cs-page { border: 1px solid var(--border); background: var(--bg-secondary); border-radius: 14px; overflow: hidden; }
+                    .cs-page-hd { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+                    .cs-page-hd .nm { font-weight: 700; font-size: 15px; color: var(--text-primary); }
+                    .cs-page-hd a { margin-left: auto; font-size: 12px; color: var(--accent-primary); font-weight: 600; text-decoration: none; white-space: nowrap; }
+                    .cs-sketch { padding: 13px; display: flex; flex-direction: column; gap: 9px; background: var(--bg-tertiary); }
+                    .cs-slot { border-radius: 9px; padding: 11px 13px; font-size: 13px; display: flex; align-items: center; gap: 10px; text-align: left; width: 100%; font-family: inherit; }
+                    .cs-slot .lb { font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; }
+                    .cs-slot .meta { font-size: 11px; color: var(--text-muted); margin-left: auto; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+                    .cs-slot.edit { cursor: pointer; background: var(--bg-secondary); border: 1px solid var(--border-light); transition: border-color .12s, box-shadow .12s; }
+                    .cs-slot.edit:hover { border-color: var(--gold); box-shadow: 0 2px 9px rgba(21,17,15,.07); }
+                    .cs-slot.filled { border-left: 3px solid var(--gold); }
+                    .cs-slot.empty { border: 1px dashed var(--border-light); background: transparent; }
+                    .cs-slot.empty .lb { color: var(--text-muted); font-weight: 600; }
+                    .cs-slot.ro { background: transparent; border: 1px dashed var(--border); }
+                    .cs-slot.ro .lb { color: var(--text-muted); font-weight: 600; }
+                    .cs-slot.hero { min-height: 44px; }
+                    .cs-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 2px 8px; border-radius: 20px; margin-left: auto; }
+                    .cs-mcard { text-align: left; cursor: pointer; border: 1px solid var(--border); background: var(--bg-secondary); border-radius: 14px; padding: 20px; display: flex; gap: 15px; align-items: flex-start; transition: transform .15s, box-shadow .15s, border-color .15s; font-family: inherit; width: 100%; }
+                    .cs-mcard:hover { border-color: var(--gold); box-shadow: 0 7px 20px rgba(21,17,15,.07); transform: translateY(-2px); }
+                    .cs-mcard-ic { width: 46px; height: 46px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 19px; }
+                    .cs-drawer { position: fixed; inset: 0; z-index: 1400; display: none; }
+                    .cs-drawer.open { display: block; }
+                    .cs-drawer-backdrop { position: absolute; inset: 0; background: rgba(21,17,15,.42); }
+                    .cs-drawer-panel { position: absolute; top: 0; right: 0; height: 100%; width: min(760px, 96vw); background: var(--bg-primary); box-shadow: -16px 0 48px rgba(21,17,15,.20); display: flex; flex-direction: column; overflow: hidden; animation: csSlide .18s ease; }
+                    @keyframes csSlide { from { transform: translateX(26px); opacity: .5; } to { transform: translateX(0); opacity: 1; } }
+                    .cs-drawer-hd { padding: 18px 22px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 12px; }
+                    .cs-drawer-bd { padding: 20px 22px; overflow-y: auto; flex: 1; }
+                    .cs-x { margin-left: auto; background: none; border: 1px solid var(--border); border-radius: 9px; width: 36px; height: 36px; cursor: pointer; color: var(--text-muted); flex-shrink: 0; font-size: 20px; line-height: 1; }
+                    .cs-x:hover { color: var(--accent-primary); border-color: var(--accent-primary); }
+                    .cs-preview-link { margin-top: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-secondary); padding: 14px 16px; display: flex; gap: 13px; align-items: center; text-decoration: none; transition: border-color .12s, box-shadow .12s; }
+                    .cs-preview-link:hover { border-color: var(--gold); box-shadow: 0 3px 10px rgba(21,17,15,.06); }
+                    .cs-preview-ic { width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: rgba(155,27,34,.10); color: var(--accent-primary); font-size: 15px; }
+                    @media (max-width: 640px) { .cs-drawer-panel { width: 100vw; } }
+                </style>
+                <div class="section" id="section-content-studio">
+                    <div class="back-link" onclick="ContentStudio.back()">
+                        <i class="fas fa-arrow-left"></i> <span id="csBackLabel">Back to Dashboard</span>
+                    </div>
+                    <div id="csRoot"></div>
+                    <div class="cs-drawer" id="csDrawer" aria-hidden="true">
+                        <div class="cs-drawer-backdrop" onclick="ContentStudio.closeDrawer()"></div>
+                        <div class="cs-drawer-panel" id="csDrawerPanel"></div>
+                    </div>
+                </div>
+
                 <!-- ANNOUNCE — the one door to reach members (item 2) -->
                 <div class="section" id="section-announce">
                     <div class="back-link" onclick="App.showSection('dashboard')">
@@ -10842,16 +10909,32 @@ President, Med&amp;X</textarea>
                         <div class="card" style="padding: 22px;">
                             <div style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Write an announcement</div>
 
+                            <style>
+                            .ann-scope-btn{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-secondary);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s ease;font-family:inherit;}
+                            .ann-scope-btn:hover{border-color:#c9a962;color:var(--text-primary);}
+                            .ann-scope-btn.active{border-color:#9b1b22;background:rgba(155,27,34,.07);color:var(--text-primary);}
+                            .ann-scope-count{font-size:11px;font-weight:700;padding:1px 8px;border-radius:20px;background:var(--bg-tertiary);color:var(--text-muted);min-width:18px;text-align:center;}
+                            .ann-scope-btn.active .ann-scope-count{background:#9b1b22;color:#fff;}
+                            </style>
                             <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Who should see this?</label>
-                            <select id="annAudience" onchange="AnnounceApp.renderPreview()" style="width:100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary); font-size: 15px; margin-bottom: 4px;">
+                            <select id="annAudience" onchange="AnnounceApp.onAudienceChange()" style="width:100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary); font-size: 15px; margin-bottom: 4px;">
                                 <option value="">Everyone</option>
-                                <option value="plexus">Plexus attendees</option>
-                                <option value="gala">Gala Evening guests</option>
-                                <option value="accelerator">Accelerator followers</option>
-                                <option value="forum">Biomedical Forum followers</option>
-                                <option value="bridges">Building Bridges followers</option>
+                                <option value="plexus">Plexus</option>
+                                <option value="gala">Gala Evening</option>
+                                <option value="accelerator">Accelerator</option>
+                                <option value="forum">Biomedical Forum</option>
+                                <option value="bridges">Building Bridges</option>
                             </select>
-                            <div id="annFollowerHint" style="font-size:12px; color: var(--text-muted); margin-bottom: 16px; min-height: 16px;"></div>
+                            <div id="annFollowerHint" style="font-size:12px; color: var(--text-muted); margin: 6px 0 0; min-height: 16px;"></div>
+                            <!-- Item 15: per-project scope picker with live counts (interested / registered / interested-not-registered). -->
+                            <div id="annScopeWrap" style="display:none; margin: 10px 0 16px;">
+                                <div style="font-size:12px; font-weight:600; color: var(--text-secondary); margin-bottom: 8px;">Reach which part of this project?</div>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                    <button type="button" class="ann-scope-btn active" data-scope="interested" onclick="AnnounceApp.setScope('interested')"><i class="fas fa-bell" style="font-size:11px;"></i> Interested <span class="ann-scope-count" data-count="interested">–</span></button>
+                                    <button type="button" class="ann-scope-btn" data-scope="registered" onclick="AnnounceApp.setScope('registered')"><i class="fas fa-ticket-alt" style="font-size:11px;"></i> Registered <span class="ann-scope-count" data-count="registered">–</span></button>
+                                    <button type="button" class="ann-scope-btn" data-scope="interested_not_registered" onclick="AnnounceApp.setScope('interested_not_registered')"><i class="fas fa-user-clock" style="font-size:11px;"></i> Interested, not yet registered <span class="ann-scope-count" data-count="interested_not_registered">–</span></button>
+                                </div>
+                            </div>
 
                             <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Title</label>
                             <input id="annTitle" oninput="AnnounceApp.renderPreview()" maxlength="140" placeholder="e.g. Plexus 2026 abstracts close Friday" style="width:100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary); font-size: 15px; margin-bottom: 16px;">
@@ -14331,10 +14414,11 @@ President, Med&amp;X</textarea>
                 // Filter static nav items (Finances, PR & Media). Core member-ops tools
                 // (Announce, Member Ops) are always visible — they are not part of the
                 // per-user onboarding toggle, so never hide them for already-onboarded users.
-                const OPS_ALWAYS_VISIBLE = ['announce', 'member-ops', 'website-content'];
-                // Item 11: 'user-notifications' is merged into "Message members" (announce) — its old
-                // nav entry stays hidden. The section is still reachable by direct id for back-compat.
-                const MERGED_HIDDEN = ['user-notifications', 'newsletter'];
+                const OPS_ALWAYS_VISIBLE = ['announce', 'member-ops', 'content-studio'];
+                // Item 11/13: 'user-notifications' merged into "Message members" (announce); Portal Content,
+                // Website content and Member Feed merged into "Content studio". Their old nav entries stay
+                // hidden. Each section is still reachable by direct id for back-compat.
+                const MERGED_HIDDEN = ['user-notifications', 'newsletter', 'portal-content', 'website-content', 'member-feed'];
                 document.querySelectorAll('#sidebarNav [data-section]').forEach(el => {
                     if (MERGED_HIDDEN.includes(el.dataset.section)) { el.style.display = 'none'; return; }
                     el.style.display = (OPS_ALWAYS_VISIBLE.includes(el.dataset.section) || this.userSections.includes(el.dataset.section)) ? '' : 'none';
@@ -16068,6 +16152,7 @@ President, Med&amp;X</textarea>
                     'user-notifications': 'Message members',
                     'newsletter': 'Newsletter',
                     'portal-content': 'Portal Content',
+                    'content-studio': 'Content studio',
                     'member-feed': 'Member Feed',
                     'announce': 'Message members',
                     'member-ops': 'Member Ops',
@@ -16134,7 +16219,7 @@ President, Med&amp;X</textarea>
                 // both out of that one section so those links stay clickable. Visible elsewhere.
                 const qrFab = document.getElementById('globalQRBtn');
                 const assistFab = document.getElementById('assistantFab');
-                const fabsHiddenHere = (sectionId === 'website-content');
+                const fabsHiddenHere = (sectionId === 'website-content' || sectionId === 'content-studio');
                 if (qrFab && this.user && (this.user.is_admin || this.user.is_staff)) qrFab.style.display = fabsHiddenHere ? 'none' : 'flex';
                 if (assistFab && this.user && this.user.is_admin) assistFab.style.display = fabsHiddenHere ? 'none' : 'flex';
 
@@ -16170,6 +16255,10 @@ President, Med&amp;X</textarea>
                     this.currentView = 'member-feed';
                     this.switchChatPanel('team');
                     if (typeof FeedAdmin !== 'undefined') FeedAdmin.init();
+                } else if (sectionId === 'content-studio') {
+                    this.currentView = 'content-studio';
+                    this.switchChatPanel('team');
+                    if (typeof ContentStudio !== 'undefined') ContentStudio.init();
                 } else if (sectionId === 'announce') {
                     this.currentView = 'announce';
                     this.switchChatPanel('team');
@@ -19828,6 +19917,7 @@ President, Med&amp;X</textarea>
                             <button class="btn" style="padding:4px 8px;font-size:11px;" onclick="App.openSpeakerDetailModal('${s.id}')" title="Edit"><i class="fas fa-pencil-alt"></i></button>
                             <button class="btn" style="padding:4px 8px;font-size:11px;${isPublished ? 'color:#22c55e;' : ''}" onclick="App.toggleSpeakerPublish('${s.id}',${isPublished ? 0 : 1})" title="${isPublished ? 'Unpublish' : 'Publish'}"><i class="fas ${isPublished ? 'fa-eye-slash' : 'fa-eye'}"></i></button>
                             <button class="btn" style="padding:4px 8px;font-size:11px;color:var(--plexus);" onclick="App.notifySpeaker('${s.id}')" title="Push notification"><i class="fas fa-bell"></i></button>
+                            <button class="btn" style="padding:4px 8px;font-size:11px;color:#9b1b22;" onclick="App.announceSpeaker('${s.id}')" title="Announce to interested members (opens composer, nothing sent)"><i class="fas fa-bullhorn"></i></button>
                             <button class="btn" style="padding:4px 8px;font-size:11px;color:var(--accent-gold);" onclick="App.sendSpeakerInviteQuick('${s.id}')" title="Send invitation email"><i class="fas fa-envelope"></i></button>
                             <button class="btn" style="padding:4px 8px;font-size:11px;color:#ef4444;" onclick="App.deleteSpeaker('${s.id}')" title="Delete"><i class="fas fa-trash"></i></button>
                         </div>
@@ -19852,6 +19942,17 @@ President, Med&amp;X</textarea>
                 if (!speaker) return;
                 if (!confirm(`Push notification about ${speaker.name} to all users?`)) return;
                 try { await this.api(`/api/admin/plexus/speakers/${speakerId}/notify`, { method: 'POST' }); Toast.success('Notification sent to all users'); } catch (err) { console.error('Failed to send notification:', err); Toast.error('Failed to send notification'); }
+            },
+
+            // Item 3/15: prefill the Message members composer to announce a speaker to the members
+            // interested in Plexus. Prefill ONLY — it opens the composer, it never sends.
+            announceSpeaker(speakerId) {
+                const speaker = (this.plexusSpeakers || []).find(s => s.id === speakerId);
+                const name = speaker ? speaker.name : '';
+                const isKeynote = !!(speaker && (speaker.is_keynote || /keynote/i.test(speaker.speaker_type || '')));
+                const title = `${isKeynote ? 'New keynote announced' : 'New speaker announced'}: ${name}`;
+                const body = [(speaker && speaker.talk_title) ? `"${speaker.talk_title}"` : '', (speaker && speaker.institution) || ''].filter(Boolean).join(' — ');
+                if (typeof AnnounceApp !== 'undefined') AnnounceApp.prefill({ project: 'plexus', scope: 'interested', title, body });
             },
 
             sendQuickNotification(project, template) {
@@ -20044,7 +20145,19 @@ President, Med&amp;X</textarea>
                 const name = document.getElementById('newSpkName').value.trim();
                 if (!name) { Toast.warning('Name is required'); return; }
                 const data = { name, title: document.getElementById('newSpkTitle').value || null, institution: document.getElementById('newSpkInstitution').value || null, email: document.getElementById('newSpkEmail').value || null, talk_title: document.getElementById('newSpkTalkTitle').value || null, speaker_type: document.getElementById('newSpkType').value, year: document.getElementById('newSpkYear').value, is_keynote: document.getElementById('newSpkKeynote').checked };
-                try { await this.api('/api/admin/plexus/speakers', { method: 'POST', body: JSON.stringify(data) }); this.closeModal('addSpeakerModal'); await this.loadPlexusSpeakers(); } catch (err) { console.error('Failed to create speaker:', err); Toast.error('Failed to add speaker'); }
+                try {
+                    await this.api('/api/admin/plexus/speakers', { method: 'POST', body: JSON.stringify(data) });
+                    this.closeModal('addSpeakerModal');
+                    await this.loadPlexusSpeakers();
+                    Toast.success(`${name} added`);
+                    // Item 3/15: one-click, prefill-only announcement to interested members. Nothing sends.
+                    const kw = data.is_keynote ? 'keynote' : 'speaker';
+                    if (confirm(`Announce ${name} to members interested in Plexus?\n\nThis opens the composer prefilled — nothing is sent until you review and publish.`)) {
+                        const title = `New ${kw} announced: ${name}`;
+                        const body = [data.talk_title ? `"${data.talk_title}"` : '', data.institution || ''].filter(Boolean).join(' — ');
+                        if (typeof AnnounceApp !== 'undefined') AnnounceApp.prefill({ project: 'plexus', scope: 'interested', title, body });
+                    }
+                } catch (err) { console.error('Failed to create speaker:', err); Toast.error('Failed to add speaker'); }
             },
 
             async createSpeaker(data) {
@@ -32696,11 +32809,55 @@ By applying to this program, I give the following consents:
         // ==================== ANNOUNCE — the one door to reach members ====================
         const AnnounceApp = {
             _projStatus: {},
+            _scope: 'interested',        // active per-project scope (only meaningful when a project is picked)
+            _audienceCounts: {},         // { interested, registered, interested_not_registered } for the current project
             init() {
                 this.onDestChange();
                 this.loadProjectStatus();
                 this.loadPast();
+                this.onAudienceChange();
+            },
+            // Project selector changed. Everyone => hide the scope picker; a project => reveal it,
+            // default to 'interested', and pull the three live counts from the read-only endpoint.
+            async onAudienceChange() {
+                const audience = document.getElementById('annAudience')?.value || '';
+                const wrap = document.getElementById('annScopeWrap');
+                if (!audience) {
+                    if (wrap) wrap.style.display = 'none';
+                    this._audienceCounts = {};
+                    this.renderPreview();
+                    return;
+                }
+                if (wrap) wrap.style.display = 'block';
+                this._scope = 'interested';
+                this._syncScopeButtons();
                 this.renderPreview();
+                // Live counts (interested / registered / interested-not-registered).
+                this._audienceCounts = {};
+                this._renderScopeCounts();
+                const r = await opsApi('/api/admin/audiences/' + encodeURIComponent(audience));
+                if (r.ok && r.d) {
+                    this._audienceCounts = r.d;
+                    this._renderScopeCounts();
+                    this.renderPreview();
+                }
+            },
+            setScope(scope) {
+                this._scope = scope;
+                this._syncScopeButtons();
+                this.renderPreview();
+            },
+            _syncScopeButtons() {
+                document.querySelectorAll('#annScopeWrap .ann-scope-btn').forEach(b => {
+                    b.classList.toggle('active', b.getAttribute('data-scope') === this._scope);
+                });
+            },
+            _renderScopeCounts() {
+                const c = this._audienceCounts || {};
+                document.querySelectorAll('#annScopeWrap .ann-scope-count').forEach(el => {
+                    const k = el.getAttribute('data-count');
+                    el.textContent = (c && typeof c[k] === 'number') ? c[k] : '–';
+                });
             },
             // Destination picker → the bell-feed routing token stored in link_section:
             //   site:<page>  opens a page on the public website
@@ -32737,17 +32894,24 @@ By applying to this program, I give the following consents:
                 const audience = document.getElementById('annAudience')?.value || '';
                 const title = document.getElementById('annTitle')?.value || '';
                 const body = document.getElementById('annBody')?.value || '';
-                const NAMES = { plexus: 'Plexus attendees', gala: 'Gala Evening guests', accelerator: 'Accelerator followers', forum: 'Biomedical Forum followers', bridges: 'Building Bridges followers' };
-                // Follower hint
+                const NAMES = { plexus: 'Plexus', gala: 'Gala Evening', accelerator: 'Accelerator', forum: 'Biomedical Forum', bridges: 'Building Bridges' };
+                const SCOPE_LABEL = { interested: 'interested', registered: 'registered', interested_not_registered: 'interested, not yet registered' };
+                const scopeLabel = SCOPE_LABEL[this._scope] || 'interested';
+                // Reach hint — how many members this exact audience lands on.
                 const hint = document.getElementById('annFollowerHint');
                 if (hint) {
-                    if (audience && this._projStatus[audience]) {
-                        hint.textContent = `${this._projStatus[audience].waiting_count || 0} members follow ${NAMES[audience] || audience}.`;
+                    if (audience) {
+                        const c = this._audienceCounts || {};
+                        const n = (typeof c[this._scope] === 'number') ? c[this._scope] : null;
+                        hint.textContent = (n != null)
+                            ? `${n} ${n === 1 ? 'person' : 'people'} — ${NAMES[audience] || audience} · ${scopeLabel}.`
+                            : `Reaches ${NAMES[audience] || audience} members who are ${scopeLabel}.`;
                     } else {
                         hint.textContent = 'Goes to every member.';
                     }
                 }
-                const badge = audience ? `<span style="display:inline-block;background:#9b1b2214;color:#9b1b22;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;margin-bottom:8px;">${opsEsc(NAMES[audience] || audience)}</span>` : `<span style="display:inline-block;background:#c9a96222;color:#8a6d17;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;margin-bottom:8px;">Everyone</span>`;
+                const badgeText = audience ? `${NAMES[audience] || audience} · ${scopeLabel}` : 'Everyone';
+                const badge = audience ? `<span style="display:inline-block;background:#9b1b2214;color:#9b1b22;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;margin-bottom:8px;">${opsEsc(badgeText)}</span>` : `<span style="display:inline-block;background:#c9a96222;color:#8a6d17;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;margin-bottom:8px;">Everyone</span>`;
                 const destHint = this.destLabel();
                 const prev = document.getElementById('annPreview');
                 if (prev) {
@@ -32763,23 +32927,28 @@ By applying to this program, I give the following consents:
                 const sel = document.getElementById('annDest');
                 const dest = this.destValue();
                 if (sel && sel.value === '__url__' && dest && !/^https?:\/\/[^\s]+$/i.test(dest)) { Toast.error('Enter a valid http(s) link'); return; }
+                const projectKey = document.getElementById('annAudience')?.value || null;
                 const payload = {
-                    project_key: document.getElementById('annAudience')?.value || null,
+                    project_key: projectKey,
                     title,
                     body: document.getElementById('annBody')?.value || '',
                     link_section: dest || null,
-                    push: document.getElementById('annPush')?.checked ? 1 : 0
+                    push: document.getElementById('annPush')?.checked ? 1 : 0,
+                    audience_scope: projectKey ? this._scope : 'everyone'
                 };
                 // Confirm the exact scope before this member-visible, non-recallable action.
-                const SCOPE_NAMES = { plexus: 'Plexus attendees', gala: 'Gala Evening guests', accelerator: 'Accelerator followers', forum: 'Biomedical Forum followers', bridges: 'Building Bridges followers' };
-                const scopeLabel = payload.project_key ? (SCOPE_NAMES[payload.project_key] || payload.project_key) : 'Everyone';
+                const NAMES = { plexus: 'Plexus', gala: 'Gala Evening', accelerator: 'Accelerator', forum: 'Biomedical Forum', bridges: 'Building Bridges' };
+                const SCOPE_LABEL = { interested: 'interested', registered: 'registered', interested_not_registered: 'interested but not yet registered' };
+                const reach = payload.project_key ? (this._audienceCounts && this._audienceCounts[this._scope]) : null;
+                const scopeLabel = payload.project_key
+                    ? `${NAMES[payload.project_key] || payload.project_key} — ${SCOPE_LABEL[this._scope] || 'interested'}`
+                    : 'Everyone';
                 let confirmMsg = payload.project_key
-                    ? `Publish to ${scopeLabel} — appears in their notification bell.`
+                    ? `Publish to ${scopeLabel}${reach != null ? ` (${reach} ${reach === 1 ? 'member' : 'members'})` : ''} — appears in their notification bell.`
                     : `Publish to Everyone — appears in every member's notification bell.`;
                 if (payload.push) {
-                    const followerCount = payload.project_key ? (this._projStatus[payload.project_key]?.waiting_count ?? null) : null;
-                    confirmMsg += followerCount != null
-                        ? `\n\n…and send a push to ${followerCount} follower${followerCount === 1 ? '' : 's'}.`
+                    confirmMsg += reach != null
+                        ? `\n\n…and send a push to ${reach} member${reach === 1 ? '' : 's'} in that audience.`
                         : `\n\n…and send a push to every member with notifications enabled.`;
                 }
                 if (!confirm(confirmMsg)) return;
@@ -32790,13 +32959,30 @@ By applying to this program, I give the following consents:
                     document.getElementById('annBody').value = '';
                     document.getElementById('annPush').checked = false;
                     if (sel) sel.value = '';
+                    const aud = document.getElementById('annAudience');
+                    if (aud) aud.value = '';
+                    this._scope = 'interested';
                     const durl = document.getElementById('annDestUrl');
                     if (durl) { durl.value = ''; durl.style.display = 'none'; }
-                    this.renderPreview();
+                    this.onAudienceChange();
                     this.loadPast();
                 } else {
                     Toast.error(r.d.error || 'Could not publish');
                 }
+            },
+            // Prefill-only shortcut used by the speakers editor's "Announce this speaker" action.
+            // Opens the composer pre-set to a project + scope + title. NEVER publishes — the admin
+            // still reviews and taps Publish.
+            prefill(opts) {
+                opts = opts || {};
+                App.showSection('announce', document.querySelector('.nav-item[data-section=announce]'));
+                const aud = document.getElementById('annAudience');
+                if (aud && opts.project) aud.value = opts.project;
+                this._scope = opts.scope || 'interested';
+                if (opts.title != null) { const t = document.getElementById('annTitle'); if (t) t.value = opts.title; }
+                if (opts.body != null) { const b = document.getElementById('annBody'); if (b) b.value = opts.body; }
+                this.onAudienceChange();
+                const t = document.getElementById('annTitle'); if (t) { try { t.focus(); } catch (e) {} }
             },
             async loadPast() {
                 const el = document.getElementById('annPastList'); if (!el) return;
@@ -33467,6 +33653,299 @@ By applying to this program, I give the following consents:
                 if (!confirm('Delete this talk? This cannot be undone.')) return;
                 const r = await this.api(`/api/admin/talks/${id}`, { method: 'DELETE' });
                 if (r.d && r.d.success) { Toast.success('Deleted'); this.loadTalks(); } else Toast.error('Failed');
+            }
+        };
+
+        // ==================== CONTENT STUDIO — unified visual editor (items 12/13) ====================
+        // A new shell over the EXISTING editors. Website slots reuse WebsiteContentApp (content_blocks
+        // PUT). Member slots borrow the real MemberOpsApp / FeedAdmin panels into a side drawer and
+        // return them home on close. No new backend — every save routes through an existing endpoint.
+        const ContentStudio = {
+            surface: null,        // null | 'website' | 'member'
+            _stash: null,         // { id, parent, next, display } of a borrowed member panel
+
+            // Website page map. Flexible config — add or remove a page/slot here (item 14).
+            // zones: block = editable content_block; hero/status/prices = read-only context markers.
+            WEBSITE: [
+                { key: 'homepage', name: 'Homepage', url: '/', zones: [
+                    { t: 'hero', label: 'Hero — headline & tagline' },
+                    { t: 'block', block: 'homepage.news_banner', where: 'The news banner near the top of the homepage' },
+                    { t: 'block', block: 'global.members_prompt', where: 'The “sign in to Med&X” prompt shown across the site' }
+                ]},
+                { key: 'plexus', name: 'Plexus', url: '/plexus.html', project: 'plexus', event: true, zones: [
+                    { t: 'hero', label: 'Hero — Plexus title & dates' },
+                    { t: 'block', block: 'plexus.announcement', where: 'The highlighted notice strip on the Plexus page' },
+                    { t: 'status', label: 'Live status line' },
+                    { t: 'prices', project: 'plexus', label: 'Prices & key dates' }
+                ]},
+                { key: 'gala', name: 'Gala', url: '/plexus-gala.html', project: 'gala', event: true, zones: [
+                    { t: 'hero', label: 'Hero — Gala title & date' },
+                    { t: 'block', block: 'gala.announcement', where: 'The highlighted notice strip on the Gala page' },
+                    { t: 'status', label: 'Live status line' },
+                    { t: 'prices', project: 'gala', label: 'Ticket prices & date' }
+                ]},
+                { key: 'accelerator', name: 'Accelerator', url: '/accelerator.html', project: 'accelerator', event: true, zones: [
+                    { t: 'hero', label: 'Hero — Accelerator intro' },
+                    { t: 'block', block: 'accelerator.announcement', where: 'The highlighted notice strip on the Accelerator page' },
+                    { t: 'status', label: 'Live status line' },
+                    { t: 'prices', project: 'accelerator', label: 'Key dates & deadlines' }
+                ]},
+                { key: 'forum', name: 'Forum', url: '/biomedical-forum.html', project: 'forum', event: true, zones: [
+                    { t: 'hero', label: 'Hero — Forum intro' },
+                    { t: 'block', block: 'forum.announcement', where: 'The highlighted notice strip on the Forum page' },
+                    { t: 'status', label: 'Live status line' }
+                ]},
+                { key: 'bridges', name: 'Building Bridges', url: '/building-bridges.html', project: 'bridges', event: true, zones: [
+                    { t: 'hero', label: 'Hero — Building Bridges intro' },
+                    { t: 'block', block: 'bridges.announcement', where: 'The highlighted notice strip on the Building Bridges page' },
+                    { t: 'status', label: 'Live status line' },
+                    { t: 'prices', project: 'bridges', label: 'Key dates' }
+                ]}
+            ],
+
+            // Member portal cards. Each borrows the real editor panel into the drawer.
+            MEMBER: [
+                { key: 'projects', name: 'Home screen project cards', ic: 'fa-layer-group', color: '#9b1b22',
+                  src: 'moHomeRows', prep: () => MemberOpsApp.loadHome(),
+                  desc: 'The status cards on the member home screen — label, state and button for Plexus, Gala, Accelerator, Forum and Building Bridges.',
+                  intro: 'Each row is a card on the member home screen. Edit the words, choose a state, and press Save on that row. Members see the change right away.' },
+                { key: 'feed', name: 'Member feed', ic: 'fa-stream', color: '#c9a962',
+                  src: 'mfFeedPanel', prep: () => FeedAdmin.loadFeed(),
+                  desc: 'The “Latest from Med&X” items on the member home feed — news, spotlights, recordings and calls.',
+                  intro: 'These items show on the member home feed. Add a new one, edit, publish or remove — drafts stay hidden from members.' },
+                { key: 'talks', name: 'Talk library', ic: 'fa-video', color: '#6366f1',
+                  src: 'mfTalksPanel', prep: () => FeedAdmin.loadTalks(),
+                  desc: 'The on-demand talks members can watch between events.',
+                  intro: 'The on-demand talk library. Add a talk, edit its details, and publish or hide it.' },
+                { key: 'sites', name: 'Accelerator sites', ic: 'fa-hospital', color: '#15803d',
+                  src: 'moSitesPanel', prep: () => MemberOpsApp.loadSites(),
+                  desc: 'The host institutions in the Accelerator “where you could go” list.',
+                  intro: 'The host institutions shown in the Accelerator “where you could go” list. Add or edit a site below.' }
+            ],
+
+            esc(s) { return opsEsc(s); },
+            siteBase() { return (typeof WebsiteContentApp !== 'undefined') ? WebsiteContentApp.siteBase() : ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? 'http://localhost:8899' : 'https://medx.hr'); },
+            memberBaseHref() { const h = location.hostname; return (h === 'localhost' || h === '127.0.0.1') ? 'http://localhost:3001' : 'https://medx-user-portal.onrender.com'; },
+
+            init() {
+                this.onLeave();          // restore any borrowed panel + close the drawer
+                this.surface = null;
+                this.render();
+            },
+            back() {
+                if (this.surface) { this.surface = null; this.render(); }
+                else App.showSection('dashboard');
+            },
+            onLeave() { this.closeDrawer(); },
+
+            render() {
+                const root = document.getElementById('csRoot'); if (!root) return;
+                const back = document.getElementById('csBackLabel');
+                if (back) back.textContent = this.surface ? 'Back to Content studio' : 'Back to Dashboard';
+                if (!this.surface) { root.innerHTML = this.pickerHtml(); return; }
+                if (this.surface === 'website') { this.renderWebsite(root); return; }
+                if (this.surface === 'member') { root.innerHTML = this.memberHtml(); return; }
+            },
+            pick(s) {
+                this.surface = s;
+                const back = document.getElementById('csBackLabel'); if (back) back.textContent = 'Back to Content studio';
+                if (s === 'website') {
+                    const root = document.getElementById('csRoot');
+                    if (root) root.innerHTML = '<div class="cs-wrap"><div style="padding:40px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading the website map…</div></div>';
+                    this.ensureBlocks().then(() => { if (this.surface === 'website') this.renderWebsite(document.getElementById('csRoot')); });
+                } else this.render();
+            },
+
+            // ---------- Step 1: surface picker ----------
+            pickerHtml() {
+                return `<div class="cs-wrap">
+                    <div class="cs-hd">
+                        <h1><i class="fas fa-th-large" style="color:var(--gold);margin-right:12px;"></i>Content studio</h1>
+                        <p class="cs-sub">One place to edit everything members and visitors read. Pick where you want to make a change.</p>
+                    </div>
+                    <div class="cs-picker">
+                        <button class="cs-surface" onclick="ContentStudio.pick('website')">
+                            <div class="cs-surface-ic" style="background:rgba(155,27,34,.12);color:#9b1b22;"><i class="fas fa-globe"></i></div>
+                            <h3>Website</h3>
+                            <p>The public medx.hr site — the homepage and each project page. Edit the words a visitor sees, with a live preview of the real page.</p>
+                            <span class="cs-go">Open the website map <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
+                        </button>
+                        <button class="cs-surface" onclick="ContentStudio.pick('member')">
+                            <div class="cs-surface-ic" style="background:rgba(201,169,98,.20);color:#9a7b2f;"><i class="fas fa-mobile-screen-button"></i></div>
+                            <h3>Member portal</h3>
+                            <p>What signed-in members see — the home screen cards, the news feed, the talk library and the accelerator sites.</p>
+                            <span class="cs-go">Open the member map <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
+                        </button>
+                    </div>
+                </div>`;
+            },
+
+            // ---------- Website surface ----------
+            async ensureBlocks() {
+                // Fetch blocks WITHOUT rendering the legacy accordions (avoids duplicate field ids).
+                try {
+                    const r = await opsApi('/api/admin/content-blocks');
+                    if (r.ok && r.d) WebsiteContentApp._blocks = r.d.blocks || [];
+                } catch (e) {}
+                // Clear any stale legacy render so field ids are unique to the drawer.
+                const host = document.getElementById('wcAccordions');
+                if (host) host.innerHTML = '<div class="card" style="padding:22px;color:var(--text-muted);font-size:13px;">This page is now edited in Content studio.</div>';
+                return WebsiteContentApp._blocks || [];
+            },
+            blockByKey(key) { return (WebsiteContentApp._blocks || []).find(b => b.block_key === key) || null; },
+
+            renderWebsite(root) {
+                if (!root) return;
+                const cards = this.WEBSITE.map(p => this.pageCardHtml(p)).join('');
+                root.innerHTML = `<div class="cs-wrap">
+                    <div class="cs-hd">
+                        <h1><i class="fas fa-globe" style="color:#9b1b22;margin-right:12px;"></i>Website</h1>
+                        <p class="cs-sub">Each card is a page on medx.hr, sketched top to bottom. Click a highlighted block to edit its text — the real page opens as a live preview beside the editor. Grey blocks are set elsewhere.</p>
+                    </div>
+                    <div class="cs-grid">${cards}</div>
+                </div>`;
+            },
+            pageCardHtml(p) {
+                const slots = p.zones.map(z => this.slotHtml(p, z)).join('');
+                return `<div class="cs-page">
+                    <div class="cs-page-hd"><i class="fas fa-file-lines" style="color:var(--text-muted);"></i><span class="nm">${this.esc(p.name)}</span>
+                        <a href="${this.siteBase() + p.url}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><i class="fas fa-arrow-up-right-from-square" style="font-size:10px;"></i> View page</a>
+                    </div>
+                    <div class="cs-sketch">${slots}</div>
+                </div>`;
+            },
+            slotHtml(p, z) {
+                if (z.t === 'block') {
+                    const b = this.blockByKey(z.block);
+                    if (!b) return `<div class="cs-slot ro"><span class="lb">${this.esc(z.where || z.block)}</span><span class="meta">not set up</span></div>`;
+                    const has = (b.body || '').trim().length > 0;
+                    const cls = has ? 'cs-slot edit filled' : 'cs-slot edit empty';
+                    const meta = has
+                        ? '<span class="meta"><i class="fas fa-pen" style="font-size:10px;"></i> Edit</span>'
+                        : '<span class="meta"><i class="fas fa-plus" style="font-size:10px;"></i> Add text</span>';
+                    return `<button class="${cls}" onclick="ContentStudio.openSlot('${p.key}','${this.esc(b.block_key)}')"><span class="lb">${this.esc(b.label)}</span>${meta}</button>`;
+                }
+                if (z.t === 'hero') {
+                    return `<div class="cs-slot ro hero"><span class="lb">${this.esc(z.label)}</span><span class="cs-tag" style="background:var(--bg-tertiary);color:var(--text-muted);">design</span></div>`;
+                }
+                if (z.t === 'status') {
+                    return `<div class="cs-slot ro"><span class="lb">${this.esc(z.label)}</span><span class="meta">edit under Member portal</span></div>`;
+                }
+                if (z.t === 'prices') {
+                    return `<button class="cs-slot ro" style="cursor:pointer;" onclick="ContentStudio.gotoEvent('${z.project}')"><span class="lb">${this.esc(z.label)}</span><span class="meta">edited in the event editor <i class="fas fa-arrow-right" style="font-size:9px;"></i></span></button>`;
+                }
+                return '';
+            },
+            gotoEvent(project) {
+                const nav = document.querySelector('.nav-item[data-section=' + project + ']');
+                App.showSection(project, nav || null);
+            },
+
+            openSlot(pageKey, blockKey) {
+                const p = this.WEBSITE.find(x => x.key === pageKey);
+                const b = this.blockByKey(blockKey);
+                if (!p || !b) return;
+                const zone = p.zones.find(z => z.block === blockKey) || {};
+                const previewUrl = this.siteBase() + p.url;
+                const notify = p.event
+                    ? `<div style="margin-top:16px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--bg-secondary);display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                            <div style="font-size:12.5px;color:var(--text-secondary);flex:1;min-width:180px;line-height:1.45;">Changed something members should know? Post a note to members — you review it first, nothing is sent automatically.</div>
+                            <button class="btn btn-secondary" style="font-size:12px;flex-shrink:0;" onclick="ContentStudio.notify('${p.project}')"><i class="fas fa-bell"></i> Tell members…</button>
+                        </div>` : '';
+                const body = `
+                    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;line-height:1.55;">${this.esc(zone.where || b.label)} on the <strong>${this.esc(p.name)}</strong> page of the website. Leave it blank to show the built-in default.</div>
+                    <div id="csDrawerMount">${WebsiteContentApp.rowHtml(b)}</div>
+                    ${notify}
+                    <a class="cs-preview-link" href="${previewUrl}" target="_blank" rel="noopener">
+                        <span class="cs-preview-ic"><i class="fas fa-arrow-up-right-from-square"></i></span>
+                        <span style="min-width:0;">
+                            <span style="display:block;font-weight:700;font-size:13px;color:var(--text-primary);">Preview on the live site</span>
+                            <span style="display:block;font-size:12px;color:var(--text-muted);line-height:1.45;">Opens the real ${this.esc(p.name)} page in a new tab so you can see your change in place.</span>
+                        </span>
+                    </a>`;
+                this.openDrawer(b.label, 'Website · ' + p.name, body);
+            },
+            notify(project) {
+                this.closeDrawer();
+                if (typeof ProjectPing !== 'undefined') ProjectPing.open(project);
+                else if (typeof AnnounceApp !== 'undefined') App.showSection('announce', document.querySelector('.nav-item[data-section=announce]'));
+            },
+
+            // ---------- Member surface ----------
+            memberHtml() {
+                const cards = this.MEMBER.map(m => `
+                    <button class="cs-mcard" onclick="ContentStudio.openMember('${m.key}')">
+                        <div class="cs-mcard-ic" style="background:${m.color}22;color:${m.color};"><i class="fas ${m.ic}"></i></div>
+                        <div style="min-width:0;flex:1;">
+                            <div style="font-weight:700;font-size:16px;margin-bottom:4px;color:var(--text-primary);">${this.esc(m.name)}</div>
+                            <div style="color:var(--text-muted);font-size:13px;line-height:1.5;">${this.esc(m.desc)}</div>
+                        </div>
+                        <i class="fas fa-chevron-right" style="color:var(--text-muted);align-self:center;flex-shrink:0;"></i>
+                    </button>`).join('');
+                return `<div class="cs-wrap">
+                    <div class="cs-hd">
+                        <h1><i class="fas fa-mobile-screen-button" style="color:#9a7b2f;margin-right:12px;"></i>Member portal</h1>
+                        <p class="cs-sub">What signed-in members see in the app. Pick a part to edit — the editor opens in a panel beside this list, and you can open the member app itself in a new tab.</p>
+                    </div>
+                    <div style="display:grid;gap:14px;max-width:780px;">${cards}</div>
+                </div>`;
+            },
+            openMember(kind) {
+                const cfg = this.MEMBER.find(m => m.key === kind); if (!cfg) return;
+                this.openDrawer(cfg.name, 'Member portal', `
+                    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;line-height:1.55;">${this.esc(cfg.intro)}</div>
+                    <div id="csDrawerMount"><div style="padding:22px;color:var(--text-muted);font-size:13px;"><i class="fas fa-spinner fa-spin"></i> Loading…</div></div>`,
+                    this.memberBaseHref());
+                const run = () => this._borrow(cfg.src);
+                try { const r = cfg.prep ? cfg.prep() : null; if (r && typeof r.then === 'function') r.then(run).catch(run); else run(); }
+                catch (e) { run(); }
+            },
+
+            // ---------- Drawer + panel borrowing ----------
+            openDrawer(title, sub, bodyHtml, openTabHref) {
+                this._restore();          // return any previously borrowed panel before we rebuild
+                const d = document.getElementById('csDrawer');
+                const panel = document.getElementById('csDrawerPanel');
+                if (!d || !panel) return;
+                panel.innerHTML = `
+                    <div class="cs-drawer-hd">
+                        <div style="min-width:0;flex:1;">
+                            <div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:3px;">${this.esc(sub)}</div>
+                            <div style="font-size:19px;font-weight:700;line-height:1.2;color:var(--text-primary);">${this.esc(title)}</div>
+                        </div>
+                        ${openTabHref ? `<a class="btn btn-secondary" href="${openTabHref}" target="_blank" rel="noopener" style="font-size:12px;flex-shrink:0;"><i class="fas fa-arrow-up-right-from-square"></i> Open member portal</a>` : ''}
+                        <button class="cs-x" onclick="ContentStudio.closeDrawer()" aria-label="Close">&times;</button>
+                    </div>
+                    <div class="cs-drawer-bd">${bodyHtml}</div>`;
+                d.classList.add('open');
+                d.setAttribute('aria-hidden', 'false');
+                document.body.style.overflow = 'hidden';
+            },
+            closeDrawer() {
+                this._restore();
+                const d = document.getElementById('csDrawer');
+                if (d) { d.classList.remove('open'); d.setAttribute('aria-hidden', 'true'); }
+                document.body.style.overflow = '';
+            },
+            _borrow(id) {
+                this._restore();
+                const node = document.getElementById(id);
+                const mount = document.getElementById('csDrawerMount');
+                if (!node || !mount) return;
+                this._stash = { id, parent: node.parentNode, next: node.nextSibling, display: node.style.display };
+                node.style.display = '';
+                mount.innerHTML = '';
+                mount.appendChild(node);
+            },
+            _restore() {
+                if (!this._stash) return;
+                const s = this._stash; this._stash = null;
+                const node = document.getElementById(s.id);
+                if (node && s.parent) {
+                    node.style.display = s.display || '';
+                    if (s.next && s.next.parentNode === s.parent) s.parent.insertBefore(node, s.next);
+                    else s.parent.appendChild(node);
+                }
             }
         };
 
@@ -34943,6 +35422,14 @@ By applying to this program, I give the following consents:
         App.showSection = function(sectionId, navItem, skipHistory) {
             _origShowSection.call(this, sectionId, navItem, skipHistory);
             Breadcrumbs.update(sectionId);
+        };
+
+        // Content studio borrows the real member editor panels into its side drawer. If the admin
+        // navigates away, return those panels to their home sections and close the drawer first.
+        const _csLeaveShowSection = App.showSection;
+        App.showSection = function(sectionId, navItem, skipHistory) {
+            if (sectionId !== 'content-studio' && typeof ContentStudio !== 'undefined') ContentStudio.onLeave();
+            _csLeaveShowSection.call(this, sectionId, navItem, skipHistory);
         };
 
         // Hook breadcrumbs into showProject

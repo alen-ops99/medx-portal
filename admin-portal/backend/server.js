@@ -1758,6 +1758,14 @@ async function initializeApp() {
     )`);
     // ====================== SCHEMA-MIRROR:END ======================
 
+    // Audience scope for member announcements (additive, guarded — deliberately OUTSIDE the mirror
+    // block so it never disturbs the byte-identical CREATE TABLE region). Values:
+    //   'everyone' | 'interested' | 'registered' | 'interested_not_registered'.
+    // Legacy rows carry NULL, which the member feed treats as 'everyone' (reaches all). New rows
+    // written by the admin composer always carry an explicit scope. Both portals run this idempotent
+    // ALTER so whichever boots first adds the column to the shared DB.
+    try { db.run('ALTER TABLE member_announcements ADD COLUMN audience_scope TEXT'); } catch (e) {}
+
     // ===== Seed project hub status (admin-owned, member reads /api/project-status) =====
     // Idempotent per project_key. Same canonical values seeded by the user portal — in prod
     // both boot the one shared Turso DB, so whichever runs first fills the table.
@@ -6771,13 +6779,50 @@ async function initializeApp() {
         const title = String(b.title || '').trim();
         if (!title) return res.status(400).json({ error: 'Title is required' });
         const project_key = (b.project_key && PROJECT_HUB_ORDER.includes(b.project_key)) ? b.project_key : null;
+        // Resolve the audience scope. A global (no project) item is always 'everyone'. A project
+        // item defaults to 'interested' when the caller omits a scope (back-compat for any other
+        // caller); the composer always sends one explicitly.
+        const ALLOWED_SCOPE = ['everyone', 'interested', 'registered', 'interested_not_registered'];
+        let audience_scope = ALLOWED_SCOPE.includes(b.audience_scope) ? b.audience_scope : (project_key ? 'interested' : 'everyone');
+        if (!project_key) audience_scope = 'everyone';
         const id = uuidv4();
-        db.run(`INSERT INTO member_announcements (id, project_key, title, body, link_section, push, push_fanned)
-            VALUES (?,?,?,?,?,?,0)`,
-            [id, project_key, title, b.body || null, b.link_section || null, b.push ? 1 : 0]);
+        db.run(`INSERT INTO member_announcements (id, project_key, title, body, link_section, push, push_fanned, audience_scope)
+            VALUES (?,?,?,?,?,?,0,?)`,
+            [id, project_key, title, b.body || null, b.link_section || null, b.push ? 1 : 0, audience_scope]);
         saveDb();
         logAudit(req, 'announcement.publish', title);
         res.json({ success: true, id });
+    });
+
+    // Read-only audience sizing for the composer's per-project scope picker. Returns the three
+    // counts the admin chooses between. Membership is resolved by EMAIL: notify_topics carries
+    // user_id -> users.email (interested), each project's registration table carries email
+    // (registered), and 'interested but not registered' is the interested set minus the registered
+    // set. Whitelisted table names, no writes.
+    app.get('/api/admin/audiences/:project', auth, adminOnly, (req, res) => {
+        const project = String(req.params.project || '').trim();
+        if (!PROJECT_HUB_ORDER.includes(project)) return res.status(400).json({ error: 'Unknown project' });
+        const REG_TABLE = { plexus: 'registrations', gala: 'gala_registrations', accelerator: 'accelerator_applications', forum: 'forum_event_registrations', bridges: 'bridges_registrations' };
+        let interestedEmails = [];
+        try {
+            interestedEmails = query.all(
+                `SELECT DISTINCT LOWER(TRIM(u.email)) AS email FROM notify_topics nt
+                   JOIN users u ON u.id = nt.user_id
+                  WHERE nt.project_key = ? AND u.email IS NOT NULL AND TRIM(u.email) <> ''`, [project]
+            ).map(r => r.email);
+        } catch (e) { interestedEmails = []; }
+        let registeredEmails = [];
+        const table = REG_TABLE[project];
+        if (table) {
+            try {
+                registeredEmails = query.all(`SELECT DISTINCT LOWER(TRIM(email)) AS email FROM ${table} WHERE email IS NOT NULL AND TRIM(email) <> ''`).map(r => r.email);
+            } catch (e) { registeredEmails = []; }
+        }
+        const regSet = new Set(registeredEmails);
+        const interested = interestedEmails.length;
+        const registered = registeredEmails.length;
+        const interested_not_registered = interestedEmails.filter(e => !regSet.has(e)).length;
+        res.json({ project, interested, registered, interested_not_registered });
     });
 
     app.delete('/api/admin/member-announcements/:id', auth, adminOnly, (req, res) => {
