@@ -10137,6 +10137,9 @@ President, Med&amp;X</textarea>
                             <p style="color: var(--text-muted);">Social media, newsletters, and content management</p>
                         </div>
                         <div style="display: flex; gap: 12px; align-items: center;">
+                            <button onclick="Planner.open()" title="Plan 1 to 3 months of posts and newsletters with AI" style="display:inline-flex; align-items:center; gap:8px; padding:9px 18px; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700; color:#fff; background:linear-gradient(135deg, var(--pr-media), #6f1015); box-shadow:0 4px 14px rgba(155,27,34,0.28);">
+                                <i class="fas fa-wand-magic-sparkles"></i> Plan with AI
+                            </button>
                             <select id="prProjectFilter" onchange="PRApp.filterByProject(this.value)" style="padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary);">
                                 <option value="">All Projects</option>
                                 <option value="plexus">Plexus</option>
@@ -10552,6 +10555,114 @@ President, Med&amp;X</textarea>
                         </div>
                     </div>
 
+                    <!-- ============ CONTENT PLANNER (conversational wizard + calendar review) ============ -->
+                    <style>
+                    .planner-overlay { position: fixed; inset: 0; z-index: 4000; background: rgba(24,18,16,0.55); backdrop-filter: blur(3px); display: none; }
+                    .planner-overlay.active { display: block; }
+                    .planner-shell { position: absolute; inset: 3vh 3vw; background: var(--bg-primary, #fbf7f0); border-radius: 18px; box-shadow: 0 30px 90px rgba(0,0,0,0.35); display: flex; flex-direction: column; overflow: hidden; }
+                    .planner-topbar { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid var(--border); background: linear-gradient(135deg, rgba(155,27,34,0.06), transparent); }
+                    .planner-brand { font-family: 'Fraunces', Georgia, serif; font-size: 20px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
+                    .planner-brand i { color: var(--pr-media); }
+                    .planner-sub { font-family: inherit; font-size: 12px; font-weight: 500; color: var(--text-muted); background: rgba(155,27,34,0.08); padding: 3px 10px; border-radius: 20px; }
+                    .planner-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; }
+                    .planner-ghost:hover { background: var(--bg-secondary); }
+                    .planner-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+                    .planner-messages { flex: 1; overflow-y: auto; padding: 28px max(24px, 8%); display: flex; flex-direction: column; gap: 16px; }
+                    .planner-bubble { max-width: 680px; padding: 14px 18px; border-radius: 16px; font-size: 14.5px; line-height: 1.6; white-space: pre-wrap; }
+                    .planner-bubble.assistant { align-self: flex-start; background: var(--bg-secondary); color: var(--text-primary); border-bottom-left-radius: 4px; border: 1px solid var(--border); }
+                    .planner-bubble.user { align-self: flex-end; background: var(--pr-media); color: #fff; border-bottom-right-radius: 4px; }
+                    .planner-bubble .pb-avatar { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; margin-bottom: 6px; display: block; }
+                    .planner-inputbar { display: flex; gap: 10px; padding: 16px max(24px, 8%); border-top: 1px solid var(--border); background: var(--bg-primary, #fbf7f0); }
+                    .planner-input { flex: 1; resize: none; border: 1px solid var(--border); border-radius: 12px; padding: 13px 16px; font-size: 14.5px; font-family: inherit; background: var(--bg-secondary); color: var(--text-primary); max-height: 140px; }
+                    .planner-send { border: none; background: var(--pr-media); color: #fff; width: 48px; border-radius: 12px; cursor: pointer; font-size: 16px; flex-shrink: 0; }
+                    .planner-send:disabled { opacity: 0.5; cursor: default; }
+                    .planner-typing { align-self: flex-start; color: var(--text-muted); font-size: 13px; font-style: italic; padding: 6px 4px; }
+                    .planner-plan-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px max(20px,4%); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+                    .planner-plan-title { font-family: 'Fraunces', Georgia, serif; font-size: 20px; font-weight: 700; color: var(--text-primary); }
+                    .planner-plan-meta { font-size: 12.5px; color: var(--text-muted); margin-top: 3px; }
+                    .planner-plan-month { font-weight: 700; min-width: 150px; text-align: center; color: var(--text-primary); }
+                    .planner-approve { border: none; background: linear-gradient(135deg,#1f7a44,#155e33); color: #fff; padding: 10px 18px; border-radius: 9px; cursor: pointer; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+                    .planner-cal-wrap { flex: 1; overflow-y: auto; padding: 18px max(20px,4%) 40px; }
+                    .planner-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+                    .planner-cal-dow { text-align: center; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; padding-bottom: 6px; }
+                    .planner-cell { min-height: 96px; border: 1px solid var(--border); border-radius: 10px; padding: 6px; background: var(--bg-secondary); display: flex; flex-direction: column; gap: 5px; }
+                    .planner-cell.empty { background: transparent; border: none; }
+                    .planner-cell-date { font-size: 11px; font-weight: 700; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; }
+                    .planner-cell-add { background: transparent; border: none; color: var(--pr-media); cursor: pointer; font-size: 12px; opacity: 0; transition: opacity .15s; }
+                    .planner-cell:hover .planner-cell-add { opacity: 0.9; }
+                    .planner-chip { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 7px; background: var(--bg-primary, #fff); border: 1px solid var(--border); cursor: pointer; font-size: 11.5px; overflow: hidden; }
+                    .planner-chip:hover { border-color: var(--pr-media); }
+                    .planner-chip img { width: 26px; height: 26px; object-fit: cover; border-radius: 5px; flex-shrink: 0; }
+                    .planner-chip .pc-txt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
+                    .planner-chip .pc-plat { flex-shrink: 0; }
+                    .planner-editor, .planner-photopicker { position: absolute; top: 3vh; right: 3vw; bottom: 3vh; width: min(440px, 90vw); background: var(--bg-primary,#fbf7f0); border-radius: 16px; box-shadow: -20px 0 60px rgba(0,0,0,0.28); z-index: 4100; transform: translateX(120%); transition: transform .25s ease; display: flex; flex-direction: column; overflow: hidden; }
+                    .planner-editor.active, .planner-photopicker.active { transform: translateX(0); }
+                    .planner-photopicker { z-index: 4200; }
+                    .planner-editor-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); font-family: 'Fraunces', Georgia, serif; font-size: 17px; font-weight: 700; color: var(--text-primary); }
+                    .planner-editor-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+                    .planner-field label { display: block; font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-bottom: 5px; }
+                    .planner-field input, .planner-field textarea, .planner-field select { width: 100%; border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; font-size: 13.5px; font-family: inherit; background: var(--bg-secondary); color: var(--text-primary); }
+                    .planner-field textarea { resize: vertical; min-height: 120px; line-height: 1.55; }
+                    .planner-editor-img { width: 100%; height: 150px; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); }
+                    .planner-photogrid { flex: 1; overflow-y: auto; padding: 16px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+                    .planner-photocard { border: 2px solid var(--border); border-radius: 10px; overflow: hidden; cursor: pointer; background: var(--bg-secondary); }
+                    .planner-photocard:hover { border-color: var(--pr-media); }
+                    .planner-photocard img { width: 100%; height: 92px; object-fit: cover; display: block; }
+                    .planner-photocard .ppc-label { font-size: 10.5px; color: var(--text-muted); padding: 5px 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                    .planner-lang-badge { font-size: 9.5px; font-weight: 700; padding: 1px 5px; border-radius: 4px; background: rgba(155,27,34,0.1); color: var(--pr-media); }
+                    @media (max-width: 700px) {
+                        .planner-shell { inset: 0; border-radius: 0; }
+                        .planner-messages, .planner-inputbar { padding-left: 16px; padding-right: 16px; }
+                        .planner-cell { min-height: 70px; }
+                        .planner-editor, .planner-photopicker { top: 0; right: 0; bottom: 0; width: 100vw; border-radius: 0; }
+                    }
+                    </style>
+                    <div id="plannerOverlay" class="planner-overlay" onclick="if(event.target===this) Planner.close()">
+                        <div class="planner-shell">
+                            <div class="planner-topbar">
+                                <div class="planner-brand"><i class="fas fa-wand-magic-sparkles"></i> Content Planner <span class="planner-sub">Plan 1&ndash;3 months with AI</span></div>
+                                <div style="display:flex; gap:8px; align-items:center;">
+                                    <button class="planner-ghost" id="plannerNewBtn" onclick="Planner.startNew()" style="display:none;"><i class="fas fa-plus"></i> New plan</button>
+                                    <button class="planner-ghost" onclick="Planner.close()"><i class="fas fa-times"></i> Close</button>
+                                </div>
+                            </div>
+                            <!-- Conversation view -->
+                            <div id="plannerChatView" class="planner-body">
+                                <div id="plannerMessages" class="planner-messages"></div>
+                                <div class="planner-inputbar">
+                                    <textarea id="plannerInput" class="planner-input" rows="1" placeholder="Type your answer and press Enter&hellip;" onkeydown="Planner.onKey(event)"></textarea>
+                                    <button class="planner-send" id="plannerSendBtn" onclick="Planner.send()"><i class="fas fa-paper-plane"></i></button>
+                                </div>
+                            </div>
+                            <!-- Plan review (calendar) view -->
+                            <div id="plannerPlanView" class="planner-body" style="display:none;">
+                                <div class="planner-plan-head">
+                                    <div>
+                                        <div class="planner-plan-title" id="plannerPlanRange">Your content plan</div>
+                                        <div class="planner-plan-meta" id="plannerPlanMeta"></div>
+                                    </div>
+                                    <div style="display:flex; gap:8px; align-items:center;">
+                                        <button class="planner-ghost" onclick="Planner.prevMonth()"><i class="fas fa-chevron-left"></i></button>
+                                        <span class="planner-plan-month" id="plannerCalMonth"></span>
+                                        <button class="planner-ghost" onclick="Planner.nextMonth()"><i class="fas fa-chevron-right"></i></button>
+                                        <button class="planner-approve" id="plannerApproveBtn" onclick="Planner.approve()"><i class="fas fa-check-double"></i> Approve plan</button>
+                                    </div>
+                                </div>
+                                <div class="planner-cal-wrap"><div id="plannerCalendar" class="planner-cal"></div></div>
+                            </div>
+                        </div>
+                        <!-- Side panel: item editor -->
+                        <div id="plannerEditor" class="planner-editor" onclick="event.stopPropagation()">
+                            <div class="planner-editor-head"><span id="plannerEditorTitle">Edit item</span><button class="planner-ghost" onclick="Planner.closeEditor()"><i class="fas fa-times"></i></button></div>
+                            <div class="planner-editor-body" id="plannerEditorBody"></div>
+                        </div>
+                        <!-- Side panel: photo picker -->
+                        <div id="plannerPhotoPicker" class="planner-photopicker" onclick="event.stopPropagation()">
+                            <div class="planner-editor-head"><span>Choose a picture</span><button class="planner-ghost" onclick="Planner.closePhotoPicker()"><i class="fas fa-times"></i></button></div>
+                            <div class="planner-photogrid" id="plannerPhotoGrid"></div>
+                        </div>
+                    </div>
+
                 </div>
 
                 <!-- User Notifications Section -->
@@ -10775,14 +10886,18 @@ President, Med&amp;X</textarea>
                             </div>
                             <div>
                                 <label style="display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; color: var(--text-secondary);">Target Audience</label>
-                                <select id="newsletterAudience" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary);">
-                                    <option value="all">All Members</option>
-                                    <option value="bronze">Bronze Tier</option>
-                                    <option value="silver">Silver Tier</option>
-                                    <option value="gold">Gold Tier</option>
-                                    <option value="platinum">Platinum Tier</option>
-                                    <option value="plexus">Plexus Registrants</option>
+                                <select id="newsletterAudience" onchange="NewsletterApp.onAudienceChange()" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary);">
+                                    <optgroup label="In-portal tiers">
+                                        <option value="all">All Members</option>
+                                        <option value="bronze">Bronze Tier</option>
+                                        <option value="silver">Silver Tier</option>
+                                        <option value="gold">Gold Tier</option>
+                                        <option value="platinum">Platinum Tier</option>
+                                        <option value="plexus">Plexus Registrants</option>
+                                    </optgroup>
+                                    <optgroup label="Email segments (approval-gated)" id="newsletterSegmentOptions"></optgroup>
                                 </select>
+                                <div id="newsletterAudienceHint" style="margin-top: 6px; font-size: 11px; color: var(--text-muted);"></div>
                             </div>
                         </div>
 
@@ -15219,6 +15334,7 @@ President, Med&amp;X</textarea>
             nagOpen(id) {
                 const item = (this._nagItems || []).find(i => i.id === id);
                 const pl = (item && item.action_payload) || {};
+                if (pl.open_planner) { this.showSection('pr-media'); setTimeout(() => { try { Planner.open(); } catch (e) {} }, 200); return; }
                 if (pl.open_project) { this.showProject(pl.open_project); return; }
                 this.showSection(pl.open_section || 'dashboard');
             },
@@ -30461,9 +30577,38 @@ By applying to this program, I give the following consents:
         // ===== MEMBER NEWSLETTER APP =====
         const NewsletterApp = {
             newsletters: [],
+            _segments: [],
+            _segmentIds: [],
 
             async init() {
+                await this.loadSegments();
                 await this.load();
+            },
+
+            // Engine 2: real email segments (approval-gated). Populate the composer optgroup + counts.
+            async loadSegments() {
+                try {
+                    const resp = await fetch('/api/admin/newsletter-segments', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    const data = await resp.json();
+                    this._segments = (data && data.segments) || [];
+                    this._segmentIds = this._segments.map(s => s.id);
+                    const og = document.getElementById('newsletterSegmentOptions');
+                    if (og) og.innerHTML = this._segments.map(s => `<option value="${s.id}">${this.escapeHtml(s.label)} (${s.count})</option>`).join('');
+                } catch (e) { /* leave tiers only */ }
+            },
+
+            isSegment(val) { return (this._segmentIds || []).indexOf(val) !== -1; },
+
+            onAudienceChange() {
+                const val = document.getElementById('newsletterAudience').value;
+                const hint = document.getElementById('newsletterAudienceHint');
+                if (!hint) return;
+                if (this.isSegment(val)) {
+                    const seg = (this._segments || []).find(s => s.id === val) || {};
+                    hint.innerHTML = `<i class="fas fa-shield-halved"></i> Resolves to ${seg.count || 0} recipient(s) at send time and stages an approval-gated batch in the outbox. Nothing sends until you approve it.`;
+                } else {
+                    hint.textContent = 'In-portal tier notification (shown in members\' notification center).';
+                }
             },
 
             showCompose(editData) {
@@ -30479,6 +30624,7 @@ By applying to this program, I give the following consents:
                     this.clearForm();
                     document.getElementById('newsletterComposeTitle').textContent = 'Compose Newsletter';
                 }
+                this.onAudienceChange();
             },
 
             hideCompose() {
@@ -30573,8 +30719,12 @@ By applying to this program, I give the following consents:
 
                 if (!title) { Toast.warning('Title is required'); return; }
 
-                const audienceLabels = { all: 'All Members', bronze: 'Bronze', silver: 'Silver', gold: 'Gold', platinum: 'Platinum', plexus: 'Plexus Registrants' };
-                if (!confirm(`Send this newsletter to ${audienceLabels[target_audience] || target_audience}?`)) return;
+                const segmentSend = this.isSegment(target_audience);
+                const audienceLabel = this.getAudienceLabel(target_audience);
+                const confirmMsg = segmentSend
+                    ? `Stage this newsletter for the "${audienceLabel}" segment? It resolves to recipient emails and waits for your approval in the outbox — nothing sends yet.`
+                    : `Send this newsletter to ${audienceLabel}?`;
+                if (!confirm(confirmMsg)) return;
 
                 try {
                     let nlId = editId;
@@ -30600,7 +30750,7 @@ By applying to this program, I give the following consents:
                     const resp = await fetch(`/api/admin/newsletters/${nlId}/send`, { method: 'POST', headers: { 'Authorization': `Bearer ${App.token}` } });
                     const data = await resp.json();
                     if (data.success) {
-                        Toast.success('Newsletter sent!');
+                        Toast.success(data.approval_required ? (data.message || 'Staged for approval in the outbox.') : 'Newsletter sent!');
                         this.hideCompose();
                         this.load();
                     } else {
@@ -30653,12 +30803,16 @@ By applying to this program, I give the following consents:
             async sendExisting(id) {
                 const nl = this.newsletters.find(n => n.id === id);
                 if (!nl) return;
-                const audienceLabels = { all: 'All Members', bronze: 'Bronze', silver: 'Silver', gold: 'Gold', platinum: 'Platinum', plexus: 'Plexus Registrants' };
-                if (!confirm(`Send "${nl.title}" to ${audienceLabels[nl.target_audience] || nl.target_audience}?`)) return;
+                const segmentSend = this.isSegment(nl.target_audience);
+                const audienceLabel = this.getAudienceLabel(nl.target_audience);
+                const confirmMsg = segmentSend
+                    ? `Stage "${nl.title}" for the "${audienceLabel}" segment? It waits for your approval in the outbox — nothing sends yet.`
+                    : `Send "${nl.title}" to ${audienceLabel}?`;
+                if (!confirm(confirmMsg)) return;
                 try {
                     const resp = await fetch(`/api/admin/newsletters/${id}/send`, { method: 'POST', headers: { 'Authorization': `Bearer ${App.token}` } });
                     const data = await resp.json();
-                    if (data.success) { Toast.success('Newsletter sent!'); this.load(); }
+                    if (data.success) { Toast.success(data.approval_required ? (data.message || 'Staged for approval in the outbox.') : 'Newsletter sent!'); this.load(); }
                     else Toast.error('Send failed: ' + (data.error || ''));
                 } catch (err) {
                     Toast.error('Send failed: ' + err.message);
@@ -30667,7 +30821,9 @@ By applying to this program, I give the following consents:
 
             getAudienceLabel(val) {
                 const labels = { all: 'All Members', bronze: 'Bronze', silver: 'Silver', gold: 'Gold', platinum: 'Platinum', plexus: 'Plexus' };
-                return labels[val] || val;
+                if (labels[val]) return labels[val];
+                const seg = (this._segments || []).find(s => s.id === val);
+                return seg ? seg.label : val;
             },
 
             getAudienceColor(val) {
@@ -32033,6 +32189,316 @@ By applying to this program, I give the following consents:
                 document.getElementById(modalId).classList.remove('active');
             }
         };
+
+        // =========================================
+        // CONTENT PLANNER (conversational wizard)
+        // A colleague talks to the AI, answers up to 5 questions, and gets a dated 1-3 month plan of
+        // posts + newsletters (each with a picture) staged for one approval. Mock-safe end to end.
+        // =========================================
+        const Planner = {
+            history: [],
+            planId: null,
+            plan: null,
+            photos: null,
+            editIdx: -1,
+            calIdx: 0,
+            busy: false,
+
+            async api(endpoint, options = {}) {
+                const res = await fetch(endpoint, { ...options, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}`, ...options.headers } });
+                if (!res.ok) { const t = await res.text().catch(() => 'Error'); throw new Error(`${res.status}: ${t}`); }
+                return res.json();
+            },
+
+            async open() {
+                const ov = document.getElementById('plannerOverlay');
+                // The overlay lives in the PR & Media section markup, but sections toggle display:none. Reparent
+                // to <body> once so the full-screen wizard survives any background section switch.
+                if (ov.parentElement !== document.body) document.body.appendChild(ov);
+                ov.classList.add('active');
+                this.closeEditor(); this.closePhotoPicker();
+                // Resume the most recent draft plan if there is one; otherwise start a fresh conversation.
+                try {
+                    const list = await this.api('/api/admin/planner/plans');
+                    const latest = (list.plans || [])[0];
+                    if (latest && latest.status === 'draft') {
+                        const full = await this.api('/api/admin/planner/plans/' + latest.id);
+                        this.planId = full.id; this.plan = full.plan; this.calIdx = 0;
+                        this.showPlanView();
+                        return;
+                    }
+                } catch (e) { /* fall through to a new conversation */ }
+                this.startNew();
+            },
+
+            close() {
+                document.getElementById('plannerOverlay').classList.remove('active');
+                this.closeEditor(); this.closePhotoPicker();
+            },
+
+            startNew() {
+                this.history = []; this.planId = null; this.plan = null; this.editIdx = -1; this.calIdx = 0;
+                document.getElementById('plannerPlanView').style.display = 'none';
+                document.getElementById('plannerChatView').style.display = 'flex';
+                document.getElementById('plannerNewBtn').style.display = 'none';
+                document.getElementById('plannerMessages').innerHTML = '';
+                document.getElementById('plannerInput').value = '';
+                this.closeEditor(); this.closePhotoPicker();
+                this.converse();
+            },
+
+            onKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); } },
+
+            addBubble(role, text) {
+                const wrap = document.getElementById('plannerMessages');
+                const div = document.createElement('div');
+                div.className = 'planner-bubble ' + (role === 'user' ? 'user' : 'assistant');
+                const who = role === 'user' ? 'You' : 'Planner';
+                div.innerHTML = `<span class="pb-avatar">${who}</span>${escapeHtml(text)}`;
+                wrap.appendChild(div);
+                wrap.scrollTop = wrap.scrollHeight;
+            },
+
+            _typing(on) {
+                const wrap = document.getElementById('plannerMessages');
+                let t = document.getElementById('plannerTyping');
+                if (on) { if (!t) { t = document.createElement('div'); t.id = 'plannerTyping'; t.className = 'planner-typing'; t.textContent = 'Planner is thinking…'; wrap.appendChild(t); wrap.scrollTop = wrap.scrollHeight; } }
+                else if (t) t.remove();
+            },
+
+            async send() {
+                if (this.busy) return;
+                const input = document.getElementById('plannerInput');
+                const text = (input.value || '').trim();
+                if (!text) return;
+                input.value = '';
+                this.history.push({ role: 'user', text });
+                this.addBubble('user', text);
+                this.converse();
+            },
+
+            async converse() {
+                this.busy = true;
+                document.getElementById('plannerSendBtn').disabled = true;
+                this._typing(true);
+                try {
+                    const r = await this.api('/api/admin/planner/converse', { method: 'POST', body: JSON.stringify({ history: this.history }) });
+                    this._typing(false);
+                    if (r.done) {
+                        this.addBubble('assistant', 'Here is your plan. Review it on the calendar, tweak anything, then approve.');
+                        this.planId = r.plan_id; this.plan = r.plan; this.calIdx = 0;
+                        setTimeout(() => this.showPlanView(), 350);
+                    } else {
+                        this.history.push({ role: 'assistant', text: r.question });
+                        this.addBubble('assistant', r.question);
+                    }
+                } catch (e) {
+                    this._typing(false);
+                    this.addBubble('assistant', 'Something went wrong reaching the planner. Please try again.');
+                    if (window.Toast) Toast.error(e.message || 'Planner error');
+                } finally {
+                    this.busy = false;
+                    document.getElementById('plannerSendBtn').disabled = false;
+                }
+            },
+
+            // ---- Plan calendar review ----
+            _monthKeys() {
+                const plan = this.plan || {};
+                const s = (plan.period_start || (plan.items && plan.items[0] && plan.items[0].date) || '').slice(0, 7);
+                const e = (plan.period_end || s).slice(0, 7);
+                if (!s) return [];
+                const keys = []; let [y, m] = s.split('-').map(Number);
+                const [ey, em] = e.split('-').map(Number);
+                let guard = 0;
+                while ((y < ey || (y === ey && m <= em)) && guard < 48) { keys.push(`${y}-${String(m).padStart(2, '0')}`); m++; if (m > 12) { m = 1; y++; } guard++; }
+                return keys;
+            },
+
+            showPlanView() {
+                document.getElementById('plannerChatView').style.display = 'none';
+                document.getElementById('plannerPlanView').style.display = 'flex';
+                document.getElementById('plannerNewBtn').style.display = 'inline-flex';
+                const items = (this.plan && this.plan.items) || [];
+                const social = items.filter(i => i.kind === 'social').length;
+                const news = items.filter(i => i.kind === 'newsletter').length;
+                const withImg = items.filter(i => i.image).length;
+                document.getElementById('plannerPlanRange').textContent = `Your content plan (${(this.plan.period_start || '').slice(0, 10)} to ${(this.plan.period_end || '').slice(0, 10)})`;
+                document.getElementById('plannerPlanMeta').textContent = `${items.length} items — ${social} social posts, ${news} newsletters. ${withImg} of ${items.length} carry a picture.`;
+                this.loadPhotos();
+                this.renderCalendar();
+            },
+
+            prevMonth() { if (this.calIdx > 0) { this.calIdx--; this.renderCalendar(); } },
+            nextMonth() { if (this.calIdx < this._monthKeys().length - 1) { this.calIdx++; this.renderCalendar(); } },
+
+            _platIcon(item) {
+                if (item.kind === 'newsletter') return `<i class="fas fa-envelope-open-text pc-plat" style="color:#7c3aed;"></i>`;
+                const p = (item.platforms && item.platforms[0]) || 'instagram';
+                const icon = (PRApp.platformIcons && PRApp.platformIcons[p]) || 'fas fa-share-alt';
+                const col = (PRApp.platformColors && PRApp.platformColors[p]) || 'var(--pr-media)';
+                return `<i class="${icon} pc-plat" style="color:${col};"></i>`;
+            },
+
+            renderCalendar() {
+                const keys = this._monthKeys();
+                if (this.calIdx >= keys.length) this.calIdx = Math.max(0, keys.length - 1);
+                const key = keys[this.calIdx]; if (!key) { document.getElementById('plannerCalendar').innerHTML = '<p style="grid-column:1/-1;color:var(--text-muted);">No dates in this plan.</p>'; return; }
+                const [year, month] = key.split('-').map(Number);
+                const d = new Date(year, month - 1, 1);
+                document.getElementById('plannerCalMonth').textContent = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                const items = (this.plan && this.plan.items) || [];
+                const byDate = {};
+                items.forEach((it, idx) => { (byDate[it.date] = byDate[it.date] || []).push({ it, idx }); });
+
+                let html = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(x => `<div class="planner-cal-dow">${x}</div>`).join('');
+                const firstDay = new Date(year, month - 1, 1).getDay();
+                const daysInMonth = new Date(year, month, 0).getDate();
+                for (let i = 0; i < firstDay; i++) html += '<div class="planner-cell empty"></div>';
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const dayItems = byDate[iso] || [];
+                    const chips = dayItems.map(({ it, idx }) => {
+                        const lang = it.language === 'both' ? '<span class="planner-lang-badge">EN/HR</span>' : (it.language === 'hr' ? '<span class="planner-lang-badge">HR</span>' : '');
+                        const thumb = it.image ? `<img src="${escapeHtml(it.image)}" alt="" onerror="this.style.display='none'">` : '';
+                        return `<div class="planner-chip" onclick="Planner.openEditor(${idx})" title="${escapeHtml(it.title || '')}">${thumb}${this._platIcon(it)}<span class="pc-txt">${escapeHtml(it.title || (it.kind === 'newsletter' ? 'Newsletter' : 'Post'))}</span>${lang}</div>`;
+                    }).join('');
+                    html += `<div class="planner-cell">
+                        <div class="planner-cell-date"><span>${day}</span><button class="planner-cell-add" title="Add here" onclick="Planner.addItem('${iso}')"><i class="fas fa-plus"></i></button></div>
+                        ${chips}
+                    </div>`;
+                }
+                document.getElementById('plannerCalendar').innerHTML = html;
+            },
+
+            // ---- Item editor ----
+            openEditor(idx) {
+                const it = (this.plan.items || [])[idx]; if (!it) return;
+                this.editIdx = idx;
+                const isNews = it.kind === 'newsletter';
+                document.getElementById('plannerEditorTitle').textContent = isNews ? 'Edit newsletter' : 'Edit post';
+                const platforms = ['instagram', 'linkedin', 'facebook', 'twitter'];
+                const platSel = isNews ? '' : `
+                    <div class="planner-field"><label>Platform</label>
+                        <select id="plEditPlatform">${platforms.map(p => `<option value="${p}" ${((it.platforms && it.platforms[0]) === p) ? 'selected' : ''}>${p.charAt(0).toUpperCase() + p.slice(1)}</option>`).join('')}</select>
+                    </div>`;
+                const projects = ['plexus', 'gala', 'accelerator', 'forum', 'bridges', 'medx'];
+                document.getElementById('plannerEditorBody').innerHTML = `
+                    <div class="planner-field"><label>Picture</label>
+                        <img id="plEditImg" class="planner-editor-img" src="${escapeHtml(it.image || '')}" alt="" onerror="this.style.opacity=0.3">
+                        <button class="planner-ghost" style="margin-top:8px;" onclick="Planner.openPhotoPicker()"><i class="fas fa-image"></i> Change picture</button>
+                    </div>
+                    <div class="planner-field"><label>Title</label><input id="plEditTitle" type="text" value="${escapeHtml(it.title || '')}"></div>
+                    <div class="planner-field"><label>${isNews ? 'Body' : 'Caption'}</label><textarea id="plEditBody">${escapeHtml(it.body || '')}</textarea></div>
+                    <div class="planner-field"><label>Date</label><input id="plEditDate" type="date" value="${escapeHtml((it.date || '').slice(0, 10))}"></div>
+                    ${platSel}
+                    <div class="planner-field"><label>Project</label>
+                        <select id="plEditProject">${projects.map(p => `<option value="${p}" ${it.project_key === p ? 'selected' : ''}>${p.charAt(0).toUpperCase() + p.slice(1)}</option>`).join('')}</select>
+                    </div>
+                    <div class="planner-field"><label>Language</label>
+                        <select id="plEditLang">
+                            <option value="en" ${it.language === 'en' ? 'selected' : ''}>English</option>
+                            <option value="hr" ${it.language === 'hr' ? 'selected' : ''}>Croatian</option>
+                            <option value="both" ${it.language === 'both' ? 'selected' : ''}>Both</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; gap:8px; margin-top:6px;">
+                        <button class="planner-approve" style="flex:1; background:var(--pr-media);" onclick="Planner.saveItem()"><i class="fas fa-check"></i> Save</button>
+                        <button class="planner-ghost" onclick="Planner.deleteItem()"><i class="fas fa-trash"></i> Delete</button>
+                    </div>`;
+                document.getElementById('plannerEditor').classList.add('active');
+            },
+
+            closeEditor() { document.getElementById('plannerEditor').classList.remove('active'); this.editIdx = -1; },
+
+            async saveItem() {
+                const it = (this.plan.items || [])[this.editIdx]; if (!it) return;
+                it.title = document.getElementById('plEditTitle').value.trim();
+                it.body = document.getElementById('plEditBody').value;
+                it.date = document.getElementById('plEditDate').value || it.date;
+                const projEl = document.getElementById('plEditProject'); if (projEl) it.project_key = projEl.value;
+                const langEl = document.getElementById('plEditLang'); if (langEl) it.language = langEl.value;
+                const platEl = document.getElementById('plEditPlatform'); if (platEl) it.platforms = [platEl.value];
+                await this.persist();
+                this.closeEditor();
+                this.calIdx = Math.min(this.calIdx, this._monthKeys().length - 1);
+                this.renderCalendar();
+                if (window.Toast) Toast.success('Item updated.');
+            },
+
+            async deleteItem() {
+                if (this.editIdx < 0) return;
+                this.plan.items.splice(this.editIdx, 1);
+                await this.persist();
+                this.closeEditor();
+                this.showPlanView();
+                if (window.Toast) Toast.info('Item removed.');
+            },
+
+            addItem(iso) {
+                const firstPhoto = (this.photos && this.photos[0]) || null;
+                const item = { date: iso, kind: 'social', platforms: ['instagram'], title: 'New post', body: '', image_suggestion: firstPhoto ? firstPhoto.file : '', image: firstPhoto ? firstPhoto.url : '', project_key: 'medx', language: 'en' };
+                this.plan.items.push(item);
+                this.persist();
+                this.renderCalendar();
+                this.openEditor(this.plan.items.length - 1);
+                if (!this.photos) this.loadPhotos().then(() => { if (!item.image && this.photos && this.photos[0]) { item.image = this.photos[0].url; item.image_suggestion = this.photos[0].file; const img = document.getElementById('plEditImg'); if (img) { img.src = item.image; img.style.opacity = 1; } } });
+            },
+
+            // ---- Photo picker ----
+            async loadPhotos() {
+                if (this.photos) return this.photos;
+                try { const r = await this.api('/api/admin/planner/photos'); this.photos = r.photos || []; } catch (e) { this.photos = []; }
+                return this.photos;
+            },
+
+            async openPhotoPicker() {
+                await this.loadPhotos();
+                const grid = document.getElementById('plannerPhotoGrid');
+                if (!this.photos.length) { grid.innerHTML = '<p style="color:var(--text-muted); grid-column:1/-1;">No photos in the library.</p>'; }
+                else grid.innerHTML = this.photos.map((p, i) => `
+                    <div class="planner-photocard" onclick="Planner.pickPhoto(${i})">
+                        <img src="${escapeHtml(p.url)}" alt="" onerror="this.style.opacity=0.3">
+                        <div class="ppc-label">${escapeHtml(p.label || p.file)}</div>
+                    </div>`).join('');
+                document.getElementById('plannerPhotoPicker').classList.add('active');
+            },
+
+            closePhotoPicker() { document.getElementById('plannerPhotoPicker').classList.remove('active'); },
+
+            async pickPhoto(i) {
+                const p = (this.photos || [])[i]; const it = (this.plan.items || [])[this.editIdx];
+                if (!p || !it) { this.closePhotoPicker(); return; }
+                it.image = p.url; it.image_suggestion = p.file;
+                const img = document.getElementById('plEditImg'); if (img) { img.src = p.url; img.style.opacity = 1; }
+                this.closePhotoPicker();
+                await this.persist();
+                this.renderCalendar();
+            },
+
+            async persist() {
+                if (!this.planId) return;
+                try { await this.api('/api/admin/planner/plans/' + this.planId, { method: 'PUT', body: JSON.stringify({ plan: this.plan }) }); }
+                catch (e) { if (window.Toast) Toast.error('Could not save the change.'); }
+            },
+
+            async approve() {
+                if (!this.planId) return;
+                const btn = document.getElementById('plannerApproveBtn');
+                btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Approving…';
+                try {
+                    const r = await this.api('/api/admin/planner/plans/' + this.planId + '/approve', { method: 'POST', body: JSON.stringify({}) });
+                    if (window.Toast) Toast.success(`Approved — ${r.socialCreated} posts staged and ${r.newslettersCreated} newsletters drafted.`);
+                    this.close();
+                    try { PRApp.loadDashboard(); } catch (e) {}
+                    try { App.loadActionCenter(); } catch (e) {}
+                } catch (e) {
+                    if (window.Toast) Toast.error(e.message || 'Approval failed.');
+                    btn.disabled = false; btn.innerHTML = '<i class="fas fa-check-double"></i> Approve plan';
+                }
+            }
+        };
+        window.Planner = Planner;
 
         // =========================================
         // PLEXUS SETTINGS ADMIN

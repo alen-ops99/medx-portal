@@ -6500,6 +6500,20 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         responded_at TEXT
     )`);
+
+    // planner_plans: the Content Planner wizard stores one row per generated plan. answers_json is the
+    // parsed conversation, plan_json is the {items:[...]} calendar (each item image-carrying). status is
+    // draft -> approved. Declared in the mirror block so the shared Turso DB always has it regardless of
+    // which portal boots first; only the admin portal writes it (the Content Planner lives there).
+    db.run(`CREATE TABLE IF NOT EXISTS planner_plans (
+        id TEXT PRIMARY KEY,
+        period_start TEXT,
+        period_end TEXT,
+        answers_json TEXT,
+        plan_json TEXT,
+        status TEXT DEFAULT 'draft',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
     // ====================== SCHEMA-MIRROR:END ======================
     // pr_posts drifted between portals (admin CREATE has status, user CREATE lacked it) — heal existing DBs.
     try { db.exec("ALTER TABLE pr_posts ADD COLUMN status TEXT DEFAULT 'published'"); } catch (e) { /* column exists */ }
@@ -7525,6 +7539,176 @@ async function initializeApp() {
         } catch (e) { console.warn('[Lifecycle] nudge scan skipped:', e.message); return 0; }
     }
 
+    // ===================== MILESTONE TRIGGER EMAILS (engine 3) =====================
+    // Three life-events each enqueue exactly ONE branded email (with a tasteful header photo) into
+    // scheduled_emails as status='scheduled' (transactional class — no approval gate). The drainer
+    // (admin backend in prod, this portal in dev) delivers them through the sendEmail() mock boundary.
+    //   (a) Forum membership activated (membership_status='approved') -> warm Forum welcome
+    //   (b) Plexus registration created                               -> enriched confirmation
+    //   (c) Accelerator application submitted                         -> "what happens next"
+    // This is the SAME after-commit pattern the rewards earn hook uses: an idempotent reconcile over
+    // COMMITTED rows, never a mutation inside the frozen registration POST. Idempotency is a
+    // ref-encoded drip_log row whose `kind` carries the unique reg/application/membership id, so a
+    // re-run (or a second portal) never double-sends. Recency-gated to the last 45 days so a first
+    // deploy never back-emails the entire history — only genuinely new events fire.
+    const MILESTONE_PHOTO_BASE = 'https://cdn.jsdelivr.net/gh/alen-ops99/medx-portal@main/user-portal/frontend/assets/photos';
+    function milestoneHero(file, alt) {
+        return `<div style="text-align:center;margin:0 0 24px;"><img src="${MILESTONE_PHOTO_BASE}/${file}" alt="${alt}" width="520" style="display:block;margin:0 auto;width:100%;max-width:520px;height:auto;border-radius:12px;" /></div>`;
+    }
+    function milestoneFact(label, value) {
+        return `<div style="padding:10px 0;border-bottom:1px solid #e2e8f0;"><span style="color:#64748b;">${label}</span> &nbsp;<strong style="color:#0f172a;">${value}</strong></div>`;
+    }
+    function milestoneButton(href, label) {
+        return `<div style="text-align:center;margin:28px 0;"><a href="${href}" style="display:inline-block;background:#C9A962;color:#0f172a;text-decoration:none;padding:14px 34px;border-radius:8px;font-weight:600;font-size:15px;">${label}</a></div>`;
+    }
+    // Claim a milestone exactly once. `kind` is globally unique (carries the row id), so an existence
+    // check by kind is the idempotency guard even for guest rows where user_id may be NULL (a NULL
+    // user_id would otherwise defeat the UNIQUE(user_id, kind) index).
+    function claimMilestone(userId, email, kind) {
+        try {
+            if (query.get('SELECT 1 AS x FROM drip_log WHERE kind = ?', [kind])) return false;
+            db.run('INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?,?,?,?)', [uuidv4(), userId || null, email || null, kind]);
+            return db.getRowsModified() === 1;
+        } catch (e) { return false; }
+    }
+
+    function plexusConfirmationBody(firstName) {
+        const base = PORTAL_BASE_URL();
+        let keynotes = [];
+        try {
+            keynotes = query.all("SELECT name, institution FROM speakers WHERE COALESCE(is_confirmed,1) = 1 AND COALESCE(is_keynote,0) = 1 AND name IS NOT NULL ORDER BY sort_order LIMIT 3")
+                .map(s => s.institution ? `${s.name} (${s.institution})` : s.name);
+        } catch (e) { keynotes = []; }
+        const keynoteLine = keynotes.length ? `<p>Confirmed keynote voices so far include ${keynotes.join(', ')}.</p>` : '';
+        const calUrl = 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+            + '&text=' + encodeURIComponent('Plexus 2026 - Med&X')
+            + '&dates=20261204T080000Z/20261205T170000Z'
+            + '&location=' + encodeURIComponent('Zagreb, Croatia')
+            + '&details=' + encodeURIComponent('Two days of panels and lectures across biomedicine. Your pass and full program live in your Med&X member portal.');
+        return milestoneHero('plexus_25_gala.jpg', 'Plexus conference') + `
+            <p>Hi ${firstName},</p>
+            <p>Your place at <strong>Plexus 2026</strong> is confirmed. We are glad you will be with us in Zagreb.</p>
+            <div style="margin:20px 0;">
+                ${milestoneFact('Dates', '4-5 December 2026')}
+                ${milestoneFact('Location', 'Zagreb, Croatia')}
+            </div>
+            <p><strong>What to look forward to</strong></p>
+            <ul style="padding-left:20px;color:#334155;">
+                <li style="margin-bottom:6px;">Two days of panels and lectures across biomedicine</li>
+                <li style="margin-bottom:6px;">The Plexus Gala evening and networking</li>
+                <li style="margin-bottom:6px;">Peers and mentors from across the region and abroad</li>
+            </ul>
+            ${keynoteLine}
+            ${milestoneButton(calUrl, 'Add Plexus to your calendar')}
+            ${milestoneButton(base + '/', 'Open your member portal')}
+            <p style="color:#64748b;font-size:13px;">Your pass, QR code, and every program update live in your member portal.</p>
+        `;
+    }
+
+    function forumWelcomeBody(firstName) {
+        const base = PORTAL_BASE_URL();
+        return milestoneHero('plexus_25_acc_panel.jpg', 'Med&X Forum') + `
+            <p>Hi ${firstName},</p>
+            <p>Your <strong>Med&amp;X Forum</strong> membership is active. Welcome to the room where our physicians, scientists, and senior members meet.</p>
+            <p><strong>What your membership unlocks</strong></p>
+            <ul style="padding-left:20px;color:#334155;">
+                <li style="margin-bottom:6px;">The Forum member directory and warm introductions</li>
+                <li style="margin-bottom:6px;">Mentorship, discussion groups, and the opportunity board</li>
+                <li style="margin-bottom:6px;">Early word on Forum events and the annual gala</li>
+            </ul>
+            ${milestoneButton(base + '/#forum', 'Enter the Forum')}
+            <p style="color:#64748b;font-size:13px;">Complete your Forum profile so colleagues can find and reach you.</p>
+        `;
+    }
+
+    function acceleratorNextBody(firstName) {
+        const base = PORTAL_BASE_URL();
+        return milestoneHero('plexus_2022.jpg', 'Med&X Accelerator') + `
+            <p>Dear ${firstName},</p>
+            <p>Your <strong>Med&amp;X Accelerator</strong> application is in. Here is exactly what happens next.</p>
+            <p><strong>What happens next</strong></p>
+            <ul style="padding-left:20px;color:#334155;">
+                <li style="margin-bottom:6px;">Our committee reviews every application, which usually takes two to four weeks</li>
+                <li style="margin-bottom:6px;">Shortlisted candidates are invited to a short interview</li>
+                <li style="margin-bottom:6px;">You will hear from us by email at each step, so there is nothing you need to do right now</li>
+            </ul>
+            <p>Questions in the meantime reach us at <a href="mailto:accelerator@medx.hr" style="color:#C9A962;">accelerator@medx.hr</a>.</p>
+            ${milestoneButton(base + '/#accelerator', 'View your application')}
+            <p style="color:#64748b;font-size:13px;">We read every submission with care. Thank you for applying.</p>
+        `;
+    }
+
+    // Reconcile all three milestones over committed rows. Bounded + idempotent + recency-gated.
+    function runMilestoneTriggers() {
+        let enqueued = 0;
+        // Each branch is independently guarded so a schema quirk in one table (e.g. a missing column)
+        // never blocks the other two milestones.
+        // (b) Plexus registration created -> enriched confirmation.
+        try {
+            const regs = query.all(`
+                SELECT r.id AS reg_id, u.id AS uid, u.email AS email, u.first_name AS first_name
+                FROM registrations r JOIN users u ON u.id = r.user_id
+                WHERE u.email IS NOT NULL AND TRIM(u.email) <> ''
+                  AND (r.created_at IS NULL OR datetime(r.created_at) >= datetime('now','-45 days'))
+                ORDER BY datetime(r.created_at) DESC LIMIT 500`);
+            for (const r of regs) {
+                const kind = 'plexus_confirm:' + r.reg_id;
+                if (!claimMilestone(r.uid, r.email, kind)) continue;
+                const html = buildEmailTemplate('Your Plexus 2026 place is confirmed', plexusConfirmationBody(r.first_name || 'there'));
+                enqueueTransactionalEmail({ to: r.email, subject: 'Your Plexus 2026 place is confirmed', html, source_engine: 'milestone-plexus', template: 'plexus_confirm' });
+                enqueued++;
+            }
+        } catch (e) { console.warn('[Milestone] plexus branch skipped:', e.message); }
+        // (a) Forum membership activated -> warm welcome. Prefer the forum record's own email (the
+        // membership can carry a contact address even when the linked user row has none yet), fall
+        // back to the account email — matching how the newsletter Forum segment resolves recipients.
+        try {
+            const forums = query.all(`
+                SELECT fm.id AS fm_id, u.id AS uid,
+                       COALESCE(NULLIF(TRIM(fm.email),''), u.email) AS email,
+                       u.first_name AS first_name
+                FROM forum_members fm LEFT JOIN users u ON u.id = fm.user_id
+                WHERE fm.membership_status = 'approved'
+                  AND COALESCE(NULLIF(TRIM(fm.email),''), u.email) IS NOT NULL
+                  AND TRIM(COALESCE(NULLIF(TRIM(fm.email),''), u.email)) <> ''
+                  AND (fm.approved_at IS NULL OR datetime(fm.approved_at) >= datetime('now','-45 days'))
+                ORDER BY datetime(fm.approved_at) DESC LIMIT 500`);
+            for (const f of forums) {
+                const kind = 'forum_welcome:' + f.fm_id;
+                if (!claimMilestone(f.uid, f.email, kind)) continue;
+                const html = buildEmailTemplate('Welcome to the Med&X Forum', forumWelcomeBody(f.first_name || 'there'));
+                enqueueTransactionalEmail({ to: f.email, subject: 'Welcome to the Med&X Forum', html, source_engine: 'milestone-forum', template: 'forum_welcome' });
+                enqueued++;
+            }
+        } catch (e) { console.warn('[Milestone] forum branch skipped:', e.message); }
+        // (c) Accelerator application submitted -> what happens next.
+        try {
+            const apps = query.all(`
+                SELECT id AS app_id, user_id AS uid, email, first_name, submitted_at
+                FROM accelerator_applications
+                WHERE status = 'submitted' AND email IS NOT NULL AND TRIM(email) <> ''
+                  AND (submitted_at IS NULL OR datetime(submitted_at) >= datetime('now','-45 days'))
+                ORDER BY datetime(submitted_at) DESC LIMIT 500`);
+            for (const a of apps) {
+                const kind = 'accel_next:' + a.app_id;
+                if (!claimMilestone(a.uid, a.email, kind)) continue;
+                const html = buildEmailTemplate('Your Accelerator application: what happens next', acceleratorNextBody(a.first_name || 'Applicant'));
+                enqueueTransactionalEmail({ to: a.email, subject: 'Your Accelerator application: what happens next', html, source_engine: 'milestone-accel', template: 'accel_next' });
+                enqueued++;
+            }
+        } catch (e) { console.warn('[Milestone] accelerator branch skipped:', e.message); }
+        if (enqueued) { try { saveDb(); } catch (e) {} console.log(`[Milestone] Enqueued ${enqueued} milestone email(s)`); }
+        return enqueued;
+    }
+
+    // DEV-ONLY trigger so the month-boundary / milestone flows can be verified without waiting on the
+    // interval. 404s in production — the boot + interval reconcile is the real path there.
+    app.post('/api/dev/run-milestones', (req, res) => {
+        if (process.env.NODE_ENV === 'production') return res.status(404).json({ error: 'Not found' });
+        try { const n = runMilestoneTriggers(); res.json({ success: true, enqueued: n }); }
+        catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
     // Request (or re-request) a signup confirmation link. Generic success — never leaks whether an
     // account exists or is already verified.
     app.post('/api/auth/request-verification', authLimiter, async (req, res) => {
@@ -8072,6 +8256,10 @@ async function submitReset(e){
     });
 
     app.get('/api/registrations/my', auth, (req, res) => {
+        // Lazy milestone reconcile (same after-commit pattern as the rewards earn hook): the member
+        // lands here right after registering, so their Plexus confirmation fires near-instantly
+        // without ever touching the frozen POST. Fire-and-forget, idempotent, never blocks the read.
+        setImmediate(() => { try { runMilestoneTriggers(); } catch (e) {} });
         res.json(query.all(`SELECT r.*, c.name as conference_name, c.start_date, c.end_date, c.venue_name, c.venue_city, t.name as ticket_name
             FROM registrations r JOIN conferences c ON r.conference_id = c.id JOIN ticket_types t ON r.ticket_type_id = t.id
             WHERE r.user_id = ? ORDER BY r.created_at DESC`, [req.user.id]));
@@ -9130,6 +9318,10 @@ By applying to this program, I provide the following consents:
                 <p style="color:#666;">Submitted at ${new Date().toISOString()}</p>`
             );
         } catch(e) { console.log('[Accelerator] Notification email failed:', e.message); }
+
+        // Milestone (c): enqueue the branded "what happens next" email through the outbox, once.
+        // Fire-and-forget after the commit above — never blocks the response.
+        setImmediate(() => { try { runMilestoneTriggers(); } catch (e) {} });
 
         res.json({ success: true });
     });
@@ -22316,6 +22508,14 @@ By applying to this program, I provide the following consents:
         setTimeout(() => { try { scanVerificationNudges(); } catch (e) {} }, 12 * 1000);
         setInterval(() => { try { scanVerificationNudges(); } catch (e) {} }, 24 * 60 * 60 * 1000);
         console.log('[Lifecycle] Verification-nudge scan scheduled (daily)');
+
+        // MILESTONE TRIGGERS (#3): reconcile committed registrations / forum activations / accelerator
+        // submissions into one branded transactional email each. Boot sweep catches anything the lazy
+        // read-path hook missed (e.g. a forum approval done in the admin portal); 15-min interval keeps
+        // it timely. Enqueue-only — the outbox drainer sends. Idempotent, so re-running never dups.
+        setTimeout(() => { try { runMilestoneTriggers(); } catch (e) {} }, 15 * 1000);
+        setInterval(() => { try { runMilestoneTriggers(); } catch (e) {} }, 15 * 60 * 1000);
+        console.log('[Milestone] Trigger reconcile scheduled (15m)');
 
         // DEV-ONLY send drainer. In PRODUCTION TURSO_DATABASE_URL is set and the ADMIN backend is the
         // single drainer of the shared scheduled_emails table (running a second drainer there would

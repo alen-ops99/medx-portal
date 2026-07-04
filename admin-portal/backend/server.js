@@ -533,6 +533,9 @@ app.use(helmet({
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Content Planner photo library: serve the shared user-portal event/gala photos from this backend so
+// the planner's image suggestions and picker resolve to absolute, publicly reachable portal URLs.
+app.use('/photo-library', express.static(path.join(__dirname, '../../user-portal/frontend/assets')));
 
 // ===== Menu 14: fail loud when persistent object storage is missing in production =====
 // On Render's free tier the local disk is EPHEMERAL — anything multer writes vanishes on the
@@ -1134,6 +1137,51 @@ function nagCollectDesired() {
         }
     } catch (e) { /* skip */ }
 
+    // Content Planner — no plan covers the coming weeks. Surfaces the "Plan with AI" card. Auto-resolves
+    //    the moment a plan whose window reaches today-or-later exists (draft or approved).
+    try {
+        const covered = query.get("SELECT id FROM planner_plans WHERE status IN ('draft','approved') AND period_end IS NOT NULL AND date(period_end) >= date('now') LIMIT 1");
+        if (!covered) {
+            push({
+                kind: 'content_plan_missing', subject_id: 'plan',
+                title: 'Plan the coming month of content with AI', assignee: null, action_kind: 'open_link',
+                action_payload: { who: 'PR & Media', open_planner: true, open_section: 'pr-media' }
+            });
+        }
+    } catch (e) { /* skip */ }
+
+    // Content Planner weekly review — non-draft posts dated to go out in the next 7 days (approved/scheduled, and the
+    //    mock-Publer 'published' case which carries a future date in dev). Title refreshes the count on each
+    //    rescan (runNagScan updates open items). Links to the planner calendar.
+    try {
+        const c = query.get(`SELECT COUNT(*) AS c FROM pr_content_calendar
+            WHERE status IN ('approved','scheduled','published') AND scheduled_date IS NOT NULL
+              AND date(scheduled_date) >= date('now') AND date(scheduled_date) <= date('now','+7 days')`)?.c || 0;
+        if (c > 0) {
+            push({
+                kind: 'content_week_review', subject_id: 'week',
+                title: `This week: ${c} planned post${c === 1 ? '' : 's'} go out — review`, assignee: null, action_kind: 'open_link',
+                action_payload: { who: 'PR & Media', open_planner: true, open_section: 'pr-media', count: c }
+            });
+        }
+    } catch (e) { /* skip */ }
+
+    // H) Monthly auto-digest ready — a pr_newsletters DRAFT assembled from the last 30 days is waiting
+    //    for a human to review + approve. The item stays open until that draft is approved/sent (its
+    //    status leaves 'draft'), at which point the condition disappears and the scan auto-resolves it.
+    //    The one-click DO-button deep-links the PR & Media newsletters tab (default 'acknowledged').
+    try {
+        const draft = query.get("SELECT id, name FROM pr_newsletters WHERE template = 'monthly-digest' AND status = 'draft' ORDER BY datetime(created_at) DESC LIMIT 1");
+        if (draft) {
+            push({
+                kind: 'monthly_digest', subject_id: draft.id,
+                title: 'Monthly digest ready — review and approve',
+                assignee: null, action_kind: 'digest_review',
+                action_payload: { newsletter_id: draft.id, name: draft.name || '', open_section: 'pr-media', tab: 'newsletters' }
+            });
+        }
+    } catch (e) { /* skip */ }
+
     return desired;
 }
 
@@ -1249,6 +1297,323 @@ function seatPublicBase(req) {
 }
 // The frozen registration flow lives on the user portal — the claim page deep-links it, prefilled.
 function userPortalBase() { return (process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, ''); }
+
+// ===================== CONTENT PLANNER (conversational wizard) =====================
+// The Content Planner lives only in the admin portal. These helpers assemble REAL portal facts and the
+// shared photo library, drive a short 5-question conversation, and build a genuinely useful 1-3 month
+// plan (deterministic in mock mode, aiDraft-authored when ANTHROPIC_API_KEY is set). Nothing here sends
+// or posts — approval materializes rows through the existing calendar + newsletter + Publer boundary.
+
+const PLANNER_PHOTO_DIRS = [
+    { sub: 'photos', category: 'event' },
+    { sub: 'gala', category: 'gala' },
+];
+
+function plannerTodayISO() { return new Date().toISOString().slice(0, 10); }
+function plannerParseISO(s) {
+    if (!s) return null;
+    const m = String(s).match(/(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+}
+function plannerAddDays(iso, n) {
+    const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10);
+}
+function plannerAddMonths(iso, n) {
+    const d = new Date(iso + 'T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() + n); return d.toISOString().slice(0, 10);
+}
+function plannerWeekday(iso) { return new Date(iso + 'T00:00:00Z').getUTCDay(); } // 0 Sun .. 6 Sat
+
+function plannerProjectName(key) {
+    return ({ plexus: 'Plexus 2026', gala: 'Med&X Gala', accelerator: 'Med&X Accelerator', forum: 'Biomedical Forum', bridges: 'Building Bridges', medx: 'Med&X' })[key] || 'Med&X';
+}
+function plannerPhotoLabel(file) {
+    return String(file).replace(/\.[a-z0-9]+$/i, '').replace(/[_\-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// Enumerate the shared photo library -> [{file, url, category, label}]. URLs are absolute (this backend
+// serves them at /photo-library) so a stored image loads for the picker, Publer, and newsletters alike.
+function plannerPhotoLibrary(req) {
+    const base = seatPublicBase(req);
+    const out = [];
+    for (const d of PLANNER_PHOTO_DIRS) {
+        try {
+            const dir = path.join(__dirname, '../../user-portal/frontend/assets', d.sub);
+            const files = fs.readdirSync(dir).filter(f => /\.(jpe?g|png|webp)$/i.test(f));
+            for (const f of files) out.push({ file: f, url: `${base}/photo-library/${d.sub}/${f}`, category: d.category, label: plannerPhotoLabel(f) });
+        } catch (e) { /* folder may be absent in some deploys */ }
+    }
+    return out;
+}
+
+// REAL live facts for the prompt + deterministic generator. Never throws.
+function plannerLiveFacts() {
+    const facts = { projects: [], speakers: { count: 0, names: [] }, keyDates: [] };
+    try {
+        const rows = query.all('SELECT project_key, status_label, status_kind, detail_line, cta_label FROM project_status');
+        facts.projects = rows.map(r => ({ key: r.project_key, label: r.status_label, kind: r.status_kind, detail: r.detail_line, cta: r.cta_label }));
+    } catch (e) { /* skip */ }
+    try {
+        const sp = query.all("SELECT name, institution FROM speakers WHERE is_confirmed = 1 AND is_published = 1 ORDER BY is_keynote DESC, sort_order");
+        facts.speakers.count = sp.length;
+        facts.speakers.names = sp.map(s => (s.institution ? `${s.name} (${s.institution})` : s.name)).filter(Boolean).slice(0, 12);
+    } catch (e) { /* skip */ }
+    const today = plannerTodayISO();
+    try {
+        const ds = query.all("SELECT project, event_date FROM project_settings WHERE event_date IS NOT NULL AND event_date != ''");
+        for (const d of ds) { const iso = plannerParseISO(d.event_date); if (iso && iso >= today) facts.keyDates.push({ project_key: d.project, date: iso }); }
+    } catch (e) { /* skip */ }
+    try {
+        const pps = query.get("SELECT gala_date FROM plexus_page_settings WHERE id = 'default'");
+        const iso = pps && plannerParseISO(pps.gala_date);
+        if (iso && iso >= today && !facts.keyDates.some(k => k.project_key === 'gala')) facts.keyDates.push({ project_key: 'gala', date: iso });
+    } catch (e) { /* skip */ }
+    facts.keyDates.sort((a, b) => a.date.localeCompare(b.date));
+    return facts;
+}
+
+// The five questions, asked one at a time. Q0 embeds the real facts so the colleague sees what we know.
+function plannerQuestions(facts) {
+    const projLines = (facts.projects || []).map(p => `- ${plannerProjectName(p.key)}: ${p.detail || p.label || ''}`).join('\n');
+    const spk = facts.speakers.count > 0
+        ? `${facts.speakers.count} confirmed speaker${facts.speakers.count === 1 ? '' : 's'}${facts.speakers.names.length ? ' (' + facts.speakers.names.slice(0, 4).join(', ') + ')' : ''}`
+        : 'no confirmed speakers announced yet';
+    const q0 = `What is coming up in the period you want to plan, and how many months should I cover (1 to 3)?\n\nHere is what I already know:\n${projLines}\nSpeakers: ${spk}.`;
+    return [
+        q0,
+        'Great. What should we emphasize most across this run of content? For example a deadline, a launch, ticket sales, or a theme.',
+        'How often should we post, and on which platforms? I suggest 2 to 3 times a week on Instagram and LinkedIn. Facebook and X are available too.',
+        'How many newsletters should go out in this period? I suggest one a month.',
+        'Last one. What tone and language should I write in — English, Croatian, or both?'
+    ];
+}
+
+// Parse the five free-text answers into a structured brief. Robust to loose phrasing; sensible defaults.
+function plannerParseAnswers(texts, facts) {
+    const t = (i) => String(texts[i] || '').trim();
+    const comingUp = t(0), emphasis = t(1), freqText = t(2).toLowerCase(), nlText = t(3).toLowerCase(), toneText = t(4).toLowerCase();
+    const all = texts.join('  \n  ').toLowerCase();
+
+    let months = 1;
+    const mMatch = all.match(/(\d+)\s*month/);
+    if (mMatch) months = parseInt(mMatch[1], 10);
+    else if (/three|quarter/.test(all)) months = 3;
+    else if (/\btwo\b|couple/.test(all)) months = 2;
+    months = Math.min(3, Math.max(1, months || 1));
+
+    let freq = 2;
+    const fMatch = freqText.match(/(\d+)/);
+    if (fMatch) freq = parseInt(fMatch[1], 10);
+    else if (/thrice|three/.test(freqText)) freq = 3;
+    else if (/twice|\btwo\b/.test(freqText)) freq = 2;
+    else if (/daily|every day/.test(freqText)) freq = 5;
+    else if (/once|weekly|\bone\b/.test(freqText)) freq = 1;
+    freq = Math.min(5, Math.max(1, freq || 2));
+
+    const platforms = [];
+    if (/insta|\big\b/.test(freqText)) platforms.push('instagram');
+    if (/linked/.test(freqText)) platforms.push('linkedin');
+    if (/face|\bfb\b/.test(freqText)) platforms.push('facebook');
+    if (/twitter|\bx\b/.test(freqText)) platforms.push('twitter');
+    if (!platforms.length) { platforms.push('instagram', 'linkedin'); }
+
+    let newsletters = months; // monthly default
+    const nMatch = nlText.match(/(\d+)/);
+    if (/\bnone\b|\bno\b|zero|skip/.test(nlText)) newsletters = 0;
+    else if (nMatch) newsletters = parseInt(nMatch[1], 10);
+    else if (/biweek|fortnight|two a month|twice a month/.test(nlText)) newsletters = months * 2;
+    else if (/month/.test(nlText)) newsletters = months;
+    newsletters = Math.min(8, Math.max(0, isNaN(newsletters) ? months : newsletters));
+
+    let language = 'en';
+    if (/both|dual|oba|dvojezi|english and|and croat/.test(toneText)) language = 'both';
+    else if (/croat|hrvat|\bhr\b/.test(toneText)) language = 'hr';
+
+    const startISO = plannerTodayISO();
+    const endISO = plannerAddMonths(startISO, months);
+    return { comingUp, emphasis, tone: t(4), freq, platforms, newsletters, language, months, startISO, endISO };
+}
+
+// Turn a detail line like "December 4-5, 2026 - Zagreb - Free entry" into a clean sentence fragment.
+function plannerDetailSentence(detail) {
+    if (!detail) return '';
+    // Only split on spaced separators (" - ") so date ranges like "4-5" stay intact.
+    let s = String(detail).replace(/\s+[-–]\s+/g, ', ').replace(/,\s*,/g, ', ').trim();
+    return s.replace(/,\s*$/, '');
+}
+
+function plannerSocialCopy(proj, a, lang, facts, idx) {
+    const name = plannerProjectName(proj.key);
+    const detail = plannerDetailSentence(proj.detail);
+    const emph = (a.emphasis || '').trim();
+    if (lang === 'hr') {
+        const hr = [
+            { title: `${name} stiže`, body: `${name} je pred nama.${detail ? ' ' + detail + '.' : ''}${emph ? ' U fokusu je ' + emph + '.' : ''} Pratite nas za sve novosti.` },
+            { title: `Zabilježite datum`, body: `Rezervirajte vrijeme za ${name}.${detail ? ' ' + detail + '.' : ''} Prijave i sve informacije stižu uskoro.` },
+            { title: `Zašto ${name}`, body: `Evo zašto je ${name} vrijedan vaše pažnje.${emph ? ' ' + emph.charAt(0).toUpperCase() + emph.slice(1) + '.' : ''}${detail ? ' ' + detail + '.' : ''} Pridružite nam se.` }
+        ];
+        return hr[idx % hr.length];
+    }
+    const en = [
+        { title: `${name} is coming`, body: `${name} is on the way.${detail ? ' ' + detail + '.' : ''}${emph ? ' Our focus this time is ' + emph + '.' : ''} Follow along as we share more.` },
+        { title: `Save the date`, body: `Mark your calendar for ${name}.${detail ? ' ' + detail + '.' : ''} Registration and full details are coming soon.` },
+        { title: `Why ${name} matters`, body: `Here is what makes ${name} worth your time.${emph ? ' ' + emph.charAt(0).toUpperCase() + emph.slice(1) + '.' : ''}${detail ? ' ' + detail + '.' : ''} Join us and be part of it.` }
+    ];
+    return en[idx % en.length];
+}
+
+function plannerCountdownCopy(proj, kd, lead, a, lang) {
+    const name = plannerProjectName(proj.key || kd.project_key);
+    const detail = plannerDetailSentence(proj.detail);
+    if (lang === 'hr') {
+        return lead <= 1
+            ? { title: `Sutra: ${name}`, body: `Sutra je ${name}.${detail ? ' ' + detail + '.' : ''} Vidimo se.` }
+            : { title: `Još tjedan dana`, body: `Još samo tjedan dana do ${name}.${detail ? ' ' + detail + '.' : ''} Osigurajte svoje mjesto na vrijeme.` };
+    }
+    return lead <= 1
+        ? { title: `Tomorrow: ${name}`, body: `${name} is tomorrow.${detail ? ' ' + detail + '.' : ''} We cannot wait to see you there.` }
+        : { title: `One week to go`, body: `Just one week until ${name}.${detail ? ' ' + detail + '.' : ''} Secure your place before the deadline.` };
+}
+
+function plannerNewsletterCopy(proj, a, lang, facts, n) {
+    const name = plannerProjectName(proj.key);
+    const detail = plannerDetailSentence(proj.detail);
+    const emph = (a.emphasis || '').trim();
+    const spk = facts.speakers.count > 0 ? ` We now have ${facts.speakers.count} confirmed speaker${facts.speakers.count === 1 ? '' : 's'} joining us.` : '';
+    if (lang === 'hr') {
+        return {
+            title: `Med&X novosti — br. ${n}`,
+            body: `Pozdrav iz Med&X tima.\n\nU fokusu je ${name}.${detail ? ' ' + detail + '.' : ''}${emph ? ' ' + emph.charAt(0).toUpperCase() + emph.slice(1) + '.' : ''}\n\nHvala što ste dio naše zajednice. Pišite nam za sva pitanja.\n\n— Med&X`
+        };
+    }
+    return {
+        title: `Med&X update — no. ${n}`,
+        body: `Hello from the Med&X team.\n\nThis month we are focused on ${name}.${detail ? ' ' + detail + '.' : ''}${emph ? ' ' + emph.charAt(0).toUpperCase() + emph.slice(1) + '.' : ''}${spk}\n\nThank you for being part of our community. Reply any time with questions.\n\n— Med&X`
+    };
+}
+
+// Deterministic plan builder — the reliable path in mock mode. Genuinely useful, real facts, real dates.
+function plannerBuildPlan(a, facts, photos) {
+    const items = [];
+    const photoList = (photos && photos.length) ? photos : [{ file: '', url: '' }];
+    let pIdx = 0;
+    const nextPhoto = () => { const p = photoList[pIdx % photoList.length]; pIdx++; return p; };
+
+    let projs = (facts.projects || []).filter(p => ['open', 'soon'].includes((p.kind || '').toLowerCase()));
+    if (!projs.length) projs = (facts.projects || []).slice();
+    if (!projs.length) projs = [{ key: 'medx', detail: '' }];
+    let projIdx = 0;
+    const nextProj = () => { const p = projs[projIdx % projs.length]; projIdx++; return p; };
+
+    const slotMap = { 1: [2], 2: [1, 3], 3: [1, 3, 5], 4: [1, 2, 4, 5], 5: [1, 2, 3, 4, 5] }; // Mon=1 .. Fri=5
+    const slots = slotMap[a.freq] || [1, 3];
+
+    let langToggle = 0;
+    const pickLang = () => (a.language === 'both' ? (langToggle++ % 2 === 0 ? 'en' : 'hr') : a.language);
+
+    let cursor = a.startISO;
+    while (plannerWeekday(cursor) !== 1 && cursor < a.endISO) cursor = plannerAddDays(cursor, 1); // first Monday
+    let copyIdx = 0, guard = 0;
+    while (cursor <= a.endISO && guard < 400) {
+        for (const wd of slots) {
+            const date = plannerAddDays(cursor, wd - 1);
+            if (date < a.startISO || date > a.endISO) continue;
+            const proj = nextProj();
+            const platform = a.platforms[items.length % a.platforms.length];
+            const lang = pickLang();
+            const photo = nextPhoto();
+            const { title, body } = plannerSocialCopy(proj, a, lang, facts, copyIdx++);
+            items.push({ date, kind: 'social', platforms: [platform], title, body, image_suggestion: photo.file, image: photo.url, project_key: proj.key, language: lang });
+        }
+        cursor = plannerAddDays(cursor, 7);
+        guard++;
+    }
+
+    // Cluster countdown posts before any key date inside the window.
+    for (const kd of (facts.keyDates || [])) {
+        if (kd.date < a.startISO || kd.date > a.endISO) continue;
+        for (const lead of [7, 1]) {
+            const date = plannerAddDays(kd.date, -lead);
+            if (date < a.startISO || date > a.endISO) continue;
+            const proj = (facts.projects || []).find(p => p.key === kd.project_key) || { key: kd.project_key };
+            const lang = pickLang();
+            const photo = nextPhoto();
+            const { title, body } = plannerCountdownCopy(proj, kd, lead, a, lang);
+            items.push({ date, kind: 'social', platforms: [a.platforms[0]], title, body, image_suggestion: photo.file, image: photo.url, project_key: proj.key, language: lang });
+        }
+    }
+
+    // Newsletters, spread one per month-block.
+    for (let i = 0; i < a.newsletters; i++) {
+        const date = plannerAddDays(plannerAddMonths(a.startISO, i), 2);
+        if (date > a.endISO) break;
+        const proj = nextProj();
+        const lang = a.language === 'both' ? 'en' : a.language;
+        const photo = nextPhoto();
+        const { title, body } = plannerNewsletterCopy(proj, a, lang, facts, i + 1);
+        items.push({ date, kind: 'newsletter', platforms: ['email'], title, body, image_suggestion: photo.file, image: photo.url, project_key: proj.key, language: lang });
+    }
+
+    items.sort((x, y) => x.date.localeCompare(y.date) || (x.kind === 'newsletter' ? 1 : -1));
+    return { items, period_start: a.startISO, period_end: a.endISO };
+}
+
+function plannerExtractJson(text) {
+    if (!text) return null;
+    let t = String(text).trim();
+    const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i); if (fence) t = fence[1].trim();
+    const s = t.indexOf('{'), e = t.lastIndexOf('}');
+    if (s < 0 || e < 0 || e <= s) return null;
+    try { return JSON.parse(t.slice(s, e + 1)); } catch (_) { return null; }
+}
+
+// aiDraft-authored plan (only when a real key is set). Returns null on mock / parse failure -> caller
+// falls back to the deterministic builder. Sanitizes every item and pins images to real filenames.
+async function plannerAiPlan(a, facts, photos) {
+    const fileList = photos.map(p => p.file).join(', ');
+    const projText = (facts.projects || []).map(p => `${plannerProjectName(p.key)} [${p.key}]: ${p.detail || p.label || ''}`).join('\n');
+    const kd = (facts.keyDates || []).map(k => `${plannerProjectName(k.project_key)} on ${k.date}`).join('; ') || 'none in range';
+    const spk = facts.speakers.count > 0 ? `${facts.speakers.count} confirmed: ${facts.speakers.names.join(', ')}` : 'none confirmed yet — do not invent speaker names';
+    const context = {
+        period: `${a.startISO} to ${a.endISO} (${a.months} month(s))`,
+        posting_frequency_per_week: a.freq,
+        platforms: a.platforms.join(', '),
+        newsletters_in_period: a.newsletters,
+        language: a.language,
+        tone: a.tone,
+        emphasis: a.emphasis,
+        coming_up: a.comingUp,
+        projects: projText,
+        key_dates: kd,
+        speakers: spk,
+        photo_filenames: fileList,
+        OUTPUT: 'Return ONLY JSON: {"items":[{"date":"YYYY-MM-DD","kind":"social|newsletter","platforms":["instagram"],"title":"...","body":"...","image_suggestion":"<one filename from photo_filenames>","project_key":"plexus|gala|accelerator|forum|bridges|medx","language":"en|hr"}]}. Cluster social posts before key dates. Every item MUST include image_suggestion chosen from photo_filenames. No commentary.'
+    };
+    const r = await aiDraft({ purpose: 'Produce a social media and newsletter content plan for Med&X as strict JSON only.', context, maxTokens: 3000 });
+    if (!r || r.mock) return null;
+    const plan = plannerExtractJson(r.text);
+    if (!plan || !Array.isArray(plan.items)) return null;
+    const byFile = new Map(photos.map(p => [p.file, p]));
+    let pIdx = 0;
+    plan.items = plan.items.filter(it => it && it.date && it.body).map(it => {
+        let ph = byFile.get(it.image_suggestion);
+        if (!ph) { ph = photos[pIdx % (photos.length || 1)] || { file: '', url: '' }; pIdx++; }
+        const kind = it.kind === 'newsletter' ? 'newsletter' : 'social';
+        return {
+            date: plannerParseISO(it.date) || it.date,
+            kind,
+            platforms: Array.isArray(it.platforms) && it.platforms.length ? it.platforms : (kind === 'newsletter' ? ['email'] : [a.platforms[0]]),
+            title: String(it.title || '').slice(0, 140) || plannerProjectName(it.project_key || 'medx'),
+            body: String(it.body || ''),
+            image_suggestion: ph ? ph.file : '',
+            image: ph ? ph.url : '',
+            project_key: it.project_key || 'medx',
+            language: it.language === 'hr' ? 'hr' : (it.language === 'both' ? 'both' : 'en')
+        };
+    });
+    if (!plan.items.length) return null;
+    plan.period_start = a.startISO; plan.period_end = a.endISO;
+    return plan;
+}
 
 function getAutomationConfig(key, dflt) {
     try { const r = query.get('SELECT value FROM automation_config WHERE key = ?', [key]); return (r && r.value != null) ? r.value : dflt; } catch (e) { return dflt; }
@@ -3183,6 +3548,20 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         responded_at TEXT
     )`);
+
+    // planner_plans: the Content Planner wizard stores one row per generated plan. answers_json is the
+    // parsed conversation, plan_json is the {items:[...]} calendar (each item image-carrying). status is
+    // draft -> approved. Declared in the mirror block so the shared Turso DB always has it regardless of
+    // which portal boots first; only the admin portal writes it (the Content Planner lives there).
+    db.run(`CREATE TABLE IF NOT EXISTS planner_plans (
+        id TEXT PRIMARY KEY,
+        period_start TEXT,
+        period_end TEXT,
+        answers_json TEXT,
+        plan_json TEXT,
+        status TEXT DEFAULT 'draft',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
     // ====================== SCHEMA-MIRROR:END ======================
     // pr_posts drifted between portals (admin CREATE has status, user CREATE lacked it) — heal existing DBs.
     try { db.exec("ALTER TABLE pr_posts ADD COLUMN status TEXT DEFAULT 'published'"); } catch (e) { /* column exists */ }
@@ -4910,6 +5289,9 @@ async function initializeApp() {
     // SCHEMA-MIRROR block — PR & Media lives only in the admin portal.
     try { db.run(`ALTER TABLE pr_content_calendar ADD COLUMN external_post_id TEXT`); } catch(e) {}
     try { db.run(`ALTER TABLE pr_content_calendar ADD COLUMN publish_note TEXT`); } catch(e) {}
+    // pr_newsletters: carry an image on the newsletter row so every Content Planner deliverable has a
+    // picture (owner rule: every piece of content has a picture). Guarded, additive, admin-only.
+    try { db.run(`ALTER TABLE pr_newsletters ADD COLUMN image_url TEXT`); } catch(e) {}
     // Gala + Forum check-in columns
     try { db.run(`ALTER TABLE gala_registrations ADD COLUMN checked_in INTEGER DEFAULT 0`); } catch(e) {}
     try { db.run(`ALTER TABLE gala_registrations ADD COLUMN checked_in_at TEXT`); } catch(e) {}
@@ -15253,6 +15635,156 @@ By applying to this program, I provide the following consents:
 
     // ========== MEMBER NEWSLETTERS ==========
 
+    // ============ ENGAGEMENT AUTOPILOT: segments (engine 2) + monthly digest (engine 1) ============
+    // Reuses existing rails only. Declared here so the const segment table is initialized before any
+    // handler or the boot digest check runs.
+    function capWord(s) { s = String(s || ''); return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+    // -------- Engine 2: real audience segments --------
+    // Each segment resolves to a de-duplicated list of lowercased recipient emails at SEND time
+    // (never stored), reusing the same membership sources as GET /api/admin/audiences/:project. An
+    // unknown id yields an empty list, so a stale client can never blast an unintended audience.
+    const NEWSLETTER_SEGMENTS = [
+        { id: 'all_subscribers', label: 'All subscribers' },
+        { id: 'forum_members', label: 'Forum members' },
+        { id: 'plexus_registrants', label: 'Plexus registrants' },
+        { id: 'gala_guests', label: 'Gala guests' },
+        { id: 'interested_plexus', label: 'Interested in Plexus' },
+        { id: 'interested_gala', label: 'Interested in the Gala' },
+        { id: 'interested_accelerator', label: 'Interested in the Accelerator' },
+        { id: 'interested_forum', label: 'Interested in the Forum' },
+        { id: 'interested_bridges', label: 'Interested in Building Bridges' }
+    ];
+    function isNewsletterSegment(id) { return NEWSLETTER_SEGMENTS.some((s) => s.id === id); }
+    function resolveSegmentEmails(id) {
+        const distinct = (sql, params) => { try { return query.all(sql, params || []).map((r) => r.email).filter(Boolean); } catch (e) { return []; } };
+        if (id === 'all_subscribers') return distinct("SELECT DISTINCT LOWER(TRIM(email)) AS email FROM pr_subscribers WHERE status = 'active' AND email IS NOT NULL AND TRIM(email) <> ''");
+        if (id === 'forum_members') return distinct("SELECT DISTINCT LOWER(TRIM(email)) AS email FROM forum_members WHERE membership_status = 'approved' AND email IS NOT NULL AND TRIM(email) <> ''");
+        if (id === 'plexus_registrants') return distinct("SELECT DISTINCT LOWER(TRIM(email)) AS email FROM registrations WHERE email IS NOT NULL AND TRIM(email) <> ''");
+        if (id === 'gala_guests') return distinct("SELECT DISTINCT LOWER(TRIM(email)) AS email FROM gala_registrations WHERE email IS NOT NULL AND TRIM(email) <> ''");
+        if (id.indexOf('interested_') === 0) {
+            const project = id.slice('interested_'.length);
+            if (!PROJECT_HUB_ORDER.includes(project)) return [];
+            return distinct("SELECT DISTINCT LOWER(TRIM(u.email)) AS email FROM notify_topics nt JOIN users u ON u.id = nt.user_id WHERE nt.project_key = ? AND u.email IS NOT NULL AND TRIM(u.email) <> ''", [project]);
+        }
+        return [];
+    }
+    function newsletterSegmentCounts() {
+        return NEWSLETTER_SEGMENTS.map((s) => ({ id: s.id, label: s.label, count: resolveSegmentEmails(s.id).length }));
+    }
+
+    // Read-only segment sizing for the composer's audience picker. Returns each segment + live count.
+    app.get('/api/admin/newsletter-segments', auth, adminOnly, (req, res) => {
+        try { res.json({ segments: newsletterSegmentCounts() }); }
+        catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // -------- shared branded-email helpers (photos from the CDN mirror of the portal library) --------
+    const AUTOPILOT_PHOTO_BASE = 'https://cdn.jsdelivr.net/gh/alen-ops99/medx-portal@main/user-portal/frontend/assets/photos';
+    function autopilotImageBlock(file, alt) {
+        return `<div style="text-align:center;margin:0 0 22px;"><img src="${AUTOPILOT_PHOTO_BASE}/${file}" alt="${nagEscape(alt || 'Med&X')}" width="520" style="display:block;margin:0 auto;width:100%;max-width:520px;height:auto;border-radius:12px;" /></div>`;
+    }
+    function autopilotParagraphs(text) {
+        return String(text || '').split(/\n{2,}/).map((p) => p.trim()).filter(Boolean)
+            .map((p) => `<p style="margin:0 0 14px;">${nagEscape(p).replace(/\n/g, '<br>')}</p>`).join('');
+    }
+    // Branded HTML for a Member Newsletter (plain-text body -> branded template + hero photo).
+    function memberNewsletterHtml(nl) {
+        return buildEmailTemplate(nl.title || 'Med&X Newsletter', autopilotImageBlock('plexus_25_gala_grupna.jpg', 'Med&X') + autopilotParagraphs(nl.body));
+    }
+
+    // -------- Engine 1: monthly auto-digest --------
+    // Assemble a branded newsletter DRAFT from the last 30 days of REAL content and drop an Action
+    // Center item (via nagCollectDesired) so a human reviews + approves it. NEVER auto-sends. Idempotent
+    // per calendar month via a drip_log marker (user_id='system-digest', kind='monthly_digest:YYYY-MM').
+    function digestSection(heading, innerHtml, imageFile, imageAlt) {
+        if (!innerHtml) return '';
+        const img = imageFile ? autopilotImageBlock(imageFile, imageAlt) : '';
+        return `<h2 style="color:#0f172a;font-size:17px;margin:26px 0 10px;border-bottom:2px solid #C9A962;padding-bottom:6px;">${nagEscape(heading)}</h2>${img}${innerHtml}`;
+    }
+    function assembleMonthlyDigest() {
+        const parts = [];
+        let hasContent = false;
+        try {
+            const anns = query.all("SELECT title, body FROM member_announcements WHERE datetime(created_at) >= datetime('now','-30 days') ORDER BY datetime(created_at) DESC LIMIT 6");
+            if (anns.length) {
+                hasContent = true;
+                parts.push(digestSection('Latest announcements', anns.map((a) => `<p style="margin:0 0 12px;"><strong>${nagEscape(a.title)}</strong>${a.body ? '<br>' + nagEscape(String(a.body).slice(0, 240)) : ''}</p>`).join('')));
+            }
+        } catch (e) {}
+        try {
+            const feed = query.all("SELECT title, body FROM feed_items WHERE COALESCE(published,1) = 1 AND datetime(posted_at) >= datetime('now','-30 days') ORDER BY datetime(posted_at) DESC LIMIT 6");
+            if (feed.length) {
+                hasContent = true;
+                parts.push(digestSection('From the community feed', feed.map((f) => `<p style="margin:0 0 12px;"><strong>${nagEscape(f.title)}</strong>${f.body ? '<br>' + nagEscape(String(f.body).slice(0, 240)) : ''}</p>`).join('')));
+            }
+        } catch (e) {}
+        try {
+            const sp = query.all("SELECT name, title, institution FROM speakers WHERE COALESCE(is_confirmed,1) = 1 AND name IS NOT NULL ORDER BY is_keynote DESC, sort_order LIMIT 6");
+            if (sp.length) {
+                hasContent = true;
+                const items = '<ul style="padding-left:20px;color:#334155;margin:0;">' + sp.map((s) => `<li style="margin-bottom:6px;">${nagEscape(s.name)}${s.title ? ', ' + nagEscape(s.title) : ''}${s.institution ? ' (' + nagEscape(s.institution) + ')' : ''}</li>`).join('') + '</ul>';
+                parts.push(digestSection('Speakers on the program', items, 'plexus_25_acc_panel.jpg', 'Med&X speakers'));
+            }
+        } catch (e) {}
+        try {
+            const st = query.all("SELECT project_key, status_label, detail_line FROM project_status WHERE datetime(updated_at) >= datetime('now','-30 days') ORDER BY datetime(updated_at) DESC");
+            if (st.length) {
+                hasContent = true;
+                parts.push(digestSection('Program updates', st.map((s) => `<p style="margin:0 0 10px;"><strong>${nagEscape(capWord(s.project_key))}</strong> &mdash; ${nagEscape(s.status_label || '')}${s.detail_line ? '<br><span style="color:#64748b;">' + nagEscape(s.detail_line) + '</span>' : ''}</p>`).join('')));
+            }
+        } catch (e) {}
+        try {
+            const rows = [];
+            try { query.all("SELECT name AS t, date_start AS d FROM accelerator_key_dates WHERE date_start >= date('now') AND date_start <= date('now','+60 days') ORDER BY date_start LIMIT 6").forEach((r) => rows.push({ t: 'Accelerator: ' + r.t, d: r.d })); } catch (e) {}
+            try { query.all("SELECT title AS t, start_date AS d FROM forum_events WHERE start_date >= date('now') AND start_date <= date('now','+60 days') ORDER BY start_date LIMIT 6").forEach((r) => rows.push({ t: 'Forum: ' + r.t, d: r.d })); } catch (e) {}
+            try { query.all("SELECT name AS t, event_date AS d FROM bridges_events WHERE event_date >= date('now') AND event_date <= date('now','+60 days') ORDER BY event_date LIMIT 6").forEach((r) => rows.push({ t: 'Building Bridges: ' + r.t, d: r.d })); } catch (e) {}
+            if (rows.length) {
+                hasContent = true;
+                const items = '<ul style="padding-left:20px;color:#334155;margin:0;">' + rows.map((r) => `<li style="margin-bottom:6px;">${nagEscape(r.t)} &mdash; <strong>${nagEscape(r.d)}</strong></li>`).join('') + '</ul>';
+                parts.push(digestSection('Coming up', items));
+            }
+        } catch (e) {}
+        return { hasContent, html: parts.join('') };
+    }
+    function monthlyDigestMarkerDone(monthKey) {
+        try { return !!query.get("SELECT 1 AS x FROM drip_log WHERE user_id = 'system-digest' AND kind = ?", ['monthly_digest:' + monthKey]); } catch (e) { return false; }
+    }
+    function generateMonthlyDigest(opts) {
+        opts = opts || {};
+        const monthKey = opts.monthKey || new Date().toISOString().slice(0, 7);
+        if (monthlyDigestMarkerDone(monthKey)) return { created: false, reason: 'already-generated', month: monthKey };
+        const monthLabel = new Date(monthKey + '-01T00:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+        const body = assembleMonthlyDigest();
+        const hero = autopilotImageBlock('plexus_25_gala.jpg', 'Med&X');
+        const intro = '<p style="margin:0 0 14px;">Here is what has been happening across Med&amp;X this past month. Review the highlights below, then approve to share them with our members.</p>';
+        const inner = body.hasContent ? (hero + intro + body.html) : (hero + intro + '<p style="color:#64748b;">No new published content in the last 30 days yet. Add announcements, speakers, or feed items and regenerate.</p>');
+        const subject = `Med&X Monthly Digest — ${monthLabel}`;
+        const contentHtml = buildEmailTemplate(subject, inner);
+        const nlId = uuidv4();
+        db.run(`INSERT INTO pr_newsletters (id, project, name, subject, preview_text, content_html, template, status, created_by, created_at)
+                VALUES (?, 'all', ?, ?, ?, ?, 'monthly-digest', 'draft', 'digest-engine', datetime('now'))`,
+            [nlId, subject, subject, `Your Med&X highlights for ${monthLabel}`, contentHtml]);
+        try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'system-digest', NULL, ?)", [uuidv4(), 'monthly_digest:' + monthKey]); } catch (e) {}
+        saveDb();
+        try { runNagScan(); } catch (e) {}
+        return { created: true, month: monthKey, newsletter_id: nlId, has_content: body.hasContent };
+    }
+    function maybeGenerateMonthlyDigestDaily() {
+        try { if (new Date().getUTCDate() === 1) generateMonthlyDigest(); } catch (e) { console.warn('[Digest] daily check skipped:', e.message); }
+    }
+
+    // Generate/refresh the current month's digest on demand (idempotent per month). Powers the owner's
+    // review + approve flow and verification. Never sends — it only stages a DRAFT + Action Center item.
+    app.post('/api/admin/digest/run', auth, adminOnly, (req, res) => {
+        try {
+            const monthKey = (req.body && typeof req.body.month === 'string' && /^\d{4}-\d{2}$/.test(req.body.month)) ? req.body.month : undefined;
+            const r = generateMonthlyDigest({ monthKey });
+            if (r.created) logAudit(req, 'digest.generate', `${r.month} digest draft ${r.newsletter_id}`);
+            res.json({ success: true, ...r });
+        } catch (e) { console.error('[digest] run', e.message); res.status(500).json({ error: e.message }); }
+    });
+
     // List all newsletters
     app.get('/api/admin/newsletters', auth, adminOnly, (req, res) => {
         try {
@@ -15382,6 +15914,26 @@ By applying to this program, I provide the following consents:
             const nl = query.get('SELECT * FROM member_newsletters WHERE id = ?', [req.params.id]);
             if (!nl) return res.status(404).json({ error: 'Newsletter not found' });
             if (nl.status === 'sent') return res.status(400).json({ error: 'Newsletter already sent' });
+
+            // Engine 2: a REAL segment resolves to recipient emails at send time and stages an
+            // APPROVAL-GATED outbox batch (mock boundary — nothing leaves until the owner approves the
+            // batch in the outbox, then the drainer delivers through sendEmail()). The legacy tier
+            // audiences keep their existing in-portal-notification behavior below.
+            if (isNewsletterSegment(nl.target_audience)) {
+                const emails = resolveSegmentEmails(nl.target_audience);
+                if (!emails.length) return res.status(400).json({ error: 'That segment has no recipients yet.' });
+                const batchId = 'newsletter-' + require('crypto').randomUUID();
+                const html = memberNewsletterHtml(nl);
+                for (const to of emails) {
+                    db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                            VALUES (?, 'pending_approval', ?, 'newsletter', 'member-newsletter', ?, ?, ?, ?, datetime('now'))`,
+                        [require('crypto').randomUUID(), batchId, JSON.stringify({ to, subject: nl.title, html }), to, nl.title, req.user?.email || 'admin']);
+                }
+                db.run(`UPDATE member_newsletters SET status = 'scheduled', sent_at = NULL WHERE id = ?`, [req.params.id]);
+                saveDb();
+                logAudit(req, 'newsletter.stage', `${nl.target_audience}: ${emails.length} email(s) staged (batch ${batchId})`);
+                return res.json({ success: true, staged: emails.length, batch_id: batchId, approval_required: true, message: `${emails.length} recipient(s) staged for approval in the outbox.` });
+            }
 
             db.run(`UPDATE member_newsletters SET status = 'sent', sent_at = datetime('now') WHERE id = ?`, [req.params.id]);
             saveDb();
@@ -22567,6 +23119,142 @@ By applying to this program, I provide the following consents:
         } catch (e) { console.error('[ai/draft] error', e.message); res.status(500).json({ error: 'Draft failed' }); }
     });
 
+    // ========== CONTENT PLANNER (conversational wizard) ==========
+    // A colleague talks to the AI, answers up to 5 questions, and gets a dated 1-3 month plan of social
+    // posts + newsletters, each carrying a picture, staged for one approval. Nothing sends or posts here.
+
+    // Live facts + photo library for the wizard intro.
+    app.get('/api/admin/planner/facts', auth, adminOnly, (req, res) => {
+        try { res.json({ facts: plannerLiveFacts(), photos: plannerPhotoLibrary(req) }); }
+        catch (e) { console.error('[planner] facts', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // The photo library for the image picker.
+    app.get('/api/admin/planner/photos', auth, adminOnly, (req, res) => {
+        try { res.json({ photos: plannerPhotoLibrary(req) }); }
+        catch (e) { console.error('[planner] photos', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // THE conversation. Send {history:[{role,text}]}. Returns the next question, or once enough answers
+    // are in, the built PLAN (also persisted as a draft planner_plans row).
+    app.post('/api/admin/planner/converse', assistantLimiter, auth, adminOnly, async (req, res) => {
+        try {
+            const history = Array.isArray(req.body?.history) ? req.body.history : [];
+            const facts = plannerLiveFacts();
+            const questions = plannerQuestions(facts);
+            const answers = history.filter(m => m && m.role === 'user' && String(m.text || '').trim() !== '');
+            if (answers.length < questions.length) {
+                return res.json({ done: false, step: answers.length, total: questions.length, question: questions[answers.length], facts: answers.length === 0 ? facts : undefined });
+            }
+            const parsed = plannerParseAnswers(answers.map(a => a.text), facts);
+            const photos = plannerPhotoLibrary(req);
+            let plan = null;
+            try { const aiPlan = await plannerAiPlan(parsed, facts, photos); if (aiPlan && Array.isArray(aiPlan.items) && aiPlan.items.length) plan = aiPlan; } catch (e) { plan = null; }
+            const mock = !plan;
+            if (!plan) plan = plannerBuildPlan(parsed, facts, photos);
+            const id = uuidv4();
+            db.run(`INSERT INTO planner_plans (id, period_start, period_end, answers_json, plan_json, status, created_at)
+                    VALUES (?,?,?,?,?, 'draft', datetime('now'))`,
+                [id, plan.period_start, plan.period_end, JSON.stringify(parsed), JSON.stringify(plan)]);
+            saveDb();
+            logAudit(req, 'planner.plan', `plan ${id} — ${plan.items.length} items, ${parsed.months}mo${mock ? ' (template)' : ' (ai)'}`);
+            res.json({ done: true, plan_id: id, plan, parsed, mock });
+        } catch (e) { console.error('[planner] converse', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // List recent plans (summaries).
+    app.get('/api/admin/planner/plans', auth, adminOnly, (req, res) => {
+        try {
+            const rows = query.all("SELECT id, period_start, period_end, status, created_at FROM planner_plans ORDER BY created_at DESC LIMIT 50");
+            res.json({ plans: rows });
+        } catch (e) { console.error('[planner] plans', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // One full plan.
+    app.get('/api/admin/planner/plans/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = query.get("SELECT * FROM planner_plans WHERE id = ?", [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Not found' });
+            let plan = {}; try { plan = row.plan_json ? JSON.parse(row.plan_json) : {}; } catch (_) { plan = {}; }
+            let answers = {}; try { answers = row.answers_json ? JSON.parse(row.answers_json) : {}; } catch (_) { answers = {}; }
+            res.json({ id: row.id, status: row.status, period_start: row.period_start, period_end: row.period_end, plan, answers, created_at: row.created_at });
+        } catch (e) { console.error('[planner] plan get', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Save an edited plan (calendar review: edit/add/delete item, swap image). Recomputes the window.
+    app.put('/api/admin/planner/plans/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = query.get("SELECT id, status FROM planner_plans WHERE id = ?", [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Not found' });
+            if (row.status === 'approved') return res.status(400).json({ error: 'This plan is already approved and cannot be edited.' });
+            const plan = req.body && req.body.plan;
+            if (!plan || !Array.isArray(plan.items)) return res.status(400).json({ error: 'Provide a plan with items.' });
+            const dates = plan.items.map(i => i.date).filter(Boolean).sort();
+            const ps = dates[0] || row.period_start, pe = dates[dates.length - 1] || row.period_end;
+            plan.period_start = ps; plan.period_end = pe;
+            db.run("UPDATE planner_plans SET plan_json = ?, period_start = ?, period_end = ? WHERE id = ?", [JSON.stringify(plan), ps, pe, req.params.id]);
+            saveDb();
+            res.json({ success: true, period_start: ps, period_end: pe });
+        } catch (e) { console.error('[planner] plan save', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // APPROVE — the one human click. Social items -> pr_content_calendar rows (approved + handed to Publer,
+    // mock-safe). Newsletter items -> pr_newsletters drafts scheduled_for their date. Everything carries an
+    // image. Idempotent: an already-approved plan is not re-materialized.
+    app.post('/api/admin/planner/plans/:id/approve', auth, adminOnly, async (req, res) => {
+        try {
+            const row = query.get("SELECT * FROM planner_plans WHERE id = ?", [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Not found' });
+            if (row.status === 'approved') return res.status(400).json({ error: 'This plan has already been approved.' });
+            let plan = {}; try { plan = row.plan_json ? JSON.parse(row.plan_json) : {}; } catch (_) { plan = {}; }
+            const items = Array.isArray(plan.items) ? plan.items : [];
+            let socialCreated = 0, newslettersCreated = 0, scheduled = 0, mock = 0;
+            for (const it of items) {
+                const image = it.image || '';
+                if (it.kind === 'newsletter') {
+                    const id = uuidv4();
+                    const body = String(it.body || '');
+                    const html = `<div style="font-family:Georgia,serif;color:#2b2622;line-height:1.6;">` +
+                        (image ? `<img src="${image}" alt="" style="max-width:100%;border-radius:8px;margin-bottom:16px;" />` : '') +
+                        nagEscape(body).replace(/\n/g, '<br>') + `</div>`;
+                    const scheduledFor = (it.date || row.period_start) + 'T09:00:00';
+                    db.run(`INSERT INTO pr_newsletters (id, project, name, subject, preview_text, content_html, content_json, template, created_by, status, scheduled_for, image_url)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+                        [id, it.project_key || null, it.title || 'Med&X newsletter', it.title || 'Med&X newsletter', body.slice(0, 140), html, JSON.stringify(it), 'default', req.user?.id || null, 'scheduled', scheduledFor, image || null]);
+                    newslettersCreated++;
+                } else {
+                    const platforms = (Array.isArray(it.platforms) && it.platforms.length) ? it.platforms : ['instagram'];
+                    for (const platform of platforms) {
+                        if (!platform || platform === 'email') continue;
+                        const id = uuidv4();
+                        db.run(`INSERT INTO pr_content_calendar (id, project, platform, scheduled_date, scheduled_time, title, content_text, image_url, status, created_by, approved_by, approved_at)
+                                VALUES (?,?,?,?,?,?,?,?, 'approved', ?, ?, datetime('now'))`,
+                            [id, it.project_key || 'medx', platform, it.date || row.period_start, '10:00', it.title || null, it.body || null, image || null, req.user?.id || null, req.user?.id || null]);
+                        socialCreated++;
+                        const cal = query.get('SELECT * FROM pr_content_calendar WHERE id = ?', [id]);
+                        try {
+                            const result = await publishToPubler(cal);
+                            const finalStatus = result.mock ? 'published' : (result.ok ? 'scheduled' : 'approved');
+                            db.run(`UPDATE pr_content_calendar SET status = ?, external_post_id = ?, publish_note = ?,
+                                    published_at = CASE WHEN ? = 'published' THEN datetime('now') ELSE published_at END WHERE id = ?`,
+                                [finalStatus, result.external_post_id || null, result.note || null, finalStatus, id]);
+                            if (result.mock) mock++; else if (result.ok) scheduled++;
+                            if (result.ok) {
+                                db.run(`INSERT INTO pr_posts (id, project, platform, content_text, image_url, external_post_id, published_at, status, calendar_id)
+                                        VALUES (?,?,?,?,?,?,?,?,?)`,
+                                    [uuidv4(), cal.project, cal.platform, cal.content_text, cal.image_url, result.external_post_id || null, new Date().toISOString(), result.mock ? 'published (mock)' : 'scheduled', id]);
+                            }
+                        } catch (e) { /* leave the row as approved */ }
+                    }
+                }
+            }
+            db.run("UPDATE planner_plans SET status = 'approved' WHERE id = ?", [req.params.id]);
+            saveDb();
+            logAudit(req, 'planner.approve', `plan ${req.params.id}: ${socialCreated} social, ${newslettersCreated} newsletters`);
+            res.json({ success: true, socialCreated, newslettersCreated, scheduled, mock });
+        } catch (e) { console.error('[planner] approve', e.message); res.status(500).json({ error: e.message }); }
+    });
+
     // ========== OUTBOX (batch approval + send drainer surface) ==========
     // The drainer (in the app.listen block below) sends scheduled_emails rows whose
     // status='scheduled' and scheduled_for is due, through the sendEmail() mock boundary.
@@ -23115,6 +23803,13 @@ app.get('*', (req, res) => {
             try { generateTeamDigest(); } catch (e) { /* skip */ }
         }, 24 * 60 * 60 * 1000);
         console.log('[Nag] Daily scan active (24h)');
+
+        // MONTHLY AUTO-DIGEST (engine 1) — in-process daily check. On the 1st (idempotent per month via
+        // the drip_log marker) it assembles a pr_newsletters DRAFT from the last 30 days of real content
+        // and drops a "Monthly digest ready" Action Center item. NEVER auto-sends.
+        try { maybeGenerateMonthlyDigestDaily(); } catch (e) { /* skip */ }
+        setInterval(() => { try { maybeGenerateMonthlyDigestDaily(); } catch (e) {} }, 24 * 60 * 60 * 1000);
+        console.log('[Digest] Monthly auto-digest daily check active');
     });
 }
 
