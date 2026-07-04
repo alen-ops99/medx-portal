@@ -2619,7 +2619,7 @@ function promoConfIds(eventType) {
 
 // Resolve a usable promo for (eventType, code) or null. Validates active / expiry / max_uses.
 // Server-trusted: discounts are always re-derived here, never taken from the client.
-function lookupPromo(eventType, code) {
+function lookupPromo(eventType, code, ctx) {
     if (!code || typeof code !== 'string') return null;
     const c = code.trim();
     if (!c) return null;
@@ -2634,6 +2634,20 @@ function lookupPromo(eventType, code) {
     if (!promo) return null;
     if (promo.valid_until && new Date(promo.valid_until) < new Date()) return null;
     if (promo.max_uses > 0 && promo.used_count >= promo.max_uses) return null;
+    // Rewards redemption coupons are member-bound and basket-gated. bound_user_id / min_purchase are
+    // NULL on ordinary admin coupons, which therefore skip both checks unchanged. A bound coupon only
+    // resolves for its owner (matched by the checkout user id, else the checkout email) and only once
+    // the pre-discount basket meets the minimum — otherwise it fails closed and never discounts.
+    if (promo.bound_user_id) {
+        let ok = false;
+        if (ctx && ctx.userId && ctx.userId === promo.bound_user_id) ok = true;
+        if (!ok && ctx && ctx.email) {
+            const em = String(ctx.email).trim().toLowerCase();
+            try { const owner = query.get('SELECT email FROM users WHERE id = ?', [promo.bound_user_id]); if (owner && owner.email && owner.email.trim().toLowerCase() === em) ok = true; } catch(e) {}
+        }
+        if (!ok) return null;
+    }
+    if (promo.min_purchase != null && ctx && typeof ctx.price === 'number' && ctx.price < promo.min_purchase) return null;
     return promo;
 }
 
@@ -2644,6 +2658,118 @@ function promoDiscount(promo, price) {
         ? (Number(promo.discount_value) || 0)
         : Math.round(price * (Number(promo.discount_value) || 0) / 100 * 100) / 100;
     return Math.max(0, Math.min(price, d));
+}
+
+// ===== Rewards economy (server-authoritative points ledger) =====
+// Points live ONLY as immutable +/- rows in points_ledger. A member's balance is SUM(delta) and
+// lifetime-earned is the sum of the positive rows — there is no mutable balance a client could set.
+// Every award is idempotent on (reason, ref_id) so the same registration/check-in/verification can
+// never credit twice. NEVER call awardPoints from a request whose points the client controls.
+function rewardsSetting(key, fallback) {
+    try {
+        const row = query.get('SELECT value FROM rewards_settings WHERE key = ?', [key]);
+        if (row && row.value != null && row.value !== '') return row.value;
+    } catch (e) {}
+    return fallback;
+}
+function rewardsSettingNum(key, fallback) {
+    const v = Number(rewardsSetting(key, fallback));
+    return Number.isFinite(v) ? v : fallback;
+}
+// Redeem tiers as [{points, euros}] sorted ascending. Admin-editable via rewards_settings.redeem_tiers.
+function rewardsRedeemTiers() {
+    let tiers = null;
+    try { const raw = rewardsSetting('redeem_tiers', ''); tiers = raw ? JSON.parse(raw) : null; } catch (e) { tiers = null; }
+    if (!Array.isArray(tiers) || !tiers.length) tiers = [{ points: 500, euros: 5 }, { points: 1000, euros: 12 }, { points: 2000, euros: 30 }];
+    return tiers
+        .map(t => ({ points: Math.round(Number(t.points) || 0), euros: Math.round((Number(t.euros) || 0) * 100) / 100 }))
+        .filter(t => t.points > 0 && t.euros > 0)
+        .sort((a, b) => a.points - b.points);
+}
+function rewardsBalance(userId) {
+    try { return query.get('SELECT COALESCE(SUM(delta),0) AS n FROM points_ledger WHERE user_id = ?', [userId])?.n || 0; } catch (e) { return 0; }
+}
+function rewardsLifetime(userId) {
+    try { return query.get('SELECT COALESCE(SUM(delta),0) AS n FROM points_ledger WHERE user_id = ? AND delta > 0', [userId])?.n || 0; } catch (e) { return 0; }
+}
+// Idempotent server-only award. Returns true when a new ledger row was written, false on a duplicate
+// (same reason+ref_id) or invalid input. Callers own the surrounding saveDb() (awardPoints does not).
+function awardPoints(userId, delta, reason, refId, note) {
+    if (!userId) return false;
+    const d = Math.round(Number(delta));
+    if (!Number.isFinite(d) || d === 0) return false;
+    try {
+        if (refId != null) {
+            const dupe = query.get('SELECT id FROM points_ledger WHERE user_id = ? AND reason = ? AND ref_id = ?', [userId, reason, String(refId)]);
+            if (dupe) return false;
+        }
+        db.run("INSERT INTO points_ledger (id, user_id, delta, reason, ref_id, note, created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
+            [uuidv4(), userId, d, reason, refId != null ? String(refId) : null, note || null]);
+        return true;
+    } catch (e) { console.error('[Rewards] awardPoints failed:', e.message); return false; }
+}
+// Backfill a member's earned points from the source-of-truth registration tables: earn_rate points per
+// EUR on every PAID registration and a flat bonus per event they were checked into. Idempotent per
+// registration row (ref_id = table:id), so it is safe to call on every read AND from the payment
+// webhook. Guest rows with no owning account are skipped upstream — only ever call with a resolved id.
+function syncMemberEarnedPoints(userId, email) {
+    if (!userId) return;
+    const rate = rewardsSettingNum('earn_rate', 1);
+    const checkin = rewardsSettingNum('earn_checkin', 100);
+    const em = email ? String(email).trim() : '';
+    try {
+        const plex = query.all("SELECT id, amount_paid, payment_status, checked_in FROM registrations WHERE user_id = ?", [userId]);
+        for (const r of plex) {
+            if (r.payment_status === 'paid' && Number(r.amount_paid) > 0) awardPoints(userId, Math.floor(Number(r.amount_paid)) * rate, 'payment', 'reg:' + r.id, 'Plexus registration');
+            if (r.checked_in) awardPoints(userId, checkin, 'checkin', 'reg:' + r.id, 'Plexus check-in');
+        }
+        if (em) {
+            const gala = query.all("SELECT id, amount_paid, payment_status, checked_in FROM gala_registrations WHERE email = ?", [em]);
+            for (const r of gala) {
+                if (r.payment_status === 'paid' && Number(r.amount_paid) > 0) awardPoints(userId, Math.floor(Number(r.amount_paid)) * rate, 'payment', 'gala:' + r.id, 'Gala registration');
+                if (r.checked_in) awardPoints(userId, checkin, 'checkin', 'gala:' + r.id, 'Gala check-in');
+            }
+            const forum = query.all("SELECT id, payment_amount, payment_status, checked_in FROM forum_event_registrations WHERE email = ?", [em]);
+            for (const r of forum) {
+                if (r.payment_status === 'paid' && Number(r.payment_amount) > 0) awardPoints(userId, Math.floor(Number(r.payment_amount)) * rate, 'payment', 'forum:' + r.id, 'Forum registration');
+                if (r.checked_in) awardPoints(userId, checkin, 'checkin', 'forum:' + r.id, 'Forum check-in');
+            }
+            const bridges = query.all("SELECT id, amount_paid, payment_status, checked_in FROM bridges_registrations WHERE email = ?", [em]);
+            for (const r of bridges) {
+                if (r.payment_status === 'paid' && Number(r.amount_paid) > 0) awardPoints(userId, Math.floor(Number(r.amount_paid)) * rate, 'payment', 'bridges:' + r.id, 'Bridges registration');
+                if (r.checked_in) awardPoints(userId, checkin, 'checkin', 'bridges:' + r.id, 'Bridges check-in');
+            }
+        }
+        saveDb();
+    } catch (e) { console.error('[Rewards] syncMemberEarnedPoints failed:', e.message); }
+}
+// Build the member-facing rewards summary: reconcile pending earns, then report the ledger-derived
+// balance + lifetime, the recent ledger page, the redeem tiers, and the member's coupons (with their
+// live status reflected from the minted promo row + expiry, so no cron is needed to age them).
+function rewardsSummaryFor(userId, email) {
+    syncMemberEarnedPoints(userId, email);
+    const balance = rewardsBalance(userId);
+    const lifetime = rewardsLifetime(userId);
+    let ledger = [];
+    let redemptions = [];
+    try { ledger = query.all('SELECT id, delta, reason, ref_id, note, created_at FROM points_ledger WHERE user_id = ? ORDER BY datetime(created_at) DESC, rowid DESC LIMIT 100', [userId]); } catch (e) {}
+    try { redemptions = query.all("SELECT id, points_spent, coupon_code, coupon_value_eur, status, created_at, expires_at FROM reward_redemptions WHERE user_id = ? ORDER BY datetime(created_at) DESC", [userId]); } catch (e) {}
+    const now = Date.now();
+    for (const rd of redemptions) {
+        if (rd.status !== 'active') continue;
+        let used = false;
+        try { const pc = query.get('SELECT used_count FROM promo_codes WHERE UPPER(code) = UPPER(?)', [rd.coupon_code]); if (pc && Number(pc.used_count) > 0) used = true; } catch (e) {}
+        const expired = rd.expires_at && new Date(rd.expires_at).getTime() < now;
+        rd.status = used ? 'used' : (expired ? 'expired' : 'active');
+    }
+    return {
+        balance,
+        lifetime_points: lifetime,
+        tiers: rewardsRedeemTiers(),
+        min_purchase: rewardsSettingNum('redeem_min_purchase', 50),
+        ledger,
+        redemptions
+    };
 }
 
 // ===== Custom questions =====
@@ -5765,6 +5891,11 @@ async function initializeApp() {
     // Event-scoped coupons: promo_codes historically scoped by conference_id; add event_type so a
     // single admin coupon UI can target any event and checkout can look it up by event_type.
     try { db.run('ALTER TABLE promo_codes ADD COLUMN event_type TEXT'); } catch(e) {}
+    // Rewards redemption coupons: member-bound + minimum-basket. NULL on ordinary admin coupons so
+    // the checkout rail is unchanged for them; lookupPromo enforces both only when set. Guarded +
+    // OUTSIDE the mirror (columns, not shared CREATE TABLE). Mirrored in the admin portal too.
+    try { db.run('ALTER TABLE promo_codes ADD COLUMN bound_user_id TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE promo_codes ADD COLUMN min_purchase REAL'); } catch(e) {}
     // Denormalize onto every registration table so the scanner + Sheets can read, from the
     // registration row alone, exactly what a person applied for (components/items), their answers,
     // and which link they came through — without a reverse lookup that breaks if the link is deleted.
@@ -6092,6 +6223,43 @@ async function initializeApp() {
         expires_at TEXT,
         used_at TEXT
     )`);
+
+    // ===== Rewards economy — server-authoritative points ledger (menu: Rewards) =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod). Points are NEVER a
+    // mutable balance a client can set: a member's balance is SUM(delta) over points_ledger and
+    // lifetime-earned is the sum of the positive rows. Every earn is idempotent on (reason, ref_id),
+    // so the same payment, check-in, email-verification or profile-completion can only credit once.
+    // reason is one of payment|checkin|profile|verify|admin_adjust|redeem; redeem writes a negative delta.
+    db.run(`CREATE TABLE IF NOT EXISTS points_ledger (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        delta INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        ref_id TEXT,
+        note TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // One row per points-to-coupon redemption. The coupon itself is minted into promo_codes (the same
+    // table the checkout rail already reads); this table is the member-facing record of what was spent
+    // and when the coupon expires. status is one of active|used|expired|cancelled.
+    db.run(`CREATE TABLE IF NOT EXISTS reward_redemptions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        points_spent INTEGER NOT NULL,
+        coupon_code TEXT NOT NULL,
+        coupon_value_eur REAL NOT NULL,
+        status TEXT DEFAULT 'active',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        expires_at TEXT
+    )`);
+
+    // Admin-adjustable economy knobs (earn rate, per-event earn amounts, redeem tiers as JSON, minimum
+    // basket, coupon lifetime). Read by both portals; written by the admin rewards-settings endpoint.
+    db.run(`CREATE TABLE IF NOT EXISTS rewards_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )`);
     // ====================== SCHEMA-MIRROR:END ======================
 
     // Audience scope for member announcements (additive, guarded — deliberately OUTSIDE the mirror
@@ -6125,6 +6293,24 @@ async function initializeApp() {
         icon TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+
+    // Rewards ledger lookups: balance is SUM(delta) per user, and every earn dedupes on (reason, ref_id).
+    db.run(`CREATE INDEX IF NOT EXISTS idx_points_ledger_user ON points_ledger(user_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_points_ledger_dedupe ON points_ledger(user_id, reason, ref_id)`);
+
+    // Seed rewards economy defaults (idempotent per key — admin edits are never overwritten on reboot).
+    const rewardsSettingSeeds = [
+        ['earn_rate', '1'],
+        ['earn_profile', '50'],
+        ['earn_verify', '25'],
+        ['earn_checkin', '100'],
+        ['redeem_min_purchase', '50'],
+        ['redeem_expiry_months', '12'],
+        ['redeem_tiers', JSON.stringify([{ points: 500, euros: 5 }, { points: 1000, euros: 12 }, { points: 2000, euros: 30 }])]
+    ];
+    for (const [k, v] of rewardsSettingSeeds) {
+        db.run('INSERT OR IGNORE INTO rewards_settings (key, value) VALUES (?,?)', [k, v]);
+    }
 
     // === Performance indexes ===
     db.run(`CREATE INDEX IF NOT EXISTS idx_registrations_user ON registrations(user_id)`);
@@ -6798,6 +6984,7 @@ async function initializeApp() {
                 return res.redirect('/?verified=already');
             }
             db.run('UPDATE users SET email_verified = 1, verification_token = NULL WHERE id = ?', [user.id]);
+            awardPoints(user.id, rewardsSettingNum('earn_verify', 25), 'verify', 'email:' + user.id, 'Email verified');
             saveDb();
             console.log(`[Auth] Email verified for user ${user.email}`);
             res.redirect('/?verified=true');
@@ -6909,6 +7096,7 @@ async function initializeApp() {
                 if (!legacy) return res.redirect('/?verified=invalid');
                 if (legacy.email_verified) return res.redirect('/?verified=already');
                 db.run('UPDATE users SET email_verified = 1, verification_token = NULL WHERE id = ?', [legacy.id]);
+                awardPoints(legacy.id, rewardsSettingNum('earn_verify', 25), 'verify', 'email:' + legacy.id, 'Email verified');
                 saveDb();
                 return res.redirect('/?verified=true');
             }
@@ -6920,6 +7108,7 @@ async function initializeApp() {
             if (!user) return res.redirect('/?verified=invalid');
             db.run('UPDATE email_verifications SET used_at = ? WHERE id = ?', [new Date().toISOString(), row.id]);
             db.run('UPDATE users SET email_verified = 1, verification_token = NULL WHERE id = ?', [user.id]);
+            awardPoints(user.id, rewardsSettingNum('earn_verify', 25), 'verify', 'email:' + user.id, 'Email verified');
             saveDb();
             console.log(`[Auth] Email confirmed for ${row.email || user.id}`);
             return res.redirect('/?verified=true');
@@ -7077,6 +7266,11 @@ async function submitReset(e){
         const { first_name, last_name, phone, institution, country, bio, is_public_profile } = req.body;
         db.run(`UPDATE users SET first_name=?, last_name=?, phone=?, institution=?, country=?, bio=?, is_public_profile=? WHERE id=?`,
             [first_name || null, last_name || null, phone || null, institution || null, country || null, bio || null, is_public_profile ? 1 : 0, req.user.id]);
+        // Profile-completion earn: award once when the core profile fields are all filled in.
+        // Idempotent per user (ref profile:<id>), so later profile edits never re-award.
+        if (first_name && last_name && institution && country) {
+            awardPoints(req.user.id, rewardsSettingNum('earn_profile', 50), 'profile', 'profile:' + req.user.id, 'Profile completed');
+        }
         saveDb();
         res.json({ success: true });
     });
@@ -13739,47 +13933,14 @@ By applying to this program, I provide the following consents:
                 return res.json({ received: true });
             }
 
-            // ===== POINTS PURCHASE PAYMENT =====
-            if (metadata.type === 'points-purchase' && metadata.userId && metadata.points) {
-                const userId = metadata.userId;
-                const points = parseInt(metadata.points);
-
-                let rewards = query.get('SELECT * FROM member_rewards WHERE user_id = ?', [userId]);
-                if (!rewards) {
-                    db.run(`INSERT INTO member_rewards (id, user_id) VALUES (?,?)`, [uuidv4(), userId]);
-                    rewards = query.get('SELECT * FROM member_rewards WHERE user_id = ?', [userId]);
-                }
-
-                const newTotal = (rewards.total_points_earned || 0) + points;
-                const newBalance = (rewards.points_balance || 0) + points;
-                const newTier = newTotal >= 15000 ? 'platinum' : newTotal >= 10000 ? 'gold' : newTotal >= 3000 ? 'silver' : 'bronze';
-
-                db.run(`UPDATE member_rewards SET total_points_earned=?, points_balance=?, tier=?, updated_at=datetime('now') WHERE user_id=?`,
-                    [newTotal, newBalance, newTier, userId]);
-                db.run(`INSERT INTO rewards_history (id, user_id, points, type, reason, icon) VALUES (?,?,?,?,?,?)`,
-                    [uuidv4(), userId, points, 'earned', `Purchased ${points} points`, 'fa-shopping-cart']);
-
-                // Create FIRA invoice if configured
-                try {
-                    if (firaService.isConfigured()) {
-                        const billingStr = session.metadata?.billing || '{}';
-                        const billing = JSON.parse(billingStr);
-                        await firaService.createFiscalInvoice({
-                            invoiceNumber: `PTS-${Date.now()}`,
-                            ticketName: metadata.packageId === 'pts-5000' ? '5,000 Reward Points' : metadata.packageId === 'pts-1000' ? '1,000 Reward Points' : '500 Reward Points',
-                            ticketPrice: session.amount_total / 100,
-                            addons: [],
-                            billing: billing,
-                            invoiceType: 'FISKALNI_RAČUN',
-                            paymentType: 'KARTICA'
-                        });
-                    }
-                } catch(e) { console.log('[FIRA] Points invoice failed:', e.message); }
-
-                saveDb();
-                console.log(`[Rewards] ${points} points credited to user ${userId}`);
-
-                return res.json({ received: true });
+            // ===== POINTS PURCHASE PAYMENT — RETIRED =====
+            // Buying points for cash is permanently disabled (POST /api/rewards/purchase-checkout is
+            // 410). Points are earned only on verified real events. This branch is neutered: it credits
+            // NOTHING and mints no PTS- invoice, so any stale/replayed points-purchase session is a
+            // harmless no-op. Do not restore — reintroducing it makes points buyable again.
+            if (metadata.type === 'points-purchase') {
+                console.warn('[Rewards] Ignoring retired points-purchase webhook (buying points is disabled) — session', session.id);
+                return res.json({ received: true, ignored: 'points-purchase-retired' });
             }
 
             // ===== CROATIANS ABROAD — Gala payment confirmation =====
@@ -14001,6 +14162,13 @@ By applying to this program, I provide the following consents:
                     if (metadata.promo_id && !alreadyPaid) {
                         try { db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ? AND (max_uses IS NULL OR used_count < max_uses)', [metadata.promo_id]); } catch(e) {}
                     }
+                    // Loyalty points: award for this now-paid registration (and pick up any check-in
+                    // already recorded). Server-authoritative + idempotent per registration id, so a
+                    // duplicate webhook can never double-credit. Guests without an account are skipped.
+                    try {
+                        const payUser = query.get('SELECT id, email FROM users WHERE email = ?', [invEmail]);
+                        if (payUser) syncMemberEarnedPoints(payUser.id, payUser.email);
+                    } catch (e) { console.error('[Rewards] invite payment award failed:', e.message); }
                     saveDb();
                     flushDb(); // durability: paid registration is final — push to Turso immediately
 
@@ -18996,148 +19164,77 @@ By applying to this program, I provide the following consents:
         }
     });
 
-    // Get user rewards
+    // Get user rewards — server-authoritative, read-only. Balance + lifetime are derived from the
+    // points_ledger (SUM of deltas); this endpoint mints NOTHING. Kept for backward compatibility.
+    // New UI should prefer GET /api/rewards/summary (same payload).
     app.get('/api/rewards', auth, (req, res) => {
         try {
-            let rewards = query.get('SELECT * FROM member_rewards WHERE user_id = ?', [req.user.id]);
-            if (!rewards) {
-                // Create default
-                const id = uuidv4();
-                db.run(`INSERT INTO member_rewards (id, user_id, total_points_earned, points_balance, tier, referral_code) VALUES (?,?,100,100,'bronze',?)`,
-                    [id, req.user.id, 'MX-' + Math.random().toString(36).substring(2, 8).toUpperCase()]);
-                saveDb();
-                rewards = query.get('SELECT * FROM member_rewards WHERE user_id = ?', [req.user.id]);
-            }
-            const history = query.all('SELECT * FROM rewards_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 50', [req.user.id]);
-            res.json({ ...rewards, history });
+            const me = query.get('SELECT id, email FROM users WHERE id = ?', [req.user.id]);
+            res.json(rewardsSummaryFor(req.user.id, me?.email));
         } catch (error) {
+            console.error('[Rewards] load failed:', error.message);
             res.status(500).json({ error: 'Failed to load rewards' });
         }
     });
 
-    // Sync rewards from localStorage (one-time migration)
-    app.put('/api/rewards/sync', auth, (req, res) => {
+    // Canonical rewards summary: balance, lifetime points, recent ledger, redeem tiers, active coupons.
+    app.get('/api/rewards/summary', auth, (req, res) => {
         try {
-            const { totalPointsEarned, pointsBalance, pointsRedeemed, tier, referralCode, referrals } = req.body;
-            const existing = query.get('SELECT * FROM member_rewards WHERE user_id = ?', [req.user.id]);
-            if (existing) {
-                // Only update if client has more points (avoid overwriting with stale data)
-                if (totalPointsEarned > existing.total_points_earned) {
-                    db.run(`UPDATE member_rewards SET total_points_earned=?, points_balance=?, points_redeemed=?, tier=?, referrals=?, updated_at=datetime('now') WHERE user_id=?`,
-                        [totalPointsEarned, pointsBalance, pointsRedeemed || 0, tier || 'bronze', referrals || 0, req.user.id]);
-                }
-            } else {
-                db.run(`INSERT INTO member_rewards (id, user_id, total_points_earned, points_balance, points_redeemed, tier, referral_code, referrals) VALUES (?,?,?,?,?,?,?,?)`,
-                    [uuidv4(), req.user.id, totalPointsEarned || 100, pointsBalance || 100, pointsRedeemed || 0, tier || 'bronze', referralCode || '', referrals || 0]);
-            }
-            saveDb();
-            res.json({ success: true });
+            const me = query.get('SELECT id, email FROM users WHERE id = ?', [req.user.id]);
+            res.json(rewardsSummaryFor(req.user.id, me?.email));
         } catch (error) {
-            res.status(500).json({ error: 'Failed to sync rewards' });
+            console.error('[Rewards] summary failed:', error.message);
+            res.status(500).json({ error: 'Failed to load rewards summary' });
         }
     });
 
-    // Earn points
-    app.post('/api/rewards/earn', auth, (req, res) => {
-        try {
-            const { points, reason, icon } = req.body;
-            if (!points || points <= 0) return res.status(400).json({ error: 'Invalid points' });
+    // SECURITY: the legacy client-writable points paths are permanently closed. Points are earned only
+    // server-side on verified real events (payment, check-in, verification, profile completion) and can
+    // only leave the balance through the coupon-minting redeem below. 410 Gone, plain JSON.
+    const rewardsGone = (req, res) => res.status(410).json({ error: 'This rewards endpoint has been retired. Points are earned automatically on verified activity and cannot be set by the client.' });
+    app.put('/api/rewards/sync', auth, rewardsGone);
+    app.post('/api/rewards/earn', auth, rewardsGone);
+    app.post('/api/rewards/purchase-checkout', auth, rewardsGone);
 
-            let rewards = query.get('SELECT * FROM member_rewards WHERE user_id = ?', [req.user.id]);
-            if (!rewards) {
-                db.run(`INSERT INTO member_rewards (id, user_id) VALUES (?,?)`, [uuidv4(), req.user.id]);
-                rewards = query.get('SELECT * FROM member_rewards WHERE user_id = ?', [req.user.id]);
-            }
-
-            const newTotal = (rewards.total_points_earned || 0) + points;
-            const newBalance = (rewards.points_balance || 0) + points;
-            const newTier = newTotal >= 15000 ? 'platinum' : newTotal >= 10000 ? 'gold' : newTotal >= 3000 ? 'silver' : 'bronze';
-
-            db.run(`UPDATE member_rewards SET total_points_earned=?, points_balance=?, tier=?, updated_at=datetime('now') WHERE user_id=?`,
-                [newTotal, newBalance, newTier, req.user.id]);
-            db.run(`INSERT INTO rewards_history (id, user_id, points, type, reason, icon) VALUES (?,?,?,?,?,?)`,
-                [uuidv4(), req.user.id, points, 'earned', reason || 'Activity', icon || 'fa-plus-circle']);
-            saveDb();
-            res.json({ success: true, totalPoints: newTotal, balance: newBalance, tier: newTier });
-        } catch (error) {
-            res.status(500).json({ error: 'Failed to earn points' });
-        }
-    });
-
-    // Redeem points
+    // Redeem points for a one-time, member-bound coupon minted into the SAME promo_codes table the
+    // checkout rail already reads (FORUM26 fixed-EUR pattern). The member pastes the returned code into
+    // the existing checkout coupon field — redemption never touches calculateTotal or the Stripe payload.
     app.post('/api/rewards/redeem', auth, (req, res) => {
         try {
-            const { points, reason } = req.body;
-            if (!points || points <= 0) return res.status(400).json({ error: 'Invalid points' });
+            const tierPoints = Math.round(Number(req.body.tier != null ? req.body.tier : req.body.points));
+            if (!tierPoints || tierPoints <= 0) return res.status(400).json({ error: 'Invalid redemption tier' });
+            const tier = rewardsRedeemTiers().find(t => t.points === tierPoints);
+            if (!tier) return res.status(400).json({ error: 'Unknown redemption tier' });
 
-            const rewards = query.get('SELECT * FROM member_rewards WHERE user_id = ?', [req.user.id]);
-            if (!rewards || rewards.points_balance < points) return res.status(400).json({ error: 'Insufficient points' });
+            const me = query.get('SELECT id, email FROM users WHERE id = ?', [req.user.id]);
+            // Reconcile pending earns first so the balance check is against the current ledger.
+            syncMemberEarnedPoints(req.user.id, me?.email);
+            const balance = rewardsBalance(req.user.id);
+            if (balance < tier.points) return res.status(400).json({ error: 'Insufficient points', balance, needed: tier.points });
 
-            const newBalance = rewards.points_balance - points;
-            const newRedeemed = (rewards.points_redeemed || 0) + points;
+            // Mint a fixed-EUR, single-use, member-bound coupon. conference_id = the active conference id
+            // so lookupPromo resolves it for ANY event type (promoConfIds always lists that id first).
+            const code = 'MEDX-' + Array.from({ length: 8 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
+            const conf = getActiveConference();
+            const confId = conf && conf.id ? conf.id : 'gala';
+            const minPurchase = rewardsSettingNum('redeem_min_purchase', 50);
+            const months = rewardsSettingNum('redeem_expiry_months', 12);
+            const expires = new Date(); expires.setMonth(expires.getMonth() + months);
+            const promoId = uuidv4();
+            const redemptionId = uuidv4();
 
-            db.run(`UPDATE member_rewards SET points_balance=?, points_redeemed=?, updated_at=datetime('now') WHERE user_id=?`,
-                [newBalance, newRedeemed, req.user.id]);
-            db.run(`INSERT INTO rewards_history (id, user_id, points, type, reason) VALUES (?,?,?,?,?)`,
-                [uuidv4(), req.user.id, -points, 'redeemed', reason || 'Redemption']);
+            db.run("INSERT INTO promo_codes (id, conference_id, event_type, code, discount_type, discount_value, max_uses, used_count, valid_until, is_active, bound_user_id, min_purchase) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                [promoId, confId, null, code, 'fixed', tier.euros, 1, 0, expires.toISOString(), 1, req.user.id, minPurchase]);
+            db.run("INSERT INTO reward_redemptions (id, user_id, points_spent, coupon_code, coupon_value_eur, status, created_at, expires_at) VALUES (?,?,?,?,?,?,datetime('now'),?)",
+                [redemptionId, req.user.id, tier.points, code, tier.euros, 'active', expires.toISOString()]);
+            db.run("INSERT INTO points_ledger (id, user_id, delta, reason, ref_id, note, created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
+                [uuidv4(), req.user.id, -tier.points, 'redeem', redemptionId, `Redeemed ${tier.points} pts for a EUR ${tier.euros} coupon (${code})`]);
             saveDb();
-            res.json({ success: true, balance: newBalance });
+
+            res.json({ success: true, coupon_code: code, coupon_value_eur: tier.euros, points_spent: tier.points, min_purchase: minPurchase, expires_at: expires.toISOString(), balance: rewardsBalance(req.user.id) });
         } catch (error) {
+            console.error('[Rewards] redeem failed:', error.message);
             res.status(500).json({ error: 'Failed to redeem points' });
-        }
-    });
-
-    // Purchase points via Stripe
-    app.post('/api/rewards/purchase-checkout', auth, async (req, res) => {
-        try {
-            if (!stripe) return res.status(400).json({ error: 'Card payments not configured' });
-            const { packageId, points: customPoints, price: customPrice } = req.body;
-
-            const packages = {
-                'pts-500': { points: 500, price: 700, name: '500 Reward Points' },
-                'pts-1000': { points: 1000, price: 1500, name: '1,000 Reward Points' },
-                'pts-5000': { points: 5000, price: 6000, name: '5,000 Reward Points (15% bonus)' }
-            };
-
-            let pkg;
-            if (packageId === 'custom' && customPoints && customPrice) {
-                // Custom amount: validate price matches (€0.014/point in cents)
-                const expectedPrice = Math.round(customPoints * 1.4);
-                pkg = { points: customPoints, price: expectedPrice, name: `${customPoints.toLocaleString()} Reward Points` };
-            } else {
-                pkg = packages[packageId];
-            }
-            if (!pkg) return res.status(400).json({ error: 'Invalid package' });
-
-            const user = query.get('SELECT email FROM users WHERE id = ?', [req.user.id]);
-            const baseUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-
-            const session = await stripe.checkout.sessions.create({
-                mode: 'payment',
-                payment_method_types: ['card'],
-                line_items: [{
-                    price_data: {
-                        currency: 'eur',
-                        product_data: { name: pkg.name, description: 'Med&X Loyalty Reward Points' },
-                        unit_amount: pkg.price
-                    },
-                    quantity: 1
-                }],
-                metadata: {
-                    type: 'points-purchase',
-                    userId: req.user.id,
-                    packageId: packageId,
-                    points: pkg.points.toString()
-                },
-                customer_email: user?.email,
-                success_url: `${baseUrl}/?payment=success&type=points&pkg=${packageId}`,
-                cancel_url: `${baseUrl}/?payment=cancelled&type=points`
-            });
-
-            res.json({ sessionId: session.id, url: session.url });
-        } catch (error) {
-            console.error('Points purchase checkout error:', error);
-            res.status(500).json({ error: 'Failed to create checkout' });
         }
     });
 
@@ -20498,7 +20595,10 @@ By applying to this program, I provide the following consents:
         try {
             const { code, event_type } = req.body;
             if (!code) return res.json({ valid: false, error: 'No code provided' });
-            const promo = lookupPromo(event_type, code);
+            // Pass the checkout email + basket so member-bound rewards coupons validate for their owner
+            // (and fail the minimum-basket check up front). Ordinary admin coupons ignore both.
+            const ctxPrice = Number(req.body.amount != null ? req.body.amount : req.body.price);
+            const promo = lookupPromo(event_type, code, { email: req.body.email, price: Number.isFinite(ctxPrice) ? ctxPrice : undefined });
             if (!promo) return res.json({ valid: false, error: 'Invalid or expired code' });
             res.json({ valid: true, discount_type: promo.discount_type, discount_value: promo.discount_value });
         } catch(e) { res.json({ valid: false, error: 'Validation error' }); }
@@ -20735,7 +20835,7 @@ By applying to this program, I provide the following consents:
             const galaBase = effectiveGalaPrice();                                   // per-person Gala price
             const guests = Math.max(0, Math.min(2, parseInt(req.body.guest_count, 10) || 0)); // +guests, max 2
             const subtotal = Math.round(galaBase * (1 + guests) * 100) / 100;
-            const galaPromo = lookupPromo('gala', req.body.coupon || req.body.coupon_code || '');
+            const galaPromo = lookupPromo('gala', req.body.coupon || req.body.coupon_code || '', { email, price: subtotal });
             const galaDiscount = galaPromo ? promoDiscount(galaPromo, subtotal) : 0;
             const galaPrice = Math.max(0, Math.round((subtotal - galaDiscount) * 100) / 100);
             const galaAllergies = (req.body.allergies || '').toString().slice(0, 200);
@@ -21082,7 +21182,9 @@ By applying to this program, I provide the following consents:
             // paid), never here, so abandoned checkouts don't burn a use.
             let appliedPromoId = '';
             if (coupon_code) {
-                const promo = lookupPromo(event_type, coupon_code);
+                // ctx = { email, price } so member-bound rewards coupons only apply for their owner and
+                // only above the minimum basket. price here is the pre-discount total (server-derived).
+                const promo = lookupPromo(event_type, coupon_code, { email, price });
                 if (promo) {
                     discountAmount = promoDiscount(promo, price);
                     price = Math.max(0, price - discountAmount);

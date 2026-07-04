@@ -11012,6 +11012,7 @@ President, Med&amp;X</textarea>
                         <button class="btn btn-primary" id="moTabHome" onclick="MemberOpsApp.showTab('home')" style="font-size: 13px; flex-shrink: 0;"><i class="fas fa-home"></i> Home screen</button>
                         <button class="btn btn-secondary" id="moTabSites" onclick="MemberOpsApp.showTab('sites')" style="font-size: 13px; flex-shrink: 0;"><i class="fas fa-flask"></i> Accelerator sites</button>
                         <button class="btn btn-secondary" id="moTabTasks" onclick="MemberOpsApp.showTab('tasks')" style="font-size: 13px; flex-shrink: 0;"><i class="fas fa-check-square"></i> Tasks</button>
+                        <button class="btn btn-secondary" id="moTabRewards" onclick="MemberOpsApp.showTab('rewards')" style="font-size: 13px; flex-shrink: 0;"><i class="fas fa-gem"></i> Rewards</button>
                     </div>
 
                     <!-- HOME SCREEN PANEL -->
@@ -11043,6 +11044,15 @@ President, Med&amp;X</textarea>
                             <p style="color: var(--text-muted); font-size: 13px; margin: 4px 0 0;">A simple to-do list per project. Tick a box when it is done. Overdue dates show in red.</p>
                         </div>
                         <div id="moTasksGroups"><div style="padding: 22px; color: var(--text-muted);">Loading…</div></div>
+                    </div>
+
+                    <!-- REWARDS PANEL -->
+                    <div id="moRewardsPanel" style="display:none;">
+                        <div style="margin-bottom: 16px;">
+                            <div style="font-size: 18px; font-weight: 700;">Rewards</div>
+                            <p style="color: var(--text-muted); font-size: 13px; margin: 4px 0 0;">Members earn points on real, paid activity and redeem them for a one-time ticket coupon. Points are granted only by the member portal — never minted here. Use this panel to watch the economy, tune the earn rate and tiers, and look up a member.</p>
+                        </div>
+                        <div id="moRewardsBody"><div style="padding: 22px; color: var(--text-muted);">Loading…</div></div>
                     </div>
                 </div>
 
@@ -33285,12 +33295,259 @@ By applying to this program, I give the following consents:
             },
             showTab(t) {
                 this.tab = t;
-                const map = { home: 'moHomePanel', sites: 'moSitesPanel', tasks: 'moTasksPanel' };
+                const map = { home: 'moHomePanel', sites: 'moSitesPanel', tasks: 'moTasksPanel', rewards: 'moRewardsPanel' };
                 Object.entries(map).forEach(([k, id]) => { const el = document.getElementById(id); if (el) el.style.display = (k === t) ? '' : 'none'; });
-                [['home', 'moTabHome'], ['sites', 'moTabSites'], ['tasks', 'moTabTasks']].forEach(([k, id]) => {
+                [['home', 'moTabHome'], ['sites', 'moTabSites'], ['tasks', 'moTabTasks'], ['rewards', 'moTabRewards']].forEach(([k, id]) => {
                     const b = document.getElementById(id);
                     if (b) { b.className = 'btn ' + (k === t ? 'btn-primary' : 'btn-secondary'); b.style.fontSize = '13px'; b.style.flexShrink = '0'; }
                 });
+                if (t === 'rewards') this.loadRewards();
+            },
+
+            // ---------- REWARDS (economy overview, settings, member lookup) ----------
+            _rw: { overview: null, member: null, results: [] },
+            _rwNum(n) { return (Number(n) || 0).toLocaleString('en-US'); },
+            _rwEur(n) { return 'EUR ' + (Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }); },
+            _rwDate(s) { if (!s) return ''; const d = new Date(String(s).replace(' ', 'T') + (String(s).includes('T') || String(s).includes('Z') ? '' : 'Z')); return isNaN(d) ? opsEsc(s) : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); },
+            _rwStatusBadge(status) {
+                const s = String(status || 'active').toLowerCase();
+                const map = { active: ['#166534', '#dcfce7', 'Active'], used: ['#6b6258', '#f0ece5', 'Used'], expired: ['#9b1b22', '#fbe9ea', 'Expired'] };
+                const [fg, bg, label] = map[s] || map.active;
+                return `<span style="display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;color:${fg};background:${bg};">${label}</span>`;
+            },
+            _rwReasonLabel(reason) {
+                const m = { payment: 'Payment', checkin: 'Event check-in', profile: 'Profile completed', verify: 'Email verified', redeem: 'Redeemed coupon', admin_adjust: 'Manual adjustment' };
+                return m[reason] || opsEsc(reason || '—');
+            },
+
+            // First paint builds the whole panel. Every later refresh touches ONLY the
+            // overview-driven parts (the stat cards + the recent-redemptions table) so an open
+            // member lookup or member detail is never wiped out from under the admin.
+            async loadRewards(full) {
+                const host = document.getElementById('moRewardsBody'); if (!host) return;
+                const r = await opsApi('/api/admin/rewards/overview');
+                if (!r.ok) { if (!document.getElementById('rwOverviewCards')) host.innerHTML = `<div class="card" style="padding:22px;color:#9b1b22;">Could not load the rewards overview. ${opsEsc((r.d && r.d.error) || '')}</div>`; return; }
+                this._rw.overview = r.d;
+                if (full || !document.getElementById('rwOverviewCards')) this.renderRewards();
+                else this.applyOverview();
+            },
+
+            _cardsHtml() {
+                const t = (this._rw.overview && this._rw.overview.totals) || {};
+                return [
+                    ['Points issued', this._rwNum(t.points_earned), 'All positive points ever granted'],
+                    ['Outstanding balance', this._rwNum(t.points_outstanding), 'Points members hold right now'],
+                    ['Redemptions', this._rwNum(t.redemptions) + ' · ' + this._rwEur(t.coupon_value_eur), 'Coupons minted and their face value'],
+                    ['Active codes', this._rwNum(t.active_codes), 'Reward coupons still live']
+                ].map(([label, val, sub]) => `
+                    <div class="stat-item" style="flex:1;min-width:170px;">
+                        <div class="stat-value" style="font-size:24px;">${val}</div>
+                        <div class="stat-label" style="font-weight:600;color:var(--text-secondary);margin-top:2px;">${label}</div>
+                        <div class="stat-label" style="margin-top:3px;">${sub}</div>
+                    </div>`).join('');
+            },
+
+            _redemptionsHtml() {
+                const redRows = (this._rw.overview && this._rw.overview.recent_redemptions) || [];
+                return redRows.length ? `
+                    <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                        <thead><tr style="text-align:left;color:var(--text-muted);border-bottom:1px solid var(--border);">
+                            <th style="padding:9px 10px;font-weight:600;">Code</th><th style="padding:9px 10px;font-weight:600;">Member</th><th style="padding:9px 10px;font-weight:600;">Value</th><th style="padding:9px 10px;font-weight:600;">Points</th><th style="padding:9px 10px;font-weight:600;">Issued</th><th style="padding:9px 10px;font-weight:600;">Status</th>
+                        </tr></thead>
+                        <tbody>${redRows.map(rr => `<tr style="border-bottom:1px solid var(--border);">
+                            <td style="padding:9px 10px;font-family:monospace;font-weight:600;">${opsEsc(rr.coupon_code)}</td>
+                            <td style="padding:9px 10px;">${opsEsc(rr.email || (((rr.first_name || '') + ' ' + (rr.last_name || '')).trim()) || '—')}</td>
+                            <td style="padding:9px 10px;">${this._rwEur(rr.coupon_value_eur)}</td>
+                            <td style="padding:9px 10px;">${this._rwNum(rr.points_spent)}</td>
+                            <td style="padding:9px 10px;color:var(--text-muted);">${this._rwDate(rr.created_at)}</td>
+                            <td style="padding:9px 10px;">${this._rwStatusBadge(rr.status)}</td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>` : `<div style="padding:18px;color:var(--text-muted);font-size:13px;">No redemptions yet.</div>`;
+            },
+
+            applyOverview() {
+                const c = document.getElementById('rwOverviewCards'); if (c) c.innerHTML = this._cardsHtml();
+                const rb = document.getElementById('rwRedemptionsBlock'); if (rb) rb.innerHTML = this._redemptionsHtml();
+            },
+
+            renderRewards() {
+                const host = document.getElementById('moRewardsBody'); if (!host) return;
+                const ov = this._rw.overview || {}; const s = ov.settings || {};
+                const tiers = Array.isArray(s.redeem_tiers) && s.redeem_tiers.length ? s.redeem_tiers : [{ points: 500, euros: 5 }, { points: 1000, euros: 12 }, { points: 2000, euros: 30 }];
+
+                const tierRows = tiers.map((tr, i) => `
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;" data-rw-tier="${i}">
+                        <span style="font-size:12px;color:var(--text-muted);width:52px;flex-shrink:0;">Tier ${i + 1}</span>
+                        <div style="flex:1;">
+                            <input id="rwTierPoints${i}" type="number" min="1" value="${Number(tr.points) || 0}" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;">
+                        </div>
+                        <span style="font-size:12px;color:var(--text-muted);flex-shrink:0;">points →</span>
+                        <div style="flex:1;">
+                            <input id="rwTierEur${i}" type="number" min="0" step="0.5" value="${Number(tr.euros) || 0}" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;">
+                        </div>
+                        <span style="font-size:12px;color:var(--text-muted);flex-shrink:0;">EUR coupon</span>
+                    </div>`).join('');
+
+                const field = (id, label, val, hint, step) => `
+                    <div>
+                        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">${label}</label>
+                        <input id="${id}" type="number" min="0" ${step ? 'step="' + step + '"' : ''} value="${Number(val) || 0}" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;">
+                        ${hint ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${hint}</div>` : ''}
+                    </div>`;
+
+                host.innerHTML = `
+                    <div id="rwOverviewCards" class="stats-row" style="gap:14px;flex-wrap:wrap;margin-bottom:24px;">${this._cardsHtml()}</div>
+
+                    <div class="card" style="padding:22px;margin-bottom:20px;">
+                        <div style="font-size:16px;font-weight:700;margin-bottom:4px;">Economy settings</div>
+                        <p style="color:var(--text-muted);font-size:12px;margin:0 0 18px;">Changes apply to future earning only. Points already in a member's ledger and coupons already issued are never altered.</p>
+                        <div style="font-size:13px;font-weight:700;color:var(--text-secondary);margin-bottom:10px;">How members earn</div>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px;">
+                            ${field('rwEarnRate', 'Points per EUR paid', s.earn_rate, 'A EUR 150 ticket earns this × 150', '0.1')}
+                            ${field('rwEarnCheckin', 'Event check-in', s.earn_checkin, 'Granted once per event attended')}
+                            ${field('rwEarnProfile', 'Profile completed', s.earn_profile, 'Name, institution and country filled in')}
+                            ${field('rwEarnVerify', 'Email verified', s.earn_verify, 'Granted once on verification')}
+                        </div>
+                        <div style="font-size:13px;font-weight:700;color:var(--text-secondary);margin-bottom:10px;">How members redeem</div>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:16px;">
+                            ${field('rwMinPurchase', 'Minimum basket (EUR)', s.redeem_min_purchase, 'A reward coupon needs a basket at least this large')}
+                            ${field('rwExpiryMonths', 'Coupon validity (months)', s.redeem_expiry_months, 'How long a minted coupon stays usable')}
+                        </div>
+                        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;">Redeem tiers</div>
+                        ${tierRows}
+                        <div style="margin-top:16px;">
+                            <button class="btn btn-primary" onclick="MemberOpsApp.saveRewardsSettings()"><i class="fas fa-save"></i> Save settings</button>
+                        </div>
+                    </div>
+
+                    <div class="card" style="padding:22px;margin-bottom:20px;">
+                        <div style="font-size:16px;font-weight:700;margin-bottom:4px;">Look up a member</div>
+                        <p style="color:var(--text-muted);font-size:12px;margin:0 0 14px;">Search a portal account by name or email to see their balance and ledger, or post an audited manual adjustment.</p>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+                            <input id="rwSearchInput" placeholder="Name or email…" onkeydown="if(event.key==='Enter')MemberOpsApp.rwSearch()" style="flex:1;min-width:220px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;">
+                            <button class="btn btn-secondary" onclick="MemberOpsApp.rwSearch()"><i class="fas fa-search"></i> Search</button>
+                        </div>
+                        <div id="rwSearchResults"></div>
+                        <div id="rwMemberDetail"></div>
+                    </div>
+
+                    <div class="card" style="padding:22px;">
+                        <div style="font-size:16px;font-weight:700;margin-bottom:14px;">Recent redemptions</div>
+                        <div id="rwRedemptionsBlock">${this._redemptionsHtml()}</div>
+                    </div>`;
+            },
+
+            async saveRewardsSettings() {
+                const num = (id) => { const el = document.getElementById(id); return el ? Number(el.value) : undefined; };
+                const tiers = [];
+                document.querySelectorAll('[data-rw-tier]').forEach(row => {
+                    const i = row.getAttribute('data-rw-tier');
+                    const p = Number(document.getElementById('rwTierPoints' + i)?.value);
+                    const e = Number(document.getElementById('rwTierEur' + i)?.value);
+                    if (p > 0 && e > 0) tiers.push({ points: p, euros: e });
+                });
+                const payload = {
+                    earn_rate: num('rwEarnRate'), earn_checkin: num('rwEarnCheckin'),
+                    earn_profile: num('rwEarnProfile'), earn_verify: num('rwEarnVerify'),
+                    redeem_min_purchase: num('rwMinPurchase'), redeem_expiry_months: num('rwExpiryMonths'),
+                    redeem_tiers: tiers
+                };
+                const r = await opsApi('/api/admin/rewards/settings', { method: 'PUT', body: JSON.stringify(payload) });
+                if (r.ok) { Toast.success('Settings saved — applies to future earning'); if (this._rw.overview) this._rw.overview.settings = r.d.settings; this.loadRewards(true); }
+                else { Toast.error((r.d && r.d.error) || 'Could not save settings'); }
+            },
+
+            async rwSearch() {
+                const q = (document.getElementById('rwSearchInput')?.value || '').trim();
+                const box = document.getElementById('rwSearchResults'); if (!box) return;
+                if (q.length < 2) { box.innerHTML = `<div style="font-size:12px;color:var(--text-muted);">Type at least two characters.</div>`; return; }
+                box.innerHTML = `<div style="font-size:12px;color:var(--text-muted);">Searching…</div>`;
+                const r = await opsApi('/api/admin/search?q=' + encodeURIComponent(q));
+                const users = ((r.d && r.d.results) || []).filter(x => x.type === 'user');
+                if (!users.length) { box.innerHTML = `<div style="font-size:12px;color:var(--text-muted);">No portal accounts match that search.</div>`; return; }
+                box.innerHTML = users.map(u => `
+                    <div onclick="MemberOpsApp.rwPickMember('${opsEsc(u.id)}')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;">
+                        <i class="fas fa-user-circle" style="color:#c9a962;"></i>
+                        <div style="flex:1;min-width:0;"><div style="font-weight:600;">${opsEsc(u.name || u.email)}</div><div style="font-size:12px;color:var(--text-muted);">${opsEsc(u.email || '')}</div></div>
+                        <i class="fas fa-chevron-right" style="color:var(--text-muted);font-size:12px;"></i>
+                    </div>`).join('');
+            },
+
+            async rwPickMember(userId) {
+                const box = document.getElementById('rwMemberDetail'); if (!box) return;
+                box.innerHTML = `<div style="padding:14px;color:var(--text-muted);font-size:13px;">Loading member…</div>`;
+                const r = await opsApi('/api/admin/rewards/member/' + encodeURIComponent(userId));
+                if (!r.ok) { box.innerHTML = `<div style="padding:14px;color:#9b1b22;font-size:13px;">${opsEsc((r.d && r.d.error) || 'Could not load member')}</div>`; return; }
+                this._rw.member = r.d;
+                this.renderMemberDetail();
+            },
+
+            renderMemberDetail() {
+                const box = document.getElementById('rwMemberDetail'); if (!box) return;
+                const m = this._rw.member; if (!m) { box.innerHTML = ''; return; }
+                const u = m.user || {};
+                const name = ((u.first_name || '') + ' ' + (u.last_name || '')).trim() || u.email || 'Member';
+                const ledger = (m.ledger || []).slice(0, 12).map(l => `
+                    <tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:7px 10px;color:var(--text-muted);">${this._rwDate(l.created_at)}</td>
+                        <td style="padding:7px 10px;">${this._rwReasonLabel(l.reason)}${l.note ? `<div style="font-size:11px;color:var(--text-muted);">${opsEsc(l.note)}</div>` : ''}</td>
+                        <td style="padding:7px 10px;text-align:right;font-weight:700;color:${l.delta >= 0 ? '#166534' : '#9b1b22'};">${l.delta >= 0 ? '+' : ''}${this._rwNum(l.delta)}</td>
+                    </tr>`).join('');
+                const coupons = (m.redemptions || []).map(rr => `
+                    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
+                        <span style="font-family:monospace;font-weight:600;">${opsEsc(rr.coupon_code)}</span>
+                        <span style="color:var(--text-muted);">${this._rwEur(rr.coupon_value_eur)} · ${this._rwNum(rr.points_spent)} pts</span>
+                        <span style="margin-left:auto;">${this._rwStatusBadge(rr.status)}</span>
+                    </div>`).join('') || `<div style="font-size:12px;color:var(--text-muted);padding:6px 0;">No coupons redeemed.</div>`;
+
+                box.innerHTML = `
+                    <div style="border:1px solid var(--border);border-radius:10px;padding:18px;margin-top:14px;">
+                        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px;">
+                            <div>
+                                <div style="font-weight:700;font-size:15px;">${opsEsc(name)}</div>
+                                <div style="font-size:12px;color:var(--text-muted);">${opsEsc(u.email || '')}</div>
+                            </div>
+                            <div class="stat-item" style="margin-left:auto;min-width:120px;">
+                                <div class="stat-value" style="font-size:22px;">${this._rwNum(m.balance)}</div>
+                                <div class="stat-label">Current balance</div>
+                            </div>
+                            <div class="stat-item" style="min-width:120px;">
+                                <div class="stat-value" style="font-size:22px;">${this._rwNum(m.lifetime_points)}</div>
+                                <div class="stat-label">Lifetime points</div>
+                            </div>
+                        </div>
+
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;">
+                            <div>
+                                <div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:8px;">Recent ledger</div>
+                                ${ledger ? `<table style="width:100%;border-collapse:collapse;font-size:13px;"><tbody>${ledger}</tbody></table>` : `<div style="font-size:12px;color:var(--text-muted);">No ledger entries yet.</div>`}
+                            </div>
+                            <div>
+                                <div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:8px;">Coupons</div>
+                                ${coupons}
+                                <div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin:18px 0 8px;">Manual adjustment</div>
+                                <p style="font-size:11px;color:var(--text-muted);margin:0 0 8px;">Writes an audited ledger entry. A negative delta cannot drive the balance below zero.</p>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                                    <input id="rwAdjDelta" type="number" placeholder="+ / − points" style="width:120px;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;">
+                                    <input id="rwAdjNote" placeholder="Reason (shown in audit)" style="flex:1;min-width:160px;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;">
+                                </div>
+                                <button class="btn btn-primary" onclick="MemberOpsApp.rwAdjust()"><i class="fas fa-pen"></i> Apply adjustment</button>
+                            </div>
+                        </div>
+                    </div>`;
+            },
+
+            async rwAdjust() {
+                const m = this._rw.member; if (!m || !m.user) return;
+                const delta = Math.round(Number(document.getElementById('rwAdjDelta')?.value));
+                const note = (document.getElementById('rwAdjNote')?.value || '').trim();
+                if (!Number.isFinite(delta) || delta === 0) { Toast.error('Enter a non-zero whole number of points.'); return; }
+                const name = ((m.user.first_name || '') + ' ' + (m.user.last_name || '')).trim() || m.user.email;
+                if (!confirm(`Apply ${delta > 0 ? '+' : ''}${delta} points to ${name}? This writes an audited ledger entry.`)) return;
+                const r = await opsApi('/api/admin/rewards/adjust', { method: 'POST', body: JSON.stringify({ user_id: m.user.id, delta, note }) });
+                if (r.ok) { Toast.success(`Adjusted — new balance ${this._rwNum(r.d.balance)}`); await this.rwPickMember(m.user.id); this.loadRewards(); }
+                else { Toast.error((r.d && r.d.error) || 'Could not apply adjustment'); }
             },
 
             // ---------- HOME SCREEN EDITOR (item 1) ----------

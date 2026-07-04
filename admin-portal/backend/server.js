@@ -602,6 +602,13 @@ async function initializeApp() {
     try { db.run('CREATE INDEX IF NOT EXISTS idx_custom_fields_event ON event_custom_fields(event_type, scope, is_active)'); } catch(e) {}
     try { db.run('CREATE INDEX IF NOT EXISTS idx_custom_fields_link ON event_custom_fields(link_token)'); } catch(e) {}
     try { db.run('ALTER TABLE promo_codes ADD COLUMN event_type TEXT'); } catch(e) {}
+    // Rewards redemption coupons: member-bound + minimum-basket. NULL on ordinary admin coupons so the
+    // checkout rail is unchanged for them (enforcement lives in the user portal's lookupPromo). Guarded
+    // + OUTSIDE the mirror (columns, not shared CREATE TABLE). Mirrored in the user portal too.
+    try { db.run('ALTER TABLE promo_codes ADD COLUMN bound_user_id TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE promo_codes ADD COLUMN min_purchase REAL'); } catch(e) {}
+    // NOTE: rewards_settings is created in the SCHEMA-MIRROR block further down, so its defaults are
+    // seeded AFTER that block (search "Seed rewards economy defaults"), not here.
     // NOTE: the custom_answers/applied_for/reg_link_token ALTERs on the registration tables run
     // LATER (after those tables are created — gala/forum/bridges/CA are defined further down).
 
@@ -1756,6 +1763,43 @@ async function initializeApp() {
         expires_at TEXT,
         used_at TEXT
     )`);
+
+    // ===== Rewards economy — server-authoritative points ledger (menu: Rewards) =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod). Points are NEVER a
+    // mutable balance a client can set: a member's balance is SUM(delta) over points_ledger and
+    // lifetime-earned is the sum of the positive rows. Every earn is idempotent on (reason, ref_id),
+    // so the same payment, check-in, email-verification or profile-completion can only credit once.
+    // reason is one of payment|checkin|profile|verify|admin_adjust|redeem; redeem writes a negative delta.
+    db.run(`CREATE TABLE IF NOT EXISTS points_ledger (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        delta INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        ref_id TEXT,
+        note TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // One row per points-to-coupon redemption. The coupon itself is minted into promo_codes (the same
+    // table the checkout rail already reads); this table is the member-facing record of what was spent
+    // and when the coupon expires. status is one of active|used|expired|cancelled.
+    db.run(`CREATE TABLE IF NOT EXISTS reward_redemptions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        points_spent INTEGER NOT NULL,
+        coupon_code TEXT NOT NULL,
+        coupon_value_eur REAL NOT NULL,
+        status TEXT DEFAULT 'active',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        expires_at TEXT
+    )`);
+
+    // Admin-adjustable economy knobs (earn rate, per-event earn amounts, redeem tiers as JSON, minimum
+    // basket, coupon lifetime). Read by both portals; written by the admin rewards-settings endpoint.
+    db.run(`CREATE TABLE IF NOT EXISTS rewards_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )`);
     // ====================== SCHEMA-MIRROR:END ======================
 
     // Audience scope for member announcements (additive, guarded — deliberately OUTSIDE the mirror
@@ -1765,6 +1809,22 @@ async function initializeApp() {
     // written by the admin composer always carry an explicit scope. Both portals run this idempotent
     // ALTER so whichever boots first adds the column to the shared DB.
     try { db.run('ALTER TABLE member_announcements ADD COLUMN audience_scope TEXT'); } catch (e) {}
+
+    // Seed rewards economy defaults (idempotent per key — admin edits are never overwritten on reboot).
+    // Both portals seed this so whichever boots first populates the shared Turso DB; locally the admin
+    // portal seeds its own copy for the rewards-settings + adjust screens. Runs AFTER the mirror block
+    // that creates rewards_settings.
+    for (const [k, v] of [
+        ['earn_rate', '1'],
+        ['earn_profile', '50'],
+        ['earn_verify', '25'],
+        ['earn_checkin', '100'],
+        ['redeem_min_purchase', '50'],
+        ['redeem_expiry_months', '12'],
+        ['redeem_tiers', JSON.stringify([{ points: 500, euros: 5 }, { points: 1000, euros: 12 }, { points: 2000, euros: 30 }])]
+    ]) {
+        try { db.run('INSERT OR IGNORE INTO rewards_settings (key, value) VALUES (?,?)', [k, v]); } catch(e) {}
+    }
 
     // ===== Seed project hub status (admin-owned, member reads /api/project-status) =====
     // Idempotent per project_key. Same canonical values seeded by the user portal — in prod
@@ -18868,6 +18928,171 @@ By applying to this program, I provide the following consents:
             const limit = Math.min(parseInt(req.query.limit) || 100, 500);
             res.json(query.all('SELECT actor_email, action, detail, created_at FROM audit_log ORDER BY created_at DESC LIMIT ?', [limit]));
         } catch (e) { res.json([]); }
+    });
+
+    // ==================== REWARDS ADMIN (economy overview, settings, manual adjust) ====================
+    // Points are an immutable ledger (points_ledger): balance is SUM(delta), never a mutable column.
+    // The admin can see the economy, tune earn/redeem knobs, and post an audited manual adjustment —
+    // but can never client-mint into a member's balance except through this logged adjust endpoint.
+    const rewardsSettingRaw = (key, fallback) => {
+        try { const row = query.get('SELECT value FROM rewards_settings WHERE key = ?', [key]); if (row && row.value != null && row.value !== '') return row.value; } catch (e) {}
+        return fallback;
+    };
+    const rewardsSettingNumA = (key, fallback) => { const v = Number(rewardsSettingRaw(key, fallback)); return Number.isFinite(v) ? v : fallback; };
+    const rewardsTiersA = () => {
+        let tiers = null;
+        try { const raw = rewardsSettingRaw('redeem_tiers', ''); tiers = raw ? JSON.parse(raw) : null; } catch (e) { tiers = null; }
+        if (!Array.isArray(tiers) || !tiers.length) tiers = [{ points: 500, euros: 5 }, { points: 1000, euros: 12 }, { points: 2000, euros: 30 }];
+        return tiers.map(t => ({ points: Math.round(Number(t.points) || 0), euros: Math.round((Number(t.euros) || 0) * 100) / 100 })).filter(t => t.points > 0 && t.euros > 0).sort((a, b) => a.points - b.points);
+    };
+    // Reflect a redemption's live status from the minted coupon's used_count + expiry, so codes
+    // age to used/expired without a cron. Mirrors the member portal's rewardsSummaryFor logic.
+    const rewardsReflectStatus = (rows) => {
+        const now = Date.now();
+        for (const rd of rows || []) {
+            if (rd.status && rd.status !== 'active') continue;
+            let used = false;
+            try { const pc = query.get('SELECT used_count FROM promo_codes WHERE UPPER(code) = UPPER(?)', [rd.coupon_code]); if (pc && Number(pc.used_count) > 0) used = true; } catch (e) {}
+            const expired = rd.expires_at && new Date(rd.expires_at).getTime() < now;
+            rd.status = used ? 'used' : (expired ? 'expired' : 'active');
+        }
+        return rows;
+    };
+
+    app.get('/api/admin/rewards/overview', auth, adminOnly, (req, res) => {
+        try {
+            const totals = query.get(`SELECT
+                COALESCE(SUM(CASE WHEN delta > 0 THEN delta ELSE 0 END),0) AS points_earned,
+                COALESCE(SUM(CASE WHEN delta < 0 THEN -delta ELSE 0 END),0) AS points_spent,
+                COALESCE(SUM(delta),0) AS points_outstanding,
+                COUNT(DISTINCT user_id) AS members
+                FROM points_ledger`) || {};
+            const redemptionsAgg = query.get("SELECT COUNT(*) AS n, COALESCE(SUM(coupon_value_eur),0) AS eur FROM reward_redemptions") || {};
+            // Active codes = member-bound reward coupons that are still live (not spent, not expired).
+            let activeCodes = 0;
+            try {
+                activeCodes = query.get(`SELECT COUNT(*) AS n FROM promo_codes
+                    WHERE bound_user_id IS NOT NULL AND is_active = 1
+                      AND (max_uses IS NULL OR COALESCE(used_count,0) < max_uses)
+                      AND (valid_until IS NULL OR datetime(valid_until) >= datetime('now'))`)?.n || 0;
+            } catch (e) {}
+            const recentRedemptions = query.all(`SELECT rr.id, rr.user_id, u.email, u.first_name, u.last_name, rr.points_spent, rr.coupon_code, rr.coupon_value_eur, rr.status, rr.created_at, rr.expires_at
+                FROM reward_redemptions rr LEFT JOIN users u ON u.id = rr.user_id
+                ORDER BY datetime(rr.created_at) DESC LIMIT 50`);
+            rewardsReflectStatus(recentRedemptions);
+            const recentLedger = query.all(`SELECT pl.id, pl.user_id, u.email, pl.delta, pl.reason, pl.ref_id, pl.note, pl.created_at
+                FROM points_ledger pl LEFT JOIN users u ON u.id = pl.user_id
+                ORDER BY datetime(pl.created_at) DESC, pl.rowid DESC LIMIT 50`);
+            res.json({
+                totals: {
+                    points_earned: totals.points_earned || 0,
+                    points_spent: totals.points_spent || 0,
+                    points_outstanding: totals.points_outstanding || 0,
+                    members_with_points: totals.members || 0,
+                    redemptions: redemptionsAgg.n || 0,
+                    coupon_value_eur: redemptionsAgg.eur || 0,
+                    active_codes: activeCodes
+                },
+                settings: {
+                    earn_rate: rewardsSettingNumA('earn_rate', 1),
+                    earn_profile: rewardsSettingNumA('earn_profile', 50),
+                    earn_verify: rewardsSettingNumA('earn_verify', 25),
+                    earn_checkin: rewardsSettingNumA('earn_checkin', 100),
+                    redeem_min_purchase: rewardsSettingNumA('redeem_min_purchase', 50),
+                    redeem_expiry_months: rewardsSettingNumA('redeem_expiry_months', 12),
+                    redeem_tiers: rewardsTiersA()
+                },
+                recent_redemptions: recentRedemptions,
+                recent_ledger: recentLedger
+            });
+        } catch (e) {
+            console.error('[Rewards][admin] overview failed:', e.message);
+            res.status(500).json({ error: 'Failed to load rewards overview' });
+        }
+    });
+
+    app.put('/api/admin/rewards/settings', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const setNum = (key, val, min, max) => {
+                if (val == null || val === '') return;
+                let n = Number(val);
+                if (!Number.isFinite(n)) return;
+                n = Math.max(min, Math.min(max, n));
+                db.run('INSERT OR REPLACE INTO rewards_settings (key, value) VALUES (?,?)', [key, String(n)]);
+            };
+            setNum('earn_rate', b.earn_rate, 0, 1000);
+            setNum('earn_profile', b.earn_profile, 0, 100000);
+            setNum('earn_verify', b.earn_verify, 0, 100000);
+            setNum('earn_checkin', b.earn_checkin, 0, 100000);
+            setNum('redeem_min_purchase', b.redeem_min_purchase, 0, 100000);
+            setNum('redeem_expiry_months', b.redeem_expiry_months, 1, 120);
+            if (Array.isArray(b.redeem_tiers)) {
+                const tiers = b.redeem_tiers
+                    .map(t => ({ points: Math.round(Number(t.points) || 0), euros: Math.round((Number(t.euros) || 0) * 100) / 100 }))
+                    .filter(t => t.points > 0 && t.euros > 0)
+                    .sort((a, x) => a.points - x.points);
+                if (tiers.length) db.run('INSERT OR REPLACE INTO rewards_settings (key, value) VALUES (?,?)', ['redeem_tiers', JSON.stringify(tiers)]);
+            }
+            saveDb();
+            logAudit(req, 'rewards.settings.update', JSON.stringify(b).slice(0, 300));
+            res.json({ success: true, settings: {
+                earn_rate: rewardsSettingNumA('earn_rate', 1),
+                earn_profile: rewardsSettingNumA('earn_profile', 50),
+                earn_verify: rewardsSettingNumA('earn_verify', 25),
+                earn_checkin: rewardsSettingNumA('earn_checkin', 100),
+                redeem_min_purchase: rewardsSettingNumA('redeem_min_purchase', 50),
+                redeem_expiry_months: rewardsSettingNumA('redeem_expiry_months', 12),
+                redeem_tiers: rewardsTiersA()
+            }});
+        } catch (e) {
+            console.error('[Rewards][admin] settings update failed:', e.message);
+            res.status(500).json({ error: 'Failed to update rewards settings' });
+        }
+    });
+
+    app.post('/api/admin/rewards/adjust', auth, adminOnly, (req, res) => {
+        try {
+            const { user_id, delta, note } = req.body || {};
+            const d = Math.round(Number(delta));
+            if (!user_id || !Number.isFinite(d) || d === 0) return res.status(400).json({ error: 'user_id and a non-zero integer delta are required' });
+            const target = query.get('SELECT id, email FROM users WHERE id = ?', [user_id]);
+            if (!target) return res.status(404).json({ error: 'User not found' });
+            // A manual adjustment can never drive a member's balance negative.
+            const balance = query.get('SELECT COALESCE(SUM(delta),0) AS n FROM points_ledger WHERE user_id = ?', [user_id])?.n || 0;
+            if (balance + d < 0) return res.status(400).json({ error: 'Adjustment would drive the balance negative', balance });
+            db.run("INSERT INTO points_ledger (id, user_id, delta, reason, ref_id, note, created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
+                [uuidv4(), user_id, d, 'admin_adjust', 'admin:' + (req.user?.id || 'unknown') + ':' + Date.now(), (note ? String(note).slice(0, 300) : `Manual adjustment by ${req.user?.email || 'admin'}`)]);
+            saveDb();
+            logAudit(req, 'rewards.adjust', `${target.email} ${d > 0 ? '+' : ''}${d} pts${note ? ' — ' + String(note).slice(0, 120) : ''}`);
+            const newBalance = query.get('SELECT COALESCE(SUM(delta),0) AS n FROM points_ledger WHERE user_id = ?', [user_id])?.n || 0;
+            res.json({ success: true, user_id, delta: d, balance: newBalance });
+        } catch (e) {
+            console.error('[Rewards][admin] adjust failed:', e.message);
+            res.status(500).json({ error: 'Failed to adjust points' });
+        }
+    });
+
+    // Per-member rewards lookup (read-only): the ledger-derived balance + lifetime, the recent
+    // ledger, and the member's coupons with their live status. Points are earned server-side in
+    // the member portal, so admin reads the shared ledger as the source of truth (no minting here).
+    app.get('/api/admin/rewards/member/:userId', auth, adminOnly, (req, res) => {
+        try {
+            const userId = req.params.userId;
+            const user = query.get('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [userId]);
+            if (!user) return res.status(404).json({ error: 'User not found' });
+            const balance = query.get('SELECT COALESCE(SUM(delta),0) AS n FROM points_ledger WHERE user_id = ?', [userId])?.n || 0;
+            const lifetime = query.get('SELECT COALESCE(SUM(delta),0) AS n FROM points_ledger WHERE user_id = ? AND delta > 0', [userId])?.n || 0;
+            let ledger = [];
+            let redemptions = [];
+            try { ledger = query.all('SELECT id, delta, reason, ref_id, note, created_at FROM points_ledger WHERE user_id = ? ORDER BY datetime(created_at) DESC, rowid DESC LIMIT 100', [userId]); } catch (e) {}
+            try { redemptions = query.all('SELECT id, points_spent, coupon_code, coupon_value_eur, status, created_at, expires_at FROM reward_redemptions WHERE user_id = ? ORDER BY datetime(created_at) DESC', [userId]); } catch (e) {}
+            rewardsReflectStatus(redemptions);
+            res.json({ user, balance, lifetime_points: lifetime, ledger, redemptions });
+        } catch (e) {
+            console.error('[Rewards][admin] member lookup failed:', e.message);
+            res.status(500).json({ error: 'Failed to load member rewards' });
+        }
     });
 
     // ==================== TEAM ACCESS (super-admin only) ====================

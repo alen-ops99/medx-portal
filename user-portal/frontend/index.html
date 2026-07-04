@@ -58162,6 +58162,7 @@ button,input,select,textarea{font-family:var(--sans);}
               </div>
               <div class="up-tb-menu-list">
                 <button class="up-tb-menu-item" role="menuitem" onclick="UserPortal.showSection('mymedx');UserPortal.closeAccountMenu();"><i class="fas fa-id-badge"></i> My Med&amp;X</button>
+                <button class="up-tb-menu-item" role="menuitem" onclick="UserPortal.showSection('rewards');UserPortal.closeAccountMenu();"><i class="fas fa-gift"></i> Rewards <span id="upAcctRewardsChip" style="margin-left:auto;font-size:12px;font-weight:600;color:var(--crimson);background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:2px 9px;">0</span></button>
                 <button class="up-tb-menu-item" role="menuitem" onclick="UserPortal.showSection('settings');UserPortal.closeAccountMenu();"><i class="fas fa-user-edit"></i> Edit profile</button>
                 <button class="up-tb-menu-item" role="menuitem" onclick="UserPortal.showSection('settings');UserPortal.closeAccountMenu();"><i class="fas fa-cog"></i> Settings</button>
                 <button class="up-tb-menu-item" role="menuitem" onclick="UserPortal.closeAccountMenu();if(typeof NotificationSystem!=='undefined'&amp;&amp;NotificationSystem.toggle){NotificationSystem.toggle();}else{UserPortal.toggleNotifications();}"><i class="fas fa-bell"></i> Notifications</button>
@@ -60386,6 +60387,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                                     <input type="text" id="pxCouponInput" placeholder="MEDX-XXXX-XXXX" maxlength="14" style="flex: 1; padding: 10px 12px; border: 1px solid var(--up-border, #e5e7eb); border-radius: 8px; font-family: monospace; font-size: 14px; background: var(--up-bg, #ffffff); color: var(--up-text, #1d1d1f); text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
                                                     <button onclick="PlexusPortal.applyCouponCode()" style="padding: 10px 16px; background: var(--up-accent, var(--gold)); color: #000; border: none; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; white-space: nowrap;">Apply</button>
                                                 </div>
+                                                <p style="margin: 8px 0 0; font-size: 12px; color: var(--up-text-muted, var(--muted)); line-height: 1.4;">Have a rewards code? Enter it here.</p>
                                                 <div id="pxCouponMessage" style="display: none; margin-top: 8px; font-size: 12px; padding: 6px 10px; border-radius: 6px;"></div>
                                             </div>
 
@@ -67338,216 +67340,124 @@ button,input,select,textarea{font-family:var(--sans);}
             </div>
 
             <!-- Rewards Section -->
+            <!-- ===== Med&X Rewards (premium members-club ledger) ===== -->
+            <style id="rw2-styles">
+                #up-section-rewards .rw2-wrap{max-width:760px;margin:0 auto;padding:20px 16px 64px;}
+                .rw2-hero{text-align:center;padding:34px 24px 30px;background:var(--surface);border:1px solid var(--line);border-radius:20px;margin:8px 0 20px;position:relative;overflow:hidden;}
+                .rw2-hero::before{content:"";position:absolute;inset:0;background:radial-gradient(120% 90% at 50% -10%,rgba(201,169,98,.10),transparent 60%);pointer-events:none;}
+                .rw2-hero-eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:14px;}
+                .rw2-hero-balance{font-family:var(--serif);font-weight:600;font-size:clamp(52px,14vw,76px);line-height:1;color:var(--ink);letter-spacing:-.02em;}
+                .rw2-hero-unit{font-size:13px;color:var(--muted);letter-spacing:.04em;margin-top:8px;}
+                .rw2-hero-lifetime{font-size:13px;color:var(--ink-soft);margin-top:16px;padding-top:16px;border-top:1px solid var(--line);display:inline-block;min-width:min(320px,80%);}
+                .rw2-hero-lifetime strong{font-weight:600;color:var(--ink);}
+                .rw2-card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px 22px 20px;margin-bottom:16px;}
+                .rw2-h{font-family:var(--serif);font-size:19px;font-weight:600;color:var(--ink);margin:0 0 4px;letter-spacing:-.01em;}
+                .rw2-sub{font-size:13px;color:var(--muted);margin:0 0 16px;line-height:1.5;}
+                .rw2-earn{display:flex;flex-direction:column;gap:2px;margin-top:14px;}
+                .rw2-earn-row{display:flex;align-items:center;gap:14px;padding:12px 2px;border-bottom:1px solid var(--line);}
+                .rw2-earn-row:last-child{border-bottom:none;}
+                .rw2-earn-ico{width:34px;height:34px;flex:none;border-radius:10px;display:flex;align-items:center;justify-content:center;background:var(--paper);color:var(--ink-soft);border:1px solid var(--line);font-size:14px;}
+                .rw2-earn-txt{flex:1;min-width:0;}
+                .rw2-earn-txt b{display:block;font-size:14px;font-weight:600;color:var(--ink);}
+                .rw2-earn-txt span{font-size:12px;color:var(--muted);}
+                .rw2-earn-val{font-size:13px;font-weight:600;color:var(--crimson);white-space:nowrap;}
+                .rw2-tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px;}
+                @media(max-width:560px){.rw2-tiers{grid-template-columns:1fr;}}
+                .rw2-tier{border:1px solid var(--line);border-radius:14px;padding:18px 16px;text-align:center;background:var(--paper);display:flex;flex-direction:column;align-items:center;gap:4px;transition:border-color .18s ease,box-shadow .18s ease;}
+                .rw2-tier.best{border-color:var(--crimson);box-shadow:0 6px 20px rgba(155,27,34,.08);}
+                .rw2-tier-euro{font-family:var(--serif);font-size:30px;font-weight:600;color:var(--ink);line-height:1;}
+                .rw2-tier-pts{font-size:12px;color:var(--muted);margin-bottom:12px;letter-spacing:.02em;}
+                .rw2-tier-btn{width:100%;border:none;border-radius:10px;padding:10px 12px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .18s ease,background .18s ease;}
+                .rw2-tier-btn.primary{background:var(--crimson);color:#fff;}
+                .rw2-tier-btn.primary:hover{opacity:.9;}
+                .rw2-tier-btn.ghost{background:transparent;color:var(--ink-soft);border:1px solid var(--line);}
+                .rw2-tier-btn.ghost:hover{border-color:var(--ink-soft);}
+                .rw2-tier-btn.locked{background:var(--paper);color:var(--muted);border:1px solid var(--line);cursor:not-allowed;}
+                .rw2-tier-need{font-size:11px;color:var(--muted);margin-top:8px;min-height:14px;}
+                .rw2-codes{display:flex;flex-direction:column;gap:10px;margin-top:14px;}
+                .rw2-code{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--paper);}
+                .rw2-code-mono{font-family:'SFMono-Regular',ui-monospace,Menlo,monospace;font-size:14px;font-weight:600;letter-spacing:.06em;color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;}
+                .rw2-code-meta{font-size:12px;color:var(--muted);white-space:nowrap;}
+                .rw2-code-status{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;white-space:nowrap;}
+                .rw2-code-status.active{color:#2f6b3a;background:rgba(47,107,58,.10);}
+                .rw2-code-status.used{color:var(--muted);background:var(--surface);border:1px solid var(--line);}
+                .rw2-code-status.expired{color:#a15;background:rgba(155,27,34,.08);}
+                .rw2-code-copy{background:transparent;border:1px solid var(--line);border-radius:8px;width:34px;height:34px;flex:none;cursor:pointer;color:var(--ink-soft);font-size:13px;transition:border-color .18s ease;}
+                .rw2-code-copy:hover{border-color:var(--ink-soft);}
+                .rw2-ledger{display:flex;flex-direction:column;gap:0;margin-top:8px;}
+                .rw2-led-row{display:flex;align-items:center;gap:14px;padding:12px 2px;border-bottom:1px solid var(--line);}
+                .rw2-led-row:last-child{border-bottom:none;}
+                .rw2-led-ico{width:32px;height:32px;flex:none;border-radius:9px;display:flex;align-items:center;justify-content:center;background:var(--paper);border:1px solid var(--line);font-size:12px;color:var(--ink-soft);}
+                .rw2-led-txt{flex:1;min-width:0;}
+                .rw2-led-txt b{display:block;font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+                .rw2-led-txt span{font-size:11.5px;color:var(--muted);}
+                .rw2-led-delta{font-size:14px;font-weight:600;white-space:nowrap;}
+                .rw2-led-delta.pos{color:#2f6b3a;}
+                .rw2-led-delta.neg{color:var(--ink-soft);}
+                .rw2-more{width:100%;margin-top:14px;background:transparent;border:1px solid var(--line);border-radius:10px;padding:11px;font-size:13px;font-weight:600;color:var(--ink-soft);cursor:pointer;font-family:inherit;}
+                .rw2-more:hover{border-color:var(--ink-soft);}
+                .rw2-empty{text-align:center;padding:26px 16px;color:var(--muted);font-size:13px;}
+                .rw2-empty i{display:block;font-size:24px;color:var(--line);margin-bottom:10px;}
+                .rw2-modal{position:fixed;inset:0;z-index:4000;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(21,17,15,.55);backdrop-filter:blur(3px);}
+                .rw2-modal.open{display:flex;}
+                .rw2-modal-card{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:30px 26px 26px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.28);}
+                .rw2-modal-eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:12px;}
+                .rw2-modal-title{font-family:var(--serif);font-size:22px;font-weight:600;color:var(--ink);margin:0 0 8px;letter-spacing:-.01em;}
+                .rw2-modal-text{font-size:14px;color:var(--ink-soft);line-height:1.55;margin:0 0 22px;}
+                .rw2-modal-code{font-family:'SFMono-Regular',ui-monospace,Menlo,monospace;font-size:24px;font-weight:600;letter-spacing:.10em;color:var(--ink);padding:16px;border:1px dashed var(--gold);border-radius:12px;background:var(--paper);margin:0 0 12px;}
+                .rw2-modal-hint{font-size:12px;color:var(--muted);margin:12px 0 22px;line-height:1.5;}
+                .rw2-modal-actions{display:flex;gap:10px;}
+                .rw2-modal-btn{flex:1;border-radius:11px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid var(--line);}
+                .rw2-modal-btn.primary{background:var(--crimson);color:#fff;border-color:var(--crimson);}
+                .rw2-modal-btn.primary:hover{opacity:.92;}
+                .rw2-modal-btn.ghost{background:transparent;color:var(--ink-soft);}
+                .rw2-modal-btn.ghost:hover{border-color:var(--ink-soft);}
+                .rw2-loading{text-align:center;padding:40px 16px;color:var(--muted);font-size:13px;}
+            </style>
             <div class="up-section" id="up-section-rewards">
-                <div class="rewards-container">
-                    <!-- Rewards Header -->
-                    <div class="rewards-header">
-                        <button class="mx-home-crumb inrow" onclick="UserPortal.showSection('dashboard')" title="Back to Home"><i class="fas fa-arrow-left"></i><span>Back to Home</span></button>
-                        <div class="rewards-header-text">
-                            <h1>Med&amp;X Rewards</h1>
-                            <p>Earn points, unlock exclusive benefits</p>
-                        </div>
-                    </div>
+                <div class="rw2-wrap">
+                    <button class="mx-home-crumb inrow" onclick="UserPortal.showSection('dashboard')" title="Back to Home"><i class="fas fa-arrow-left"></i><span>Back to Home</span></button>
 
-                    <!-- Points Value Explainer -->
-                    <div class="rewards-explainer">
-                        <div class="rewards-explainer-item">
-                            <i class="fas fa-coins"></i>
-                            <div>
-                                <strong>100 pts = €1</strong>
-                                <span>Redeem for event credits & more</span>
-                            </div>
-                        </div>
-                        <div class="rewards-explainer-item">
-                            <i class="fas fa-infinity"></i>
-                            <div>
-                                <strong>Points Never Expire</strong>
-                                <span>Keep earning, redeem anytime</span>
-                            </div>
-                        </div>
-                        <div class="rewards-explainer-item">
-                            <i class="fas fa-arrow-up"></i>
-                            <div>
-                                <strong>Higher Tiers = More Points</strong>
-                                <span>Up to 2x points per purchase</span>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- Balance hero -->
+                    <header class="rw2-hero">
+                        <div class="rw2-hero-eyebrow">Med&amp;X Rewards</div>
+                        <div class="rw2-hero-balance" id="rw2Balance">0</div>
+                        <div class="rw2-hero-unit">points available</div>
+                        <div class="rw2-hero-lifetime"><strong id="rw2Lifetime">0</strong> lifetime points earned</div>
+                    </header>
 
-                    <!-- Tier Hero Card -->
-                    <div class="rewards-tier-hero" id="rewardsTierHero">
-                        <div class="rewards-tier-hero-content">
-                            <div class="rewards-tier-label" id="rewardsTierLabel">
-                                <i class="fas fa-crown"></i>
-                                <span id="rewardsTierName">Gold Member</span>
-                            </div>
+                    <!-- How you earn -->
+                    <section class="rw2-card">
+                        <h2 class="rw2-h">How you earn</h2>
+                        <p class="rw2-sub">Points are added automatically. Nothing to claim.</p>
+                        <div class="rw2-earn" id="rw2Earn"></div>
+                    </section>
 
-                            <div class="rewards-points-display">
-                                <span class="rewards-points-value" id="rewardsPointsValue">3,450</span>
-                                <span class="rewards-points-label">points</span>
-                            </div>
+                    <!-- Redeem -->
+                    <section class="rw2-card">
+                        <h2 class="rw2-h">Redeem</h2>
+                        <p class="rw2-sub">Turn points into a one-time coupon code for the ticket checkout. Minimum basket <span id="rw2MinPurchase">&euro;50</span>. One coupon per checkout, valid for 12 months.</p>
+                        <div class="rw2-tiers" id="rw2Tiers"></div>
+                    </section>
 
-                            <div class="rewards-progress-section">
-                                <div class="rewards-progress-header">
-                                    <span class="rewards-progress-text" id="rewardsProgressText">Progress to Platinum</span>
-                                    <span class="rewards-progress-percent" id="rewardsProgressPercent">58%</span>
-                                </div>
-                                <div class="rewards-progress-bar">
-                                    <div class="rewards-progress-fill gold" id="rewardsProgressFill" style="width: 58%"></div>
-                                </div>
-                                <div class="rewards-next-tier" id="rewardsNextTier">
-                                    <strong>2,550</strong> points to Platinum
-                                </div>
-                            </div>
+                    <!-- Your codes -->
+                    <section class="rw2-card">
+                        <h2 class="rw2-h">Your codes</h2>
+                        <div class="rw2-codes" id="rw2Codes"></div>
+                    </section>
 
-                            <div class="rewards-tier-actions">
-                                <button class="rewards-action-btn primary" onclick="RewardsPortal.showRedeemModal()">
-                                    <i class="fas fa-gift"></i> Redeem Points
-                                </button>
-                                <button class="rewards-action-btn secondary" onclick="RewardsPortal.showEarnModal()">
-                                    <i class="fas fa-plus-circle"></i> Earn More Points
-                                </button>
-                                <button onclick="RewardsPortal.showBuyPointsModal()" style="background: var(--crimson); color: #fff; border: none; border-radius: 10px; padding: 10px 20px; font-weight: 600; cursor: pointer; font-size: 14px;">
-                                    <i class="fas fa-shopping-cart"></i> Buy Points
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Virtual Membership Card -->
-                    <div class="membership-card-section">
-                        <h3 class="membership-card-title">
-                            <i class="fas fa-id-card"></i>
-                            Your Membership Card
-                        </h3>
-                        <div class="membership-card-wrapper">
-                            <div class="membership-card" id="membershipCard">
-                                <div class="membership-card-bg"></div>
-                                <div class="membership-card-content">
-                                    <div class="membership-card-header">
-                                        <div class="membership-card-logo"><img src="data:image/webp;base64,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" alt="Med&X" style="height: 28px; filter: brightness(0) invert(1); object-fit: contain;"></div>
-                                        <div class="membership-card-tier-badge" id="memberCardTierBadge">
-                                            <i class="fas fa-crown"></i>
-                                            <span id="memberCardTierName">Gold</span>
-                                        </div>
-                                    </div>
-                                    <div class="membership-card-name" id="memberCardName">Alen Juginovic</div>
-                                    <div class="membership-card-details">
-                                        <div class="membership-card-detail">
-                                            <span class="label">Member Since</span>
-                                            <span class="value" id="memberCardSince">Jan 2026</span>
-                                        </div>
-                                        <div class="membership-card-detail">
-                                            <span class="label">Member ID</span>
-                                            <span class="value" id="memberCardId">MX-2026-0001</span>
-                                        </div>
-                                        <div class="membership-card-detail">
-                                            <span class="label">Points</span>
-                                            <span class="value" id="memberCardPoints">3,450</span>
-                                        </div>
-                                    </div>
-                                    <div class="membership-card-footer">
-                                        <div class="membership-card-qr" id="memberCardQR">
-                                            <i class="fas fa-qrcode"></i>
-                                        </div>
-                                        <div class="membership-card-valid">
-                                            <span>Valid Through</span>
-                                            <strong>Lifetime</strong>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <button class="membership-download-btn" onclick="RewardsPortal.downloadMembershipCard()">
-                            <i class="fas fa-download"></i> Download Card
-                        </button>
-                    </div>
-
-                    <!-- Your Benefits -->
-                    <div class="rewards-benefits-card">
-                        <h3 class="rewards-benefits-title">
-                            <i class="fas fa-star"></i>
-                            Your Benefits as <span id="rewardsBenefitsTier">Gold</span> Member
-                        </h3>
-                        <div class="rewards-benefits-list" id="rewardsBenefitsList">
-                            <!-- Benefits populated by JS -->
-                        </div>
-                    </div>
-
-                    <!-- Tier Comparison -->
-                    <div class="rewards-tiers-grid" id="rewardsTiersGrid">
-                        <!-- Tier cards populated by JS -->
-                    </div>
-
-                    <!-- Recent Activity -->
-                    <div class="rewards-activity-card">
-                        <div class="rewards-activity-header">
-                            <h3 class="rewards-activity-title">
-                                <i class="fas fa-history"></i>
-                                Recent Activity
-                            </h3>
-                            <span class="rewards-view-all" onclick="RewardsPortal.showHistoryModal()">View All</span>
-                        </div>
-                        <div class="rewards-activity-list" id="rewardsActivityList">
-                            <!-- Activity items populated by JS -->
-                        </div>
-                    </div>
+                    <!-- History -->
+                    <section class="rw2-card">
+                        <h2 class="rw2-h">History</h2>
+                        <div class="rw2-ledger" id="rw2Ledger"></div>
+                        <button class="rw2-more" id="rw2More" style="display:none;" onclick="RewardsPortal.showMoreLedger()">Show more</button>
+                    </section>
                 </div>
             </div>
 
-            <!-- Redeem Modal -->
-            <div class="rewards-redeem-modal" id="rewardsRedeemModal" onclick="if (event.target === this) RewardsPortal.closeRedeemModal()">
-                <div class="rewards-redeem-content">
-                    <div class="rewards-redeem-header">
-                        <h2>Redeem Points</h2>
-                        <button class="rewards-redeem-close" onclick="RewardsPortal.closeRedeemModal()">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <div class="rewards-redeem-body">
-                        <div class="rewards-redeem-balance">
-                            <div class="rewards-redeem-balance-label">Your Points Balance</div>
-                            <div class="rewards-redeem-balance-value" id="rewardsRedeemBalance">3,450</div>
-                        </div>
-                        <div class="rewards-catalog" id="rewardsCatalog">
-                            <!-- Catalog items populated by JS -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Earn Modal -->
-            <div class="rewards-redeem-modal" id="rewardsEarnModal" onclick="if (event.target === this) RewardsPortal.closeEarnModal()">
-                <div class="rewards-redeem-content">
-                    <div class="rewards-redeem-header">
-                        <h2>Earn More Points</h2>
-                        <button class="rewards-redeem-close" onclick="RewardsPortal.closeEarnModal()">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <div class="rewards-redeem-body">
-                        <div class="rewards-earn-grid" id="rewardsEarnGrid">
-                            <!-- Earn items populated by JS -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- History Modal -->
-            <div class="rewards-redeem-modal" id="rewardsHistoryModal" onclick="if (event.target === this) RewardsPortal.closeHistoryModal()">
-                <div class="rewards-redeem-content">
-                    <div class="rewards-redeem-header">
-                        <h2>Points History</h2>
-                        <button class="rewards-redeem-close" onclick="RewardsPortal.closeHistoryModal()">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <div class="rewards-redeem-body">
-                        <div class="rewards-activity-list" id="rewardsFullHistory">
-                            <!-- Full history populated by JS -->
-                        </div>
-                    </div>
-                </div>
+            <!-- Redeem modal (confirm + success states) -->
+            <div class="rw2-modal" id="rw2Modal" onclick="if(event.target===this)RewardsPortal.closeModal()">
+                <div class="rw2-modal-card" id="rw2ModalCard"></div>
             </div>
 
             <!-- Building Bridges Section -->
@@ -68517,6 +68427,12 @@ button,input,select,textarea{font-family:var(--sans);}
                     <div id="mymedxTierCard" style="background: linear-gradient(135deg, var(--up-bg-subtle, #f5f5f7), var(--up-bg, #ffffff)); border: 1px solid var(--up-border, #d2d2d7); border-radius: 16px; padding: 20px; margin-bottom: 20px;">
                         <!-- Populated by MyMedXPortal.renderTierCard() -->
                     </div>
+
+                    <!-- Rewards balance (quiet entry into Med&X Rewards) -->
+                    <button onclick="UserPortal.showSection('rewards')" style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:12px;background:var(--surface, #fff);border:1px solid var(--line, #e2dcd3);border-radius:14px;padding:14px 16px;margin-bottom:20px;cursor:pointer;font-family:inherit;text-align:left;">
+                        <span style="display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:var(--ink, #15110f);"><i class="fas fa-gift" style="color:var(--gold, #c9a962);"></i> Rewards balance</span>
+                        <span style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted, #6b6258);"><strong id="mymedxRewardsBalance" style="font-size:15px;color:var(--ink, #15110f);">0</strong> points <i class="fas fa-chevron-right" style="font-size:11px;color:var(--muted, #6b6258);"></i></span>
+                    </button>
 
                     <!-- Programs Grid -->
                     <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0 0 12px; padding-left: 4px;">My Programs</h3>
@@ -76023,1363 +75939,311 @@ You can use variables like {first_name} that will be personalized for each recip
         // =========================================
         // REWARDS PORTAL - Med&X Rewards Program
         // =========================================
+        // =========================================
+        // MED&X REWARDS — server-backed members-club ledger.
+        // Source of truth = points_ledger via /api/rewards/summary.
+        // No client minting: legacy award/add methods are inert stubs kept
+        // only so older call sites do not throw. Earning happens server-side.
+        // =========================================
         const RewardsPortal = {
-            // Tier configuration
-            tiers: ['bronze', 'silver', 'gold', 'platinum'],
-            tierThresholds: { bronze: 0, silver: 3000, gold: 10000, platinum: 15000 },
-            tierMultipliers: { bronze: 1, silver: 1.2, gold: 1.5, platinum: 2 },
-            tierDiscounts: { bronze: 0, silver: 0.05, gold: 0.07, platinum: 0.10 },
+            data: null,
+            _ledgerLimit: 12,
+            // Legacy-compat shape read by dashboard/account widgets.
+            userRewards: { pointsBalance: 0, lifetime: 0, tier: 'member', coupons: [] },
 
-            // Points earning rates
-            pointsPerEuro: 10,
-
-            // Activity points
-            activityPoints: {
-                createAccount: 100,
-                completeProfile: 150,
-                submitAbstract: 200,
-                abstractAccepted: 500,
-                makeConnection: 10,
-                attendEvent: 100,
-                postInCommunity: 25,
-                commentOnPost: 10,
-                receiveLike: 5,
-                completeQuiz: 50,
-                sevenDayStreak: 200,
-                referFriend: 500,
-                newsletterSubscribe: 50,
-                earlyBirdBonus: 200
-            },
-
-            // Redemption catalog
-            catalog: [
-                { id: 'credit5', name: '€5 Event Credit', points: 500, icon: 'fa-ticket-alt', value: 5 },
-                { id: 'credit10', name: '€10 Event Credit', points: 1000, icon: 'fa-ticket-alt', value: 10 },
-                { id: 'credit25', name: '€25 Event Credit', points: 2500, icon: 'fa-ticket-alt', value: 25 },
-                { id: 'merch', name: 'Med&X Merchandise Pack', points: 2000, icon: 'fa-tshirt', value: 'Tote, notebook, pen' },
-                { id: 'workshop', name: 'Free Workshop', points: 3500, icon: 'fa-chalkboard-teacher', value: 35 },
-                { id: 'vip', name: 'VIP Upgrade', points: 5000, icon: 'fa-crown', value: 'VIP seating + perks' },
-                { id: 'gala', name: 'Gala Evening Ticket', points: 7500, icon: 'fa-glass-cheers', value: 75 },
-                { id: 'speaker', name: '1-on-1 with Speaker', points: 10000, icon: 'fa-user-tie', value: '30-min video call' }
+            // Documented economy defaults (member summary does not expose earn settings).
+            EARN_ROWS: [
+                { icon: 'fa-receipt', title: 'Registration payment', sub: 'For every euro you pay', val: '1 pt / €1' },
+                { icon: 'fa-qrcode', title: 'Event check-in', sub: 'Scan in at a Med&X event', val: '+100' },
+                { icon: 'fa-user-check', title: 'Complete your profile', sub: 'One-time', val: '+50' },
+                { icon: 'fa-envelope', title: 'Verify your email', sub: 'One-time', val: '+25' }
             ],
 
-            // Tier benefits
-            tierBenefits: {
-                bronze: [
-                    { name: '10 pts per €1 spent', desc: 'Standard earning rate', icon: 'fa-coins' },
-                    { name: 'Member Newsletter', desc: 'Exclusive updates & content', icon: 'fa-envelope' },
-                    { name: 'Badge Collection', desc: 'Track your achievements', icon: 'fa-award' },
-                    { name: 'Community Access', desc: 'Connect with members', icon: 'fa-users' }
-                ],
-                silver: [
-                    { name: '12 pts per €1 spent', desc: '20% bonus on earnings', icon: 'fa-coins' },
-                    { name: '5% Event Discount', desc: 'Applied automatically at checkout', icon: 'fa-percent' },
-                    { name: 'Priority Email Support', desc: 'Faster response from our team', icon: 'fa-headset' }
-                ],
-                gold: [
-                    { name: '15 pts per €1 spent', desc: '50% bonus on earnings', icon: 'fa-coins' },
-                    { name: '7% Event Discount', desc: 'Applied automatically at checkout', icon: 'fa-percent' },
-                    { name: 'Free Networking Event', desc: 'One free coffee-with-speakers session', icon: 'fa-coffee' }
-                ],
-                platinum: [
-                    { name: '20 pts per €1 spent', desc: '100% bonus on earnings', icon: 'fa-coins' },
-                    { name: '10% Event Discount', desc: 'Applied automatically at checkout', icon: 'fa-percent' },
-                    { name: '50% Off Gala Dinner', desc: 'Half-price gala at any Med&X event', icon: 'fa-utensils' },
-                    { name: 'Exclusive Speaker Roundtable', desc: 'Private session with keynote speakers', icon: 'fa-comments' }
-                ]
+            REASONS: {
+                payment: { label: 'Registration payment', icon: 'fa-receipt' },
+                checkin: { label: 'Event check-in', icon: 'fa-qrcode' },
+                profile: { label: 'Profile completed', icon: 'fa-user-check' },
+                verify: { label: 'Email verified', icon: 'fa-envelope' },
+                admin_adjust: { label: 'Adjustment', icon: 'fa-sliders-h' },
+                redeem: { label: 'Redeemed for coupon', icon: 'fa-gift' }
             },
 
-            // Initialize rewards data
-            init() {
-                this.loadUserRewards();
-                this.renderTierHero();
-                this.renderBenefits();
-                this.renderTiersGrid();
-                this.renderActivity();
-                this.renderCatalog();
-                this.renderEarnGrid();
-                // Sync all displays across the app
-                this.updateAllDisplays();
-            },
+            init() { this.load(); },
 
-            // Load or initialize user rewards data
-            loadUserRewards() {
-                const savedRewards = localStorage.getItem('medx_rewards');
-                if (savedRewards) {
-                    this.userRewards = safeJsonParse(savedRewards, null);
-                } else {
-                    // Initialize new user with welcome bonus
-                    this.userRewards = {
-                        tier: 'bronze',
-                        totalPointsEarned: 100,
-                        pointsBalance: 100,
-                        pointsRedeemed: 0,
-                        tierUpgradeDate: null,
-                        referralCode: this.generateReferralCode(),
-                        referrals: 0,
-                        history: [
-                            {
-                                date: new Date().toISOString(),
-                                points: 100,
-                                type: 'earned',
-                                reason: 'Welcome Bonus',
-                                icon: 'fa-gift'
-                            }
-                        ]
-                    };
-                    this.saveUserRewards();
-                }
-                // Calculate current tier based on total points
-                this.userRewards.tier = this.calculateTier(this.userRewards.totalPointsEarned);
-
-                // Check and track daily login streak
-                this.checkLoginStreak();
-
-                // After loading from localStorage, sync with backend
-                if (typeof UserPortal !== 'undefined' && UserPortal.api) {
-                    UserPortal.api('/api/rewards/sync', {
-                        method: 'PUT',
-                        body: JSON.stringify(this.userRewards)
-                    }).catch(() => {}); // silent sync
-                }
-            },
-
-            // Save user rewards to localStorage
-            saveUserRewards() {
-                localStorage.setItem('medx_rewards', JSON.stringify(this.userRewards));
-            },
-
-            // Generate a unique referral code
-            generateReferralCode() {
-                const user = UserPortal.user;
-                const name = user?.first_name || user?.name || 'USER';
-                const year = new Date().getFullYear();
-                return `${name.toUpperCase().substring(0, 4)}${year}`;
-            },
-
-            // Calculate tier based on total points earned
-            calculateTier(totalPoints) {
-                if (totalPoints >= this.tierThresholds.platinum) return 'platinum';
-                if (totalPoints >= this.tierThresholds.gold) return 'gold';
-                if (totalPoints >= this.tierThresholds.silver) return 'silver';
-                return 'bronze';
-            },
-
-            // Get next tier
-            getNextTier(currentTier) {
-                const index = this.tiers.indexOf(currentTier);
-                return index < this.tiers.length - 1 ? this.tiers[index + 1] : null;
-            },
-
-            // Get points needed for next tier
-            getPointsToNextTier() {
-                const currentTier = this.userRewards.tier;
-                const nextTier = this.getNextTier(currentTier);
-                if (!nextTier) return 0;
-                return this.tierThresholds[nextTier] - this.userRewards.totalPointsEarned;
-            },
-
-            // Get progress percentage to next tier
-            getProgressToNextTier() {
-                const currentTier = this.userRewards.tier;
-                const nextTier = this.getNextTier(currentTier);
-                if (!nextTier) return 100;
-
-                const nextThreshold = this.tierThresholds[nextTier];
-                const totalPoints = this.userRewards.totalPointsEarned;
-
-                // Show progress as percentage toward next tier's threshold
-                // e.g., 1200 points toward Gold (3000) = 40%
-                return Math.min(100, Math.round((totalPoints / nextThreshold) * 100));
-            },
-
-            // Add points to user account
-            addPoints(amount, reason, icon = 'fa-plus-circle') {
-                const oldTier = this.userRewards.tier;
-
-                this.userRewards.pointsBalance += amount;
-                this.userRewards.totalPointsEarned += amount;
-                this.userRewards.history.unshift({
-                    date: new Date().toISOString(),
-                    points: amount,
-                    type: 'earned',
-                    reason: reason,
-                    icon: icon
-                });
-
-                // Check for tier upgrade
-                const newTier = this.calculateTier(this.userRewards.totalPointsEarned);
-                if (newTier !== oldTier) {
-                    this.userRewards.tier = newTier;
-                    this.userRewards.tierUpgradeDate = new Date().toISOString();
-                    this.showTierUpgradeAnimation(oldTier, newTier);
-                }
-
-                this.saveUserRewards();
-                this.showPointsPopup(amount);
-
-                // Update UI if on rewards page
-                if (UserPortal.currentSection === 'rewards') {
-                    this.renderTierHero();
-                    this.renderActivity();
-                }
-
-                // Sync ALL displays across the app
-                this.updateAllDisplays();
-
-                // Push notification for points earned
-                if (typeof NotificationCenter !== 'undefined' && NotificationCenter.add) {
-                    NotificationCenter.add({
-                        type: 'achievement',
-                        title: `+${amount} Points Earned!`,
-                        body: reason || 'Keep going to unlock new rewards'
-                    });
-                }
-
-                return amount;
-            },
-
-            // Award purchase points (with tier multiplier)
-            awardPurchasePoints(eurAmount) {
-                const multiplier = this.tierMultipliers[this.userRewards.tier];
-                const basePoints = Math.round(eurAmount * this.pointsPerEuro);
-                const bonusPoints = Math.round(basePoints * (multiplier - 1));
-                const totalPoints = basePoints + bonusPoints;
-
-                let reason = `Purchase (€${eurAmount})`;
-                if (bonusPoints > 0) {
-                    reason += ` +${bonusPoints} bonus`;
-                }
-
-                return this.addPoints(totalPoints, reason, 'fa-shopping-cart');
-            },
-
-            // Award activity points
-            awardActivityPoints(activity) {
-                const points = this.activityPoints[activity];
-                if (!points) return 0;
-
-                const reasons = {
-                    createAccount: 'Welcome Bonus',
-                    completeProfile: 'Profile Completed',
-                    submitAbstract: 'Abstract Submitted',
-                    abstractAccepted: 'Abstract Accepted',
-                    makeConnection: 'New Connection',
-                    attendEvent: 'Event Attendance',
-                    postInCommunity: 'Community Post',
-                    commentOnPost: 'Comment Posted',
-                    receiveLike: 'Received Like',
-                    completeQuiz: 'Quiz Completed',
-                    sevenDayStreak: '7-Day Streak',
-                    referFriend: 'Referral Bonus',
-                    newsletterSubscribe: 'Newsletter Subscription',
-                    earlyBirdBonus: 'Early Bird Registration'
-                };
-
-                const icons = {
-                    createAccount: 'fa-gift',
-                    completeProfile: 'fa-user-check',
-                    submitAbstract: 'fa-file-alt',
-                    abstractAccepted: 'fa-check-circle',
-                    makeConnection: 'fa-user-plus',
-                    attendEvent: 'fa-calendar-check',
-                    postInCommunity: 'fa-comment',
-                    commentOnPost: 'fa-reply',
-                    receiveLike: 'fa-heart',
-                    completeQuiz: 'fa-graduation-cap',
-                    sevenDayStreak: 'fa-fire',
-                    referFriend: 'fa-users',
-                    newsletterSubscribe: 'fa-envelope',
-                    earlyBirdBonus: 'fa-bolt'
-                };
-
-                return this.addPoints(points, reasons[activity], icons[activity]);
-            },
-
-            // Generate a coupon code in MEDX-XXXX-XXXX format
-            generateCouponCode() {
-                const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-                let part1 = '', part2 = '';
-                for (let i = 0; i < 4; i++) {
-                    part1 += chars.charAt(Math.floor(Math.random() * chars.length));
-                    part2 += chars.charAt(Math.floor(Math.random() * chars.length));
-                }
-                return `MEDX-${part1}-${part2}`;
-            },
-
-            // Redeem points for a reward
-            redeemPoints(catalogId) {
-                const item = this.catalog.find(i => i.id === catalogId);
-                if (!item) return false;
-
-                if (this.userRewards.pointsBalance < item.points) {
-                    Toast.warning('Not enough points for this reward.');
-                    return false;
-                }
-
-                // Generate coupon code
-                const couponCode = this.generateCouponCode();
-
-                this.userRewards.pointsBalance -= item.points;
-                this.userRewards.pointsRedeemed += item.points;
-                this.userRewards.history.unshift({
-                    date: new Date().toISOString(),
-                    points: -item.points,
-                    type: 'redeemed',
-                    reason: item.name,
-                    icon: item.icon,
-                    couponCode: couponCode
-                });
-
-                // Store coupon in a separate list for easy access
-                if (!this.userRewards.coupons) this.userRewards.coupons = [];
-                this.userRewards.coupons.push({
-                    code: couponCode,
-                    item: item.name,
-                    value: item.value,
-                    pointsSpent: item.points,
-                    date: new Date().toISOString(),
-                    used: false
-                });
-
-                this.saveUserRewards();
-
-                // Close redeem modal first
-                this.closeRedeemModal();
-
-                // Show coupon modal
-                this.showCouponModal(couponCode, item);
-
-                // Update UI
-                this.renderTierHero();
-                this.renderActivity();
-                this.renderCatalog();
-
-                // Sync ALL displays
-                this.updateAllDisplays();
-
-                return true;
-            },
-
-            // Show coupon code modal after redemption
-            showCouponModal(couponCode, item) {
-                // Remove existing modal if any
-                const existing = document.getElementById('rewardsCouponModal');
-                if (existing) existing.remove();
-
-                const modal = document.createElement('div');
-                modal.id = 'rewardsCouponModal';
-                modal.className = 'rewards-redeem-modal active';
-                modal.innerHTML = `
-                    <div class="rewards-redeem-content" style="max-width: 440px;">
-                        <div class="rewards-redeem-header" style="border-bottom: 1px solid var(--up-border, #e5e7eb);">
-                            <h2 style="font-size: 18px;"><i class="fas fa-check-circle" style="color: var(--up-success, #2f6b3a); margin-right: 8px;"></i>Reward Redeemed!</h2>
-                            <button class="rewards-redeem-close" onclick="document.getElementById('rewardsCouponModal').remove()">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-                        <div class="rewards-redeem-body" style="text-align: center; padding: 32px 24px;">
-                            <div style="font-size: 48px; margin-bottom: 16px;"><i class="fas ${item.icon}" style="color: var(--up-accent, var(--gold));"></i></div>
-                            <h3 style="font-size: 20px; font-weight: 700; color: var(--up-text, #1d1d1f); margin-bottom: 8px;">${escapeHtml(item.name)}</h3>
-                            <p style="font-size: 14px; color: var(--up-text-muted, var(--muted)); margin-bottom: 24px;">${typeof item.value === 'number' ? '€' + item.value + ' value' : item.value}</p>
-                            <div style="background: var(--up-bg-secondary, #f8f9fa); border: 2px dashed var(--up-accent, var(--gold)); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
-                                <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--up-text-muted, var(--muted)); margin-bottom: 8px;">Your Coupon Code</div>
-                                <div id="couponCodeDisplay" style="font-size: 24px; font-weight: 700; font-family: monospace; color: var(--up-text, #1d1d1f); letter-spacing: 2px;">${couponCode}</div>
-                            </div>
-                            <button onclick="RewardsPortal.copyCouponCode('${couponCode}')" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: var(--up-accent, var(--gold)); color: #000; border: none; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; transition: opacity 0.2s;">
-                                <i class="fas fa-copy"></i> Copy to Clipboard
-                            </button>
-                            <p style="font-size: 12px; color: var(--up-text-muted, var(--muted)); margin-top: 16px;">Use this code during Plexus registration checkout or present it at the event.</p>
-                        </div>
-                    </div>
-                `;
-                document.body.appendChild(modal);
-
-                // Close when clicking backdrop
-                modal.addEventListener('click', (e) => {
-                    if (e.target === modal) modal.remove();
-                });
-            },
-
-            // Copy coupon code to clipboard
-            copyCouponCode(code) {
-                if (navigator.clipboard) {
-                    navigator.clipboard.writeText(code).then(() => {
-                        Toast.success('Coupon code copied to clipboard!');
-                    }).catch(() => {
-                        this.fallbackCopyCoupon(code);
-                    });
-                } else {
-                    this.fallbackCopyCoupon(code);
-                }
-            },
-
-            // Fallback copy method
-            fallbackCopyCoupon(code) {
-                const ta = document.createElement('textarea');
-                ta.value = code;
-                ta.style.position = 'fixed';
-                ta.style.left = '-9999px';
-                document.body.appendChild(ta);
-                ta.select();
+            async load() {
                 try {
-                    document.execCommand('copy');
-                    Toast.success('Coupon code copied to clipboard!');
+                    const d = await UserPortal.api('/api/rewards/summary');
+                    this.data = d;
+                    this.userRewards.pointsBalance = d.balance || 0;
+                    this.userRewards.lifetime = d.lifetime_points || 0;
+                    this.userRewards.coupons = (d.redemptions || []).map(r => ({
+                        code: r.coupon_code,
+                        value: r.coupon_value_eur,
+                        used: r.status === 'used'
+                    }));
+                    this._checkEarnToast(d.balance || 0);
+                    this.render();
+                    this.updateAllDisplays();
                 } catch (e) {
-                    Toast.info(`Your coupon code: ${code}`);
-                }
-                document.body.removeChild(ta);
-            },
-
-            // Apply tier discount to price
-            applyTierDiscount(price) {
-                const discount = this.tierDiscounts[this.userRewards.tier];
-                return Math.round(price * (1 - discount) * 100) / 100;
-            },
-
-            // Get tier discount percentage
-            getTierDiscount() {
-                return Math.round(this.tierDiscounts[this.userRewards.tier] * 100);
-            },
-
-            // Show floating points popup animation
-            showPointsPopup(amount) {
-                const popup = document.createElement('div');
-                popup.className = 'rewards-points-popup';
-                popup.textContent = `+${amount} pts`;
-                popup.style.left = '50%';
-                popup.style.top = '40%';
-                popup.style.transform = 'translateX(-50%)';
-                document.body.appendChild(popup);
-                setTimeout(() => popup.remove(), 1000);
-            },
-
-            // Show tier upgrade animation
-            showTierUpgradeAnimation(oldTier, newTier) {
-                const hero = document.getElementById('rewardsTierHero');
-                if (hero) {
-                    hero.classList.add('rewards-tier-upgrading');
-                    setTimeout(() => hero.classList.remove('rewards-tier-upgrading'), 800);
-                }
-
-                // Show congratulations alert
-                setTimeout(() => {
-                    Toast.success(`Congratulations! You've been upgraded to ${newTier.charAt(0).toUpperCase() + newTier.slice(1)} Member!`);
-                }, 300);
-
-                // Push tier upgrade notification
-                if (typeof NotificationCenter !== 'undefined' && NotificationCenter.add) {
-                    const tierName = newTier.charAt(0).toUpperCase() + newTier.slice(1);
-                    NotificationCenter.add({
-                        type: 'achievement',
-                        title: `Tier Upgrade: ${tierName} Member!`,
-                        body: `Congratulations! You've been promoted from ${oldTier} to ${tierName}. Enjoy your new benefits!`
-                    });
+                    console.error('rewards load error', e);
+                    const led = document.getElementById('rw2Ledger');
+                    if (led) led.innerHTML = '<div class="rw2-empty"><i class="fas fa-exclamation-circle"></i>Could not load your rewards. Please try again.</div>';
                 }
             },
 
-            // Render tier hero card
-            renderTierHero() {
-                const tier = this.userRewards.tier;
-                const nextTier = this.getNextTier(tier);
-                const progress = this.getProgressToNextTier();
-                const pointsToNext = this.getPointsToNextTier();
-
-                // Update hero classes
-                const hero = document.getElementById('rewardsTierHero');
-                hero.className = `rewards-tier-hero ${tier}`;
-
-                // Update tier label
-                const label = document.getElementById('rewardsTierLabel');
-                label.className = `rewards-tier-label ${tier}`;
-                document.getElementById('rewardsTierName').textContent = `${tier.charAt(0).toUpperCase() + tier.slice(1)} Member`;
-
-                // Update points
-                document.getElementById('rewardsPointsValue').textContent = this.userRewards.pointsBalance.toLocaleString();
-
-                // Update progress
-                const progressFill = document.getElementById('rewardsProgressFill');
-                progressFill.className = `rewards-progress-fill ${tier}`;
-                progressFill.style.width = `${progress}%`;
-
-                document.getElementById('rewardsProgressPercent').textContent = `${progress}%`;
-
-                if (nextTier) {
-                    document.getElementById('rewardsProgressText').textContent = `Progress to ${nextTier.charAt(0).toUpperCase() + nextTier.slice(1)}`;
-                    document.getElementById('rewardsNextTier').innerHTML = `<strong>${pointsToNext.toLocaleString()}</strong> points to ${nextTier.charAt(0).toUpperCase() + nextTier.slice(1)}`;
-                } else {
-                    document.getElementById('rewardsProgressText').textContent = 'Maximum tier reached!';
-                    document.getElementById('rewardsNextTier').textContent = 'You\'ve reached the highest tier';
-                }
-
-                // Update redeem modal balance
-                const redeemBalance = document.getElementById('rewardsRedeemBalance');
-                if (redeemBalance) {
-                    redeemBalance.textContent = this.userRewards.pointsBalance.toLocaleString();
-                }
-
-                // Update membership card
-                this.updateMembershipCard();
+            render() {
+                if (!this.data) return;
+                this.renderHero();
+                this.renderEarn();
+                this.renderTiers();
+                this.renderCodes();
+                this.renderLedger();
             },
 
-            // Update membership card with user data
-            updateMembershipCard() {
-                const tier = this.userRewards.tier;
-                const user = UserPortal.user;
-
-                // Update card tier class
-                const card = document.getElementById('membershipCard');
-                if (card) {
-                    card.className = `membership-card ${tier}`;
-                }
-
-                // Update tier badge with tier-specific icon
-                const tierBadge = document.getElementById('memberCardTierBadge');
-                const tierName = document.getElementById('memberCardTierName');
-                const tierIconMap = { bronze: 'fa-medal', silver: 'fa-shield-alt', gold: 'fa-crown', platinum: 'fa-gem' };
-                if (tierBadge) {
-                    const iconEl = tierBadge.querySelector('i');
-                    if (iconEl) {
-                        iconEl.className = `fas ${tierIconMap[tier] || 'fa-crown'}`;
-                    }
-                }
-                if (tierName) {
-                    tierName.textContent = tier.charAt(0).toUpperCase() + tier.slice(1);
-                }
-
-                // Update name
-                const nameEl = document.getElementById('memberCardName');
-                if (nameEl && user) {
-                    const fullName = user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Member';
-                    nameEl.textContent = fullName.toUpperCase();
-                }
-
-                // Update member since
-                const sinceEl = document.getElementById('memberCardSince');
-                if (sinceEl) {
-                    const joinDate = this.userRewards.history?.length > 0
-                        ? new Date(this.userRewards.history[this.userRewards.history.length - 1].date)
-                        : new Date();
-                    sinceEl.textContent = joinDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                }
-
-                // Update member ID - persistent sequential format MX-YYYY-NNNN
-                const idEl = document.getElementById('memberCardId');
-                if (idEl) {
-                    let membershipId = localStorage.getItem('medx_membership_id');
-                    if (!membershipId) {
-                        const year = new Date().getFullYear();
-                        const seqNum = String(Math.floor(Math.random() * 9000) + 1000);
-                        membershipId = `MX-${year}-${seqNum}`;
-                        localStorage.setItem('medx_membership_id', membershipId);
-                    }
-                    idEl.textContent = membershipId;
-                    // Store in rewards object for other components
-                    this.userRewards.membershipId = membershipId;
-                }
-
-                // Update points
-                const pointsEl = document.getElementById('memberCardPoints');
-                if (pointsEl) {
-                    pointsEl.textContent = this.userRewards.pointsBalance.toLocaleString();
-                }
-
-                // Generate QR code on membership card
-                const qrContainer = document.getElementById('memberCardQR');
-                if (qrContainer && typeof QRCode !== 'undefined') {
-                    const memberId = idEl ? idEl.textContent : 'MX-2026-0001';
-                    const memberName = user?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Member';
-                    const qrData = JSON.stringify({
-                        userId: UserPortal.user?.id || '',
-                        email: UserPortal.user?.email || '',
-                        memberId: memberId,
-                        t: tier
-                    });
-                    qrContainer.innerHTML = '';
-                    QRCode.toCanvas(document.createElement('canvas'), qrData, {
-                        width: 200,
-                        margin: 2,
-                        color: { dark: '#000000', light: '#ffffff' }
-                    }, function(error, canvas) {
-                        if (error) {
-                            console.error('QR generation failed:', error);
-                            qrContainer.textContent = 'QR unavailable';
-                            return;
-                        }
-                        canvas.style.width = '100%';
-                        canvas.style.height = '100%';
-                        canvas.style.borderRadius = '4px';
-                        canvas.style.imageRendering = 'pixelated';
-                        qrContainer.appendChild(canvas);
-                    });
-                }
+            renderHero() {
+                const b = document.getElementById('rw2Balance');
+                const l = document.getElementById('rw2Lifetime');
+                const mp = document.getElementById('rw2MinPurchase');
+                if (b) b.textContent = (this.data.balance || 0).toLocaleString();
+                if (l) l.textContent = (this.data.lifetime_points || 0).toLocaleString();
+                if (mp) mp.textContent = '€' + (this.data.min_purchase || 50);
             },
 
-            // Download membership card as image
-            downloadMembershipCard() {
-                const card = document.getElementById('membershipCard');
-                if (!card) return;
-
-                // Verify QR actually rendered before snapshotting; if it didn't, the download looks broken
-                const qrCanvas = card.querySelector('#memberCardQR canvas');
-                if (!qrCanvas || qrCanvas.width === 0 || qrCanvas.height === 0) {
-                    Toast.warning('QR code not ready yet — please wait a moment and try again');
-                    return;
-                }
-
-                // Use html2canvas if available, otherwise show alert
-                if (typeof html2canvas !== 'undefined') {
-                    html2canvas(card, {
-                        scale: 3,
-                        backgroundColor: null,
-                        useCORS: true,
-                        allowTaint: true
-                    }).then(canvas => {
-                        const link = document.createElement('a');
-                        link.download = 'medx-membership-card.png';
-                        link.href = canvas.toDataURL('image/png');
-                        link.click();
-                    }).catch(err => {
-                        console.error('Card download failed:', err);
-                        Toast.error('Could not generate card image');
-                    });
-                } else {
-                    // Fallback - create downloadable card info
-                    const user = UserPortal.user;
-                    const tier = this.userRewards.tier;
-                    const name = user?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Member';
-
-                    Toast.info(`Your Med&X Membership Card ` +
-                          `Name: ${name} ` +
-                          `Tier: ${tier.charAt(0).toUpperCase() + tier.slice(1)} Member ` +
-                          `Points: ${this.userRewards.pointsBalance.toLocaleString()} ` +
-                          `Valid: Lifetime ` +
-                          `Take a screenshot to save your card!`);
-                }
+            renderEarn() {
+                const wrap = document.getElementById('rw2Earn');
+                if (!wrap) return;
+                wrap.innerHTML = this.EARN_ROWS.map(r => (
+                    '<div class="rw2-earn-row">' +
+                        '<div class="rw2-earn-ico"><i class="fas ' + r.icon + '"></i></div>' +
+                        '<div class="rw2-earn-txt"><b>' + escapeHtml(r.title) + '</b><span>' + escapeHtml(r.sub) + '</span></div>' +
+                        '<div class="rw2-earn-val">' + r.val + '</div>' +
+                    '</div>'
+                )).join('');
             },
 
-            // Render benefits list
-            renderBenefits() {
-                const tier = this.userRewards.tier;
-                const benefits = this.tierBenefits[tier];
-                const container = document.getElementById('rewardsBenefitsList');
-                document.getElementById('rewardsBenefitsTier').textContent = tier.charAt(0).toUpperCase() + tier.slice(1);
-
-                container.innerHTML = benefits.map(b => `
-                    <div class="rewards-benefit-item">
-                        <div class="rewards-benefit-icon">
-                            <i class="fas ${b.icon}"></i>
-                        </div>
-                        <div class="rewards-benefit-text">
-                            <h4>${b.name}</h4>
-                            <p>${b.desc}</p>
-                        </div>
-                    </div>
-                `).join('');
-            },
-
-            // Render tiers comparison grid
-            renderTiersGrid() {
-                const currentTier = this.userRewards.tier;
-                const container = document.getElementById('rewardsTiersGrid');
-
-                const tierDescriptions = {
-                    bronze: '0–2,999 pts',
-                    silver: '3,000–9,999 pts',
-                    gold: '10,000–14,999 pts',
-                    platinum: '15,000+ pts'
-                };
-
-                const tierIcons = {
-                    bronze: 'fa-medal',
-                    silver: 'fa-shield-alt',
-                    gold: 'fa-crown',
-                    platinum: 'fa-gem'
-                };
-
-                const allBenefits = this.tierBenefits;
-
-                container.innerHTML = this.tiers.map(tier => `
-                    <div class="rewards-tier-card ${tier === currentTier ? 'current' : ''}">
-                        <div class="rewards-tier-card-icon ${tier}">
-                            <i class="fas ${tierIcons[tier]}"></i>
-                        </div>
-                        <h3>${tier.charAt(0).toUpperCase() + tier.slice(1)}</h3>
-                        <div class="rewards-tier-card-threshold">${tierDescriptions[tier]}</div>
-                        <div class="rewards-tier-card-perks">
-                            ${allBenefits[tier].map(b => `<div class="rewards-tier-perk-item"><i class="fas ${b.icon}" style="font-size: 10px; opacity: 0.7; width: 14px; text-align: center;"></i> ${b.name}</div>`).join('')}
-                        </div>
-                    </div>
-                `).join('');
-            },
-
-            // Render recent activity
-            renderActivity() {
-                const history = this.userRewards.history.slice(0, 5);
-                const container = document.getElementById('rewardsActivityList');
-
-                if (history.length === 0) {
-                    container.innerHTML = `
-                        <div class="dashboard-empty-state" style="text-align: center; padding: 32px 16px; color: var(--up-text-muted, var(--muted));">
-                            <i class="fas fa-coins" style="font-size: 32px; margin-bottom: 12px; opacity: 0.5; display: block;"></i>
-                            <p style="font-size: 14px; margin: 0;">No reward activity yet. Start earning points to see your history here.</p>
-                        </div>
-                    `;
-                    return;
-                }
-
-                const activityHtml = history.map(item => {
-                    const date = new Date(item.date);
-                    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                    const isPositive = item.points > 0;
-                    const isPending = item.status === 'pending';
-
-                    return `
-                        <div class="rewards-activity-item${isPending ? ' pending-claim' : ''}">
-                            <div class="rewards-activity-icon ${isPending ? 'pending' : (isPositive ? 'earned' : 'redeemed')}">
-                                <i class="fas ${isPending ? 'fa-clock' : (item.icon || (isPositive ? 'fa-plus' : 'fa-minus'))}"></i>
-                            </div>
-                            <div class="rewards-activity-info">
-                                <h4>${item.reason}${isPending ? ' <span style="font-size: 10px; background: rgba(245, 158, 11, 0.15); color: var(--warning); padding: 2px 6px; border-radius: 4px; font-weight: 600;">PENDING</span>' : ''}</h4>
-                                <p>${dateStr}</p>
-                            </div>
-                            <span class="rewards-activity-points ${isPending ? '' : (isPositive ? 'positive' : 'negative')}">
-                                ${isPending ? 'Under Review' : ((isPositive ? '+' : '') + item.points.toLocaleString() + ' pts')}
-                            </span>
-                        </div>
-                    `;
-                }).join('');
-
-                // Add "Claim Missing Points" button at the bottom
-                container.innerHTML = activityHtml + `
-                    <div style="text-align: center; padding: 16px 0 8px 0; border-top: 1px solid var(--up-border, #e5e7eb); margin-top: 12px;">
-                        <button onclick="RewardsPortal.showClaimMissingPointsModal()" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: transparent; border: 1px solid var(--up-border, #e5e7eb); border-radius: 8px; color: var(--up-text-secondary, #6e6e73); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s;">
-                            <i class="fas fa-exclamation-circle"></i> Claim Missing Points
-                        </button>
-                    </div>
-                `;
-            },
-
-            // Show modal to claim missing points
-            showClaimMissingPointsModal() {
-                const existing = document.getElementById('rewardsClaimModal');
-                if (existing) existing.remove();
-
-                const modal = document.createElement('div');
-                modal.id = 'rewardsClaimModal';
-                modal.className = 'rewards-redeem-modal active';
-                modal.innerHTML = `
-                    <div class="rewards-redeem-content" style="max-width: 440px;">
-                        <div class="rewards-redeem-header">
-                            <h2><i class="fas fa-exclamation-circle" style="color: var(--up-accent, var(--gold));"></i> Claim Missing Points</h2>
-                            <button class="rewards-redeem-close" onclick="document.getElementById('rewardsClaimModal').remove()"><i class="fas fa-times"></i></button>
-                        </div>
-                        <div class="rewards-redeem-body" style="padding: 24px;">
-                            <p style="color: var(--up-text-secondary, var(--muted)); margin-bottom: 20px; font-size: 14px;">
-                                Think you're missing points? Let us know and we'll look into it.
-                            </p>
-                            <div style="display: flex; flex-direction: column; gap: 16px;">
-                                <div>
-                                    <label style="display: block; font-size: 13px; font-weight: 600; color: var(--up-text, #1d1d1f); margin-bottom: 6px;">What happened?</label>
-                                    <input type="text" id="claimWhat" placeholder="e.g., Attended Plexus 2025 workshop" maxlength="200" style="width: 100%; padding: 10px 14px; border: 1px solid var(--up-border, #d2d2d7); border-radius: 10px; font-size: 14px; background: var(--up-bg, #fff); color: var(--up-text, #1d1d1f);">
-                                </div>
-                                <div>
-                                    <label style="display: block; font-size: 13px; font-weight: 600; color: var(--up-text, #1d1d1f); margin-bottom: 6px;">Where?</label>
-                                    <input type="text" id="claimWhere" placeholder="e.g., Hotel Esplanade, Zagreb" maxlength="200" style="width: 100%; padding: 10px 14px; border: 1px solid var(--up-border, #d2d2d7); border-radius: 10px; font-size: 14px; background: var(--up-bg, #fff); color: var(--up-text, #1d1d1f);">
-                                </div>
-                                <div>
-                                    <label style="display: block; font-size: 13px; font-weight: 600; color: var(--up-text, #1d1d1f); margin-bottom: 6px;">When?</label>
-                                    <input type="date" id="claimWhen" style="width: 100%; padding: 10px 14px; border: 1px solid var(--up-border, #d2d2d7); border-radius: 10px; font-size: 14px; background: var(--up-bg, #fff); color: var(--up-text, #1d1d1f);">
-                                </div>
-                            </div>
-                            <button onclick="RewardsPortal.submitClaimMissing()" style="width: 100%; margin-top: 20px; padding: 12px; background: var(--up-accent, var(--gold)); color: var(--ink); border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer;">
-                                <i class="fas fa-paper-plane"></i> Submit Claim
-                            </button>
-                        </div>
-                    </div>
-                `;
-                document.body.appendChild(modal);
-                modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
-            },
-
-            submitClaimMissing() {
-                const what = document.getElementById('claimWhat')?.value?.trim();
-                const where = document.getElementById('claimWhere')?.value?.trim();
-                const when = document.getElementById('claimWhen')?.value;
-                if (!what) { this.showToast('Please describe what happened', 'warning'); return; }
-
-                UserPortal.api('/api/rewards/claim-missing', {
-                    method: 'POST',
-                    body: JSON.stringify({ what, where, when })
-                }).then(() => {
-                    document.getElementById('rewardsClaimModal')?.remove();
-                    this.showToast('Claim submitted! Our team will review it.', 'success');
-                }).catch(() => {
-                    this.showToast('Claim submitted! Our team will review it.', 'success');
-                    document.getElementById('rewardsClaimModal')?.remove();
-                });
-            },
-
-            // Render full history
-            renderFullHistory() {
-                const history = this.userRewards.history;
-                const container = document.getElementById('rewardsFullHistory');
-                if (!container) return;
-
-                if (!history || history.length === 0) {
-                    container.innerHTML = `
-                        <div class="dashboard-empty-state" style="text-align: center; padding: 32px 16px; color: var(--up-text-muted, var(--muted));">
-                            <i class="fas fa-history" style="font-size: 32px; margin-bottom: 12px; opacity: 0.5; display: block;"></i>
-                            <p style="font-size: 14px; margin: 0;">No reward history yet. Earn points by completing activities and engaging with the community.</p>
-                        </div>
-                    `;
-                    return;
-                }
-
-                container.innerHTML = history.map(item => {
-                    const date = new Date(item.date);
-                    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                    const isPositive = item.points > 0;
-                    const isPending = item.status === 'pending';
-                    const couponInfo = item.couponCode ? `<span style="font-size: 11px; font-family: monospace; color: var(--up-text-muted, var(--muted)); margin-left: 4px;">${item.couponCode}</span>` : '';
-
-                    return `
-                        <div class="rewards-activity-item${isPending ? ' pending-claim' : ''}">
-                            <div class="rewards-activity-icon ${isPending ? 'pending' : (isPositive ? 'earned' : 'redeemed')}">
-                                <i class="fas ${isPending ? 'fa-clock' : (item.icon || (isPositive ? 'fa-plus' : 'fa-minus'))}"></i>
-                            </div>
-                            <div class="rewards-activity-info">
-                                <h4>${item.reason}${isPending ? ' <span style="font-size: 10px; background: rgba(245, 158, 11, 0.15); color: var(--warning); padding: 2px 6px; border-radius: 4px; font-weight: 600;">PENDING</span>' : ''}${couponInfo}</h4>
-                                <p>${dateStr}</p>
-                            </div>
-                            <span class="rewards-activity-points ${isPending ? '' : (isPositive ? 'positive' : 'negative')}">
-                                ${isPending ? 'Under Review' : ((isPositive ? '+' : '') + item.points.toLocaleString() + ' pts')}
-                            </span>
-                        </div>
-                    `;
-                }).join('');
-            },
-
-            // Render redemption catalog
-            renderCatalog() {
-                const container = document.getElementById('rewardsCatalog');
-                if (!container) return;
-                const balance = this.userRewards.pointsBalance;
-
-                if (!this.catalog || this.catalog.length === 0) {
-                    container.innerHTML = `
-                        <div class="dashboard-empty-state" style="text-align: center; padding: 32px 16px; color: var(--up-text-muted, var(--muted));">
-                            <i class="fas fa-gift" style="font-size: 32px; margin-bottom: 12px; opacity: 0.5; display: block;"></i>
-                            <p style="font-size: 14px; margin: 0;">No rewards available at this time. Keep earning points for when new items arrive.</p>
-                        </div>
-                    `;
-                    return;
-                }
-
-                container.innerHTML = this.catalog.map(item => {
-                    const canAfford = balance >= item.points;
-                    return `
-                        <div class="rewards-catalog-item ${canAfford ? '' : 'disabled'}" onclick="${canAfford ? `RewardsPortal.redeemPoints('${item.id}')` : ''}">
-                            <div class="rewards-catalog-icon">
-                                <i class="fas ${item.icon}"></i>
-                            </div>
-                            <div class="rewards-catalog-info">
-                                <h4>${item.name}</h4>
-                                <p>${typeof item.value === 'number' ? `€${item.value} value` : item.value}</p>
-                            </div>
-                            <div class="rewards-catalog-cost">
-                                <div class="rewards-catalog-cost-value">${item.points.toLocaleString()}</div>
-                                <div class="rewards-catalog-cost-label">points</div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            },
-
-            // Render earn more grid
-            renderEarnGrid() {
-                const earnActivities = [
-                    { icon: 'fa-user-check', title: 'Complete Profile', desc: 'Fill out all profile fields', points: 150, action: 'settings', tab: 'profile' },
-                    { icon: 'fa-file-alt', title: 'Submit Abstract', desc: 'For Plexus Conference', points: 200, action: 'plexus', tab: 'abstracts' },
-                    { icon: 'fa-user-plus', title: 'Make Connections', desc: 'Per connection (max 50/day)', points: 10, action: 'network' },
-                    { icon: 'fa-comment', title: 'Post in Community', desc: 'Per post (max 5/day)', points: 25, action: 'forum', tab: 'feed' },
-                    { icon: 'fa-calendar-check', title: 'Attend Events', desc: 'Check-in at events', points: 100, action: 'plexus', tab: 'schedule' },
-                    { icon: 'fa-users', title: 'Refer Friends', desc: 'Per successful referral', points: 500, action: 'referral' },
-                    { icon: 'fa-bolt', title: 'Early Bird Reg', desc: 'Register before deadline', points: 200, action: 'plexus', tab: 'register' },
-                    { icon: 'fa-fire', title: '7-Day Streak', desc: 'Log in 7 days in a row', points: 200, action: 'streak' }
-                ];
-
-                const container = document.getElementById('rewardsEarnGrid');
-                container.innerHTML = earnActivities.map((a, idx) => `
-                    <div class="rewards-earn-item clickable" onclick="RewardsPortal.navigateToEarnAction(${idx})" data-action="${a.action}" data-tab="${a.tab || ''}">
-                        <i class="fas ${a.icon}"></i>
-                        <h4>${a.title}</h4>
-                        <p>${a.desc}</p>
-                        <div class="points">+${a.points} pts</div>
-                        <div class="earn-go-arrow"><i class="fas fa-arrow-right"></i></div>
-                    </div>
-                `).join('');
-            },
-
-            // Generate a referral link and show modal
-            generateReferralLink() {
-                const code = this.userRewards.referralCode || this.generateReferralCode();
-                this.userRewards.referralCode = code;
-                this.saveUserRewards();
-
-                const referralUrl = `${window.location.origin}/register?ref=${code}`;
-
-                // Remove existing modal
-                const existing = document.getElementById('rewardsReferralModal');
-                if (existing) existing.remove();
-
-                const modal = document.createElement('div');
-                modal.id = 'rewardsReferralModal';
-                modal.className = 'rewards-redeem-modal active';
-                modal.innerHTML = `
-                    <div class="rewards-redeem-content" style="max-width: 440px;">
-                        <div class="rewards-redeem-header" style="border-bottom: 1px solid var(--up-border, #e5e7eb);">
-                            <h2 style="font-size: 18px;"><i class="fas fa-users" style="color: var(--up-accent, var(--gold)); margin-right: 8px;"></i>Refer Friends</h2>
-                            <button class="rewards-redeem-close" onclick="document.getElementById('rewardsReferralModal').remove()">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-                        <div class="rewards-redeem-body" style="padding: 24px;">
-                            <div style="text-align: center; margin-bottom: 20px;">
-                                <div style="font-size: 48px; margin-bottom: 12px;"><i class="fas fa-gift" style="color: var(--up-accent, var(--gold));"></i></div>
-                                <h3 style="font-size: 18px; font-weight: 700; color: var(--up-text, #1d1d1f); margin-bottom: 8px;">Earn 500 Points Per Referral!</h3>
-                                <p style="font-size: 14px; color: var(--up-text-muted, var(--muted));">Share your unique link. When a friend registers, you both earn 500 points.</p>
-                            </div>
-                            <div style="margin-bottom: 16px;">
-                                <label style="font-size: 12px; font-weight: 600; color: var(--up-text-secondary, #6e6e73); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: block;">Your Referral Code</label>
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <div style="flex: 1; padding: 12px 16px; background: var(--up-bg-secondary, #f8f9fa); border: 1px solid var(--up-border, #e5e7eb); border-radius: 8px; font-family: monospace; font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f);">${code}</div>
-                                    <button onclick="RewardsPortal.copyCouponCode('${code}')" style="padding: 12px 16px; background: var(--up-bg-secondary, #f8f9fa); border: 1px solid var(--up-border, #e5e7eb); border-radius: 8px; cursor: pointer; font-size: 14px; color: var(--up-text, #1d1d1f);"><i class="fas fa-copy"></i></button>
-                                </div>
-                            </div>
-                            <div style="margin-bottom: 20px;">
-                                <label style="font-size: 12px; font-weight: 600; color: var(--up-text-secondary, #6e6e73); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: block;">Your Referral Link</label>
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <div style="flex: 1; padding: 12px 16px; background: var(--up-bg-secondary, #f8f9fa); border: 1px solid var(--up-border, #e5e7eb); border-radius: 8px; font-size: 13px; color: var(--up-text-muted, var(--muted)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${referralUrl}</div>
-                                    <button onclick="RewardsPortal.copyCouponCode('${referralUrl}')" style="padding: 12px 16px; background: var(--up-accent, var(--gold)); border: none; border-radius: 8px; cursor: pointer; font-size: 14px; color: #000; font-weight: 600;"><i class="fas fa-copy"></i> Copy</button>
-                                </div>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 12px; padding: 16px; background: var(--up-bg-secondary, #f8f9fa); border-radius: 10px;">
-                                <i class="fas fa-chart-bar" style="font-size: 20px; color: var(--up-accent, var(--gold));"></i>
-                                <div>
-                                    <div style="font-size: 14px; font-weight: 600; color: var(--up-text, #1d1d1f);">${this.userRewards.referrals || 0} Referrals</div>
-                                    <div style="font-size: 12px; color: var(--up-text-muted, var(--muted));">${((this.userRewards.referrals || 0) * 500).toLocaleString()} points earned from referrals</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.body.appendChild(modal);
-                modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
-            },
-
-            // Check and award daily login streak
-            checkLoginStreak() {
-                const today = new Date().toISOString().split('T')[0];
-                const lastLogin = this.userRewards.lastLoginDate;
-                const streak = this.userRewards.loginStreak || 0;
-
-                if (lastLogin === today) return; // Already logged in today
-
-                const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-
-                if (lastLogin === yesterday) {
-                    // Consecutive day - increase streak
-                    this.userRewards.loginStreak = streak + 1;
-                } else {
-                    // Streak broken or first login
-                    this.userRewards.loginStreak = 1;
-                }
-
-                this.userRewards.lastLoginDate = today;
-
-                // Award 7-day streak bonus
-                if (this.userRewards.loginStreak >= 7 && this.userRewards.loginStreak % 7 === 0) {
-                    this.addPoints(200, '7-Day Login Streak!', 'fa-fire');
-                    Toast.success('7-Day Streak! You earned 200 bonus points!');
-                }
-
-                this.saveUserRewards();
-            },
-
-            // Navigate to the section where points can be earned
-            navigateToEarnAction(index) {
-                const actions = [
-                    { section: 'settings', tab: 'profile' },
-                    { section: 'plexus', scrollTo: 'pxAbstracts' },
-                    { section: 'network' },
-                    { section: 'forum', tab: 'feed' },
-                    { section: 'plexus', scrollTo: 'pxSchedule' },
-                    { section: 'referral' },  // Special case - show referral modal
-                    { section: 'plexus', scrollTo: 'pxPricing' },
-                    { section: 'streak' }  // Special case - show streak info
-                ];
-
-                const action = actions[index];
-                this.closeEarnModal();
-
-                if (action.section === 'referral') {
-                    setTimeout(() => {
-                        this.generateReferralLink();
-                    }, 300);
-                    return;
-                }
-
-                if (action.section === 'streak') {
-                    const streak = this.userRewards.loginStreak || 0;
-                    const daysLeft = 7 - (streak % 7);
-                    setTimeout(() => {
-                        Toast.info(`Current streak: ${streak} day${streak !== 1 ? 's' : ''}. ${daysLeft} more day${daysLeft !== 1 ? 's' : ''} until your next 200-point bonus!`);
-                    }, 300);
-                    return;
-                }
-
-                setTimeout(() => {
-                    UserPortal.showSection(action.section);
-
-                    // If there's a specific tab or scroll target
-                    if (action.tab) {
-                        setTimeout(() => {
-                            if (action.section === 'settings') {
-                                const profileTab = document.querySelector('[data-settings-tab="profile"]');
-                                if (profileTab) profileTab.click();
-                            } else if (action.section === 'forum') {
-                                const feedTab = document.querySelector('[data-tab="fm-feed"]');
-                                if (feedTab) feedTab.click();
-                            }
-                        }, 300);
-                    }
-
-                    if (action.scrollTo) {
-                        setTimeout(() => {
-                            const target = document.getElementById(action.scrollTo);
-                            if (target) {
-                                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                            }
-                        }, 400);
-                    }
-                }, 300);
-            },
-
-            // Update dashboard widget
-            updateDashboardWidget() {
-                const widget = document.getElementById('rewardsWidgetContent');
-                if (!widget) return;
-
-                const tier = this.userRewards.tier;
-                const progress = this.getProgressToNextTier();
-                const pointsToNext = this.getPointsToNextTier();
-                const nextTier = this.getNextTier(tier);
-
-                widget.innerHTML = `
-                    <div class="rewards-widget-header">
-                        <div class="rewards-widget-tier ${tier}">
-                            <i class="fas fa-crown"></i> ${tier.charAt(0).toUpperCase() + tier.slice(1)}
-                        </div>
-                    </div>
-                    <div class="rewards-widget-points">${this.userRewards.pointsBalance.toLocaleString()}</div>
-                    <div class="rewards-widget-label">points balance</div>
-                    <div class="rewards-widget-progress">
-                        <div class="rewards-widget-progress-fill" style="width: ${progress}%"></div>
-                    </div>
-                    ${nextTier ? `<div class="rewards-widget-next">${pointsToNext.toLocaleString()} pts to ${nextTier}</div>` : ''}
-                `;
-            },
-
-            // Modal controls
-            // Escape-to-close (shared, mirrors UserPortal._modalEscHandler pattern)
-            _bindModalEsc(closeFn) {
-                this._unbindModalEsc();
-                this._modalEscHandler = (e) => {
-                    if (e.key === 'Escape') { closeFn(); }
-                };
-                document.addEventListener('keydown', this._modalEscHandler);
-            },
-
-            _unbindModalEsc() {
-                if (this._modalEscHandler) {
-                    document.removeEventListener('keydown', this._modalEscHandler);
-                    this._modalEscHandler = null;
-                }
-            },
-
-            showRedeemModal() {
-                document.getElementById('rewardsRedeemBalance').textContent = this.userRewards.pointsBalance.toLocaleString();
-                this.renderCatalog();
-                document.getElementById('rewardsRedeemModal').classList.add('active');
-                this._bindModalEsc(() => this.closeRedeemModal());
-            },
-
-            closeRedeemModal() {
-                document.getElementById('rewardsRedeemModal').classList.remove('active');
-                this._unbindModalEsc();
-            },
-
-            showEarnModal() {
-                this.renderEarnGrid();
-                document.getElementById('rewardsEarnModal').classList.add('active');
-                this._bindModalEsc(() => this.closeEarnModal());
-            },
-
-            closeEarnModal() {
-                document.getElementById('rewardsEarnModal').classList.remove('active');
-                this._unbindModalEsc();
-            },
-
-            showBuyPointsModal() {
-                try {
-                    const existing = document.getElementById('buyPointsModal');
-                    if (existing) existing.remove();
-
-                    const modal = document.createElement('div');
-                    modal.id = 'buyPointsModal';
-                    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10000; display:flex; align-items:center; justify-content:center; padding:16px;';
-                    modal.innerHTML = `
-                        <div style="background:var(--up-bg,#fff); border-radius:14px; max-width:420px; width:100%; max-height:85vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
-                            <div style="padding:20px 24px; border-bottom:1px solid var(--up-border,#e5e7eb); display:flex; justify-content:space-between; align-items:center;">
-                                <h2 style="font-size:18px; font-weight:700; color:var(--up-text,#1d1d1f); margin:0;"><i class="fas fa-coins" style="color:#c9a962;"></i> Buy Points</h2>
-                                <button onclick="document.getElementById('buyPointsModal').remove()" style="background:none; border:none; font-size:20px; color:var(--up-text-muted,var(--muted)); cursor:pointer;">&times;</button>
-                            </div>
-                            <div style="padding:24px;">
-                                <p style="color:var(--up-text-secondary,var(--muted)); font-size:14px; margin-bottom:20px;">Choose a package or use the slider for a custom amount.</p>
-
-                                <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:24px;">
-                                    <div onclick="RewardsPortal.purchasePoints('pts-500')" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border:1px solid var(--up-border,#e5e7eb); border-radius:12px; cursor:pointer;" onmouseover="this.style.borderColor='#9b1b22';this.style.background='rgba(155,27,34,0.03)'" onmouseout="this.style.borderColor='';this.style.background=''">
-                                        <div><strong style="color:var(--up-text,#1d1d1f);">500 Points</strong></div>
-                                        <div style="font-size:18px; font-weight:700; color:#9b1b22;">&euro;7</div>
-                                    </div>
-                                    <div onclick="RewardsPortal.purchasePoints('pts-1000')" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border:2px solid #9b1b22; border-radius:12px; cursor:pointer; background:rgba(155,27,34,0.04); position:relative;">
-                                        <span style="position:absolute; top:-8px; right:12px; background:#9b1b22; color:white; font-size:9px; font-weight:700; padding:2px 8px; border-radius:4px; text-transform:uppercase;">Popular</span>
-                                        <div><strong style="color:var(--up-text,#1d1d1f);">1,000 Points</strong></div>
-                                        <div style="font-size:18px; font-weight:700; color:#9b1b22;">&euro;15</div>
-                                    </div>
-                                    <div onclick="RewardsPortal.purchasePoints('pts-5000')" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border:1px solid var(--up-border,#e5e7eb); border-radius:12px; cursor:pointer;" onmouseover="this.style.borderColor='#9b1b22';this.style.background='rgba(155,27,34,0.03)'" onmouseout="this.style.borderColor='';this.style.background=''">
-                                        <div><strong style="color:var(--up-text,#1d1d1f);">5,000 Points</strong> <span style="font-size:11px; color:#9b1b22;">15% bonus</span></div>
-                                        <div style="font-size:18px; font-weight:700; color:#9b1b22;">&euro;60</div>
-                                    </div>
-                                </div>
-
-                                <div style="border-top:1px solid var(--up-border,#e5e7eb); padding-top:20px;">
-                                    <div style="font-size:13px; font-weight:600; color:var(--up-text,#1d1d1f); margin-bottom:12px;">Custom Amount</div>
-                                    <div style="text-align:center; margin-bottom:8px;">
-                                        <span id="buySliderPoints" style="font-size:28px; font-weight:700; color:var(--up-text,#1d1d1f);">100</span>
-                                        <span style="font-size:14px; color:var(--up-text-secondary,var(--muted));"> points</span>
-                                        <div style="font-size:16px; font-weight:600; color:#9b1b22; margin-top:4px;">&euro;<span id="buySliderPrice">1.40</span></div>
-                                    </div>
-                                    <input type="range" id="buySlider" min="100" max="10000" step="100" value="100"
-                                        oninput="document.getElementById('buySliderPoints').textContent=this.value; document.getElementById('buySliderPrice').textContent=(this.value*0.014).toFixed(2);"
-                                        style="width:100%; accent-color:#9b1b22; cursor:pointer;">
-                                    <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--up-text-muted,var(--muted));">
-                                        <span>100</span><span>10,000</span>
-                                    </div>
-                                    <button onclick="RewardsPortal.purchaseCustomPoints()" style="width:100%; margin-top:12px; padding:12px; background:var(--crimson); color:white; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer;">
-                                        <i class="fas fa-shopping-cart"></i> Buy Custom Amount
-                                    </button>
-                                </div>
-
-                                <p style="font-size:11px; color:var(--up-text-muted,var(--muted)); margin-top:16px; text-align:center;">Secure payment via Stripe. Invoice issued automatically.</p>
-                            </div>
-                        </div>
-                    `;
-                    document.body.appendChild(modal);
-                    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
-                    // Escape-to-close (self-cleaning: unhooks itself once the modal is gone)
-                    const buyPointsEsc = (e) => {
-                        const m = document.getElementById('buyPointsModal');
-                        if (!m) { document.removeEventListener('keydown', buyPointsEsc); return; }
-                        if (e.key === 'Escape') {
-                            m.remove();
-                            document.removeEventListener('keydown', buyPointsEsc);
-                        }
-                    };
-                    document.addEventListener('keydown', buyPointsEsc);
-                } catch(err) {
-                    console.error('Buy points modal error:', err);
-                    alert('Could not open buy points. Please try again.');
-                }
-            },
-
-            async purchasePoints(packageId) {
-                document.getElementById('buyPointsModal')?.remove();
-                Toast.info('Redirecting to payment...');
-                try {
-                    const res = await UserPortal.api('/api/rewards/purchase-checkout', {
-                        method: 'POST',
-                        body: JSON.stringify({ packageId })
-                    });
-                    if (res.url) {
-                        window.location.href = res.url;
+            renderTiers() {
+                const wrap = document.getElementById('rw2Tiers');
+                if (!wrap) return;
+                const tiers = (this.data.tiers || []).slice().sort((a, b) => a.points - b.points);
+                const balance = this.data.balance || 0;
+                // Best affordable tier = highest-points tier the member can afford.
+                let bestPoints = -1;
+                tiers.forEach(t => { if (balance >= t.points && t.points > bestPoints) bestPoints = t.points; });
+                wrap.innerHTML = tiers.map(t => {
+                    const affordable = balance >= t.points;
+                    const isBest = t.points === bestPoints;
+                    let btn, need = '';
+                    if (isBest) {
+                        btn = '<button class="rw2-tier-btn primary" onclick="RewardsPortal.redeem(' + t.points + ')">Redeem</button>';
+                    } else if (affordable) {
+                        btn = '<button class="rw2-tier-btn ghost" onclick="RewardsPortal.redeem(' + t.points + ')">Redeem</button>';
                     } else {
-                        Toast.error('Payment not available. Stripe may not be configured.');
+                        btn = '<button class="rw2-tier-btn locked" disabled>Locked</button>';
+                        need = (t.points - balance).toLocaleString() + ' more points';
                     }
-                } catch(e) {
-                    Toast.error('Payment not available. Stripe may not be configured.');
-                }
+                    return (
+                        '<div class="rw2-tier' + (isBest ? ' best' : '') + '">' +
+                            '<div class="rw2-tier-euro">€' + t.euros + '</div>' +
+                            '<div class="rw2-tier-pts">' + t.points.toLocaleString() + ' points</div>' +
+                            btn +
+                            '<div class="rw2-tier-need">' + need + '</div>' +
+                        '</div>'
+                    );
+                }).join('');
             },
 
-            async purchaseCustomPoints() {
-                const slider = document.getElementById('buySlider');
-                const points = parseInt(slider?.value || '100');
-                const price = Math.round(points * 1.4); // €0.014 per point, in cents
+            renderCodes() {
+                const wrap = document.getElementById('rw2Codes');
+                if (!wrap) return;
+                const reds = this.data.redemptions || [];
+                if (!reds.length) {
+                    wrap.innerHTML = '<div class="rw2-empty"><i class="fas fa-ticket-alt"></i>No codes yet. Redeem points to create your first coupon.</div>';
+                    return;
+                }
+                wrap.innerHTML = reds.map(r => {
+                    const st = (r.status || 'active').toLowerCase();
+                    const active = st === 'active';
+                    return (
+                        '<div class="rw2-code">' +
+                            '<span class="rw2-code-mono">' + escapeHtml(r.coupon_code) + '</span>' +
+                            '<span class="rw2-code-meta">€' + r.coupon_value_eur + (active ? ' · exp ' + this._fmtDate(r.expires_at) : '') + '</span>' +
+                            '<span class="rw2-code-status ' + st + '">' + st + '</span>' +
+                            (active ? '<button class="rw2-code-copy" title="Copy code" onclick="RewardsPortal.copy(\'' + r.coupon_code + '\')"><i class="fas fa-copy"></i></button>' : '') +
+                        '</div>'
+                    );
+                }).join('');
+            },
 
-                document.getElementById('buyPointsModal')?.remove();
-                Toast.info('Redirecting to payment...');
+            renderLedger() {
+                const wrap = document.getElementById('rw2Ledger');
+                const more = document.getElementById('rw2More');
+                if (!wrap) return;
+                const rows = this.data.ledger || [];
+                if (!rows.length) {
+                    wrap.innerHTML = '<div class="rw2-empty"><i class="fas fa-clock"></i>No activity yet. Your points will appear here.</div>';
+                    if (more) more.style.display = 'none';
+                    return;
+                }
+                const shown = rows.slice(0, this._ledgerLimit);
+                wrap.innerHTML = shown.map(row => {
+                    const meta = this.REASONS[row.reason] || { label: row.reason, icon: 'fa-circle' };
+                    const pos = row.delta >= 0;
+                    const title = row.note ? row.note : meta.label;
+                    return (
+                        '<div class="rw2-led-row">' +
+                            '<div class="rw2-led-ico"><i class="fas ' + meta.icon + '"></i></div>' +
+                            '<div class="rw2-led-txt"><b>' + escapeHtml(title) + '</b><span>' + this._fmtDate(row.created_at) + '</span></div>' +
+                            '<div class="rw2-led-delta ' + (pos ? 'pos' : 'neg') + '">' + (pos ? '+' : '') + row.delta.toLocaleString() + '</div>' +
+                        '</div>'
+                    );
+                }).join('');
+                if (more) more.style.display = rows.length > this._ledgerLimit ? '' : 'none';
+            },
+
+            showMoreLedger() {
+                this._ledgerLimit += 24;
+                this.renderLedger();
+            },
+
+            // ===== Redeem flow =====
+            redeem(points) {
+                if (!this.data) return;
+                const tier = (this.data.tiers || []).find(t => t.points === points);
+                if (!tier) return;
+                if ((this.data.balance || 0) < points) {
+                    Toast.warning('You need ' + (points - (this.data.balance || 0)).toLocaleString() + ' more points for this code.');
+                    return;
+                }
+                const card = document.getElementById('rw2ModalCard');
+                card.innerHTML =
+                    '<div class="rw2-modal-eyebrow">Confirm redemption</div>' +
+                    '<h3 class="rw2-modal-title">Redeem ' + points.toLocaleString() + ' points for a €' + tier.euros + ' code?</h3>' +
+                    '<p class="rw2-modal-text">This creates a one-time coupon bound to your account. It never stacks with other coupons and needs a minimum basket of €' + (this.data.min_purchase || 50) + '.</p>' +
+                    '<div class="rw2-modal-actions">' +
+                        '<button class="rw2-modal-btn ghost" onclick="RewardsPortal.closeModal()">Cancel</button>' +
+                        '<button class="rw2-modal-btn primary" id="rw2ConfirmBtn" onclick="RewardsPortal.confirmRedeem(' + points + ')">Redeem</button>' +
+                    '</div>';
+                this._openModal();
+            },
+
+            async confirmRedeem(points) {
+                const btn = document.getElementById('rw2ConfirmBtn');
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
                 try {
-                    const res = await UserPortal.api('/api/rewards/purchase-checkout', {
+                    const res = await UserPortal.api('/api/rewards/redeem', {
                         method: 'POST',
-                        body: JSON.stringify({ packageId: 'custom', points, price })
+                        body: JSON.stringify({ tier: points })
                     });
-                    if (res.url) {
-                        window.location.href = res.url;
+                    this._showCoupon(res);
+                    // Reflect the new balance without a full toast (this is a spend, not an earn).
+                    localStorage.setItem('medx_rewards_last_balance', String(res.balance));
+                    this.load();
+                } catch (e) {
+                    const b = e && e.body;
+                    if (b && b.error === 'Insufficient points') {
+                        Toast.warning('Not enough points. You have ' + (b.balance || 0).toLocaleString() + ', need ' + (b.needed || points).toLocaleString() + '.');
                     } else {
-                        Toast.error('Payment not available. Stripe may not be configured.');
+                        Toast.error((b && b.error) || 'Could not redeem right now. Please try again.');
                     }
-                } catch(e) {
-                    Toast.error('Payment not available. Stripe may not be configured.');
+                    this.closeModal();
                 }
             },
 
-            showHistoryModal() {
-                this.renderFullHistory();
-                document.getElementById('rewardsHistoryModal').classList.add('active');
-                this._bindModalEsc(() => this.closeHistoryModal());
+            _showCoupon(res) {
+                const card = document.getElementById('rw2ModalCard');
+                card.innerHTML =
+                    '<div class="rw2-modal-eyebrow">Coupon ready</div>' +
+                    '<h3 class="rw2-modal-title">€' + res.coupon_value_eur + ' off your next ticket</h3>' +
+                    '<div class="rw2-modal-code" id="rw2CouponCode">' + escapeHtml(res.coupon_code) + '</div>' +
+                    '<button class="rw2-modal-btn primary" style="width:100%;" onclick="RewardsPortal.copy(\'' + res.coupon_code + '\')"><i class="fas fa-copy"></i> Copy code</button>' +
+                    '<p class="rw2-modal-hint">Use it in the ticket checkout coupon field. Valid until ' + this._fmtDate(res.expires_at) + ' · minimum basket €' + (res.min_purchase || 50) + '.</p>' +
+                    '<div class="rw2-modal-actions"><button class="rw2-modal-btn ghost" onclick="RewardsPortal.closeModal()">Done</button></div>';
+                this._openModal();
             },
 
-            closeHistoryModal() {
-                document.getElementById('rewardsHistoryModal').classList.remove('active');
-                this._unbindModalEsc();
-            },
-
-            // Get comprehensive next tier info (single source of truth)
-            getNextTierInfo() {
-                const tier = this.userRewards.tier;
-                const nextTier = this.getNextTier(tier);
-                const totalPoints = this.userRewards.totalPointsEarned;
-                const balance = this.userRewards.pointsBalance;
-
-                if (!nextTier) {
-                    return {
-                        currentTier: tier,
-                        currentTierName: tier.charAt(0).toUpperCase() + tier.slice(1),
-                        nextTier: null,
-                        nextTierName: null,
-                        pointsNeeded: 0,
-                        progress: 100,
-                        pointsBalance: balance,
-                        totalPointsEarned: totalPoints
-                    };
+            copy(code) {
+                const done = () => Toast.success('Code copied. Paste it at checkout.');
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(code).then(done).catch(() => this._fallbackCopy(code, done));
+                } else {
+                    this._fallbackCopy(code, done);
                 }
-
-                const nextThreshold = this.tierThresholds[nextTier];
-                const pointsNeeded = nextThreshold - totalPoints;
-                const progress = Math.min(100, Math.round((totalPoints / nextThreshold) * 100));
-
-                return {
-                    currentTier: tier,
-                    currentTierName: tier.charAt(0).toUpperCase() + tier.slice(1),
-                    nextTier: nextTier,
-                    nextTierName: nextTier.charAt(0).toUpperCase() + nextTier.slice(1),
-                    pointsNeeded: pointsNeeded,
-                    progress: progress,
-                    pointsBalance: balance,
-                    totalPointsEarned: totalPoints
-                };
             },
 
-            // Update ALL points displays across the entire app (single source of truth)
+            _fallbackCopy(code, done) {
+                const ta = document.createElement('textarea');
+                ta.value = code; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+                document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); done(); } catch (e) { Toast.info('Your code: ' + code); }
+                ta.remove();
+            },
+
+            _openModal() {
+                const m = document.getElementById('rw2Modal');
+                if (m) m.classList.add('open');
+                this._esc = (e) => { if (e.key === 'Escape') this.closeModal(); };
+                document.addEventListener('keydown', this._esc);
+            },
+
+            closeModal() {
+                const m = document.getElementById('rw2Modal');
+                if (m) m.classList.remove('open');
+                if (this._esc) { document.removeEventListener('keydown', this._esc); this._esc = null; }
+            },
+
+            // ===== Earn notice (display-only diff) =====
+            _checkEarnToast(balance) {
+                try {
+                    const key = 'medx_rewards_last_balance';
+                    const prev = localStorage.getItem(key);
+                    if (prev !== null && prev !== '') {
+                        const diff = balance - parseInt(prev, 10);
+                        if (diff > 0) {
+                            Toast.success('You earned ' + diff.toLocaleString() + ' point' + (diff === 1 ? '' : 's') + '.');
+                        }
+                    }
+                    localStorage.setItem(key, String(balance));
+                } catch (e) {}
+            },
+
+            _fmtDate(s) {
+                if (!s) return '';
+                let d = new Date(s);
+                if (isNaN(d.getTime())) { d = new Date(String(s).replace(' ', 'T')); }
+                if (isNaN(d.getTime())) return '';
+                return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+            },
+
+            // ===== Cross-app displays (nav chips + legacy hidden widgets) =====
             updateAllDisplays() {
-                const info = this.getNextTierInfo();
-                const balance = info.pointsBalance;
-                const tier = info.currentTier;
-
-                // 1. Rewards page hero
-                const rewardsPointsEl = document.getElementById('rewardsPointsValue');
-                if (rewardsPointsEl) rewardsPointsEl.textContent = balance.toLocaleString();
-
-                // 2. Account dropdown
-                const dropdownPointsEl = document.getElementById('hubDropdownPoints');
-                if (dropdownPointsEl) dropdownPointsEl.innerHTML = `${balance.toLocaleString()}<span>pts</span>`;
-
-                const dropdownTierEl = document.getElementById('hubDropdownTier');
-                if (dropdownTierEl) {
-                    dropdownTierEl.className = `hub-account-dropdown-tier ${tier}`;
-                    dropdownTierEl.innerHTML = `<i class="fas fa-crown"></i> ${info.currentTierName}`;
-                }
-
-                const dropdownProgressEl = document.getElementById('hubDropdownProgress');
-                if (dropdownProgressEl) {
-                    dropdownProgressEl.style.width = `${info.progress}%`;
-                    dropdownProgressEl.className = `hub-account-dropdown-progress-fill ${tier}`;
-                }
-
-                // 3. Membership card
-                const memberCardPointsEl = document.getElementById('memberCardPoints');
-                if (memberCardPointsEl) memberCardPointsEl.textContent = balance.toLocaleString();
-
-                // 4. Redeem modal balance
-                const redeemBalanceEl = document.getElementById('rewardsRedeemBalance');
-                if (redeemBalanceEl) redeemBalanceEl.textContent = balance.toLocaleString();
-
-                // 5. Milestone banner (uses RewardsPortal as source now)
-                if (typeof MilestoneBanner !== 'undefined') {
-                    MilestoneBanner.render();
-                }
-
-                // 6. Dashboard widget
-                this.updateDashboardWidget();
-
-                // 7. MyMedX tier card
-                if (typeof MyMedXPortal !== 'undefined' && MyMedXPortal.renderTierCard) {
-                    MyMedXPortal.renderTierCard();
-                }
-
-                // 8. Dashboard status bar & card picker tier/points displays
-                if (typeof Dashboard !== 'undefined') {
-                    if (Dashboard.updateAllTierDisplays) Dashboard.updateAllTierDisplays();
-                    if (Dashboard.updateAccountBadge) Dashboard.updateAccountBadge();
-                }
+                const balance = this.userRewards.pointsBalance || 0;
+                const fmt = balance.toLocaleString();
+                const chip = document.getElementById('upAcctRewardsChip');
+                if (chip) chip.textContent = fmt;
+                const mmx = document.getElementById('mymedxRewardsBalance');
+                if (mmx) mmx.textContent = fmt;
+                // Legacy hidden widgets — keep in sync so nothing looks stale if revealed.
+                const hd = document.getElementById('hubDropdownPoints');
+                if (hd) hd.innerHTML = fmt + '<span>pts</span>';
+                const mc = document.getElementById('memberCardPoints');
+                if (mc) mc.textContent = fmt;
             },
 
-            // Get user's current tier badge HTML
-            getTierBadgeHTML(size = 'small') {
-                const tier = this.userRewards?.tier || 'bronze';
-                return `<span class="tier-badge ${tier}"><i class="fas fa-crown"></i> ${tier.charAt(0).toUpperCase() + tier.slice(1)}</span>`;
+            // ===== Legacy-compat stubs (NO client minting) =====
+            loadUserRewards() { this.load(); },
+            getNextTierInfo() {
+                return {
+                    currentTier: 'member', currentTierName: 'Med&X Member',
+                    nextTier: null, nextTierName: null, pointsNeeded: 0, progress: 0,
+                    pointsBalance: this.userRewards.pointsBalance || 0,
+                    totalPointsEarned: this.userRewards.lifetime || 0
+                };
             },
-
-            // Show floating points earned animation
-            showPointsEarned(points, element) {
-                if (!points || points <= 0) return;
-
-                // Create floating element
-                const floater = document.createElement('div');
-                floater.className = 'points-earned-float';
-                floater.textContent = `+${points} pts`;
-
-                // Position near the clicked element
-                if (element) {
-                    const rect = element.getBoundingClientRect();
-                    floater.style.left = `${rect.left + rect.width / 2}px`;
-                    floater.style.top = `${rect.top}px`;
-                } else {
-                    floater.style.left = '50%';
-                    floater.style.top = '50%';
-                }
-
-                document.body.appendChild(floater);
-
-                // Remove after animation
-                setTimeout(() => {
-                    floater.remove();
-                }, 1500);
-
-                // Actually add the points
-                this.addPoints(points, 'Activity Bonus');
-            }
+            awardActivityPoints() { return 0; },
+            awardPurchasePoints() { return 0; },
+            saveUserRewards() {},
+            showPointsEarned() {},
+            showPointsPopup() {}
         };
 
         // NetworkActions helper — dashboard widget interactions
@@ -77465,7 +76329,7 @@ You can use variables like {first_name} that will be personalized for each recip
                     .then(function(){ self._memberDataLoading = false; });
             },
 
-            // Quiet recognition — honest badges from real signals only (replaces the points/tier arcade)
+            // Quiet recognition — real badges from real signals only (replaces the points/tier arcade)
             renderRecognition(regs) {
                 var container = document.getElementById('mymedxTierCard');
                 if (!container) return;
@@ -84405,40 +83269,11 @@ You can use variables like {first_name} that will be personalized for each recip
                 // Store registration ID
                 localStorage.setItem('plexus_registration_id', registrationId);
 
-                // Award Med&X Rewards points for the purchase
-                if (this.selectedPricing && typeof RewardsPortal !== 'undefined') {
-                    const totalPrice = this.calculateTotal();
-
-                    // Award purchase points
-                    if (totalPrice > 0) {
-                        RewardsPortal.awardPurchasePoints(totalPrice);
-                    }
-
-                    // Award early bird bonus if applicable
-                    if (this.selectedPricing?.includes('early')) {
-                        RewardsPortal.awardActivityPoints('earlyBirdBonus');
-                    }
-
-                    // Deduct redeemed points from balance
-                    if (this.pointsToRedeem > 0 && this.redeemEnabled) {
-                        RewardsPortal.userRewards.pointsBalance -= this.pointsToRedeem;
-                        RewardsPortal.userRewards.pointsRedeemed = (RewardsPortal.userRewards.pointsRedeemed || 0) + this.pointsToRedeem;
-                        RewardsPortal.userRewards.history.unshift({
-                            date: new Date().toISOString(),
-                            points: -this.pointsToRedeem,
-                            type: 'redeemed',
-                            reason: 'Plexus Conference discount',
-                            icon: 'fa-ticket-alt'
-                        });
-                        RewardsPortal.saveUserRewards();
-                    }
-
-                    // Mark coupon as used
-                    if (this.appliedCoupon && this.appliedCoupon.code && RewardsPortal.userRewards?.coupons) {
-                        const coupon = RewardsPortal.userRewards.coupons.find(c => c.code === this.appliedCoupon.code);
-                        if (coupon) coupon.used = true;
-                        RewardsPortal.saveUserRewards();
-                    }
+                // Med&X Rewards points are granted server-side on verified payment/check-in.
+                // No client minting — just reconcile from the server so newly-earned
+                // points appear in the ledger and the nav balance chips.
+                if (typeof RewardsPortal !== 'undefined' && RewardsPortal.load) {
+                    RewardsPortal.load();
                 }
 
                 // Update dashboard event card
