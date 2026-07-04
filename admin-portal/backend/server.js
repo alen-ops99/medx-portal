@@ -210,27 +210,45 @@ async function sendEmail(to, subject, htmlContent, attachments) {
     return { success: true, mock: true };
 }
 
-// Branded email template builder — wraps content in Med&X styled HTML
-function buildEmailTemplate(title, bodyHtml) {
+// Brand assets + accent palette shared by every Med&X email. The logo is the REAL
+// mark, referenced as an absolute hosted URL because email clients cannot load
+// relative paths. logo.png (color wordmark) is verified to serve 200 from the user
+// portal, so it sits on a clean white header band. Accents theme the title bar +
+// digest highlights: crimson (default), ink (navy), gold.
+const MEDX_LOGO_URL = 'https://medx-user-portal.onrender.com/assets/logo.png';
+const MEDX_EMAIL_ACCENTS = {
+    crimson: { bar: '#9b1b22', text: '#ffffff', soft: '#f7ebec', line: '#9b1b22' },
+    ink: { bar: '#0f172a', text: '#ffffff', soft: '#eef1f6', line: '#0f172a' },
+    gold: { bar: '#C9A962', text: '#1f2937', soft: '#faf5e9', line: '#C9A962' }
+};
+function medxEmailAccent(name) { return MEDX_EMAIL_ACCENTS[name] || MEDX_EMAIL_ACCENTS.ink; }
+
+// Branded email template builder — wraps content in Med&X styled HTML. Email-client-safe:
+// 600px table layout, inline CSS only, absolute URLs, Georgia serif headers (echoing
+// Fraunces) with an Arial/Helvetica body, and no webfont dependencies. opts.accent picks
+// the title-bar color (defaults to ink to keep transactional mail calm).
+function buildEmailTemplate(title, bodyHtml, opts) {
+    opts = opts || {};
+    const accent = medxEmailAccent(opts.accent);
+    const titleBar = title ? `
+    <!-- Title bar -->
+    <tr><td style="background: ${accent.bar}; padding: 15px 32px; text-align: center;">
+        <h1 style="margin: 0; color: ${accent.text}; font-size: 20px; font-weight: 600; font-family: Georgia, 'Times New Roman', serif; letter-spacing: 0.2px;">${title}</h1>
+    </td></tr>` : '';
     return `
 <!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin: 0; padding: 0; background: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+<body style="margin: 0; padding: 0; background: #f4f4f5; font-family: Arial, Helvetica, sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background: #f4f4f5; padding: 32px 16px;">
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%;">
-    <!-- Header -->
-    <tr><td style="background: #0f172a; padding: 28px 32px; border-radius: 12px 12px 0 0; text-align: center;">
-        <div style="font-size: 28px; font-weight: 700; letter-spacing: 1px;">
-            <span style="color: #C9A962;">Med</span><span style="color: #ffffff;">&amp;</span><span style="color: #C9A962;">X</span>
-        </div>
-        <div style="color: #94a3b8; font-size: 12px; margin-top: 4px; letter-spacing: 2px; text-transform: uppercase;">Building Bridges in Biomedicine</div>
+    <!-- Header: the REAL Med&X logo on a clean white band -->
+    <tr><td style="background: #ffffff; padding: 26px 32px 20px; border-radius: 12px 12px 0 0; text-align: center; border: 1px solid #e2e8f0; border-bottom: 3px solid ${accent.line};">
+        <img src="${MEDX_LOGO_URL}" alt="Med&amp;X" width="164" height="36" style="display: inline-block; height: 36px; width: 164px; max-width: 60%; border: 0; outline: none; text-decoration: none;" />
+        <div style="color: #94a3b8; font-size: 11px; margin-top: 10px; letter-spacing: 2px; text-transform: uppercase; font-family: Arial, Helvetica, sans-serif;">Building Bridges in Biomedicine</div>
     </td></tr>
-    <!-- Title bar -->
-    <tr><td style="background: #1e293b; padding: 16px 32px; text-align: center;">
-        <h1 style="margin: 0; color: #C9A962; font-size: 20px; font-weight: 600;">${title}</h1>
-    </td></tr>
+    ${titleBar}
     <!-- Body -->
     <tr><td style="background: #ffffff; padding: 32px; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;">
         <div style="color: #334155; font-size: 15px; line-height: 1.7;">
@@ -4782,6 +4800,10 @@ async function initializeApp() {
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (campaign_id) REFERENCES pr_campaigns(id)
     )`);
+    // Monthly-digest style controls (accent / highlight text / section show-hide / hero) stored per
+    // newsletter as JSON. Guarded, additive, and deliberately OUTSIDE the SCHEMA-MIRROR block (a
+    // column, not a shared CREATE TABLE; admin-only digest feature).
+    try { db.run("ALTER TABLE pr_newsletters ADD COLUMN settings_json TEXT"); } catch (e) {}
 
     // Newsletter Subscribers
     db.run(`CREATE TABLE IF NOT EXISTS pr_subscribers (
@@ -15697,55 +15719,151 @@ By applying to this program, I provide the following consents:
     // Assemble a branded newsletter DRAFT from the last 30 days of REAL content and drop an Action
     // Center item (via nagCollectDesired) so a human reviews + approves it. NEVER auto-sends. Idempotent
     // per calendar month via a drip_log marker (user_id='system-digest', kind='monthly_digest:YYYY-MM').
-    function digestSection(heading, innerHtml, imageFile, imageAlt) {
-        if (!innerHtml) return '';
-        const img = imageFile ? autopilotImageBlock(imageFile, imageAlt) : '';
-        return `<h2 style="color:#0f172a;font-size:17px;margin:26px 0 10px;border-bottom:2px solid #C9A962;padding-bottom:6px;">${nagEscape(heading)}</h2>${img}${innerHtml}`;
+    const DIGEST_ACCENT_KEYS = ['crimson', 'ink', 'gold'];
+    const DIGEST_HERO_CDN = 'https://cdn.jsdelivr.net/gh/alen-ops99/medx-portal@main/user-portal/frontend/assets';
+
+    // Absolute portal deep link for a member-facing section. The digest goes to members, who
+    // live on the user portal (its router opens a section from location.hash).
+    function digestPortalLink(section) { return `${userPortalBase()}/#${section || 'dashboard'}`; }
+
+    // Convert a picked photo URL (…/photo-library/<sub>/<file>) into an email-safe hosted CDN
+    // URL. Keeps an already-absolute https URL, drops anything else.
+    function digestSafeHeroUrl(url) {
+        if (!url) return '';
+        try { const m = String(url).match(/\/photo-library\/(.+)$/); if (m) return `${DIGEST_HERO_CDN}/${m[1]}`; } catch (e) {}
+        return /^https:\/\//i.test(String(url)) ? String(url) : '';
     }
-    function assembleMonthlyDigest() {
+
+    // Canonical, admin-known deadlines that drive the auto highlights bar. Dates match the
+    // seeded project_status rows; daysLeft is computed at generation time.
+    function digestKnownDeadlines() {
+        return [
+            { key: 'gala_earlybird', date: '2026-09-01', section: 'gala', urgent: 'register at the early-bird gala price', friendly: 'The early-bird gala price of EUR 150 runs through 1 September.' },
+            { key: 'accelerator', date: '2026-11-01', section: 'accelerator', urgent: 'get your Accelerator application ready', friendly: 'Med&X Accelerator applications open in November.' },
+            { key: 'plexus', date: '2026-12-04', section: 'plexus', urgent: 'pre-register for Plexus 2026 in Zagreb', friendly: 'Plexus 2026 comes to Zagreb on December 4-5.' },
+            { key: 'gala', date: '2026-12-05', section: 'gala', urgent: 'reserve your seat at the Med&X Gala', friendly: 'The Med&X Gala is on December 5 at Hotel Esplanade.' }
+        ];
+    }
+    function digestDaysUntil(iso) {
+        try {
+            const now = new Date(); now.setUTCHours(0, 0, 0, 0);
+            return Math.round((new Date(iso + 'T00:00:00Z').getTime() - now.getTime()) / 86400000);
+        } catch (e) { return 9999; }
+    }
+    // Auto highlight text: urgent when a known deadline is within 14 days, otherwise a friendly
+    // save-the-date for the nearest milestone. Prefills the (editable) highlights field.
+    function digestAutoHighlight() {
+        const upcoming = digestKnownDeadlines()
+            .map((d) => ({ ...d, daysLeft: digestDaysUntil(d.date) }))
+            .filter((d) => d.daysLeft >= 0)
+            .sort((a, b) => a.daysLeft - b.daysLeft);
+        if (!upcoming.length) return '';
+        const soon = upcoming.find((d) => d.daysLeft <= 14);
+        if (soon) return soon.daysLeft === 0 ? `Last day to ${soon.urgent}.` : `Only ${soon.daysLeft} day${soon.daysLeft === 1 ? '' : 's'} left to ${soon.urgent}.`;
+        return upcoming[0].friendly;
+    }
+
+    // Assemble the digest DATA MODEL from REAL portal content + event dates. Rendering is a pure
+    // function of (model, settings), so the owner can restyle without re-querying.
+    function assembleDigestModel() {
+        const model = { announcements: [], events: [], feed: [] };
+        try {
+            const anns = query.all("SELECT title, body, link_section, project_key FROM member_announcements WHERE datetime(created_at) >= datetime('now','-45 days') ORDER BY datetime(created_at) DESC LIMIT 6");
+            model.announcements = anns.map((a) => ({ title: a.title || '', body: String(a.body || '').slice(0, 220), url: digestPortalLink(a.link_section || a.project_key || 'dashboard') }));
+        } catch (e) {}
+        try {
+            const order = { plexus: 1, gala: 2, accelerator: 3, bridges: 4, forum: 5 };
+            const st = query.all("SELECT project_key, status_label, detail_line, cta_target FROM project_status");
+            st.sort((a, b) => (order[a.project_key] || 9) - (order[b.project_key] || 9));
+            st.forEach((s) => model.events.push({ title: capWord(s.project_key), line: s.detail_line || s.status_label || '', badge: s.status_label || '', url: digestPortalLink(s.cta_target || s.project_key) }));
+        } catch (e) {}
+        try {
+            try { query.all("SELECT name AS t, date_start AS d FROM accelerator_key_dates WHERE date_start >= date('now') ORDER BY date_start LIMIT 4").forEach((r) => model.events.push({ title: 'Accelerator', line: r.t, badge: r.d, url: digestPortalLink('accelerator') })); } catch (e) {}
+            try { query.all("SELECT title AS t, start_date AS d FROM forum_events WHERE start_date >= date('now') ORDER BY start_date LIMIT 4").forEach((r) => model.events.push({ title: 'Biomedical Forum', line: r.t, badge: r.d, url: digestPortalLink('forum') })); } catch (e) {}
+            try { query.all("SELECT name AS t, event_date AS d FROM bridges_events WHERE event_date >= date('now') ORDER BY event_date LIMIT 4").forEach((r) => model.events.push({ title: 'Building Bridges', line: r.t, badge: r.d, url: digestPortalLink('bridges') })); } catch (e) {}
+        } catch (e) {}
+        try {
+            const feed = query.all("SELECT title, body, link_url FROM feed_items WHERE COALESCE(published,1) = 1 AND datetime(posted_at) >= datetime('now','-45 days') ORDER BY datetime(posted_at) DESC LIMIT 6");
+            model.feed = feed.map((f) => ({ title: f.title || '', body: String(f.body || '').slice(0, 220), url: f.link_url || digestPortalLink('dashboard') }));
+        } catch (e) {}
+        return model;
+    }
+
+    // ---- premium render helpers (all inline-CSS, email-client-safe) ----
+    function digestSectionHead(eyebrow, heading, accent) {
+        return `<div style="margin:30px 0 14px;">
+            <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:${accent.bar};font-family:Arial,Helvetica,sans-serif;font-weight:700;margin-bottom:4px;">${nagEscape(eyebrow)}</div>
+            <h2 style="margin:0;color:#0f172a;font-size:19px;font-family:Georgia,'Times New Roman',serif;font-weight:700;">${nagEscape(heading)}</h2>
+            <div style="height:3px;width:44px;background:${accent.bar};border-radius:2px;margin-top:8px;font-size:1px;line-height:1px;">&nbsp;</div>
+        </div>`;
+    }
+    function digestReadMore(url, label, accent) {
+        return `<a href="${nagEscape(url)}" style="color:${accent.bar};text-decoration:none;font-weight:700;font-size:13px;font-family:Arial,Helvetica,sans-serif;">${nagEscape(label)} &rarr;</a>`;
+    }
+    function digestSeeEverything(url, label, accent) {
+        return `<div style="margin:14px 0 6px;"><a href="${nagEscape(url)}" style="display:inline-block;color:${accent.bar};text-decoration:none;font-weight:700;font-size:13px;border:1px solid ${accent.bar};padding:8px 16px;border-radius:8px;font-family:Arial,Helvetica,sans-serif;">${nagEscape(label)} &rarr;</a></div>`;
+    }
+    function digestHighlightBar(text, accent) {
+        if (!text) return '';
+        return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;"><tr><td style="background:${accent.bar};border-radius:10px;padding:15px 20px;text-align:center;">
+            <span style="display:inline-block;background:rgba(255,255,255,0.18);color:${accent.text};font-size:10px;font-weight:800;letter-spacing:1.5px;padding:3px 9px;border-radius:20px;margin-right:10px;vertical-align:middle;font-family:Arial,Helvetica,sans-serif;">DON'T MISS</span><span style="color:${accent.text};font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;vertical-align:middle;line-height:1.5;">${nagEscape(text)}</span>
+        </td></tr></table>`;
+    }
+    function digestAnnouncementItem(a, accent) {
+        return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px;"><tr><td style="background:#f8fafc;border-left:3px solid ${accent.bar};border-radius:8px;padding:14px 16px;">
+            <div style="font-family:Georgia,'Times New Roman',serif;font-size:16px;font-weight:700;color:#0f172a;margin-bottom:4px;">${nagEscape(a.title)}</div>
+            ${a.body ? `<div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:8px;">${nagEscape(a.body)}</div>` : ''}
+            ${digestReadMore(a.url, 'Read more', accent)}
+        </td></tr></table>`;
+    }
+    function digestEventItem(e, accent) {
+        return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 10px;"><tr>
+            <td width="8" style="background:${accent.bar};border-radius:8px 0 0 8px;font-size:1px;line-height:1px;">&nbsp;</td>
+            <td style="background:#f8fafc;border-radius:0 8px 8px 0;padding:12px 16px;">
+                ${e.badge ? `<div style="display:inline-block;background:${accent.soft};color:${accent.bar};font-size:11px;font-weight:700;letter-spacing:0.4px;padding:3px 9px;border-radius:20px;margin-bottom:6px;font-family:Arial,Helvetica,sans-serif;">${nagEscape(e.badge)}</div>` : ''}
+                <div style="font-family:Georgia,'Times New Roman',serif;font-size:16px;font-weight:700;color:#0f172a;margin-bottom:2px;">${nagEscape(e.title)}</div>
+                ${e.line ? `<div style="color:#475569;font-size:14px;line-height:1.5;margin-bottom:8px;">${nagEscape(e.line)}</div>` : ''}
+                ${digestReadMore(e.url, 'Details', accent)}
+            </td></tr></table>`;
+    }
+    function digestFeedItem(f, accent) {
+        return `<div style="margin:0 0 14px;padding:0 0 12px;border-bottom:1px solid #eef1f6;">
+            <div style="font-family:Georgia,'Times New Roman',serif;font-size:16px;font-weight:700;color:#0f172a;margin-bottom:4px;">${nagEscape(f.title)}</div>
+            ${f.body ? `<div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:8px;">${nagEscape(f.body)}</div>` : ''}
+            ${digestReadMore(f.url, 'Read more', accent)}
+        </div>`;
+    }
+    function defaultDigestSettings() {
+        return { accent: 'crimson', highlightText: digestAutoHighlight(), show: { highlights: true, announcements: true, events: true, feed: true }, heroImage: '' };
+    }
+    // Pure render: (model, settings) -> full branded email HTML.
+    function renderDigestHtml(model, settings) {
+        model = model || {}; settings = settings || {};
+        const accent = medxEmailAccent(settings.accent);
+        const show = Object.assign({ highlights: true, announcements: true, events: true, feed: true }, settings.show || {});
+        const anns = model.announcements || [], events = model.events || [], feed = model.feed || [];
+        const heroUrl = settings.heroImage || `${AUTOPILOT_PHOTO_BASE}/plexus_25_gala.jpg`;
         const parts = [];
-        let hasContent = false;
-        try {
-            const anns = query.all("SELECT title, body FROM member_announcements WHERE datetime(created_at) >= datetime('now','-30 days') ORDER BY datetime(created_at) DESC LIMIT 6");
-            if (anns.length) {
-                hasContent = true;
-                parts.push(digestSection('Latest announcements', anns.map((a) => `<p style="margin:0 0 12px;"><strong>${nagEscape(a.title)}</strong>${a.body ? '<br>' + nagEscape(String(a.body).slice(0, 240)) : ''}</p>`).join('')));
-            }
-        } catch (e) {}
-        try {
-            const feed = query.all("SELECT title, body FROM feed_items WHERE COALESCE(published,1) = 1 AND datetime(posted_at) >= datetime('now','-30 days') ORDER BY datetime(posted_at) DESC LIMIT 6");
-            if (feed.length) {
-                hasContent = true;
-                parts.push(digestSection('From the community feed', feed.map((f) => `<p style="margin:0 0 12px;"><strong>${nagEscape(f.title)}</strong>${f.body ? '<br>' + nagEscape(String(f.body).slice(0, 240)) : ''}</p>`).join('')));
-            }
-        } catch (e) {}
-        try {
-            const sp = query.all("SELECT name, title, institution FROM speakers WHERE COALESCE(is_confirmed,1) = 1 AND name IS NOT NULL ORDER BY is_keynote DESC, sort_order LIMIT 6");
-            if (sp.length) {
-                hasContent = true;
-                const items = '<ul style="padding-left:20px;color:#334155;margin:0;">' + sp.map((s) => `<li style="margin-bottom:6px;">${nagEscape(s.name)}${s.title ? ', ' + nagEscape(s.title) : ''}${s.institution ? ' (' + nagEscape(s.institution) + ')' : ''}</li>`).join('') + '</ul>';
-                parts.push(digestSection('Speakers on the program', items, 'plexus_25_acc_panel.jpg', 'Med&X speakers'));
-            }
-        } catch (e) {}
-        try {
-            const st = query.all("SELECT project_key, status_label, detail_line FROM project_status WHERE datetime(updated_at) >= datetime('now','-30 days') ORDER BY datetime(updated_at) DESC");
-            if (st.length) {
-                hasContent = true;
-                parts.push(digestSection('Program updates', st.map((s) => `<p style="margin:0 0 10px;"><strong>${nagEscape(capWord(s.project_key))}</strong> &mdash; ${nagEscape(s.status_label || '')}${s.detail_line ? '<br><span style="color:#64748b;">' + nagEscape(s.detail_line) + '</span>' : ''}</p>`).join('')));
-            }
-        } catch (e) {}
-        try {
-            const rows = [];
-            try { query.all("SELECT name AS t, date_start AS d FROM accelerator_key_dates WHERE date_start >= date('now') AND date_start <= date('now','+60 days') ORDER BY date_start LIMIT 6").forEach((r) => rows.push({ t: 'Accelerator: ' + r.t, d: r.d })); } catch (e) {}
-            try { query.all("SELECT title AS t, start_date AS d FROM forum_events WHERE start_date >= date('now') AND start_date <= date('now','+60 days') ORDER BY start_date LIMIT 6").forEach((r) => rows.push({ t: 'Forum: ' + r.t, d: r.d })); } catch (e) {}
-            try { query.all("SELECT name AS t, event_date AS d FROM bridges_events WHERE event_date >= date('now') AND event_date <= date('now','+60 days') ORDER BY event_date LIMIT 6").forEach((r) => rows.push({ t: 'Building Bridges: ' + r.t, d: r.d })); } catch (e) {}
-            if (rows.length) {
-                hasContent = true;
-                const items = '<ul style="padding-left:20px;color:#334155;margin:0;">' + rows.map((r) => `<li style="margin-bottom:6px;">${nagEscape(r.t)} &mdash; <strong>${nagEscape(r.d)}</strong></li>`).join('') + '</ul>';
-                parts.push(digestSection('Coming up', items));
-            }
-        } catch (e) {}
-        return { hasContent, html: parts.join('') };
+        if (show.highlights && settings.highlightText) parts.push(digestHighlightBar(settings.highlightText, accent));
+        parts.push(`<div style="text-align:center;margin:0 0 22px;"><img src="${nagEscape(heroUrl)}" alt="Med&amp;X" width="536" style="display:block;margin:0 auto;width:100%;max-width:536px;height:auto;border-radius:12px;" /></div>`);
+        parts.push(`<p style="margin:0 0 6px;color:#334155;font-size:15px;line-height:1.7;">Here is what is happening across Med&amp;X${model.monthLabel ? ' in ' + nagEscape(model.monthLabel) : ''}. Take a look, then approve to share it with our members.</p>`);
+        if (show.announcements && anns.length) {
+            parts.push(digestSectionHead('News', 'Latest announcements', accent));
+            parts.push(anns.map((a) => digestAnnouncementItem(a, accent)).join(''));
+            parts.push(digestSeeEverything(digestPortalLink('dashboard'), 'See all announcements', accent));
+        }
+        if (show.events && events.length) {
+            parts.push(digestSectionHead('Save the date', 'Upcoming events', accent));
+            parts.push(events.map((e) => digestEventItem(e, accent)).join(''));
+            parts.push(digestSeeEverything(digestPortalLink('plexus'), 'See all events', accent));
+        }
+        if (show.feed && feed.length) {
+            parts.push(digestSectionHead('Community', 'From the community feed', accent));
+            parts.push(feed.map((f) => digestFeedItem(f, accent)).join(''));
+            parts.push(digestSeeEverything(digestPortalLink('dashboard'), 'See the full feed', accent));
+        }
+        if (!anns.length && !events.length && !feed.length) parts.push('<p style="color:#64748b;">No new published content yet. Add announcements, events, or feed items and regenerate.</p>');
+        return buildEmailTemplate(model.subject || 'Med&X Monthly Digest', parts.join(''), { accent: settings.accent });
     }
     function monthlyDigestMarkerDone(monthKey) {
         try { return !!query.get("SELECT 1 AS x FROM drip_log WHERE user_id = 'system-digest' AND kind = ?", ['monthly_digest:' + monthKey]); } catch (e) { return false; }
@@ -15753,36 +15871,65 @@ By applying to this program, I provide the following consents:
     function generateMonthlyDigest(opts) {
         opts = opts || {};
         const monthKey = opts.monthKey || new Date().toISOString().slice(0, 7);
-        if (monthlyDigestMarkerDone(monthKey)) return { created: false, reason: 'already-generated', month: monthKey };
+        if (!opts.force && monthlyDigestMarkerDone(monthKey)) return { created: false, reason: 'already-generated', month: monthKey };
         const monthLabel = new Date(monthKey + '-01T00:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-        const body = assembleMonthlyDigest();
-        const hero = autopilotImageBlock('plexus_25_gala.jpg', 'Med&X');
-        const intro = '<p style="margin:0 0 14px;">Here is what has been happening across Med&amp;X this past month. Review the highlights below, then approve to share them with our members.</p>';
-        const inner = body.hasContent ? (hero + intro + body.html) : (hero + intro + '<p style="color:#64748b;">No new published content in the last 30 days yet. Add announcements, speakers, or feed items and regenerate.</p>');
         const subject = `Med&X Monthly Digest — ${monthLabel}`;
-        const contentHtml = buildEmailTemplate(subject, inner);
+        // force: clear this month's marker + its still-draft digest row, then rebuild cleanly.
+        if (opts.force) {
+            try { db.run("DELETE FROM drip_log WHERE user_id = 'system-digest' AND kind = ?", ['monthly_digest:' + monthKey]); } catch (e) {}
+            try { db.run("DELETE FROM pr_newsletters WHERE template = 'monthly-digest' AND status = 'draft' AND name = ?", [subject]); } catch (e) {}
+        }
+        const model = assembleDigestModel();
+        model.monthKey = monthKey; model.monthLabel = monthLabel; model.subject = subject;
+        const hasContent = !!(model.announcements.length || model.events.length || model.feed.length);
+        const settings = defaultDigestSettings();
+        const contentHtml = renderDigestHtml(model, settings);
         const nlId = uuidv4();
-        db.run(`INSERT INTO pr_newsletters (id, project, name, subject, preview_text, content_html, template, status, created_by, created_at)
-                VALUES (?, 'all', ?, ?, ?, ?, 'monthly-digest', 'draft', 'digest-engine', datetime('now'))`,
-            [nlId, subject, subject, `Your Med&X highlights for ${monthLabel}`, contentHtml]);
+        db.run(`INSERT INTO pr_newsletters (id, project, name, subject, preview_text, content_html, content_json, settings_json, template, status, created_by, created_at)
+                VALUES (?, 'all', ?, ?, ?, ?, ?, ?, 'monthly-digest', 'draft', 'digest-engine', datetime('now'))`,
+            [nlId, subject, subject, `Your Med&X highlights for ${monthLabel}`, contentHtml, JSON.stringify(model), JSON.stringify(settings)]);
         try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'system-digest', NULL, ?)", [uuidv4(), 'monthly_digest:' + monthKey]); } catch (e) {}
         saveDb();
         try { runNagScan(); } catch (e) {}
-        return { created: true, month: monthKey, newsletter_id: nlId, has_content: body.hasContent };
+        return { created: true, month: monthKey, newsletter_id: nlId, has_content: hasContent };
     }
     function maybeGenerateMonthlyDigestDaily() {
         try { if (new Date().getUTCDate() === 1) generateMonthlyDigest(); } catch (e) { console.warn('[Digest] daily check skipped:', e.message); }
     }
 
-    // Generate/refresh the current month's digest on demand (idempotent per month). Powers the owner's
-    // review + approve flow and verification. Never sends — it only stages a DRAFT + Action Center item.
+    // Generate/refresh the current month's digest on demand. Idempotent per month unless force
+    // (or regenerate) is passed, which clears the marker + draft and rebuilds. Powers the owner's
+    // review + approve flow and verification. Never sends — it only stages a DRAFT + Action item.
     app.post('/api/admin/digest/run', auth, adminOnly, (req, res) => {
         try {
             const monthKey = (req.body && typeof req.body.month === 'string' && /^\d{4}-\d{2}$/.test(req.body.month)) ? req.body.month : undefined;
-            const r = generateMonthlyDigest({ monthKey });
-            if (r.created) logAudit(req, 'digest.generate', `${r.month} digest draft ${r.newsletter_id}`);
+            const force = !!(req.body && (req.body.force || req.body.regenerate));
+            const r = generateMonthlyDigest({ monthKey, force });
+            if (r.created) logAudit(req, 'digest.generate', `${r.month} digest draft ${r.newsletter_id}${force ? ' (forced)' : ''}`);
             res.json({ success: true, ...r });
         } catch (e) { console.error('[digest] run', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Restyle a digest draft from the stored data model + new STYLE settings (accent / highlight
+    // text / per-section show-hide / hero image). Re-renders content_html + persists settings_json.
+    // Never re-queries content, so the owner-reviewed snapshot is preserved. Returns fresh HTML for
+    // an instant preview. Body: { accent, highlightText, show:{...}, heroImage }.
+    app.post('/api/admin/digest/:id/restyle', auth, adminOnly, (req, res) => {
+        try {
+            const row = query.get("SELECT id, content_json, settings_json FROM pr_newsletters WHERE id = ? AND template = 'monthly-digest'", [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'not_found' });
+            let model = {}; try { model = JSON.parse(row.content_json || '{}') || {}; } catch (e) { model = {}; }
+            let settings = {}; try { settings = JSON.parse(row.settings_json || '{}') || {}; } catch (e) { settings = {}; }
+            const b = req.body || {};
+            if (typeof b.accent === 'string' && DIGEST_ACCENT_KEYS.includes(b.accent)) settings.accent = b.accent;
+            if (typeof b.highlightText === 'string') settings.highlightText = b.highlightText.slice(0, 300);
+            if (b.show && typeof b.show === 'object') settings.show = Object.assign({ highlights: true, announcements: true, events: true, feed: true }, settings.show || {}, b.show);
+            if (typeof b.heroImage === 'string') settings.heroImage = digestSafeHeroUrl(b.heroImage);
+            const contentHtml = renderDigestHtml(model, settings);
+            db.run("UPDATE pr_newsletters SET content_html = ?, settings_json = ?, updated_at = datetime('now') WHERE id = ?", [contentHtml, JSON.stringify(settings), req.params.id]);
+            saveDb();
+            res.json({ success: true, content_html: contentHtml, settings });
+        } catch (e) { console.error('[digest] restyle', e.message); res.status(500).json({ error: e.message }); }
     });
 
     // List all newsletters

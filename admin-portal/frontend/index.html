@@ -13116,6 +13116,67 @@ President, Med&amp;X</textarea>
         </div>
     </div>
 
+    <!-- Monthly Digest Review Modal (real-logo template + style controls) -->
+    <div class="modal-overlay" id="digestReviewModal">
+        <div class="modal" style="max-width: 1000px; width: 96%;">
+            <div class="modal-header">
+                <h3><i class="fas fa-envelope-open-text" style="margin-right:8px;color:var(--pr-media);"></i>Review monthly digest</h3>
+                <button class="modal-close" onclick="DigestApp.close()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;">
+                    <!-- Controls -->
+                    <div style="flex:1 1 300px; min-width:280px; max-width:340px;">
+                        <p style="font-size:12px; color:var(--text-muted); margin:0 0 14px;">Simple styling for this send. Every change updates the preview on the right. Nothing is emailed here.</p>
+
+                        <div class="form-group" style="margin-bottom:16px;">
+                            <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600;">
+                                <input type="checkbox" id="digShowHighlights" onchange="DigestApp.restyle()"> Highlights bar
+                            </label>
+                            <input type="text" id="digHighlightText" oninput="DigestApp.restyleDebounced()" placeholder="e.g. Only 5 days left to register at the early-bird price" style="width:100%; margin-top:8px; padding:9px 10px; border-radius:8px; border:1px solid var(--border); background:var(--input-bg); color:var(--text-primary); font-size:12px;">
+                            <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Auto-filled from the nearest deadline. Edit freely.</div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom:16px;">
+                            <label style="font-size:13px; font-weight:600; display:block; margin-bottom:8px;">Accent color</label>
+                            <div id="digAccentSwatches" style="display:flex; gap:10px;">
+                                <button type="button" data-accent="crimson" onclick="DigestApp.setAccent('crimson')" title="Crimson" style="width:34px; height:34px; border-radius:50%; background:#9b1b22; border:3px solid transparent; cursor:pointer;"></button>
+                                <button type="button" data-accent="ink" onclick="DigestApp.setAccent('ink')" title="Ink" style="width:34px; height:34px; border-radius:50%; background:#0f172a; border:3px solid transparent; cursor:pointer;"></button>
+                                <button type="button" data-accent="gold" onclick="DigestApp.setAccent('gold')" title="Gold" style="width:34px; height:34px; border-radius:50%; background:#C9A962; border:3px solid transparent; cursor:pointer;"></button>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom:16px;">
+                            <label style="font-size:13px; font-weight:600; display:block; margin-bottom:8px;">Sections</label>
+                            <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:6px;"><input type="checkbox" id="digShowAnnouncements" onchange="DigestApp.restyle()"> Latest announcements</label>
+                            <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:6px;"><input type="checkbox" id="digShowEvents" onchange="DigestApp.restyle()"> Upcoming events</label>
+                            <label style="display:flex; align-items:center; gap:8px; font-size:13px;"><input type="checkbox" id="digShowFeed" onchange="DigestApp.restyle()"> Community feed</label>
+                        </div>
+
+                        <div class="form-group">
+                            <label style="font-size:13px; font-weight:600; display:block; margin-bottom:8px;">Hero image</label>
+                            <img id="digHeroThumb" src="" alt="" style="width:100%; height:120px; object-fit:cover; border-radius:8px; border:1px solid var(--border); background:var(--bg-secondary);" onerror="this.style.opacity=0.3">
+                            <button class="btn btn-secondary" onclick="DigestApp.openHeroPicker()" style="width:100%; margin-top:8px; font-size:12px;"><i class="fas fa-image"></i> Change image</button>
+                            <div class="planner-photogrid" id="digHeroGrid" style="display:none; margin-top:10px; max-height:220px; overflow-y:auto;"></div>
+                        </div>
+                    </div>
+                    <!-- Preview -->
+                    <div style="flex:2 1 460px; min-width:320px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                            <span style="font-size:12px; font-weight:600; color:var(--text-muted);">Live email preview</span>
+                            <span style="font-size:11px; color:var(--text-muted);">600px email width</span>
+                        </div>
+                        <iframe id="digPreviewFrame" title="Digest preview" style="width:100%; height:560px; border:1px solid var(--border); border-radius:10px; background:#f4f4f5;"></iframe>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="DigestApp.close()">Done</button>
+                <button class="btn" onclick="DigestApp.openRawEditor()" style="background: var(--bg-hover); color: var(--text-primary); border: 1px solid var(--border);"><i class="fas fa-code"></i> Open raw editor</button>
+            </div>
+        </div>
+    </div>
+
     <!-- PR Campaign Modal -->
     <div class="modal-overlay" id="prCampaignModal">
         <div class="modal" style="max-width: 600px;">
@@ -15270,6 +15331,7 @@ President, Med&amp;X</textarea>
                 if (k === 'dietary_reminder') return `<button class="ac-btn ac-btn-primary" onclick="App.nagAct('${item.id}')"><i class="fas fa-utensils"></i> Queue dietary reminder</button>`;
                 if (k === 'nudge_assignee') return `<button class="ac-btn ac-btn-primary" onclick="App.nagAct('${item.id}')"><i class="fas fa-bell"></i> Nudge assignee</button>`;
                 if (k === 'sponsor_followup') return `<button class="ac-btn ac-btn-primary" onclick="App.nagAct('${item.id}')"><i class="fas fa-handshake"></i> Queue follow-up draft</button>`;
+                if (k === 'digest_review') return `<button class="ac-btn ac-btn-primary" onclick="App.nagOpenDigest('${item.id}')"><i class="fas fa-wand-magic-sparkles"></i> Review digest</button>`;
                 return `<button class="ac-btn ac-btn-primary" onclick="App.nagOpen('${item.id}')"><i class="fas fa-arrow-right"></i> Open</button>`;
             },
 
@@ -15329,6 +15391,14 @@ President, Med&amp;X</textarea>
             async nagDismiss(id) {
                 try { await this.api(`/api/admin/nag/items/${id}/dismiss`, { method: 'POST', body: JSON.stringify({}) }); Toast.info('Dismissed.'); this.loadActionCenter(); }
                 catch (e) { Toast.error(e.message || 'Failed to dismiss item.'); }
+            },
+
+            nagOpenDigest(id) {
+                const item = (this._nagItems || []).find(i => i.id === id);
+                const pl = (item && item.action_payload) || {};
+                const nlId = pl.newsletter_id;
+                this.showSection('pr-media');
+                setTimeout(() => { try { if (nlId) DigestApp.open(nlId); else PRApp.showTab('newsletters'); } catch (e) {} }, 250);
             },
 
             nagOpen(id) {
@@ -31667,6 +31737,7 @@ By applying to this program, I give the following consents:
                             <td style="padding: 12px; text-align: center;">${n.recipient_count || '-'}</td>
                             <td style="padding: 12px; text-align: center;">${n.open_rate ? n.open_rate.toFixed(1) + '%' : '-'}</td>
                             <td style="padding: 12px; text-align: center;">
+                                ${n.template === 'monthly-digest' ? `<button class="btn btn-primary" style="padding: 4px 8px;" title="Review + style" onclick="DigestApp.open('${n.id}')"><i class="fas fa-wand-magic-sparkles"></i> Review</button>` : ''}
                                 <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="PRApp.editNewsletter('${n.id}')"><i class="fas fa-edit"></i></button>
                                 ${n.status === 'draft' ? `<button class="btn btn-primary" style="padding: 4px 8px;" onclick="PRApp.sendNewsletter('${n.id}')"><i class="fas fa-paper-plane"></i></button>` : ''}
                             </td>
@@ -32499,6 +32570,91 @@ By applying to this program, I give the following consents:
             }
         };
         window.Planner = Planner;
+
+        // =========================================
+        // MONTHLY DIGEST REVIEW (real-logo template + minimal, non-tech style controls)
+        // Renders a stored digest draft, exposes highlight text / accent / section toggles /
+        // hero picker, and restyles the server-side email HTML live. Never sends.
+        // =========================================
+        const DigestApp = {
+            id: null, settings: null, photos: null, _t: null,
+            async api(endpoint, options = {}) {
+                const res = await fetch(endpoint, { ...options, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}`, ...(options.headers || {}) } });
+                if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Request failed (${res.status})`); }
+                return res.json();
+            },
+            defaults() { return { accent: 'crimson', highlightText: '', show: { highlights: true, announcements: true, events: true, feed: true }, heroImage: '' }; },
+            async open(id) {
+                try {
+                    this.id = id;
+                    const n = await this.api('/api/pr/newsletters/' + id);
+                    let s = {}; try { s = JSON.parse(n.settings_json || '{}') || {}; } catch (e) {}
+                    this.settings = Object.assign(this.defaults(), s);
+                    this.settings.show = Object.assign({ highlights: true, announcements: true, events: true, feed: true }, this.settings.show || {});
+                    this.syncControls();
+                    this.setPreview(n.content_html || '');
+                    const grid = document.getElementById('digHeroGrid'); if (grid) grid.style.display = 'none';
+                    document.getElementById('digestReviewModal').classList.add('active');
+                } catch (e) { if (window.Toast) Toast.error(e.message || 'Could not open the digest.'); }
+            },
+            close() { document.getElementById('digestReviewModal').classList.remove('active'); try { PRApp.loadNewsletters(); } catch (e) {} },
+            openRawEditor() { const id = this.id; this.close(); try { PRApp.editNewsletter(id); } catch (e) {} },
+            syncControls() {
+                const s = this.settings;
+                document.getElementById('digHighlightText').value = s.highlightText || '';
+                document.getElementById('digShowHighlights').checked = s.show.highlights !== false;
+                document.getElementById('digShowAnnouncements').checked = s.show.announcements !== false;
+                document.getElementById('digShowEvents').checked = s.show.events !== false;
+                document.getElementById('digShowFeed').checked = s.show.feed !== false;
+                document.querySelectorAll('#digAccentSwatches [data-accent]').forEach(b => { const on = b.dataset.accent === (s.accent || 'crimson'); b.style.borderColor = on ? 'var(--text-primary)' : 'transparent'; b.classList.toggle('active', on); });
+                const thumb = document.getElementById('digHeroThumb');
+                if (thumb) { thumb.src = s.heroImage || 'https://cdn.jsdelivr.net/gh/alen-ops99/medx-portal@main/user-portal/frontend/assets/photos/plexus_25_gala.jpg'; thumb.style.opacity = 1; }
+            },
+            setPreview(htmlStr) { const f = document.getElementById('digPreviewFrame'); if (f) f.srcdoc = htmlStr || ''; },
+            collect() {
+                const active = document.querySelector('#digAccentSwatches [data-accent].active');
+                return {
+                    accent: (active && active.dataset.accent) || (this.settings && this.settings.accent) || 'crimson',
+                    highlightText: document.getElementById('digHighlightText').value,
+                    show: {
+                        highlights: document.getElementById('digShowHighlights').checked,
+                        announcements: document.getElementById('digShowAnnouncements').checked,
+                        events: document.getElementById('digShowEvents').checked,
+                        feed: document.getElementById('digShowFeed').checked
+                    }
+                };
+            },
+            setAccent(a) {
+                document.querySelectorAll('#digAccentSwatches [data-accent]').forEach(b => { const on = b.dataset.accent === a; b.style.borderColor = on ? 'var(--text-primary)' : 'transparent'; b.classList.toggle('active', on); });
+                if (this.settings) this.settings.accent = a;
+                this.restyle();
+            },
+            restyleDebounced() { clearTimeout(this._t); this._t = setTimeout(() => this.restyle(), 350); },
+            async restyle(extra) {
+                if (!this.id) return;
+                const body = Object.assign(this.collect(), extra || {});
+                try {
+                    const r = await this.api('/api/admin/digest/' + this.id + '/restyle', { method: 'POST', body: JSON.stringify(body) });
+                    if (r && r.content_html) this.setPreview(r.content_html);
+                    if (r && r.settings) { this.settings = r.settings; const t = document.getElementById('digHeroThumb'); if (t && r.settings.heroImage) { t.src = r.settings.heroImage; t.style.opacity = 1; } }
+                } catch (e) { if (window.Toast) Toast.error(e.message || 'Could not update the preview.'); }
+            },
+            async loadPhotos() { if (this.photos) return this.photos; try { const r = await this.api('/api/admin/planner/photos'); this.photos = r.photos || []; } catch (e) { this.photos = []; } return this.photos; },
+            async openHeroPicker() {
+                await this.loadPhotos();
+                const grid = document.getElementById('digHeroGrid');
+                grid.innerHTML = this.photos.length
+                    ? this.photos.map((p, i) => `<div class="planner-photocard" onclick="DigestApp.pickHero(${i})"><img src="${escapeHtml(p.url)}" alt="" onerror="this.style.opacity=0.3"><div class="ppc-label">${escapeHtml(p.label || p.file)}</div></div>`).join('')
+                    : '<p style="color:var(--text-muted); grid-column:1/-1;">No photos in the library.</p>';
+                grid.style.display = 'grid';
+            },
+            pickHero(i) {
+                const p = (this.photos || [])[i]; if (!p) return;
+                const grid = document.getElementById('digHeroGrid'); if (grid) grid.style.display = 'none';
+                this.restyle({ heroImage: p.url });
+            }
+        };
+        window.DigestApp = DigestApp;
 
         // =========================================
         // PLEXUS SETTINGS ADMIN
