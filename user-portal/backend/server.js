@@ -51,6 +51,17 @@ if (firaService.isConfigured()) {
 
 const app = express();
 
+// Wraps an async route handler so a rejected await sends a 500 JSON response instead of leaving the
+// request hanging (Express 4 does not catch async throws). Use for any `async (req, res) =>` handler.
+function asyncHandler(fn) {
+    return function (req, res, next) {
+        Promise.resolve(fn(req, res, next)).catch(function (err) {
+            console.error('Unhandled route error:', err);
+            if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
+        });
+    };
+}
+
 // Email configuration — supports Resend API (recommended for cloud hosting) or SMTP fallback
 // attachments: optional array of { filename, content: Buffer, type? } — converted per provider below
 async function sendEmail(to, subject, htmlContent, attachments, cc) {
@@ -5730,14 +5741,12 @@ async function initializeApp() {
     // Seed default gala speakers and schedule if columns are empty
     const galaCheck = query.get("SELECT speakers_json FROM gala_settings WHERE id = 'default'");
     if (galaCheck && !galaCheck.speakers_json) {
-        const defaultGalaSpeakers = JSON.stringify([
-            { key: 'chen', name: 'Dr. Elizabeth Chen', title: 'Director, National Cancer Institute', topic: '"The Next Decade of Cancer Research"', image: 'https://randomuser.me/api/portraits/women/23.jpg', bio: 'Dr. Elizabeth Chen is a world-renowned oncologist and the Director of the National Cancer Institute. Her groundbreaking research in targeted cancer therapies has transformed treatment approaches worldwide. She has published over 300 peer-reviewed articles and holds multiple patents in precision medicine technologies.', badge: 'Keynote Speaker', featured: true },
-            { key: 'weber', name: 'Prof. Michael Weber', title: 'Nobel Laureate in Medicine', topic: 'Awards Presenter', image: 'https://randomuser.me/api/portraits/men/42.jpg', bio: 'Professor Michael Weber received the Nobel Prize in Physiology or Medicine for his discoveries concerning the molecular mechanisms of circadian rhythm. His research at the Max Planck Institute has illuminated how our internal clocks regulate human biology, opening new frontiers in chronotherapy.', badge: '', featured: false },
-            { key: 'mitchell', name: 'Dr. Sarah Mitchell', title: 'CEO, BioTech Innovations', topic: 'Industry Address', image: 'https://randomuser.me/api/portraits/women/45.jpg', bio: 'Dr. Sarah Mitchell is the CEO of BioTech Innovations, a leading biotech company specializing in gene therapy and regenerative medicine. A Stanford-trained molecular biologist, she has led the development of three FDA-approved therapies and was named one of Fortune\'s Most Powerful Women in Business.', badge: '', featured: false }
-        ]);
+        // Speakers are added through the admin gala editor once confirmed — never seed placeholder
+        // names. An empty roster keeps the public gala page hidden-until-confirmed.
+        const defaultGalaSpeakers = JSON.stringify([]);
         const defaultGalaSchedule = JSON.stringify([
             { time: '18:00', title: 'Welcome Reception', description: 'Champagne cocktails and canapés in the Grand Foyer', icon: 'fas fa-champagne-glasses' },
-            { time: '19:00', title: 'Opening & Keynote Address', description: 'Dr. Elizabeth Chen: "The Next Decade of Cancer Research"', icon: 'fas fa-microphone' },
+            { time: '19:00', title: 'Opening & Keynote Address', description: 'Keynote address to be announced', icon: 'fas fa-microphone' },
             { time: '20:00', title: 'Gala Dinner', description: 'Five-course dinner with premium wine pairings', icon: 'fas fa-utensils' },
             { time: '21:30', title: 'Biomedical Forum Annual Awards', description: 'Recognition of outstanding contributions to medical research', icon: 'fas fa-trophy' },
             { time: '22:30', title: 'Networking & Entertainment', description: 'Live music, dancing, and exclusive networking until midnight', icon: 'fas fa-users' }
@@ -6503,6 +6512,22 @@ async function initializeApp() {
     // ALTER so whichever boots first adds the column to the shared DB.
     try { db.run('ALTER TABLE member_announcements ADD COLUMN audience_scope TEXT'); } catch (e) {}
 
+    // One-time heal for existing DBs (local + shared Turso): purge the placeholder demo speakers that
+    // early builds seeded with real institution names (Harvard / MD Anderson / Novartis). They must
+    // never surface publicly as "confirmed 2026" speakers. Idempotent and tightly scoped by exact
+    // name + institution + talk so a genuine confirmed speaker with any of these fields is never touched.
+    try {
+        db.run(`DELETE FROM speakers WHERE
+            (name = 'Dr. Sarah Mitchell' AND institution = 'Harvard Medical School' AND talk_title = 'The Future of Sleep Medicine')
+            OR (name = 'Prof. Michael Chen' AND institution = 'MD Anderson' AND talk_title = 'Immunotherapy Breakthroughs')
+            OR (name = 'Dr. Elena Rossi' AND institution = 'Novartis' AND talk_title = 'Drug Development in the AI Era')`);
+    } catch (e) {}
+    // The seeded gala demo speakers all used randomuser.me portrait URLs — a unique marker of the
+    // placeholder set. Reset the roster to empty (hidden-until-confirmed) and drop the one fabricated
+    // keynote name from the seeded schedule, leaving any real admin edits intact.
+    try { db.run(`UPDATE gala_settings SET speakers_json = '[]' WHERE speakers_json LIKE '%randomuser.me%'`); } catch (e) {}
+    try { db.run(`UPDATE gala_settings SET schedule_json = REPLACE(REPLACE(schedule_json, 'Dr. Elizabeth Chen: "The Next Decade of Cancer Research"', 'Keynote address to be announced'), 'Dr. Elizabeth Chen: The Next Decade of Cancer Research', 'Keynote address to be announced') WHERE schedule_json LIKE '%Elizabeth Chen%'`); } catch (e) {}
+
     db.run(`CREATE TABLE IF NOT EXISTS member_rewards (
         id TEXT PRIMARY KEY,
         user_id TEXT UNIQUE NOT NULL,
@@ -6733,12 +6758,9 @@ async function initializeApp() {
         db.run(`INSERT INTO promo_codes (id, conference_id, code, discount_value, max_uses, valid_until)
             VALUES (?, ?, 'EARLYBIRD25', 25, 50, '2026-08-31')`, [uuidv4(), confId]);
 
-        // Add sample speakers
-        const speakers = [
-            ['Dr. Sarah Mitchell', 'Professor of Neuroscience', 'Harvard Medical School', 'Sarah Mitchell is a leading researcher in sleep neuroscience...', 'The Future of Sleep Medicine', 1],
-            ['Prof. Michael Chen', 'Director of Cancer Research', 'MD Anderson', 'Michael Chen has published over 200 papers...', 'Immunotherapy Breakthroughs', 1],
-            ['Dr. Elena Rossi', 'Chief Medical Officer', 'Novartis', 'Elena Rossi leads global medical strategy...', 'Drug Development in the AI Era', 0]
-        ];
+        // Speakers are added through the admin speaker manager once confirmed — never seed placeholder
+        // names. An empty roster keeps the public speakers page hidden-until-confirmed.
+        const speakers = [];
         speakers.forEach((s, i) => {
             db.run(`INSERT INTO speakers (id, conference_id, name, title, institution, bio, talk_title, is_keynote, sort_order)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [uuidv4(), confId, s[0], s[1], s[2], s[3], s[4], s[5], i]);
@@ -15069,6 +15091,7 @@ By applying to this program, I provide the following consents:
 
             if (user && password) {
                 // Verify password for existing user
+                if (!user.password_hash) return res.status(400).json({ error: 'This account has no password set. Please sign in through the portal to set one.' });
                 const valid = await bcrypt.compare(password, user.password_hash);
                 if (!valid) return res.status(400).json({ error: 'Account exists with different password' });
             } else if (!user) {
@@ -16220,7 +16243,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Admin: Send invitation emails to selected speakers
-    app.post('/api/admin/plexus/speakers/invite', auth, adminOnly, async (req, res) => {
+    app.post('/api/admin/plexus/speakers/invite', auth, adminOnly, asyncHandler(async (req, res) => {
         const { speaker_ids, subject, body } = req.body;
         if (!speaker_ids || !speaker_ids.length) return res.status(400).json({ error: 'No speakers selected' });
 
@@ -16266,7 +16289,7 @@ By applying to this program, I provide the following consents:
 
         saveDb();
         res.json({ success: true, results });
-    });
+    }));
 
     // Admin: Re-invite past speaker for new year (creates copy)
     app.post('/api/admin/plexus/speakers/:id/reinvite', auth, adminOnly, (req, res) => {
@@ -16623,7 +16646,33 @@ By applying to this program, I provide the following consents:
                     }));
                 }
             } catch (e) {}
-            const items = aItems.concat(nItems).sort((x, y) =>
+            let mItems = [];
+            try {
+                // Member announcements (admin composer) also surface on the site bell so publishing once
+                // reaches BOTH the member portal center (/api/announcements) and the website bell. Same
+                // audience gating: audience_scope + notify_topics (interested) + registration-by-email.
+                const mAnns = query.all('SELECT * FROM member_announcements ORDER BY created_at DESC LIMIT ?', [limit]);
+                const subs = query.all('SELECT project_key FROM notify_topics WHERE user_id = ?', [req.user.id]).map(r => r.project_key);
+                const regProjects = (typeof memberRegisteredProjects === 'function') ? memberRegisteredProjects(req.user && req.user.email) : [];
+                mItems = (mAnns || []).filter(a => {
+                    if (!a.project_key) return true;
+                    const scope = a.audience_scope || 'everyone';
+                    if (scope === 'everyone') return true;
+                    const isFollowing = subs.indexOf(a.project_key) >= 0;
+                    const isRegistered = regProjects.indexOf(a.project_key) >= 0;
+                    if (scope === 'interested') return isFollowing;
+                    if (scope === 'registered') return isRegistered;
+                    if (scope === 'interested_not_registered') return isFollowing && !isRegistered;
+                    return true;
+                }).map(a => ({
+                    id: 'mann:' + a.id, source: 'member',
+                    title: a.title || 'Announcement', message: a.body || '',
+                    created_at: a.created_at, is_read: 0,
+                    link: null, category: 'announcement', project: a.project_key || null,
+                    is_urgent: 0, target: null
+                }));
+            } catch (e) {}
+            const items = aItems.concat(mItems).concat(nItems).sort((x, y) =>
                 ((y.is_urgent || 0) - (x.is_urgent || 0)) || (new Date(y.created_at || 0) - new Date(x.created_at || 0)));
             res.json({ items });
         } catch (err) {

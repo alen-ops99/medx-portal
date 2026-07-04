@@ -11963,6 +11963,7 @@ President, Med&amp;X</textarea>
                             <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Password <span style="color:var(--text-muted);">(new members only)</span></label><input id="teamPass" type="text" placeholder="6+ chars" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
                         </div>
                         <button class="btn btn-primary" style="margin-top:14px;" onclick="TeamApp.grant()"><i class="fas fa-user-plus"></i> Save member</button>
+                        <p style="margin:12px 0 0;font-size:12px;color:var(--text-muted);"><i class="fas fa-circle-info" style="margin-right:6px;color:#fbbf24;"></i>New teammates sign in at <strong id="teamLoginUrl">this same web address</strong> using the email and password you set here.</p>
                     </div>
                     <div id="teamList"><div style="text-align:center;padding:24px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i></div></div>
                 </div>
@@ -33950,6 +33951,8 @@ By applying to this program, I give the following consents:
             esc(s) { return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); },
             async load() {
                 const el = document.getElementById('teamList');
+                const urlEl = document.getElementById('teamLoginUrl');
+                if (urlEl) urlEl.textContent = window.location.origin;
                 try {
                     const res = await fetch('/api/admin/team', { headers: { 'Authorization': `Bearer ${App.token}` } });
                     const rows = await res.json();
@@ -33972,7 +33975,15 @@ By applying to this program, I give the following consents:
                 try {
                     const res = await fetch('/api/admin/team/grant', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify({ email, first_name, role, password: password || undefined }) });
                     const d = await res.json();
-                    if (d.success) { Toast.success('Saved ' + email + ' as ' + role); document.getElementById('teamEmail').value=''; document.getElementById('teamFirst').value=''; document.getElementById('teamPass').value=''; this.load(); }
+                    if (d.success) {
+                        const roleLabel = role === 'admin' ? 'Full admin' : 'Scanner staff';
+                        // A password is only ever used to create a brand-new member. If one was
+                        // entered, tell the admin exactly where the new teammate signs in so they
+                        // can pass it on (email + password + this address).
+                        if (password) Toast.success('Added ' + email + ' as ' + roleLabel + '. They sign in at ' + window.location.origin + ' with the email and password you set.');
+                        else Toast.success('Updated ' + email + ' — now ' + roleLabel + '.');
+                        document.getElementById('teamEmail').value=''; document.getElementById('teamFirst').value=''; document.getElementById('teamPass').value=''; this.load();
+                    }
                     else Toast.error(d.error || 'Failed');
                 } catch (e) { Toast.error('Failed'); }
             },

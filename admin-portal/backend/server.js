@@ -35,6 +35,17 @@ if (fs.existsSync(envPath)) {
 
 const app = express();
 
+// Wraps an async route handler so a rejected await sends a 500 JSON response instead of leaving the
+// request hanging (Express 4 does not catch async throws). Use for any `async (req, res) =>` handler.
+function asyncHandler(fn) {
+    return function (req, res, next) {
+        Promise.resolve(fn(req, res, next)).catch(function (err) {
+            console.error('Unhandled route error:', err);
+            if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
+        });
+    };
+}
+
 // C1: XLSX export helper
 function generateXlsxBuffer(headers, rows, sheetName = 'Sheet1') {
     const data = [headers, ...rows];
@@ -1258,26 +1269,91 @@ function seatEnqueueTransactional({ to, subject, html, source_engine, template }
     return true;
 }
 
-// A branded standalone confirmation/claim result page (full HTML doc, not an email).
-function seatResultPage({ heading, sub, accent, cta }) {
+// A Google Calendar save-the-date link for Plexus 2026 — offered on the seat-confirmed pages below.
+const PLEXUS_CAL_URL = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' +
+    encodeURIComponent('Plexus 2026 — Med&X') +
+    '&dates=20261204/20261206&location=' + encodeURIComponent('Zagreb, Croatia') +
+    '&details=' + encodeURIComponent('Plexus 2026, the Med&X biomedical meeting. Friday 4 to Saturday 5 December, Zagreb.');
+
+// A branded standalone confirmation / claim / feedback result page — one premium shell for every
+// attendee-facing public state: warm-ink header band with the white med&X logotype, a cream sheet,
+// a Fraunces serif headline, a crimson primary button and gold hairline details. Back-compatible:
+// legacy callers pass { heading, sub, accent, cta }; tone is derived from accent when not supplied.
+// Extras: kicker (uppercase eyebrow), secondary (ghost link), facts [{label,value}], extra (raw HTML
+// rendered under the lede, e.g. the feedback score picker).
+function seatResultPage({ heading, sub, accent, cta, tone, kicker, secondary, facts, extra }) {
     const a = accent || '#16a34a';
-    const btn = cta ? `<a href="${cta.href}" style="display:inline-block;margin-top:26px;background:${a};color:#fff;text-decoration:none;padding:14px 34px;border-radius:10px;font-weight:700;font-size:15px;">${seatEsc(cta.label)}</a>` : '';
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${seatEsc(heading)}</title></head>
-<body style="margin:0;background:#f5f3ee;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
-  <div style="max-width:560px;margin:0 auto;padding:56px 20px;">
-    <div style="background:#fff;border-radius:18px;box-shadow:0 8px 40px rgba(15,23,42,0.10);overflow:hidden;">
-      <div style="background:linear-gradient(135deg,#0f172a,#1a2744);padding:30px 32px;text-align:center;">
-        <div style="color:#C9A962;font-size:13px;letter-spacing:3px;text-transform:uppercase;font-weight:700;">Med&amp;X · Plexus 2026</div>
-      </div>
-      <div style="height:4px;background:${a};"></div>
-      <div style="padding:40px 36px;text-align:center;">
-        <h1 style="margin:0 0 10px;color:#0f172a;font-size:24px;">${seatEsc(heading)}</h1>
-        <p style="color:#475569;font-size:15px;line-height:1.65;margin:0;">${sub}</p>
-        ${btn}
-      </div>
-      <div style="background:#0f172a;padding:18px;text-align:center;color:#64748b;font-size:11px;">Building Bridges in Biomedicine</div>
-    </div>
-  </div>
+    const t = tone || (/dc2626|ef4444|b91c1c/i.test(a) ? 'alert' : (/d97706|f59e0b|0f172a|1e293b/i.test(a) ? 'neutral' : 'success'));
+    const kickerColor = t === 'alert' ? '#9a2f2a' : (t === 'neutral' ? '#8a7a5f' : '#a9863c');
+    const primaryHtml = cta ? `<a class="btn-primary" href="${cta.href}">${seatEsc(cta.label)}</a>` : '';
+    const secondaryHtml = secondary ? `<a class="btn-ghost" href="${secondary.href}"${/^https?:/i.test(secondary.href || '') ? ' target="_blank" rel="noopener"' : ''}>${seatEsc(secondary.label)}</a>` : '';
+    const actions = (primaryHtml || secondaryHtml) ? `<div class="actions">${primaryHtml}${secondaryHtml}</div>` : '';
+    const factsHtml = (facts && facts.length)
+        ? `<div class="facts">${facts.map(f => `<div class="frow"><span>${seatEsc(f.label)}</span><span>${seatEsc(f.value)}</span></div>`).join('')}</div>`
+        : '';
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${seatEsc(heading)} — Med&X</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23241e19'/%3E%3Ctext x='16' y='22' font-family='Georgia,serif' font-size='18' font-weight='700' text-anchor='middle' fill='%23b0893b'%3EX%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#211b17;--cream:#efe7d6;--sheet:#fbf8f1;--text:#2c2521;--muted:#6f6256;--gold:#b0893b;--gold-soft:rgba(176,137,59,.32);--crimson:#8f2d2a;--crimson-dark:#772320;}
+*{box-sizing:border-box;}
+html,body{margin:0;}
+body{min-height:100vh;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;color:var(--text);
+  background:radial-gradient(1200px 640px at 50% -8%,#f6efe0,transparent 62%),var(--cream);
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;align-items:center;padding:0 18px 40px;}
+.band{width:100%;background:linear-gradient(180deg,#241e19,#1b1613);border-bottom:1px solid var(--gold-soft);
+  padding:24px 20px;display:flex;justify-content:center;align-items:center;margin-bottom:clamp(28px,7vw,58px);}
+.band img{height:32px;width:auto;filter:brightness(0) invert(1);opacity:.94;}
+.band .wordmark{font-family:'Fraunces','Georgia','Times New Roman',serif;font-weight:600;font-size:23px;letter-spacing:.4px;color:#f4ecde;}
+.band .wordmark .amp{color:var(--gold);font-weight:500;padding:0 1px;}
+.sheet{width:100%;max-width:520px;background:var(--sheet);border:1px solid rgba(43,33,25,.07);border-radius:20px;
+  padding:clamp(34px,6vw,46px) clamp(24px,5vw,44px);text-align:center;position:relative;overflow:hidden;
+  box-shadow:0 1px 0 rgba(255,255,255,.7) inset,0 24px 60px -30px rgba(43,33,25,.34);
+  animation:rise .5s cubic-bezier(.2,.7,.2,1) both;}
+@keyframes rise{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:none;}}
+@media(prefers-reduced-motion:reduce){.sheet{animation:none;}}
+.kicker{font-size:11px;font-weight:600;letter-spacing:2.6px;text-transform:uppercase;color:${kickerColor};margin:0 0 14px;}
+.rule{width:38px;height:1px;background:var(--gold-soft);margin:0 auto 20px;}
+.headline{font-family:'Fraunces','Georgia','Times New Roman',serif;font-weight:600;font-size:clamp(28px,6vw,38px);
+  line-height:1.09;letter-spacing:-.4px;color:#241d18;margin:0 0 14px;}
+.lede{font-size:15.5px;line-height:1.68;color:var(--muted);margin:0 auto;max-width:410px;}
+.lede strong{color:#2c2521;font-weight:600;}
+.lede a{color:var(--crimson);text-decoration:none;font-weight:600;}
+.facts{margin:24px auto 4px;padding:16px 18px;background:#f4eede;border:1px solid rgba(176,137,59,.2);border-radius:14px;max-width:410px;text-align:left;}
+.facts .frow{display:flex;justify-content:space-between;gap:16px;font-size:14px;padding:5px 0;color:#3a322b;}
+.facts .frow + .frow{border-top:1px solid rgba(176,137,59,.16);}
+.facts .frow span:first-child{color:var(--muted);font-weight:500;}
+.facts .frow span:last-child{font-weight:600;text-align:right;}
+.actions{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:30px;}
+.btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:14px 30px;border:none;border-radius:11px;cursor:pointer;
+  font-family:inherit;font-size:14.5px;font-weight:600;letter-spacing:.2px;text-decoration:none;color:#fbf3e6;
+  background:linear-gradient(180deg,#a03330,var(--crimson));box-shadow:0 12px 26px -12px rgba(143,45,42,.7);transition:transform .15s,box-shadow .15s,background .15s;}
+.btn-primary:hover{background:linear-gradient(180deg,#8f2d2a,var(--crimson-dark));transform:translateY(-1px);box-shadow:0 16px 30px -12px rgba(143,45,42,.8);}
+.btn-ghost{display:inline-flex;align-items:center;justify-content:center;padding:14px 26px;border-radius:11px;text-decoration:none;
+  font-family:inherit;font-size:14.5px;font-weight:600;color:#4a3f36;background:transparent;border:1px solid rgba(43,33,25,.22);transition:background .15s,border-color .15s;}
+.btn-ghost:hover{background:rgba(43,33,25,.045);border-color:rgba(43,33,25,.4);}
+.scorewrap{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:26px auto 0;max-width:430px;}
+.pick{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:12px;text-decoration:none;
+  font-family:'Fraunces',Georgia,serif;font-size:17px;font-weight:600;color:#3a322b;background:#f4eede;border:1px solid var(--gold-soft);
+  transition:transform .12s,background .15s,color .15s,box-shadow .15s;}
+.pick:hover{background:linear-gradient(180deg,#a03330,var(--crimson));color:#fbf3e6;border-color:transparent;transform:translateY(-2px);box-shadow:0 12px 22px -12px rgba(143,45,42,.75);}
+.scoreends{display:flex;justify-content:space-between;max-width:430px;margin:9px auto 0;font-size:10.5px;letter-spacing:1.4px;color:#9a8f80;text-transform:uppercase;font-weight:600;}
+.foot{margin:30px auto 0;font-size:12px;letter-spacing:.3px;color:#94897c;text-align:center;}
+.foot b{font-weight:600;color:#6f6256;}
+@media(max-width:520px){.sheet{border-radius:16px;}.actions{flex-direction:column;}.btn-primary,.btn-ghost{width:100%;}.pick{width:42px;height:42px;font-size:16px;}}
+</style></head>
+<body>
+<header class="band"><span class="wordmark">med<span class="amp">&amp;</span>X</span></header>
+<main class="sheet">
+  <p class="kicker">${seatEsc(kicker || 'Plexus 2026')}</p><div class="rule"></div>
+  <h1 class="headline">${seatEsc(heading)}</h1>
+  ${sub ? `<p class="lede">${sub}</p>` : ''}
+  ${extra || ''}
+  ${factsHtml}
+  ${actions}
+</main>
+<footer class="foot"><b>Med&amp;X Association</b> &middot; medx.hr</footer>
 </body></html>`;
 }
 
@@ -3118,6 +3194,22 @@ async function initializeApp() {
     // written by the admin composer always carry an explicit scope. Both portals run this idempotent
     // ALTER so whichever boots first adds the column to the shared DB.
     try { db.run('ALTER TABLE member_announcements ADD COLUMN audience_scope TEXT'); } catch (e) {}
+
+    // One-time heal for existing DBs (local + shared Turso): purge the placeholder demo speakers that
+    // early builds seeded with real institution names (Harvard / MD Anderson / Novartis). They must
+    // never surface publicly as "confirmed 2026" speakers. Idempotent and tightly scoped by exact
+    // name + institution + talk so a genuine confirmed speaker with any of these fields is never touched.
+    try {
+        db.run(`DELETE FROM speakers WHERE
+            (name = 'Dr. Sarah Mitchell' AND institution = 'Harvard Medical School' AND talk_title = 'The Future of Sleep Medicine')
+            OR (name = 'Prof. Michael Chen' AND institution = 'MD Anderson' AND talk_title = 'Immunotherapy Breakthroughs')
+            OR (name = 'Dr. Elena Rossi' AND institution = 'Novartis' AND talk_title = 'Drug Development in the AI Era')`);
+    } catch (e) {}
+    // The seeded gala demo speakers all used randomuser.me portrait URLs — a unique marker of the
+    // placeholder set. Reset the roster to empty (hidden-until-confirmed) and drop the one fabricated
+    // keynote name from the seeded schedule, leaving any real admin edits intact.
+    try { db.run(`UPDATE gala_settings SET speakers_json = '[]' WHERE speakers_json LIKE '%randomuser.me%'`); } catch (e) {}
+    try { db.run(`UPDATE gala_settings SET schedule_json = REPLACE(REPLACE(schedule_json, 'Dr. Elizabeth Chen: "The Next Decade of Cancer Research"', 'Keynote address to be announced'), 'Dr. Elizabeth Chen: The Next Decade of Cancer Research', 'Keynote address to be announced') WHERE schedule_json LIKE '%Elizabeth Chen%'`); } catch (e) {}
 
     // Seed rewards economy defaults (idempotent per key — admin edits are never overwritten on reboot).
     // Both portals seed this so whichever boots first populates the shared Turso DB; locally the admin
@@ -5025,14 +5117,12 @@ async function initializeApp() {
     // Seed default gala speakers and schedule if columns are empty
     const galaCheck = query.get("SELECT speakers_json FROM gala_settings WHERE id = 'default'");
     if (galaCheck && !galaCheck.speakers_json) {
-        const defaultGalaSpeakers = JSON.stringify([
-            { key: 'chen', name: 'Dr. Elizabeth Chen', title: 'Director, National Cancer Institute', topic: '"The Next Decade of Cancer Research"', image: 'https://randomuser.me/api/portraits/women/23.jpg', bio: 'Dr. Elizabeth Chen is a world-renowned oncologist and the Director of the National Cancer Institute.', badge: 'Keynote Speaker', featured: true },
-            { key: 'weber', name: 'Prof. Michael Weber', title: 'Nobel Laureate in Medicine', topic: 'Awards Presenter', image: 'https://randomuser.me/api/portraits/men/42.jpg', bio: 'Professor Michael Weber received the Nobel Prize in Physiology or Medicine for his discoveries concerning the molecular mechanisms of circadian rhythm.', badge: '', featured: false },
-            { key: 'mitchell', name: 'Dr. Sarah Mitchell', title: 'CEO, BioTech Innovations', topic: 'Industry Address', image: 'https://randomuser.me/api/portraits/women/45.jpg', bio: 'Dr. Sarah Mitchell is the CEO of BioTech Innovations, a leading biotech company specializing in gene therapy and regenerative medicine.', badge: '', featured: false }
-        ]);
+        // Speakers are added through the admin gala editor once confirmed — never seed placeholder
+        // names. An empty roster keeps the public gala page hidden-until-confirmed.
+        const defaultGalaSpeakers = JSON.stringify([]);
         const defaultGalaSchedule = JSON.stringify([
             { time: '18:00', title: 'Welcome Reception', description: 'Champagne cocktails and canapes in the Grand Foyer', icon: 'fas fa-champagne-glasses' },
-            { time: '19:00', title: 'Opening & Keynote Address', description: 'Dr. Elizabeth Chen: The Next Decade of Cancer Research', icon: 'fas fa-microphone' },
+            { time: '19:00', title: 'Opening & Keynote Address', description: 'Keynote address to be announced', icon: 'fas fa-microphone' },
             { time: '20:00', title: 'Gala Dinner', description: 'Five-course dinner with premium wine pairings', icon: 'fas fa-utensils' },
             { time: '21:30', title: 'Biomedical Forum Annual Awards', description: 'Recognition of outstanding contributions to medical research', icon: 'fas fa-trophy' },
             { time: '22:30', title: 'Networking & Entertainment', description: 'Live music, dancing, and exclusive networking until midnight', icon: 'fas fa-users' }
@@ -5259,12 +5349,9 @@ async function initializeApp() {
         db.run(`INSERT INTO promo_codes (id, conference_id, code, discount_value, max_uses, valid_until)
             VALUES (?, ?, 'EARLYBIRD25', 25, 50, '2026-08-31')`, [uuidv4(), confId]);
 
-        // Add sample speakers
-        const speakers = [
-            ['Dr. Sarah Mitchell', 'Professor of Neuroscience', 'Harvard Medical School', 'Sarah Mitchell is a leading researcher in sleep neuroscience...', 'The Future of Sleep Medicine', 1],
-            ['Prof. Michael Chen', 'Director of Cancer Research', 'MD Anderson', 'Michael Chen has published over 200 papers...', 'Immunotherapy Breakthroughs', 1],
-            ['Dr. Elena Rossi', 'Chief Medical Officer', 'Novartis', 'Elena Rossi leads global medical strategy...', 'Drug Development in the AI Era', 0]
-        ];
+        // Speakers are added through the admin speaker manager once confirmed — never seed placeholder
+        // names. An empty roster keeps the public speakers page hidden-until-confirmed.
+        const speakers = [];
         speakers.forEach((s, i) => {
             db.run(`INSERT INTO speakers (id, conference_id, name, title, institution, bio, talk_title, is_keynote, sort_order)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [uuidv4(), confId, s[0], s[1], s[2], s[3], s[4], s[5], i]);
@@ -7387,19 +7474,20 @@ async function initializeApp() {
         res.json({ success: true });
     });
 
-    app.put('/api/auth/password', auth, async (req, res) => {
+    app.put('/api/auth/password', auth, asyncHandler(async (req, res) => {
         const { currentPassword, newPassword } = req.body;
         if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both current and new password are required' });
         if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
         const user = query.get('SELECT password_hash FROM users WHERE id = ?', [req.user.id]);
         if (!user) return res.status(404).json({ error: 'User not found' });
+        if (!user.password_hash) return res.status(400).json({ error: 'No password is set for this account.' });
         const valid = await bcrypt.compare(currentPassword, user.password_hash);
         if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
         const hash = await bcrypt.hash(newPassword, 10);
         db.run('UPDATE users SET password_hash = ? WHERE id = ?', [hash, req.user.id]);
         saveDb();
         res.json({ success: true });
-    });
+    }));
 
     // ========== ADMIN SECTION PREFERENCES ==========
     app.get('/api/admin/sections', auth, (req, res) => {
@@ -8091,7 +8179,33 @@ async function initializeApp() {
                     }));
                 }
             } catch (e) {}
-            const items = aItems.concat(nItems).sort((x, y) =>
+            let mItems = [];
+            try {
+                // Member announcements (admin composer) also surface on the site bell so publishing once
+                // reaches BOTH the member portal center (/api/announcements) and the website bell. Same
+                // audience gating: audience_scope + notify_topics (interested) + registration-by-email.
+                const mAnns = query.all('SELECT * FROM member_announcements ORDER BY created_at DESC LIMIT ?', [limit]);
+                const subs = query.all('SELECT project_key FROM notify_topics WHERE user_id = ?', [req.user.id]).map(r => r.project_key);
+                const regProjects = (typeof memberRegisteredProjects === 'function') ? memberRegisteredProjects(req.user && req.user.email) : [];
+                mItems = (mAnns || []).filter(a => {
+                    if (!a.project_key) return true;
+                    const scope = a.audience_scope || 'everyone';
+                    if (scope === 'everyone') return true;
+                    const isFollowing = subs.indexOf(a.project_key) >= 0;
+                    const isRegistered = regProjects.indexOf(a.project_key) >= 0;
+                    if (scope === 'interested') return isFollowing;
+                    if (scope === 'registered') return isRegistered;
+                    if (scope === 'interested_not_registered') return isFollowing && !isRegistered;
+                    return true;
+                }).map(a => ({
+                    id: 'mann:' + a.id, source: 'member',
+                    title: a.title || 'Announcement', message: a.body || '',
+                    created_at: a.created_at, is_read: 0,
+                    link: null, category: 'announcement', project: a.project_key || null,
+                    is_urgent: 0, target: null
+                }));
+            } catch (e) {}
+            const items = aItems.concat(mItems).concat(nItems).sort((x, y) =>
                 ((y.is_urgent || 0) - (x.is_urgent || 0)) || (new Date(y.created_at || 0) - new Date(x.created_at || 0)));
             res.json({ items });
         } catch (err) {
@@ -13181,7 +13295,7 @@ By applying to this program, I provide the following consents:
     });
 
     // Start registration (Step 1: Personal info + account creation)
-    app.post('/api/plexus/register/start', async (req, res) => {
+    app.post('/api/plexus/register/start', asyncHandler(async (req, res) => {
         const { email, password, first_name, last_name, phone, institution, country, title, department } = req.body;
 
         // Check if user exists
@@ -13189,6 +13303,7 @@ By applying to this program, I provide the following consents:
 
         if (user && password) {
             // Verify password for existing user
+            if (!user.password_hash) return res.status(400).json({ error: 'This account has no password set. Please sign in through the portal to set one.' });
             const valid = await bcrypt.compare(password, user.password_hash);
             if (!valid) return res.status(400).json({ error: 'Account exists with different password' });
         } else if (!user) {
@@ -13214,10 +13329,10 @@ By applying to this program, I provide the following consents:
         const token = jwt.sign({ id: user.id, email: user.email, is_admin: user.is_admin }, JWT_SECRET, { expiresIn: '24h' });
 
         res.json({ success: true, user_id: user.id, token, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name } });
-    });
+    }));
 
     // Complete registration (Step 2: Ticket selection + payment)
-    app.post('/api/plexus/register/complete', auth, async (req, res) => {
+    app.post('/api/plexus/register/complete', auth, asyncHandler(async (req, res) => {
         const { ticket_type_id, registration_type, promo_code, billing_info, registration_details: details } = req.body;
 
         const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
@@ -13282,7 +13397,7 @@ By applying to this program, I provide the following consents:
             qr_code: qrCode,
             payment_required: finalAmount > 0
         });
-    });
+    }));
 
     // Get my registration
     app.get('/api/plexus/my-registration', auth, (req, res) => {
@@ -22617,12 +22732,12 @@ By applying to this program, I provide the following consents:
             if (!token) return res.status(400).send(seatResultPage({ heading: 'Invalid link', sub: 'This confirmation link is missing its token.', accent: '#dc2626' }));
             const row = query.get("SELECT * FROM seat_confirmations WHERE token = ?", [token]);
             if (!row) return res.status(404).send(seatResultPage({ heading: 'Link not found', sub: 'We could not find this seat. It may have already been handled — reply to your confirmation email and we will help.', accent: '#dc2626' }));
-            if (row.status === 'confirmed') return res.send(seatResultPage({ heading: 'Already confirmed', sub: 'Your Plexus seat is confirmed. See you there.', accent: '#16a34a' }));
-            if (row.status === 'released') return res.send(seatResultPage({ heading: 'This seat was released', sub: 'This seat was released after it went unconfirmed. If you still want to come, reply to your email and we will check the waitlist.', accent: '#d97706' }));
+            if (row.status === 'confirmed') return res.send(seatResultPage({ heading: 'Already confirmed', kicker: 'Plexus 2026 · Seat confirmed', sub: 'Your Plexus 2026 seat is already confirmed. We look forward to seeing you in Zagreb.', accent: '#16a34a', facts: [{ label: 'Dates', value: '4–5 December 2026' }, { label: 'Location', value: 'Zagreb, Croatia' }], secondary: { href: PLEXUS_CAL_URL, label: 'Add to your calendar' } }));
+            if (row.status === 'released') return res.send(seatResultPage({ heading: 'This seat was released', kicker: 'Plexus 2026 · Seat release', sub: 'This seat was released after it went unconfirmed. If you still want to come, reply to your email and we will check the waitlist.', accent: '#d97706' }));
             db.run("UPDATE seat_confirmations SET status = 'confirmed', confirmed_at = datetime('now') WHERE id = ?", [row.id]);
             saveDb();
             console.log(`[SeatConfirm] Seat confirmed for ${row.email || row.reg_id}`);
-            return res.send(seatResultPage({ heading: 'Your seat is confirmed', sub: 'Thank you — your place at Plexus 2026 is locked in. We are looking forward to seeing you.', accent: '#16a34a' }));
+            return res.send(seatResultPage({ heading: 'Your seat is confirmed', kicker: 'Plexus 2026 · Seat confirmed', sub: 'Thank you. Your place at Plexus 2026 is locked in, and we look forward to welcoming you to Zagreb.', accent: '#16a34a', facts: [{ label: 'Dates', value: '4–5 December 2026' }, { label: 'Location', value: 'Zagreb, Croatia' }], secondary: { href: PLEXUS_CAL_URL, label: 'Add to your calendar' } }));
         } catch (e) { console.error('[public confirm-seat]', e.message); return res.status(500).send(seatResultPage({ heading: 'Something went wrong', sub: 'Please try again in a moment.', accent: '#dc2626' })); }
     });
 
@@ -22643,20 +22758,20 @@ By applying to this program, I provide the following consents:
                 if (o.ticket_type) qs.set('ticket', o.ticket_type);
                 return `${userPortalBase()}/plexus?${qs.toString()}`;
             };
-            if (o.status === 'claimed') return res.send(seatResultPage({ heading: 'Seat reserved for you', sub: 'You already accepted this seat. Finish your registration to lock it in.', accent: '#16a34a', cta: { href: buildRegUrl(), label: 'Complete your registration' } }));
-            if (o.status === 'expired') return res.send(seatResultPage({ heading: 'This offer expired', sub: 'This 48-hour offer has expired and the seat has moved to the next person on the waitlist.', accent: '#d97706' }));
+            if (o.status === 'claimed') return res.send(seatResultPage({ heading: 'Seat reserved for you', kicker: 'Plexus 2026 · Seat reserved', sub: 'You already accepted this seat. Complete your registration to lock it in.', accent: '#16a34a', facts: [{ label: 'Dates', value: '4–5 December 2026' }, { label: 'Location', value: 'Zagreb, Croatia' }], cta: { href: buildRegUrl(), label: 'Complete your registration' } }));
+            if (o.status === 'expired') return res.send(seatResultPage({ heading: 'This offer expired', kicker: 'Plexus 2026 · Waitlist offer', sub: 'This 48-hour offer has expired and the seat has moved to the next person on the waitlist.', accent: '#d97706' }));
             if (o.is_expired) {
                 db.run("UPDATE waitlist_offers SET status = 'expired' WHERE id = ?", [o.id]);
                 try { offerNextWaitlist(o.event_key, o.source_reg_id, req); } catch (e) {}
                 saveDb();
-                return res.send(seatResultPage({ heading: 'This offer expired', sub: 'This 48-hour offer has expired and the seat has moved to the next person on the waitlist.', accent: '#d97706' }));
+                return res.send(seatResultPage({ heading: 'This offer expired', kicker: 'Plexus 2026 · Waitlist offer', sub: 'This 48-hour offer has expired and the seat has moved to the next person on the waitlist.', accent: '#d97706' }));
             }
             // Accept the offer: mark claimed + promote the waitlist row (existing waitlist status).
             db.run("UPDATE waitlist_offers SET status = 'claimed', claimed_at = datetime('now') WHERE id = ?", [o.id]);
             if (o.waitlist_id) { try { db.run("UPDATE event_waitlist SET status = 'promoted' WHERE id = ?", [o.waitlist_id]); } catch (e) {} }
             saveDb();
             console.log(`[Waitlist] Offer claimed by ${o.email || o.waitlist_id}`);
-            return res.send(seatResultPage({ heading: 'Your seat is reserved', sub: 'A Plexus 2026 seat is yours. Finish your registration to lock it in — your details are already filled in.', accent: '#16a34a', cta: { href: buildRegUrl(), label: 'Complete your registration' } }));
+            return res.send(seatResultPage({ heading: 'Your seat is reserved', kicker: 'Plexus 2026 · Seat reserved', sub: 'A Plexus 2026 seat is yours. Complete your registration to lock it in. Your details are already filled in for you.', accent: '#16a34a', facts: [{ label: 'Dates', value: '4–5 December 2026' }, { label: 'Location', value: 'Zagreb, Croatia' }], cta: { href: buildRegUrl(), label: 'Complete your registration' } }));
         } catch (e) { console.error('[public claim-seat]', e.message); return res.status(500).send(seatResultPage({ heading: 'Something went wrong', sub: 'Please try again in a moment.', accent: '#dc2626' })); }
     });
 
@@ -22673,11 +22788,12 @@ By applying to this program, I provide the following consents:
             if (!row) return res.status(404).send(seatResultPage({ heading: 'Link not found', sub: 'We could not find this feedback link. It may have already been used.', accent: '#dc2626' }));
             const label = (postEventCfg(row.event_key) && postEventCfg(row.event_key).label) || 'the event';
             if (row.responded_at) {
-                return res.send(seatResultPage({ heading: 'Thank you', sub: `We already have your rating for ${seatEsc(label)} — thank you for taking the time.`, accent: '#16a34a' }));
+                return res.send(seatResultPage({ heading: 'Thank you', kicker: 'Plexus 2026 · Your feedback', sub: `We already have your rating for ${seatEsc(label)}. Thank you for taking the time.`, accent: '#16a34a' }));
             }
             if (rawScore === undefined || rawScore === '') {
-                const buttons = [1,2,3,4,5,6,7,8,9,10].map((n) => `<a href="${seatPublicBase(req)}/api/public/feedback?token=${seatEsc(token)}&score=${n}" style="display:inline-block;width:40px;height:40px;line-height:40px;margin:4px;text-align:center;border-radius:9px;background:#0f172a;color:#C9A962;text-decoration:none;font-weight:700;">${n}</a>`).join('');
-                return res.send(seatResultPage({ heading: 'How was it?', sub: `On a scale of 1 to 10, how likely are you to recommend ${seatEsc(label)} to a colleague?<br><br>${buttons}`, accent: '#0f172a' }));
+                const buttons = [1,2,3,4,5,6,7,8,9,10].map((n) => `<a class="pick" href="${seatPublicBase(req)}/api/public/feedback?token=${seatEsc(token)}&score=${n}">${n}</a>`).join('');
+                const picker = `<div class="scorewrap">${buttons}</div><div class="scoreends"><span>Not likely</span><span>Very likely</span></div>`;
+                return res.send(seatResultPage({ heading: 'How was it?', kicker: 'Plexus 2026 · Your feedback', sub: `On a scale of 1 to 10, how likely are you to recommend ${seatEsc(label)} to a colleague?`, tone: 'neutral', extra: picker }));
             }
             let score = parseInt(rawScore, 10);
             if (!Number.isFinite(score)) return res.status(400).send(seatResultPage({ heading: 'Invalid score', sub: 'Please tap one of the numbers from 1 to 10.', accent: '#dc2626' }));
@@ -22685,7 +22801,7 @@ By applying to this program, I provide the following consents:
             db.run("UPDATE event_feedback SET score = ?, responded_at = datetime('now') WHERE id = ? AND responded_at IS NULL", [score, row.id]);
             saveDb();
             console.log(`[PostEvent] Feedback ${score}/10 for ${row.event_key} from ${row.email || row.reg_id}`);
-            return res.send(seatResultPage({ heading: 'Thank you', sub: `You rated ${seatEsc(label)} a <strong>${score}/10</strong>. Thank you — your feedback helps us make the next edition better.`, accent: '#16a34a' }));
+            return res.send(seatResultPage({ heading: 'Thank you', kicker: 'Plexus 2026 · Your feedback', sub: `You rated ${seatEsc(label)} a <strong>${score}/10</strong>. Your feedback helps us make the next edition better.`, accent: '#16a34a' }));
         } catch (e) { console.error('[public feedback]', e.message); return res.status(500).send(seatResultPage({ heading: 'Something went wrong', sub: 'Please try again in a moment.', accent: '#dc2626' })); }
     });
 
