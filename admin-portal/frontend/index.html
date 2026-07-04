@@ -6924,6 +6924,12 @@
                     <span>Resources</span>
                 </a>
 
+                <a class="nav-item" data-section="merch-studio" href="https://medx-merch-studio.netlify.app/studio/" target="_blank" rel="noopener">
+                    <i class="fas fa-shirt" style="color: #c9a962;"></i>
+                    <span>Merch Studio</span>
+                    <i class="fas fa-arrow-up-right-from-square" style="margin-left:auto;font-size:10px;opacity:.55;"></i>
+                </a>
+
                 <a class="nav-item" data-section="tech" onclick="App.showSection('tech', this)">
                     <i class="fas fa-server" style="color: #9b1b22;"></i>
                     <span>Tech</span>
@@ -7069,6 +7075,21 @@
                                 </button>
                             </div>
                         </details>
+                    </div>
+
+                    <!-- ===== SITE ANALYTICS — first-party, privacy-friendly (aggregate page_views only) ===== -->
+                    <div class="card" id="dashSiteAnalytics" style="margin-bottom: 28px;">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <span class="card-title">Site analytics <span style="font-weight:400; color:var(--text-muted); font-size:12px;">&mdash; last 30 days &middot; privacy-friendly, no cookies</span></span>
+                            <button class="btn btn-secondary" onclick="App.loadSiteAnalytics()" style="font-size: 11px; padding: 5px 12px;" title="Refresh">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div id="siteAnalyticsBody" style="min-height: 220px;">
+                                <div style="color:var(--text-muted); font-size:13px; padding:8px 2px;">Loading site analytics&hellip;</div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Pinned Items (from any project) -->
@@ -7774,6 +7795,24 @@ President, Med&amp;X</textarea>
                                     <i class="fas fa-info-circle" style="margin-right: 6px;"></i>
                                     Enable session check-in from the Schedule tab using the <i class="fas fa-qrcode" style="color: var(--accent-gold);"></i> button on each session.
                                 </p>
+                            </div>
+                        </div>
+                        <!-- POST-EVENT (Close-event round): thank-you + missed + certificates + feedback -->
+                        <div class="card" id="postEventCard-plexus">
+                            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                                <div>
+                                    <span class="card-title"><i class="fas fa-flag-checkered" style="margin-right:6px;color:#9b1b22;"></i> Post-event</span>
+                                    <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0;max-width:660px;">When the conference is over, run one round: thank everyone who came, follow up gently with those who could not make it, issue every attendee a certificate of attendance, and ask one quick question. Each part is staged in the outbox for your approval — nothing sends until you approve it.</p>
+                                </div>
+                                <button class="btn btn-secondary" style="font-size:12px;" onclick="PostEventAdmin.load('plexus')"><i class="fas fa-rotate"></i> Refresh</button>
+                            </div>
+                            <div class="card-body">
+                                <div id="postEventStats-plexus" style="display:grid;grid-template-columns:repeat(4,minmax(90px,1fr));gap:10px;margin-bottom:16px;"></div>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                                    <button class="btn btn-primary" style="font-size:12px;" onclick="PostEventAdmin.runRound('plexus')"><i class="fas fa-flag-checkered"></i> Run post-event round</button>
+                                </div>
+                                <div id="postEventBatches-plexus" style="margin-top:14px;"></div>
+                                <p style="font-size:11px;color:var(--text-muted);margin:14px 0 0;line-height:1.5;">Re-running the round never duplicates a certificate or an email — every attendee is handled exactly once. Certificates appear in each attendee's My Med&amp;X the moment the round runs.</p>
                             </div>
                         </div>
                     </div>
@@ -10205,6 +10244,8 @@ President, Med&amp;X</textarea>
 
                     <!-- Calendar Tab -->
                     <div class="pr-tab" id="pr-tab-calendar">
+                        <!-- Publer connection status card — publishing is handled by Publer; this shows whether it is wired up. -->
+                        <div id="prPublerStatus" style="margin-bottom: 16px;"></div>
                         <!-- View Toggle + Navigation -->
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                             <div style="display: flex; align-items: center; gap: 12px;">
@@ -11625,6 +11666,25 @@ President, Med&amp;X</textarea>
                             </div>
                         </div>
                     </div>
+
+                    <!-- POST-EVENT (Close-event round) — Gala: thank-you + missed + certificates + feedback -->
+                    <div class="card" id="postEventCard-gala" style="margin-top:20px;">
+                        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                            <div>
+                                <span class="card-title"><i class="fas fa-flag-checkered" style="margin-right:6px;color:#9b1b22;"></i> Post-event</span>
+                                <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0;max-width:660px;">After the evening, run one round: thank everyone who came, follow up gently with those who could not make it, issue every guest a certificate of attendance, and ask one quick question. Each part is staged in the outbox for your approval — nothing sends until you approve it.</p>
+                            </div>
+                            <button class="btn btn-secondary" style="font-size:12px;" onclick="PostEventAdmin.load('gala')"><i class="fas fa-rotate"></i> Refresh</button>
+                        </div>
+                        <div class="card-body">
+                            <div id="postEventStats-gala" style="display:grid;grid-template-columns:repeat(4,minmax(90px,1fr));gap:10px;margin-bottom:16px;"></div>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                                <button class="btn btn-primary" style="font-size:12px;" onclick="PostEventAdmin.runRound('gala')"><i class="fas fa-flag-checkered"></i> Run post-event round</button>
+                            </div>
+                            <div id="postEventBatches-gala" style="margin-top:14px;"></div>
+                            <p style="font-size:11px;color:var(--text-muted);margin:14px 0 0;line-height:1.5;">Re-running the round never duplicates a certificate or an email — every guest is handled exactly once.</p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- CROATIANS ABROAD -->
@@ -12811,7 +12871,7 @@ President, Med&amp;X</textarea>
                     </div>
                     <div class="form-group">
                         <label>Platform</label>
-                        <select id="prContentPlatform" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                        <select id="prContentPlatform" onchange="PRApp.updateCounter()" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
                             <option value="instagram">Instagram</option>
                             <option value="linkedin">LinkedIn</option>
                             <option value="twitter">Twitter/X</option>
@@ -12835,15 +12895,17 @@ President, Med&amp;X</textarea>
                 </div>
                 <div class="form-group">
                     <label>Content / Caption</label>
-                    <textarea id="prContentText" rows="4" placeholder="The post caption..." style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);"></textarea>
+                    <textarea id="prContentText" rows="4" oninput="PRApp.updateCounter()" placeholder="The post caption..." style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);"></textarea>
+                    <div id="prContentCounter" style="font-size: 12px; color: var(--text-muted); margin-top: 4px; text-align: right;">0 / 2200 characters</div>
                 </div>
                 <div class="form-group">
                     <label>Hashtags</label>
-                    <input type="text" id="prContentHashtags" placeholder="#plexus2026 #medx #biomedicine" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                    <input type="text" id="prContentHashtags" oninput="PRApp.updateCounter()" placeholder="#plexus2026 #medx #biomedicine" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
                 </div>
                 <div class="form-group">
                     <label>Image URL (optional)</label>
-                    <input type="text" id="prContentImage" placeholder="https://..." style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                    <input type="text" id="prContentImage" oninput="PRApp.updateCounter()" placeholder="https://..." style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                    <div id="prContentIgHint" style="display:none; font-size: 12px; color: var(--pr-media); margin-top: 4px;"><i class="fas fa-circle-info"></i> Instagram requires an image — add an image URL to schedule this post.</div>
                 </div>
                 <div class="form-group">
                     <label>Status</label>
@@ -12856,7 +12918,8 @@ President, Med&amp;X</textarea>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="PRApp.closeModal('prContentModal')">Cancel</button>
-                <button class="btn btn-primary" onclick="PRApp.saveContent()"><i class="fas fa-save"></i> Save</button>
+                <button class="btn btn-secondary" onclick="PRApp.saveContent()"><i class="fas fa-save"></i> Save draft</button>
+                <button class="btn btn-primary" onclick="PRApp.approveSchedule()" title="Approve this post and send it to Publer for scheduling"><i class="fas fa-paper-plane"></i> Approve &amp; Schedule</button>
             </div>
         </div>
     </div>
@@ -14414,6 +14477,7 @@ President, Med&amp;X</textarea>
                 // its one visualization — Registration trends — as a dependency-free inline SVG
                 // sparkline, so nothing here needs Chart.js and the dashboard can never sit blank.
                 this.loadRegistrationTrendsChart();
+                this.loadSiteAnalytics();
             },
 
             _trendEventFilter: 'all',
@@ -14504,6 +14568,101 @@ President, Med&amp;X</textarea>
                 } catch(e) {
                     console.error('Failed to load registration trends:', e);
                     host.innerHTML = `<div style="min-height:180px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px;">Unable to load registration trends</div>`;
+                }
+            },
+
+            // Site analytics — first-party, privacy-friendly page-view counters (no cookies, no PII).
+            // Reads the aggregate page_views table via GET /api/admin/analytics and renders a 30-day
+            // total, a dependency-free inline SVG sparkline (same pattern as Registration trends),
+            // the mobile/desktop split, and top pages + top referrers. Calm empty-state at zero.
+            async loadSiteAnalytics() {
+                const host = document.getElementById('siteAnalyticsBody');
+                if (!host) return;
+                const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+                try {
+                    const data = await this.api('/api/admin/analytics?days=30');
+                    const series = data.series || [];
+                    const total = data.total || 0;
+                    const devices = data.devices || { mobile: 0, desktop: 0 };
+                    const pages = data.top_pages || [];
+                    const refs = data.top_referrers || [];
+
+                    if (total === 0) {
+                        host.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;color:var(--text-muted);gap:8px;">
+                            <i class="fas fa-chart-area" style="font-size:26px;opacity:0.35;"></i>
+                            <div style="font-size:13px;">No site views recorded in the last 30 days</div>
+                            <div style="font-size:11px;opacity:0.7;">Views appear here once visitors browse the site.</div>
+                        </div>`;
+                        return;
+                    }
+
+                    // Daily-views sparkline — viewBox SVG so it scales to the card width.
+                    const pts = series.map(s => s.count || 0);
+                    const peak = Math.max(1, ...pts);
+                    const W = 640, H = 150, padL = 8, padR = 8, padT = 12, padB = 18;
+                    const innerW = W - padL - padR, innerH = H - padT - padB;
+                    const n = pts.length;
+                    const x = i => padL + (n <= 1 ? 0 : (i / (n - 1)) * innerW);
+                    const y = v => padT + innerH - (v / peak) * innerH;
+                    const color = '#c9a962';
+                    const linePts = pts.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`);
+                    const line = 'M' + linePts.join(' L');
+                    const area = `${line} L${x(n-1).toFixed(1)},${(padT+innerH).toFixed(1)} L${x(0).toFixed(1)},${(padT+innerH).toFixed(1)} Z`;
+                    const baseY = (padT + innerH).toFixed(1);
+                    const startLbl = n ? new Date(series[0].day + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '';
+                    const endLbl = n ? new Date(series[n-1].day + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '';
+
+                    // Mobile / desktop split.
+                    const dTotal = (devices.mobile || 0) + (devices.desktop || 0) || 1;
+                    const mobPct = Math.round((devices.mobile || 0) / dTotal * 100);
+                    const deskPct = 100 - mobPct;
+
+                    const pageRows = pages.length ? pages.map(pg => `<tr><td style="padding:5px 8px;color:var(--text-primary);font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(pg.path)}</td><td style="padding:5px 8px;text-align:right;font-weight:600;font-size:12px;">${(pg.count||0).toLocaleString()}</td></tr>`).join('') : `<tr><td colspan="2" style="padding:8px;color:var(--text-muted);font-size:12px;">No pages yet</td></tr>`;
+                    const refRows = refs.length ? refs.map(r => `<tr><td style="padding:5px 8px;color:var(--text-primary);font-size:12px;">${esc(r.domain)}</td><td style="padding:5px 8px;text-align:right;font-weight:600;font-size:12px;">${(r.count||0).toLocaleString()}</td></tr>`).join('') : `<tr><td colspan="2" style="padding:8px;color:var(--text-muted);font-size:12px;">No referrers yet</td></tr>`;
+
+                    host.innerHTML = `
+                        <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:8px;">
+                            <span style="font-size:26px;font-weight:700;color:var(--text-primary);line-height:1;">${total.toLocaleString()}</span>
+                            <span style="font-size:12px;color:var(--text-muted);">total views &middot; last 30 days</span>
+                        </div>
+                        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:150px;display:block;">
+                            <defs><linearGradient id="siteAnalyticsFill" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="${color}" stop-opacity="0.22"/>
+                                <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+                            </linearGradient></defs>
+                            <line x1="${padL}" y1="${baseY}" x2="${W-padR}" y2="${baseY}" stroke="var(--border)" stroke-width="1"/>
+                            <path d="${area}" fill="url(#siteAnalyticsFill)"/>
+                            <path d="${line}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+                            <circle cx="${x(n-1).toFixed(1)}" cy="${y(pts[n-1]).toFixed(1)}" r="3.5" fill="${color}"/>
+                        </svg>
+                        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-top:2px;">
+                            <span>${startLbl}</span><span>daily views</span><span>${endLbl}</span>
+                        </div>
+
+                        <div style="margin:16px 0 4px;">
+                            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:5px;">
+                                <span><i class="fas fa-desktop" style="margin-right:5px;"></i>Desktop ${deskPct}% (${(devices.desktop||0).toLocaleString()})</span>
+                                <span>Mobile ${mobPct}% (${(devices.mobile||0).toLocaleString()})<i class="fas fa-mobile-alt" style="margin-left:5px;"></i></span>
+                            </div>
+                            <div style="height:8px;border-radius:5px;overflow:hidden;display:flex;background:var(--border);">
+                                <div style="width:${deskPct}%;background:#7c9cc9;"></div>
+                                <div style="width:${mobPct}%;background:#c9a962;"></div>
+                            </div>
+                        </div>
+
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:16px;">
+                            <div>
+                                <div style="font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;">Top pages</div>
+                                <table style="width:100%;border-collapse:collapse;">${pageRows}</table>
+                            </div>
+                            <div>
+                                <div style="font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;">Top referrers</div>
+                                <table style="width:100%;border-collapse:collapse;">${refRows}</table>
+                            </div>
+                        </div>`;
+                } catch (e) {
+                    console.error('Failed to load site analytics:', e);
+                    host.innerHTML = `<div style="min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px;">Unable to load site analytics</div>`;
                 }
             },
 
@@ -14664,7 +14823,7 @@ President, Med&amp;X</textarea>
                 // Filter static nav items (Finances, PR & Media). Core member-ops tools
                 // (Announce, Member Ops) are always visible — they are not part of the
                 // per-user onboarding toggle, so never hide them for already-onboarded users.
-                const OPS_ALWAYS_VISIBLE = ['announce', 'member-ops', 'content-studio', 'resources'];
+                const OPS_ALWAYS_VISIBLE = ['announce', 'member-ops', 'content-studio', 'resources', 'merch-studio'];
                 // Item 11/13: 'user-notifications' merged into "Message members" (announce); Portal Content,
                 // Website content and Member Feed merged into "Content studio". Their old nav entries stay
                 // hidden. Each section is still reachable by direct id for back-compat.
@@ -21280,6 +21439,8 @@ President, Med&amp;X</textarea>
                     }
                     // Also load session check-in cards
                     this.loadSessionCheckins();
+                    // Post-event round card (thank-you / missed / certificates / feedback)
+                    if (typeof PostEventAdmin !== 'undefined') PostEventAdmin.load('plexus');
                 } catch (err) {
                     console.error('Failed to load check-in stats:', err);
                 }
@@ -30845,6 +31006,13 @@ By applying to this program, I give the following consents:
                 twitter: '#1DA1F2',
                 facebook: '#1877F2'
             },
+            // Per-platform caption limits — used by the composer character counter.
+            platformLimits: {
+                instagram: 2200,
+                linkedin: 3000,
+                twitter: 280,
+                facebook: 63206
+            },
 
             async api(endpoint, options = {}) {
                 const res = await fetch(endpoint, {
@@ -31041,6 +31209,73 @@ By applying to this program, I give the following consents:
                 }
 
                 grid.innerHTML = html;
+
+                // Refresh the Publer connection card alongside the calendar.
+                this.loadPublerStatus();
+            },
+
+            // Publer connection status card (PR & Media -> Calendar tab).
+            async loadPublerStatus() {
+                const el = document.getElementById('prPublerStatus');
+                if (!el) return;
+                let s;
+                try {
+                    s = await this.api('/api/pr/publer/status');
+                } catch (e) {
+                    s = { connected: false, configured: false, accounts: [], message: 'Could not reach the Publer status endpoint.' };
+                }
+                if (s.connected) {
+                    const chips = (s.accounts || []).map(a => `
+                        <span style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:20px; background:var(--bg-tertiary); font-size:12px; margin:2px;">
+                            <i class="${this.platformIcons[(a.provider || '').toLowerCase()] || 'fas fa-share-nodes'}"></i>
+                            ${escapeHtml(a.name || a.provider || 'account')}
+                        </span>`).join('');
+                    el.innerHTML = `
+                        <div class="card" style="padding:14px 16px; border-left:3px solid var(--success);">
+                            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                                <i class="fas fa-circle-check" style="color:var(--success);"></i>
+                                <strong style="font-size:14px;">${escapeHtml(s.message || 'Publer connected')}</strong>
+                            </div>
+                            <div style="margin-top:8px;">${chips || '<span style="font-size:12px; color:var(--text-muted);">No social accounts connected in this workspace yet.</span>'}</div>
+                        </div>`;
+                } else {
+                    el.innerHTML = `
+                        <div class="card" style="padding:14px 16px; border-left:3px solid #c9a962;">
+                            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                                <i class="fas fa-triangle-exclamation" style="color:#c9a962;"></i>
+                                <strong style="font-size:14px;">Publer: not connected — add PUBLER_API_KEY on Render to activate</strong>
+                            </div>
+                            <div style="font-size:12.5px; color:var(--text-secondary); line-height:1.6; margin-top:10px;">
+                                Approve &amp; Schedule still works right now — posts are saved as <em>published (mock)</em> and the exact Publer payload is logged. To publish for real:
+                                <ol style="margin:8px 0 0; padding-left:20px;">
+                                    <li>Create a <strong>Publer Business</strong> account (about $18–21/month) at publer.com.</li>
+                                    <li>In Publer: <strong>Settings → Access &amp; Login → API Keys</strong>, generate a key, and note your <strong>Workspace ID</strong>.</li>
+                                    <li>On Render, open the <strong>medx-admin-portal</strong> service → <strong>Environment</strong> and add <code>PUBLER_API_KEY</code> and <code>PUBLER_WORKSPACE_ID</code>.</li>
+                                    <li>Redeploy. This card turns green and lists your connected accounts.</li>
+                                </ol>
+                            </div>
+                        </div>`;
+                }
+            },
+
+            // Live character counter + IG image hint for the composer.
+            updateCounter() {
+                const platform = document.getElementById('prContentPlatform')?.value || 'instagram';
+                const limit = this.platformLimits[platform] || 2200;
+                const text = document.getElementById('prContentText')?.value || '';
+                const hashtags = document.getElementById('prContentHashtags')?.value || '';
+                const len = text.length + (hashtags ? hashtags.length + 2 : 0);
+                const el = document.getElementById('prContentCounter');
+                if (el) {
+                    const over = len > limit;
+                    el.textContent = `${len} / ${limit} characters` + (over ? ` — over the ${platform} limit` : '');
+                    el.style.color = over ? 'var(--danger)' : 'var(--text-muted)';
+                }
+                const igHint = document.getElementById('prContentIgHint');
+                if (igHint) {
+                    const image = (document.getElementById('prContentImage')?.value || '').trim();
+                    igHint.style.display = (platform === 'instagram' && !image) ? 'block' : 'none';
+                }
             },
 
             // Content
@@ -31057,6 +31292,7 @@ By applying to this program, I give the following consents:
                 document.getElementById('prContentStatus').value = 'draft';
                 document.getElementById('prContentModalTitle').textContent = 'Schedule Content';
                 document.getElementById('prContentModal').classList.add('active');
+                this.updateCounter();
             },
 
             async editContent(id) {
@@ -31073,9 +31309,11 @@ By applying to this program, I give the following consents:
                 document.getElementById('prContentStatus').value = item.status;
                 document.getElementById('prContentModalTitle').textContent = 'Edit Content';
                 document.getElementById('prContentModal').classList.add('active');
+                this.updateCounter();
             },
 
-            async saveContent() {
+            // Persist the composer (create or update) and return the calendar id.
+            async persistContent() {
                 const id = document.getElementById('prContentId').value;
                 const data = {
                     project: document.getElementById('prContentProject').value,
@@ -31091,13 +31329,59 @@ By applying to this program, I give the following consents:
 
                 if (id) {
                     await this.api(`/api/pr/calendar/${id}`, { method: 'PUT', body: JSON.stringify(data) });
-                } else {
-                    await this.api('/api/pr/calendar', { method: 'POST', body: JSON.stringify(data) });
+                    return id;
                 }
+                const r = await this.api('/api/pr/calendar', { method: 'POST', body: JSON.stringify(data) });
+                if (r && r.id) document.getElementById('prContentId').value = r.id;
+                return r && r.id;
+            },
 
+            async saveContent() {
+                await this.persistContent();
                 this.closeModal('prContentModal');
                 this.loadCalendar();
                 this.loadDashboard();
+            },
+
+            // Approve & Schedule — save the post, then hand it to Publer via the
+            // approve-schedule route. Nothing reaches Publer without this click.
+            async approveSchedule() {
+                const platform = document.getElementById('prContentPlatform').value;
+                const image = (document.getElementById('prContentImage').value || '').trim();
+                const date = document.getElementById('prContentDate').value;
+                // Client-side guards mirror the server (IG image + a schedule date).
+                if (platform === 'instagram' && !image) {
+                    this.updateCounter();
+                    Toast.error('Instagram requires an image. Add an image URL before scheduling.');
+                    return;
+                }
+                if (!date) {
+                    Toast.error('Pick a date before scheduling.');
+                    return;
+                }
+                let id;
+                try {
+                    id = await this.persistContent();
+                } catch (e) {
+                    Toast.error('Could not save the post: ' + (e.message || e));
+                    return;
+                }
+                if (!id) { Toast.error('Could not save the post.'); return; }
+                try {
+                    const r = await this.api(`/api/pr/calendar/${id}/approve-schedule`, { method: 'POST' });
+                    if (r.mock) {
+                        Toast.success('Approved. Publer is not connected yet, so the post was saved as published (mock) and the payload was logged.');
+                    } else if (r.success) {
+                        Toast.success('Approved and scheduled via Publer.');
+                    } else {
+                        Toast.error(r.note || 'Publer could not schedule this post.');
+                    }
+                    this.closeModal('prContentModal');
+                    this.loadCalendar();
+                    this.loadDashboard();
+                } catch (e) {
+                    Toast.error(e.message || 'Scheduling failed.');
+                }
             },
 
             // Posts
@@ -32010,6 +32294,7 @@ By applying to this program, I give the following consents:
 
             async init() {
                 if (typeof ProjectPing !== 'undefined') ProjectPing.render('galaPingInterested', 'gala', 'the Gala Evening');
+                if (typeof PostEventAdmin !== 'undefined') PostEventAdmin.load('gala');
                 if (this.initialized) {
                     this.loadRegistrations();
                     return;
@@ -35419,6 +35704,87 @@ By applying to this program, I give the following consents:
                 };
                 const r = await this.api('/api/admin/seat-confirmations/config', { method: 'PUT', body: JSON.stringify(body) });
                 if (r.d && r.d.success) { btn.closest('.modal-overlay').remove(); Toast.success('Timing saved'); this.load(); }
+                else Toast.error((r.d && r.d.error) || 'Failed');
+            }
+        };
+
+        // ==================== POST-EVENT (Close-event round) ADMIN ====================
+        // One card per event (Plexus check-in tab + Gala section). The single "Run post-event round"
+        // button issues certificates and stages four approval-gated batches; each batch approves/discards
+        // through the SAME outbox endpoints the confirm-seat rounds use. Feedback avg lands once responses
+        // come in through the public one-question link.
+        const PostEventAdmin = {
+            esc(s) { return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); },
+            async api(path, opts = {}) {
+                const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}`, ...(opts.headers || {}) } });
+                let d = null; try { d = await res.json(); } catch (e) {}
+                return { ok: res.ok, d };
+            },
+            async load(ek) {
+                ek = ek || 'plexus';
+                const host = document.getElementById('postEventStats-' + ek); if (!host) return;
+                const r = await this.api('/api/admin/post-event/summary?event_key=' + encodeURIComponent(ek));
+                const s = r.d || {};
+                const stat = (label, val, color) => `<div class="stat-item" style="background:var(--bg-primary);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center;">
+                    <div style="font-size:22px;font-weight:800;color:${color};">${val == null ? '—' : val}</div>
+                    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">${label}</div></div>`;
+                const avg = (s.feedback && s.feedback.avg_score != null) ? (s.feedback.avg_score + ' / 10') : '—';
+                host.innerHTML = stat('Checked in', s.checked_in, 'var(--text-primary)')
+                    + stat('Missed', s.missed, '#6b7280')
+                    + stat('Certificates', s.certs_issued, '#16a34a')
+                    + stat('Avg score', avg, '#9b1b22');
+                this.renderBatches(ek, s);
+            },
+            renderBatches(ek, s) {
+                const el = document.getElementById('postEventBatches-' + ek); if (!el) return;
+                const b = (s && s.batches) || {};
+                const defs = [
+                    { k: 'thankyou', label: 'Thank-you to attendees' },
+                    { k: 'cert', label: 'Certificate is ready' },
+                    { k: 'feedback', label: 'One-question feedback' },
+                    { k: 'missed', label: 'We missed you' },
+                ];
+                el.innerHTML = defs.map(({ k, label }) => {
+                    const st = b[k] || {};
+                    let right;
+                    if (st.pending_batch_id) {
+                        right = `<span style="color:#f59e0b;font-weight:700;">${st.pending} awaiting approval</span>
+                            <button class="btn btn-primary" style="font-size:11px;padding:5px 12px;" onclick="PostEventAdmin.approve('${st.pending_batch_id}','${ek}')"><i class="fas fa-check"></i> Approve &amp; send</button>
+                            <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;color:#dc2626;" onclick="PostEventAdmin.discard('${st.pending_batch_id}','${ek}')">Discard</button>`;
+                    } else if (st.sent) {
+                        right = `<span style="color:#16a34a;font-weight:700;"><i class="fas fa-check-circle"></i> ${st.sent} sent</span>`;
+                    } else if (st.scheduled) {
+                        right = `<span style="color:#0ea5e9;font-weight:700;">${st.scheduled} sending…</span>`;
+                    } else if (st.failed) {
+                        right = `<span style="color:#dc2626;font-weight:700;">${st.failed} failed</span>`;
+                    } else {
+                        right = `<span style="color:var(--text-muted);">not run yet</span>`;
+                    }
+                    const bg = st.pending_batch_id ? 'rgba(245,158,11,0.08)' : 'var(--bg-primary)';
+                    const bd = st.pending_batch_id ? 'rgba(245,158,11,0.35)' : 'var(--border)';
+                    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:${bg};border:1px solid ${bd};border-radius:10px;padding:10px 14px;margin-top:8px;">
+                        <div style="font-size:13px;font-weight:600;color:var(--text-primary);">${label}</div>
+                        <div style="display:flex;gap:6px;align-items:center;font-size:12px;">${right}</div></div>`;
+                }).join('');
+            },
+            async runRound(ek) {
+                if (!confirm('Run the post-event round for this event?\n\nA certificate is issued for every checked-in attendee, and four email batches (thank-you, certificate, feedback, we-missed-you) are staged in the outbox for your approval. Nothing sends until you approve each batch.')) return;
+                const r = await this.api('/api/admin/post-event/run-round', { method: 'POST', body: JSON.stringify({ event_key: ek }) });
+                if (r.d && r.d.success) {
+                    const issued = (r.d.certs && r.d.certs.issued) || 0;
+                    Toast.success(`${issued} certificate${issued === 1 ? '' : 's'} issued · ${r.d.staged} email${r.d.staged === 1 ? '' : 's'} staged for approval`);
+                    this.load(ek);
+                } else Toast.error((r.d && r.d.error) || 'Failed');
+            },
+            async approve(batch, ek) {
+                const r = await this.api(`/api/admin/outbox/${encodeURIComponent(batch)}/approve`, { method: 'POST' });
+                if (r.d && r.d.success) { Toast.success(`Approved — ${r.d.approved} email(s) sending`); this.load(ek); }
+                else Toast.error((r.d && r.d.error) || 'Failed');
+            },
+            async discard(batch, ek) {
+                if (!confirm('Discard this staged batch? No emails will be sent.')) return;
+                const r = await this.api(`/api/admin/outbox/${encodeURIComponent(batch)}/cancel`, { method: 'POST' });
+                if (r.d && r.d.success) { Toast.success('Discarded'); this.load(ek); }
                 else Toast.error((r.d && r.d.error) || 'Failed');
             }
         };
