@@ -12,6 +12,7 @@ const QRCode = require('qrcode');
 const fs = require('fs');
 const Database = require('libsql');
 const { createDatabase } = require('../../shared/db');
+const { aiDraft } = require('../../shared/ai');
 const nodemailer = require('nodemailer');
 const XLSX = require('xlsx');
 const rateLimit = require('express-rate-limit');
@@ -519,6 +520,782 @@ function logAudit(req, action, detail) {
             [require('crypto').randomUUID(), req.user?.id || null, req.user?.email || 'unknown', action, detail || null]);
         saveDb();
     } catch (e) { /* audit logging must never break the action */ }
+}
+
+// ===================================================================================
+// NAG->DO ENGINE — the system DOES the task, it does not remind people to do it.
+// A daily scan collects ACTION ITEMS into nag_items; the Action Center surfaces each with a
+// one-click DO button that EXECUTES the thing (queue an approval-gated email reminder, nudge the
+// assignee, or deep-link). Everything outbound is approval-gated through the existing outbox.
+// These live at module scope so both the route handlers and the daily interval can call them;
+// they only run after initializeApp() has assigned `db`.
+// ===================================================================================
+const NAG_UNPAID_DAYS = Number(process.env.NAG_UNPAID_DAYS || 3);   // registration/gala payment age
+const NAG_DUE_SOON_DAYS = Number(process.env.NAG_DUE_SOON_DAYS || 3); // task "due soon" window
+const NAG_DIET_WINDOW_DAYS = 14;   // ask for dietary info within N days of the gala
+const NAG_MSG_AGE_HOURS = 48;      // member message awaiting a reply
+const ADMIN_PORTAL_URL = process.env.ADMIN_PORTAL_URL || 'http://localhost:' + (process.env.PORT || 3002);
+
+// ===================================================================================
+// SPONSOR LIFECYCLE (#8) — commit a sponsor at a tier and its REAL benefit checklist is
+// auto-created (each benefit is a sponsor_tasks row; overdue ones surface in the Action
+// Center via the existing sponsor_deliverable scan). Prospects that go quiet after 5/12
+// days get a "Queue follow-up draft" DO-button, and a post-event button drafts a renewal
+// wrap per fulfilled sponsor. Every outbound thing is approval-gated in the outbox
+// (pending_approval) and drafted with aiDraft — nothing here ever sends directly.
+// ===================================================================================
+const SPONSOR_FOLLOWUP_DAYS_FIRST = Number(process.env.SPONSOR_FOLLOWUP_DAYS || 5); // first quiet-prospect nudge
+const SPONSOR_FOLLOWUP_DAYS_NEXT = 7; // escalation gap after the first follow-up (~12 days total)
+
+// Real tier ladders across the Med&X programs. Each benefit becomes a sponsor_tasks row on
+// commit (title = benefit, due_date = commit + dueOffsetDays, note = internal hint). benefit_key
+// keeps re-commits idempotent. Legacy tier values alias into the Plexus ladder (below) so the
+// sponsors already in the pipeline keep working.
+const SPONSOR_TIER_TEMPLATES = {
+    // ---- Gala partnership ladder (Plexus Gala evening) ----
+    gala_title: { label: 'Gala Title Partner', program: 'Gala', benefits: [
+        { key: 'gala_champagne_reception', benefit: 'Champagne reception named for the partner', dueOffsetDays: 45, note: 'Confirm naming + signage with venue' },
+        { key: 'gala_film', benefit: 'Partner feature film screened during the gala', dueOffsetDays: 60, note: 'Collect 60-90s film asset' },
+        { key: 'gala_educational_session', benefit: 'Educational session slot', dueOffsetDays: 30, note: 'Agree speaker + topic' },
+        { key: 'gala_branded_table', benefit: 'Branded VIP table', dueOffsetDays: 45, note: 'Table dressing + seating list' },
+        { key: 'gala_photo_booth', benefit: 'Photo booth branding', dueOffsetDays: 45, note: 'Booth backdrop artwork' },
+        { key: 'gala_main_screen_logo', benefit: 'Logo on the main screen', dueOffsetDays: 30, note: 'Vector logo for the loop' },
+        { key: 'gala_program_message', benefit: 'Message in the printed program', dueOffsetDays: 21, note: 'Collect 80-word message' },
+        { key: 'gala_program_logo', benefit: 'Logo in the printed program', dueOffsetDays: 21, note: 'Print-ready logo' },
+    ] },
+    gala_platinum: { label: 'Gala Platinum', program: 'Gala', benefits: [
+        { key: 'gala_educational_session', benefit: 'Educational session slot', dueOffsetDays: 30, note: 'Agree speaker + topic' },
+        { key: 'gala_branded_table', benefit: 'Branded VIP table', dueOffsetDays: 45, note: 'Table dressing + seating list' },
+        { key: 'gala_photo_booth', benefit: 'Photo booth branding', dueOffsetDays: 45, note: 'Booth backdrop artwork' },
+        { key: 'gala_main_screen_logo', benefit: 'Logo on the main screen', dueOffsetDays: 30, note: 'Vector logo for the loop' },
+        { key: 'gala_program_message', benefit: 'Message in the printed program', dueOffsetDays: 21, note: 'Collect 80-word message' },
+        { key: 'gala_program_logo', benefit: 'Logo in the printed program', dueOffsetDays: 21, note: 'Print-ready logo' },
+    ] },
+    gala_gold: { label: 'Gala Gold', program: 'Gala', benefits: [
+        { key: 'gala_branded_table', benefit: 'Branded VIP table', dueOffsetDays: 45, note: 'Table dressing + seating list' },
+        { key: 'gala_photo_booth', benefit: 'Photo booth branding', dueOffsetDays: 45, note: 'Booth backdrop artwork' },
+        { key: 'gala_main_screen_logo', benefit: 'Logo on the main screen', dueOffsetDays: 30, note: 'Vector logo for the loop' },
+        { key: 'gala_program_message', benefit: 'Message in the printed program', dueOffsetDays: 21, note: 'Collect 80-word message' },
+        { key: 'gala_program_logo', benefit: 'Logo in the printed program', dueOffsetDays: 21, note: 'Print-ready logo' },
+    ] },
+    gala_silver: { label: 'Gala Silver', program: 'Gala', benefits: [
+        { key: 'gala_main_screen_logo', benefit: 'Logo on the main screen', dueOffsetDays: 30, note: 'Vector logo for the loop' },
+        { key: 'gala_program_message', benefit: 'Message in the printed program', dueOffsetDays: 21, note: 'Collect 80-word message' },
+        { key: 'gala_program_logo', benefit: 'Logo in the printed program', dueOffsetDays: 21, note: 'Print-ready logo' },
+    ] },
+    gala_bronze: { label: 'Gala Bronze', program: 'Gala', benefits: [
+        { key: 'gala_program_logo', benefit: 'Logo in the printed program', dueOffsetDays: 21, note: 'Print-ready logo' },
+    ] },
+    // ---- Plexus Conference sponsorship ladder ----
+    plexus_platinum: { label: 'Plexus Platinum', program: 'Plexus', benefits: [
+        { key: 'plexus_booth_premium', benefit: 'Premium exhibition booth', dueOffsetDays: 40, note: 'Assign floor position' },
+        { key: 'plexus_passes', benefit: 'Complimentary conference passes issued', dueOffsetDays: 30, note: 'Collect delegate names' },
+        { key: 'plexus_mainstage_ack', benefit: 'Main-stage acknowledgment', dueOffsetDays: 30, note: 'Add to opening remarks' },
+        { key: 'plexus_session_branding', benefit: 'Session branding', dueOffsetDays: 30, note: 'Which session + signage' },
+        { key: 'plexus_materials_logo', benefit: 'Logo on printed materials', dueOffsetDays: 21, note: 'Print-ready logo' },
+        { key: 'plexus_website_logo', benefit: 'Logo on the conference website', dueOffsetDays: 14, note: 'Logo + link' },
+        { key: 'plexus_social_feature', benefit: 'Social media feature', dueOffsetDays: 21, note: 'Schedule post' },
+        { key: 'plexus_lead_scanning', benefit: 'Lead scanning access at the booth', dueOffsetDays: 40, note: 'Enable scanner accounts' },
+    ] },
+    plexus_gold: { label: 'Plexus Gold', program: 'Plexus', benefits: [
+        { key: 'plexus_booth', benefit: 'Exhibition booth', dueOffsetDays: 40, note: 'Assign floor position' },
+        { key: 'plexus_passes', benefit: 'Complimentary conference passes issued', dueOffsetDays: 30, note: 'Collect delegate names' },
+        { key: 'plexus_materials_logo', benefit: 'Logo on printed materials', dueOffsetDays: 21, note: 'Print-ready logo' },
+        { key: 'plexus_website_logo', benefit: 'Logo on the conference website', dueOffsetDays: 14, note: 'Logo + link' },
+        { key: 'plexus_social_feature', benefit: 'Social media feature', dueOffsetDays: 21, note: 'Schedule post' },
+    ] },
+    plexus_silver: { label: 'Plexus Silver', program: 'Plexus', benefits: [
+        { key: 'plexus_booth', benefit: 'Exhibition booth', dueOffsetDays: 40, note: 'Assign floor position' },
+        { key: 'plexus_passes', benefit: 'Complimentary conference passes issued', dueOffsetDays: 30, note: 'Collect delegate names' },
+        { key: 'plexus_materials_logo', benefit: 'Logo on printed materials', dueOffsetDays: 21, note: 'Print-ready logo' },
+        { key: 'plexus_website_logo', benefit: 'Logo on the conference website', dueOffsetDays: 14, note: 'Logo + link' },
+    ] },
+    plexus_bronze: { label: 'Plexus Bronze', program: 'Plexus', benefits: [
+        { key: 'plexus_passes', benefit: 'Complimentary conference passes issued', dueOffsetDays: 30, note: 'Collect delegate names' },
+        { key: 'plexus_website_logo', benefit: 'Logo on the conference website', dueOffsetDays: 14, note: 'Logo + link' },
+    ] },
+    partner: { label: 'Community Partner', program: 'Plexus', benefits: [
+        { key: 'plexus_website_logo', benefit: 'Logo on the conference website', dueOffsetDays: 14, note: 'Logo + link' },
+    ] },
+    // ---- Accelerator program ----
+    accel_lead: { label: 'Accelerator Lead Partner', program: 'Accelerator', benefits: [
+        { key: 'accel_cohort_naming', benefit: 'Named cohort partner', dueOffsetDays: 21, note: 'Confirm cohort naming' },
+        { key: 'accel_mentorship', benefit: 'Mentorship sessions with the cohort', dueOffsetDays: 45, note: 'Schedule mentors' },
+        { key: 'accel_demoday_keynote', benefit: 'Demo-day keynote slot', dueOffsetDays: 60, note: 'Confirm speaker' },
+        { key: 'accel_program_logo', benefit: 'Logo on the program', dueOffsetDays: 21, note: 'Print-ready logo' },
+        { key: 'accel_website_logo', benefit: 'Logo on the website', dueOffsetDays: 14, note: 'Logo + link' },
+    ] },
+    accel_supporting: { label: 'Accelerator Supporting Partner', program: 'Accelerator', benefits: [
+        { key: 'accel_mentorship_one', benefit: 'One mentorship session', dueOffsetDays: 45, note: 'Schedule mentor' },
+        { key: 'accel_demoday_logo', benefit: 'Logo at demo day', dueOffsetDays: 60, note: 'Signage artwork' },
+        { key: 'accel_website_logo', benefit: 'Logo on the website', dueOffsetDays: 14, note: 'Logo + link' },
+    ] },
+    // ---- Building Bridges ----
+    bridges_principal: { label: 'Bridges Principal Partner', program: 'Bridges', benefits: [
+        { key: 'bridges_panel_naming', benefit: 'Panel named for the partner', dueOffsetDays: 21, note: 'Confirm panel + naming' },
+        { key: 'bridges_reserved_table', benefit: 'Reserved table', dueOffsetDays: 30, note: 'Seating list' },
+        { key: 'bridges_program_screen_logo', benefit: 'Logo on program and main screen', dueOffsetDays: 21, note: 'Print + screen logo' },
+        { key: 'bridges_website_logo', benefit: 'Logo on the website', dueOffsetDays: 14, note: 'Logo + link' },
+    ] },
+    bridges_supporting: { label: 'Bridges Supporting Partner', program: 'Bridges', benefits: [
+        { key: 'bridges_program_logo', benefit: 'Logo on the program', dueOffsetDays: 21, note: 'Print-ready logo' },
+        { key: 'bridges_website_logo', benefit: 'Logo on the website', dueOffsetDays: 14, note: 'Logo + link' },
+    ] },
+};
+// Legacy tier values already stored on sponsors -> map into the ladders above.
+const SPONSOR_TIER_ALIASES = { gold: 'plexus_gold', silver: 'plexus_silver', bronze: 'plexus_bronze' };
+
+function sponsorNormalizeTier(tier) {
+    const t = String(tier || '').toLowerCase().trim();
+    return SPONSOR_TIER_ALIASES[t] || t;
+}
+function sponsorTierTemplate(tier) {
+    return SPONSOR_TIER_TEMPLATES[sponsorNormalizeTier(tier)] || null;
+}
+// Grouped catalog for the Add Sponsor dropdown: [{ program, tiers:[{ value, label, benefitCount }] }].
+function sponsorTierCatalog() {
+    const groups = {};
+    for (const [value, def] of Object.entries(SPONSOR_TIER_TEMPLATES)) {
+        const prog = def.program || 'Other';
+        (groups[prog] = groups[prog] || []).push({ value, label: def.label, benefitCount: def.benefits.length });
+    }
+    const order = ['Gala', 'Plexus', 'Accelerator', 'Bridges'];
+    return Object.keys(groups)
+        .sort((a, b) => (order.indexOf(a) < 0 ? 99 : order.indexOf(a)) - (order.indexOf(b) < 0 ? 99 : order.indexOf(b)))
+        .map((program) => ({ program, tiers: groups[program] }));
+}
+// Auto-create the tier's benefit checklist as sponsor_tasks rows. Idempotent by benefit_key —
+// re-committing (or bumping a tier) only adds the benefits that are missing. Returns { created }.
+function ensureTierBenefits(sponsorId, tier) {
+    const tpl = sponsorTierTemplate(tier);
+    if (!tpl || !sponsorId) return { created: 0 };
+    let created = 0;
+    for (const b of tpl.benefits) {
+        const existing = query.get("SELECT id FROM sponsor_tasks WHERE sponsor_id = ? AND benefit_key = ? LIMIT 1", [sponsorId, b.key]);
+        if (existing) continue;
+        db.run(`INSERT INTO sponsor_tasks (id, sponsor_id, title, is_completed, due_date, source, benefit_key, note, created_at)
+                VALUES (?, ?, ?, 0, date('now', ?), 'tier_template', ?, ?, datetime('now'))`,
+            [require('crypto').randomUUID(), sponsorId, b.benefit, `+${b.dueOffsetDays} days`, b.key, b.note || null]);
+        created++;
+    }
+    if (created) saveDb();
+    return { created };
+}
+// Event facts used to ground follow-up / wrap drafts (best-effort; empty strings if unavailable).
+function sponsorEventFacts() {
+    let date = '';
+    try { const pps = query.get("SELECT gala_date FROM plexus_page_settings WHERE id = 'default'"); if (pps && pps.gala_date) date = pps.gala_date; } catch (e) { /* skip */ }
+    return { event: 'Med&X Plexus 2026', date, venue: '' };
+}
+function sponsorEventStats() {
+    let attendees = 0, sponsors = 0;
+    try { attendees = query.get("SELECT COUNT(*) AS c FROM registrations WHERE payment_status = 'paid'")?.c || 0; } catch (e) { /* skip */ }
+    try { sponsors = query.get("SELECT COUNT(*) AS c FROM sponsors WHERE LOWER(COALESCE(status,'')) IN ('confirmed','committed','fulfilled')")?.c || 0; } catch (e) { /* skip */ }
+    return { attendees, sponsors };
+}
+// Grounded follow-up draft for a quiet prospect. Returns { subject, html }. Never throws.
+async function sponsorBuildFollowupEmail(sponsor, payload) {
+    const facts = sponsorEventFacts();
+    const tpl = sponsorTierTemplate(sponsor.tier);
+    const contactName = payload.who || sponsor.contact_name || '';
+    const tierLabel = tpl ? tpl.label : (sponsor.tier || '');
+    const purpose = 'Write a short, warm and professional follow-up email to a prospective sponsor who was contacted about partnering with Med&X but has not replied. Reference the tier discussed and one or two concrete benefits, and invite a quick call. Keep it under 150 words.';
+    const context = {
+        sponsor_org: sponsor.name || payload.org || '', contact_name: contactName,
+        tier_discussed: tierLabel,
+        example_benefits: tpl ? tpl.benefits.slice(0, 3).map((b) => b.benefit).join(', ') : '',
+        amount_discussed_eur: sponsor.amount_pledged ? sponsor.amount_pledged : '',
+        event: facts.event, event_date: facts.date, sender: 'Med&X Partnerships Team',
+    };
+    let text = '';
+    try { const r = await aiDraft({ purpose, context, maxTokens: 350 }); text = (r && r.text) || ''; } catch (e) { text = ''; }
+    if (!text) {
+        text = `Hi ${contactName || 'there'}, I wanted to follow up on our note about partnering with Med&X`
+            + (tierLabel ? ` at the ${tierLabel} level` : '') + '. '
+            + (tpl ? `It would include ${tpl.benefits.slice(0, 2).map((b) => b.benefit).join(' and ')}. ` : '')
+            + 'Would a short call this week work to walk through the details?';
+    }
+    const subject = `Following up — ${sponsor.name || 'partnering with Med&X'}`;
+    const html = `<div style="font-family:Georgia,serif;color:#2b2622;line-height:1.6;">${nagEscape(text).replace(/\n/g, '<br>')}<br><br>— Med&amp;X Partnerships</div>`;
+    return { subject, html };
+}
+// Grounded post-event wrap + renewal invite for a fulfilled sponsor. Returns { subject, html }.
+async function sponsorBuildWrapEmail(sponsor, delivered) {
+    const facts = sponsorEventFacts();
+    const stats = sponsorEventStats();
+    const tpl = sponsorTierTemplate(sponsor.tier);
+    const contactName = sponsor.contact_name || '';
+    const purpose = 'Write a warm post-event wrap-up and renewal invitation to a sponsor who just fulfilled their partnership with Med&X. Thank them, recap the benefits they received and the event reach, and invite them to renew for next year. Keep it under 180 words.';
+    const context = {
+        sponsor_org: sponsor.name || '', contact_name: contactName,
+        tier: tpl ? tpl.label : (sponsor.tier || ''),
+        benefits_delivered: delivered && delivered.length ? delivered.join(', ') : 'your full partnership package',
+        event: facts.event, paid_attendees: stats.attendees, active_sponsors: stats.sponsors,
+        sender: 'Med&X Partnerships Team',
+    };
+    let text = '';
+    try { const r = await aiDraft({ purpose, context, maxTokens: 400 }); text = (r && r.text) || ''; } catch (e) { text = ''; }
+    if (!text) {
+        text = `Dear ${contactName || sponsor.name || 'partner'}, thank you for partnering with Med&X. `
+            + `We delivered ${context.benefits_delivered}, in front of ${stats.attendees} attendees. `
+            + 'We would love to have you back next year — may I send over the renewal options?';
+    }
+    const subject = `Thank you from Med&X — ${sponsor.name || 'partnership'} wrap-up`;
+    const html = `<div style="font-family:Georgia,serif;color:#2b2622;line-height:1.6;">${nagEscape(text).replace(/\n/g, '<br>')}<br><br>— Med&amp;X Partnerships</div>`;
+    return { subject, html };
+}
+
+function nagEscape(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// Tolerant date parser: accepts ISO (YYYY-MM-DD) or prose like "4 or 5 December 2026"
+// (uses the latest day before the month). Returns a UTC-midnight Date or null.
+function nagParseDate(str) {
+    if (!str) return null;
+    const iso = String(str).match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+    if (iso) { const d = new Date(iso[1] + '-' + iso[2] + '-' + iso[3] + 'T00:00:00Z'); return isNaN(d.getTime()) ? null : d; }
+    const MONTHS = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+    const m = String(str).match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
+    if (!m) return null;
+    const before = String(str).slice(0, m.index);
+    const days = (before.match(/\b(\d{1,2})\b/g) || []).map(Number).filter(d => d >= 1 && d <= 31);
+    if (!days.length) return null;
+    const d = new Date(Date.UTC(Number(m[2]), MONTHS.indexOf(m[1].toLowerCase()), Math.max(...days)));
+    return isNaN(d.getTime()) ? null : d;
+}
+function nagDaysUntil(dateStr) {
+    const d = nagParseDate(dateStr);
+    if (!d) return null;
+    const today = new Date(); const todayMid = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+    return Math.floor((d.getTime() - todayMid) / 86400000);
+}
+
+// Collect the CURRENT set of action items from live data. Each sub-query is guarded so a missing
+// table (schema drift, fresh DB) never breaks the whole scan. Returns [{kind, subject_id, title,
+// assignee, action_kind, action_payload}].
+function nagCollectDesired() {
+    const desired = [];
+    const push = (o) => { if (o && o.kind && o.title) desired.push(o); };
+
+    // A) Overdue + due-soon project tasks (assignee = team_members.id).
+    try {
+        const rows = query.all(`SELECT pt.id, pt.title, pt.due_date, pt.assigned_to, pt.project,
+                tm.name AS assignee_name, tm.user_id AS assignee_user_id, u.email AS assignee_email
+            FROM project_tasks pt
+            LEFT JOIN team_members tm ON pt.assigned_to = tm.id
+            LEFT JOIN users u ON tm.user_id = u.id
+            WHERE pt.status != 'done' AND pt.due_date IS NOT NULL AND pt.due_date != ''`);
+        for (const t of rows) {
+            const days = nagDaysUntil(t.due_date);
+            if (days === null) continue;
+            let kind = null, prefix = '';
+            if (days < 0) { kind = 'task_overdue'; prefix = 'Overdue task'; }
+            else if (days <= NAG_DUE_SOON_DAYS) { kind = 'task_due_soon'; prefix = 'Task due soon'; }
+            else continue;
+            const canNudge = !!t.assignee_user_id;
+            push({
+                kind, subject_id: t.id, title: `${prefix}: ${t.title}`, assignee: t.assigned_to || null,
+                action_kind: canNudge ? 'nudge_assignee' : 'open_link',
+                action_payload: {
+                    who: t.assignee_name || 'Unassigned', assignee_user_id: t.assignee_user_id || null,
+                    assignee_email: t.assignee_email || null, task_id: t.id, task_title: t.title,
+                    due_date: t.due_date, project: t.project || null, open_section: 'dashboard'
+                }
+            });
+        }
+    } catch (e) { /* skip */ }
+
+    // B) Unpaid Plexus registrations older than N days.
+    try {
+        const rows = query.all(`SELECT r.id, r.first_name, r.last_name, r.email, c.name AS conf_name
+            FROM registrations r LEFT JOIN conferences c ON r.conference_id = c.id
+            WHERE (r.payment_status IS NULL OR r.payment_status != 'paid')
+              AND (r.status IS NULL OR r.status != 'cancelled')
+              AND r.email IS NOT NULL AND r.email != ''
+              AND r.created_at <= datetime('now', ?)`, [`-${NAG_UNPAID_DAYS} days`]);
+        for (const r of rows) {
+            const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email;
+            push({
+                kind: 'reg_unpaid', subject_id: r.id, title: `Unpaid registration: ${name}`, assignee: null,
+                action_kind: 'payment_reminder',
+                action_payload: { who: name, to: r.email, name, event: r.conf_name || 'Plexus Conference', registration_id: r.id, open_section: 'plexus' }
+            });
+        }
+    } catch (e) { /* skip */ }
+
+    // B2) Gala checkouts stuck in awaiting_payment older than N days (test rows excluded).
+    try {
+        const rows = query.all(`SELECT id, first_name, last_name, email FROM gala_registrations
+            WHERE status = 'awaiting_payment' AND UPPER(COALESCE(requests,'')) NOT LIKE '%TEST%'
+              AND email IS NOT NULL AND email != '' AND created_at <= datetime('now', ?)`, [`-${NAG_UNPAID_DAYS} days`]);
+        for (const r of rows) {
+            const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email;
+            push({
+                kind: 'gala_unpaid', subject_id: r.id, title: `Gala payment pending: ${name}`, assignee: null,
+                action_kind: 'payment_reminder',
+                action_payload: { who: name, to: r.email, name, event: 'Med&X Gala', gala_id: r.id, open_section: 'gala' }
+            });
+        }
+    } catch (e) { /* skip */ }
+
+    // C) Gala guests missing dietary info within 14 days of the gala (only fires when the event is near).
+    try {
+        const pps = query.get("SELECT gala_date FROM plexus_page_settings WHERE id = 'default'") || {};
+        const days = nagDaysUntil(pps.gala_date);
+        if (days !== null && days >= 0 && days <= NAG_DIET_WINDOW_DAYS) {
+            const rows = query.all(`SELECT id, first_name, last_name, email FROM gala_registrations
+                WHERE status IN ('paid','confirmed','approved') AND (dietary IS NULL OR dietary = '')
+                  AND email IS NOT NULL AND email != ''`);
+            for (const r of rows) {
+                const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email;
+                push({
+                    kind: 'gala_no_diet', subject_id: r.id, title: `Missing dietary info: ${name}`, assignee: null,
+                    action_kind: 'dietary_reminder',
+                    action_payload: { who: name, to: r.email, name, event: 'Med&X Gala', gala_id: r.id, open_section: 'gala' }
+                });
+            }
+        }
+    } catch (e) { /* skip */ }
+
+    // D) Stale project statuses (event date passed but the status chip still says "open").
+    try {
+        const rows = query.all(`SELECT s.project_key, s.status_label, st.event_date
+            FROM project_status s LEFT JOIN project_settings st ON st.project = s.project_key
+            WHERE s.status_kind = 'open' AND st.event_date IS NOT NULL AND st.event_date != ''
+              AND date(st.event_date) < date('now')`);
+        for (const r of rows) {
+            push({
+                kind: 'project_stale', subject_id: r.project_key,
+                title: `Update ${r.project_key} status — event date has passed`, assignee: null,
+                action_kind: 'open_link',
+                action_payload: { who: r.project_key, project_key: r.project_key, open_project: r.project_key }
+            });
+        }
+    } catch (e) { /* skip */ }
+
+    // E) Member messages awaiting an admin reply for more than 48h (one item per member).
+    try {
+        const rows = query.all(`SELECT dm.sender_id, COUNT(*) AS cnt, u.first_name, u.last_name, u.email
+            FROM direct_messages dm LEFT JOIN users u ON u.id = dm.sender_id
+            WHERE dm.sender_type != 'admin' AND (dm.is_read = 0 OR dm.is_read IS NULL)
+              AND dm.created_at <= datetime('now', ?)
+            GROUP BY dm.sender_id`, [`-${NAG_MSG_AGE_HOURS} hours`]);
+        for (const r of rows) {
+            const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email || 'A member';
+            push({
+                kind: 'message_unanswered', subject_id: r.sender_id,
+                title: `Reply to ${name} — ${r.cnt} message${r.cnt === 1 ? '' : 's'} waiting 48h+`, assignee: null,
+                action_kind: 'open_link',
+                action_payload: { who: name, sender_id: r.sender_id, open_section: 'messages' }
+            });
+        }
+    } catch (e) { /* skip */ }
+
+    // F) Sponsor deliverables past due and not completed (structure exists via sponsor_tasks).
+    try {
+        const rows = query.all(`SELECT stk.id, stk.title, stk.due_date, stk.assigned_to, s.name AS sponsor_name,
+                tm.name AS assignee_name, tm.user_id AS assignee_user_id, u.email AS assignee_email
+            FROM sponsor_tasks stk
+            LEFT JOIN sponsors s ON stk.sponsor_id = s.id
+            LEFT JOIN team_members tm ON stk.assigned_to = tm.id
+            LEFT JOIN users u ON tm.user_id = u.id
+            WHERE (stk.is_completed = 0 OR stk.is_completed IS NULL)
+              AND stk.due_date IS NOT NULL AND stk.due_date != '' AND date(stk.due_date) < date('now')`);
+        for (const t of rows) {
+            const canNudge = !!t.assignee_user_id;
+            const label = t.sponsor_name ? `${t.title} (${t.sponsor_name})` : t.title;
+            push({
+                kind: 'sponsor_deliverable', subject_id: t.id, title: `Sponsor deliverable overdue: ${label}`,
+                assignee: t.assigned_to || null, action_kind: canNudge ? 'nudge_assignee' : 'open_link',
+                action_payload: {
+                    who: t.assignee_name || t.sponsor_name || 'Unassigned', assignee_user_id: t.assignee_user_id || null,
+                    assignee_email: t.assignee_email || null, task_id: t.id, task_title: t.title,
+                    due_date: t.due_date, open_section: 'dashboard'
+                }
+            });
+        }
+    } catch (e) { /* skip */ }
+
+    // G) Sponsor prospects that were 'contacted' but have gone quiet — a 5-day then 12-day
+    //    follow-up nudge with a one-click "Queue follow-up draft" DO-button (aiDraft ->
+    //    approval-gated outbox). last_followup_at advances the cadence after each draft.
+    try {
+        const rows = query.all(`SELECT id, name, tier, contact_name, contact_email, amount_pledged,
+                last_contacted_at, last_followup_at
+            FROM sponsors
+            WHERE LOWER(COALESCE(status,'')) = 'contacted'
+              AND contact_email IS NOT NULL AND contact_email != ''
+              AND last_contacted_at IS NOT NULL AND last_contacted_at != ''`);
+        for (const s of rows) {
+            const since = s.last_followup_at || s.last_contacted_at;
+            const d = nagDaysUntil(since);
+            if (d === null) continue;
+            const daysAgo = -d; // last_* is in the past -> nagDaysUntil is negative
+            const threshold = s.last_followup_at ? SPONSOR_FOLLOWUP_DAYS_NEXT : SPONSOR_FOLLOWUP_DAYS_FIRST;
+            if (daysAgo < threshold) continue;
+            const stage = s.last_followup_at ? '12-day' : '5-day';
+            push({
+                kind: 'sponsor_followup', subject_id: s.id,
+                title: `Follow up with ${s.name} — no reply in ${daysAgo} day${daysAgo === 1 ? '' : 's'} (${stage})`,
+                assignee: null, action_kind: 'sponsor_followup',
+                action_payload: {
+                    who: s.contact_name || s.name, to: s.contact_email, sponsor_id: s.id,
+                    org: s.name, tier: s.tier || '', open_section: 'plexus'
+                }
+            });
+        }
+    } catch (e) { /* skip */ }
+
+    return desired;
+}
+
+// Reconcile the desired set into nag_items: insert new opens, refresh live rows, and auto-resolve
+// open/actioned items whose condition disappeared. Dismissed + done rows are left untouched.
+function runNagScan() {
+    const desired = nagCollectDesired();
+    const desiredKeys = new Set(desired.map((d) => d.kind + '|' + (d.subject_id || '')));
+    const now = new Date().toISOString();
+    let created = 0;
+    for (const d of desired) {
+        const existing = query.get("SELECT id, status FROM nag_items WHERE kind = ? AND COALESCE(subject_id,'') = COALESCE(?, '') LIMIT 1", [d.kind, d.subject_id || null]);
+        const payload = JSON.stringify(d.action_payload || {});
+        if (existing) {
+            if (existing.status === 'open' || existing.status === 'actioned') {
+                db.run("UPDATE nag_items SET title=?, action_kind=?, action_payload_json=?, assignee=? WHERE id=?",
+                    [d.title, d.action_kind, payload, d.assignee || null, existing.id]);
+            }
+        } else {
+            db.run(`INSERT INTO nag_items (id, kind, subject_id, title, action_kind, action_payload_json, assignee, status, created_at)
+                    VALUES (?,?,?,?,?,?,?, 'open', ?)`,
+                [require('crypto').randomUUID(), d.kind, d.subject_id || null, d.title, d.action_kind, payload, d.assignee || null, now]);
+            created++;
+        }
+    }
+    let resolved = 0;
+    const live = query.all("SELECT id, kind, subject_id FROM nag_items WHERE status IN ('open','actioned')");
+    for (const row of live) {
+        if (!desiredKeys.has(row.kind + '|' + (row.subject_id || ''))) {
+            db.run("UPDATE nag_items SET status='done', resolved_at=? WHERE id=?", [now, row.id]);
+            resolved++;
+        }
+    }
+    saveDb();
+    const open = query.get("SELECT COUNT(*) AS c FROM nag_items WHERE status IN ('open','actioned')")?.c || 0;
+    return { found: desired.length, created, resolved, open };
+}
+
+// Compose a warm reminder email body via the shared AI primitive (deterministic '[Draft]' mock in
+// dev). Returns { subject, html }. Never throws — aiDraft never throws.
+async function nagBuildReminderEmail(item, payload) {
+    const isDiet = item.action_kind === 'dietary_reminder';
+    const purpose = isDiet
+        ? 'Write a short, warm reminder asking a Med&X Gala guest to share their dietary requirements so catering can plan.'
+        : 'Write a short, warm reminder that a Med&X registration payment is still pending, gently inviting the guest to complete it.';
+    let text = '';
+    try {
+        const r = await aiDraft({ purpose, context: { recipient_name: payload.name || '', event: payload.event || 'Med&X' }, maxTokens: 300 });
+        text = (r && r.text) || '';
+    } catch (e) { text = ''; }
+    if (!text) text = isDiet
+        ? `Hi ${payload.name || 'there'}, could you share your dietary requirements for the ${payload.event || 'Med&X Gala'}? It helps our catering team plan.`
+        : `Hi ${payload.name || 'there'}, your ${payload.event || 'Med&X'} registration payment is still pending. You can complete it any time.`;
+    const subject = isDiet
+        ? 'Your dietary preferences for the Med&X Gala'
+        : `Your ${payload.event || 'Med&X'} registration — payment pending`;
+    const html = `<div style="font-family:Georgia,serif;color:#2b2622;line-height:1.6;">${nagEscape(text).replace(/\n/g, '<br>')}<br><br>— Med&amp;X</div>`;
+    return { subject, html };
+}
+
+// Build the DAILY TEAM DIGEST: one approval-gated scheduled_emails row per active team member
+// (linked portal account + email) summarizing THEIR open items with a dashboard deep link.
+// Idempotent per calendar day — a second call the same day returns the existing pending batch.
+function generateTeamDigest() {
+    try {
+        const existing = query.get("SELECT batch_id FROM scheduled_emails WHERE source_engine = 'nag-digest' AND status = 'pending_approval' AND date(created_at) = date('now') LIMIT 1");
+        if (existing && existing.batch_id) {
+            const c = query.get("SELECT COUNT(*) AS c FROM scheduled_emails WHERE batch_id = ?", [existing.batch_id])?.c || 0;
+            return { batch_id: existing.batch_id, recipients: c, reused: true };
+        }
+        const members = query.all(`SELECT tm.id AS tm_id, tm.name, u.email
+            FROM team_members tm JOIN users u ON tm.user_id = u.id
+            WHERE u.email IS NOT NULL AND u.email != ''`);
+        const batchId = 'nagdigest-' + require('crypto').randomUUID();
+        let recipients = 0;
+        for (const m of members) {
+            const items = query.all("SELECT title FROM nag_items WHERE assignee = ? AND status IN ('open','actioned') ORDER BY created_at DESC", [m.tm_id]);
+            if (!items.length) continue;
+            const lis = items.map((it) => `<li style="margin:6px 0;">${nagEscape(it.title)}</li>`).join('');
+            const subject = `Your Med&X action items (${items.length})`;
+            const html = `<div style="font-family:Georgia,serif;color:#2b2622;line-height:1.6;">
+                <p>Hi ${nagEscape(m.name || 'there')},</p>
+                <p>You have ${items.length} open item${items.length === 1 ? '' : 's'} in the Med&amp;X portal:</p>
+                <ul style="padding-left:18px;">${lis}</ul>
+                <p><a href="${nagEscape(ADMIN_PORTAL_URL)}" style="color:#c14b52;font-weight:600;">Open your dashboard</a></p>
+                <p style="color:#8a8178;">— Med&amp;X Action Center</p></div>`;
+            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                    VALUES (?, 'pending_approval', ?, 'nag-digest', 'daily_team_digest', ?, ?, ?, 'nag-engine', datetime('now'))`,
+                [require('crypto').randomUUID(), batchId, JSON.stringify({ to: m.email, subject, html }), m.email, subject]);
+            recipients++;
+        }
+        if (recipients) saveDb();
+        return { batch_id: recipients ? batchId : null, recipients, reused: false };
+    } catch (e) { return { batch_id: null, recipients: 0, reused: false, error: e.message }; }
+}
+
+// ================= CONFIRM-YOUR-SEAT (#3) + WAITLIST AUTO-OFFER (#6) engines =================
+// All Plexus seat/waitlist logic lives in the admin backend (where the outbox approval + send
+// drainer + waitlist CRUD already are), so a dev run works against ONE local DB. In prod the shared
+// Turso DB is used by both portals. Confirm-seat rounds enter as APPROVAL-GATED batches
+// (pending_approval — the owner sees the round before it fires). Waitlist claim offers are
+// TRANSACTIONAL single sends (direct 'scheduled'). Nothing here touches the frozen registration /
+// payment / QR rails — the claim page only DEEP-LINKS the existing registration flow, prefilled.
+const seatEsc = (s) => (s == null ? '' : String(s)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+function seatSqlDateTime(d) { return new Date(d).toISOString().replace('T', ' ').slice(0, 19); }
+function seatToken(n) { return require('crypto').randomBytes(n || 24).toString('hex'); }
+
+// Public base for attendee-facing confirm/claim links. Prefers the live request host; falls back to
+// the admin portal URL (these are public GET routes served by THIS backend).
+function seatPublicBase(req) {
+    if (req && req.get) { try { return `${req.protocol}://${req.get('host')}`; } catch (e) {} }
+    return (process.env.RENDER_EXTERNAL_URL || ADMIN_PORTAL_URL || 'https://medx-admin-portal.onrender.com').replace(/\/+$/, '');
+}
+// The frozen registration flow lives on the user portal — the claim page deep-links it, prefilled.
+function userPortalBase() { return (process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, ''); }
+
+function getAutomationConfig(key, dflt) {
+    try { const r = query.get('SELECT value FROM automation_config WHERE key = ?', [key]); return (r && r.value != null) ? r.value : dflt; } catch (e) { return dflt; }
+}
+function setAutomationConfig(key, value, who) {
+    db.run(`INSERT INTO automation_config (key, value, updated_at, updated_by) VALUES (?,?,datetime('now'),?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at, updated_by=excluded.updated_by`,
+        [key, String(value), who || 'admin']);
+}
+
+// Stage one TRANSACTIONAL email (no approval gate). payload_json is the source of truth.
+function seatEnqueueTransactional({ to, subject, html, source_engine, template }) {
+    if (!to || !subject) return false;
+    const payload = JSON.stringify({ to, subject, html: html || '' });
+    db.run(`INSERT INTO scheduled_emails (id, status, source_engine, template, recipient_email, subject, payload_json, created_by, created_at)
+            VALUES (?, 'scheduled', ?, ?, ?, ?, ?, 'seat-engine', datetime('now'))`,
+        [require('crypto').randomUUID(), source_engine || 'seat-engine', template || null, to, subject, payload]);
+    return true;
+}
+
+// A branded standalone confirmation/claim result page (full HTML doc, not an email).
+function seatResultPage({ heading, sub, accent, cta }) {
+    const a = accent || '#16a34a';
+    const btn = cta ? `<a href="${cta.href}" style="display:inline-block;margin-top:26px;background:${a};color:#fff;text-decoration:none;padding:14px 34px;border-radius:10px;font-weight:700;font-size:15px;">${seatEsc(cta.label)}</a>` : '';
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${seatEsc(heading)}</title></head>
+<body style="margin:0;background:#f5f3ee;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+  <div style="max-width:560px;margin:0 auto;padding:56px 20px;">
+    <div style="background:#fff;border-radius:18px;box-shadow:0 8px 40px rgba(15,23,42,0.10);overflow:hidden;">
+      <div style="background:linear-gradient(135deg,#0f172a,#1a2744);padding:30px 32px;text-align:center;">
+        <div style="color:#C9A962;font-size:13px;letter-spacing:3px;text-transform:uppercase;font-weight:700;">Med&amp;X · Plexus 2026</div>
+      </div>
+      <div style="height:4px;background:${a};"></div>
+      <div style="padding:40px 36px;text-align:center;">
+        <h1 style="margin:0 0 10px;color:#0f172a;font-size:24px;">${seatEsc(heading)}</h1>
+        <p style="color:#475569;font-size:15px;line-height:1.65;margin:0;">${sub}</p>
+        ${btn}
+      </div>
+      <div style="background:#0f172a;padding:18px;text-align:center;color:#64748b;font-size:11px;">Building Bridges in Biomedicine</div>
+    </div>
+  </div>
+</body></html>`;
+}
+
+// Eligible Plexus attendees for confirm-seat: has an email, not cancelled/refunded, not already
+// checked in, and not an obvious test row.
+function seatEligibleRegs(eventKey) {
+    // Only the Plexus conference `registrations` table is wired for confirm-seat today.
+    if ((eventKey || 'plexus') !== 'plexus') return [];
+    try {
+        return query.all(`SELECT id, first_name, last_name, email FROM registrations
+            WHERE email IS NOT NULL AND email != ''
+              AND COALESCE(status,'') NOT IN ('cancelled','canceled','refunded')
+              AND COALESCE(checked_in,0) = 0
+              AND email NOT LIKE '%@medx.local'`);
+    } catch (e) { return []; }
+}
+
+function seatConfirmSummary(eventKey) {
+    const ek = eventKey || 'plexus';
+    const c = (st) => { try { return query.get("SELECT COUNT(*) AS n FROM seat_confirmations WHERE event_key = ? AND status = ?", [ek, st])?.n || 0; } catch (e) { return 0; } };
+    return {
+        event_key: ek,
+        eligible: seatEligibleRegs(ek).length,
+        confirmed: c('confirmed'),
+        pending: c('pending'),
+        released: c('released'),
+        config: {
+            t_confirm: Number(getAutomationConfig('seat_confirm_t_confirm', '7')),
+            t_reminder: Number(getAutomationConfig('seat_confirm_t_reminder', '4')),
+            t_release: Number(getAutomationConfig('seat_confirm_t_release', '3')),
+            auto: getAutomationConfig('seat_confirm_auto', 'on')
+        }
+    };
+}
+
+// Start (or reminder for) a confirmation round. kind: 'confirm' | 'reminder'. Enqueues an
+// APPROVAL-GATED batch (pending_approval) and returns { batch_id, count }.
+function startConfirmRound(eventKey, kind, req) {
+    const ek = eventKey || 'plexus';
+    const isReminder = kind === 'reminder';
+    const base = seatPublicBase(req);
+    const dateLine = (() => { try { const p = query.get("SELECT conference_date FROM plexus_page_settings WHERE id = 'default'"); return (p && p.conference_date) ? String(p.conference_date) : 'December 2026'; } catch (e) { return 'December 2026'; } })();
+    const targets = [];
+    if (isReminder) {
+        // Everyone still pending (already got the first email) gets one reminder.
+        let rows = [];
+        try { rows = query.all("SELECT * FROM seat_confirmations WHERE event_key = ? AND status = 'pending'", [ek]); } catch (e) { rows = []; }
+        for (const r of rows) { if (r.email) targets.push(r); }
+    } else {
+        // Ensure a pending seat_confirmations row for every eligible reg, then email all pending ones.
+        for (const reg of seatEligibleRegs(ek)) {
+            const existing = query.get("SELECT * FROM seat_confirmations WHERE reg_id = ? AND event_key = ?", [reg.id, ek]);
+            if (!existing) {
+                const tok = seatToken(24);
+                const name = [reg.first_name, reg.last_name].filter(Boolean).join(' ').trim() || null;
+                db.run(`INSERT INTO seat_confirmations (id, reg_id, event_key, email, name, token, status) VALUES (?,?,?,?,?,?,'pending')`,
+                    [require('crypto').randomUUID(), reg.id, ek, reg.email, name, tok]);
+            }
+        }
+        try { targets.push(...query.all("SELECT * FROM seat_confirmations WHERE event_key = ? AND status = 'pending'", [ek])); } catch (e) {}
+    }
+    if (!targets.length) { return { batch_id: null, count: 0 }; }
+    const batchId = 'seatconfirm-' + require('crypto').randomUUID();
+    let count = 0;
+    for (const t of targets) {
+        if (!t.email) continue;
+        const confirmUrl = `${base}/api/public/confirm-seat?token=${t.token}`;
+        const first = (t.name || '').split(' ')[0] || 'there';
+        const lead = isReminder
+            ? `<p>Just a reminder — please confirm you are still coming to Plexus 2026 (${seatEsc(dateLine)}). It takes one tap.</p>`
+            : `<p>Plexus 2026 is free and seats are capped, so we are confirming who is coming. Please confirm your seat for the conference (${seatEsc(dateLine)}).</p>`;
+        const html = buildEmailTemplate(isReminder ? 'Please confirm your Plexus seat' : 'Confirm your Plexus seat', `
+            <p>Hi ${seatEsc(first)},</p>
+            ${lead}
+            <div style="text-align:center;margin:32px 0;">
+                <a href="${confirmUrl}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:14px 40px;border-radius:8px;font-weight:700;font-size:16px;">Yes, I am coming</a>
+            </div>
+            <p style="color:#64748b;font-size:13px;">If your plans changed, no need to do anything — your seat will be released so someone on the waitlist can take it.</p>
+        `);
+        db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                VALUES (?, 'pending_approval', ?, 'confirm-seat', ?, ?, ?, ?, 'seat-engine', datetime('now'))`,
+            [require('crypto').randomUUID(), batchId, isReminder ? 'seat_reminder' : 'seat_confirm',
+             JSON.stringify({ to: t.email, subject: isReminder ? 'Reminder: confirm your Plexus seat' : 'Confirm your Plexus seat', html }),
+             t.email, isReminder ? 'Reminder: confirm your Plexus seat' : 'Confirm your Plexus seat']);
+        // Stamp the round on the seat_confirmations row.
+        if (isReminder) db.run("UPDATE seat_confirmations SET reminder_sent_at = datetime('now') WHERE id = ?", [t.id]);
+        else db.run("UPDATE seat_confirmations SET sent_at = datetime('now') WHERE id = ?", [t.id]);
+        count++;
+    }
+    if (count) saveDb();
+    return { batch_id: count ? batchId : null, count };
+}
+
+// Offer the NEXT waiting person a 48h claim. Returns the offer id, or null if nobody eligible.
+// Each waitlist person is offered at most once (any prior offer row makes them skip -> roll forward).
+function offerNextWaitlist(eventKey, sourceRegId, req) {
+    const section = eventKey || 'plexus';
+    let candidates = [];
+    try { candidates = query.all("SELECT * FROM event_waitlist WHERE section = ? AND COALESCE(status,'waiting') = 'waiting' ORDER BY datetime(created_at) ASC", [section]); } catch (e) { return null; }
+    for (const c of candidates) {
+        const prior = query.get("SELECT 1 AS x FROM waitlist_offers WHERE waitlist_id = ?", [c.id]);
+        if (prior) continue; // already had their turn (offered/claimed/expired) — skip to the next
+        const claim_token = seatToken(24);
+        const expiresAt = seatSqlDateTime(Date.now() + 48 * 60 * 60 * 1000);
+        const offerId = require('crypto').randomUUID();
+        db.run(`INSERT INTO waitlist_offers (id, waitlist_id, event_key, email, name, ticket_type, claim_token, status, source_reg_id, expires_at)
+                VALUES (?,?,?,?,?,?,?,'offered',?,?)`,
+            [offerId, c.id, section, c.email || null, c.name || null, c.ticket_type || null, claim_token, sourceRegId || null, expiresAt]);
+        if (c.email) {
+            const base = seatPublicBase(req);
+            const claimUrl = `${base}/api/public/claim-seat?token=${claim_token}`;
+            const first = (c.name || '').split(' ')[0] || 'there';
+            const html = buildEmailTemplate('A Plexus seat just opened', `
+                <p>Hi ${seatEsc(first)},</p>
+                <p>Good news — a seat just opened for Plexus 2026 and you are next on the waitlist. It is yours if you claim it within 48 hours.</p>
+                <div style="text-align:center;margin:32px 0;">
+                    <a href="${claimUrl}" style="display:inline-block;background:#C9A962;color:#0f172a;text-decoration:none;padding:14px 40px;border-radius:8px;font-weight:700;font-size:16px;">Claim my seat</a>
+                </div>
+                <p style="color:#64748b;font-size:13px;">This link expires in 48 hours. After that we offer the seat to the next person on the list.</p>
+            `);
+            seatEnqueueTransactional({ to: c.email, subject: 'A Plexus seat just opened for you', html, source_engine: 'waitlist-offer', template: 'claim' });
+        }
+        return offerId; // offered exactly one person
+    }
+    return null;
+}
+
+// Release every still-pending seat (the T-3 action) and roll each into a waitlist offer.
+function releaseUnconfirmed(eventKey, req) {
+    const ek = eventKey || 'plexus';
+    let rows = [];
+    try { rows = query.all("SELECT * FROM seat_confirmations WHERE event_key = ? AND status = 'pending'", [ek]); } catch (e) { rows = []; }
+    let released = 0, offers = 0;
+    for (const r of rows) {
+        db.run("UPDATE seat_confirmations SET status = 'released', released_at = datetime('now') WHERE id = ?", [r.id]);
+        released++;
+        if (offerNextWaitlist(ek, r.reg_id, req)) offers++;
+    }
+    if (released) saveDb();
+    return { released, offers };
+}
+
+// Sweep expired 48h offers -> mark expired, roll the seat to the next waiting person.
+function sweepExpiredOffers() {
+    try {
+        let expired = [];
+        try { expired = query.all("SELECT * FROM waitlist_offers WHERE status = 'offered' AND expires_at IS NOT NULL AND datetime(expires_at) <= datetime('now')"); } catch (e) { return; }
+        let rolled = 0;
+        for (const o of expired) {
+            db.run("UPDATE waitlist_offers SET status = 'expired' WHERE id = ?", [o.id]);
+            if (offerNextWaitlist(o.event_key, o.source_reg_id, null)) rolled++;
+        }
+        if (expired.length) { saveDb(); console.log(`[Waitlist] Expired ${expired.length} offer(s), rolled ${rolled} forward`); }
+    } catch (e) { console.warn('[Waitlist] sweep skipped:', e.message); }
+}
+
+// Parse an admin-editable event-date string ("4 or 5 December 2026 · 7:00 PM") to a UTC end Date.
+// Mirrors resetExpiredCheckins: uses the latest explicit day before the matched month; null if none.
+function seatParseEventEnd(str) {
+    if (!str) return null;
+    const MONTHS = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+    const m = String(str).match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
+    if (!m) return null;
+    const before = String(str).slice(0, m.index);
+    const days = (before.match(/\b(\d{1,2})\b/g) || []).map(Number).filter((d) => d >= 1 && d <= 31);
+    if (!days.length) return null;
+    const d = new Date(Date.UTC(Number(m[2]), MONTHS.indexOf(m[1].toLowerCase()), Math.max(...days)));
+    return isNaN(d.getTime()) ? null : d;
+}
+
+// AUTO confirm-seat scheduler (daily). Fires the confirm round at T-t_confirm, a reminder at
+// T-t_reminder, and releases + waitlist-offers at T-t_release. Each stage is idempotent (guarded by
+// an automation_config marker). Gated behind seat_confirm_auto='on' (default on) so the owner can
+// pause it. In dev the conference date is far away, so nothing fires — the manual triggers are used.
+function runSeatConfirmAuto() {
+    try {
+        if (String(getAutomationConfig('seat_confirm_auto', 'on')) !== 'on') return;
+        const ek = 'plexus';
+        const p = query.get("SELECT conference_date FROM plexus_page_settings WHERE id = 'default'");
+        const end = seatParseEventEnd(p && p.conference_date);
+        if (!end) return; // no parseable day -> never risk a premature round
+        const daysUntil = Math.ceil((end.getTime() - Date.now()) / 86400000);
+        if (daysUntil < 0) return; // event passed
+        const tC = Number(getAutomationConfig('seat_confirm_t_confirm', '7'));
+        const tM = Number(getAutomationConfig('seat_confirm_t_reminder', '4'));
+        const tR = Number(getAutomationConfig('seat_confirm_t_release', '3'));
+        const done = (k) => getAutomationConfig('seat_round_' + k, '') === ek;
+        const mark = (k) => setAutomationConfig('seat_round_' + k, ek, 'auto-engine');
+        if (daysUntil <= tC && !done('confirm')) { const r = startConfirmRound(ek, 'confirm', null); mark('confirm'); console.log(`[SeatConfirm] AUTO confirm round queued (${r.count}) at T-${daysUntil}`); }
+        if (daysUntil <= tM && !done('reminder')) { const r = startConfirmRound(ek, 'reminder', null); mark('reminder'); console.log(`[SeatConfirm] AUTO reminder round queued (${r.count}) at T-${daysUntil}`); }
+        if (daysUntil <= tR && !done('release')) { const r = releaseUnconfirmed(ek, null); mark('release'); console.log(`[SeatConfirm] AUTO released ${r.released}, offered ${r.offers} at T-${daysUntil}`); }
+    } catch (e) { console.warn('[SeatConfirm] auto skipped:', e.message); }
 }
 
 async function initializeApp() {
@@ -1800,6 +2577,90 @@ async function initializeApp() {
         key TEXT PRIMARY KEY,
         value TEXT
     )`);
+
+    // ===== NAG->DO action items (Action Center engine) =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod). The admin daily
+    // scan writes ACTION ITEMS here: overdue/soon tasks, unpaid registrations, gala guests missing
+    // dietary info, stale project statuses, unanswered member messages, sponsor deliverables. Each
+    // row carries a one-click DO action — action_kind + action_payload_json describe what the Action
+    // Center button EXECUTES (queue an approval-gated email reminder, nudge the assignee, or deep
+    // link). status is one of open|actioned|done|dismissed. A rescan reconciles: an item whose
+    // underlying condition is fixed auto-resolves to done; dismissed items stay dismissed.
+    db.run(`CREATE TABLE IF NOT EXISTS nag_items (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        subject_id TEXT,
+        title TEXT NOT NULL,
+        action_kind TEXT,
+        action_payload_json TEXT,
+        assignee TEXT,
+        status TEXT DEFAULT 'open',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        resolved_at TEXT
+    )`);
+
+    // ===== Lifecycle automations: drip idempotency, confirm-seat, waitlist auto-offer =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod). These back the
+    // welcome-drip / verification-nudge engines (user portal) and the confirm-your-seat + waitlist
+    // auto-offer engines (admin portal). Declared in BOTH so the shared Turso table always exists
+    // regardless of which portal boots first; each engine only writes the tables it owns.
+
+    // One row per (user, lifecycle-email kind) — makes every drip/nudge enqueue exactly-once.
+    // kind: welcome | interests | verify_nudge_1 | verify_nudge_2. UNIQUE(user_id, kind) is the
+    // idempotency guard (INSERT OR IGNORE + getRowsModified()==1 means "first time" and gates the send).
+    db.run(`CREATE TABLE IF NOT EXISTS drip_log (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        email TEXT,
+        kind TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, kind)
+    )`);
+
+    // Confirm-your-seat (free-event no-show killer). One row per (reg_id, event_key). status is one
+    // of pending | confirmed | released. token backs the public one-click GET /api/public/confirm-seat.
+    db.run(`CREATE TABLE IF NOT EXISTS seat_confirmations (
+        id TEXT PRIMARY KEY,
+        reg_id TEXT NOT NULL,
+        event_key TEXT NOT NULL DEFAULT 'plexus',
+        email TEXT,
+        name TEXT,
+        token TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        sent_at TEXT,
+        reminder_sent_at TEXT,
+        confirmed_at TEXT,
+        released_at TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(reg_id, event_key)
+    )`);
+
+    // Waitlist auto-offer. When a seat releases, the next waiting person gets a 48h claim link.
+    // status is one of offered | claimed | expired. claim_token backs the public GET
+    // /api/public/claim-seat, which deep-links (never auto-creates) the frozen registration flow.
+    db.run(`CREATE TABLE IF NOT EXISTS waitlist_offers (
+        id TEXT PRIMARY KEY,
+        waitlist_id TEXT,
+        event_key TEXT NOT NULL DEFAULT 'plexus',
+        email TEXT,
+        name TEXT,
+        ticket_type TEXT,
+        claim_token TEXT NOT NULL,
+        status TEXT DEFAULT 'offered',
+        source_reg_id TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        expires_at TEXT,
+        claimed_at TEXT
+    )`);
+
+    // Admin-tunable automation knobs (confirm-seat T-offsets, engine on/off). key/value; value is a
+    // short string or JSON. Read/written by the admin portal; declared in both for boot-order safety.
+    db.run(`CREATE TABLE IF NOT EXISTS automation_config (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TEXT,
+        updated_by TEXT
+    )`);
     // ====================== SCHEMA-MIRROR:END ======================
 
     // Audience scope for member announcements (additive, guarded — deliberately OUTSIDE the mirror
@@ -2452,6 +3313,10 @@ async function initializeApp() {
     if (!sponsorColumns.includes('amount_received')) db.run(`ALTER TABLE sponsors ADD COLUMN amount_received REAL DEFAULT 0`);
     if (!sponsorColumns.includes('notes')) db.run(`ALTER TABLE sponsors ADD COLUMN notes TEXT`);
     if (!sponsorColumns.includes('is_published')) db.run(`ALTER TABLE sponsors ADD COLUMN is_published INTEGER DEFAULT 0`);
+    // Sponsor lifecycle (#8): commit date + follow-up cadence timestamps.
+    if (!sponsorColumns.includes('created_at')) db.run(`ALTER TABLE sponsors ADD COLUMN created_at TEXT`);
+    if (!sponsorColumns.includes('last_contacted_at')) db.run(`ALTER TABLE sponsors ADD COLUMN last_contacted_at TEXT`);
+    if (!sponsorColumns.includes('last_followup_at')) db.run(`ALTER TABLE sponsors ADD COLUMN last_followup_at TEXT`);
 
     // Sponsor tasks table
     db.run(`CREATE TABLE IF NOT EXISTS sponsor_tasks (
@@ -2464,6 +3329,12 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (sponsor_id) REFERENCES sponsors(id)
     )`);
+
+    // Sponsor lifecycle (#8): tier-template provenance + benefit metadata on the checklist.
+    const sponsorTaskColumns = query.all("PRAGMA table_info(sponsor_tasks)").map(c => c.name);
+    if (!sponsorTaskColumns.includes('source')) db.run(`ALTER TABLE sponsor_tasks ADD COLUMN source TEXT`);
+    if (!sponsorTaskColumns.includes('benefit_key')) db.run(`ALTER TABLE sponsor_tasks ADD COLUMN benefit_key TEXT`);
+    if (!sponsorTaskColumns.includes('note')) db.run(`ALTER TABLE sponsor_tasks ADD COLUMN note TEXT`);
 
     // Sponsor leads (badge scans at booth)
     db.run(`CREATE TABLE IF NOT EXISTS sponsor_leads (
@@ -2588,6 +3459,44 @@ async function initializeApp() {
         sent_count INTEGER DEFAULT 0,
         created_by TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    // --- Send-drainer / outbox columns (guarded; scheduled_emails predates the outbox engine).
+    // Batches enter as status='pending_approval' and flip to 'scheduled' on ONE human approve
+    // click; transactional single sends (receipts, claim links, confirm-seat) enter directly as
+    // 'scheduled'. A ~60s in-process drainer (admin backend) sends due 'scheduled' rows through the
+    // sendEmail() mock boundary. These ALTERs live OUTSIDE the SCHEMA-MIRROR block by design.
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN batch_id TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN source_engine TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN template TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN payload_json TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN recipient_email TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN subject TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN approved_by TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN attempts INTEGER DEFAULT 0"); } catch(e) {}
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN last_error TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN sent_at TEXT"); } catch(e) {}
+
+    // Bank reconciliation (menu item #4). One row per imported bank-statement line.
+    // Admin-only feature, so — like scheduled_emails — this lives OUTSIDE the SCHEMA-MIRROR
+    // block (the member portal never touches it; the single shared Turso DB in prod gets the
+    // table on admin boot). status is one of unmatched|suggested|confirmed|ignored.
+    // matched_source is the REG_TABLES key ('conference'|'gala'|…) used to fire the existing
+    // mark-paid mechanism on confirm. confidence is the matcher score (0..1) for the stored best.
+    db.run(`CREATE TABLE IF NOT EXISTS bank_statement_lines (
+        id TEXT PRIMARY KEY,
+        batch_id TEXT,
+        source_filename TEXT,
+        line_date TEXT,
+        amount REAL,
+        payer TEXT,
+        reference TEXT,
+        matched_reg_id TEXT,
+        matched_source TEXT,
+        confidence REAL,
+        status TEXT DEFAULT 'unmatched',
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        confirmed_at TEXT
     )`);
 
     // Conference archive info
@@ -3822,6 +4731,12 @@ async function initializeApp() {
     try { db.run("ALTER TABLE direct_messages ADD COLUMN attachment_url TEXT"); } catch(e) {}
     try { db.run("ALTER TABLE direct_messages ADD COLUMN is_read INTEGER DEFAULT 0"); } catch(e) {}
     try { db.run("ALTER TABLE direct_messages ADD COLUMN updated_at TEXT"); } catch(e) {}
+    // AI INBOX (#7): triage labels + a stored grounded reply draft on each inbound message.
+    // Guarded, additive, and deliberately OUTSIDE the SCHEMA-MIRROR block (columns, not a shared
+    // CREATE TABLE). Triage is full-auto + reversible — these can be recomputed at any time.
+    try { db.run("ALTER TABLE direct_messages ADD COLUMN ai_category TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE direct_messages ADD COLUMN ai_urgency TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE direct_messages ADD COLUMN ai_draft TEXT"); } catch(e) {}
 
     // Migration: add notification_type, target_tier, expires_at, placement to user_notifications
     try { db.run("ALTER TABLE user_notifications ADD COLUMN notification_type TEXT DEFAULT 'info'"); } catch(e) {}
@@ -7137,6 +8052,182 @@ async function initializeApp() {
         db.run('DELETE FROM project_tasks WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
+    });
+
+    // ===== MEETING NOTES -> TASKS (AI INBOX #7, item 3) =====
+    // Paste raw meeting notes, get back candidate action items (title + assignee guess + due
+    // date). The extractor is deterministic so it works offline in dev; when a live model is
+    // configured it may refine the list. Nothing is written here — the human ticks the ones to
+    // keep and POSTs them to /api/admin/tasks/bulk (which inserts into project_tasks).
+
+    const NOTE_WEEKDAYS = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+    const NOTE_MONTHS = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+    const NOTE_ACTION_CUES = ['will ', 'to-do', 'todo', 'need to', 'needs to', 'should ', 'follow up', 'follow-up', 'action', 'send ', 'email ', 'prepare', 'book ', 'confirm', 'draft', 'review', 'schedule', 'call ', 'finalize', 'finalise', 'update ', 'assign', 'create ', 'set up', 'organize', 'organise', 'contact', 'reach out', 'submit', 'order ', 'publish', 'post ', 'share ', 'chase', 'ping ', 'ask '];
+
+    function noteToIsoDate(y, m, d) {
+        const dt = new Date(Date.UTC(y, m, d));
+        if (isNaN(dt.getTime())) return null;
+        return dt.toISOString().slice(0, 10);
+    }
+    // Pull a due date out of a single line of notes relative to `today` (a Date). Returns
+    // YYYY-MM-DD or null.
+    function noteParseDue(line, today) {
+        const t = line.toLowerCase();
+        const iso = t.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
+        if (iso) return noteToIsoDate(+iso[1], +iso[2] - 1, +iso[3]);
+        const addDays = (n) => { const d = new Date(today.getTime()); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+        if (/\btoday\b/.test(t)) return addDays(0);
+        if (/\btomorrow\b/.test(t)) return addDays(1);
+        const inDays = t.match(/\bin (\d{1,2}) days?\b/);
+        if (inDays) return addDays(+inDays[1]);
+        if (/\bnext week\b/.test(t)) return addDays(7);
+        if (/\bnext month\b/.test(t)) return addDays(30);
+        if (/\b(end of week|eow|by friday)\b/.test(t)) {
+            const dow = today.getUTCDay(); const delta = (5 - dow + 7) % 7; return addDays(delta === 0 ? 0 : delta);
+        }
+        // "July 10" / "Jul 10" / "10 July"
+        const mo = t.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})\b/) || t.match(/\b(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/);
+        if (mo) {
+            let mon, day;
+            if (isNaN(+mo[1])) { mon = NOTE_MONTHS[mo[1]]; day = +mo[2]; } else { day = +mo[1]; mon = NOTE_MONTHS[mo[2]]; }
+            if (mon != null && day >= 1 && day <= 31) {
+                let year = today.getUTCFullYear();
+                const cand = noteToIsoDate(year, mon, day);
+                if (cand && cand < today.toISOString().slice(0, 10)) return noteToIsoDate(year + 1, mon, day);
+                return cand;
+            }
+        }
+        // Weekday name ("by Monday", "on Thursday", "Friday")
+        const wd = t.match(/\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/);
+        if (wd) {
+            const target = NOTE_WEEKDAYS[wd[1]]; const dow = today.getUTCDay();
+            let delta = (target - dow + 7) % 7; if (delta === 0) delta = 7;
+            return addDays(delta);
+        }
+        return null;
+    }
+    // Guess an assignee from a line by matching known team names (full name, then first name,
+    // on word boundaries), plus @mentions. Returns { id, name } or {}.
+    function noteGuessAssignee(line, team) {
+        const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        for (const m of team) {
+            if (!m.name) continue;
+            if (new RegExp('\\b' + esc(m.name) + '\\b', 'i').test(line)) return { id: m.id, name: m.name };
+        }
+        for (const m of team) {
+            const first = String(m.name || '').trim().split(/\s+/)[0];
+            if (first && first.length >= 3 && new RegExp('\\b' + esc(first) + '\\b', 'i').test(line)) return { id: m.id, name: m.name };
+        }
+        const at = line.match(/@([A-Za-z][A-Za-z'\-]+)/);
+        if (at) {
+            const nm = at[1].toLowerCase();
+            const hit = team.find((m) => String(m.name || '').toLowerCase().split(/\s+/).includes(nm));
+            if (hit) return { id: hit.id, name: hit.name };
+            return { id: null, name: at[1] };
+        }
+        return {};
+    }
+    // Deterministic action-item extraction over pasted notes. Returns [{title, assignee_id,
+    // assignee_name, due_date}].
+    function extractActionItems(notes, team, today) {
+        const items = [];
+        const seen = new Set();
+        const rawLines = String(notes || '').split(/\r?\n/);
+        for (let raw of rawLines) {
+            // Split a single line into sub-items when it uses inline bullet separators.
+            const parts = raw.split(/\s+[•·]\s+|\s*;\s*(?=[A-Z])/).length > 1 ? raw.split(/\s+[•·]\s+/) : [raw];
+            for (let seg of parts) {
+                let line = seg.replace(/\s+/g, ' ').trim();
+                if (!line) continue;
+                const bulleted = /^\s*([-*•·–—]|\d+[.)])\s+/.test(line);
+                // Strip the leading bullet/number marker for the title.
+                let title = line.replace(/^\s*([-*•·–—]|\d+[.)])\s+/, '').trim();
+                if (!title || title.length < 4) continue;
+                // Skip obvious headers / metadata lines.
+                if (/^(attendees?|present|agenda|date|time|location|notes?|minutes|topic|subject|next meeting)\s*:/i.test(title)) continue;
+                const low = title.toLowerCase();
+                const isAction = bulleted || NOTE_ACTION_CUES.some((c) => low.includes(c));
+                if (!isAction) continue;
+                // Clean trailing punctuation, cap length.
+                let clean = title.replace(/[.\s]+$/, '').slice(0, 180);
+                clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+                const key = clean.toLowerCase();
+                if (seen.has(key)) continue;
+                seen.add(key);
+                const who = noteGuessAssignee(title, team);
+                const due = noteParseDue(title, today);
+                const urgent = /\b(urgent|asap|immediately|today|tomorrow|deadline)\b/i.test(title);
+                items.push({ title: clean, assignee_id: who.id || null, assignee_name: who.name || null, due_date: due, urgent });
+            }
+        }
+        return items;
+    }
+    // Best-effort parse of a model JSON array back into our item shape (prod path only).
+    function parseModelTaskJson(text, team) {
+        try {
+            const m = String(text || '').match(/\[[\s\S]*\]/);
+            if (!m) return null;
+            const arr = JSON.parse(m[0]);
+            if (!Array.isArray(arr)) return null;
+            return arr.map((o) => {
+                const title = String((o && (o.title || o.task || o.action)) || '').trim();
+                if (!title) return null;
+                let assignee_id = null, assignee_name = (o && (o.assignee || o.owner)) || null;
+                if (assignee_name) {
+                    const hit = team.find((t) => String(t.name || '').toLowerCase() === String(assignee_name).toLowerCase()
+                        || String(t.name || '').toLowerCase().split(/\s+/)[0] === String(assignee_name).toLowerCase());
+                    if (hit) { assignee_id = hit.id; assignee_name = hit.name; }
+                }
+                const dd = (o && (o.due_date || o.due)) || null;
+                const due_date = (dd && /^\d{4}-\d{2}-\d{2}$/.test(String(dd))) ? String(dd) : null;
+                return { title: title.slice(0, 180), assignee_id, assignee_name, due_date, urgent: false };
+            }).filter(Boolean);
+        } catch (e) { return null; }
+    }
+
+    // Extract candidate tasks from pasted meeting notes. Read-only — returns candidates only.
+    app.post('/api/admin/tasks/extract', auth, adminOnly, async (req, res) => {
+        try {
+            const notes = String((req.body && req.body.notes) || '').trim();
+            if (!notes) return res.status(400).json({ error: 'Paste some meeting notes first.' });
+            let team = [];
+            try { team = query.all('SELECT id, name FROM team_members WHERE name IS NOT NULL'); } catch (e) { team = []; }
+            const today = new Date();
+            let items = extractActionItems(notes, team, today);
+            // Optional live-model refinement. In dev (mock) we keep the deterministic list.
+            let mock = true;
+            try {
+                const d = await aiDraft({
+                    purpose: 'Extract the action items from these meeting notes. Return ONLY a JSON array of objects with keys "title", "assignee" (a team member name or null), and "due_date" (YYYY-MM-DD or null).',
+                    context: { notes, team_names: team.map((t) => t.name).join(', ') || 'none', today: today.toISOString().slice(0, 10) },
+                    maxTokens: 800
+                });
+                mock = !!d.mock;
+                if (!d.mock) { const parsed = parseModelTaskJson(d.text, team); if (parsed && parsed.length) items = parsed; }
+            } catch (e) { /* deterministic list stands */ }
+            res.json({ items, count: items.length, mock });
+        } catch (e) { console.error('[ai-inbox] extract', e.message); res.status(500).json({ error: 'Could not read those notes.' }); }
+    });
+
+    // Create the selected action items in one shot (human-confirmed selection).
+    app.post('/api/admin/tasks/bulk', auth, adminOnly, (req, res) => {
+        try {
+            const items = Array.isArray(req.body && req.body.items) ? req.body.items : [];
+            if (!items.length) return res.status(400).json({ error: 'No tasks selected.' });
+            let created = 0;
+            items.forEach((it) => {
+                const title = String((it && it.title) || '').trim();
+                if (!title) return;
+                const id = uuidv4();
+                db.run(`INSERT INTO project_tasks (id, project, title, assigned_to, due_date, status, created_by)
+                    VALUES (?,?,?,?,?, 'todo', ?)`,
+                    [id, (it.project || 'general'), title.slice(0, 200), it.assigned_to || null, it.due_date || null, req.user.id]);
+                created++;
+            });
+            saveDb();
+            logAudit(req, 'task.bulk_create', `${created} task(s) from meeting notes`);
+            res.json({ success: true, created });
+        } catch (e) { console.error('[ai-inbox] tasks bulk', e.message); res.status(500).json({ error: 'Could not create tasks.' }); }
     });
 
     // ========== MEMBER-FEED CURATION (items 9 & 23) ==========
@@ -13124,25 +14215,41 @@ By applying to this program, I provide the following consents:
         res.json(sponsors || []);
     });
 
-    // Admin: Add sponsor
+    // Admin: Add sponsor. Committing at a tier (status confirmed/committed) auto-creates the tier's
+    // benefit checklist; entering 'contacted' stamps the follow-up clock. (website_url + created_at
+    // match the real schema — the previous 'website'/bare-created_at insert 500'd.)
     app.post('/api/admin/plexus/sponsors', auth, adminOnly, (req, res) => {
-        const { name, tier, website, logo_url, description, status, amount_pledged, amount_received, contact_name, contact_email, notes, is_published } = req.body;
+        const { name, tier, website_url, website, logo_url, description, status, amount_pledged, amount_received, contact_name, contact_email, notes, is_published } = req.body;
         const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
         const id = uuidv4();
-        db.run(`INSERT INTO sponsors (id, conference_id, name, tier, website, logo_url, description, status, amount_pledged, amount_received, contact_name, contact_email, notes, is_published, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-            [id, conf?.id || '', name, tier || 'partner', website, logo_url, description, status || 'prospect', amount_pledged || 0, amount_received || 0, contact_name, contact_email, notes, is_published || 0]);
+        const st = status || 'prospect';
+        const web = website_url || website || null;
+        const contactedAt = st === 'contacted' ? new Date().toISOString() : null;
+        db.run(`INSERT INTO sponsors (id, conference_id, name, tier, website_url, logo_url, description, status, amount_pledged, amount_received, contact_name, contact_email, notes, is_published, last_contacted_at, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+            [id, conf?.id || '', name, tier || 'partner', web, logo_url, description, st, amount_pledged || 0, amount_received || 0, contact_name, contact_email, notes, is_published || 0, contactedAt]);
+        let benefits = { created: 0 };
+        if (st === 'committed' || st === 'confirmed') benefits = ensureTierBenefits(id, tier || 'partner');
         saveDb();
-        res.json({ success: true, id });
+        logAudit(req, 'sponsor.add', `${name} (${tier || 'partner'}/${st})${benefits.created ? ` +${benefits.created} benefits` : ''}`);
+        res.json({ success: true, id, benefits_created: benefits.created });
     });
 
-    // Admin: Update sponsor
+    // Admin: Update sponsor. Stamps the follow-up clock the first time a sponsor becomes 'contacted'
+    // and auto-creates the tier benefit checklist when it reaches 'confirmed'/'committed'.
     app.put('/api/admin/plexus/sponsors/:id', auth, adminOnly, (req, res) => {
-        const { name, tier, website, logo_url, description, status, amount_pledged, amount_received, contact_name, contact_email, notes, is_published } = req.body;
-        db.run(`UPDATE sponsors SET name = ?, tier = ?, website = ?, logo_url = ?, description = ?, status = ?, amount_pledged = ?, amount_received = ?, contact_name = ?, contact_email = ?, notes = ?, is_published = ? WHERE id = ?`,
-            [name, tier, website, logo_url, description, status, amount_pledged || 0, amount_received || 0, contact_name, contact_email, notes, is_published || 0, req.params.id]);
+        const { name, tier, website_url, website, logo_url, description, status, amount_pledged, amount_received, contact_name, contact_email, notes, is_published } = req.body;
+        const prev = query.get("SELECT status, last_contacted_at FROM sponsors WHERE id = ?", [req.params.id]) || {};
+        const web = website_url || website || null;
+        db.run(`UPDATE sponsors SET name = ?, tier = ?, website_url = ?, logo_url = ?, description = ?, status = ?, amount_pledged = ?, amount_received = ?, contact_name = ?, contact_email = ?, notes = ?, is_published = ? WHERE id = ?`,
+            [name, tier, web, logo_url, description, status, amount_pledged || 0, amount_received || 0, contact_name, contact_email, notes, is_published || 0, req.params.id]);
+        if (status === 'contacted' && !prev.last_contacted_at) {
+            db.run("UPDATE sponsors SET last_contacted_at = datetime('now') WHERE id = ?", [req.params.id]);
+        }
+        let benefits = { created: 0 };
+        if (status === 'committed' || status === 'confirmed') benefits = ensureTierBenefits(req.params.id, tier);
         saveDb();
-        res.json({ success: true });
+        res.json({ success: true, benefits_created: benefits.created });
     });
 
     // Admin: Delete sponsor
@@ -13159,6 +14266,45 @@ By applying to this program, I provide the following consents:
         db.run('UPDATE sponsors SET is_published = ? WHERE id = ?', [is_published ? 1 : 0, req.params.id]);
         saveDb();
         res.json({ success: true });
+    });
+
+    // Admin: Sponsor tier catalog (real Gala/Plexus/Accelerator/Bridges ladders) — seeds the
+    // Add-Sponsor dropdown and the benefit preview.
+    app.get('/api/admin/sponsor-tiers', auth, adminOnly, (req, res) => {
+        res.json({ tiers: sponsorTierCatalog() });
+    });
+
+    // Admin: (re)apply the tier benefit checklist to a sponsor. Idempotent (only missing benefits
+    // are added). Runs automatically on commit; exposed for manual re-sync / tier bumps.
+    app.post('/api/admin/plexus/sponsors/:id/apply-benefits', auth, adminOnly, (req, res) => {
+        const sponsor = query.get("SELECT id, tier FROM sponsors WHERE id = ?", [req.params.id]);
+        if (!sponsor) return res.status(404).json({ error: 'Sponsor not found' });
+        const r = ensureTierBenefits(sponsor.id, req.body?.tier || sponsor.tier);
+        logAudit(req, 'sponsor.benefits', `applied tier benefits (+${r.created}) to ${sponsor.id}`);
+        res.json({ success: true, created: r.created });
+    });
+
+    // Admin: RENEWAL WRAP — for every fulfilled sponsor, draft a thank-you + renewal invite grounded
+    // in their delivered benefits and the event stats, staged as ONE approval-gated outbox batch.
+    // Nothing sends until the human approves the batch in the outbox.
+    app.post('/api/admin/plexus/sponsors/renewal-wrap', auth, adminOnly, async (req, res) => {
+        try {
+            const fulfilled = query.all("SELECT * FROM sponsors WHERE LOWER(COALESCE(status,'')) = 'fulfilled' AND contact_email IS NOT NULL AND contact_email != ''");
+            if (!fulfilled.length) return res.json({ success: true, batch_id: null, count: 0, message: 'No fulfilled sponsors with a contact email.' });
+            const batchId = 'sponsor-wrap-' + require('crypto').randomUUID();
+            let count = 0;
+            for (const sp of fulfilled) {
+                const delivered = query.all("SELECT title FROM sponsor_tasks WHERE sponsor_id = ? AND is_completed = 1", [sp.id]).map(t => t.title);
+                const { subject, html } = await sponsorBuildWrapEmail(sp, delivered);
+                db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                        VALUES (?, 'pending_approval', ?, 'sponsor-lifecycle', 'sponsor_wrap', ?, ?, ?, ?, datetime('now'))`,
+                    [require('crypto').randomUUID(), batchId, JSON.stringify({ to: sp.contact_email, subject, html }), sp.contact_email, subject, req.user?.email || 'admin']);
+                count++;
+            }
+            saveDb();
+            logAudit(req, 'sponsor.wrap', `${count} renewal wrap draft(s) queued (batch ${batchId})`);
+            res.json({ success: true, batch_id: count ? batchId : null, count });
+        } catch (e) { console.error('[sponsor] wrap', e.message); res.status(500).json({ error: e.message }); }
     });
 
     // Admin: Get sponsor tasks
@@ -18476,18 +19622,193 @@ By applying to this program, I provide the following consents:
         res.json(items);
     });
 
+    // ============================================================================
+    // AI INBOX (#7) — triage inbound member messages + ground reply drafts.
+    // Everything here is advisory: triage writes labels/draft columns (reversible),
+    // drafts prefill the reply box, and the human still clicks the existing Send.
+    // Uses aiDraft() (shared/ai.js) — a real model when ANTHROPIC_API_KEY is set,
+    // otherwise a deterministic mock so the flow stays fully testable offline.
+    // ============================================================================
+
+    // The 7 buckets the inbox sorts by. Kept in one place so backend + UI agree.
+    const AI_INBOX_CATEGORIES = [
+        'registration question', 'payment issue', 'accelerator question',
+        'sponsorship', 'speaker', 'technical', 'other'
+    ];
+
+    // Canonical facts a reply can lean on, read live from plexus_settings so a price
+    // or date edit in the admin panel flows straight into the drafts. Falls back to the
+    // seeded defaults if the row is missing. Returns a compact { text, obj } pair.
+    function aiInboxFaqFacts() {
+        let s = null;
+        try { s = query.get("SELECT * FROM plexus_settings WHERE id = 'default'"); } catch (e) { s = null; }
+        const f = {
+            conference: (s && s.conference_name) || 'Plexus Conference',
+            conference_dates: `${(s && s.conference_start_date) || '2026-12-04'} to ${(s && s.conference_end_date) || '2026-12-05'}`,
+            venue: [(s && s.venue_name) || 'Zagreb', (s && s.venue_city) || '', (s && s.venue_country) || 'Croatia'].filter(Boolean).join(', '),
+            gala_evening: 'Plexus Gala Evening, 2026-12-05, Zagreb',
+            student_price: `student ticket EUR ${(s && s.price_student_early) || 39} early bird / EUR ${(s && s.price_student_late) || 59} late`,
+            professional_price: `professional ticket EUR ${(s && s.price_professional_early) || 99} early bird / EUR ${(s && s.price_professional_late) || 149} late`,
+            early_bird_deadline: (s && s.early_bird_deadline) || '2026-09-30',
+            abstract_deadline: (s && s.abstract_deadline) || '2026-10-15',
+            registration_open: (s && s.is_registration_open === 0) ? 'registration is currently closed' : 'registration is open',
+            accelerator: 'The Med&X Accelerator places members in research labs/clinics. No fee. Members apply and ask coordinators through the portal.',
+            support_contact: 'president@medx.hr'
+        };
+        const text = Object.entries(f).map(([k, v]) => `- ${k.replace(/_/g, ' ')}: ${v}`).join('\n');
+        return { obj: f, text };
+    }
+
+    // Deterministic keyword classifier. This is the offline source of truth (dev has no
+    // API key) and also the fallback when a live model reply can't be parsed into a label.
+    function aiInboxClassify(title, content) {
+        const t = `${title || ''} ${content || ''}`.toLowerCase();
+        const has = (arr) => arr.some((w) => t.includes(w));
+        // Ordered by specificity — first match wins.
+        let category = 'other';
+        if (has(['refund', 'invoice', 'receipt', 'double charg', 'charged twice', 'payment', 'i paid', 'my card', 'credit card', 'stripe', 'overcharg', 'not paid', 'pay for', 'coupon', 'promo code', 'discount code'])) category = 'payment issue';
+        else if (has(['can\'t log in', 'cant log in', 'can not log in', 'log in', 'login', 'password', 'reset my', 'error', 'not working', 'doesn\'t work', 'doesnt work', 'broken', 'bug', '404', 'page won', 'can\'t access', 'cant access', 'website', 'portal won', 'loading'])) category = 'technical';
+        else if (has(['sponsor', 'sponsorship', 'partnership', 'partner with', 'exhibit', 'booth', 'stand at'])) category = 'sponsorship';
+        else if (has(['speaker', 'keynote', 'my talk', 'give a talk', 'present at', 'presentation', 'abstract', 'poster', 'session chair', 'panel'])) category = 'speaker';
+        else if (has(['accelerator', 'mentorship', 'mentor', 'research placement', 'lab placement', 'lab opening', 'placement site', 'research site'])) category = 'accelerator question';
+        else if (has(['register', 'registration', 'sign up', 'signup', 'my ticket', 'ticket for', 'cancel my', 'transfer my ticket', 'change my ticket', 'badge', 'confirm my spot', 'my spot', 'enrol'])) category = 'registration question';
+        // Urgency.
+        let urgency = 'normal';
+        if (has(['urgent', 'asap', 'immediately', 'right away', 'today', 'tomorrow', 'deadline', 'refund', 'double charg', 'charged twice', 'can\'t access', 'cant access', 'not working', 'broken', 'please help', 'help me', 'emergency', 'time sensitive'])) urgency = 'high';
+        else if (has(['no rush', 'whenever', 'just wondering', 'just curious', 'no hurry', 'someday'])) urgency = 'low';
+        // A payment issue is at least normal, never low.
+        if (category === 'payment issue' && urgency === 'low') urgency = 'normal';
+        return { category, urgency };
+    }
+
+    // Read-only member context by email: their registrations across events, so a draft can
+    // reference "your paid Plexus student ticket". Mirrors the scan-context lookup, lighter.
+    function aiInboxMemberContext(email) {
+        const ctx = { registrations: [] };
+        if (!email) return ctx;
+        try {
+            const rows = query.all(`SELECT r.payment_status, r.checked_in, c.name AS conf, t.name AS ticket
+                FROM registrations r LEFT JOIN conferences c ON r.conference_id = c.id
+                LEFT JOIN ticket_types t ON r.ticket_type_id = t.id WHERE r.email = ?`, [email]);
+            rows.forEach((r) => ctx.registrations.push(`${r.conf || 'Plexus'} — ${r.ticket || 'General'} (${r.payment_status === 'paid' ? 'paid' : 'unpaid'}${r.checked_in ? ', checked in' : ''})`));
+        } catch (e) {}
+        try {
+            const rows = query.all("SELECT payment_status, checked_in FROM gala_registrations WHERE email = ?", [email]);
+            rows.forEach((r) => ctx.registrations.push(`Gala Evening (${r.payment_status === 'paid' ? 'paid' : 'unpaid'}${r.checked_in ? ', checked in' : ''})`));
+        } catch (e) {}
+        try {
+            const rows = query.all(`SELECT be.name FROM bridges_registrations br LEFT JOIN bridges_events be ON br.event_id = be.id WHERE br.email = ?`, [email]);
+            rows.forEach((r) => ctx.registrations.push(`${r.name || 'Building Bridges'} (registered)`));
+        } catch (e) {}
+        return ctx;
+    }
+
+    // Build a grounded reply draft for one inbound message. Returns { text, mock }.
+    async function aiInboxBuildDraft(msg, faq) {
+        const facts = faq || aiInboxFaqFacts();
+        const memberEmail = msg.sender_id || '';
+        const member = aiInboxMemberContext(memberEmail);
+        const cls = { category: msg.ai_category, urgency: msg.ai_urgency };
+        const out = await aiDraft({
+            purpose: 'Write a warm, specific reply from the Med&X team to this member message. '
+                + 'Open with a greeting, answer their question directly using only the facts below, '
+                + 'and close with a friendly sign-off from the Med&X team. Do not invent prices or dates.',
+            context: {
+                member_email: memberEmail,
+                their_message: `${msg.title ? msg.title + ' — ' : ''}${msg.content || ''}`,
+                topic: cls.category || 'general',
+                member_registrations: member.registrations.length ? member.registrations.join('; ') : 'no registrations on file',
+                known_facts: facts.text
+            },
+            maxTokens: 400
+        });
+        return out;
+    }
+
+    // Full-auto triage sweep: label + draft every inbound (member->admin) message that has
+    // not been triaged yet. Reversible — pass reset=true to clear labels and re-run. Best-effort:
+    // never throws to the caller. LIMIT keeps a live model from processing an unbounded backlog
+    // in a single request (the in-process aiDraft rate limit is the second guard).
+    async function aiInboxTriage({ limit = 30, reset = false } = {}) {
+        try {
+            if (reset) {
+                db.run("UPDATE direct_messages SET ai_category = NULL, ai_urgency = NULL, ai_draft = NULL WHERE receiver_type = 'admin'");
+            }
+            const pending = query.all(
+                "SELECT * FROM direct_messages WHERE receiver_type = 'admin' AND (ai_category IS NULL OR ai_category = '') ORDER BY created_at ASC LIMIT ?",
+                [Math.max(1, Math.min(Number(limit) || 30, 100))]
+            );
+            if (!pending.length) return { triaged: 0 };
+            const faq = aiInboxFaqFacts();
+            let n = 0;
+            for (const msg of pending) {
+                const cls = aiInboxClassify(msg.title, msg.content);
+                msg.ai_category = cls.category;
+                msg.ai_urgency = cls.urgency;
+                let draft = '';
+                try { const d = await aiInboxBuildDraft(msg, faq); draft = (d && d.text) || ''; } catch (e) { draft = ''; }
+                db.run("UPDATE direct_messages SET ai_category = ?, ai_urgency = ?, ai_draft = ? WHERE id = ?",
+                    [cls.category, cls.urgency, draft, msg.id]);
+                n++;
+            }
+            if (n) saveDb();
+            return { triaged: n };
+        } catch (e) {
+            console.error('[ai-inbox] triage', e.message);
+            return { triaged: 0, error: e.message };
+        }
+    }
+
     // ===== ADMIN MESSAGING =====
 
-    // List all sent messages (grouped by conversation)
-    app.get('/api/admin/messages', auth, adminOnly, (req, res) => {
+    // Run a triage sweep on demand (full-auto elsewhere, but exposed so an admin can force it
+    // or reset+recompute all labels). Reversible by design.
+    app.post('/api/admin/messages/triage', auth, adminOnly, async (req, res) => {
         try {
+            const reset = !!(req.body && (req.body.reset === true || req.body.reset === 1 || req.body.reset === '1'));
+            const result = await aiInboxTriage({ limit: reset ? 100 : 60, reset });
+            res.json({ success: true, ...result });
+        } catch (e) { console.error('[ai-inbox] triage endpoint', e.message); res.status(500).json({ error: 'Triage failed' }); }
+    });
+
+    // Grounded reply draft for a member conversation. Advisory only — returns { text, mock,
+    // category, urgency } for the reply box; nothing is sent. Prefers a fresh grounded draft
+    // (message + registrations + FAQ), and falls back to the label stored at triage time.
+    app.post('/api/admin/messages/:userId/draft-reply', auth, adminOnly, async (req, res) => {
+        try {
+            const userId = req.params.userId;
+            const msg = query.get(
+                "SELECT * FROM direct_messages WHERE sender_id = ? AND receiver_type = 'admin' ORDER BY created_at DESC LIMIT 1",
+                [userId]
+            ) || query.get(
+                "SELECT * FROM direct_messages WHERE (sender_id = ? OR receiver_id = ?) ORDER BY created_at DESC LIMIT 1",
+                [userId, userId]
+            );
+            if (!msg) return res.status(404).json({ error: 'No message found for that member.' });
+            // Make sure it carries a label even if the sweep has not reached it yet.
+            if (!msg.ai_category) {
+                const cls = aiInboxClassify(msg.title, msg.content);
+                msg.ai_category = cls.category; msg.ai_urgency = cls.urgency;
+            }
+            const out = await aiInboxBuildDraft(msg);
+            res.json({ text: out.text, mock: !!out.mock, category: msg.ai_category || null, urgency: msg.ai_urgency || null });
+        } catch (e) { console.error('[ai-inbox] draft-reply', e.message); res.status(500).json({ error: 'Draft failed' }); }
+    });
+
+    // List conversations for the inbox. Includes BOTH admin-sent messages and inbound
+    // member->admin messages (so a brand-new question with no prior admin reply still shows
+    // up), plus the AI triage labels + stored draft. `member` is the non-admin counterparty
+    // the UI groups by. A full-auto triage sweep runs first so labels are fresh.
+    app.get('/api/admin/messages', auth, adminOnly, async (req, res) => {
+        try {
+            await aiInboxTriage({ limit: 30 });
             const messages = query.all(`
                 SELECT dm.*,
-                    (SELECT COUNT(*) FROM direct_messages d2 WHERE d2.receiver_id = dm.receiver_id AND d2.sender_type = 'admin' AND d2.is_read = 0) as unread_count
+                    CASE WHEN dm.sender_type = 'admin' THEN dm.receiver_id ELSE dm.sender_id END AS member
                 FROM direct_messages dm
-                WHERE dm.sender_type = 'admin'
+                WHERE dm.sender_type = 'admin' OR dm.receiver_type = 'admin'
                 ORDER BY dm.created_at DESC
-                LIMIT 100
+                LIMIT 200
             `);
             res.json(messages);
         } catch (err) {
@@ -18562,19 +19883,22 @@ By applying to this program, I provide the following consents:
         }
     });
 
-    // Get conversation thread with a specific user
+    // Get conversation thread with a specific user. Matches every message in the admin channel
+    // where this member is a party — regardless of which admin/coordinator alias received it —
+    // so inbound questions addressed to e.g. coordinators@medx.hr still thread correctly.
     app.get('/api/admin/messages/:userId', auth, adminOnly, (req, res) => {
         try {
             const messages = query.all(`
                 SELECT * FROM direct_messages
-                WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+                WHERE (sender_id = ? OR receiver_id = ?)
+                  AND (sender_type = 'admin' OR receiver_type = 'admin')
                 ORDER BY created_at ASC`,
-                [req.user.email, req.params.userId, req.params.userId, req.user.email]);
+                [req.params.userId, req.params.userId]);
 
-            // Mark received messages as read
+            // Mark this member's inbound messages as read.
             db.run(`UPDATE direct_messages SET is_read = 1
-                WHERE receiver_id = ? AND sender_id = ? AND is_read = 0`,
-                [req.user.email, req.params.userId]);
+                WHERE sender_id = ? AND receiver_type = 'admin' AND is_read = 0`,
+                [req.params.userId]);
             saveDb();
 
             res.json(messages);
@@ -19303,27 +20627,37 @@ By applying to this program, I provide the following consents:
         return row ? { ...m, row } : null;
     }
 
+    // Core "mark a registrant paid" mechanism, shared by the manual mark-paid endpoint and the
+    // bank-reconciliation confirm flow so both stay identical. Does NOT saveDb / audit / respond —
+    // the caller owns those (audit needs req; reconcile audits under a different action). Returns
+    // { ok, error?, row?, table? }. Never throws for a missing/unpayable target.
+    function markRegistrantPaid(type, id) {
+        const t = regTarget(type, id);
+        if (!t) return { ok: false, error: 'Registrant not found' };
+        // Each registrant table tracks "paid" differently (registrations.payment_status,
+        // croatians_abroad.gala_payment_status, gala/bridges only have a `status`).
+        // Build the UPDATE from columns that actually exist so it never 500s on a
+        // table that lacks payment_status. Column names come from this fixed allowlist
+        // intersected with the live schema — never from user input.
+        const cols = new Set(query.all(`PRAGMA table_info(${t.table})`).map(c => c.name));
+        const sets = [];
+        for (const c of ['payment_status', 'gala_payment_status']) if (cols.has(c)) sets.push(`${c} = 'paid'`);
+        // Advance the generic status from any "not yet confirmed" state to 'confirmed' (for
+        // gala/bridges this IS the paid signal, since they have no payment column). Leave
+        // terminal states like cancelled/rejected untouched so this never resurrects them.
+        if (cols.has('status')) sets.push(`status = CASE WHEN LOWER(COALESCE(status,'')) IN ('','pending','registered','unpaid','submitted','unconfirmed') THEN 'confirmed' ELSE status END`);
+        if (!sets.length) return { ok: false, error: 'This registrant type has no payment column to mark.' };
+        db.run(`UPDATE ${t.table} SET ${sets.join(', ')} WHERE id = ?`, [id]);
+        return { ok: true, row: t.row, table: t.table };
+    }
+
     // Mark a registrant paid (for manual / bank-transfer payments).
     app.post('/api/admin/registrant/:type/:id/mark-paid', auth, adminOnly, (req, res) => {
-        const t = regTarget(req.params.type, req.params.id);
-        if (!t) return res.status(404).json({ error: 'Registrant not found' });
         try {
-            // Each registrant table tracks "paid" differently (registrations.payment_status,
-            // croatians_abroad.gala_payment_status, gala/bridges only have a `status`).
-            // Build the UPDATE from columns that actually exist so it never 500s on a
-            // table that lacks payment_status. Column names come from this fixed allowlist
-            // intersected with the live schema — never from user input.
-            const cols = new Set(query.all(`PRAGMA table_info(${t.table})`).map(c => c.name));
-            const sets = [];
-            for (const c of ['payment_status', 'gala_payment_status']) if (cols.has(c)) sets.push(`${c} = 'paid'`);
-            // Advance the generic status from any "not yet confirmed" state to 'confirmed' (for
-            // gala/bridges this IS the paid signal, since they have no payment column). Leave
-            // terminal states like cancelled/rejected untouched so this never resurrects them.
-            if (cols.has('status')) sets.push(`status = CASE WHEN LOWER(COALESCE(status,'')) IN ('','pending','registered','unpaid','submitted','unconfirmed') THEN 'confirmed' ELSE status END`);
-            if (!sets.length) return res.status(400).json({ error: 'This registrant type has no payment column to mark.' });
-            db.run(`UPDATE ${t.table} SET ${sets.join(', ')} WHERE id = ?`, [req.params.id]);
+            const r = markRegistrantPaid(req.params.type, req.params.id);
+            if (!r.ok) return res.status(r.error === 'Registrant not found' ? 404 : 400).json({ error: r.error });
             saveDb();
-            logAudit(req, 'registrant.mark_paid', `${t.row.email || req.params.id} (${req.params.type})`);
+            logAudit(req, 'registrant.mark_paid', `${r.row.email || req.params.id} (${req.params.type})`);
             res.json({ success: true });
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
@@ -19359,6 +20693,256 @@ By applying to this program, I provide the following consents:
             }
             res.json({ ok: true, message: 'Ticket re-sent to ' + r.email });
         } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ==================== BANK RECONCILIATION (menu item #4) ====================
+    // Import a bank statement (CSV parsed client-side into rows), auto-match each line against
+    // UNPAID bank-transfer registrations, and let one human click fire the EXISTING mark-paid
+    // mechanism per line. Stripe/card rows are never candidates (only unpaid rows are), so this
+    // can never touch a settled Stripe payment. All writes go through markRegistrantPaid().
+
+    // ---- matcher helpers ----
+    // Normalise a name/reference for fuzzy comparison: lowercase, strip diacritics + punctuation.
+    const _reconNorm = (s) => String(s == null ? '' : s)
+        .toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+    const _reconTokens = (s) => _reconNorm(s).split(' ').filter(t => t.length > 1);
+    // Fraction of the candidate's name tokens that appear in the payer string (order-independent,
+    // so "Tomic Mia" still matches "Mia Tomic").
+    const _reconNameScore = (payer, name) => {
+        const set = new Set(_reconTokens(payer));
+        const toks = _reconTokens(name);
+        if (!toks.length || !set.size) return 0;
+        let hit = 0; for (const t of toks) if (set.has(t)) hit++;
+        return hit / toks.length;
+    };
+    const _reconEuro = (s) => { const m = String(s || '').match(/(\d+(?:[.,]\d+)?)/); return m ? parseFloat(m[1].replace(',', '.')) : null; };
+
+    // Gather UNPAID, bank-transfer registrations across the reconcilable event tables. Each carries
+    // the REG_TABLES key ('type') so confirm can call markRegistrantPaid(type, id). Card/Stripe rows
+    // are excluded (gala.stripe_session_id set) and only unpaid/pending rows are ever returned.
+    function getReconcileCandidates() {
+        const out = [];
+        // --- Plexus conference (registrations) ---
+        try {
+            const rows = query.all(`
+                SELECT r.id, r.first_name, r.last_name, r.email, r.institution, r.amount_paid, r.invoice_number,
+                       COALESCE(NULLIF(t.price_regular,0), NULLIF(t.price_early_bird,0), NULLIF(t.price_late,0)) AS ticket_price
+                FROM registrations r
+                LEFT JOIN ticket_types t ON r.ticket_type_id = t.id
+                WHERE (r.status IS NULL OR LOWER(r.status) != 'cancelled')
+                  AND (r.payment_status IS NULL OR LOWER(r.payment_status) IN ('unpaid','pending',''))`);
+            for (const r of rows) {
+                const amt = Number(r.amount_paid) > 0 ? Number(r.amount_paid) : (r.ticket_price != null ? Number(r.ticket_price) : null);
+                out.push({
+                    type: 'conference', source: 'Plexus Conference', id: r.id,
+                    name: `${r.first_name || ''} ${r.last_name || ''}`.trim() || (r.email || 'Registrant'),
+                    email: r.email || '', institution: r.institution || '',
+                    amount: amt, invoice_number: r.invoice_number || ''
+                });
+            }
+        } catch (e) {}
+        // --- Gala evening (gala_registrations) — skip card checkouts (stripe_session_id set) ---
+        try {
+            const rows = query.all(`
+                SELECT id, first_name, last_name, email, institution, amount_paid, invoice_number, pricing
+                FROM gala_registrations
+                WHERE (payment_status IS NULL OR LOWER(payment_status) IN ('unpaid','pending',''))
+                  AND (status IS NULL OR LOWER(status) NOT IN ('cancelled','rejected'))
+                  AND (stripe_session_id IS NULL OR stripe_session_id = '')`);
+            for (const r of rows) {
+                const amt = Number(r.amount_paid) > 0 ? Number(r.amount_paid) : (_reconEuro(r.pricing) || null);
+                out.push({
+                    type: 'gala', source: 'Gala Evening', id: r.id,
+                    name: `${r.first_name || ''} ${r.last_name || ''}`.trim() || (r.email || 'Guest'),
+                    email: r.email || '', institution: r.institution || '',
+                    amount: amt, invoice_number: r.invoice_number || ''
+                });
+            }
+        } catch (e) {}
+        return out;
+    }
+
+    // Score one statement line against one candidate → { confidence 0..1, signals }.
+    function _reconScore(line, cand) {
+        const ns = _reconNameScore(line.payer, cand.name);
+        const amtOk = cand.amount != null && Math.abs(Number(cand.amount) - Number(line.amount)) < 0.01;
+        const refNorm = _reconNorm(line.reference);
+        const inv = cand.invoice_number && String(cand.invoice_number).length >= 4 && refNorm.includes(_reconNorm(cand.invoice_number));
+        const refName = _reconTokens(cand.name).some(t => t.length > 2 && refNorm.includes(t));
+        let conf;
+        if (inv && amtOk) conf = 0.98;
+        else if (inv) conf = 0.9;
+        else if (amtOk && ns >= 0.8) conf = 0.95;
+        else if (amtOk && ns >= 0.5) conf = 0.85;
+        else if (amtOk && (ns > 0 || refName)) conf = 0.7;
+        else if (ns >= 0.8) conf = 0.6;
+        else if (amtOk) conf = 0.5;
+        else if (ns >= 0.5) conf = 0.45;
+        else if (ns > 0 && refName) conf = 0.4;
+        else conf = Math.round(ns * 40) / 100;
+        return { confidence: Math.round(conf * 100) / 100, signals: { name: Math.round(ns * 100) / 100, amount: amtOk, invoice: !!inv, refName } };
+    }
+
+    // Rank candidates for a line → { best, suggestions:[{...cand, confidence, signals}] } (top 5, conf>=0.3).
+    function reconMatchLine(line, candidates) {
+        const scored = candidates.map(c => ({ ...c, ..._reconScore(line, c) }))
+            .filter(s => s.confidence >= 0.3)
+            .sort((a, b) => b.confidence - a.confidence)
+            .slice(0, 5);
+        return { best: scored[0] || null, suggestions: scored };
+    }
+    const RECON_HIGH = 0.85; // confidence threshold for "high-confidence" bulk confirm
+
+    // Attach live suggestions to a stored line (recomputed against current candidates unless the
+    // line is already confirmed/ignored). Keeps the UI fresh if a reg was paid since import.
+    function reconDecorate(row, candidates) {
+        const line = { payer: row.payer, amount: row.amount, reference: row.reference };
+        let suggestions = [], best = null;
+        if (row.status !== 'confirmed' && row.status !== 'ignored') {
+            const m = reconMatchLine(line, candidates); suggestions = m.suggestions; best = m.best;
+        }
+        let matched = row.matched_reg_id ? (candidates.find(c => c.id === row.matched_reg_id) || null) : null;
+        return {
+            id: row.id, batch_id: row.batch_id, date: row.line_date, amount: row.amount,
+            payer: row.payer, reference: row.reference, status: row.status,
+            matched_reg_id: row.matched_reg_id, matched_source: row.matched_source,
+            confidence: row.confidence, confirmed_at: row.confirmed_at,
+            suggestions, best,
+            matched_name: matched ? matched.name : (row.matched_reg_id || null)
+        };
+    }
+
+    // ---- endpoints ----
+    // Candidate list (for the "pick other" dropdown + client-side reference).
+    app.get('/api/finance/reconcile/candidates', auth, adminOnly, (req, res) => {
+        try { res.json({ candidates: getReconcileCandidates() }); }
+        catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Import parsed statement rows: [{ date, amount, payer, reference }]. Stores each line + its
+    // best match, returns the decorated lines for immediate display.
+    app.post('/api/finance/reconcile/import', auth, adminOnly, (req, res) => {
+        try {
+            const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
+            const filename = String(req.body.filename || 'statement.csv').slice(0, 200);
+            if (!rows.length) return res.status(400).json({ error: 'No rows to import.' });
+            if (rows.length > 5000) return res.status(400).json({ error: 'Too many rows (max 5000).' });
+            const candidates = getReconcileCandidates();
+            const batchId = uuidv4();
+            const now = new Date().toISOString();
+            for (const raw of rows) {
+                const amount = typeof raw.amount === 'number' ? raw.amount : parseFloat(String(raw.amount || '').replace(/[^0-9.\-]/g, ''));
+                const line = { date: String(raw.date || '').slice(0, 40), amount: isNaN(amount) ? 0 : amount, payer: String(raw.payer || '').slice(0, 300), reference: String(raw.reference || '').slice(0, 500) };
+                const m = reconMatchLine(line, candidates);
+                const best = m.best;
+                const status = best ? 'suggested' : 'unmatched';
+                db.run(`INSERT INTO bank_statement_lines (id, batch_id, source_filename, line_date, amount, payer, reference, matched_reg_id, matched_source, confidence, status, created_by, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [uuidv4(), batchId, filename, line.date, line.amount, line.payer, line.reference,
+                     best ? best.id : null, best ? best.type : null, best ? best.confidence : null, status, req.user?.id || null, now]);
+            }
+            saveDb();
+            logAudit(req, 'reconcile.import', `${rows.length} lines (${filename})`);
+            const linesRows = query.all('SELECT * FROM bank_statement_lines WHERE batch_id = ? ORDER BY rowid', [batchId]);
+            res.json({ batch_id: batchId, filename, high_threshold: RECON_HIGH, lines: linesRows.map(r => reconDecorate(r, candidates)), candidates });
+        } catch (e) { console.error('[reconcile] import failed:', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Recent import batches with per-status counts.
+    app.get('/api/finance/reconcile/batches', auth, adminOnly, (req, res) => {
+        try {
+            const rows = query.all(`
+                SELECT batch_id, MAX(source_filename) AS filename, MAX(created_at) AS created_at, COUNT(*) AS total,
+                       SUM(CASE WHEN status='confirmed' THEN 1 ELSE 0 END) AS confirmed,
+                       SUM(CASE WHEN status='ignored' THEN 1 ELSE 0 END) AS ignored,
+                       SUM(CASE WHEN status IN ('suggested','unmatched') THEN 1 ELSE 0 END) AS open
+                FROM bank_statement_lines GROUP BY batch_id ORDER BY created_at DESC LIMIT 30`);
+            res.json({ batches: rows });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Lines for one batch, decorated with fresh suggestions.
+    app.get('/api/finance/reconcile/batch/:batchId', auth, adminOnly, (req, res) => {
+        try {
+            const candidates = getReconcileCandidates();
+            const rows = query.all('SELECT * FROM bank_statement_lines WHERE batch_id = ? ORDER BY rowid', [req.params.batchId]);
+            if (!rows.length) return res.status(404).json({ error: 'Batch not found' });
+            res.json({ batch_id: req.params.batchId, filename: rows[0].source_filename, high_threshold: RECON_HIGH, lines: rows.map(r => reconDecorate(r, candidates)), candidates });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Confirm a line → fire the EXISTING mark-paid mechanism for the chosen registrant, then flip
+    // the line to 'confirmed' with a link to the reg. body: { type, reg_id }.
+    app.post('/api/finance/reconcile/line/:lineId/confirm', auth, adminOnly, (req, res) => {
+        try {
+            const row = query.get('SELECT * FROM bank_statement_lines WHERE id = ?', [req.params.lineId]);
+            if (!row) return res.status(404).json({ error: 'Statement line not found' });
+            const type = String(req.body.type || row.matched_source || '');
+            const regId = String(req.body.reg_id || row.matched_reg_id || '');
+            if (!type || !regId) return res.status(400).json({ error: 'Pick a registration to confirm against.' });
+            const mark = markRegistrantPaid(type, regId);
+            if (!mark.ok) return res.status(400).json({ error: mark.error });
+            db.run("UPDATE bank_statement_lines SET status='confirmed', matched_reg_id=?, matched_source=?, confirmed_at=? WHERE id=?",
+                [regId, type, new Date().toISOString(), row.id]);
+            saveDb();
+            logAudit(req, 'reconcile.confirm', `${mark.row.email || regId} (${type}) ← ${row.payer || 'statement line'} €${row.amount}`);
+            res.json({ success: true, matched_name: `${mark.row.first_name || ''} ${mark.row.last_name || ''}`.trim() || mark.row.email || regId });
+        } catch (e) { console.error('[reconcile] confirm failed:', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Set (but do NOT confirm) a chosen match — "pick other" persistence. body: { type, reg_id }.
+    app.post('/api/finance/reconcile/line/:lineId/match', auth, adminOnly, (req, res) => {
+        try {
+            const row = query.get('SELECT * FROM bank_statement_lines WHERE id = ?', [req.params.lineId]);
+            if (!row) return res.status(404).json({ error: 'Statement line not found' });
+            if (row.status === 'confirmed') return res.status(400).json({ error: 'Line already confirmed.' });
+            const type = req.body.type ? String(req.body.type) : null;
+            const regId = req.body.reg_id ? String(req.body.reg_id) : null;
+            db.run("UPDATE bank_statement_lines SET matched_reg_id=?, matched_source=?, status=? WHERE id=?",
+                [regId, type, regId ? 'suggested' : 'unmatched', row.id]);
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Ignore a line (flip to 'ignored'), or un-ignore back to matcher state. body: { undo?:true }.
+    app.post('/api/finance/reconcile/line/:lineId/ignore', auth, adminOnly, (req, res) => {
+        try {
+            const row = query.get('SELECT * FROM bank_statement_lines WHERE id = ?', [req.params.lineId]);
+            if (!row) return res.status(404).json({ error: 'Statement line not found' });
+            if (row.status === 'confirmed') return res.status(400).json({ error: 'Line already confirmed.' });
+            const undo = !!req.body.undo;
+            db.run("UPDATE bank_statement_lines SET status=? WHERE id=?", [undo ? (row.matched_reg_id ? 'suggested' : 'unmatched') : 'ignored', row.id]);
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Bulk-confirm every high-confidence suggested line in a batch. body: { threshold?:0.85 }.
+    // A registrant already consumed by an earlier line in this pass is not reused for another line.
+    app.post('/api/finance/reconcile/batch/:batchId/confirm-high', auth, adminOnly, (req, res) => {
+        try {
+            const threshold = Number(req.body.threshold) > 0 ? Number(req.body.threshold) : RECON_HIGH;
+            const candidates = getReconcileCandidates();
+            const rows = query.all('SELECT * FROM bank_statement_lines WHERE batch_id = ? AND status = ? ORDER BY rowid', [req.params.batchId, 'suggested']);
+            let confirmed = 0; const failed = []; const used = new Set();
+            const now = new Date().toISOString();
+            for (const row of rows) {
+                const m = reconMatchLine({ payer: row.payer, amount: row.amount, reference: row.reference }, candidates);
+                const pick = m.suggestions.find(s => s.confidence >= threshold && !used.has(s.id));
+                if (!pick) continue;
+                const mark = markRegistrantPaid(pick.type, pick.id);
+                if (!mark.ok) { failed.push({ id: row.id, error: mark.error }); continue; }
+                used.add(pick.id);
+                db.run("UPDATE bank_statement_lines SET status='confirmed', matched_reg_id=?, matched_source=?, confidence=?, confirmed_at=? WHERE id=?",
+                    [pick.id, pick.type, pick.confidence, now, row.id]);
+                confirmed++;
+            }
+            saveDb();
+            logAudit(req, 'reconcile.confirm_bulk', `${confirmed} high-confidence lines (batch ${req.params.batchId})`);
+            res.json({ success: true, confirmed, failed });
+        } catch (e) { console.error('[reconcile] bulk confirm failed:', e.message); res.status(500).json({ error: e.message }); }
     });
 
     // ==================== CROSS-ENTITY PEOPLE SEARCH (admin omnibox) ====================
@@ -20291,6 +21875,330 @@ By applying to this program, I provide the following consents:
         } catch(e) { console.error('[assistant] execute', e.message); res.status(500).json({ error:'Could not apply the change.' }); }
     });
 
+    // AI draft — the shared drafting primitive (shared/ai.js). Automations call aiDraft()
+    // directly; this endpoint exposes it for ad-hoc "draft this for me" use in the admin UI.
+    // In dev (no ANTHROPIC_API_KEY) it returns a deterministic mock prefixed '[Draft]', so the
+    // flow is testable without a live send. Advisory text only — nothing is sent here.
+    app.post('/api/admin/ai/draft', assistantLimiter, auth, adminOnly, async (req, res) => {
+        try {
+            const { purpose, context, maxTokens } = req.body || {};
+            if (!purpose && !context) return res.status(400).json({ error: 'Provide a purpose or context to draft from.' });
+            const out = await aiDraft({ purpose, context, maxTokens });
+            res.json(out);
+        } catch (e) { console.error('[ai/draft] error', e.message); res.status(500).json({ error: 'Draft failed' }); }
+    });
+
+    // ========== OUTBOX (batch approval + send drainer surface) ==========
+    // The drainer (in the app.listen block below) sends scheduled_emails rows whose
+    // status='scheduled' and scheduled_for is due, through the sendEmail() mock boundary.
+    // Bulk automations stage rows as status='pending_approval' under a shared batch_id; the ONE
+    // human click that flips a batch to 'scheduled' is POST /api/admin/outbox/:batch/approve.
+
+    // List batches awaiting approval (default), grouped by batch: count, sample, source engine.
+    // ?status=scheduled|sent|failed|cancelled to inspect other states.
+    app.get('/api/admin/outbox', auth, adminOnly, (req, res) => {
+        try {
+            const status = String(req.query.status || 'pending_approval');
+            const rows = query.all(
+                `SELECT batch_id, source_engine, template, status, COUNT(*) AS cnt,
+                        MIN(scheduled_for) AS earliest_scheduled_for, MIN(created_at) AS created_at,
+                        MAX(approved_by) AS approved_by
+                 FROM scheduled_emails
+                 WHERE batch_id IS NOT NULL AND status = ?
+                 GROUP BY batch_id
+                 ORDER BY created_at DESC`,
+                [status]
+            );
+            const batches = rows.map((r) => {
+                let sample = null;
+                try {
+                    const s = query.get("SELECT recipient_email, subject, payload_json FROM scheduled_emails WHERE batch_id = ? LIMIT 1", [r.batch_id]);
+                    if (s) {
+                        let p = {};
+                        try { p = s.payload_json ? JSON.parse(s.payload_json) : {}; } catch (e) { p = {}; }
+                        sample = { to: p.to || s.recipient_email || null, subject: p.subject || s.subject || null };
+                    }
+                } catch (e) { /* sample is best-effort */ }
+                return {
+                    batch_id: r.batch_id,
+                    source_engine: r.source_engine || 'unknown',
+                    template: r.template || null,
+                    count: r.cnt,
+                    status: r.status,
+                    approved_by: r.approved_by || null,
+                    earliest_scheduled_for: r.earliest_scheduled_for || null,
+                    created_at: r.created_at || null,
+                    sample,
+                };
+            });
+            res.json({ batches });
+        } catch (e) { console.error('[outbox] list', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // THE one human click: approve a pending batch -> flips every pending row to 'scheduled' so the
+    // drainer picks it up. Records who approved. scheduled_for defaults to now when unset.
+    app.post('/api/admin/outbox/:batch/approve', auth, adminOnly, (req, res) => {
+        try {
+            const batch = req.params.batch;
+            const info = query.get("SELECT COUNT(*) AS cnt FROM scheduled_emails WHERE batch_id = ? AND status = 'pending_approval'", [batch]);
+            const cnt = info ? info.cnt : 0;
+            if (!cnt) return res.status(404).json({ error: 'No emails awaiting approval for that batch.' });
+            db.run(
+                "UPDATE scheduled_emails SET status='scheduled', approved_by=?, scheduled_for=COALESCE(scheduled_for, datetime('now')) WHERE batch_id = ? AND status='pending_approval'",
+                [req.user?.email || 'admin', batch]
+            );
+            saveDb();
+            logAudit(req, 'outbox_approve', `batch ${batch} (${cnt} emails) approved for sending`);
+            res.json({ success: true, approved: cnt });
+        } catch (e) { console.error('[outbox] approve', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Cancel a pending batch -> flips every pending row to 'cancelled' (never sent).
+    app.post('/api/admin/outbox/:batch/cancel', auth, adminOnly, (req, res) => {
+        try {
+            const batch = req.params.batch;
+            const info = query.get("SELECT COUNT(*) AS cnt FROM scheduled_emails WHERE batch_id = ? AND status = 'pending_approval'", [batch]);
+            const cnt = info ? info.cnt : 0;
+            if (!cnt) return res.status(404).json({ error: 'No emails awaiting approval for that batch.' });
+            db.run("UPDATE scheduled_emails SET status='cancelled' WHERE batch_id = ? AND status='pending_approval'", [batch]);
+            saveDb();
+            logAudit(req, 'outbox_cancel', `batch ${batch} (${cnt} emails) cancelled`);
+            res.json({ success: true, cancelled: cnt });
+        } catch (e) { console.error('[outbox] cancel', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ========== CONFIRM-YOUR-SEAT (#3) — admin panel API ==========
+    // Counts + config for the confirm-seat card in the Plexus section.
+    app.get('/api/admin/seat-confirmations/summary', auth, adminOnly, (req, res) => {
+        try { res.json(seatConfirmSummary(String(req.query.event_key || 'plexus'))); }
+        catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Start a confirmation round (kind=confirm|reminder). Stages an APPROVAL-GATED batch — the owner
+    // approves it in the outbox before anything sends.
+    app.post('/api/admin/seat-confirmations/start-round', auth, adminOnly, (req, res) => {
+        try {
+            const ek = String((req.body && req.body.event_key) || 'plexus');
+            const kind = ((req.body && req.body.kind) === 'reminder') ? 'reminder' : 'confirm';
+            const r = startConfirmRound(ek, kind, req);
+            if (!r.batch_id) return res.json({ success: true, batch_id: null, count: 0, message: kind === 'reminder' ? 'No unconfirmed seats to remind.' : 'No eligible attendees to confirm.' });
+            logAudit(req, 'seat_confirm_round', `${kind} round for ${ek}: ${r.count} email(s) staged (batch ${r.batch_id})`);
+            res.json({ success: true, batch_id: r.batch_id, count: r.count });
+        } catch (e) { console.error('[seat] start-round', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Release every still-unconfirmed seat now (the T-3 action) and roll each into a waitlist offer.
+    app.post('/api/admin/seat-confirmations/release-unconfirmed', auth, adminOnly, (req, res) => {
+        try {
+            const ek = String((req.body && req.body.event_key) || 'plexus');
+            const r = releaseUnconfirmed(ek, req);
+            logAudit(req, 'seat_release', `${ek}: released ${r.released}, waitlist offers ${r.offers}`);
+            res.json({ success: true, ...r });
+        } catch (e) { console.error('[seat] release', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Configure the T-offsets + auto on/off.
+    app.put('/api/admin/seat-confirmations/config', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const clamp = (v, d) => { const n = Number(v); return (Number.isFinite(n) && n >= 0 && n <= 60) ? Math.round(n) : d; };
+            const who = (req.user && req.user.email) || 'admin';
+            if (b.t_confirm !== undefined) setAutomationConfig('seat_confirm_t_confirm', clamp(b.t_confirm, 7), who);
+            if (b.t_reminder !== undefined) setAutomationConfig('seat_confirm_t_reminder', clamp(b.t_reminder, 4), who);
+            if (b.t_release !== undefined) setAutomationConfig('seat_confirm_t_release', clamp(b.t_release, 3), who);
+            if (b.auto !== undefined) setAutomationConfig('seat_confirm_auto', (b.auto === 'on' || b.auto === true) ? 'on' : 'off', who);
+            saveDb();
+            logAudit(req, 'seat_config', 'confirm-seat T-offsets/auto updated');
+            res.json({ success: true, config: seatConfirmSummary('plexus').config });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Waitlist offer states — surfaced in the admin waitlist panel.
+    app.get('/api/admin/waitlist-offers', auth, adminOnly, (req, res) => {
+        try {
+            const section = req.query.section ? String(req.query.section) : null;
+            const rows = section
+                ? query.all("SELECT * FROM waitlist_offers WHERE event_key = ? ORDER BY datetime(created_at) DESC", [section])
+                : query.all("SELECT * FROM waitlist_offers ORDER BY datetime(created_at) DESC");
+            res.json(rows);
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ========== PUBLIC one-click pages (attendee-facing, no auth) ==========
+    // Confirm a seat. Flips seat_confirmations.status='confirmed' for a valid token, once.
+    app.get('/api/public/confirm-seat', publicLimiter, (req, res) => {
+        const token = String(req.query.token || '');
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        try {
+            if (!token) return res.status(400).send(seatResultPage({ heading: 'Invalid link', sub: 'This confirmation link is missing its token.', accent: '#dc2626' }));
+            const row = query.get("SELECT * FROM seat_confirmations WHERE token = ?", [token]);
+            if (!row) return res.status(404).send(seatResultPage({ heading: 'Link not found', sub: 'We could not find this seat. It may have already been handled — reply to your confirmation email and we will help.', accent: '#dc2626' }));
+            if (row.status === 'confirmed') return res.send(seatResultPage({ heading: 'Already confirmed', sub: 'Your Plexus seat is confirmed. See you there.', accent: '#16a34a' }));
+            if (row.status === 'released') return res.send(seatResultPage({ heading: 'This seat was released', sub: 'This seat was released after it went unconfirmed. If you still want to come, reply to your email and we will check the waitlist.', accent: '#d97706' }));
+            db.run("UPDATE seat_confirmations SET status = 'confirmed', confirmed_at = datetime('now') WHERE id = ?", [row.id]);
+            saveDb();
+            console.log(`[SeatConfirm] Seat confirmed for ${row.email || row.reg_id}`);
+            return res.send(seatResultPage({ heading: 'Your seat is confirmed', sub: 'Thank you — your place at Plexus 2026 is locked in. We are looking forward to seeing you.', accent: '#16a34a' }));
+        } catch (e) { console.error('[public confirm-seat]', e.message); return res.status(500).send(seatResultPage({ heading: 'Something went wrong', sub: 'Please try again in a moment.', accent: '#dc2626' })); }
+    });
+
+    // Claim a released seat. Deep-links (never auto-creates) the frozen registration flow, prefilled.
+    app.get('/api/public/claim-seat', publicLimiter, (req, res) => {
+        const token = String(req.query.token || '');
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        try {
+            if (!token) return res.status(400).send(seatResultPage({ heading: 'Invalid link', sub: 'This claim link is missing its token.', accent: '#dc2626' }));
+            // is_expired is computed IN SQL (both sides UTC) — never parse a space-separated DB
+            // datetime with new Date(), which Node reads as LOCAL time and mis-compares.
+            const o = query.get("SELECT *, (expires_at IS NOT NULL AND datetime(expires_at) <= datetime('now')) AS is_expired FROM waitlist_offers WHERE claim_token = ?", [token]);
+            if (!o) return res.status(404).send(seatResultPage({ heading: 'Link not found', sub: 'We could not find this offer. It may have already been claimed or expired.', accent: '#dc2626' }));
+            const buildRegUrl = () => {
+                const qs = new URLSearchParams({ claim: token, event: o.event_key || 'plexus' });
+                if (o.email) qs.set('email', o.email);
+                if (o.name) qs.set('name', o.name);
+                if (o.ticket_type) qs.set('ticket', o.ticket_type);
+                return `${userPortalBase()}/plexus?${qs.toString()}`;
+            };
+            if (o.status === 'claimed') return res.send(seatResultPage({ heading: 'Seat reserved for you', sub: 'You already accepted this seat. Finish your registration to lock it in.', accent: '#16a34a', cta: { href: buildRegUrl(), label: 'Complete your registration' } }));
+            if (o.status === 'expired') return res.send(seatResultPage({ heading: 'This offer expired', sub: 'This 48-hour offer has expired and the seat has moved to the next person on the waitlist.', accent: '#d97706' }));
+            if (o.is_expired) {
+                db.run("UPDATE waitlist_offers SET status = 'expired' WHERE id = ?", [o.id]);
+                try { offerNextWaitlist(o.event_key, o.source_reg_id, req); } catch (e) {}
+                saveDb();
+                return res.send(seatResultPage({ heading: 'This offer expired', sub: 'This 48-hour offer has expired and the seat has moved to the next person on the waitlist.', accent: '#d97706' }));
+            }
+            // Accept the offer: mark claimed + promote the waitlist row (existing waitlist status).
+            db.run("UPDATE waitlist_offers SET status = 'claimed', claimed_at = datetime('now') WHERE id = ?", [o.id]);
+            if (o.waitlist_id) { try { db.run("UPDATE event_waitlist SET status = 'promoted' WHERE id = ?", [o.waitlist_id]); } catch (e) {} }
+            saveDb();
+            console.log(`[Waitlist] Offer claimed by ${o.email || o.waitlist_id}`);
+            return res.send(seatResultPage({ heading: 'Your seat is reserved', sub: 'A Plexus 2026 seat is yours. Finish your registration to lock it in — your details are already filled in.', accent: '#16a34a', cta: { href: buildRegUrl(), label: 'Complete your registration' } }));
+        } catch (e) { console.error('[public claim-seat]', e.message); return res.status(500).send(seatResultPage({ heading: 'Something went wrong', sub: 'Please try again in a moment.', accent: '#dc2626' })); }
+    });
+
+    // ========== NAG->DO ACTION CENTER (daily scan + one-click DO buttons) ==========
+    // Run the scan on demand (also fires daily on its own). Reconciles nag_items and refreshes the
+    // daily team digest so the Action Center + outbox are up to date after one click.
+    app.post('/api/admin/nag/run', auth, adminOnly, (req, res) => {
+        try {
+            const r = runNagScan();
+            const digest = generateTeamDigest();
+            logAudit(req, 'nag.scan', `found ${r.found}, +${r.created} new, ${r.resolved} auto-resolved, ${r.open} open`);
+            res.json({ success: true, ...r, digest });
+        } catch (e) { console.error('[nag] run', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // List action items. ?status=active (default: open+actioned) | open | actioned | done | dismissed.
+    app.get('/api/admin/nag/items', auth, adminOnly, (req, res) => {
+        try {
+            const status = String(req.query.status || 'active');
+            let rows;
+            if (status === 'active') rows = query.all("SELECT * FROM nag_items WHERE status IN ('open','actioned') ORDER BY (status='actioned'), created_at DESC");
+            else rows = query.all("SELECT * FROM nag_items WHERE status = ? ORDER BY created_at DESC", [status]);
+            const items = rows.map((r) => { let p = {}; try { p = r.action_payload_json ? JSON.parse(r.action_payload_json) : {}; } catch (e) { p = {}; } return { ...r, action_payload: p }; });
+            const counts = { open: query.get("SELECT COUNT(*) AS c FROM nag_items WHERE status IN ('open','actioned')")?.c || 0 };
+            res.json({ items, counts });
+        } catch (e) { console.error('[nag] items', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // EXECUTE the item's one-click DO action. payment_reminder/dietary_reminder -> stage an
+    // APPROVAL-GATED single-row email batch into the outbox (sends only after the human approve
+    // click). nudge_assignee -> queue an internal notification (direct message + best-effort push).
+    // Anything else is acknowledged. Marks the item 'actioned'. Never sends email directly.
+    app.post('/api/admin/nag/items/:id/act', auth, adminOnly, async (req, res) => {
+        try {
+            const item = query.get("SELECT * FROM nag_items WHERE id = ?", [req.params.id]);
+            if (!item) return res.status(404).json({ error: 'Item not found' });
+            let payload = {}; try { payload = item.action_payload_json ? JSON.parse(item.action_payload_json) : {}; } catch (e) { payload = {}; }
+            const kind = item.action_kind;
+
+            if (kind === 'payment_reminder' || kind === 'dietary_reminder') {
+                const to = payload.to;
+                if (!to) return res.status(400).json({ error: 'This item has no recipient email.' });
+                const batchId = 'nag-' + require('crypto').randomUUID();
+                const { subject, html } = await nagBuildReminderEmail(item, payload);
+                db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                        VALUES (?, 'pending_approval', ?, 'nag-engine', ?, ?, ?, ?, ?, datetime('now'))`,
+                    [require('crypto').randomUUID(), batchId, kind, JSON.stringify({ to, subject, html }), to, subject, req.user?.email || 'admin']);
+                db.run("UPDATE nag_items SET status='actioned' WHERE id = ?", [item.id]);
+                saveDb();
+                logAudit(req, 'nag.act', `${item.kind} -> reminder queued (batch ${batchId})`);
+                return res.json({ success: true, action: 'email_queued', batch_id: batchId });
+            }
+
+            if (kind === 'sponsor_followup') {
+                const to = payload.to;
+                if (!to) return res.status(400).json({ error: 'This sponsor has no contact email.' });
+                const sponsor = query.get("SELECT * FROM sponsors WHERE id = ?", [payload.sponsor_id]) || {};
+                const batchId = 'sponsor-followup-' + require('crypto').randomUUID();
+                const { subject, html } = await sponsorBuildFollowupEmail(sponsor, payload);
+                db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                        VALUES (?, 'pending_approval', ?, 'sponsor-lifecycle', 'sponsor_followup', ?, ?, ?, ?, datetime('now'))`,
+                    [require('crypto').randomUUID(), batchId, JSON.stringify({ to, subject, html }), to, subject, req.user?.email || 'admin']);
+                // Advance the follow-up cadence so the next nudge waits the escalation window.
+                db.run("UPDATE sponsors SET last_followup_at = datetime('now') WHERE id = ?", [payload.sponsor_id]);
+                db.run("UPDATE nag_items SET status='actioned' WHERE id = ?", [item.id]);
+                saveDb();
+                logAudit(req, 'nag.act', `sponsor_followup -> draft queued for ${sponsor.name || to} (batch ${batchId})`);
+                return res.json({ success: true, action: 'email_queued', batch_id: batchId });
+            }
+
+            if (kind === 'nudge_assignee') {
+                const uid = payload.assignee_user_id;
+                if (!uid) return res.status(400).json({ error: 'That assignee has no linked portal account to notify.' });
+                const body = `Reminder: "${payload.task_title || item.title}"${payload.due_date ? ' (due ' + payload.due_date + ')' : ''} needs your attention.`;
+                db.run(`INSERT INTO direct_messages (id, sender_id, receiver_id, sender_type, receiver_type, title, content, is_read, created_at)
+                        VALUES (?, ?, ?, 'admin', 'user', ?, ?, 0, datetime('now'))`,
+                    [require('crypto').randomUUID(), req.user?.id || 'admin', uid, 'Task reminder', body]);
+                try {
+                    db.run("INSERT INTO push_outbox (id, title, body, url, target_email, created_by, created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
+                        [require('crypto').randomUUID(), 'Task reminder', body, '/messages', payload.assignee_email || null, req.user?.email || 'admin']);
+                } catch (e) { /* push is best-effort; the direct message is the guaranteed channel */ }
+                db.run("UPDATE nag_items SET status='actioned' WHERE id = ?", [item.id]);
+                saveDb();
+                logAudit(req, 'nag.act', `${item.kind} -> assignee nudged (${payload.who || uid})`);
+                return res.json({ success: true, action: 'nudge_sent' });
+            }
+
+            db.run("UPDATE nag_items SET status='actioned' WHERE id = ?", [item.id]);
+            saveDb();
+            res.json({ success: true, action: 'acknowledged' });
+        } catch (e) { console.error('[nag] act', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Mark an item resolved (the underlying thing is handled).
+    app.post('/api/admin/nag/items/:id/done', auth, adminOnly, (req, res) => {
+        try {
+            const item = query.get("SELECT id FROM nag_items WHERE id = ?", [req.params.id]);
+            if (!item) return res.status(404).json({ error: 'Item not found' });
+            db.run("UPDATE nag_items SET status='done', resolved_at=datetime('now') WHERE id = ?", [req.params.id]);
+            saveDb();
+            logAudit(req, 'nag.done', req.params.id);
+            res.json({ success: true });
+        } catch (e) { console.error('[nag] done', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Dismiss an item (not relevant) — stays dismissed across rescans.
+    app.post('/api/admin/nag/items/:id/dismiss', auth, adminOnly, (req, res) => {
+        try {
+            const item = query.get("SELECT id FROM nag_items WHERE id = ?", [req.params.id]);
+            if (!item) return res.status(404).json({ error: 'Item not found' });
+            db.run("UPDATE nag_items SET status='dismissed', resolved_at=datetime('now') WHERE id = ?", [req.params.id]);
+            saveDb();
+            logAudit(req, 'nag.dismiss', req.params.id);
+            res.json({ success: true });
+        } catch (e) { console.error('[nag] dismiss', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Queue the daily team digest on demand (idempotent per day). Approved in one click in the outbox.
+    app.post('/api/admin/nag/digest', auth, adminOnly, (req, res) => {
+        try {
+            const d = generateTeamDigest();
+            if (d.recipients > 0) logAudit(req, 'nag.digest', `${d.recipients} recipient(s)${d.reused ? ' (reused today\'s batch)' : ''}`);
+            res.json({ success: true, ...d });
+        } catch (e) { console.error('[nag] digest', e.message); res.status(500).json({ error: e.message }); }
+    });
+
     // Forum Gala Settings (admin-editable pricing)
     app.get('/api/admin/forum/gala-settings', auth, adminOnly, (req, res) => {
         try {
@@ -20328,14 +22236,6 @@ By applying to this program, I provide the following consents:
 
     // Serve frontend (SPA fallback for client-side routes)
     // Skip paths with file extensions so missing assets 404 properly instead of returning SPA HTML
-    app.get('*', (req, res) => {
-        if (path.extname(req.path)) {
-            return res.status(404).send('Not found');
-        }
-        res.sendFile(path.join(__dirname, '../frontend/index.html'));
-    });
-
-    // Health check
     app.get('/health', (req, res) => res.json({ ok: true }));
 
     // Start watching shared DB for cross-portal sync
@@ -20391,6 +22291,16 @@ By applying to this program, I provide the following consents:
         if (process.env.NODE_ENV === 'production') {
             setInterval(() => {
                 fetch(KEEP_ALIVE_URL + '/health').catch(() => {});
+
+app.get('*', (req, res) => {
+        if (path.extname(req.path)) {
+            return res.status(404).send('Not found');
+        }
+        res.sendFile(path.join(__dirname, '../frontend/index.html'));
+    });
+
+    // Health check
+    
             }, 14 * 60 * 1000);
             console.log('[KeepAlive] Pinging every 14 min to prevent sleep');
         }
@@ -20400,6 +22310,82 @@ By applying to this program, I provide the following consents:
             setInterval(() => { db.sync(); }, 60000);
             console.log('[Turso] Periodic sync every 60s');
         }
+
+        // SEND DRAINER — every ~60s, send scheduled_emails rows whose status='scheduled' and
+        // scheduled_for is due, through the sendEmail() mock boundary (never a raw send). Each row
+        // is retried once on failure, then marked 'failed' with the error noted. payload_json is
+        // the source of truth for to/subject/body; flat columns are the fallback for older rows.
+        async function drainScheduledEmails() {
+            let due;
+            try {
+                due = query.all(
+                    "SELECT * FROM scheduled_emails WHERE status = 'scheduled' AND (scheduled_for IS NULL OR scheduled_for <= datetime('now')) ORDER BY scheduled_for LIMIT 25"
+                );
+            } catch (e) { return; }
+            if (!due || !due.length) return;
+            let changed = false;
+            const trySend = async (to, subject, html) => {
+                try { return await sendEmail(to, subject, html); }
+                catch (e) { return { success: false, error: e.message }; }
+            };
+            for (const row of due) {
+                let payload = {};
+                try { payload = row.payload_json ? JSON.parse(row.payload_json) : {}; } catch (e) { payload = {}; }
+                const to = payload.to || row.recipient_email;
+                const subject = payload.subject || row.subject || '(no subject)';
+                const html = payload.html || payload.body_html || payload.body || '';
+                if (!to) {
+                    try { db.run("UPDATE scheduled_emails SET status='failed', attempts=COALESCE(attempts,0)+1, last_error='no recipient', sent_at=datetime('now') WHERE id=?", [row.id]); changed = true; } catch (e) {}
+                    continue;
+                }
+                let result = await trySend(to, subject, html);
+                let attempts = 1;
+                if (!(result && result.success !== false)) { result = await trySend(to, subject, html); attempts = 2; } // retry once
+                const ok = result && result.success !== false;
+                if (ok) {
+                    try {
+                        db.run(
+                            "UPDATE scheduled_emails SET status='sent', sent_count=COALESCE(sent_count,0)+1, attempts=?, sent_at=datetime('now'), last_error=? WHERE id=?",
+                            [attempts, result.mock ? 'mock (no email provider configured)' : null, row.id]
+                        );
+                        changed = true;
+                    } catch (e) {}
+                } else {
+                    try {
+                        db.run(
+                            "UPDATE scheduled_emails SET status='failed', attempts=?, last_error=?, sent_at=datetime('now') WHERE id=?",
+                            [attempts, String((result && result.error) || 'send failed').slice(0, 300), row.id]
+                        );
+                        changed = true;
+                    } catch (e) {}
+                }
+            }
+            if (changed) { try { saveDb(); } catch (e) {} }
+        }
+        drainScheduledEmails().catch(() => {});
+        setInterval(() => { drainScheduledEmails().catch(() => {}); }, 60 * 1000);
+        console.log('[Outbox] Send drainer active (60s)');
+
+        // CONFIRM-SEAT (#3) + WAITLIST AUTO-OFFER (#6). The auto scheduler fires the confirm/reminder
+        // rounds (approval-gated) and the T-3 release+offers relative to the conference date; it is a
+        // no-op until the event is within the T-offset window (so nothing fires in dev). The offer
+        // sweep expires stale 48h claims and rolls each seat to the next waiting person.
+        try { runSeatConfirmAuto(); } catch (e) { console.warn('[SeatConfirm] boot skipped:', e.message); }
+        setInterval(() => { try { runSeatConfirmAuto(); } catch (e) {} }, 24 * 60 * 60 * 1000);
+        try { sweepExpiredOffers(); } catch (e) {}
+        setInterval(() => { try { sweepExpiredOffers(); } catch (e) {} }, 15 * 60 * 1000);
+        console.log('[SeatConfirm] Auto scheduler (daily) + waitlist-offer sweep (15m) active');
+
+        // NAG->DO daily scan — build the Action Center worklist + the daily team digest on boot and
+        // once every 24h. Guarded so a data hiccup never crashes the process.
+        try { const r = runNagScan(); console.log(`[Nag] initial scan: ${r.open} open item(s), ${r.resolved} auto-resolved`); }
+        catch (e) { console.warn('[Nag] initial scan skipped:', e.message); }
+        try { generateTeamDigest(); } catch (e) { /* digest best-effort */ }
+        setInterval(() => {
+            try { runNagScan(); } catch (e) { /* skip */ }
+            try { generateTeamDigest(); } catch (e) { /* skip */ }
+        }, 24 * 60 * 60 * 1000);
+        console.log('[Nag] Daily scan active (24h)');
     });
 }
 

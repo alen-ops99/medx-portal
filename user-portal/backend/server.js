@@ -11,6 +11,7 @@ const QRCode = require('qrcode');
 const fs = require('fs');
 const Database = require('libsql');
 const { createDatabase } = require('../../shared/db');
+const { aiDraft } = require('../../shared/ai');
 const nodemailer = require('nodemailer');
 const webpush = require('web-push');
 const firaService = require('./fira-service');
@@ -4782,6 +4783,20 @@ async function initializeApp() {
         created_by TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+    // --- Send-drainer / outbox columns (guarded; scheduled_emails predates the outbox engine).
+    // Kept in sync with the admin backend so the shared Turso table has one shape regardless of
+    // which portal boots first. The drainer itself runs only in the admin backend. These ALTERs
+    // live OUTSIDE the SCHEMA-MIRROR block by design.
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN batch_id TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN source_engine TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN template TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN payload_json TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN recipient_email TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN subject TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN approved_by TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN attempts INTEGER DEFAULT 0"); } catch(e) {}
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN last_error TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE scheduled_emails ADD COLUMN sent_at TEXT"); } catch(e) {}
 
     // Conference archive info
     db.run(`CREATE TABLE IF NOT EXISTS conference_archives (
@@ -6260,6 +6275,90 @@ async function initializeApp() {
         key TEXT PRIMARY KEY,
         value TEXT
     )`);
+
+    // ===== NAG->DO action items (Action Center engine) =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod). The admin daily
+    // scan writes ACTION ITEMS here: overdue/soon tasks, unpaid registrations, gala guests missing
+    // dietary info, stale project statuses, unanswered member messages, sponsor deliverables. Each
+    // row carries a one-click DO action — action_kind + action_payload_json describe what the Action
+    // Center button EXECUTES (queue an approval-gated email reminder, nudge the assignee, or deep
+    // link). status is one of open|actioned|done|dismissed. A rescan reconciles: an item whose
+    // underlying condition is fixed auto-resolves to done; dismissed items stay dismissed.
+    db.run(`CREATE TABLE IF NOT EXISTS nag_items (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        subject_id TEXT,
+        title TEXT NOT NULL,
+        action_kind TEXT,
+        action_payload_json TEXT,
+        assignee TEXT,
+        status TEXT DEFAULT 'open',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        resolved_at TEXT
+    )`);
+
+    // ===== Lifecycle automations: drip idempotency, confirm-seat, waitlist auto-offer =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod). These back the
+    // welcome-drip / verification-nudge engines (user portal) and the confirm-your-seat + waitlist
+    // auto-offer engines (admin portal). Declared in BOTH so the shared Turso table always exists
+    // regardless of which portal boots first; each engine only writes the tables it owns.
+
+    // One row per (user, lifecycle-email kind) — makes every drip/nudge enqueue exactly-once.
+    // kind: welcome | interests | verify_nudge_1 | verify_nudge_2. UNIQUE(user_id, kind) is the
+    // idempotency guard (INSERT OR IGNORE + getRowsModified()==1 means "first time" and gates the send).
+    db.run(`CREATE TABLE IF NOT EXISTS drip_log (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        email TEXT,
+        kind TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, kind)
+    )`);
+
+    // Confirm-your-seat (free-event no-show killer). One row per (reg_id, event_key). status is one
+    // of pending | confirmed | released. token backs the public one-click GET /api/public/confirm-seat.
+    db.run(`CREATE TABLE IF NOT EXISTS seat_confirmations (
+        id TEXT PRIMARY KEY,
+        reg_id TEXT NOT NULL,
+        event_key TEXT NOT NULL DEFAULT 'plexus',
+        email TEXT,
+        name TEXT,
+        token TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        sent_at TEXT,
+        reminder_sent_at TEXT,
+        confirmed_at TEXT,
+        released_at TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(reg_id, event_key)
+    )`);
+
+    // Waitlist auto-offer. When a seat releases, the next waiting person gets a 48h claim link.
+    // status is one of offered | claimed | expired. claim_token backs the public GET
+    // /api/public/claim-seat, which deep-links (never auto-creates) the frozen registration flow.
+    db.run(`CREATE TABLE IF NOT EXISTS waitlist_offers (
+        id TEXT PRIMARY KEY,
+        waitlist_id TEXT,
+        event_key TEXT NOT NULL DEFAULT 'plexus',
+        email TEXT,
+        name TEXT,
+        ticket_type TEXT,
+        claim_token TEXT NOT NULL,
+        status TEXT DEFAULT 'offered',
+        source_reg_id TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        expires_at TEXT,
+        claimed_at TEXT
+    )`);
+
+    // Admin-tunable automation knobs (confirm-seat T-offsets, engine on/off). key/value; value is a
+    // short string or JSON. Read/written by the admin portal; declared in both for boot-order safety.
+    db.run(`CREATE TABLE IF NOT EXISTS automation_config (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TEXT,
+        updated_by TEXT
+    )`);
     // ====================== SCHEMA-MIRROR:END ======================
 
     // Audience scope for member announcements (additive, guarded — deliberately OUTSIDE the mirror
@@ -6916,6 +7015,8 @@ async function initializeApp() {
             saveDb();
 
             await issueEmailVerification({ id, email, first_name }, req);
+            // WELCOME DRIP (#5): T+0 welcome + T+3 interests, idempotent per user (drip_log).
+            try { scheduleWelcomeDrip({ id, email, first_name }); } catch (e) { console.error('welcome-drip enqueue:', e && e.message); }
 
             const token = jwt.sign({ id, email, is_admin: 0 }, JWT_SECRET, { expiresIn: '7d' });
             res.json({
@@ -7064,6 +7165,124 @@ async function initializeApp() {
             await sendEmail(user.email, 'Confirm your Med&X account', emailHtml);
         } catch (e) { console.error('Verification email error for', user.email, e && e.message); }
         return verifyUrl;
+    }
+
+    // ============================ LIFECYCLE EMAIL ENGINES (#5) ============================
+    // Welcome drip + verification nudges. Both are TRANSACTIONAL: rows enter scheduled_emails as
+    // status='scheduled' (no approval gate, per the automation matrix — consent/registration
+    // triggered) and the outbox send-drainer delivers them through the sendEmail() mock boundary.
+    // Idempotency is enforced by drip_log(user_id, kind) UNIQUE: INSERT OR IGNORE, then
+    // getRowsModified()==1 means "first time" and gates the actual enqueue, so a given member gets
+    // each lifecycle email exactly once. In prod the ADMIN backend's drainer (shared Turso DB) sends
+    // these; in dev this portal runs its own drainer (see the app.listen block) since the two dev DBs
+    // are separate.
+    const PORTAL_BASE_URL = () => (process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
+
+    // Format a JS Date as SQLite's 'YYYY-MM-DD HH:MM:SS' in UTC (datetime('now') is UTC too), so the
+    // drainer's `scheduled_for <= datetime('now')` text comparison is apples-to-apples.
+    function sqlDateTime(d) { return new Date(d).toISOString().replace('T', ' ').slice(0, 19); }
+
+    // Stage one TRANSACTIONAL email. payload_json is the source of truth for to/subject/html.
+    function enqueueTransactionalEmail({ to, subject, html, source_engine, template, scheduledFor }) {
+        if (!to || !subject) return false;
+        const payload = JSON.stringify({ to, subject, html: html || '' });
+        db.run(
+            `INSERT INTO scheduled_emails (id, status, source_engine, template, recipient_email, subject, payload_json, scheduled_for, created_by, created_at)
+             VALUES (?, 'scheduled', ?, ?, ?, ?, ?, ?, 'lifecycle-engine', datetime('now'))`,
+            [uuidv4(), source_engine || 'lifecycle', template || null, to, subject, payload, scheduledFor || null]
+        );
+        return true;
+    }
+
+    // Mark a (user, kind) as done exactly once. Returns true only the FIRST time — the UNIQUE index
+    // on drip_log(user_id, kind) makes concurrent/duplicate calls a no-op.
+    function claimDrip(userId, email, kind) {
+        try {
+            db.run('INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?,?,?,?)', [uuidv4(), userId || null, email || null, kind]);
+            return db.getRowsModified() === 1;
+        } catch (e) { return false; }
+    }
+
+    // WELCOME DRIP — T+0 branded welcome + T+3 "pick your interests" (deep-links the notify bells on
+    // the projects hub). Idempotent per user, so it is safe to call on registration AND on verify.
+    function scheduleWelcomeDrip(user) {
+        if (!user || !user.email) return;
+        const first = (user.first_name || 'there');
+        const base = PORTAL_BASE_URL();
+        if (claimDrip(user.id, user.email, 'welcome')) {
+            const html = buildEmailTemplate('Welcome to Med&X', `
+                <p>Hi ${first},</p>
+                <p>Welcome to Med&amp;X. You are now part of a growing community of young physicians, scientists, and students building bridges across biomedicine.</p>
+                <p>Your member portal is where it all lives — your Plexus conference pass, event tickets and QR codes, networking, and rewards.</p>
+                <div style="text-align:center;margin:32px 0;">
+                    <a href="${base}/" style="display:inline-block;background:#C9A962;color:#0f172a;text-decoration:none;padding:14px 36px;border-radius:8px;font-weight:600;font-size:16px;">Open your member portal</a>
+                </div>
+                <p style="color:#64748b;font-size:13px;">We are glad you are here.</p>
+            `);
+            enqueueTransactionalEmail({ to: user.email, subject: 'Welcome to Med&X', html, source_engine: 'welcome-drip', template: 'welcome' });
+        }
+        if (claimDrip(user.id, user.email, 'interests')) {
+            const html = buildEmailTemplate('Pick what you want to hear about', `
+                <p>Hi ${first},</p>
+                <p>Med&amp;X runs several programs — the Plexus Conference, the Gala evening, the Accelerator, and Building Bridges. Follow the ones you care about and we will notify you the moment registration opens or news drops.</p>
+                <div style="text-align:center;margin:32px 0;">
+                    <a href="${base}/#projects" style="display:inline-block;background:#C9A962;color:#0f172a;text-decoration:none;padding:14px 36px;border-radius:8px;font-weight:600;font-size:16px;">Choose your interests</a>
+                </div>
+                <p style="color:#64748b;font-size:13px;">Tap the bell on any project to start following it.</p>
+            `);
+            enqueueTransactionalEmail({ to: user.email, subject: 'Pick what you want to hear about', html, source_engine: 'welcome-drip', template: 'interests', scheduledFor: sqlDateTime(Date.now() + 3 * 24 * 60 * 60 * 1000) });
+        }
+        try { saveDb(); } catch (e) {}
+    }
+
+    // Mint a FRESH verification token for a nudge (reuses the email_verifications rail + keeps the
+    // legacy users.verification_token in sync so either verify route resolves the link).
+    function issueFreshVerificationToken(user) {
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        db.run('INSERT INTO email_verifications (id, user_id, email, token, expires_at) VALUES (?,?,?,?,?)',
+            [uuidv4(), user.id, user.email, token, expiresAt]);
+        try { db.run('UPDATE users SET verification_token = ? WHERE id = ?', [token, user.id]); } catch (e) {}
+        return token;
+    }
+
+    // VERIFICATION NUDGES — nightly scan of unverified accounts. T+2 -> nudge #1, T+7 -> nudge #2,
+    // then STOP (max 2). Each nudge mints a fresh token and enqueues a transactional reminder;
+    // drip_log(user, verify_nudge_N) makes each exactly-once. Enqueue-only — the drainer sends.
+    function scanVerificationNudges() {
+        try {
+            const rows = query.all(
+                "SELECT id, email, first_name, created_at FROM users WHERE COALESCE(email_verified,0) = 0 AND created_at IS NOT NULL AND datetime(created_at) <= datetime('now','-2 days')"
+            );
+            let enqueued = 0;
+            for (const u of rows) {
+                if (!u.email) continue;
+                const ageDays = (Date.now() - new Date(u.created_at).getTime()) / 86400000;
+                const has1 = query.get("SELECT 1 AS x FROM drip_log WHERE user_id = ? AND kind = 'verify_nudge_1'", [u.id]);
+                const has2 = query.get("SELECT 1 AS x FROM drip_log WHERE user_id = ? AND kind = 'verify_nudge_2'", [u.id]);
+                let kind = null;
+                if (!has1) kind = 'verify_nudge_1';
+                else if (ageDays >= 7 && !has2) kind = 'verify_nudge_2';
+                if (!kind) continue; // max 2 nudges, then stop
+                if (!claimDrip(u.id, u.email, kind)) continue; // lost the race — someone else enqueued it
+                const token = issueFreshVerificationToken(u);
+                const verifyUrl = `${PORTAL_BASE_URL()}/api/auth/verify?token=${token}`;
+                const which = kind === 'verify_nudge_2' ? 'second' : 'first';
+                const html = buildEmailTemplate('Please confirm your email', `
+                    <p>Hi ${u.first_name || 'there'},</p>
+                    <p>Your Med&amp;X account is almost ready — it just needs a confirmed email. Here is a fresh link (the ${which} reminder).</p>
+                    <div style="text-align:center;margin:32px 0;">
+                        <a href="${verifyUrl}" style="display:inline-block;background:#C9A962;color:#0f172a;text-decoration:none;padding:14px 36px;border-radius:8px;font-weight:600;font-size:16px;">Confirm my email</a>
+                    </div>
+                    <p style="word-break:break-all;color:#64748b;font-size:13px;">${verifyUrl}</p>
+                    <p style="color:#64748b;font-size:13px;">This link expires in 24 hours. If you did not create a Med&amp;X account, ignore this email and we will stop reminding you.</p>
+                `);
+                enqueueTransactionalEmail({ to: u.email, subject: 'Please confirm your Med&X email', html, source_engine: 'verify-nudge', template: kind });
+                enqueued++;
+            }
+            if (enqueued) { try { saveDb(); } catch (e) {} console.log(`[Lifecycle] Verification nudges enqueued: ${enqueued}`); }
+            return enqueued;
+        } catch (e) { console.warn('[Lifecycle] nudge scan skipped:', e.message); return 0; }
     }
 
     // Request (or re-request) a signup confirmation link. Generic success — never leaks whether an
@@ -21755,6 +21974,70 @@ By applying to this program, I provide the following consents:
         try { fanoutAnnouncements(); } catch (e) {}
         setInterval(() => { try { fanoutAnnouncements(); } catch (e) {} }, 20 * 1000);
         console.log('[Announce] Announcement fan-out sweep every 20s');
+
+        // LIFECYCLE (#5): verification-nudge nightly scan (enqueue-only, transactional). Runs in every
+        // environment — the welcome drip fires inline at registration, this catches accounts that never
+        // confirmed. Sending is handled by the outbox drainer (admin backend in prod, this portal in dev).
+        setTimeout(() => { try { scanVerificationNudges(); } catch (e) {} }, 12 * 1000);
+        setInterval(() => { try { scanVerificationNudges(); } catch (e) {} }, 24 * 60 * 60 * 1000);
+        console.log('[Lifecycle] Verification-nudge scan scheduled (daily)');
+
+        // DEV-ONLY send drainer. In PRODUCTION TURSO_DATABASE_URL is set and the ADMIN backend is the
+        // single drainer of the shared scheduled_emails table (running a second drainer there would
+        // double-send). In dev the two portals have SEPARATE local DBs, so this portal must drain the
+        // rows IT enqueues (welcome drip, verification nudges). Same logic + retry as the admin drainer.
+        if (!process.env.TURSO_DATABASE_URL) {
+            async function drainScheduledEmailsDev() {
+                let due;
+                try {
+                    due = query.all(
+                        "SELECT * FROM scheduled_emails WHERE status = 'scheduled' AND (scheduled_for IS NULL OR scheduled_for <= datetime('now')) ORDER BY scheduled_for LIMIT 25"
+                    );
+                } catch (e) { return; }
+                if (!due || !due.length) return;
+                let changed = false;
+                const trySend = async (to, subject, html) => {
+                    try { return await sendEmail(to, subject, html); }
+                    catch (e) { return { success: false, error: e.message }; }
+                };
+                for (const row of due) {
+                    let payload = {};
+                    try { payload = row.payload_json ? JSON.parse(row.payload_json) : {}; } catch (e) { payload = {}; }
+                    const to = payload.to || row.recipient_email;
+                    const subject = payload.subject || row.subject || '(no subject)';
+                    const html = payload.html || payload.body_html || payload.body || '';
+                    if (!to) {
+                        try { db.run("UPDATE scheduled_emails SET status='failed', attempts=COALESCE(attempts,0)+1, last_error='no recipient', sent_at=datetime('now') WHERE id=?", [row.id]); changed = true; } catch (e) {}
+                        continue;
+                    }
+                    let result = await trySend(to, subject, html);
+                    let attempts = 1;
+                    if (!(result && result.success !== false)) { result = await trySend(to, subject, html); attempts = 2; }
+                    const ok = result && result.success !== false;
+                    if (ok) {
+                        try {
+                            db.run(
+                                "UPDATE scheduled_emails SET status='sent', sent_count=COALESCE(sent_count,0)+1, attempts=?, sent_at=datetime('now'), last_error=? WHERE id=?",
+                                [attempts, result.mock ? 'mock (no email provider configured)' : null, row.id]
+                            );
+                            changed = true;
+                        } catch (e) {}
+                    } else {
+                        try {
+                            db.run(
+                                "UPDATE scheduled_emails SET status='failed', attempts=?, last_error=?, sent_at=datetime('now') WHERE id=?",
+                                [attempts, String((result && result.error) || 'send failed').slice(0, 300), row.id]
+                            );
+                            changed = true;
+                        } catch (e) {}
+                    }
+                }
+                if (changed) { try { saveDb(); } catch (e) {} }
+            }
+            drainScheduledEmailsDev().catch(() => {});
+            setInterval(() => { drainScheduledEmailsDev().catch(() => {}); }, 20 * 1000);
+            console.log('[Outbox] Dev send drainer active (20s, local DB only — admin backend is the prod drainer)');
+        }
     });
 }
 

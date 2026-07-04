@@ -1825,6 +1825,42 @@
         .na-pill > i { font-size: 11px; color: var(--text-muted); }
         .na-clear { display: inline-flex; align-items: center; gap: 8px; color: var(--success); font-size: 13px; font-weight: 600; padding: 4px 2px; }
 
+        /* ===== ACTION CENTER (NAG->DO engine — every item has a one-click DO button) ===== */
+        .ac-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+        .ac-title { display: inline-flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 700; letter-spacing: .3px; }
+        .ac-title .ac-badge { background: var(--danger, #c14b52); color: #fff; border-radius: 11px; font-size: 11px; font-weight: 700; padding: 1px 8px; }
+        .ac-title .ac-icon { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 6px; background: rgba(193,75,82,0.14); color: #c14b52; }
+        .ac-head-actions { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+        .ac-list { display: flex; flex-direction: column; gap: 10px; }
+        .ac-item {
+            display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+            padding: 13px 15px; border-radius: 12px; background: var(--bg-secondary);
+            border: 1px solid var(--border); border-left: 4px solid var(--text-muted);
+        }
+        .ac-item.k-task_overdue, .ac-item.k-sponsor_deliverable { border-left-color: var(--danger, #c14b52); }
+        .ac-item.k-reg_unpaid, .ac-item.k-gala_unpaid { border-left-color: #c9a962; }
+        .ac-item.k-task_due_soon, .ac-item.k-gala_no_diet { border-left-color: var(--warning, #d08a1a); }
+        .ac-item.k-message_unanswered { border-left-color: #38bdf8; }
+        .ac-item.k-project_stale { border-left-color: #b06a1f; }
+        .ac-item.k-sponsor_followup { border-left-color: #7c6df0; }
+        .ac-item.is-actioned { opacity: .72; }
+        .ac-item-main { min-width: 220px; flex: 1 1 320px; }
+        .ac-item-title { font-size: 14px; font-weight: 600; color: var(--text-primary); line-height: 1.35; }
+        .ac-item-who { margin-top: 4px; font-size: 12px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px; }
+        .ac-item-who .ac-actioned-tag { color: var(--success); font-weight: 600; }
+        .ac-item-actions { display: inline-flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .ac-btn {
+            display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+            font-size: 13px; font-weight: 600; padding: 9px 14px; border-radius: 9px;
+            border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary);
+            transition: transform .12s, box-shadow .12s, border-color .12s, background .12s;
+        }
+        .ac-btn:hover { border-color: var(--text-muted); transform: translateY(-1px); box-shadow: 0 3px 10px rgba(21,17,15,0.08); }
+        .ac-btn-primary { background: #c14b52; border-color: #c14b52; color: #fff; }
+        .ac-btn-primary:hover { background: #a83b42; border-color: #a83b42; }
+        .ac-btn-ghost { color: var(--text-muted); background: transparent; }
+        .ac-empty { display: inline-flex; align-items: center; gap: 9px; color: var(--success); font-size: 13px; font-weight: 600; padding: 10px 2px; }
+
         .timeline-today-marker {
             display: inline-flex;
             align-items: center;
@@ -6768,6 +6804,7 @@
                 <a class="nav-item active" onclick="App.showSection('dashboard', this)">
                     <i class="fas fa-home"></i>
                     <span>Home</span>
+                    <span id="navNagBadge" title="Action items needing you" style="background: var(--danger, #c14b52); color: #fff; padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: auto; display: none;">0</span>
                 </a>
 
                 <a class="nav-item" data-section="conferences" onclick="App.showSection('conferences', this)">
@@ -7653,7 +7690,10 @@ President, Med&amp;X</textarea>
                         <div class="card">
                             <div class="card-header">
                                 <span class="card-title">Sponsor Pipeline</span>
-                                <button class="btn btn-primary" onclick="App.openSponsorModal()"><i class="fas fa-plus"></i> Add Sponsor</button>
+                                <span style="display:flex; gap:8px; flex-wrap:wrap;">
+                                    <button class="btn btn-secondary" onclick="App.generateRenewalWraps()" title="Draft a thank-you + renewal invite for every fulfilled sponsor (approval-gated in the outbox)"><i class="fas fa-rotate"></i> Generate renewal wraps</button>
+                                    <button class="btn btn-primary" onclick="App.openSponsorModal()"><i class="fas fa-plus"></i> Add Sponsor</button>
+                                </span>
                             </div>
                             <div class="card-body">
                                 <!-- Summary Stats -->
@@ -7760,6 +7800,27 @@ President, Med&amp;X</textarea>
 
                     <!-- WAITLIST TAB (item 26) -->
                     <div class="plexus-content" id="plexus-waitlist">
+                        <!-- CONFIRM-YOUR-SEAT (#3): free-event no-show killer -->
+                        <div class="card" id="seatConfirmCard">
+                            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                                <div>
+                                    <span class="card-title"><i class="fas fa-user-check" style="margin-right:6px;color:#16a34a;"></i> Confirm-your-seat</span>
+                                    <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0;max-width:640px;">Plexus is free, so seats get held by people who never show. Run a confirmation round: everyone registered gets a one-tap "Yes, I'm coming" link. The round is staged in the outbox for your approval before anything sends. Unconfirmed seats can be released to the waitlist.</p>
+                                </div>
+                                <button class="btn btn-secondary" style="font-size:12px;" onclick="SeatConfirmAdmin.load()"><i class="fas fa-rotate"></i> Refresh</button>
+                            </div>
+                            <div class="card-body">
+                                <div id="seatConfirmStats" style="display:grid;grid-template-columns:repeat(4,minmax(90px,1fr));gap:10px;margin-bottom:16px;"></div>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                                    <button class="btn btn-primary" style="font-size:12px;" onclick="SeatConfirmAdmin.startRound('confirm')"><i class="fas fa-paper-plane"></i> Start confirmation round</button>
+                                    <button class="btn btn-secondary" style="font-size:12px;" onclick="SeatConfirmAdmin.startRound('reminder')"><i class="fas fa-bell"></i> Send reminder round</button>
+                                    <button class="btn btn-secondary" style="font-size:12px;color:#dc2626;" onclick="SeatConfirmAdmin.release()"><i class="fas fa-door-open"></i> Release unconfirmed → waitlist</button>
+                                    <button class="btn btn-secondary" style="font-size:12px;margin-left:auto;" onclick="SeatConfirmAdmin.configModal()"><i class="fas fa-sliders-h"></i> Timing</button>
+                                </div>
+                                <div id="seatConfirmBatch" style="margin-top:14px;"></div>
+                                <p style="font-size:11px;color:var(--text-muted);margin:14px 0 0;line-height:1.5;">Auto mode fires the confirm round at T-<span id="scOffConfirm">7</span>, a reminder at T-<span id="scOffReminder">4</span>, and releases unconfirmed seats at T-<span id="scOffRelease">3</span> days before the conference date. Rounds always wait for your approval in the outbox.</p>
+                            </div>
+                        </div>
                         <div class="card">
                             <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
                                 <div>
@@ -9423,6 +9484,9 @@ President, Med&amp;X</textarea>
                         <button class="tab-btn" onclick="FinanceApp.showTab('conference-payments', this)">
                             <i class="fas fa-ticket-alt"></i> Event Payments
                         </button>
+                        <button class="tab-btn" onclick="FinanceApp.showTab('reconcile', this)">
+                            <i class="fas fa-scale-balanced"></i> Reconcile Payments
+                        </button>
                         <button class="tab-btn" onclick="FinanceApp.showTab('reports', this)">
                             <i class="fas fa-chart-pie"></i> Reports
                         </button>
@@ -9773,6 +9837,104 @@ President, Med&amp;X</textarea>
 
                         <div style="margin-top: 12px; font-size: 12px; color: var(--text-muted);">
                             <i class="fas fa-info-circle" title="Revenue from bank transfer registrations that haven't been confirmed yet"></i> Pending revenue: <strong id="confPayPendingRevenue">€0.00</strong> awaiting bank transfer confirmation.
+                        </div>
+                    </div>
+
+                    <!-- Reconcile Payments Tab -->
+                    <div class="finance-tab" id="finance-tab-reconcile">
+                        <!-- Step 1: import -->
+                        <div class="card" style="margin-bottom: 20px;">
+                            <div class="card-header">
+                                <span class="card-title"><i class="fas fa-file-csv" style="color: var(--finances);"></i> Import bank statement</span>
+                            </div>
+                            <div class="card-body">
+                                <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 14px;">
+                                    Upload a CSV export from your bank. Croatian exports (semicolon-delimited, comma decimals) are auto-detected. Map the columns, then match each line to an unpaid bank-transfer registration in one click.
+                                </p>
+                                <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                                    <input type="file" id="reconFileInput" accept=".csv,text/csv,text/plain" onchange="FinanceApp.onReconFile(event)" style="font-size: 13px;">
+                                    <label style="font-size: 13px; color: var(--text-muted);">Delimiter
+                                        <select id="reconDelim" onchange="FinanceApp.reparseRecon()" style="margin-left: 6px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary);">
+                                            <option value="auto">Auto-detect</option>
+                                            <option value=";">Semicolon ( ; )</option>
+                                            <option value=",">Comma ( , )</option>
+                                            <option value="\t">Tab</option>
+                                        </select>
+                                    </label>
+                                    <label style="font-size: 13px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px;">
+                                        <input type="checkbox" id="reconHasHeader" checked onchange="FinanceApp.reparseRecon()"> First row is a header
+                                    </label>
+                                </div>
+
+                                <div id="reconMapArea" style="display: none; margin-top: 18px;">
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 14px;">
+                                        <label style="font-size: 12px; color: var(--text-muted);">Date column
+                                            <select id="reconMapDate" onchange="FinanceApp.renderReconPreview()" style="width: 100%; margin-top: 4px; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary);"></select>
+                                        </label>
+                                        <label style="font-size: 12px; color: var(--text-muted);">Amount column
+                                            <select id="reconMapAmount" onchange="FinanceApp.renderReconPreview()" style="width: 100%; margin-top: 4px; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary);"></select>
+                                        </label>
+                                        <label style="font-size: 12px; color: var(--text-muted);">Payer column
+                                            <select id="reconMapPayer" onchange="FinanceApp.renderReconPreview()" style="width: 100%; margin-top: 4px; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary);"></select>
+                                        </label>
+                                        <label style="font-size: 12px; color: var(--text-muted);">Reference / description column
+                                            <select id="reconMapReference" onchange="FinanceApp.renderReconPreview()" style="width: 100%; margin-top: 4px; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary);"></select>
+                                        </label>
+                                    </div>
+                                    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">Preview <span id="reconRowCount"></span> (first 5 rows)</div>
+                                    <div style="overflow-x: auto; border: 1px solid var(--border); border-radius: 8px;">
+                                        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                                            <thead><tr style="border-bottom: 1px solid var(--border);">
+                                                <th style="padding: 8px 10px; text-align: left; color: var(--text-muted);">Date</th>
+                                                <th style="padding: 8px 10px; text-align: right; color: var(--text-muted);">Amount</th>
+                                                <th style="padding: 8px 10px; text-align: left; color: var(--text-muted);">Payer</th>
+                                                <th style="padding: 8px 10px; text-align: left; color: var(--text-muted);">Reference</th>
+                                            </tr></thead>
+                                            <tbody id="reconPreviewBody"></tbody>
+                                        </table>
+                                    </div>
+                                    <div style="margin-top: 14px; display: flex; gap: 10px;">
+                                        <button class="btn btn-primary" id="reconImportBtn" onclick="FinanceApp.importRecon()"><i class="fas fa-wand-magic-sparkles"></i> Import & Match</button>
+                                        <button class="btn" onclick="FinanceApp.resetReconImport()" style="border: 1px solid var(--border); background: var(--bg-secondary);">Clear</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 2: matcher results -->
+                        <div class="card" id="reconResults" style="display: none; margin-bottom: 20px;">
+                            <div class="card-header">
+                                <span class="card-title"><i class="fas fa-list-check" style="color: var(--finances);"></i> Match &amp; confirm <span id="reconBatchName" style="font-weight: 400; color: var(--text-muted); font-size: 13px;"></span></span>
+                                <button class="btn btn-primary" id="reconBulkBtn" onclick="FinanceApp.confirmReconHigh()" style="display: none;"></button>
+                            </div>
+                            <div class="card-body" style="padding: 0;">
+                                <div id="reconSummary" style="display: flex; gap: 10px; flex-wrap: wrap; padding: 14px 16px;"></div>
+                                <div style="overflow-x: auto;">
+                                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                                        <thead>
+                                            <tr style="border-bottom: 2px solid var(--border);">
+                                                <th style="padding: 10px 14px; text-align: left; color: var(--text-muted); font-size: 12px;">Statement line</th>
+                                                <th style="padding: 10px 14px; text-align: right; color: var(--text-muted); font-size: 12px;">Amount</th>
+                                                <th style="padding: 10px 14px; text-align: left; color: var(--text-muted); font-size: 12px;">Suggested registration</th>
+                                                <th style="padding: 10px 14px; text-align: center; color: var(--text-muted); font-size: 12px;">Confidence</th>
+                                                <th style="padding: 10px 14px; text-align: center; color: var(--text-muted); font-size: 12px;">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="reconLinesBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent import batches -->
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title"><i class="fas fa-clock-rotate-left" style="color: var(--text-muted);"></i> Recent imports</span>
+                                <button class="btn" onclick="FinanceApp.loadReconBatches()" style="border: 1px solid var(--border); background: var(--bg-secondary);"><i class="fas fa-sync-alt"></i> Refresh</button>
+                            </div>
+                            <div class="card-body">
+                                <div id="reconBatchList" style="font-size: 13px; color: var(--text-muted);">No imports yet.</div>
+                            </div>
                         </div>
                     </div>
 
@@ -11008,6 +11170,14 @@ President, Med&amp;X</textarea>
                         <p style="color: var(--text-muted);">The everyday controls for the member app — the home screen cards, the accelerator sites list, and the to-do lists.</p>
                     </div>
 
+                    <!-- Scarcity banner hint (#5): the Plexus page announcement strip already exists as an editable content block -->
+                    <div style="display:flex;gap:10px;align-items:flex-start;background:rgba(201,169,98,0.10);border:1px solid rgba(201,169,98,0.4);border-radius:10px;padding:12px 14px;margin-bottom:18px;">
+                        <i class="fas fa-lightbulb" style="color:#c9a962;margin-top:2px;"></i>
+                        <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.55;">
+                            <strong style="color:var(--text-primary);">Nearly full?</strong> To show a "seats are nearly gone" banner on the public Plexus page, edit the <em>Plexus page: announcement strip</em> block in <a href="#" onclick="App.showSection('content-studio'); return false;" style="color:#c9a962;font-weight:600;">Content Studio</a> (slot <code>plexus.announcement</code>). Leave it empty to hide the banner. Registration copy already carries the quiet "free and seats are capped" line.
+                        </div>
+                    </div>
+
                     <div class="mo-tab-row" style="display: flex; gap: 8px; margin-bottom: 22px; border-bottom: 1px solid var(--border); padding-bottom: 12px; overflow-x: auto; white-space: nowrap;">
                         <button class="btn btn-primary" id="moTabHome" onclick="MemberOpsApp.showTab('home')" style="font-size: 13px; flex-shrink: 0;"><i class="fas fa-home"></i> Home screen</button>
                         <button class="btn btn-secondary" id="moTabSites" onclick="MemberOpsApp.showTab('sites')" style="font-size: 13px; flex-shrink: 0;"><i class="fas fa-flask"></i> Accelerator sites</button>
@@ -11043,6 +11213,25 @@ President, Med&amp;X</textarea>
                             <div style="font-size: 18px; font-weight: 700;">Tasks</div>
                             <p style="color: var(--text-muted); font-size: 13px; margin: 4px 0 0;">A simple to-do list per project. Tick a box when it is done. Overdue dates show in red.</p>
                         </div>
+
+                        <!-- Meeting notes -> tasks (AI INBOX #7, item 3) -->
+                        <div class="card" style="padding:0; margin-bottom:18px; border-left:3px solid #9b1b22;">
+                            <div style="display:flex; align-items:center; gap:10px; padding:14px 16px; border-bottom:1px solid var(--border);">
+                                <i class="fas fa-wand-magic-sparkles" style="color:#9b1b22;"></i>
+                                <span style="font-weight:700; font-size:15px;">Turn meeting notes into tasks</span>
+                                <span style="font-size:11px; color:var(--text-muted); margin-left:auto;">Paste notes, pick the action items, create them</span>
+                            </div>
+                            <div style="padding:14px 16px;">
+                                <textarea id="mo-notes" rows="5" placeholder="Paste raw meeting notes here. Example:&#10;- Laura to email the Sheraton about the gala menu by Friday&#10;- Miro will finalize the sponsor deck by 2026-07-15&#10;- Book the Novinarski dom AV walkthrough" style="width:100%; padding:11px 13px; border-radius:8px; border:1px solid var(--border); background:var(--bg-primary); color:var(--text-primary); font-size:13px; font-family:inherit; resize:vertical;"></textarea>
+                                <div style="display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap;">
+                                    <label style="font-size:12px; color:var(--text-secondary); font-weight:600;">Add to project</label>
+                                    <select id="mo-notes-project" style="padding:8px 11px; border-radius:8px; border:1px solid var(--border); background:var(--bg-secondary); color:var(--text-primary); font-size:13px;"></select>
+                                    <button class="btn btn-primary" style="padding:8px 15px; font-size:13px;" onclick="MemberOpsApp.extractNotes()"><i class="fas fa-list-check"></i> Extract action items</button>
+                                </div>
+                                <div id="mo-notes-results" style="margin-top:14px;"></div>
+                            </div>
+                        </div>
+
                         <div id="moTasksGroups"><div style="padding: 22px; color: var(--text-muted);">Loading…</div></div>
                     </div>
 
@@ -14659,6 +14848,9 @@ President, Med&amp;X</textarea>
 
             // ========== PORTAL PULSE ==========
             async loadPortalStats() {
+                // The Action Center (NAG->DO worklist) loads independently of the stats fetch so a
+                // stats hiccup never hides the actionable items.
+                this.loadActionCenter();
                 try {
                     const stats = await this.api('/api/dashboard/portal-stats');
                     this.portalStats = stats;
@@ -14670,8 +14862,17 @@ President, Med&amp;X</textarea>
                     if (typeof LiveOverview !== 'undefined') LiveOverview.render();
                 } catch(e) {
                     console.error('Failed to load portal stats:', e);
-                    const na = document.getElementById('dashNeedsAttention');
-                    if (na) na.innerHTML = '<div style="color: var(--text-muted); font-size:13px; padding:2px;">Unable to load status right now</div>';
+                    const quick = document.getElementById('naQuickLinks');
+                    if (quick) quick.innerHTML = '';
+                }
+            },
+
+            // Ensure the dashboard alert host holds the two-part scaffold: the Action Center (top,
+            // actionable one-click items) and the lightweight quick-links strip below it.
+            _ensureActionCenterScaffold() {
+                const host = document.getElementById('dashNeedsAttention');
+                if (host && !document.getElementById('actionCenterBody')) {
+                    host.innerHTML = '<div id="actionCenterBody"></div><div id="naQuickLinks" style="margin-top:12px;"></div>';
                 }
             },
 
@@ -14682,6 +14883,9 @@ President, Med&amp;X</textarea>
             renderNeedsAttention(stats) {
                 const host = document.getElementById('dashNeedsAttention');
                 if (!host) return;
+                this._ensureActionCenterScaffold();
+                const quick = document.getElementById('naQuickLinks');
+                if (!quick) return;
                 stats = stats || this.portalStats || {};
                 const p = stats.pending || {};
                 const t = stats.tasks || {};
@@ -14711,15 +14915,130 @@ President, Med&amp;X</textarea>
                     }
                 });
 
-                if (!pills.length) {
-                    host.innerHTML = `<div class="na-clear"><i class="fas fa-circle-check"></i> You are all caught up — nothing needs your attention right now.</div>`;
-                    return;
-                }
-                host.innerHTML = `<div class="na-strip">${pills.map(pill =>
+                // Quick-links strip is secondary now — the Action Center owns the caught-up state,
+                // so when there are no jump pills this simply stays empty.
+                if (!pills.length) { quick.innerHTML = ''; return; }
+                quick.innerHTML = `<div class="na-strip">${pills.map(pill =>
                     `<span class="na-pill ${pill.cls}" role="button" tabindex="0" title="Open"
                         onclick="${pill.onClick}"
                         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${pill.onClick}}">
                         ${pill.label} <i class="fas ${pill.icon}"></i></span>`).join('')}</div>`;
+            },
+
+            // ===== ACTION CENTER (NAG->DO engine) =====
+            // Loads the daily-scan worklist and renders each item with a one-click DO button that
+            // EXECUTES the thing (queue an approval-gated reminder, nudge the assignee, or deep-link).
+            async loadActionCenter() {
+                this._ensureActionCenterScaffold();
+                const body = document.getElementById('actionCenterBody');
+                if (!body) return;
+                try {
+                    const data = await this.api('/api/admin/nag/items?status=active');
+                    this._nagItems = data.items || [];
+                    this.renderActionCenter(this._nagItems);
+                    this.updateNagBadge((data.counts && data.counts.open) || 0);
+                } catch (e) {
+                    console.error('Action Center load failed:', e);
+                    body.innerHTML = '<div style="color:var(--text-muted); font-size:13px; padding:2px;">Action Center unavailable right now.</div>';
+                }
+            },
+
+            updateNagBadge(count) {
+                const badge = document.getElementById('navNagBadge');
+                if (!badge) return;
+                if (count > 0) { badge.textContent = count > 99 ? '99+' : count; badge.style.display = 'inline-block'; }
+                else badge.style.display = 'none';
+            },
+
+            _nagPrimaryButton(item) {
+                const k = item.action_kind;
+                if (k === 'payment_reminder') return `<button class="ac-btn ac-btn-primary" onclick="App.nagAct('${item.id}')"><i class="fas fa-credit-card"></i> Queue payment reminder</button>`;
+                if (k === 'dietary_reminder') return `<button class="ac-btn ac-btn-primary" onclick="App.nagAct('${item.id}')"><i class="fas fa-utensils"></i> Queue dietary reminder</button>`;
+                if (k === 'nudge_assignee') return `<button class="ac-btn ac-btn-primary" onclick="App.nagAct('${item.id}')"><i class="fas fa-bell"></i> Nudge assignee</button>`;
+                if (k === 'sponsor_followup') return `<button class="ac-btn ac-btn-primary" onclick="App.nagAct('${item.id}')"><i class="fas fa-handshake"></i> Queue follow-up draft</button>`;
+                return `<button class="ac-btn ac-btn-primary" onclick="App.nagOpen('${item.id}')"><i class="fas fa-arrow-right"></i> Open</button>`;
+            },
+
+            renderActionCenter(items) {
+                const body = document.getElementById('actionCenterBody');
+                if (!body) return;
+                items = items || [];
+                const head = `
+                    <div class="ac-head">
+                        <span class="ac-title">
+                            <span class="ac-icon"><i class="fas fa-bolt"></i></span>
+                            Action Center${items.length ? ` <span class="ac-badge">${items.length}</span>` : ''}
+                        </span>
+                        <span class="ac-head-actions">
+                            <button class="ac-btn" onclick="App.nagRunNow()"><i class="fas fa-sync"></i> Run check now</button>
+                            <button class="ac-btn" onclick="App.nagQueueDigest()"><i class="fas fa-paper-plane"></i> Queue team digest</button>
+                        </span>
+                    </div>`;
+                if (!items.length) {
+                    body.innerHTML = head + `<div class="ac-empty"><i class="fas fa-circle-check"></i> You are all caught up — nothing needs your attention right now.</div>`;
+                    return;
+                }
+                const rows = items.map(item => {
+                    const who = (item.action_payload && item.action_payload.who) || 'Med&X';
+                    const actioned = item.status === 'actioned';
+                    return `
+                    <div class="ac-item k-${item.kind}${actioned ? ' is-actioned' : ''}">
+                        <div class="ac-item-main">
+                            <div class="ac-item-title">${escapeHtml(item.title)}</div>
+                            <div class="ac-item-who"><i class="fas fa-user"></i> ${escapeHtml(who)}${actioned ? ' <span class="ac-actioned-tag">· done, awaiting approval</span>' : ''}</div>
+                        </div>
+                        <div class="ac-item-actions">
+                            ${this._nagPrimaryButton(item)}
+                            <button class="ac-btn" onclick="App.nagDone('${item.id}')"><i class="fas fa-check"></i> Mark done</button>
+                            <button class="ac-btn ac-btn-ghost" onclick="App.nagDismiss('${item.id}')">Dismiss</button>
+                        </div>
+                    </div>`;
+                }).join('');
+                body.innerHTML = head + `<div class="ac-list">${rows}</div>`;
+            },
+
+            async nagAct(id) {
+                try {
+                    const r = await this.api(`/api/admin/nag/items/${id}/act`, { method: 'POST', body: JSON.stringify({}) });
+                    if (r.action === 'email_queued') Toast.success('Reminder staged in the outbox — approve it there to send.');
+                    else if (r.action === 'nudge_sent') Toast.success('Assignee nudged with an internal notification.');
+                    else Toast.success('Done.');
+                    this.loadActionCenter();
+                } catch (e) { Toast.error(e.message || 'Could not run that action.'); }
+            },
+
+            async nagDone(id) {
+                try { await this.api(`/api/admin/nag/items/${id}/done`, { method: 'POST', body: JSON.stringify({}) }); Toast.success('Marked done.'); this.loadActionCenter(); }
+                catch (e) { Toast.error(e.message || 'Failed to update item.'); }
+            },
+
+            async nagDismiss(id) {
+                try { await this.api(`/api/admin/nag/items/${id}/dismiss`, { method: 'POST', body: JSON.stringify({}) }); Toast.info('Dismissed.'); this.loadActionCenter(); }
+                catch (e) { Toast.error(e.message || 'Failed to dismiss item.'); }
+            },
+
+            nagOpen(id) {
+                const item = (this._nagItems || []).find(i => i.id === id);
+                const pl = (item && item.action_payload) || {};
+                if (pl.open_project) { this.showProject(pl.open_project); return; }
+                this.showSection(pl.open_section || 'dashboard');
+            },
+
+            async nagRunNow() {
+                try {
+                    Toast.info('Running the check…');
+                    const r = await this.api('/api/admin/nag/run', { method: 'POST', body: JSON.stringify({}) });
+                    Toast.success(`Check complete — ${r.open} open, ${r.resolved} auto-resolved.`);
+                    this.loadActionCenter();
+                } catch (e) { Toast.error(e.message || 'Scan failed.'); }
+            },
+
+            async nagQueueDigest() {
+                try {
+                    const r = await this.api('/api/admin/nag/digest', { method: 'POST', body: JSON.stringify({}) });
+                    if (r.recipients > 0) Toast.success(`Team digest staged for ${r.recipients} member${r.recipients === 1 ? '' : 's'} — approve it in the outbox.`);
+                    else Toast.info('No team members have open items to digest right now.');
+                } catch (e) { Toast.error(e.message || 'Could not build the digest.'); }
             },
 
             _pulseTrend(trend) {
@@ -17081,22 +17400,51 @@ President, Med&amp;X</textarea>
                 if (lbl) lbl.textContent = v === 'inbox' ? 'Conversations that need a reply, unread first' : 'Every conversation, newest first';
                 this.renderAdminMessages();
             },
+            // Soft-tinted chip per AI triage category (matches the cream/ink palette).
+            aiCategoryChip(cat) {
+                if (!cat) return '';
+                const map = {
+                    'payment issue':        ['rgba(194,72,78,0.16)', '#b0343a', 'fa-credit-card'],
+                    'registration question':['rgba(59,130,246,0.16)', '#2563eb', 'fa-ticket'],
+                    'accelerator question': ['rgba(139,92,246,0.16)', '#7c3aed', 'fa-rocket'],
+                    'sponsorship':          ['rgba(201,169,98,0.20)', '#96742b', 'fa-handshake'],
+                    'speaker':              ['rgba(16,185,129,0.16)', '#0f9d6f', 'fa-microphone'],
+                    'technical':            ['rgba(100,116,139,0.18)', '#475569', 'fa-screwdriver-wrench'],
+                    'other':                ['rgba(100,116,139,0.14)', '#64748b', 'fa-tag']
+                };
+                const [bg, fg, icon] = map[cat] || map['other'];
+                const label = cat.replace(' question', '').replace(/^\w/, c => c.toUpperCase());
+                return `<span style="background:${bg};color:${fg};font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600;white-space:nowrap;"><i class="fas ${icon}" style="font-size:9px;margin-right:3px;"></i>${escapeHtml(label)}</span>`;
+            },
+            aiUrgencyChip(urg) {
+                if (urg === 'high') return '<span style="background:#ef4444;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:700;white-space:nowrap;"><i class="fas fa-bolt" style="font-size:9px;margin-right:3px;"></i>Urgent</span>';
+                if (urg === 'low') return '<span style="background:rgba(100,116,139,0.12);color:#94a3b8;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600;white-space:nowrap;">Low</span>';
+                return '';
+            },
             renderAdminMessages() {
                 const container = document.getElementById('adminMessagesList');
                 if (!container) return;
 
                 const messages = this.adminMessages || [];
-                // Group into conversations (same key the rest of the messaging code uses).
+                // Group into conversations keyed by the member (the non-admin party). The backend
+                // returns a `member` field; fall back to computing it for older payloads.
+                const memberKey = (m) => m.member || (m.sender_type === 'admin' ? m.receiver_id : m.sender_id);
                 const grouped = {};
                 messages.forEach(m => {
-                    if (!grouped[m.receiver_id]) grouped[m.receiver_id] = [];
-                    grouped[m.receiver_id].push(m);
+                    const k = memberKey(m);
+                    if (!k) return;
+                    if (!grouped[k]) grouped[k] = [];
+                    grouped[k].push(m);
                 });
                 let convos = Object.entries(grouped).map(([userId, msgs]) => {
                     const latest = msgs[0];
                     const unread = msgs.filter(m => !m.is_read && m.sender_type !== 'admin').length;
                     const needsReply = unread > 0 || (latest && latest.sender_type !== 'admin');
-                    return { userId, latest, unread, needsReply };
+                    // AI triage label comes from this member's most recent inbound message.
+                    const lastInbound = msgs.find(m => m.sender_type !== 'admin');
+                    const category = lastInbound && lastInbound.ai_category || null;
+                    const urgency = lastInbound && lastInbound.ai_urgency || null;
+                    return { userId, latest, unread, needsReply, category, urgency };
                 });
                 // The Inbox badge always shows the needs-reply count, whichever view is open.
                 const needCount = convos.filter(c => c.needsReply).length;
@@ -17104,7 +17452,9 @@ President, Med&amp;X</textarea>
                 if (badge) { badge.textContent = needCount; badge.style.display = needCount ? 'inline-block' : 'none'; }
 
                 if (this.msgView === 'inbox') convos = convos.filter(c => c.needsReply);
-                convos.sort((a, b) => (b.unread - a.unread) || String(b.latest?.created_at || '').localeCompare(String(a.latest?.created_at || '')));
+                // Urgent-and-needs-reply floats to the top, then unread count, then newest.
+                const urgScore = (c) => (c.needsReply && c.urgency === 'high') ? 1 : 0;
+                convos.sort((a, b) => (urgScore(b) - urgScore(a)) || (b.unread - a.unread) || String(b.latest?.created_at || '').localeCompare(String(a.latest?.created_at || '')));
 
                 if (!convos.length) {
                     container.innerHTML = this.msgView === 'inbox'
@@ -17118,6 +17468,8 @@ President, Med&amp;X</textarea>
                     const latest = c.latest || {};
                     const preview = latest.title || (latest.content ? latest.content.substring(0, 60) : 'No content');
                     const chips = [
+                        c.needsReply ? this.aiUrgencyChip(c.urgency) : '',
+                        this.aiCategoryChip(c.category),
                         c.unread ? `<span style="background:#ef4444;color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;font-weight:700;">${c.unread} unread</span>` : '',
                         (!c.unread && c.needsReply) ? '<span style="background:rgba(245,158,11,0.18);color:#f59e0b;font-size:11px;padding:2px 7px;border-radius:10px;font-weight:700;">needs reply</span>' : '',
                     ].filter(Boolean).join(' ');
@@ -17126,7 +17478,7 @@ President, Med&amp;X</textarea>
                             <div style="font-weight: ${c.needsReply ? 700 : 600}; font-size: 14px; color: var(--text-primary);">${escapeHtml(c.userId)}</div>
                             <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 420px;">${latest.sender_type === 'admin' ? 'You: ' : ''}${escapeHtml(preview)}${latest.content && latest.content.length > 60 ? '...' : ''}</div>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                        <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap:wrap; justify-content:flex-end;">
                             ${chips}
                             <span style="font-size: 11px; color: var(--text-muted);">${latest.created_at ? new Date(latest.created_at).toLocaleDateString() : ''}</span>
                         </div>
@@ -17265,25 +17617,69 @@ President, Med&amp;X</textarea>
                     html += '<div style="max-height: 400px; overflow-y: auto; padding: 16px 20px;">';
                     (messages || []).forEach(m => {
                         const isAdmin = m.sender_type === 'admin';
+                        const chip = !isAdmin ? this.aiCategoryChip(m.ai_category) + ' ' + (this.aiUrgencyChip(m.ai_urgency) || '') : '';
                         html += `<div style="margin-bottom: 12px; display: flex; justify-content: ${isAdmin ? 'flex-end' : 'flex-start'};">
                             <div style="max-width: 70%; padding: 10px 14px; border-radius: 12px; background: ${isAdmin ? 'rgba(194, 72, 78,0.15)' : 'var(--bg-tertiary)'}; font-size: 13px; color: var(--text-primary);">
                                 ${m.title ? `<div style="font-weight: 600; margin-bottom: 4px;">${escapeHtml(m.title)}</div>` : ''}
                                 <div>${escapeHtml(m.content)}</div>
+                                ${chip.trim() ? `<div style="margin-top:6px;display:flex;gap:5px;flex-wrap:wrap;">${chip}</div>` : ''}
                                 <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px;">${new Date(m.created_at).toLocaleString()}</div>
                             </div>
                         </div>`;
                     });
                     html += '</div>';
 
-                    html += `<div style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px;">
-                        <input type="text" class="search-input" id="replyInput" placeholder="Type a reply..." style="flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary);" onkeypress="if(event.key==='Enter') App.sendReply('${escapedUserId}')">
-                        <button class="btn btn-primary" onclick="App.sendReply('${escapedUserId}')"><i class="fas fa-paper-plane"></i></button>
+                    const lastMsg = (messages || [])[(messages || []).length - 1];
+                    const needsReply = !!(lastMsg && lastMsg.sender_type !== 'admin');
+
+                    // 'AI draft — review before sending' banner (hidden until a draft is loaded).
+                    html += `<div id="replyBanner" style="display:none; margin:0 20px; padding:8px 12px; border-radius:8px; background:rgba(201,169,98,0.14); border:1px solid rgba(201,169,98,0.4); color:#96742b; font-size:12px; font-weight:600; align-items:center; gap:8px;">
+                        <i class="fas fa-wand-magic-sparkles"></i><span>AI draft — review before sending</span>
+                        <button class="btn btn-secondary" style="padding:3px 9px; font-size:11px; margin-left:auto;" onclick="App.draftReply('${escapedUserId}')"><i class="fas fa-rotate"></i> Regenerate</button>
+                    </div>`;
+
+                    html += `<div style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items:flex-end;">
+                        <textarea class="search-input" id="replyInput" rows="3" placeholder="Type a reply..." style="flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary); resize:vertical; font-family:inherit;" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); App.sendReply('${escapedUserId}');}"></textarea>
+                        <div style="display:flex; flex-direction:column; gap:6px;">
+                            <button class="btn btn-secondary" id="draftBtn" style="padding:8px 12px; font-size:12px; white-space:nowrap;" onclick="App.draftReply('${escapedUserId}')"><i class="fas fa-wand-magic-sparkles"></i> Draft with AI</button>
+                            <button class="btn btn-primary" onclick="App.sendReply('${escapedUserId}')"><i class="fas fa-paper-plane"></i> Send</button>
+                        </div>
                     </div>`;
 
                     container.innerHTML = html;
+                    // Auto-draft a grounded reply when this member is waiting on us.
+                    if (needsReply) this.draftReply(escapedUserId, true);
                 } catch (err) {
                     console.error('Failed to load conversation:', err);
                     Toast.error('Failed to load conversation');
+                }
+            },
+
+            // Generate a grounded AI reply draft and prefill the reply box. Advisory only — the
+            // human edits and clicks the existing Send. `auto` mode only fills an empty box and
+            // stays quiet (used when a conversation opens).
+            async draftReply(userId, auto) {
+                const input = document.getElementById('replyInput');
+                const banner = document.getElementById('replyBanner');
+                const btn = document.getElementById('draftBtn');
+                if (!input) return;
+                if (auto && input.value.trim()) return;
+                const prevBtn = btn ? btn.innerHTML : '';
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Drafting…'; }
+                try {
+                    const r = await this.api(`/api/admin/messages/${encodeURIComponent(userId)}/draft-reply`, { method: 'POST', body: JSON.stringify({}) });
+                    if (r && r.text) {
+                        input.value = r.text;
+                        input.focus();
+                        if (banner) banner.style.display = 'flex';
+                        if (!auto) Toast.success('AI draft ready — review before sending');
+                    } else if (!auto) {
+                        Toast.info('No draft could be generated');
+                    }
+                } catch (err) {
+                    if (!auto) Toast.error('Could not draft a reply');
+                } finally {
+                    if (btn) { btn.disabled = false; btn.innerHTML = prevBtn || '<i class="fas fa-wand-magic-sparkles"></i> Draft with AI'; }
                 }
             },
 
@@ -18749,7 +19145,7 @@ President, Med&amp;X</textarea>
                     case 'volunteers': this.loadPlexusVolunteers(); break;
                     case 'checkin': this.loadPlexusCheckinStats(); break;
                     case 'pending': this.loadPlexusPending(); break;
-                    case 'waitlist': WaitlistAdmin.load(); break;
+                    case 'waitlist': SeatConfirmAdmin.load(); WaitlistAdmin.load(); break;
                     case 'settings': PlexusSettingsAdmin.loadSettings(); break;
                 }
             },
@@ -20305,6 +20701,10 @@ President, Med&amp;X</textarea>
 
             async loadPlexusSponsors() {
                 showSkeleton('pxSponsorsGrid', 'grid', 4);
+                if (!this.sponsorTierCatalog) {
+                    try { const t = await this.api('/api/admin/sponsor-tiers'); this.sponsorTierCatalog = (t && t.tiers) || []; }
+                    catch (e) { this.sponsorTierCatalog = []; }
+                }
                 try {
                     const sponsors = await this.api('/api/admin/plexus/sponsors') || [];
                     this.plexusSponsors = sponsors;
@@ -20322,6 +20722,39 @@ President, Med&amp;X</textarea>
                     this.plexusSponsors = [];
                     this.renderPlexusSponsors();
                 }
+            },
+
+            // Build the Add-Sponsor tier <select> options from the real tier catalog, grouped by
+            // program. Any legacy tier value not in the catalog stays selectable so old rows edit.
+            sponsorTierOptionsHtml(selected) {
+                const cat = this.sponsorTierCatalog || [];
+                let html = cat.map(g => `<optgroup label="${this.escapeHtml(g.program)}">` +
+                    (g.tiers || []).map(t => `<option value="${t.value}" ${selected === t.value ? 'selected' : ''}>${this.escapeHtml(t.label)} (${t.benefitCount} benefit${t.benefitCount === 1 ? '' : 's'})</option>`).join('') +
+                    `</optgroup>`).join('');
+                const known = new Set(cat.flatMap(g => (g.tiers || []).map(t => t.value)));
+                if (selected && !known.has(selected)) {
+                    html = `<option value="${this.escapeHtml(selected)}" selected>${this.escapeHtml(this.sponsorTierLabel(selected))}</option>` + html;
+                }
+                if (!html) html = ['gold','silver','bronze','partner'].map(v => `<option value="${v}" ${selected === v ? 'selected' : ''}>${v[0].toUpperCase()+v.slice(1)}</option>`).join('');
+                return html;
+            },
+
+            // Friendly tier label from the catalog (falls back to the raw value, title-cased).
+            sponsorTierLabel(tier) {
+                const cat = this.sponsorTierCatalog || [];
+                for (const g of cat) { const hit = (g.tiers || []).find(t => t.value === tier); if (hit) return hit.label; }
+                return String(tier || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            },
+
+            // RENEWAL WRAP — draft a thank-you + renewal invite for every fulfilled sponsor into the
+            // approval-gated outbox. Never sends; the human approves the batch in the outbox.
+            async generateRenewalWraps() {
+                if (!confirm('Draft a renewal wrap email for every fulfilled sponsor? Drafts land in the outbox for your approval — nothing sends automatically.')) return;
+                try {
+                    const r = await this.api('/api/admin/plexus/sponsors/renewal-wrap', { method: 'POST', body: JSON.stringify({}) });
+                    if (r && r.count > 0) Toast.success(`${r.count} renewal wrap draft${r.count === 1 ? '' : 's'} staged in the outbox — approve there to send.`);
+                    else Toast.info((r && r.message) || 'No fulfilled sponsors with a contact email yet.');
+                } catch (e) { Toast.error(e.message || 'Could not generate renewal wraps.'); }
             },
 
             renderSponsorStats() {
@@ -20435,9 +20868,9 @@ President, Med&amp;X</textarea>
                             <div class="sp-header">
                                 <div class="sp-logo">${logoHtml}</div>
                                 <div class="sp-info">
-                                    <div class="sp-name">${s.website ? `<a href="${this.escapeHtml(s.website)}" target="_blank">${this.escapeHtml(s.name)}</a>` : this.escapeHtml(s.name)}</div>
+                                    <div class="sp-name">${s.website_url ? `<a href="${this.escapeHtml(s.website_url)}" target="_blank">${this.escapeHtml(s.name)}</a>` : this.escapeHtml(s.name)}</div>
                                     <div class="sp-badges">
-                                        <span class="sp-tier-badge ${tier}">${tier}</span>
+                                        <span class="sp-tier-badge ${tier}">${this.escapeHtml(this.sponsorTierLabel(s.tier))}</span>
                                         <span class="sp-status-pill ${status}">${status}</span>
                                         ${s.is_published ? '<span style="font-size:10px; color: var(--success);"><i class="fas fa-globe"></i> Published</span>' : ''}
                                     </div>
@@ -20464,22 +20897,28 @@ President, Med&amp;X</textarea>
                                 </div>
                             ` : ''}
 
+                            ${(status === 'contacted' && (s.last_contacted_at || s.last_followup_at)) ? `
+                                <div class="sp-contact" style="color:var(--text-muted);font-size:11px;">
+                                    <i class="fas fa-clock" style="font-size:10px;"></i>
+                                    ${s.last_contacted_at ? 'Contacted ' + String(s.last_contacted_at).slice(0,10) : ''}${s.last_followup_at ? ' &middot; last follow-up ' + String(s.last_followup_at).slice(0,10) : ''}
+                                </div>
+                            ` : ''}
                             <div class="sp-tasks-section">
                                 <div class="sp-tasks-toggle" onclick="this.nextElementSibling.classList.toggle('open'); this.querySelector('i').classList.toggle('fa-chevron-down'); this.querySelector('i').classList.toggle('fa-chevron-right');">
                                     <i class="fas fa-chevron-right" style="font-size: 9px;"></i>
-                                    Tasks (${completedTasks}/${tasks.length})
+                                    Benefits (${completedTasks}/${tasks.length})
                                 </div>
                                 <div class="sp-task-list" id="spTasks-${s.id}">
                                     ${tasks.map(t => `
                                         <div class="sp-task-item ${t.is_completed ? 'done' : ''}">
                                             <input type="checkbox" ${t.is_completed ? 'checked' : ''} onchange="App.toggleSponsorTask('${t.id}', this.checked)">
-                                            <span>${this.escapeHtml(t.title)}</span>
+                                            <span title="${this.escapeHtml(t.note || '')}">${t.source === 'tier_template' ? '<i class=\'fas fa-star\' style=\'font-size:8px;color:var(--accent-gold);margin-right:4px;\' title=\'From the tier benefit template\'></i>' : ''}${this.escapeHtml(t.title)}</span>
                                             ${t.due_date ? `<span class="sp-task-due">${t.due_date}</span>` : ''}
                                             <button onclick="App.deleteSponsorTask('${t.id}', '${s.id}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:10px;margin-left:4px;" title="Delete"><i class="fas fa-times"></i></button>
                                         </div>
                                     `).join('')}
                                     <div class="sp-add-task">
-                                        <input type="text" placeholder="Add task..." id="spNewTask-${s.id}" onkeypress="if(event.key==='Enter') App.addSponsorTask('${s.id}')">
+                                        <input type="text" placeholder="Add benefit..." id="spNewTask-${s.id}" onkeypress="if(event.key==='Enter') App.addSponsorTask('${s.id}')">
                                         <button onclick="App.addSponsorTask('${s.id}')">Add</button>
                                     </div>
                                 </div>
@@ -20529,11 +20968,9 @@ President, Med&amp;X</textarea>
                                     <div class="form-group">
                                         <label class="form-label">Tier</label>
                                         <select class="form-input" id="spFormTier">
-                                            <option value="gold" ${sponsor?.tier === 'gold' ? 'selected' : ''}>Gold</option>
-                                            <option value="silver" ${sponsor?.tier === 'silver' ? 'selected' : ''}>Silver</option>
-                                            <option value="bronze" ${sponsor?.tier === 'bronze' ? 'selected' : ''}>Bronze</option>
-                                            <option value="partner" ${(!sponsor || sponsor?.tier === 'partner') ? 'selected' : ''}>Partner</option>
+                                            ${this.sponsorTierOptionsHtml(sponsor?.tier || 'partner')}
                                         </select>
+                                        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Set status to Confirmed to auto-create this tier's benefit checklist.</div>
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Status</label>
@@ -20605,7 +21042,7 @@ President, Med&amp;X</textarea>
                     tier: document.getElementById('spFormTier').value,
                     status: document.getElementById('spFormStatus').value,
                     logo_url: document.getElementById('spFormLogo').value.trim(),
-                    website: document.getElementById('spFormWebsite').value.trim(),
+                    website_url: document.getElementById('spFormWebsite').value.trim(),
                     contact_name: document.getElementById('spFormContactName').value.trim(),
                     contact_email: document.getElementById('spFormContactEmail').value.trim(),
                     amount_pledged: parseFloat(document.getElementById('spFormPledged').value) || 0,
@@ -20621,13 +21058,14 @@ President, Med&amp;X</textarea>
                 }
 
                 try {
+                    let res;
                     if (editId) {
-                        await this.api(`/api/admin/plexus/sponsors/${editId}`, {
+                        res = await this.api(`/api/admin/plexus/sponsors/${editId}`, {
                             method: 'PUT',
                             body: JSON.stringify(data)
                         });
                     } else {
-                        await this.api('/api/admin/plexus/sponsors', {
+                        res = await this.api('/api/admin/plexus/sponsors', {
                             method: 'POST',
                             body: JSON.stringify(data)
                         });
@@ -20635,6 +21073,8 @@ President, Med&amp;X</textarea>
                     const modal = document.getElementById('sponsorEditModal');
                     if (modal) modal.remove();
                     await this.loadPlexusSponsors();
+                    if (res && res.benefits_created > 0) Toast.success(`Committed at ${this.sponsorTierLabel(data.tier)} — ${res.benefits_created} benefit${res.benefits_created === 1 ? '' : 's'} added to the checklist.`);
+                    else Toast.success(editId ? 'Sponsor updated.' : 'Sponsor added.');
                 } catch (err) {
                     console.error('Failed to save sponsor:', err);
                     Toast.error('Failed to save sponsor');
@@ -27224,6 +27664,7 @@ By applying to this program, I give the following consents:
                         else if (tabId === 'payment-orders') this.loadPaymentOrders();
                         else if (tabId === 'travel-orders') this.loadTravelOrders();
                         else if (tabId === 'conference-payments') this.loadConferencePayments();
+                        else if (tabId === 'reconcile') this.loadReconcile();
                         else if (tabId === 'reports') this.loadReports();
                     }
                 }
@@ -27259,6 +27700,7 @@ By applying to this program, I give the following consents:
                     else if (tabId === 'payment-orders') this.loadPaymentOrders();
                     else if (tabId === 'travel-orders') this.loadTravelOrders();
                     else if (tabId === 'conference-payments') this.loadConferencePayments();
+                    else if (tabId === 'reconcile') this.loadReconcile();
                     else if (tabId === 'reports') this.loadReports();
                     else if (tabId === 'settings') this.loadSettings();
                 }
@@ -27317,6 +27759,7 @@ By applying to this program, I give the following consents:
                 else if (tabId === 'payment-orders') this.loadPaymentOrders();
                 else if (tabId === 'travel-orders') this.loadTravelOrders();
                 else if (tabId === 'conference-payments') this.loadConferencePayments();
+                else if (tabId === 'reconcile') this.loadReconcile();
                 else if (tabId === 'reports') this.loadReports();
                 else if (tabId === 'settings') this.loadSettings();
             },
@@ -28339,6 +28782,337 @@ By applying to this program, I give the following consents:
                 } else {
                     Toast.error(res.error || 'Failed to confirm payment');
                 }
+            },
+
+            // ==================== BANK RECONCILIATION (menu item #4) ====================
+            _recon: { rawText: '', rows: [], batchId: null, candidates: [], lines: [], highThreshold: 0.85 },
+
+            // Tab open — show recent import history; leave any in-progress import untouched.
+            async loadReconcile() {
+                this.loadReconBatches();
+            },
+
+            // ---- CSV parsing ----
+            _reconDetectDelim(text) {
+                const line = (text.split(/\r?\n/).find(l => l.trim())) || '';
+                const counts = { ';': (line.match(/;/g) || []).length, ',': (line.match(/,/g) || []).length, '\t': (line.match(/\t/g) || []).length };
+                let best = ';', n = -1;
+                for (const d of [';', ',', '\t']) { if (counts[d] > n) { n = counts[d]; best = d; } }
+                return n > 0 ? best : ';';
+            },
+            _reconParseCsv(text, delim) {
+                const rows = []; let cur = [], field = '', inQ = false, i = 0;
+                const pushF = () => { cur.push(field); field = ''; };
+                const pushR = () => { rows.push(cur); cur = []; };
+                while (i < text.length) {
+                    const ch = text[i];
+                    if (inQ) {
+                        if (ch === '"') { if (text[i + 1] === '"') { field += '"'; i += 2; continue; } inQ = false; i++; continue; }
+                        field += ch; i++; continue;
+                    }
+                    if (ch === '"') { inQ = true; i++; continue; }
+                    if (ch === delim) { pushF(); i++; continue; }
+                    if (ch === '\r') { i++; continue; }
+                    if (ch === '\n') { pushF(); pushR(); i++; continue; }
+                    field += ch; i++;
+                }
+                if (field.length > 0 || cur.length > 0) { pushF(); pushR(); }
+                return rows.filter(r => r.length && !(r.length === 1 && String(r[0]).trim() === ''));
+            },
+            // Croatian "1.234,56" and Anglo "1,234.56" / "150,00" / "150.00" → Number.
+            _reconParseAmount(s) {
+                let t = String(s == null ? '' : s).replace(/[^0-9.,\-]/g, '').trim();
+                if (!t) return NaN;
+                const lc = t.lastIndexOf(','), ld = t.lastIndexOf('.');
+                if (lc > -1 && ld > -1) { t = lc > ld ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, ''); }
+                else if (lc > -1) { const after = t.length - lc - 1; t = (after === 1 || after === 2) ? t.replace(',', '.') : t.replace(/,/g, ''); }
+                return parseFloat(t);
+            },
+
+            onReconFile(event) {
+                const file = event.target.files && event.target.files[0];
+                if (!file) return;
+                this._recon.filename = file.name;
+                const reader = new FileReader();
+                reader.onload = (e) => { this._recon.rawText = String(e.target.result || ''); this.reparseRecon(); };
+                reader.readAsText(file);
+            },
+
+            reparseRecon() {
+                const text = this._recon.rawText || '';
+                if (!text.trim()) { document.getElementById('reconMapArea').style.display = 'none'; return; }
+                let delim = document.getElementById('reconDelim').value;
+                if (delim === 'auto') delim = this._reconDetectDelim(text);
+                else if (delim === '\\t') delim = '\t';
+                const rows = this._reconParseCsv(text, delim);
+                this._recon.rows = rows;
+                const hasHeader = document.getElementById('reconHasHeader').checked;
+                const width = rows.reduce((m, r) => Math.max(m, r.length), 0);
+                const headers = [];
+                for (let i = 0; i < width; i++) headers.push(hasHeader && rows[0] ? (String(rows[0][i] || '').trim() || `Column ${i + 1}`) : `Column ${i + 1}`);
+                this._recon.headers = headers;
+
+                // Auto-guess column mapping from header keywords (English + Croatian).
+                const guess = (kw, fb) => { for (let i = 0; i < headers.length; i++) { const h = headers[i].toLowerCase(); if (kw.some(k => h.includes(k))) return i; } return fb; };
+                const gDate = guess(['date', 'datum', 'valuta'], 0);
+                const gAmount = guess(['amount', 'iznos', 'uplata', 'potraž', 'potraz', 'credit', 'eur'], Math.min(1, width - 1));
+                const gPayer = guess(['payer', 'platitelj', 'nalogodav', 'naziv', 'name', 'from', 'sender'], Math.min(2, width - 1));
+                const gRef = guess(['reference', 'opis', 'poziv', 'description', 'svrha', 'namjena', 'model'], Math.min(3, width - 1));
+
+                const opts = (sel, chosen, allowNone) => {
+                    let html = allowNone ? '<option value="">— none —</option>' : '';
+                    html += headers.map((h, i) => `<option value="${i}" ${i === chosen ? 'selected' : ''}>${this.escapeHtml(h)}</option>`).join('');
+                    document.getElementById(sel).innerHTML = html;
+                };
+                opts('reconMapDate', gDate, false);
+                opts('reconMapAmount', gAmount, false);
+                opts('reconMapPayer', gPayer, false);
+                opts('reconMapReference', gRef, true);
+                document.getElementById('reconMapArea').style.display = 'block';
+                this.renderReconPreview();
+            },
+
+            _reconDataRows() {
+                const rows = this._recon.rows || [];
+                return document.getElementById('reconHasHeader').checked ? rows.slice(1) : rows;
+            },
+            _reconMap() {
+                return {
+                    date: parseInt(document.getElementById('reconMapDate').value),
+                    amount: parseInt(document.getElementById('reconMapAmount').value),
+                    payer: parseInt(document.getElementById('reconMapPayer').value),
+                    reference: document.getElementById('reconMapReference').value === '' ? -1 : parseInt(document.getElementById('reconMapReference').value)
+                };
+            },
+            _reconMappedRows() {
+                const m = this._reconMap();
+                const cell = (r, i) => (i >= 0 && r[i] != null) ? String(r[i]).trim() : '';
+                return this._reconDataRows().map(r => ({
+                    date: cell(r, m.date),
+                    amount: this._reconParseAmount(cell(r, m.amount)),
+                    payer: cell(r, m.payer),
+                    reference: cell(r, m.reference)
+                }));
+            },
+
+            renderReconPreview() {
+                const rows = this._reconMappedRows();
+                document.getElementById('reconRowCount').textContent = `— ${rows.length} data row${rows.length === 1 ? '' : 's'} detected`;
+                const body = document.getElementById('reconPreviewBody');
+                body.innerHTML = rows.slice(0, 5).map(r => `
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 7px 10px;">${this.escapeHtml(r.date)}</td>
+                        <td style="padding: 7px 10px; text-align: right; font-variant-numeric: tabular-nums;">${isNaN(r.amount) ? '<span style="color:var(--danger);">?</span>' : '€' + r.amount.toFixed(2)}</td>
+                        <td style="padding: 7px 10px;">${this.escapeHtml(r.payer)}</td>
+                        <td style="padding: 7px 10px; color: var(--text-muted);">${this.escapeHtml(r.reference)}</td>
+                    </tr>`).join('') || '<tr><td colspan="4" style="padding: 12px; text-align: center; color: var(--text-muted);">No rows</td></tr>';
+            },
+
+            resetReconImport() {
+                this._recon.rawText = ''; this._recon.rows = [];
+                const fi = document.getElementById('reconFileInput'); if (fi) fi.value = '';
+                document.getElementById('reconMapArea').style.display = 'none';
+                document.getElementById('reconResults').style.display = 'none';
+            },
+
+            async importRecon() {
+                const rows = this._reconMappedRows().filter(r => r.payer || !isNaN(r.amount));
+                if (!rows.length) { Toast.error('No usable rows — check the column mapping.'); return; }
+                const btn = document.getElementById('reconImportBtn');
+                btn.disabled = true; const orig = btn.innerHTML; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Matching...';
+                try {
+                    const res = await this.api('/api/finance/reconcile/import', {
+                        method: 'POST',
+                        body: JSON.stringify({ filename: this._recon.filename || 'statement.csv', rows })
+                    });
+                    this._recon.batchId = res.batch_id;
+                    this._recon.candidates = res.candidates || [];
+                    this._recon.highThreshold = res.high_threshold || 0.85;
+                    this._recon.filenameLabel = res.filename;
+                    this.renderReconResults(res.lines || []);
+                    document.getElementById('reconResults').style.display = 'block';
+                    document.getElementById('reconResults').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    Toast.success(`Imported ${(res.lines || []).length} lines and matched against unpaid registrations.`);
+                    this.loadReconBatches();
+                } catch (e) {
+                    Toast.error('Import failed: ' + e.message);
+                } finally { btn.disabled = false; btn.innerHTML = orig; }
+            },
+
+            _reconConfBadge(conf) {
+                if (conf == null) return '<span style="color: var(--text-muted); font-size: 12px;">—</span>';
+                const pct = Math.round(conf * 100);
+                const c = conf >= 0.85 ? '#16a34a' : (conf >= 0.5 ? '#d97706' : '#8f867c');
+                const bg = conf >= 0.85 ? 'rgba(34,197,94,0.14)' : (conf >= 0.5 ? 'rgba(245,158,11,0.14)' : 'rgba(143,134,124,0.14)');
+                return `<span style="padding: 3px 9px; border-radius: 12px; font-size: 12px; font-weight: 700; color: ${c}; background: ${bg};">${pct}%</span>`;
+            },
+
+            renderReconResults(lines) {
+                this._recon.lines = lines;
+                const cands = this._recon.candidates || [];
+                document.getElementById('reconBatchName').textContent = this._recon.filenameLabel ? `· ${this._recon.filenameLabel}` : '';
+
+                // Summary chips
+                const counts = { confirmed: 0, suggested: 0, unmatched: 0, ignored: 0, high: 0 };
+                lines.forEach(l => {
+                    counts[l.status] = (counts[l.status] || 0) + 1;
+                    if (l.status === 'suggested' && l.best && l.best.confidence >= this._recon.highThreshold) counts.high++;
+                });
+                const chip = (label, n, color) => `<div style="padding: 8px 14px; border-radius: 10px; background: var(--bg-secondary); border: 1px solid var(--border);"><span style="font-weight: 700; color: ${color};">${n}</span> <span style="font-size: 12px; color: var(--text-muted);">${label}</span></div>`;
+                document.getElementById('reconSummary').innerHTML =
+                    chip('confirmed', counts.confirmed, '#16a34a') +
+                    chip('suggested', counts.suggested, '#d97706') +
+                    chip('unmatched', counts.unmatched || 0, '#8f867c') +
+                    chip('ignored', counts.ignored || 0, '#8f867c');
+
+                // Bulk button
+                const bulk = document.getElementById('reconBulkBtn');
+                if (counts.high > 0) {
+                    bulk.style.display = 'inline-flex';
+                    bulk.innerHTML = `<i class="fas fa-bolt"></i> Confirm all high-confidence (${counts.high})`;
+                } else { bulk.style.display = 'none'; }
+
+                // Rows
+                const body = document.getElementById('reconLinesBody');
+                if (!lines.length) { body.innerHTML = '<tr><td colspan="5" style="padding: 30px; text-align: center; color: var(--text-muted);">No lines</td></tr>'; return; }
+                body.innerHTML = lines.map(l => this._renderReconRow(l, cands)).join('');
+            },
+
+            _renderReconRow(l, cands) {
+                const lineCell = `
+                    <td style="padding: 10px 14px; vertical-align: top;">
+                        <div style="font-weight: 600; color: var(--text-primary);">${this.escapeHtml(l.payer || '(no payer)')}</div>
+                        <div style="font-size: 11px; color: var(--text-muted);">${this.escapeHtml(l.date || '')}${l.reference ? ' · ' + this.escapeHtml(l.reference) : ''}</div>
+                    </td>`;
+                const amtCell = `<td style="padding: 10px 14px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums;">€${Number(l.amount || 0).toFixed(2)}</td>`;
+
+                if (l.status === 'confirmed') {
+                    return `<tr style="border-bottom: 1px solid var(--border); background: rgba(34,197,94,0.05);">
+                        ${lineCell}${amtCell}
+                        <td style="padding: 10px 14px;" colspan="2"><span style="color: #16a34a; font-weight: 600;"><i class="fas fa-check-double"></i> Marked paid</span> <span style="color: var(--text-muted);">→ ${this.escapeHtml(l.matched_name || '')}</span></td>
+                        <td style="padding: 10px 14px; text-align: center; color: var(--text-muted); font-size: 12px;"><i class="fas fa-lock"></i></td>
+                    </tr>`;
+                }
+                if (l.status === 'ignored') {
+                    return `<tr style="border-bottom: 1px solid var(--border); opacity: 0.6;">
+                        ${lineCell}${amtCell}
+                        <td style="padding: 10px 14px;" colspan="2"><span style="color: var(--text-muted);"><i class="fas fa-ban"></i> Ignored</span></td>
+                        <td style="padding: 10px 14px; text-align: center;"><button onclick="FinanceApp.ignoreReconLine('${l.id}', true)" style="padding: 5px 10px; border: 1px solid var(--border); background: var(--bg-secondary); border-radius: 6px; cursor: pointer; font-size: 12px;">Undo</button></td>
+                    </tr>`;
+                }
+
+                // Suggested / unmatched → editable pick + actions
+                const inSug = new Set((l.suggestions || []).map(s => s.id));
+                const selId = `reconSel_${l.id}`;
+                const chosen = l.matched_reg_id || (l.best ? l.best.id : '');
+                let optHtml = '<option value="">— no match —</option>';
+                if ((l.suggestions || []).length) {
+                    optHtml += '<optgroup label="Suggested matches">';
+                    optHtml += l.suggestions.map(s => `<option value="${s.type}::${s.id}" data-conf="${s.confidence}" ${s.id === chosen ? 'selected' : ''}>${this.escapeHtml(s.name)} · ${s.amount != null ? '€' + Number(s.amount).toFixed(0) : '€?'} · ${Math.round(s.confidence * 100)}%</option>`).join('');
+                    optHtml += '</optgroup>';
+                }
+                const others = cands.filter(c => !inSug.has(c.id));
+                if (others.length) {
+                    optHtml += '<optgroup label="All unpaid registrations">';
+                    optHtml += others.map(c => `<option value="${c.type}::${c.id}" data-conf="0" ${c.id === chosen ? 'selected' : ''}>${this.escapeHtml(c.name)} · ${this.escapeHtml(c.source)} · ${c.amount != null ? '€' + Number(c.amount).toFixed(0) : '€?'}</option>`).join('');
+                    optHtml += '</optgroup>';
+                }
+                const initConf = l.best ? l.best.confidence : (l.confidence != null ? l.confidence : null);
+                const matchCell = `<td style="padding: 10px 14px;"><select id="${selId}" onchange="FinanceApp.onReconPick('${l.id}')" style="width: 100%; max-width: 320px; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); font-size: 13px;">${optHtml}</select></td>`;
+                const confCell = `<td style="padding: 10px 14px; text-align: center;" id="reconConf_${l.id}">${this._reconConfBadge(chosen ? initConf : null)}</td>`;
+                const actionCell = `<td style="padding: 10px 14px; text-align: center; white-space: nowrap;">
+                        <button onclick="FinanceApp.confirmReconLine('${l.id}')" style="padding: 6px 12px; background: var(--success); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;"><i class="fas fa-check"></i> Confirm</button>
+                        <button onclick="FinanceApp.ignoreReconLine('${l.id}', false)" title="Ignore this line" style="padding: 6px 10px; margin-left: 6px; background: var(--bg-secondary); color: var(--text-muted); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px;"><i class="fas fa-ban"></i></button>
+                    </td>`;
+                return `<tr style="border-bottom: 1px solid var(--border);">${lineCell}${amtCell}${matchCell}${confCell}${actionCell}</tr>`;
+            },
+
+            onReconPick(lineId) {
+                const sel = document.getElementById(`reconSel_${lineId}`);
+                if (!sel) return;
+                const opt = sel.options[sel.selectedIndex];
+                const conf = opt && opt.value ? parseFloat(opt.getAttribute('data-conf')) : null;
+                const cell = document.getElementById(`reconConf_${lineId}`);
+                if (cell) cell.innerHTML = this._reconConfBadge(sel.value ? (isNaN(conf) ? null : conf) : null);
+                // Persist the chosen match (fire-and-forget) so a reload keeps it.
+                const [type, reg_id] = sel.value ? sel.value.split('::') : [null, null];
+                this.api(`/api/finance/reconcile/line/${lineId}/match`, { method: 'POST', body: JSON.stringify({ type, reg_id }) }).catch(() => {});
+            },
+
+            async confirmReconLine(lineId) {
+                const sel = document.getElementById(`reconSel_${lineId}`);
+                if (!sel || !sel.value) { Toast.error('Pick a registration first.'); return; }
+                const [type, reg_id] = sel.value.split('::');
+                try {
+                    const res = await this.api(`/api/finance/reconcile/line/${lineId}/confirm`, { method: 'POST', body: JSON.stringify({ type, reg_id }) });
+                    Toast.success(`Marked paid: ${res.matched_name || 'registration'}`);
+                    await this.refreshReconLines();
+                } catch (e) { Toast.error('Confirm failed: ' + e.message); }
+            },
+
+            async ignoreReconLine(lineId, undo) {
+                try {
+                    await this.api(`/api/finance/reconcile/line/${lineId}/ignore`, { method: 'POST', body: JSON.stringify({ undo: !!undo }) });
+                    await this.refreshReconLines();
+                } catch (e) { Toast.error('Failed: ' + e.message); }
+            },
+
+            async confirmReconHigh() {
+                const high = (this._recon.lines || []).filter(l => l.status === 'suggested' && l.best && l.best.confidence >= this._recon.highThreshold).length;
+                if (!high) { Toast.error('No high-confidence matches to confirm.'); return; }
+                if (!confirm(`Confirm ${high} high-confidence match${high === 1 ? '' : 'es'}? Each fires the existing mark-paid flow for that registration.`)) return;
+                try {
+                    const res = await this.api(`/api/finance/reconcile/batch/${this._recon.batchId}/confirm-high`, { method: 'POST', body: JSON.stringify({ threshold: this._recon.highThreshold }) });
+                    Toast.success(`Confirmed ${res.confirmed} registration${res.confirmed === 1 ? '' : 's'} as paid.`);
+                    if (res.failed && res.failed.length) Toast.error(`${res.failed.length} could not be marked.`);
+                    await this.refreshReconLines();
+                } catch (e) { Toast.error('Bulk confirm failed: ' + e.message); }
+            },
+
+            async refreshReconLines() {
+                if (!this._recon.batchId) return;
+                const res = await this.api(`/api/finance/reconcile/batch/${this._recon.batchId}`);
+                this._recon.candidates = res.candidates || [];
+                this._recon.highThreshold = res.high_threshold || 0.85;
+                this._recon.filenameLabel = res.filename;
+                this.renderReconResults(res.lines || []);
+            },
+
+            async loadReconBatches() {
+                try {
+                    const res = await this.api('/api/finance/reconcile/batches');
+                    const list = document.getElementById('reconBatchList');
+                    if (!list) return;
+                    const batches = res.batches || [];
+                    if (!batches.length) { list.innerHTML = 'No imports yet.'; return; }
+                    list.innerHTML = batches.map(b => {
+                        const when = b.created_at ? new Date(b.created_at).toLocaleString() : '';
+                        return `<div onclick="FinanceApp.openReconBatch('${b.batch_id}')" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; cursor: pointer; background: var(--bg-secondary);">
+                            <div>
+                                <div style="font-weight: 600; color: var(--text-primary);">${this.escapeHtml(b.filename || 'statement.csv')}</div>
+                                <div style="font-size: 11px; color: var(--text-muted);">${when} · ${b.total} lines</div>
+                            </div>
+                            <div style="font-size: 12px; display: flex; gap: 10px;">
+                                <span style="color: #16a34a;">${b.confirmed} confirmed</span>
+                                <span style="color: #d97706;">${b.open} open</span>
+                                <span style="color: #8f867c;">${b.ignored} ignored</span>
+                            </div>
+                        </div>`;
+                    }).join('');
+                } catch (e) { /* non-fatal */ }
+            },
+
+            async openReconBatch(batchId) {
+                this._recon.batchId = batchId;
+                try {
+                    const res = await this.api(`/api/finance/reconcile/batch/${batchId}`);
+                    this._recon.candidates = res.candidates || [];
+                    this._recon.highThreshold = res.high_threshold || 0.85;
+                    this._recon.filenameLabel = res.filename;
+                    this.renderReconResults(res.lines || []);
+                    document.getElementById('reconResults').style.display = 'block';
+                    document.getElementById('reconResults').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } catch (e) { Toast.error('Could not open import: ' + e.message); }
             },
 
             escapeHtml(str) {
@@ -33751,6 +34525,7 @@ By applying to this program, I give the following consents:
             // ---------- TASKS (item 4) ----------
             async loadTeamThenTasks() {
                 try { const t = await opsApi('/api/team'); this._team = (t.d || []).filter(m => m && m.name); } catch (e) { this._team = []; }
+                this._fillNotesProjects();
                 this.loadTasks();
             },
             async loadTasks() {
@@ -33807,6 +34582,77 @@ By applying to this program, I give the following consents:
             async delTask(id) {
                 const r = await opsApi('/api/admin/tasks/' + id, { method: 'DELETE' });
                 if (r.ok) { this.loadTasks(); } else { Toast.error('Could not delete'); }
+            },
+
+            // ---------- MEETING NOTES -> TASKS (AI INBOX #7, item 3) ----------
+            _extracted: [],
+            _fillNotesProjects() {
+                const sel = document.getElementById('mo-notes-project');
+                if (!sel) return;
+                sel.innerHTML = OPS_PROJECTS.map(([key, name]) => `<option value="${key}">${opsEsc(name)}</option>`).join('') + '<option value="general">General</option>';
+            },
+            async extractNotes() {
+                const notes = (document.getElementById('mo-notes')?.value || '').trim();
+                if (!notes) { Toast.error('Paste some meeting notes first'); return; }
+                const results = document.getElementById('mo-notes-results');
+                if (results) results.innerHTML = '<div style="padding:12px; color:var(--text-muted); font-size:13px;"><i class="fas fa-spinner fa-spin"></i> Reading the notes…</div>';
+                const r = await opsApi('/api/admin/tasks/extract', { method: 'POST', body: JSON.stringify({ notes }) });
+                if (!r.ok) { Toast.error(r.d.error || 'Could not read those notes'); if (results) results.innerHTML = ''; return; }
+                this._extracted = r.d.items || [];
+                this.renderExtracted(r.d.mock);
+            },
+            renderExtracted(mock) {
+                const host = document.getElementById('mo-notes-results');
+                if (!host) return;
+                const items = this._extracted || [];
+                if (!items.length) {
+                    host.innerHTML = '<div style="padding:12px; color:var(--text-muted); font-size:13px;">No action items found. Try adding lines like "Laura to email the venue by Friday".</div>';
+                    return;
+                }
+                const assigneeOpts = (curId) => ['<option value="">Unassigned</option>'].concat((this._team || []).map(m => `<option value="${m.id}" ${curId === m.id ? 'selected' : ''}>${opsEsc(m.name)}</option>`)).join('');
+                const rows = items.map((it, i) => `
+                    <div style="display:flex; gap:10px; align-items:center; padding:10px 12px; border-bottom:1px solid var(--border);">
+                        <input type="checkbox" id="mo-ex-check-${i}" checked style="width:17px; height:17px; accent-color:#15803d; flex-shrink:0; cursor:pointer;">
+                        <input id="mo-ex-title-${i}" value="${opsEsc(it.title)}" style="flex:2; min-width:160px; padding:8px 10px; border-radius:7px; border:1px solid var(--border); background:var(--bg-primary); color:var(--text-primary); font-size:13px;">
+                        <select id="mo-ex-assignee-${i}" style="flex:1; min-width:120px; padding:8px 10px; border-radius:7px; border:1px solid var(--border); background:var(--bg-secondary); color:var(--text-primary); font-size:13px;">${assigneeOpts(it.assignee_id)}</select>
+                        <input id="mo-ex-due-${i}" type="date" value="${it.due_date || ''}" style="padding:8px 10px; border-radius:7px; border:1px solid var(--border); background:var(--bg-secondary); color:var(--text-primary); font-size:13px;">
+                        ${it.urgent ? '<span style="background:#ef4444;color:#fff;font-size:10px;padding:2px 7px;border-radius:9px;font-weight:700;flex-shrink:0;">Urgent</span>' : ''}
+                    </div>`).join('');
+                host.innerHTML = `
+                    <div class="card" style="padding:0; background:var(--bg-secondary);">
+                        <div style="display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--border);">
+                            <span style="font-weight:700; font-size:13px;">${items.length} action item${items.length === 1 ? '' : 's'} found</span>
+                            <span style="font-size:11px; color:var(--text-muted);">${mock ? 'Extracted locally' : 'AI-extracted'} — untick anything you do not want, edit freely</span>
+                        </div>
+                        ${rows}
+                        <div style="padding:12px; display:flex; gap:10px;">
+                            <button class="btn btn-primary" style="padding:8px 15px; font-size:13px;" onclick="MemberOpsApp.createSelectedTasks()"><i class="fas fa-plus"></i> Create selected tasks</button>
+                            <button class="btn btn-secondary" style="padding:8px 15px; font-size:13px;" onclick="document.getElementById('mo-notes-results').innerHTML='';MemberOpsApp._extracted=[];">Discard</button>
+                        </div>
+                    </div>`;
+            },
+            async createSelectedTasks() {
+                const project = document.getElementById('mo-notes-project')?.value || 'general';
+                const items = [];
+                (this._extracted || []).forEach((it, i) => {
+                    if (!document.getElementById('mo-ex-check-' + i)?.checked) return;
+                    const title = (document.getElementById('mo-ex-title-' + i)?.value || '').trim();
+                    if (!title) return;
+                    items.push({
+                        project, title,
+                        assigned_to: document.getElementById('mo-ex-assignee-' + i)?.value || null,
+                        due_date: document.getElementById('mo-ex-due-' + i)?.value || null
+                    });
+                });
+                if (!items.length) { Toast.error('Tick at least one action item'); return; }
+                const r = await opsApi('/api/admin/tasks/bulk', { method: 'POST', body: JSON.stringify({ items }) });
+                if (r.ok) {
+                    Toast.success(`Created ${r.d.created} task${r.d.created === 1 ? '' : 's'}`);
+                    document.getElementById('mo-notes-results').innerHTML = '';
+                    document.getElementById('mo-notes').value = '';
+                    this._extracted = [];
+                    this.loadTasks();
+                } else { Toast.error(r.d.error || 'Could not create tasks'); }
             }
         };
 
@@ -34481,6 +35327,102 @@ By applying to this program, I give the following consents:
         };
 
         // ==================== TICKET WAITLIST (item 26) ====================
+        // ==================== CONFIRM-YOUR-SEAT (#3) ADMIN ====================
+        const SeatConfirmAdmin = {
+            _cfg: null,
+            esc(s) { return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); },
+            async api(path, opts = {}) {
+                const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}`, ...(opts.headers || {}) } });
+                let d = null; try { d = await res.json(); } catch (e) {}
+                return { ok: res.ok, d };
+            },
+            async load() {
+                const host = document.getElementById('seatConfirmStats'); if (!host) return;
+                const r = await this.api('/api/admin/seat-confirmations/summary?event_key=plexus');
+                const s = r.d || {};
+                this._cfg = s.config || null;
+                const stat = (label, val, color) => `<div class="stat-item" style="background:var(--bg-primary);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center;">
+                    <div style="font-size:22px;font-weight:800;color:${color};">${val == null ? '—' : val}</div>
+                    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">${label}</div></div>`;
+                host.innerHTML = stat('Eligible', s.eligible, 'var(--text-primary)') + stat('Confirmed', s.confirmed, '#16a34a') + stat('Pending', s.pending, '#f59e0b') + stat('Released', s.released, '#6b7280');
+                if (s.config) {
+                    const c = s.config;
+                    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+                    set('scOffConfirm', c.t_confirm); set('scOffReminder', c.t_reminder); set('scOffRelease', c.t_release);
+                }
+                this.loadBatch();
+            },
+            async loadBatch() {
+                const el = document.getElementById('seatConfirmBatch'); if (!el) return;
+                const r = await this.api('/api/admin/outbox?status=pending_approval');
+                const batches = (r.d && r.d.batches || []).filter(b => b.source_engine === 'confirm-seat');
+                if (!batches.length) { el.innerHTML = ''; return; }
+                el.innerHTML = batches.map(b => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.35);border-radius:10px;padding:12px 14px;margin-top:8px;">
+                    <div style="font-size:12.5px;color:var(--text-secondary);"><strong style="color:var(--text-primary);">${b.count}</strong> confirmation email${b.count===1?'':'s'} staged — <span style="color:#f59e0b;font-weight:700;">awaiting your approval</span></div>
+                    <div style="display:flex;gap:6px;">
+                        <button class="btn btn-primary" style="font-size:11px;padding:5px 12px;" onclick="SeatConfirmAdmin.approve('${b.batch_id}')"><i class="fas fa-check"></i> Approve &amp; send</button>
+                        <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;color:#dc2626;" onclick="SeatConfirmAdmin.cancelBatch('${b.batch_id}')">Discard</button>
+                    </div></div>`).join('');
+            },
+            async startRound(kind) {
+                const label = kind === 'reminder' ? 'reminder' : 'confirmation';
+                if (!confirm(`Stage a ${label} round for Plexus?\n\nEmails are queued in the outbox for your approval — nothing sends until you click Approve.`)) return;
+                const r = await this.api('/api/admin/seat-confirmations/start-round', { method: 'POST', body: JSON.stringify({ event_key: 'plexus', kind }) });
+                if (r.d && r.d.success) {
+                    if (r.d.count) Toast.success(`${r.d.count} email(s) staged for approval`);
+                    else Toast.info(r.d.message || 'Nothing to send');
+                    this.load();
+                } else Toast.error((r.d && r.d.error) || 'Failed');
+            },
+            async approve(batch) {
+                const r = await this.api(`/api/admin/outbox/${encodeURIComponent(batch)}/approve`, { method: 'POST' });
+                if (r.d && r.d.success) { Toast.success(`Approved — ${r.d.approved} email(s) sending`); this.load(); }
+                else Toast.error((r.d && r.d.error) || 'Failed');
+            },
+            async cancelBatch(batch) {
+                if (!confirm('Discard this staged round? No emails will be sent.')) return;
+                const r = await this.api(`/api/admin/outbox/${encodeURIComponent(batch)}/cancel`, { method: 'POST' });
+                if (r.d && r.d.success) { Toast.success('Discarded'); this.load(); } else Toast.error((r.d && r.d.error) || 'Failed');
+            },
+            async release() {
+                if (!confirm('Release every still-unconfirmed Plexus seat?\n\nEach released seat is offered to the next person on the waitlist (a 48-hour claim link).')) return;
+                const r = await this.api('/api/admin/seat-confirmations/release-unconfirmed', { method: 'POST', body: JSON.stringify({ event_key: 'plexus' }) });
+                if (r.d && r.d.success) { Toast.success(`Released ${r.d.released}, ${r.d.offers} waitlist offer(s) sent`); this.load(); if (window.WaitlistAdmin) WaitlistAdmin.load(); }
+                else Toast.error((r.d && r.d.error) || 'Failed');
+            },
+            configModal() {
+                const c = this._cfg || { t_confirm: 7, t_reminder: 4, t_release: 3, auto: 'on' };
+                const ov = document.createElement('div');
+                ov.className = 'modal-overlay active';
+                ov.style.cssText = 'position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;padding:20px;';
+                ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+                const inp = 'width:70px;padding:8px 10px;margin:4px 8px 12px 0;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);';
+                ov.innerHTML = `<div class="card" style="max-width:420px;width:100%;padding:22px;">
+                    <div style="font-weight:700;font-size:16px;margin-bottom:4px;">Confirmation timing</div>
+                    <p style="font-size:12px;color:var(--text-muted);margin:0 0 16px;">Days before the conference date. Rounds still wait for your approval.</p>
+                    <div><label style="font-size:12px;">Confirm round at T-<input id="scT1" type="number" min="0" max="60" value="${c.t_confirm}" style="${inp}"> days</label></div>
+                    <div><label style="font-size:12px;">Reminder at T-<input id="scT2" type="number" min="0" max="60" value="${c.t_reminder}" style="${inp}"> days</label></div>
+                    <div><label style="font-size:12px;">Release unconfirmed at T-<input id="scT3" type="number" min="0" max="60" value="${c.t_release}" style="${inp}"> days</label></div>
+                    <div style="margin:6px 0 14px;"><label style="font-size:12px;display:flex;align-items:center;gap:8px;"><input id="scAuto" type="checkbox" ${c.auto === 'on' ? 'checked' : ''}> Run automatically as the date approaches</label></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+                        <button class="btn btn-primary" onclick="SeatConfirmAdmin.saveConfig(this)">Save</button>
+                    </div></div>`;
+                document.body.appendChild(ov);
+            },
+            async saveConfig(btn) {
+                const body = {
+                    t_confirm: document.getElementById('scT1').value,
+                    t_reminder: document.getElementById('scT2').value,
+                    t_release: document.getElementById('scT3').value,
+                    auto: document.getElementById('scAuto').checked ? 'on' : 'off'
+                };
+                const r = await this.api('/api/admin/seat-confirmations/config', { method: 'PUT', body: JSON.stringify(body) });
+                if (r.d && r.d.success) { btn.closest('.modal-overlay').remove(); Toast.success('Timing saved'); this.load(); }
+                else Toast.error((r.d && r.d.error) || 'Failed');
+            }
+        };
+
         // Demand capture for sold-out tickets. Promote opens the EXISTING invite-link
         // editor (App.generateRegistrationLink) — payment always flows through the
         // normal registration path, never a new one.
@@ -34492,12 +35434,19 @@ By applying to this program, I give the following consents:
                 let d = null; try { d = await res.json(); } catch (e) {}
                 return { ok: res.ok, d };
             },
+            _offers: {},
             async load() {
                 const el = document.getElementById('wlList'); if (!el) return;
                 el.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i></div>';
                 const section = document.getElementById('wlSection')?.value || '';
                 const r = await this.api('/api/admin/waitlist' + (section ? '?section=' + encodeURIComponent(section) : ''));
                 this._rows = Array.isArray(r.d) ? r.d : [];
+                // Auto-offer states, keyed by waitlist_id (latest offer wins).
+                this._offers = {};
+                try {
+                    const o = await this.api('/api/admin/waitlist-offers' + (section ? '?section=' + encodeURIComponent(section) : ''));
+                    (Array.isArray(o.d) ? o.d : []).forEach(off => { if (off.waitlist_id && !this._offers[off.waitlist_id]) this._offers[off.waitlist_id] = off; });
+                } catch (e) {}
                 this.render();
             },
             render() {
@@ -34512,9 +35461,17 @@ By applying to this program, I give the following consents:
                     return;
                 }
                 const badge = st => ({ waiting: '#f59e0b', promoted: '#22c55e', removed: '#6b7280' }[st] || '#6b7280');
-                el.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:680px;">
+                const offBadge = st => ({ offered: '#0ea5e9', claimed: '#22c55e', expired: '#6b7280' }[st] || '#6b7280');
+                const offerCell = (w) => {
+                    const o = this._offers[w.id];
+                    if (!o) return '<span style="color:var(--text-muted);font-size:11px;">—</span>';
+                    let extra = '';
+                    if (o.status === 'offered' && o.expires_at) { const exp = new Date(String(o.expires_at).replace(' ', 'T') + 'Z').getTime(); const hrs = Math.max(0, Math.round((exp - Date.now()) / 3600000)); extra = `<div style="font-size:10px;color:var(--text-muted);margin-top:2px;">expires in ${hrs}h</div>`; }
+                    return `<span style="background:${offBadge(o.status)}22;color:${offBadge(o.status)};padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700;text-transform:capitalize;">${this.esc(o.status)}</span>${extra}`;
+                };
+                el.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:760px;">
                     <thead><tr style="border-bottom:1px solid var(--border);">
-                        ${['#', 'Name', 'Email', 'Event', 'Ticket', 'Added', 'Status', 'Actions'].map(h => `<th style="text-align:left;padding:10px 14px;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">${h}</th>`).join('')}
+                        ${['#', 'Name', 'Email', 'Event', 'Ticket', 'Added', 'Status', 'Auto-offer', 'Actions'].map(h => `<th style="text-align:left;padding:10px 14px;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">${h}</th>`).join('')}
                     </tr></thead><tbody>
                     ${rows.map((w, i) => `<tr style="border-bottom:1px solid var(--border);">
                         <td style="padding:10px 14px;color:var(--text-muted);font-size:12px;">${i + 1}</td>
@@ -34524,6 +35481,7 @@ By applying to this program, I give the following consents:
                         <td style="padding:10px 14px;font-size:12.5px;">${this.esc(w.ticket_type || '—')}</td>
                         <td style="padding:10px 14px;font-size:12px;color:var(--text-muted);">${w.created_at ? new Date(w.created_at).toLocaleDateString() : '—'}</td>
                         <td style="padding:10px 14px;"><span style="background:${badge(w.status)}22;color:${badge(w.status)};padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700;text-transform:capitalize;">${this.esc(w.status || 'waiting')}</span></td>
+                        <td style="padding:10px 14px;">${offerCell(w)}</td>
                         <td style="padding:10px 14px;white-space:nowrap;">
                             ${w.status === 'waiting' ? `<button class="btn btn-primary" style="padding:4px 10px;font-size:11px;" onclick="WaitlistAdmin.promote('${w.id}')"><i class="fas fa-arrow-up"></i> Promote</button>` : ''}
                             <button class="btn btn-secondary" style="padding:4px 9px;font-size:11px;margin-left:4px;color:#ef4444;" title="Remove from waitlist" onclick="WaitlistAdmin.remove('${w.id}')"><i class="fas fa-trash"></i></button>

@@ -1,0 +1,93 @@
+name: Uptime alert
+
+# Every ~15 min, probe both portal /health endpoints and the public website.
+# On failure: open (or update) a GitHub issue titled 'ALERT: <service> down' —
+# GitHub emails the repo owner automatically, so no third-party paging account
+# is needed. On recovery: the same issue is auto-closed. Idempotent: at most one
+# open issue per service (matched by exact title).
+#
+# NOTE: GitHub scheduled cron is best-effort with ~5 min granularity, so the
+# real interval drifts past 15 min under Actions load. This is a free belt, not
+# an SLA. Render free tier also cold-starts (~30-50s), so each service is probed
+# with retries before it is declared down.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: uptime-alert
+  cancel-in-progress: false
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: user-portal
+            url: https://medx-user-portal.onrender.com/health
+          - name: admin-portal
+            url: https://medx-admin-portal.onrender.com/health
+          - name: website
+            url: https://medx.hr
+    steps:
+      - name: Probe ${{ matrix.name }}
+        id: probe
+        run: |
+          url="${{ matrix.url }}"
+          echo "Probing $url"
+          status=000
+          # Retry to ride out a single cold-start / transient blip before paging.
+          for attempt in 1 2 3; do
+            status=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 40 "$url" || echo 000)
+            echo "attempt $attempt -> HTTP $status"
+            if [ "$status" -ge 200 ] && [ "$status" -lt 400 ]; then
+              echo "ok=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+          echo "last_status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Open or close the alert issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SERVICE: ${{ matrix.name }}
+          URL: ${{ matrix.url }}
+          OK: ${{ steps.probe.outputs.ok }}
+          LAST: ${{ steps.probe.outputs.last_status }}
+        run: |
+          title="ALERT: ${SERVICE} down"
+          now=$(date -u '+%Y-%m-%d %H:%M UTC')
+          # Find an existing OPEN alert issue for this service (idempotency key = exact title).
+          existing=$(gh issue list --state open --search "\"$title\" in:title" --json number,title \
+            --jq "[.[] | select(.title == \"$title\")] | .[0].number // empty")
+
+          if [ "$OK" = "true" ]; then
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body "Recovered at ${now} — \`${URL}\` is responding again. Auto-closing."
+              gh issue close "$existing"
+              echo "Closed recovered issue #$existing"
+            else
+              echo "${SERVICE} healthy — nothing to do."
+            fi
+          else
+            body="\`${URL}\` failed its health probe (last HTTP status: \`${LAST:-000}\`) at ${now} after 3 attempts. This issue auto-closes when the service recovers."
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body "Still down at ${now} (last HTTP \`${LAST:-000}\`)."
+              echo "Updated existing issue #$existing"
+            else
+              gh issue create --title "$title" --body "$body" --label uptime \
+                || gh issue create --title "$title" --body "$body"
+              echo "Opened new alert issue for ${SERVICE}"
+            fi
+          fi
