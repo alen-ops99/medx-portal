@@ -6952,6 +6952,9 @@
                         <div class="user-name" id="userName">Alen Juginovic</div>
                         <div class="user-role" id="userRole">President</div>
                     </div>
+                    <a class="manage-sections-btn" href="/resources/handbook.html" target="_blank" rel="noopener" title="Help &amp; guides (Handbook + Runbook)" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center">
+                        <i class="fas fa-circle-question"></i>
+                    </a>
                     <button class="manage-sections-btn" onclick="App.openSettings()" title="Settings">
                         <i class="fas fa-cog"></i>
                     </button>
@@ -11900,9 +11903,30 @@ President, Med&amp;X</textarea>
                     <div class="section-header">
                         <div>
                             <h1 style="font-family:'Fraunces',serif">Resources</h1>
-                            <p>Presentations and materials the team can use at events.</p>
+                            <p>Guides for running the portal, plus presentations and materials the team can use at events.</p>
                         </div>
                     </div>
+
+                    <!-- FEATURED: internal guides (Handbook + Runbook) -->
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;max-width:980px;margin-bottom:22px">
+                        <div class="card" style="padding:26px;border:1px solid var(--gold);background:linear-gradient(180deg,#fffdf7,#fff)">
+                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+                                <i class="fas fa-book-open" style="color:#9b1b22;font-size:20px"></i>
+                                <h3 style="font-family:'Fraunces',serif;margin:0">Operations Handbook</h3>
+                            </div>
+                            <p style="color:var(--text-muted);font-size:13px;line-height:1.6;margin-bottom:16px">Plain-language, step-by-step guide to every job in this portal — newsletters, the outbox, event-day scanning, the post-event round, the bank statement, adding a teammate, and more. Written for anyone on the team.</p>
+                            <a href="/resources/handbook.html" target="_blank" rel="noopener" class="btn btn-primary" style="text-decoration:none"><i class="fas fa-book-open" style="margin-right:7px"></i>Open the Handbook</a>
+                        </div>
+                        <div class="card" style="padding:26px;border:1px solid var(--border-light)">
+                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+                                <i class="fas fa-life-ring" style="color:#c9a962;font-size:20px"></i>
+                                <h3 style="font-family:'Fraunces',serif;margin:0">Runbook &mdash; if something breaks</h3>
+                            </div>
+                            <p style="color:var(--text-muted);font-size:13px;line-height:1.6;margin-bottom:16px">The emergency one-pager: where everything runs, how to check it's up, what to do if the portal is down, who has access, and how to restore a backup. Keep it findable.</p>
+                            <a href="/resources/runbook.html" target="_blank" rel="noopener" class="btn btn-secondary" style="text-decoration:none"><i class="fas fa-life-ring" style="margin-right:7px"></i>Open the Runbook</a>
+                        </div>
+                    </div>
+
                     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;max-width:980px">
                         <div class="card" style="padding:26px">
                             <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
@@ -14165,7 +14189,9 @@ President, Med&amp;X</textarea>
                             throw new Error('Token invalid');
                         }
                         const meData = await meRes.json();
-                        if (!meData.is_admin) {
+                        // Admins AND scanner staff may use the admin app. Scanner staff are
+                        // limited to check-in tools by applyRoleRestrictions() below.
+                        if (!meData.is_admin && !meData.is_staff) {
                             throw new Error('Not admin');
                         }
                     } catch (e) {
@@ -14318,8 +14344,11 @@ President, Med&amp;X</textarea>
                     }
 
                     if (data.success) {
-                        if (!data.user || !data.user.is_admin) {
-                            errEl.textContent = 'Access denied. Admin privileges required.';
+                        // Admins get everything; scanner staff get the check-in tools only
+                        // (enforced by applyRoleRestrictions + the backend). Anyone with
+                        // neither role is a plain member and belongs on the user portal.
+                        if (!data.user || (!data.user.is_admin && !data.user.is_staff)) {
+                            errEl.textContent = 'This login is for the Med&X team. Please use the member portal.';
                             errEl.classList.add('show');
                             return;
                         }
@@ -14401,6 +14430,16 @@ President, Med&amp;X</textarea>
                 // Set today's date
                 const today = new Date();
                 document.getElementById('todayDate').textContent = today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+                // Scanner-only staff can't use the admin dashboard — every widget on it is an
+                // admin-only endpoint that would 403 and spam the console. Send them straight to the
+                // one section they're allowed to use (System Health) and skip the whole admin
+                // bootstrap below. Their scanner FAB + offline check-in queue are already wired up.
+                if (this.user && this.user.is_staff && !this.user.is_admin) {
+                    this.initClock();
+                    this.showSection('health', null, true);
+                    return;
+                }
 
                 // Load team member info
                 await this.loadTeamMember();

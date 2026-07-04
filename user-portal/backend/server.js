@@ -365,6 +365,114 @@ function fanoutAnnouncements() {
 // breaks when the Render free-tier service is asleep. Override with EMAIL_LOGO_URL if needed.
 const MEDX_LOGO_URL = process.env.EMAIL_LOGO_URL || 'https://cdn.jsdelivr.net/gh/alen-ops99/medx-portal@main/user-portal/frontend/assets/images/medx-logo.png';
 
+// ============================================================================
+// PREMIUM PUBLIC PAGE SHELL
+// One shared, dependency-free shell for every server-rendered public page in this
+// backend (seat/registration confirmations, payment states, invite-link errors,
+// password-reset states). Warm-ink header band carrying the white med&X logotype,
+// a Fraunces-style serif for the headline (webfont + system fallback), cream body,
+// crimson primary action, gold hairline details, mobile-perfect. Typography does
+// the work — no status icons. Pass structured copy; never raw user input unescaped.
+//
+//   premiumPage({
+//     title, kicker, tone: 'success'|'neutral'|'alert',
+//     headline, lede,               // lede may contain trusted HTML
+//     bodyHtml,                     // optional extra block (QR, item list, ...)
+//     primary: { label, href, onclick }, secondary: { label, href },
+//     fine,                         // optional fine print above the footer
+//   })
+// ============================================================================
+function premiumPage(opts = {}) {
+    const o = opts || {};
+    const tone = o.tone === 'alert' ? 'alert' : (o.tone === 'neutral' ? 'neutral' : 'success');
+    const kickerColor = tone === 'alert' ? '#9a2f2a' : (tone === 'neutral' ? '#8a7a5f' : '#a9863c');
+    const p = o.primary, s = o.secondary;
+    const primaryHtml = p
+        ? `<a class="btn-primary"${p.href ? ` href="${p.href}"` : ' href="#"'}${p.onclick ? ` onclick="${p.onclick}"` : ''}>${p.label}</a>`
+        : '';
+    const secondaryHtml = s
+        ? `<a class="btn-ghost" href="${s.href}">${s.label}</a>`
+        : '';
+    const actions = (primaryHtml || secondaryHtml)
+        ? `<div class="actions">${primaryHtml}${secondaryHtml}</div>` : '';
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${o.title || 'Med&X'}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#211b17;--cream:#efe7d6;--sheet:#fbf8f1;--text:#2c2521;--muted:#6f6256;--gold:#b0893b;--gold-soft:rgba(176,137,59,.32);--crimson:#8f2d2a;--crimson-dark:#772320;}
+*{box-sizing:border-box;}
+html,body{margin:0;}
+body{min-height:100vh;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;color:var(--text);
+  background:radial-gradient(1200px 640px at 50% -8%,#f6efe0,transparent 62%),var(--cream);
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;align-items:center;padding:0 18px 40px;}
+.band{width:100%;background:linear-gradient(180deg,#241e19,#1b1613);border-bottom:1px solid var(--gold-soft);
+  padding:24px 20px;display:flex;justify-content:center;align-items:center;margin-bottom:clamp(28px,7vw,58px);}
+.band img{height:32px;width:auto;filter:brightness(0) invert(1);opacity:.94;}
+.sheet{width:100%;max-width:500px;background:var(--sheet);border:1px solid rgba(43,33,25,.07);border-radius:20px;
+  padding:clamp(34px,6vw,46px) clamp(24px,5vw,44px);text-align:center;position:relative;overflow:hidden;
+  box-shadow:0 1px 0 rgba(255,255,255,.7) inset,0 24px 60px -30px rgba(43,33,25,.34);
+  animation:rise .5s cubic-bezier(.2,.7,.2,1) both;}
+@keyframes rise{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:none;}}
+@media(prefers-reduced-motion:reduce){.sheet{animation:none;}}
+.kicker{font-size:11px;font-weight:600;letter-spacing:2.6px;text-transform:uppercase;color:${kickerColor};margin:0 0 14px;}
+.rule{width:38px;height:1px;background:var(--gold-soft);margin:0 auto 20px;}
+.headline{font-family:'Fraunces','Georgia','Times New Roman',serif;font-weight:600;font-size:clamp(30px,6.4vw,40px);
+  line-height:1.08;letter-spacing:-.4px;color:#241d18;margin:0 0 14px;}
+.lede{font-size:15.5px;line-height:1.68;color:var(--muted);margin:0 auto;max-width:400px;}
+.lede strong{color:#2c2521;font-weight:600;}
+.lede a{color:var(--crimson);text-decoration:none;font-weight:600;}
+.facts{margin:22px auto 4px;padding:16px 18px;background:#f4eede;border:1px solid rgba(176,137,59,.2);border-radius:14px;max-width:400px;text-align:left;}
+.facts .frow{display:flex;justify-content:space-between;gap:16px;font-size:14px;padding:5px 0;color:#3a322b;}
+.facts .frow + .frow{border-top:1px solid rgba(176,137,59,.16);}
+.facts .frow span:first-child{color:var(--muted);font-weight:500;}
+.facts .frow span:last-child{font-weight:600;text-align:right;}
+.actions{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:30px;}
+.btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:14px 30px;border:none;border-radius:11px;cursor:pointer;
+  font-family:inherit;font-size:14.5px;font-weight:600;letter-spacing:.2px;text-decoration:none;color:#fbf3e6;
+  background:linear-gradient(180deg,#a03330,var(--crimson));box-shadow:0 12px 26px -12px rgba(143,45,42,.7);transition:transform .15s,box-shadow .15s,background .15s;}
+.btn-primary:hover{background:linear-gradient(180deg,#8f2d2a,var(--crimson-dark));transform:translateY(-1px);box-shadow:0 16px 30px -12px rgba(143,45,42,.8);}
+.btn-ghost{display:inline-flex;align-items:center;justify-content:center;padding:14px 26px;border-radius:11px;text-decoration:none;
+  font-family:inherit;font-size:14.5px;font-weight:600;color:#4a3f36;background:transparent;border:1px solid rgba(43,33,25,.22);transition:background .15s,border-color .15s;}
+.btn-ghost:hover{background:rgba(43,33,25,.045);border-color:rgba(43,33,25,.4);}
+.fine{margin-top:26px;padding-top:20px;border-top:1px solid rgba(43,33,25,.1);font-size:11.5px;line-height:1.65;color:#8a7d70;}
+.fine a{color:var(--gold);text-decoration:none;}
+.qrtile{display:inline-block;background:#fff;padding:14px;border-radius:16px;margin:24px auto 6px;box-shadow:0 16px 34px -18px rgba(43,33,25,.5);border:1px solid rgba(43,33,25,.06);}
+.qrtile img{display:block;width:200px;height:200px;}
+.qrlabel{font-size:10.5px;font-weight:600;letter-spacing:2.6px;text-transform:uppercase;color:var(--gold);margin-bottom:2px;}
+.mancode{font-family:'Courier New',monospace;font-size:17px;font-weight:700;letter-spacing:3px;color:#241d18;margin-top:10px;}
+.mancode .mc-label{display:block;font-family:'Inter',sans-serif;font-size:9px;font-weight:600;letter-spacing:1.8px;color:var(--muted);margin-bottom:3px;}
+.foot{margin:30px auto 0;font-size:12px;letter-spacing:.3px;color:#94897c;text-align:center;}
+.foot b{font-weight:600;color:#6f6256;}
+@media(max-width:520px){.sheet{border-radius:16px;}.actions{flex-direction:column;}.btn-primary,.btn-ghost{width:100%;}}
+</style></head>
+<body>
+<header class="band"><img src="${MEDX_LOGO_URL}" alt="Med&amp;X"></header>
+<main class="sheet">
+  ${o.kicker ? `<p class="kicker">${o.kicker}</p><div class="rule"></div>` : ''}
+  <h1 class="headline">${o.headline || ''}</h1>
+  ${o.lede ? `<p class="lede">${o.lede}</p>` : ''}
+  ${o.bodyHtml || ''}
+  ${actions}
+  ${o.fine ? `<div class="fine">${o.fine}</div>` : ''}
+</main>
+<footer class="foot"><b>Med&amp;X Association</b> &middot; medx.hr</footer>
+</body></html>`;
+}
+
+// Compact wrapper for the one-line invite / registration link-state notices
+// (revoked, expired, used up, invalid). Alert tone, standard contact actions.
+function linkNoticePage(headline, lede, primary) {
+    return premiumPage({
+        title: headline + ' — Med&X',
+        tone: 'alert',
+        kicker: 'Plexus 2026',
+        headline,
+        lede,
+        primary: primary || { label: 'Contact the Med&X team', href: 'mailto:laura.rodman@medx.hr?subject=Plexus%202026%20invitation%20link' },
+        secondary: { label: 'Visit Med&X', href: 'https://medx.hr' }
+    });
+}
+
 function buildEmailTemplate(title, bodyHtml) {
     return `
 <!DOCTYPE html>
@@ -623,7 +731,16 @@ app.get('/invite-success', async (req, res) => {
 
     // Direct hit without a Stripe checkout session — don't falsely claim success
     if (!sessionId) {
-        return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>No Recent Payment Session — Med&X</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:system-ui;text-align:center;padding:20px;margin:0;"><div style="max-width:460px;width:100%;"><div style="width:64px;height:64px;border-radius:50%;background:rgba(245,158,11,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:28px;color:#f59e0b;">?</div><h1 style="color:#fff;font-size:22px;margin-bottom:12px;font-weight:600;">No recent payment session</h1><p style="color:#94a3b8;line-height:1.6;margin-bottom:8px;">We couldn't find a payment session associated with this page.</p><p style="color:#64748b;font-size:14px;line-height:1.6;margin-bottom:24px;">If you just completed a payment, your confirmation and QR code have been emailed to you — please check your inbox (and spam folder).</p><div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;"><a href="https://medx.hr" style="display:inline-block;padding:12px 22px;background:rgba(255,255,255,0.06);color:#c9a962;border-radius:10px;font-weight:600;text-decoration:none;border:1px solid rgba(201,169,98,0.2);">Visit Med&amp;X</a><a href="mailto:laura.rodman@medx.hr?subject=Question%20about%20Plexus%202026%20registration" style="display:inline-block;padding:12px 22px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Contact Laura</a></div><div style="margin-top:28px;padding-top:18px;border-top:1px solid rgba(255,255,255,0.06);font-size:11px;color:#64748b;line-height:1.55;"><a href="/privacy" style="color:#c9a962;text-decoration:none;">Privacy Policy</a> &nbsp;·&nbsp; <a href="/terms" style="color:#c9a962;text-decoration:none;">Terms</a></div></div></body></html>`);
+        return res.send(premiumPage({
+            title: 'No Recent Payment Session — Med&X',
+            tone: 'neutral',
+            kicker: 'Plexus 2026',
+            headline: 'No recent payment session',
+            lede: `We couldn't find a payment session for this page. If you just completed a payment, your confirmation and QR code have been emailed to you — please check your inbox and your spam folder.`,
+            primary: { label: 'Contact Laura', href: 'mailto:laura.rodman@medx.hr?subject=Question%20about%20Plexus%202026%20registration' },
+            secondary: { label: 'Visit Med&X', href: 'https://medx.hr' },
+            fine: `<a href="/privacy">Privacy Policy</a> &middot; <a href="/terms">Terms</a>`
+        }));
     }
 
     let qrDataUrl = '';
@@ -666,89 +783,41 @@ app.get('/invite-success', async (req, res) => {
     // If the session exists but payment wasn't actually collected, show a neutral
     // "pending" page rather than a green success with a QR.
     if (sessionId && stripe && !paymentConfirmed) {
-        return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Payment Pending — Med&X</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:system-ui;text-align:center;padding:20px;margin:0;"><div style="max-width:460px;width:100%;"><div style="width:64px;height:64px;border-radius:50%;background:rgba(245,158,11,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:28px;color:#f59e0b;">⏳</div><h1 style="color:#fff;font-size:22px;margin-bottom:12px;font-weight:600;">Payment not yet confirmed</h1><p style="color:#94a3b8;line-height:1.6;margin-bottom:8px;">We haven't received confirmation of payment for this session. If you completed the payment, your confirmation and QR code will arrive by email shortly.</p><p style="color:#64748b;font-size:14px;line-height:1.6;margin-bottom:24px;">If you cancelled or the payment failed, your spot is not yet reserved — please try again or contact us.</p><div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;"><a href="https://medx.hr" style="display:inline-block;padding:12px 22px;background:rgba(255,255,255,0.06);color:#c9a962;border-radius:10px;font-weight:600;text-decoration:none;border:1px solid rgba(201,169,98,0.2);">Visit Med&amp;X</a><a href="mailto:laura.rodman@medx.hr?subject=Plexus%202026%20payment" style="display:inline-block;padding:12px 22px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Contact Laura</a></div><div style="margin-top:28px;padding-top:18px;border-top:1px solid rgba(255,255,255,0.06);font-size:11px;color:#64748b;"><a href="/privacy" style="color:#c9a962;text-decoration:none;">Privacy Policy</a> &nbsp;·&nbsp; <a href="/terms" style="color:#c9a962;text-decoration:none;">Terms</a></div></div></body></html>`);
+        return res.send(premiumPage({
+            title: 'Payment Pending — Med&X',
+            tone: 'neutral',
+            kicker: 'Plexus 2026',
+            headline: 'Payment not yet confirmed',
+            lede: `We haven't received confirmation of payment for this session. If you completed the payment, your confirmation and QR code will arrive by email shortly. If you cancelled or the payment failed, your place is not yet reserved — please try again or contact us.`,
+            primary: { label: 'Contact Laura', href: 'mailto:laura.rodman@medx.hr?subject=Plexus%202026%20payment' },
+            secondary: { label: 'Visit Med&X', href: 'https://medx.hr' },
+            fine: `<a href="/privacy">Privacy Policy</a> &middot; <a href="/terms">Terms</a>`
+        }));
     }
 
     // Escape all Stripe-metadata-derived values before rendering — these originate from the
     // registration request body (attacker-controllable) and land on the official domain.
-    const itemsHtml = itemsList.length ? '<div class="items"><div class="ttl">Registered For</div>' +
-        itemsList.map(i => '<div class="row"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a962" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' + escapeHtml(i) + '</div>').join('') + '</div>' : '';
+    const factsRows =
+        `<div class="frow"><span>Event</span><span>${escapeHtml(eventName)}</span></div>` +
+        itemsList.map(i => `<div class="frow"><span>Registered for</span><span>${escapeHtml(i)}</span></div>`).join('') +
+        (amount ? `<div class="frow"><span>Amount paid</span><span>&euro;${amount.toFixed(2)}</span></div>` : '') +
+        (guestCount ? `<div class="frow"><span>Guests</span><span>+${guestCount} ${guestCount > 1 ? 'guests' : 'guest'} included</span></div>` : '');
 
-    res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Registration Confirmed — Med&X</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-*{box-sizing:border-box;}
-body{margin:0;min-height:100vh;font-family:'Inter',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;color:#e8eaf0;-webkit-font-smoothing:antialiased;
-  background:radial-gradient(1100px 620px at 50% -12%,rgba(201,169,98,0.12),transparent 60%),linear-gradient(168deg,#0a0f1c,#0f172a 48%,#0c1626);
-  display:flex;align-items:flex-start;justify-content:center;padding:46px 20px 64px;}
-.wrap{max-width:480px;width:100%;text-align:center;animation:rise .55s cubic-bezier(.2,.7,.2,1) both;}
-@keyframes rise{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:none;}}
-@keyframes pop{0%{transform:scale(.6);opacity:0;}60%{transform:scale(1.08);}100%{transform:scale(1);opacity:1;}}
-.brand{margin-bottom:30px;}
-.brand img{height:42px;width:auto;filter:brightness(0) invert(1);opacity:.92;}
-.brand .tag{margin-top:10px;font-size:9.5px;text-transform:uppercase;letter-spacing:2.6px;color:#7c8aa3;}
-.check{width:76px;height:76px;border-radius:50%;margin:0 auto 22px;display:flex;align-items:center;justify-content:center;
-  background:radial-gradient(circle at 50% 32%,rgba(52,211,153,.24),rgba(34,197,94,.05));
-  border:1px solid rgba(52,211,153,.4);box-shadow:0 0 0 9px rgba(34,197,94,.045),0 14px 44px rgba(34,197,94,.16);animation:pop .6s .15s cubic-bezier(.2,.8,.2,1.2) both;}
-.h1{font-family:'Cormorant Garamond',serif;font-size:35px;font-weight:600;color:#fff;margin:0 0 10px;letter-spacing:.3px;line-height:1.1;}
-.sub{color:#aab4c6;font-size:15.5px;line-height:1.55;margin:0;}
-.sub strong{color:#d9b978;font-weight:600;}
-.paid{display:inline-block;margin-top:16px;font-size:11.5px;letter-spacing:.5px;text-transform:uppercase;color:#cdd5e3;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:7px 18px;}
-.paid b{color:#fff;font-size:13px;letter-spacing:0;}
-.items{text-align:left;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:16px 18px;margin:20px 0;}
-.items .ttl{font-size:10px;font-weight:700;color:#c9a962;text-transform:uppercase;letter-spacing:2.2px;margin-bottom:11px;}
-.items .row{padding:5px 0;color:#dbe2ee;font-size:14.5px;display:flex;align-items:center;gap:10px;}
-.items .row svg{flex:none;}
-.guest{background:rgba(201,169,98,.09);border:1px solid rgba(201,169,98,.22);border-radius:14px;padding:13px 16px;margin:16px 0;}
-.guest p{margin:0;color:#d9b978;font-size:14px;}
-.guest .s{color:#9aa6ba;font-size:12px;margin-top:5px;}
-.ticket{position:relative;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.018));border:1px solid rgba(201,169,98,.24);border-radius:20px;padding:28px 24px;margin:26px 0;box-shadow:0 26px 64px rgba(0,0,0,.4);}
-.ticket::before{content:'';position:absolute;left:24px;right:24px;top:0;height:3px;border-radius:0 0 4px 4px;background:linear-gradient(90deg,transparent,#c9a962,transparent);}
-.ticket .lbl{font-size:10.5px;font-weight:700;color:#c9a962;text-transform:uppercase;letter-spacing:3px;margin-bottom:18px;}
-.qrtile{display:inline-block;background:#fff;padding:14px;border-radius:16px;box-shadow:0 12px 30px rgba(0,0,0,.34);}
-.qrtile img{width:202px;height:202px;display:block;}
-.hint{color:#8b97ad;font-size:12.5px;margin:15px 0 0;}
-.btn-gold{display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:12px 26px;border:none;border-radius:11px;cursor:pointer;font-family:inherit;font-weight:600;font-size:13.5px;color:#1a1206;background:linear-gradient(135deg,#e7cd86,#c9a962 52%,#ad8a42);box-shadow:0 8px 24px rgba(201,169,98,.3);transition:transform .15s,box-shadow .15s;}
-.btn-gold:hover{transform:translateY(-1px);box-shadow:0 13px 32px rgba(201,169,98,.45);}
-.email-note{background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.22);border-radius:14px;padding:15px 18px;margin:18px 0;}
-.email-note p{margin:0;color:#7fdca0;font-size:13.5px;line-height:1.5;}
-.email-note strong{color:#b6f2cf;}
-.email-note .s{color:#74839a;font-size:11.5px;margin-top:6px;}
-.visit{display:inline-block;margin-top:6px;padding:12px 28px;border-radius:11px;text-decoration:none;font-weight:600;font-size:13.5px;color:#d9b978;background:rgba(255,255,255,.04);border:1px solid rgba(201,169,98,.3);transition:background .15s,border-color .15s;}
-.visit:hover{background:rgba(201,169,98,.1);border-color:rgba(201,169,98,.55);}
-.foot{margin-top:32px;padding-top:20px;border-top:1px solid rgba(255,255,255,.06);font-size:11px;color:#6b7689;line-height:1.65;}
-.foot a{color:#c9a962;text-decoration:none;}
-@media(max-width:480px){.h1{font-size:29px;}.ticket{padding:24px 18px;}}
-</style></head>
-<body>
-<div class="wrap">
-    <div class="brand"><img src="${MEDX_LOGO_URL}" alt="Med&X" /><div class="tag">Building Bridges in Biomedicine</div></div>
-    <div class="check"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-    <h1 class="h1">You're all set</h1>
-    <p class="sub">Your registration for <strong>${escapeHtml(eventName)}</strong> is confirmed.</p>
-    ${amount ? '<div class="paid">Amount paid&nbsp;&nbsp;<b>€' + amount.toFixed(2) + '</b></div>' : ''}
-    ${itemsHtml}
-    ${guestCount ? '<div class="guest"><p>👥 <strong>+' + guestCount + ' Guest' + (guestCount > 1 ? 's' : '') + '</strong> included in your registration</p><p class="s">Your guest(s) can use the same QR code for check-in.</p></div>' : ''}
-    ${qrDataUrl ? `
-    <div class="ticket">
-        <div class="lbl">Your Check-in QR Code</div>
+    const qrBlock = qrDataUrl ? `
+        <div class="qrlabel" style="margin-top:28px;">Your check-in QR code</div>
         <div class="qrtile"><img id="qrImg" src="${qrDataUrl}" alt="Check-in QR Code" /></div>
-        ${regId ? `<div style="margin-top:13px;"><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:2px;color:#7c8aa3;">Manual check-in code</div><div style="font-family:'Courier New',monospace;font-size:17px;font-weight:700;letter-spacing:3px;color:#d9b978;margin-top:3px;">${String(regId).substring(0, 8).toUpperCase()}</div></div>` : ''}
-        <p class="hint">Present this code at the event entrance</p>
-        <button class="btn-gold" onclick="downloadQR()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download QR Code</button>
-    </div>` : ''}
-    <div class="email-note">
-        <p>✉️ A confirmation email with your QR code has been sent${customerEmail ? ' to <strong>' + escapeHtml(customerEmail) + '</strong>' : ''}.</p>
-        <p class="s">Check your spam folder if you don't see it within a few minutes.</p>
-    </div>
-    <a class="visit" href="https://medx.hr">Visit Med&X →</a>
-    <div class="foot">
-        Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organizing and delivering this event.<br>
-        <a href="/privacy">Privacy Policy</a> &nbsp;·&nbsp; <a href="/terms">Terms</a>
-    </div>
-</div>
-<script>
+        ${regId ? `<div class="mancode"><span class="mc-label">Manual check-in code</span>${String(regId).substring(0, 8).toUpperCase()}</div>` : ''}
+        <p class="lede" style="margin-top:14px;font-size:13.5px;max-width:340px;">Present this code at the event entrance.${guestCount ? ' Your guest' + (guestCount > 1 ? 's' : '') + ' can check in with the same code.' : ''}</p>` : '';
+
+    const successLede = `Your registration for <strong>${escapeHtml(eventName)}</strong> is confirmed. A confirmation email with your QR code has been sent${customerEmail ? ' to <strong>' + escapeHtml(customerEmail) + '</strong>' : ''}. If you don't see it within a few minutes, please check your spam folder.`;
+
+    res.send(premiumPage({
+        title: 'Registration Confirmed — Med&X',
+        tone: 'success',
+        kicker: 'Registration confirmed',
+        headline: "You're all set",
+        lede: successLede,
+        bodyHtml: `<div class="facts">${factsRows}</div>${qrBlock}<script>
 function downloadQR() {
     const img = document.getElementById('qrImg');
     const S = 2; // 2x resolution for crisp output
@@ -809,33 +878,24 @@ function downloadQR() {
         a.download = 'medx-qr-code.png'; a.href = canvas.toDataURL('image/png'); a.click();
     };
 }
-</script>
-</body></html>`);
+</script>`,
+        primary: qrDataUrl ? { label: 'Download QR code', onclick: 'downloadQR();return false;' } : { label: 'Visit Med&X', href: 'https://medx.hr' },
+        secondary: qrDataUrl ? { label: 'Visit Med&X', href: 'https://medx.hr' } : null,
+        fine: `Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for organizing and delivering this event.<br><a href="/privacy">Privacy Policy</a> &middot; <a href="/terms">Terms</a>`
+    }));
 });
 
 app.get('/invite-cancelled', (req, res) => {
-    res.send(`<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Payment Cancelled — Plexus 2026</title></head>
-<body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif;text-align:center;padding:20px;margin:0;">
-    <div style="max-width:440px;width:100%;">
-        <div style="width:80px;height:80px;border-radius:50%;background:rgba(245,158,11,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        </div>
-        <h1 style="color:#f59e0b;margin:0 0 8px;font-size:24px;">Payment Cancelled</h1>
-        <p style="color:#94a3b8;font-size:16px;margin-bottom:6px;line-height:1.55;">Your payment was not completed and no registration has been confirmed.</p>
-        <p style="color:#64748b;font-size:14px;margin-bottom:24px;">If this was unintentional, you can return to the invitation link and try again, or reach out below.</p>
-        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-            <a href="javascript:history.back()" style="display:inline-block;padding:12px 22px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">← Try Again</a>
-            <a href="mailto:laura.rodman@medx.hr" style="display:inline-block;padding:12px 22px;background:rgba(255,255,255,0.06);color:#c9a962;border:1px solid rgba(201,169,98,0.3);border-radius:10px;font-weight:600;text-decoration:none;">Contact Laura</a>
-        </div>
-        <div style="margin-top:28px;padding-top:18px;border-top:1px solid rgba(255,255,255,0.06);font-size:11px;color:#64748b;line-height:1.55;">
-            Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organizing and delivering this event.<br>
-            <a href="/privacy" style="color:#c9a962;text-decoration:none;">Privacy Policy</a> &nbsp;·&nbsp; <a href="/terms" style="color:#c9a962;text-decoration:none;">Terms</a>
-        </div>
-    </div>
-</body>
-</html>`);
+    res.send(premiumPage({
+        title: 'Payment Cancelled — Plexus 2026',
+        tone: 'alert',
+        kicker: 'Plexus 2026',
+        headline: 'Payment cancelled',
+        lede: `Your payment was not completed and no registration has been confirmed. If this was unintentional, you can return to the invitation link and try again, or reach out to us below.`,
+        primary: { label: 'Try again', href: 'javascript:history.back()' },
+        secondary: { label: 'Contact Laura', href: 'mailto:laura.rodman@medx.hr' },
+        fine: `Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for organizing and delivering this event.<br><a href="/privacy">Privacy Policy</a> &middot; <a href="/terms">Terms</a>`
+    }));
 });
 
 // ========== TERMS & PRIVACY (linked from invite pages) ==========
@@ -1516,7 +1576,7 @@ app.get('/invite/:data', async (req, res) => {
 
         // Check revocation — disabled invite links (see REVOKED_INVITE_IDS above)
         if (data.i && REVOKED_INVITE_IDS.has(data.i)) {
-            return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Disabled</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Link Disabled</h1><p style="color:#94a3b8;">This invitation link is no longer active. Please contact the Med&amp;X team if you believe this is an error.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
+            return res.send(linkNoticePage('Link no longer active', 'This invitation link is no longer active. If you believe this is an error, please contact the Med&X team.'));
         }
 
         // ========== CROATIANS ABROAD — dedicated multi-event flow ==========
@@ -1524,9 +1584,9 @@ app.get('/invite/:data', async (req, res) => {
             let caInvite = null;
             try { if (data.i) caInvite = query.get('SELECT * FROM croatians_abroad_invite_links WHERE id = ?', [data.i]); } catch(e) {}
             if (caInvite) {
-                if (caInvite.revoked) return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Link Disabled</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;padding:20px;"><div><h1 style="color:#ef4444;">Link Disabled</h1><p style="color:#94a3b8;">This invitation is no longer active.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
-                if (caInvite.expires_at && new Date(caInvite.expires_at) < new Date()) return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Link Expired</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;padding:20px;"><div><h1 style="color:#ef4444;">Link Expired</h1><p style="color:#94a3b8;">This invitation has expired.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
-                if (caInvite.max_uses != null && caInvite.used_count >= caInvite.max_uses) return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Link Used Up</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;padding:20px;"><div><h1 style="color:#ef4444;">Link No Longer Available</h1><p style="color:#94a3b8;">This invitation has reached its maximum number of uses.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
+                if (caInvite.revoked) return res.send(linkNoticePage('Link no longer active', 'This invitation is no longer active.'));
+                if (caInvite.expires_at && new Date(caInvite.expires_at) < new Date()) return res.send(linkNoticePage('Link expired', 'This invitation has expired.'));
+                if (caInvite.max_uses != null && caInvite.used_count >= caInvite.max_uses) return res.send(linkNoticePage('Link no longer available', 'This invitation has reached its maximum number of uses.'));
             }
 
             // Get live gala price for the Gala card on this page
@@ -1876,13 +1936,13 @@ async function submitCA(e) {
             } catch(e) { galaInvite = null; }
             if (galaInvite) {
                 if (galaInvite.revoked) {
-                    return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Disabled</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Link Disabled</h1><p style="color:#94a3b8;">This invitation link is no longer active. Please contact the Med&amp;X team if you believe this is an error.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
+                    return res.send(linkNoticePage('Link no longer active', 'This invitation link is no longer active. If you believe this is an error, please contact the Med&X team.'));
                 }
                 if (galaInvite.expires_at && new Date(galaInvite.expires_at) < new Date()) {
-                    return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Expired</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Link Expired</h1><p style="color:#94a3b8;">This invitation link has expired.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
+                    return res.send(linkNoticePage('Link expired', 'This invitation link has expired.'));
                 }
                 if (galaInvite.max_uses != null && galaInvite.used_count >= galaInvite.max_uses) {
-                    return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Used Up</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Link No Longer Available</h1><p style="color:#94a3b8;">This invitation link has reached its maximum number of uses. Please contact the Med&amp;X team for a new link.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
+                    return res.send(linkNoticePage('Link no longer available', 'This invitation link has reached its maximum number of uses. Please contact the Med&X team for a new link.'));
                 }
                 isVipInvite = (galaInvite.link_type === 'vip');
                 if (galaInvite.price_override != null) inviteLinkPriceOverride = Number(galaInvite.price_override);
@@ -1910,13 +1970,13 @@ async function submitCA(e) {
             try { regLink = query.get('SELECT * FROM registration_links WHERE token = ?', [data.t]); } catch(e) { regLink = null; }
             if (regLink) {
                 if (!regLink.is_active) {
-                    return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Disabled</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Link Disabled</h1><p style="color:#94a3b8;">This registration link is no longer active. Please contact the Med&amp;X team if you believe this is an error.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
+                    return res.send(linkNoticePage('Link no longer active', 'This registration link is no longer active. If you believe this is an error, please contact the Med&X team.'));
                 }
                 if (regLink.expires_at && new Date(regLink.expires_at) < new Date()) {
-                    return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Expired</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Link Expired</h1><p style="color:#94a3b8;">This registration link has expired.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
+                    return res.send(linkNoticePage('Link expired', 'This registration link has expired.'));
                 }
                 if (regLink.max_uses > 0 && regLink.uses >= regLink.max_uses) {
-                    return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Used Up</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Link No Longer Available</h1><p style="color:#94a3b8;">This registration link has reached its maximum number of uses. Please contact the Med&amp;X team for a new link.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&amp;X</a></div></body></html>`);
+                    return res.send(linkNoticePage('Link no longer available', 'This registration link has reached its maximum number of uses. Please contact the Med&X team for a new link.'));
                 }
                 // Unified link kind (works for ANY event): VIP → free + complimentary banner +
                 // skip Stripe; a price_override → fixed price. Applied to eventInfo.price after
@@ -1933,7 +1993,7 @@ async function submitCA(e) {
 
         // Check expiry (payload-embedded, used for legacy invites without DB record)
         if (expiresAt && new Date(expiresAt) < new Date()) {
-            return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Expired</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;"><div><h1 style="color:#ef4444;">Link Expired</h1><p style="color:#94a3b8;">This invitation link has expired.</p><a href="https://medx.hr" style="color:#c9a962;">Visit Med&X</a></div></body></html>`);
+            return res.send(linkNoticePage('Link expired', 'This invitation link has expired.'));
         }
 
         // Fetch LIVE event data from DB
@@ -2321,7 +2381,15 @@ async function submitCA(e) {
         res.send(html);
     } catch(e) {
         console.error('Invite page error:', e.message, e.stack);
-        res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Invitation Not Valid</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:system-ui;text-align:center;padding:20px;"><div style="max-width:480px;"><div style="width:64px;height:64px;border-radius:50%;background:rgba(239,68,68,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:28px;color:#ef4444;">!</div><h1 style="color:#fff;font-size:24px;margin-bottom:12px;font-weight:600;">Invitation link not valid</h1><p style="color:#94a3b8;line-height:1.6;margin-bottom:8px;">This invitation link appears to be invalid or has expired.</p><p style="color:#64748b;font-size:14px;line-height:1.6;margin-bottom:24px;">If you believe this is a mistake, please contact us with the original email and we'll resend you a working link.</p><div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;"><a href="https://medx.hr" style="display:inline-block;padding:12px 24px;background:rgba(255,255,255,0.06);color:#c9a962;border-radius:10px;font-weight:600;text-decoration:none;border:1px solid rgba(201,169,98,0.2);">Visit Med&amp;X</a><a href="mailto:laura.rodman@medx.hr?subject=Invalid%20invitation%20link%20-%20Plexus%202026" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Contact Laura</a></div></div><!-- debug: ${escapeHtml(e.message)} --></body></html>`);
+        res.send(premiumPage({
+            title: 'Invitation Not Valid — Med&X',
+            tone: 'alert',
+            kicker: 'Plexus 2026',
+            headline: 'This link is not valid',
+            lede: `This invitation link appears to be invalid or has expired. If you believe this is a mistake, please contact us with the original email and we'll resend you a working link.`,
+            primary: { label: 'Contact Laura', href: 'mailto:laura.rodman@medx.hr?subject=Invalid%20invitation%20link%20-%20Plexus%202026' },
+            secondary: { label: 'Visit Med&X', href: 'https://medx.hr' }
+        }) + `<!-- debug: ${escapeHtml(e.message)} -->`);
     }
 });
 
@@ -2915,8 +2983,11 @@ function auth(req, res, next) {
     if (token && token !== 'auto-login') {
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            const user = query.get("SELECT id, email, is_admin, password_changed_at FROM users WHERE id = ?", [decoded.id]);
+            const user = query.get("SELECT id, email, is_admin, password_changed_at, deleted_at FROM users WHERE id = ?", [decoded.id]);
             if (user) {
+                if (user.deleted_at) {
+                    return res.status(401).json({ error: 'This account has been closed.' });
+                }
                 if (tokenPredatesPasswordChange(user, decoded.iat)) {
                     return res.status(401).json({ error: 'Session expired, please sign in again' });
                 }
@@ -2998,6 +3069,11 @@ async function initializeApp() {
     // Set on password change/reset; auth rejects JWTs issued before this time so a reset
     // (or password change) invalidates all existing sessions — account-recovery hardening.
     try { db.run('ALTER TABLE users ADD COLUMN password_changed_at TEXT'); } catch (e) { /* column may already exist */ }
+    // Set when an account with paid registrations asks to be deleted: instead of a hard DELETE
+    // (which would strand paid financial records) we anonymize the PII and stamp deleted_at, so
+    // the legal/accounting record survives while the person is scrubbed. auth() rejects any user
+    // whose deleted_at is set. Nullable — only anonymized rows carry it.
+    try { db.run('ALTER TABLE users ADD COLUMN deleted_at TEXT'); } catch (e) { /* column may already exist */ }
 
     db.run(`CREATE TABLE IF NOT EXISTS conferences (
         id TEXT PRIMARY KEY, name TEXT NOT NULL, year INTEGER, slug TEXT UNIQUE,
@@ -7105,26 +7181,110 @@ async function initializeApp() {
     app.delete('/api/auth/account', auth, async (req, res) => {
         try {
             const userId = req.user.id;
-            // Remove from all related tables
-            db.run('DELETE FROM networking_connections WHERE requester_id = ? OR receiver_id = ?', [userId, userId]);
-            db.run('DELETE FROM networking_profiles WHERE user_id = ?', [userId]);
-            db.run('DELETE FROM networking_meetings WHERE requester_id = ? OR receiver_id = ?', [userId, userId]);
-            db.run('DELETE FROM direct_messages WHERE sender_id = ? OR receiver_id = ?', [userId, userId]);
-            db.run('DELETE FROM push_subscriptions WHERE user_id = ?', [userId]);
-            db.run('DELETE FROM user_notifications WHERE user_id = ?', [userId]);
-            db.run('DELETE FROM personal_schedules WHERE user_id = ?', [userId]);
-            db.run('DELETE FROM connections WHERE requester_id = ? OR receiver_id = ?', [userId, userId]);
-            db.run('DELETE FROM messages WHERE sender_id = ? OR receiver_id = ?', [userId, userId]);
-            db.run('DELETE FROM user_profiles WHERE user_id = ?', [userId]);
-            db.run('DELETE FROM channel_read_status WHERE user_id = ?', [userId]);
-            db.run('DELETE FROM chat_read_status WHERE user_id = ?', [userId]);
-            // Finally delete the user
+            if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+            // Social / relational rows carry no financial or legal value — always removed.
+            // Each is best-effort: a missing table or column on an older schema must not abort
+            // the account closure (the anonymize/delete below is the part that legally matters).
+            const tryRun = (sql, params) => { try { db.run(sql, params); } catch (e) { /* optional table */ } };
+            tryRun('DELETE FROM networking_connections WHERE requester_id = ? OR receiver_id = ?', [userId, userId]);
+            tryRun('DELETE FROM networking_profiles WHERE user_id = ?', [userId]);
+            tryRun('DELETE FROM networking_meetings WHERE requester_id = ? OR receiver_id = ?', [userId, userId]);
+            tryRun('DELETE FROM direct_messages WHERE sender_id = ? OR receiver_id = ?', [userId, userId]);
+            tryRun('DELETE FROM push_subscriptions WHERE user_id = ?', [userId]);
+            tryRun('DELETE FROM user_notifications WHERE user_id = ?', [userId]);
+            tryRun('DELETE FROM personal_schedules WHERE user_id = ?', [userId]);
+            tryRun('DELETE FROM connections WHERE requester_id = ? OR receiver_id = ?', [userId, userId]);
+            tryRun('DELETE FROM messages WHERE sender_id = ? OR receiver_id = ?', [userId, userId]);
+            tryRun('DELETE FROM user_profiles WHERE user_id = ?', [userId]);
+            tryRun('DELETE FROM channel_read_status WHERE user_id = ?', [userId]);
+            tryRun('DELETE FROM chat_read_status WHERE user_id = ?', [userId]);
+            tryRun('DELETE FROM notify_topics WHERE user_id = ?', [userId]);
+
+            // A paid event registration is a financial record Med&X must keep for its
+            // accounting and legal obligations. If any exist we cannot hard-delete the user
+            // row (that would strand the payment). Instead we anonymize: scrub the PII, disable
+            // sign-in, and stamp deleted_at. The registration + invoice + ledger rows survive,
+            // but no longer point at a living, identifiable person.
+            const paid = query.get(
+                "SELECT COUNT(*) AS c FROM registrations WHERE user_id = ? AND LOWER(COALESCE(payment_status,'')) = 'paid'",
+                [userId]
+            );
+            const hasPaid = (paid?.c || 0) > 0;
+
+            if (hasPaid) {
+                const nowIso = new Date().toISOString();
+                const anonEmail = `deleted-${userId}@deleted.medx.invalid`;
+                db.run(
+                    `UPDATE users SET
+                        email = ?, password_hash = NULL,
+                        first_name = 'Deleted', last_name = 'User',
+                        phone = NULL, institution = NULL, country = NULL,
+                        bio = NULL, photo_url = NULL,
+                        is_public_profile = 0, verification_token = NULL,
+                        deleted_at = ?, password_changed_at = ?
+                     WHERE id = ?`,
+                    [anonEmail, nowIso, nowIso, userId]
+                );
+                saveDb();
+                return res.json({
+                    success: true,
+                    anonymized: true,
+                    message: 'Your personal data has been erased. Because your account has paid event registrations, Med&X must keep the anonymized financial record for its legal and accounting obligations. You can no longer sign in to this account.'
+                });
+            }
+
+            // No paid registrations — delete outright, as before.
             db.run('DELETE FROM users WHERE id = ?', [userId]);
             saveDb();
-            res.json({ success: true, message: 'Account deleted' });
+            res.json({ success: true, anonymized: false, message: 'Account deleted' });
         } catch (error) {
             console.error('Error deleting account:', error);
             res.status(500).json({ error: 'Failed to delete account' });
+        }
+    });
+
+    // GDPR right of access (Art. 15) — a member downloads everything we hold about them as
+    // one JSON file: their account row (minus the password hash), their event registrations,
+    // their rewards-points ledger, and the project topics they follow. Read-only.
+    app.get('/api/auth/my-data', auth, (req, res) => {
+        try {
+            const userId = req.user.id;
+            if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+            const account = query.get(
+                `SELECT id, email, first_name, last_name, phone, institution, country, bio,
+                        photo_url, is_admin, is_public_profile, tier, email_verified,
+                        created_at, deleted_at
+                 FROM users WHERE id = ?`,
+                [userId]
+            ) || null;
+
+            let registrations = [];
+            try { registrations = query.all('SELECT * FROM registrations WHERE user_id = ? ORDER BY datetime(created_at) DESC', [userId]); } catch (e) {}
+
+            let pointsLedger = [];
+            try { pointsLedger = query.all('SELECT id, delta, reason, ref_id, note, created_at FROM points_ledger WHERE user_id = ? ORDER BY datetime(created_at) DESC', [userId]); } catch (e) {}
+
+            let notificationTopics = [];
+            try { notificationTopics = query.all('SELECT project_key, created_at FROM notify_topics WHERE user_id = ?', [userId]); } catch (e) {}
+
+            const payload = {
+                export_generated_at: new Date().toISOString(),
+                controller: 'Med&X Association (udruga), Mosećka 128, 21000 Split, Croatia',
+                note: 'This file contains the personal data Med&X holds about your member account. Payment card numbers are never stored by Med&X (they are handled by Stripe).',
+                account,
+                registrations,
+                points_ledger: pointsLedger,
+                notification_topics: notificationTopics
+            };
+
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.setHeader('Content-Disposition', 'attachment; filename="medx-my-data.json"');
+            res.send(JSON.stringify(payload, null, 2));
+        } catch (error) {
+            console.error('Error exporting user data:', error);
+            res.status(500).json({ error: 'Failed to export data' });
         }
     });
 
@@ -7446,7 +7606,14 @@ async function initializeApp() {
         const expired = user && user.reset_token_expires && new Date(user.reset_token_expires) < new Date();
 
         if (!user || expired) {
-            return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Link Expired</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:system-ui;text-align:center;padding:20px;"><div style="max-width:400px;"><h1 style="color:#ef4444;margin-bottom:12px;">Link Invalid or Expired</h1><p style="color:#94a3b8;font-size:15px;margin-bottom:24px;">This password reset link is no longer valid. Reset links expire after 1 hour.</p><a href="/" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border-radius:10px;font-weight:600;text-decoration:none;">Back to Med&amp;X</a></div></body></html>`);
+            return res.send(premiumPage({
+                title: 'Link Invalid or Expired — Med&X',
+                tone: 'alert',
+                kicker: 'Password reset',
+                headline: 'Link invalid or expired',
+                lede: `This password reset link is no longer valid. Reset links expire one hour after they are sent. Request a new link from the sign-in page.`,
+                primary: { label: 'Back to Med&X', href: '/' }
+            }));
         }
         res.send(`<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Reset Password — Med&X</title>
@@ -7715,6 +7882,9 @@ async function submitReset(e){
         return s || '/';
     }
     app.post('/api/public/pv', pvLimiter, express.text({ type: '*/*', limit: '2kb' }), (req, res) => {
+        // The global helmet CORP header (same-origin) blocks cross-origin beacon responses
+        // from the website origin — this endpoint is deliberately public and PII-free.
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
         try {
             // Do-Not-Track / Global Privacy Control — respected server-side too, not just in the client.
             if (req.headers['dnt'] === '1' || req.headers['sec-gpc'] === '1') return res.status(204).end();

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Med&X — Runbook (Continuity)</title>
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="assets/fonts/fonts.css">
+<link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+<style>
+/* ===========================================================
+   MED&X — RUNBOOK (CONTINUITY)
+   Emergency one-pager. Same cream/ink monograph as the Handbook.
+   =========================================================== */
+:root{
+  --paper:#fbf9f6; --paper-2:#f3efe9; --card:#ffffff;
+  --ink:#15110f; --ink-soft:#403a36; --muted:#6b6258;
+  --crimson:#9b1b22; --crimson-deep:#7e151b;
+  --gold:#c9a962; --line:#e2dcd3; --line-2:#d8d0c6;
+  --green:#15803d; --amber:#b45309; --danger:#b3261e;
+  --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif;
+  --ease:cubic-bezier(.16,1,.3,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);
+  font-size:16px;line-height:1.62;-webkit-font-smoothing:antialiased;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(21,17,15,.012) 0 1px, transparent 1px 8px),
+    repeating-linear-gradient(90deg, rgba(21,17,15,.008) 0 1px, transparent 1px 8px);}
+a{color:var(--crimson);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85em;
+  background:var(--paper-2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--crimson-deep)}
+
+.wrap{display:grid;grid-template-columns:270px minmax(0,1fr);max-width:1220px;margin:0 auto;min-height:100vh}
+.toc{position:sticky;top:0;height:100vh;overflow-y:auto;padding:34px 24px 40px;
+  border-right:1px solid var(--line);background:rgba(251,249,246,.72);backdrop-filter:blur(6px)}
+.toc .brand{display:flex;align-items:center;gap:11px;margin-bottom:24px}
+.toc .brand img{height:30px}
+.toc .brand .bt{font-family:var(--serif);font-weight:500;font-size:18px;letter-spacing:-.01em}
+.toc .kick{font-size:10.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--crimson);margin:0 0 14px}
+.toc a.toc-link{display:flex;gap:10px;align-items:baseline;padding:8px 10px;border-radius:9px;
+  color:var(--ink-soft);font-size:13.5px;font-weight:500;transition:all .18s var(--ease);margin-bottom:1px}
+.toc a.toc-link:hover{background:var(--paper-2);color:var(--ink);text-decoration:none}
+.toc a.toc-link.active{background:var(--ink);color:var(--paper)}
+.toc a.toc-link.active .tn{color:var(--gold)}
+.toc a.toc-link .tn{font-family:var(--serif);font-size:12.5px;color:var(--crimson);min-width:16px;flex:none}
+.toc .foot{margin-top:24px;padding-top:16px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.toc .foot a{font-weight:600}
+.emergency{margin-top:18px;background:#fbeceb;border:1px solid #eccbc8;border-radius:11px;padding:13px 14px}
+.emergency .et{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--danger);margin-bottom:6px}
+.emergency .en{font-size:12.5px;line-height:1.5;color:#6b2b26}
+.emergency .en b{color:#4a1c19}
+
+.content{padding:0 clamp(24px,5vw,68px) 110px}
+.masthead{padding:52px 0 30px;border-bottom:1px solid var(--line)}
+.masthead .eyebrow{font-size:11px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;
+  color:var(--crimson);display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.masthead .eyebrow::before{content:"";width:38px;height:1px;background:var(--crimson)}
+.masthead h1{font-family:var(--serif);font-weight:300;font-size:clamp(2.3rem,4.6vw,3.4rem);line-height:1;letter-spacing:-.02em}
+.masthead h1 em{font-style:italic;color:var(--crimson)}
+.masthead .sub{font-size:1.02rem;font-weight:300;color:var(--ink-soft);max-width:62ch;margin-top:14px}
+
+section.rb{padding:40px 0 8px;border-bottom:1px solid var(--line);scroll-margin-top:20px}
+section.rb:last-of-type{border-bottom:none}
+.rb-head{display:flex;gap:14px;align-items:baseline;margin-bottom:16px}
+.rb-num{font-family:var(--serif);font-weight:300;font-size:1.7rem;color:var(--crimson);line-height:1;flex:none}
+.rb-head h2{font-family:var(--serif);font-weight:400;font-size:clamp(1.4rem,2.5vw,1.9rem);letter-spacing:-.015em}
+
+/* fact table (as a definition grid, not an HTML table) */
+.facts{display:grid;gap:0;max-width:80ch;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card)}
+.facts .row{display:grid;grid-template-columns:200px 1fr;gap:0;border-bottom:1px solid var(--line)}
+.facts .row:last-child{border-bottom:none}
+.facts .k{padding:12px 16px;font-weight:600;font-size:13.5px;background:var(--paper-2);border-right:1px solid var(--line);color:var(--ink)}
+.facts .v{padding:12px 16px;font-size:13.5px;color:var(--ink-soft)}
+.facts .v b{color:var(--ink);font-weight:600}
+@media (max-width:620px){.facts .row{grid-template-columns:1fr}.facts .k{border-right:none;border-bottom:1px solid var(--line)}}
+
+ol.steps,ul.checks{max-width:78ch;display:grid;gap:11px;margin:4px 0 4px}
+ol.steps{list-style:none;counter-reset:step}
+ol.steps li{counter-increment:step;position:relative;padding:13px 16px 13px 50px;
+  background:var(--card);border:1px solid var(--line);border-radius:11px;font-size:14.5px;line-height:1.55}
+ol.steps li::before{content:counter(step);position:absolute;left:13px;top:12px;width:25px;height:25px;border-radius:50%;
+  background:var(--ink);color:var(--gold);font-family:var(--serif);font-size:12.5px;display:flex;align-items:center;justify-content:center}
+ul.checks{list-style:none}
+ul.checks li{padding:11px 16px 11px 42px;position:relative;background:var(--card);border:1px solid var(--line);border-radius:11px;font-size:14px;line-height:1.5}
+ul.checks li::before{content:"\f00c";font-family:"Font Awesome 6 Free";font-weight:900;color:var(--green);position:absolute;left:15px;top:12px;font-size:12px}
+li b,li strong{font-weight:600;color:var(--ink)}
+
+pre{max-width:80ch;background:#1a1613;color:#f3ede4;border-radius:12px;padding:16px 18px;overflow-x:auto;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.8px;line-height:1.7;margin:10px 0;border:1px solid #2c2621}
+pre .cmt{color:#b9a988}
+pre code{background:none;border:none;padding:0;color:inherit}
+
+.note{margin:16px 0;max-width:80ch;display:flex;gap:12px;align-items:flex-start;
+  border-radius:10px;padding:12px 15px;font-size:13.5px;line-height:1.55}
+.note i{font-size:15px;margin-top:2px;flex:none}
+.note.warn{background:#fdf6ec;border:1px solid #ecd9b6;border-left:3px solid var(--amber);color:#5c4a2c}
+.note.warn i{color:var(--amber)}
+.note.warn b{color:#4a3a1e}
+.note.stop{background:#fbeceb;border:1px solid #eccbc8;border-left:3px solid var(--danger);color:#6b2b26}
+.note.stop i{color:var(--danger)}
+.note.stop b{color:#4a1c19}
+.note.ok{background:#f4f7f5;border:1px solid #d6e3db;border-left:3px solid var(--green);color:#2f4a3a}
+.note.ok i{color:var(--green)}
+
+.statusbtns{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 4px}
+.statusbtns a{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;
+  background:var(--card);border:1px solid var(--line-2);border-radius:9px;padding:9px 14px;color:var(--ink)}
+.statusbtns a:hover{border-color:var(--crimson);text-decoration:none}
+.statusbtns a i{color:var(--gold)}
+
+@media (max-width:860px){
+  .wrap{grid-template-columns:1fr}
+  .toc{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line)}
+  .toc a.toc-link{display:inline-flex;margin:2px}
+  .toc .toc-list{display:flex;flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="toc">
+    <a class="brand" href="/" style="text-decoration:none;color:inherit">
+      <img src="assets/logo.png" alt="Med&X">
+      <span class="bt">Med&amp;X</span>
+    </a>
+    <p class="kick">Runbook &middot; Continuity</p>
+    <nav class="toc-list" id="tocNav">
+      <a class="toc-link" href="#map"><span class="tn">01</span> Where everything runs</a>
+      <a class="toc-link" href="#status"><span class="tn">02</span> Check that it's up</a>
+      <a class="toc-link" href="#down"><span class="tn">03</span> If the portal is down</a>
+      <a class="toc-link" href="#access"><span class="tn">04</span> Who has access</a>
+      <a class="toc-link" href="#backups"><span class="tn">05</span> Backups &amp; restore</a>
+      <a class="toc-link" href="#contacts"><span class="tn">06</span> Support contacts</a>
+    </nav>
+    <div class="emergency">
+      <div class="et">Portal down right now?</div>
+      <div class="en">Go to <b>section 03</b>. Most outages are Render "cold starts" (free tier sleeps after 15 min) — wait <b>~30 seconds</b> and reload before doing anything else.</div>
+    </div>
+    <div class="foot">
+      Looking for how-tos?<br>
+      <a href="/resources/handbook.html">Open the Handbook &rarr;</a>
+    </div>
+  </aside>
+
+  <!-- ================= CONTENT ================= -->
+  <main class="content">
+    <header class="masthead">
+      <div class="eyebrow">Emergency guide &middot; Keep this findable</div>
+      <h1>If something breaks, <em>start here</em></h1>
+      <p class="sub">One page that tells the next person where the Med&amp;X portal lives, how to tell if it's healthy, what to do when it isn't, and how to get the data back. No prior knowledge assumed.</p>
+    </header>
+
+    <!-- 01 MAP -->
+    <section class="rb" id="map">
+      <div class="rb-head"><span class="rb-num">01</span><h2>Where everything runs</h2></div>
+      <p style="max-width:70ch;color:var(--ink-soft);font-weight:300;margin-bottom:18px">The whole system is four moving parts. Two servers (the portals), one database, one code home. All free-tier or low-cost, all reachable from a browser.</p>
+      <div class="facts">
+        <div class="row"><div class="k">Member portal</div><div class="v"><b><a href="https://medx-user-portal.onrender.com" target="_blank" rel="noopener">medx-user-portal.onrender.com</a></b> — the app members log into. Runs on <b>Render</b> (service <code>medx-user-portal</code>, Node, free plan).</div></div>
+        <div class="row"><div class="k">Admin portal</div><div class="v">The team's control room. Runs on <b>Render</b> (service <code>medx-admin-portal</code>, Node, free plan). This handbook is served from it.</div></div>
+        <div class="row"><div class="k">Database</div><div class="v"><b>Turso</b> — cloud SQLite that holds every registration, member, and payment. Both portals share it in production via <code>TURSO_DATABASE_URL</code>.</div></div>
+        <div class="row"><div class="k">Marketing website</div><div class="v"><b>Netlify</b> — <a href="https://medx-website-preview.netlify.app" target="_blank" rel="noopener">medx-website-preview.netlify.app</a>. The public site, separate from the portals.</div></div>
+        <div class="row"><div class="k">Code</div><div class="v"><b>GitHub</b> — <a href="https://github.com/alen-ops99/medx-portal" target="_blank" rel="noopener">github.com/alen-ops99/medx-portal</a> (branch <code>main</code>). Pushing to <code>main</code> auto-deploys both Render services.</div></div>
+        <div class="row"><div class="k">Payments</div><div class="v"><b>Stripe</b> (card payments) and <b>FIRA</b> — <a href="https://app.fira.finance" target="_blank" rel="noopener">app.fira.finance</a> (Croatian invoicing). Keys live in Render's environment settings, not in the code.</div></div>
+        <div class="row"><div class="k">Secrets live in</div><div class="v"><b>Render dashboard &rarr; each service &rarr; Environment.</b> Stripe, FIRA, Turso, Resend (email), Publer, and VAPID keys are all set there. Never in GitHub.</div></div>
+      </div>
+      <div class="note ok"><i class="fas fa-diagram-project"></i><span>Plain version: <b>GitHub</b> is the recipe, <b>Render</b> cooks it into two live websites, <b>Turso</b> is the fridge that stores everything, <b>Netlify</b> is the public storefront.</span></div>
+    </section>
+
+    <!-- 02 STATUS -->
+    <section class="rb" id="status">
+      <div class="rb-head"><span class="rb-num">02</span><h2>Check that it's up</h2></div>
+      <p style="max-width:70ch;color:var(--ink-soft);font-weight:300;margin-bottom:14px">Two-minute health check, no login needed.</p>
+      <ol class="steps">
+        <li>Open the <b>member portal</b> in a browser. If the login screen loads, the app is up. (First hit after a quiet spell can take ~30s — that's the free-tier waking up, not a fault.)</li>
+        <li>Add <code>/health</code> to a portal address in the browser bar. A page that says <b>OK / healthy</b> means the server and database are talking. An error means the server is down or can't reach Turso.</li>
+        <li>Sign into the <b>admin portal &rarr; System Health</b> for the fuller picture — database, email, payments, and recent errors in one screen.</li>
+        <li>Open the <b>Render dashboard</b> — a green "Live" badge on each service is the source of truth. Red or "Deploy failed" tells you where to look.</li>
+      </ol>
+      <div class="statusbtns">
+        <a href="https://dashboard.render.com" target="_blank" rel="noopener"><i class="fas fa-gauge-high"></i> Render dashboard</a>
+        <a href="https://medx-user-portal.onrender.com/health" target="_blank" rel="noopener"><i class="fas fa-heart-pulse"></i> Member portal /health</a>
+        <a href="https://app.netlify.com" target="_blank" rel="noopener"><i class="fas fa-globe"></i> Netlify dashboard</a>
+        <a href="https://app.turso.tech" target="_blank" rel="noopener"><i class="fas fa-database"></i> Turso dashboard</a>
+      </div>
+    </section>
+
+    <!-- 03 DOWN -->
+    <section class="rb" id="down">
+      <div class="rb-head"><span class="rb-num">03</span><h2>If the portal is down</h2></div>
+      <p style="max-width:70ch;color:var(--ink-soft);font-weight:300;margin-bottom:14px">Work top to bottom. Stop as soon as it's back.</p>
+      <ol class="steps">
+        <li><b>Wait 30 seconds and reload.</b> The free tier sleeps after 15 minutes idle, and the first visitor wakes it. This is the single most common "outage" and it's not one.</li>
+        <li><b>Check <a href="https://dashboard.render.com" target="_blank" rel="noopener">Render</a>.</b> If the service is "Live" but slow, it's just waking. If it says <b>Deploy failed</b>, a recent code change broke the boot.</li>
+        <li><b>Read the logs.</b> In Render, open the service &rarr; <b>Logs</b>. The error at the bottom usually names the problem (a missing key, a database it can't reach).</li>
+        <li><b>Roll back if a deploy caused it.</b> In Render &rarr; the service &rarr; <b>Events / Manual Deploy</b>, choose <b>Rollback</b> to the last version that was Live. The portal comes back on the previous working code.</li>
+        <li><b>Restart if it's stuck.</b> Render &rarr; the service &rarr; <b>Manual Deploy &rarr; Clear build cache &amp; deploy</b>, or use <b>Restart</b>. Boots that crash on <code>/health</code> auto-roll-back, so a restart is safe.</li>
+        <li><b>Still down?</b> Check Turso (section 05) is reachable, then contact Alen (section 06) with a screenshot of the Render log.</li>
+      </ol>
+      <div class="note warn"><i class="fas fa-triangle-exclamation"></i><span><b>Don't</b> push new code to fix a live outage under pressure — <b>rollback first</b>, calm the fire, then fix properly. A push to <code>main</code> redeploys both portals.</span></div>
+      <div class="note ok"><i class="fas fa-shield-halved"></i><span>Safety net: Render only sends traffic to a new version once <code>/health</code> returns OK. A broken deploy keeps the old, working version live automatically.</span></div>
+    </section>
+
+    <!-- 04 ACCESS -->
+    <section class="rb" id="access">
+      <div class="rb-head"><span class="rb-num">04</span><h2>Who has access</h2></div>
+      <p style="max-width:70ch;color:var(--ink-soft);font-weight:300;margin-bottom:16px">Keep this list current — it's how a new person knows who to ask for a login.</p>
+      <div class="facts">
+        <div class="row"><div class="k">Render, Netlify, Turso, GitHub</div><div class="v"><b>Alen Juginovic</b> — owner of the hosting + code accounts. First call for infrastructure.</div></div>
+        <div class="row"><div class="k">Admin portal (Full admin)</div><div class="v">Alen, plus anyone granted <b>Full admin</b> in <b>Team Access</b>. Full admins can add or revoke others.</div></div>
+        <div class="row"><div class="k">Admin portal (Scanner staff)</div><div class="v">Event volunteers — check-in tools + System Health only. Added and removed in <b>Team Access</b>.</div></div>
+        <div class="row"><div class="k">Payments — Stripe</div><div class="v">Med&amp;X Stripe account (Alen). Refunds and payment history live in the Stripe dashboard.</div></div>
+        <div class="row"><div class="k">Invoicing — FIRA</div><div class="v"><a href="https://app.fira.finance" target="_blank" rel="noopener">app.fira.finance</a> — Med&amp;X account. Holds the secret key used for Croatian invoices.</div></div>
+      </div>
+      <div class="note warn"><i class="fas fa-key"></i><span>One person, one login. To give someone access, use <b>Team Access</b> in the admin portal (see the Handbook, task 10) — never share a password. When someone leaves, <b>Revoke</b> them the same day.</span></div>
+    </section>
+
+    <!-- 05 BACKUPS -->
+    <section class="rb" id="backups">
+      <div class="rb-head"><span class="rb-num">05</span><h2>Backups &amp; restore</h2></div>
+      <p style="max-width:70ch;color:var(--ink-soft);font-weight:300;margin-bottom:14px">All the real data (registrations, members, payments) lives in the <b>Turso</b> database. Backing it up means saving a copy of that database. Restoring means loading a copy back. You do this from a terminal with the Turso CLI.</p>
+      <p style="max-width:70ch;font-weight:600;font-size:13.5px;margin:14px 0 6px">First-time setup (once per computer):</p>
+      <pre><code><span class="cmt"># Install the Turso CLI, then log in</span>
+curl -sSfL https://get.tur.so/install.sh | bash
+turso auth login</code></pre>
+      <p style="max-width:70ch;font-weight:600;font-size:13.5px;margin:16px 0 6px">Make a backup (do this before anything risky):</p>
+      <pre><code><span class="cmt"># List databases to confirm the name</span>
+turso db list
+
+<span class="cmt"># Dump the live database to a timestamped file on your machine</span>
+turso db shell &lt;database-name&gt; .dump &gt; medx-backup-$(date +%Y%m%d).sql</code></pre>
+      <p style="max-width:70ch;font-weight:600;font-size:13.5px;margin:16px 0 6px">Restore from a backup (only if data was lost):</p>
+      <pre><code><span class="cmt"># SAFEST: create a NEW database from the dump and verify it first</span>
+turso db create medx-restore-test
+turso db shell medx-restore-test &lt; medx-backup-20260704.sql
+
+<span class="cmt"># Check the restored copy looks right, THEN point the portals at it</span>
+<span class="cmt"># by updating TURSO_DATABASE_URL in Render for both services.</span></code></pre>
+      <div class="note stop"><i class="fas fa-hand"></i><span><b>Never</b> overwrite the live database directly to "fix" it. Always restore into a <b>new</b> database, confirm it's correct, then switch the portals over in Render. If in doubt, back up first and call Alen before restoring.</span></div>
+      <div class="note ok"><i class="fas fa-clock-rotate-left"></i><span>Turso keeps its own point-in-time history on the dashboard — you can often recover a recent state there without a manual dump. Check <a href="https://app.turso.tech" target="_blank" rel="noopener">app.turso.tech</a> first.</span></div>
+    </section>
+
+    <!-- 06 CONTACTS -->
+    <section class="rb" id="contacts">
+      <div class="rb-head"><span class="rb-num">06</span><h2>Support contacts</h2></div>
+      <div class="facts">
+        <div class="row"><div class="k">Owner / first call</div><div class="v"><b>Alen Juginovic, MD</b> — <a href="mailto:juginovic.alen@gmail.com">juginovic.alen@gmail.com</a>. Everything infrastructure, payments, and access.</div></div>
+        <div class="row"><div class="k">Med&amp;X leadership</div><div class="v">Miro Vukovic, MD — <a href="mailto:vp@medx.hr">vp@medx.hr</a> &middot; Pjero Bacic, MD — <a href="mailto:pjero.bacic@medx.hr">pjero.bacic@medx.hr</a></div></div>
+        <div class="row"><div class="k">Hosting — Render</div><div class="v"><a href="https://render.com/docs" target="_blank" rel="noopener">render.com/docs</a> &middot; support via the Render dashboard.</div></div>
+        <div class="row"><div class="k">Database — Turso</div><div class="v"><a href="https://docs.turso.tech" target="_blank" rel="noopener">docs.turso.tech</a> &middot; dashboard at <a href="https://app.turso.tech" target="_blank" rel="noopener">app.turso.tech</a>.</div></div>
+        <div class="row"><div class="k">Website — Netlify</div><div class="v"><a href="https://app.netlify.com" target="_blank" rel="noopener">app.netlify.com</a> &middot; support via the Netlify dashboard.</div></div>
+        <div class="row"><div class="k">Payments</div><div class="v">Stripe — <a href="https://dashboard.stripe.com" target="_blank" rel="noopener">dashboard.stripe.com</a> &middot; FIRA — <a href="https://app.fira.finance" target="_blank" rel="noopener">app.fira.finance</a></div></div>
+      </div>
+      <footer style="padding:44px 0 0;color:var(--muted);font-size:13px;max-width:70ch">
+        <div style="height:1px;background:var(--line);margin-bottom:20px"></div>
+        Keep this page accurate. When a service, URL, or contact changes, update it here — in a real outage, this is the first thing the next person reads.
+        For day-to-day tasks, see the <a href="/resources/handbook.html">Operations Handbook</a>.
+      </footer>
+    </section>
+  </main>
+</div>
+
+<script>
+(function(){
+  const links = [...document.querySelectorAll('.toc-link')];
+  const map = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const sections = [...document.querySelectorAll('section.rb')];
+  const spy = () => {
+    let current = sections[0];
+    const y = window.scrollY + 140;
+    for (const s of sections){ if (s.offsetTop <= y) current = s; }
+    links.forEach(a => a.classList.remove('active'));
+    const active = map.get(current.id); if (active) active.classList.add('active');
+  };
+  window.addEventListener('scroll', spy, {passive:true});
+  window.addEventListener('resize', spy);
+  spy();
+})();
+</script>
+</body>
+</html>

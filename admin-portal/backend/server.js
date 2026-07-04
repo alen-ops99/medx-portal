@@ -7375,7 +7375,7 @@ async function initializeApp() {
     });
 
     app.get('/api/auth/me', auth, (req, res) => {
-        const user = query.get('SELECT id, email, first_name, last_name, phone, institution, country, bio, photo_url, is_admin, is_public_profile FROM users WHERE id = ?', [req.user.id]);
+        const user = query.get('SELECT id, email, first_name, last_name, phone, institution, country, bio, photo_url, is_admin, is_staff, is_public_profile FROM users WHERE id = ?', [req.user.id]);
         res.json(user);
     });
 

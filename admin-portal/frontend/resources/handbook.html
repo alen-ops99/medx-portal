@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Med&X — Operations Handbook</title>
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="assets/fonts/fonts.css">
+<link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+<style>
+/* ===========================================================
+   MED&X — OPERATIONS HANDBOOK
+   Plain-language internal guide. Cream/ink monograph,
+   Fraunces display, sticky sidebar TOC, gold hairlines.
+   =========================================================== */
+:root{
+  --paper:#fbf9f6; --paper-2:#f3efe9; --card:#ffffff;
+  --ink:#15110f; --ink-soft:#403a36; --muted:#6b6258;
+  --crimson:#9b1b22; --crimson-deep:#7e151b;
+  --gold:#c9a962; --line:#e2dcd3; --line-2:#d8d0c6;
+  --green:#15803d; --amber:#b45309;
+  --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif;
+  --ease:cubic-bezier(.16,1,.3,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);
+  font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(21,17,15,.012) 0 1px, transparent 1px 8px),
+    repeating-linear-gradient(90deg, rgba(21,17,15,.008) 0 1px, transparent 1px 8px);}
+a{color:var(--crimson);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ---- layout shell ------------------------------------------ */
+.wrap{display:grid;grid-template-columns:290px minmax(0,1fr);max-width:1240px;margin:0 auto;
+  min-height:100vh;gap:0}
+/* ---- sidebar TOC ------------------------------------------- */
+.toc{position:sticky;top:0;height:100vh;overflow-y:auto;padding:34px 26px 40px;
+  border-right:1px solid var(--line);background:rgba(251,249,246,.72);backdrop-filter:blur(6px)}
+.toc .brand{display:flex;align-items:center;gap:11px;margin-bottom:26px}
+.toc .brand img{height:30px;width:auto}
+.toc .brand .bt{font-family:var(--serif);font-weight:500;font-size:18px;letter-spacing:-.01em}
+.toc .kick{font-size:10.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--crimson);margin:0 0 14px}
+.toc a.toc-link{display:flex;gap:11px;align-items:baseline;padding:8px 10px;border-radius:9px;
+  color:var(--ink-soft);font-size:13.5px;font-weight:500;line-height:1.35;transition:all .18s var(--ease);
+  text-decoration:none;margin-bottom:1px}
+.toc a.toc-link:hover{background:var(--paper-2);color:var(--ink);text-decoration:none}
+.toc a.toc-link.active{background:var(--ink);color:var(--paper)}
+.toc a.toc-link.active .tn{color:var(--gold)}
+.toc a.toc-link .tn{font-family:var(--serif);font-weight:400;font-size:12.5px;color:var(--crimson);
+  min-width:18px;flex:none}
+.toc .foot{margin-top:26px;padding-top:18px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.toc .foot a{font-weight:600}
+
+/* ---- content ----------------------------------------------- */
+.content{padding:0 clamp(24px,5vw,72px) 120px}
+.masthead{padding:56px 0 34px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.masthead .eyebrow{font-size:11px;font-weight:700;letter-spacing:.26em;text-transform:uppercase;
+  color:var(--crimson);display:flex;align-items:center;gap:14px;margin-bottom:18px}
+.masthead .eyebrow::before{content:"";width:38px;height:1px;background:var(--crimson)}
+.masthead h1{font-family:var(--serif);font-weight:300;font-size:clamp(2.4rem,5vw,3.7rem);
+  line-height:1.0;letter-spacing:-.02em}
+.masthead h1 em{font-style:italic;color:var(--crimson)}
+.masthead .sub{font-size:1.05rem;font-weight:300;color:var(--ink-soft);max-width:60ch;margin-top:16px}
+.masthead .meta{margin-top:20px;display:flex;gap:10px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;
+  border:1px solid var(--line-2);border-radius:30px;padding:5px 13px;color:var(--ink-soft);background:var(--card)}
+.pill i{color:var(--gold)}
+
+/* section blocks */
+section.guide{padding:46px 0 8px;border-bottom:1px solid var(--line);scroll-margin-top:20px}
+section.guide:last-of-type{border-bottom:none}
+.g-head{display:flex;gap:18px;align-items:flex-start;margin-bottom:8px}
+.g-num{font-family:var(--serif);font-weight:300;font-size:clamp(1.8rem,3.4vw,2.6rem);
+  color:var(--crimson);line-height:1;flex:none;opacity:.9;min-width:1.6em}
+.g-head h2{font-family:var(--serif);font-weight:400;font-size:clamp(1.5rem,2.8vw,2.1rem);
+  line-height:1.08;letter-spacing:-.015em}
+.g-intro{color:var(--ink-soft);font-weight:300;font-size:1.02rem;max-width:66ch;margin:2px 0 24px;
+  padding-left:calc(1.6em + 18px)}
+.g-body{padding-left:calc(1.6em + 18px)}
+@media (max-width:720px){.g-intro,.g-body{padding-left:0}}
+
+/* numbered steps */
+ol.steps{list-style:none;counter-reset:step;display:grid;gap:12px;max-width:70ch}
+ol.steps li{counter-increment:step;position:relative;padding:14px 16px 14px 52px;
+  background:var(--card);border:1px solid var(--line);border-radius:12px;font-size:14.5px;line-height:1.55}
+ol.steps li::before{content:counter(step);position:absolute;left:14px;top:13px;
+  width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--gold);
+  font-family:var(--serif);font-size:13px;font-weight:500;display:flex;align-items:center;justify-content:center}
+ol.steps li b,ol.steps li strong{font-weight:600;color:var(--ink)}
+ol.steps li code, .content code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:.86em;background:var(--paper-2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--crimson-deep)}
+.chip{display:inline-block;font-family:var(--sans);font-size:11.5px;font-weight:600;
+  background:var(--paper-2);border:1px solid var(--line-2);border-radius:6px;padding:2px 8px;color:var(--ink-soft)}
+
+/* screenshot placeholder */
+.shot{margin:22px 0 4px;max-width:70ch;border:1.5px dashed var(--line-2);border-radius:14px;
+  background:repeating-linear-gradient(45deg,var(--paper-2) 0 10px,rgba(243,239,233,.5) 10px 20px);
+  min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;text-align:center;padding:26px;color:var(--muted)}
+.shot i{font-size:26px;color:var(--gold)}
+.shot .st{font-family:var(--serif);font-style:italic;font-size:14px;color:var(--ink-soft)}
+.shot .sc{font-size:12px;max-width:46ch}
+
+/* what can go wrong */
+.wrong{margin:20px 0 6px;max-width:70ch;display:flex;gap:13px;align-items:flex-start;
+  background:#fdf6ec;border:1px solid #ecd9b6;border-left:3px solid var(--amber);
+  border-radius:10px;padding:13px 16px}
+.wrong i{color:var(--amber);font-size:15px;margin-top:2px;flex:none}
+.wrong .wl{font-size:13.5px;line-height:1.55;color:#5c4a2c}
+.wrong .wl b{color:#4a3a1e}
+
+/* callout for boundary/rules */
+.note{margin:18px 0;max-width:70ch;display:flex;gap:13px;align-items:flex-start;
+  background:#f4f7f5;border:1px solid #d6e3db;border-left:3px solid var(--green);border-radius:10px;padding:13px 16px}
+.note i{color:var(--green);font-size:15px;margin-top:2px;flex:none}
+.note .nl{font-size:13.5px;line-height:1.55;color:#2f4a3a}
+
+.backbar{position:sticky;top:0;z-index:5;display:none}
+@media (max-width:860px){
+  .wrap{grid-template-columns:1fr}
+  .toc{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line)}
+  .toc a.toc-link{display:inline-flex;margin:2px}
+  .toc .toc-list{display:flex;flex-wrap:wrap}
+}
+.pathbar{font-size:12.5px;color:var(--muted);margin-bottom:16px;padding-left:calc(1.6em + 18px)}
+.pathbar .chip{margin:0 2px}
+@media (max-width:720px){.pathbar{padding-left:0}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ================= SIDEBAR TOC ================= -->
+  <aside class="toc">
+    <a class="brand" href="/" style="text-decoration:none;color:inherit">
+      <img src="assets/logo.png" alt="Med&X">
+      <span class="bt">Med&amp;X</span>
+    </a>
+    <p class="kick">Operations Handbook</p>
+    <nav class="toc-list" id="tocNav">
+      <a class="toc-link" href="#newsletter"><span class="tn">01</span> Send a newsletter</a>
+      <a class="toc-link" href="#outbox"><span class="tn">02</span> Approve outgoing email</a>
+      <a class="toc-link" href="#action-center"><span class="tn">03</span> The Action Center</a>
+      <a class="toc-link" href="#publer"><span class="tn">04</span> Post to social (Publer)</a>
+      <a class="toc-link" href="#ai-content"><span class="tn">05</span> Plan content with AI</a>
+      <a class="toc-link" href="#event-day"><span class="tn">06</span> Event day: scanning</a>
+      <a class="toc-link" href="#post-event"><span class="tn">07</span> After an event</a>
+      <a class="toc-link" href="#bank"><span class="tn">08</span> Upload the bank statement</a>
+      <a class="toc-link" href="#member-ops"><span class="tn">09</span> Edit what members see</a>
+      <a class="toc-link" href="#teammate"><span class="tn">10</span> Add a teammate</a>
+    </nav>
+    <div class="foot">
+      Need the emergency guide?<br>
+      <a href="/resources/runbook.html">Open the Runbook &rarr;</a>
+    </div>
+  </aside>
+
+  <!-- ================= CONTENT ================= -->
+  <main class="content">
+    <header class="masthead">
+      <div class="eyebrow">Internal guide &middot; For the team</div>
+      <h1>How to run the <em>Med&amp;X</em> portal</h1>
+      <p class="sub">A plain-language walkthrough of every job you'll do in the admin portal — written so you never have to guess. Pick a task on the left. Each one is a short list of steps, what the screen looks like, and the one thing to watch for.</p>
+      <div class="meta">
+        <span class="pill"><i class="fas fa-clock"></i> ~2 minutes per task</span>
+        <span class="pill"><i class="fas fa-shield-halved"></i> Nothing sends without your approval</span>
+        <span class="pill"><i class="fas fa-life-ring"></i> Stuck? Ping Alen</span>
+      </div>
+    </header>
+
+    <!-- 01 NEWSLETTER -->
+    <section class="guide" id="newsletter">
+      <div class="g-head"><span class="g-num">01</span><h2>Send a newsletter</h2></div>
+      <p class="g-intro">A newsletter is an email that goes to every member who has an account in the member portal. Use it for announcements, event invites, and monthly updates.</p>
+      <div class="pathbar">Where: <span class="chip">Newsletter</span> in the left sidebar</div>
+      <div class="g-body">
+        <ol class="steps">
+          <li>In the sidebar, click <b>Newsletter</b>.</li>
+          <li>Write a <b>subject line</b> (what shows in the inbox) and the <b>body</b>. Keep it short and warm — the portal adds the member's first name automatically.</li>
+          <li>Use the <b>Preview</b> panel on the right to read it exactly as a member will see it.</li>
+          <li>Click <b>Send</b> (or <b>Schedule</b> if you want it to go out later). It does not fire instantly — it is queued for approval in the outbox first.</li>
+          <li>Go to the outbox (task 02) and approve it. That is the moment it actually mails out.</li>
+        </ol>
+        <div class="shot"><i class="fas fa-image"></i><span class="st">Screenshot placeholder</span><span class="sc">Newsletter composer with the subject field, body editor, and the live Preview card on the right.</span></div>
+        <div class="wrong"><i class="fas fa-triangle-exclamation"></i><span class="wl"><b>What can go wrong:</b> a newsletter looks "sent" but sits unsent because nobody approved it in the outbox. Always finish in the outbox.</span></div>
+      </div>
+    </section>
+
+    <!-- 02 OUTBOX -->
+    <section class="guide" id="outbox">
+      <div class="g-head"><span class="g-num">02</span><h2>Approve outgoing email (the outbox)</h2></div>
+      <p class="g-intro">The outbox is the safety gate. Every email the portal wants to send — newsletters, event replies, the post-event round — waits here until a human approves it. Nothing leaves Med&amp;X without a click.</p>
+      <div class="pathbar">Where: the <span class="chip">Outbox</span> panel (dashboard and inside Message members)</div>
+      <div class="g-body">
+        <ol class="steps">
+          <li>Open the <b>Outbox</b>. You'll see a list of emails waiting, each with the recipient and a preview.</li>
+          <li>Click one to <b>read the full message</b>. Check the name, the greeting, and any dates or prices.</li>
+          <li>If it's right, click <b>Approve</b> — that sends it. If it's wrong, click <b>Discard</b> and fix the source (e.g. the newsletter or the reply).</li>
+          <li>Approve them one by one for important mail, or use <b>Approve all</b> once you've skimmed the batch.</li>
+        </ol>
+        <div class="note"><i class="fas fa-lock"></i><span class="nl"><b>The rule:</b> the outbox is the only door email leaves through. AI drafts, bulk emails, and the post-event round all land here first — approving is always the final human step.</span></div>
+        <div class="shot"><i class="fas fa-image"></i><span class="st">Screenshot placeholder</span><span class="sc">Outbox list with pending emails, each showing recipient + preview and Approve / Discard buttons.</span></div>
+        <div class="wrong"><i class="fas fa-triangle-exclamation"></i><span class="wl"><b>What can go wrong:</b> clicking <b>Approve all</b> without reading sends every draft, including ones half-written. Skim each recipient first.</span></div>
+      </div>
+    </section>
+
+    <!-- 03 ACTION CENTER -->
+    <section class="guide" id="action-center">
+      <div class="g-head"><span class="g-num">03</span><h2>The Action Center</h2></div>
+      <p class="g-intro">The Action Center is the to-do list at the top of the dashboard. It watches the whole portal and surfaces the few things that actually need you today — an unpaid registration, a member message, a sponsor to follow up. If it's empty, you're caught up.</p>
+      <div class="pathbar">Where: top of the <span class="chip">Dashboard</span> (the home screen)</div>
+      <div class="g-body">
+        <ol class="steps">
+          <li>Open the <b>Dashboard</b> — the Action Center sits at the top with a count badge.</li>
+          <li>Read each item. It tells you what happened and what to do (for example, "3 registrations paid by bank transfer — confirm them").</li>
+          <li>Click the item's <b>button</b> to jump straight to the screen that fixes it.</li>
+          <li>Do the task, come back, and the item disappears on its own.</li>
+        </ol>
+        <div class="shot"><i class="fas fa-image"></i><span class="st">Screenshot placeholder</span><span class="sc">Dashboard with the Action Center card at top, a numbered badge, and a short worklist with jump buttons.</span></div>
+        <div class="wrong"><i class="fas fa-triangle-exclamation"></i><span class="wl"><b>What can go wrong:</b> ignoring the Action Center means paid attendees stay marked "unpaid" and members wait for replies. Clear it daily during event season.</span></div>
+      </div>
+    </section>
+
+    <!-- 04 PUBLER -->
+    <section class="guide" id="publer">
+      <div class="g-head"><span class="g-num">04</span><h2>Post to social (Publer)</h2></div>
+      <p class="g-intro">Social posts are written and approved inside the portal, then handed to <b>Publer</b> — the tool that actually schedules them onto Instagram, LinkedIn, and the rest. The portal never posts to social directly. Publer is the doorway, exactly like the outbox is for email.</p>
+      <div class="pathbar">Where: <span class="chip">PR &amp; Media</span> in the sidebar</div>
+      <div class="g-body">
+        <ol class="steps">
+          <li>Go to <b>PR &amp; Media</b> and open the post you want (or draft a new one, on your own or with AI).</li>
+          <li>Check the caption and image. Fix anything before it goes out.</li>
+          <li>Click <b>Approve &amp; send to Publer</b>. The post moves into Publer's schedule.</li>
+          <li>Finish the timing in <b>Publer</b> itself (log in at publer.com) — pick the exact day, time, and channels there.</li>
+        </ol>
+        <div class="note"><i class="fas fa-plug"></i><span class="nl"><b>If you see "Publer: not connected":</b> the link needs an API key. That's a one-time setup on Render (<code>PUBLER_API_KEY</code> + <code>PUBLER_WORKSPACE_ID</code>) — see the Runbook or ask Alen. Until then, approved posts are saved but not scheduled.</span></div>
+        <div class="shot"><i class="fas fa-image"></i><span class="st">Screenshot placeholder</span><span class="sc">PR &amp; Media post card with caption, image, and the "Approve &amp; send to Publer" button.</span></div>
+        <div class="wrong"><i class="fas fa-triangle-exclamation"></i><span class="wl"><b>What can go wrong:</b> approving in the portal is not the same as it being live — the post still needs a day/time set in Publer, or it just sits as a draft there.</span></div>
+      </div>
+    </section>
+
+    <!-- 05 AI CONTENT -->
+    <section class="guide" id="ai-content">
+      <div class="g-head"><span class="g-num">05</span><h2>Plan content with AI</h2></div>
+      <p class="g-intro">The Content studio uses AI to draft newsletters, social captions, and replies for you. It writes the first version — you always read, edit, and approve. Think of it as a fast intern, not an autopilot.</p>
+      <div class="pathbar">Where: <span class="chip">Content studio</span> in the sidebar</div>
+      <div class="g-body">
+        <ol class="steps">
+          <li>Open <b>Content studio</b> and tell it what you need — for example, "a warm newsletter announcing the Gala, 150 words."</li>
+          <li>Let it draft. Read the result carefully and <b>edit</b> the tone, facts, dates, and names.</li>
+          <li>Send the draft where it belongs — into a newsletter, a social post, or a reply.</li>
+          <li>It still passes through the normal gate: email waits in the <b>outbox</b>, social waits for <b>Publer</b>. Approve it there.</li>
+        </ol>
+        <div class="shot"><i class="fas fa-image"></i><span class="st">Screenshot placeholder</span><span class="sc">Content studio with a prompt box, the AI draft, and buttons to push it to a newsletter or social post.</span></div>
+        <div class="wrong"><i class="fas fa-triangle-exclamation"></i><span class="wl"><b>What can go wrong:</b> AI can invent a date, a price, or a speaker name. Never approve a draft you haven't fact-checked against the real details.</span></div>
+      </div>
+    </section>
+
+    <!-- 06 EVENT DAY -->
+    <section class="guide" id="event-day">
+      <div class="g-head"><span class="g-num">06</span><h2>Event day: scanning + check-in</h2></div>
+      <p class="g-intro">At the door you check people in by scanning the QR code on their ticket. It works on a phone, and it keeps working even if the venue wifi drops — scans queue up and sync when you're back online.</p>
+      <div class="pathbar">Where: the round <span class="chip"><i class="fas fa-qrcode"></i> QR</span> button (bottom-right, on every screen)</div>
+      <div class="g-body">
+        <ol class="steps">
+          <li>Sign in on your phone and tap the <b>QR scanner</b> button (bottom-right corner). Scanner staff see this the moment they log in.</li>
+          <li>Point the camera at the attendee's <b>ticket QR</b>. A <b>green check</b> means they're in. A <b>red</b> one means already used or wrong event.</li>
+          <li>No QR? Tap <b>Search</b>, type their name or email, and check them in by hand.</li>
+          <li>Watch the live <b>checked-in count</b> so you know the room total at a glance.</li>
+          <li>If wifi drops, keep scanning — a small badge shows queued scans that sync automatically once you reconnect.</li>
+        </ol>
+        <div class="note"><i class="fas fa-user-shield"></i><span class="nl"><b>Give volunteers the "Scanner staff" role</b> (task 10). They get the scanner and nothing else — no finances, no settings, no deletions.</span></div>
+        <div class="shot"><i class="fas fa-image"></i><span class="st">Screenshot placeholder</span><span class="sc">Phone camera view scanning a ticket QR, with a green success check and the live checked-in counter.</span></div>
+        <div class="wrong"><i class="fas fa-triangle-exclamation"></i><span class="wl"><b>What can go wrong:</b> a red screen usually means the ticket was already scanned — check the name before waving someone through twice.</span></div>
+      </div>
+    </section>
+
+    <!-- 07 POST-EVENT -->
+    <section class="guide" id="post-event">
+      <div class="g-head"><span class="g-num">07</span><h2>After an event: the post-event round</h2></div>
+      <p class="g-intro">Once an event is over, the portal helps you close it out — thank-you emails to everyone who came, a nudge to no-shows, and a short feedback question. It drafts the whole round, and you review and approve.</p>
+      <div class="pathbar">Where: <span class="chip">Message members</span> / the event's page, then the <span class="chip">Outbox</span></div>
+      <div class="g-body">
+        <ol class="steps">
+          <li>Open the event and start the <b>post-event round</b> (thank-you + feedback).</li>
+          <li>The portal drafts each part — a thank-you for attendees, a "sorry we missed you" for no-shows, and a feedback ask.</li>
+          <li>Every draft is staged in the <b>outbox</b>. Read them, edit if needed.</li>
+          <li>Approve in the outbox to send. Nothing goes out until you do.</li>
+        </ol>
+        <div class="shot"><i class="fas fa-image"></i><span class="st">Screenshot placeholder</span><span class="sc">Post-event round view showing the three staged messages queued in the outbox for approval.</span></div>
+        <div class="wrong"><i class="fas fa-triangle-exclamation"></i><span class="wl"><b>What can go wrong:</b> the thank-you goes to attendees and the nudge goes to no-shows — if check-in was sloppy, the wrong people get the wrong note. Confirm the door scans were clean first.</span></div>
+      </div>
+    </section>
+
+    <!-- 08 BANK -->
+    <section class="guide" id="bank">
+      <div class="g-head"><span class="g-num">08</span><h2>Upload the bank statement</h2></div>
+      <p class="g-intro">Some people pay by bank transfer, so the portal can't see the money automatically. You upload the bank's CSV file and the portal matches each payment to the right registration, so those people finally show as "paid".</p>
+      <div class="pathbar">Where: <span class="chip">Finances</span> &rarr; <span class="chip">Reconcile Payments</span> tab</div>
+      <div class="g-body">
+        <ol class="steps">
+          <li>Export a <b>CSV statement</b> from the bank (online banking &rarr; export transactions).</li>
+          <li>In the portal go to <b>Finances &rarr; Reconcile Payments</b> and click <b>Choose file</b>. Croatian exports (semicolons, comma decimals) are detected automatically.</li>
+          <li>Check the <b>column mapping</b> — Date, Amount, Payer, Reference — using the little preview table.</li>
+          <li>Click <b>Import &amp; Match</b>. The portal lines each transfer up with an unpaid registration.</li>
+          <li>Confirm each match with one click. That marks the person paid and triggers their invoice.</li>
+        </ol>
+        <div class="shot"><i class="fas fa-image"></i><span class="st">Screenshot placeholder</span><span class="sc">Reconcile Payments tab: file picker, the column-mapping dropdowns, and the 5-row preview table.</span></div>
+        <div class="wrong"><i class="fas fa-triangle-exclamation"></i><span class="wl"><b>What can go wrong:</b> if the Amount column is mapped to the wrong field, matches fail or attach to the wrong person. Always eyeball the preview before <b>Import &amp; Match</b>.</span></div>
+      </div>
+    </section>
+
+    <!-- 09 MEMBER OPS -->
+    <section class="guide" id="member-ops">
+      <div class="g-head"><span class="g-num">09</span><h2>Edit what members see (Member Ops + Content studio)</h2></div>
+      <p class="g-intro">Two screens control the member experience. <b>Member Ops</b> is people — approve new members, edit accounts, help with access. <b>Content studio</b> / <b>Portal Content</b> is the pages and cards members see when they log in.</p>
+      <div class="pathbar">Where: <span class="chip">Member Ops</span> and <span class="chip">Content studio</span> / <span class="chip">Portal Content</span></div>
+      <div class="g-body">
+        <ol class="steps">
+          <li>Open <b>Member Ops</b> to see the member list. Approve pending sign-ups, and fix a name or email when someone asks.</li>
+          <li>Open <b>Content studio</b> / <b>Portal Content</b> to edit the text, cards, and event pages members see inside their portal.</li>
+          <li>Make your change and <b>Save</b>. Members see updates the next time they open that page.</li>
+          <li>Not sure it looks right? Open the member portal yourself and check the page as a member would.</li>
+        </ol>
+        <div class="shot"><i class="fas fa-image"></i><span class="st">Screenshot placeholder</span><span class="sc">Member Ops list of members with approve/edit controls, next to the Content studio page editor.</span></div>
+        <div class="wrong"><i class="fas fa-triangle-exclamation"></i><span class="wl"><b>What can go wrong:</b> editing member content is live — a typo in a card shows to everyone immediately. Re-read before you save, then check the member view.</span></div>
+      </div>
+    </section>
+
+    <!-- 10 TEAMMATE -->
+    <section class="guide" id="teammate">
+      <div class="g-head"><span class="g-num">10</span><h2>Add a teammate</h2></div>
+      <p class="g-intro">Give someone their own login so they can help — either a <b>Scanner staff</b> account (door check-in only) or a <b>Full admin</b> account (everything). Each person gets their own email and password. Never share one login.</p>
+      <div class="pathbar">Where: <span class="chip">Team Access</span> in the sidebar (under "System")</div>
+      <div class="g-body">
+        <ol class="steps">
+          <li>In the sidebar, click <b>Team Access</b>.</li>
+          <li>In <b>Add or update a team member</b>, type their <b>email</b> and <b>first name</b>.</li>
+          <li>Pick a <b>role</b>: <span class="chip">Scanner staff</span> for door volunteers (check-in tools + System Health only), or <span class="chip">Full admin</span> for a co-organiser who needs everything.</li>
+          <li>Set a starter <b>password</b> (6+ characters). They'll use it to log in — they can change it later.</li>
+          <li>Click <b>Save member</b>. They appear in the list below with a role badge. Send them the login link, their email, and the password.</li>
+          <li>When someone leaves, click <b>Revoke</b> next to their name to remove all access instantly.</li>
+        </ol>
+        <div class="note"><i class="fas fa-circle-info"></i><span class="nl"><b>What each role can do:</b> <b>Scanner staff</b> see only the QR scanner and System Health — no finances, settings, member data, or deletions. <b>Full admin</b> can do everything you can. Default to Scanner staff unless they truly need more.</span></div>
+        <div class="shot"><i class="fas fa-image"></i><span class="st">Screenshot placeholder</span><span class="sc">Team Access form (Email, First name, Role, Password) with the team list and ADMIN / SCANNER STAFF badges below.</span></div>
+        <div class="wrong"><i class="fas fa-triangle-exclamation"></i><span class="wl"><b>What can go wrong:</b> a new member needs a password (6+ chars) — leave it blank and the save fails. And you can't revoke your own account, so you never lock yourself out.</span></div>
+      </div>
+    </section>
+
+    <footer style="padding:52px 0 0;color:var(--muted);font-size:13px;max-width:70ch">
+      <div style="height:1px;background:var(--line);margin-bottom:22px"></div>
+      This handbook lives inside the admin portal. When a screen changes, update it here so the next person still has a map.
+      For anything urgent or broken, open the <a href="/resources/runbook.html">Runbook</a> or contact Alen Juginovic.
+    </footer>
+  </main>
+</div>
+
+<script>
+// Scroll-spy: highlight the TOC link for the section in view.
+(function(){
+  const links = [...document.querySelectorAll('.toc-link')];
+  const map = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const sections = [...document.querySelectorAll('section.guide')];
+  const spy = () => {
+    let current = sections[0];
+    const y = window.scrollY + 140;
+    for (const s of sections){ if (s.offsetTop <= y) current = s; }
+    links.forEach(a => a.classList.remove('active'));
+    const active = map.get(current.id); if (active) active.classList.add('active');
+  };
+  window.addEventListener('scroll', spy, {passive:true});
+  window.addEventListener('resize', spy);
+  spy();
+})();
+</script>
+</body>
+</html>

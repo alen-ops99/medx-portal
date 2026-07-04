@@ -62678,6 +62678,9 @@ button,input,select,textarea{font-family:var(--sans);}
                             <p style="font-size: 12px; color: var(--up-text-muted); text-align: center; margin-top: 12px;">
                                 <i class="fas fa-info-circle"></i> The Gala Evening is an exclusive, limited-capacity event. Your registration will be reviewed and you'll receive a confirmation email once approved.
                             </p>
+                            <p style="font-size: 12px; color: var(--up-text-muted); text-align: center; margin-top: 8px;">
+                                By registering you agree to Med&X's <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('terms');" style="color: var(--up-gold);">Terms &amp; Conditions</a> and <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('refund');" style="color: var(--up-gold);">Refund Policy</a>. Registration fees are non-refundable.
+                            </p>
                         </div>
                     </div>
 
@@ -67093,7 +67096,7 @@ button,input,select,textarea{font-family:var(--sans);}
 
                                 <div class="settings-card settings-card-danger">
                                     <h3>Delete Account</h3>
-                                    <p class="settings-card-desc">Permanently delete your account and all associated data. This action cannot be undone.</p>
+                                    <p class="settings-card-desc">Erases your personal data and closes your account for good. If you have paid event registrations, Med&X keeps the anonymized payment record for its legal and accounting obligations — your name and contact details are removed either way. This cannot be undone.</p>
                                     <button class="settings-btn-danger" onclick="SettingsPortal.deleteAccount()">
                                         <i class="fas fa-trash-alt"></i> Delete Account
                                     </button>
@@ -78447,30 +78450,22 @@ You can use variables like {first_name} that will be personalized for each recip
                         title: 'Refund Policy',
                         body: `
                             <div style="font-size: 14px; line-height: 1.7; color: var(--up-text, #334155);">
-                                <p style="margin-bottom: 12px; padding: 10px 12px; background: #fef3c7; border-left: 3px solid var(--gold); border-radius: 4px; font-size: 13px;"><strong>Note:</strong> This is a placeholder refund policy pending legal review. / <em>Napomena: ovo je privremeni tekst u očekivanju pravne revizije.</em></p>
-                                <p style="margin-bottom: 16px;"><strong>Last updated:</strong> April 2026</p>
+                                <p style="margin-bottom: 16px;"><strong>Last updated:</strong> 4 July 2026</p>
 
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">1. Event Registration Refunds</h3>
-                                <p style="margin-bottom: 12px;">Refund requests for Med&X event registrations (including Plexus Conference and Forum events) must be submitted in writing to <a href="mailto:registration@medx.hr" style="color: var(--up-gold);">registration@medx.hr</a> at least 30 days before the event start date.</p>
+                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">1. Registration fees are non-refundable</h3>
+                                <p style="margin-bottom: 12px;">All registration and ticket fees for Med&X events — including the Plexus Conference, the Plexus Gala Evening, and the Biomedical Forum — are <strong>non-refundable</strong>. Accelerator application processing fees are likewise non-refundable.</p>
 
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">2. Refund Schedule</h3>
-                                <ul style="margin-bottom: 12px; padding-left: 20px;">
-                                    <li>More than 60 days before event: full refund less a 10% administrative fee.</li>
-                                    <li>30–60 days before event: 50% refund.</li>
-                                    <li>Less than 30 days before event: no refund, but your registration may be transferred to another attendee (name change fee may apply).</li>
-                                </ul>
+                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">2. Transferring your place</h3>
+                                <p style="margin-bottom: 12px;">If you are unable to attend, you may transfer your place to another individual by emailing <a href="mailto:info@medx.hr" style="color: var(--up-gold);">info@medx.hr</a> at least 14 days before the event, subject to Med&X approval.</p>
 
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">3. Event Cancellation by Med&amp;X</h3>
-                                <p style="margin-bottom: 12px;">If Med&amp;X cancels or postpones an event, attendees will be offered either a full refund or transfer to the rescheduled event. Med&amp;X is not responsible for travel, accommodation, or other incidental costs incurred.</p>
+                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">3. If Med&amp;X cancels an event</h3>
+                                <p style="margin-bottom: 12px;">If Med&X cancels an event, paid registration fees are refunded in full within 30 days. If an event is postponed, your registration is applied to the rescheduled date, or refunded in full at your request. Med&X is not responsible for travel, accommodation, or other incidental costs.</p>
 
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">4. EU Consumer Rights (where applicable)</h3>
-                                <p style="margin-bottom: 12px;">For consumers in the European Union, the 14-day right of withdrawal under Directive 2011/83/EU does <strong>not</strong> apply to event tickets tied to a specific date. You may however cancel under sections 1–2 above.</p>
+                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">4. EU consumer rights</h3>
+                                <p style="margin-bottom: 12px;">For consumers in the European Union, the 14-day right of withdrawal under Directive 2011/83/EU does <strong>not</strong> apply to tickets for events tied to a specific date.</p>
 
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">5. Processing Time</h3>
-                                <p style="margin-bottom: 12px;">Approved refunds are processed within 10 business days to the original payment method. Bank transfer refunds may take additional time depending on your bank.</p>
-
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">6. Contact</h3>
-                                <p>To request a refund or ask questions, contact <a href="mailto:registration@medx.hr" style="color: var(--up-gold);">registration@medx.hr</a>.</p>
+                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">5. Contact</h3>
+                                <p>For any questions about this policy, contact <a href="mailto:info@medx.hr" style="color: var(--up-gold);">info@medx.hr</a>.</p>
                             </div>
                         `
                     }
@@ -86835,6 +86830,9 @@ You can use variables like {first_name} that will be personalized for each recip
                             Pay Later
                         </button>
                         <p style="font-size: 11px; color: var(--up-text-muted); margin-top: 12px;">
+                            By paying you agree to Med&X's <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('terms');" style="color: var(--up-gold);">Terms &amp; Conditions</a> and <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('refund');" style="color: var(--up-gold);">Refund Policy</a>. The processing fee is non-refundable.
+                        </p>
+                        <p style="font-size: 11px; color: var(--up-text-muted); margin-top: 8px;">
                             Your application will remain in "Pending Payment" status until the fee is paid. You can pay later from the "My Applications" tab.
                         </p>
                     </div>
@@ -96408,13 +96406,27 @@ ${'='.repeat(70)}
                     type: 'danger',
                     icon: 'fa-user-times',
                     title: 'Delete Account?',
-                    message: 'This will permanently delete all your data. This action cannot be undone.',
+                    message: 'This erases your personal data and signs you out for good. If you have any paid event registrations, Med&X must keep the anonymized payment record for its legal and accounting obligations — your name and contact details are removed either way. This cannot be undone.',
                     confirmText: 'Delete My Account',
                     cancelText: 'Keep Account'
                 });
                 if (!confirmed) return;
-                // TODO: Send delete request to backend
-                Toast.info('Account deletion requested. (Demo mode - no action taken)');
+                try {
+                    const token = localStorage.getItem('medx_user_token') || UserPortal.token;
+                    const res = await fetch('/api/auth/account', {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                        Toast.error(data.error || 'Could not delete your account. Please contact info@medx.hr.');
+                        return;
+                    }
+                    Toast.success(data.message || 'Your account has been deleted.');
+                    setTimeout(() => { try { UserPortal.logout(); } catch (e) { location.href = '/'; } }, 2200);
+                } catch (e) {
+                    Toast.error('Could not reach the server. Please try again or contact info@medx.hr.');
+                }
             },
 
             loadThemeSetting() {
@@ -96504,8 +96516,29 @@ ${'='.repeat(70)}
                 }
             },
 
-            downloadData() {
-                Toast.info('Your data export is being prepared. You will receive an email with a download link shortly. (Demo mode)');
+            async downloadData() {
+                try {
+                    const token = localStorage.getItem('medx_user_token') || UserPortal.token;
+                    const res = await fetch('/api/auth/my-data', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (!res.ok) {
+                        Toast.error('Could not prepare your data export. Please contact info@medx.hr.');
+                        return;
+                    }
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'medx-my-data.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                    Toast.success('Your data has been downloaded.');
+                } catch (e) {
+                    Toast.error('Could not reach the server. Please try again or contact info@medx.hr.');
+                }
             },
 
             // Session Management
