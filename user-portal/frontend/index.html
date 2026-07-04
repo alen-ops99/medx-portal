@@ -76361,7 +76361,11 @@ You can use variables like {first_name} that will be personalized for each recip
                       + '<div style="font-size:13px;color:var(--muted);">Active member</div></div>'
                     + '</div>'
                     + '<div id="mymedxMembershipMeta"></div>'
-                    + badgesHtml;
+                    + badgesHtml
+                    + '<div style="margin-top:18px;display:flex;flex-direction:column;gap:6px;align-items:flex-start;">'
+                        + '<button onclick="MyMedXPortal.downloadMembershipCard()" style="display:inline-flex;align-items:center;gap:8px;background:var(--ink);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-id-card"></i> Download membership card</button>'
+                        + '<div style="font-size:11px;color:var(--muted);">Add to Apple Wallet coming soon.</div>'
+                    + '</div>';
                 this._renderMembershipMeta();
             },
 
@@ -76608,6 +76612,11 @@ You can use variables like {first_name} that will be personalized for each recip
                             + '<div style="font-size:12px;color:var(--muted);">' + (amount ? ('<strong style="color:var(--ink);">' + amount + '</strong>') : '') + (r.invoice_number ? (' · #' + r.invoice_number) : '') + '</div>'
                             + (r.start_date ? '<button onclick="MyMedXPortal.addToCalendar(' + i + ')" style="background:transparent;border:1px solid var(--line-strong);color:var(--ink);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-calendar-plus"></i> Add to calendar</button>' : '')
                         + '</div>'
+                        + '<div style="display:flex;gap:8px;margin-top:2px;">'
+                            + '<button onclick="MyMedXPortal.downloadTicket(' + i + ')" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;background:var(--crimson);color:#fff;border:none;border-radius:9px;padding:10px 12px;font-size:13px;font-weight:700;cursor:pointer;"><i class="fas fa-download"></i> Download ticket</button>'
+                            + '<button onclick="MyMedXPortal.saveTicketPdf(' + i + ')" style="display:inline-flex;align-items:center;justify-content:center;gap:7px;background:transparent;color:var(--ink);border:1px solid var(--line-strong);border-radius:9px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-file-pdf"></i> PDF</button>'
+                        + '</div>'
+                        + '<div style="text-align:center;font-size:11px;color:var(--muted);margin-top:2px;">Add to Apple Wallet coming soon.</div>'
                     + '</div>';
                 }).join('');
                 // Render REAL QR codes from the ticket_qr_code value
@@ -76646,6 +76655,251 @@ You can use variables like {first_name} that will be personalized for each recip
                 document.body.appendChild(a); a.click(); document.body.removeChild(a);
                 setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
                 if (typeof Toast !== 'undefined' && Toast.success) Toast.success('Calendar file downloaded');
+            },
+
+            // ===== Premium downloadable ticket + membership card (menu 22) =====
+            // Client-side render: offscreen styled DOM -> html2canvas -> canvas -> PNG blob.
+            // QR parity: the ticket QR encodes the EXACT same value the live wallet card
+            // renders (r.ticket_qr_code || 'MEDX:'+id), and the membership QR reuses the
+            // canonical profile-synced payload ({type:'PLEXUS2026', userId, regId, name}).
+            // Apple Wallet .pkpass needs an Apple Developer signing cert (none yet) and Google
+            // Wallet needs a Google Wallet API issuer account — both are a later upgrade path.
+            _saveBlob(blob, filename) {
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url; a.download = filename;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                setTimeout(function(){ URL.revokeObjectURL(url); }, 1500);
+            },
+
+            // Resolve the signed-in member even if UserPortal.user has not finished loading,
+            // so the membership QR always carries the real userId the scanner keys on.
+            _currentUser() {
+                var u = (typeof UserPortal !== 'undefined' && UserPortal.user) || null;
+                if (u && (u.id || u.email)) return u;
+                try { var d = JSON.parse(localStorage.getItem('medx_user_data') || 'null'); if (d && (d.id || d.email)) return d; } catch (e) {}
+                return u || {};
+            },
+
+            _qrDataUrl(text, size, dark) {
+                return new Promise(function(resolve){
+                    if (typeof QRCode === 'undefined' || !QRCode.toDataURL) { resolve(null); return; }
+                    QRCode.toDataURL(text, { width: size || 360, margin: 2, errorCorrectionLevel: 'M', color: { dark: dark || '#15110f', light: '#ffffff' } }, function(err, dataUrl){
+                        resolve(err ? null : dataUrl);
+                    });
+                });
+            },
+
+            // Rasterize an offscreen node at 2x then downscale to the exact target size for
+            // supersampled, phone-wallpaper-crisp output.
+            async _rasterize(node, outW, outH) {
+                if (typeof html2canvas === 'undefined') throw new Error('html2canvas not loaded');
+                document.body.appendChild(node);
+                try {
+                    try { await document.fonts.load("600 96px 'Fraunces'"); await document.fonts.load("600 40px 'Inter'"); if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (e) {}
+                    await new Promise(function(res){ setTimeout(res, 80); });
+                    var big = await html2canvas(node, { scale: 2, backgroundColor: null, useCORS: true, allowTaint: true, logging: false, width: outW, height: outH, windowWidth: outW, windowHeight: outH, scrollX: 0, scrollY: 0 });
+                    var out = document.createElement('canvas'); out.width = outW; out.height = outH;
+                    var ctx = out.getContext('2d'); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+                    ctx.drawImage(big, 0, 0, outW, outH);
+                    return out;
+                } finally {
+                    if (node.parentNode) node.parentNode.removeChild(node);
+                }
+            },
+
+            _guestName(r) {
+                var fromReg = [r && r.first_name, r && r.last_name].filter(Boolean).join(' ').trim();
+                if (fromReg) return fromReg;
+                var u = this._currentUser();
+                var un = (u.name || ((u.first_name || '') + ' ' + (u.last_name || '')).trim());
+                return un || 'Guest';
+            },
+
+            _composeTicket(r, qrUrl) {
+                var name = this._guestName(r);
+                var confName = r.conference_name || 'Med&X Event';
+                var ticketName = r.ticket_name || r.registration_type || 'Ticket';
+                var dates = this._fmtDateRange(r.start_date, r.end_date) || 'Dates to be announced';
+                var venue = [r.venue_name, r.venue_city].filter(Boolean).join(', ') || 'Venue to be announced';
+                var inv = r.invoice_number ? ('#' + r.invoice_number) : '';
+                var el = document.createElement('div');
+                el.style.cssText = "position:fixed;left:-10000px;top:0;z-index:-1;pointer-events:none;width:1080px;height:1920px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:linear-gradient(165deg,#1d1813,#14100d 55%,#0e0a08);font-family:'Inter',-apple-system,sans-serif;color:#ffffff;";
+                el.innerHTML =
+                    '<div style="height:12px;flex:0 0 auto;background:linear-gradient(90deg,#a38a4f,#c9a962,#e8d5a8,#c9a962,#a38a4f);"></div>'
+                  + '<div style="position:relative;flex:0 0 640px;overflow:hidden;">'
+                    + '<img src="/assets/gala/lord-smith-chancellor.jpg" crossorigin="anonymous" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 0%;">'
+                    + '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(16,12,10,.78),rgba(16,12,10,.90) 60%,#14100d);"></div>'
+                    + '<div style="position:absolute;inset:0;background:radial-gradient(115% 75% at 24% 26%,rgba(201,169,98,.13),transparent 58%);"></div>'
+                    + '<div style="position:absolute;inset:0;box-sizing:border-box;padding:60px 64px;display:flex;flex-direction:column;justify-content:space-between;">'
+                      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+                        + '<div style="display:inline-flex;align-items:center;background:#fbf9f6;border-radius:16px;padding:16px 24px;box-shadow:0 10px 28px rgba(0,0,0,.38);">'
+                          + '<img src="/assets/images/medx-logo.png" crossorigin="anonymous" style="height:48px;display:block;">'
+                        + '</div>'
+                        + '<div style="text-align:right;padding-top:6px;">'
+                          + '<div style="font-size:20px;letter-spacing:5px;text-transform:uppercase;color:#e8d5a8;font-weight:700;">Admit One</div>'
+                          + '<div style="font-size:15px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.62);margin-top:6px;">Official Ticket</div>'
+                        + '</div>'
+                      + '</div>'
+                      + '<div>'
+                        + '<div style="font-size:22px;letter-spacing:6px;text-transform:uppercase;color:#c9a962;font-weight:700;margin-bottom:14px;">International Medical Conference</div>'
+                        + '<div style="font-family:\'Fraunces\',Georgia,serif;font-size:100px;font-weight:600;line-height:.92;color:#ffffff;letter-spacing:-1px;">' + escapeHtml(confName) + '</div>'
+                      + '</div>'
+                    + '</div>'
+                  + '</div>'
+                  + '<div style="flex:1 1 auto;display:flex;flex-direction:column;justify-content:space-between;padding:58px 64px 0;box-sizing:border-box;">'
+                    + '<div>'
+                      + '<div style="font-size:20px;letter-spacing:5px;text-transform:uppercase;color:#c9a962;font-weight:700;">Guest</div>'
+                      + '<div style="font-family:\'Fraunces\',Georgia,serif;font-size:76px;font-weight:600;line-height:1.02;color:#ffffff;margin:12px 0 26px;">' + escapeHtml(name) + '</div>'
+                      + '<div style="display:inline-block;border:1.5px solid rgba(201,169,98,.55);color:#e8d5a8;border-radius:999px;padding:13px 28px;font-size:23px;letter-spacing:2px;text-transform:uppercase;font-weight:600;">' + escapeHtml(ticketName) + '</div>'
+                      + '<div style="height:1px;background:linear-gradient(90deg,transparent,rgba(201,169,98,.5),transparent);margin:50px 0;"></div>'
+                      + '<div style="display:flex;gap:48px;">'
+                        + '<div style="flex:1;">'
+                          + '<div style="font-size:18px;letter-spacing:3px;text-transform:uppercase;color:#c9a962;font-weight:700;margin-bottom:12px;">Dates</div>'
+                          + '<div style="font-family:\'Fraunces\',Georgia,serif;font-size:40px;color:#ffffff;line-height:1.1;">' + escapeHtml(dates) + '</div>'
+                        + '</div>'
+                        + '<div style="flex:1;">'
+                          + '<div style="font-size:18px;letter-spacing:3px;text-transform:uppercase;color:#c9a962;font-weight:700;margin-bottom:12px;">Venue</div>'
+                          + '<div style="font-family:\'Fraunces\',Georgia,serif;font-size:40px;color:#ffffff;line-height:1.1;">' + escapeHtml(venue) + '</div>'
+                        + '</div>'
+                      + '</div>'
+                    + '</div>'
+                    + '<div>'
+                      + '<div style="position:relative;height:2px;">'
+                        + '<div style="border-top:3px dashed rgba(201,169,98,.42);"></div>'
+                        + '<div style="position:absolute;left:-96px;top:-31px;width:64px;height:64px;border-radius:50%;background:#0e0a08;"></div>'
+                        + '<div style="position:absolute;right:-96px;top:-31px;width:64px;height:64px;border-radius:50%;background:#0e0a08;"></div>'
+                      + '</div>'
+                      + '<div style="display:flex;flex-direction:column;align-items:center;padding:46px 0 42px;">'
+                        + '<div style="background:#ffffff;border-radius:32px;padding:46px 46px 36px;display:flex;flex-direction:column;align-items:center;box-shadow:0 16px 44px rgba(0,0,0,.42);">'
+                          + (qrUrl ? '<img src="' + qrUrl + '" style="width:400px;height:400px;display:block;">' : '<div style="width:400px;height:400px;display:flex;align-items:center;justify-content:center;color:#6b6258;font-size:18px;">QR unavailable</div>')
+                          + '<div style="font-size:23px;letter-spacing:4px;text-transform:uppercase;color:#15110f;font-weight:700;margin-top:24px;">Show at check-in</div>'
+                          + (inv ? '<div style="font-size:20px;color:#6b6258;margin-top:10px;font-variant-numeric:tabular-nums;">' + escapeHtml(inv) + '</div>' : '')
+                        + '</div>'
+                        + '<div style="font-size:20px;color:rgba(255,255,255,.55);letter-spacing:1px;margin-top:34px;">Med&amp;X &middot; medx.hr &middot; Zagreb, Croatia</div>'
+                      + '</div>'
+                    + '</div>'
+                  + '</div>'
+                  + '<div style="height:10px;flex:0 0 auto;background:linear-gradient(90deg,#a38a4f,#c9a962,#e8d5a8,#c9a962,#a38a4f);"></div>';
+                return el;
+            },
+
+            _composeMembership(name, meta, qrUrl, memberId) {
+                var memberType = (meta && meta.member_type_label) || 'Med&X Member';
+                var sinceYear = (meta && meta.member_since) ? String(meta.member_since).slice(0, 4) : '';
+                var standing = (meta && meta.standing_label) || 'Member in good standing';
+                var sinceLine = memberType + (sinceYear ? (' &middot; Member since ' + sinceYear) : '');
+                var el = document.createElement('div');
+                el.style.cssText = "position:fixed;left:-10000px;top:0;z-index:-1;pointer-events:none;width:1600px;height:1000px;box-sizing:border-box;overflow:hidden;border-radius:40px;background:linear-gradient(135deg,#fbf9f6,#f3efe9);font-family:'Inter',-apple-system,sans-serif;color:#15110f;border:1.5px solid rgba(201,169,98,.45);";
+                el.innerHTML =
+                    '<div style="position:absolute;top:0;left:0;right:0;height:14px;background:linear-gradient(90deg,#7d161c,#9b1b22,#c2484e,#9b1b22,#7d161c);"></div>'
+                  + '<img src="/assets/images/medx-logo.png" crossorigin="anonymous" style="position:absolute;right:-140px;bottom:-170px;width:760px;opacity:.045;transform:rotate(-8deg);">'
+                  + '<div style="display:flex;height:100%;box-sizing:border-box;">'
+                    + '<div style="flex:1;padding:88px 76px;box-sizing:border-box;display:flex;flex-direction:column;">'
+                      + '<img src="/assets/images/medx-logo.png" crossorigin="anonymous" style="height:56px;width:auto;align-self:flex-start;">'
+                      + '<div style="flex:1;"></div>'
+                      + '<div style="font-size:20px;letter-spacing:6px;text-transform:uppercase;color:#a38a4f;font-weight:700;margin-bottom:16px;">Member</div>'
+                      + '<div style="font-family:\'Fraunces\',Georgia,serif;font-size:80px;font-weight:600;line-height:1.0;color:#15110f;letter-spacing:-1px;">' + escapeHtml(name) + '</div>'
+                      + '<div style="font-size:29px;color:#6b6258;margin-top:18px;">' + sinceLine + '</div>'
+                      + '<div style="margin-top:28px;display:inline-flex;align-items:center;gap:12px;align-self:flex-start;background:#f3efe9;border:1px solid #e2dcd3;border-radius:999px;padding:13px 24px;">'
+                        + '<span style="display:inline-flex;width:26px;height:26px;border-radius:50%;background:#2f6b3a;color:#fff;align-items:center;justify-content:center;font-size:16px;font-weight:700;">&#10003;</span>'
+                        + '<span style="font-size:23px;font-weight:600;color:#15110f;">' + escapeHtml(standing) + '</span>'
+                      + '</div>'
+                      + '<div style="flex:0;margin-top:44px;font-size:19px;color:#a39a8d;letter-spacing:1px;">medx.hr &middot; Member ID ' + escapeHtml(memberId || '') + '</div>'
+                    + '</div>'
+                    + '<div style="width:540px;display:flex;align-items:center;justify-content:center;padding:76px 76px 76px 0;box-sizing:border-box;">'
+                      + '<div style="background:#ffffff;border:1px solid #e2dcd3;border-radius:32px;padding:50px;display:flex;flex-direction:column;align-items:center;box-shadow:0 18px 48px rgba(21,17,15,.12);">'
+                        + (qrUrl ? '<img src="' + qrUrl + '" style="width:380px;height:380px;display:block;">' : '<div style="width:380px;height:380px;display:flex;align-items:center;justify-content:center;color:#6b6258;font-size:18px;">QR unavailable</div>')
+                        + '<div style="font-size:21px;letter-spacing:3px;text-transform:uppercase;color:#15110f;font-weight:700;margin-top:28px;">Scan to verify</div>'
+                        + '<div style="font-size:18px;color:#6b6258;margin-top:8px;">Med&amp;X Membership</div>'
+                      + '</div>'
+                    + '</div>'
+                  + '</div>';
+                return el;
+            },
+
+            async _ticketCanvas(r) {
+                var qrData = r.ticket_qr_code || ('MEDX:' + (r.id || '')); // EXACT same value the live wallet card encodes
+                var qrUrl = await this._qrDataUrl(qrData, 380, '#15110f');
+                var node = this._composeTicket(r, qrUrl);
+                return await this._rasterize(node, 1080, 1920);
+            },
+
+            async downloadTicket(idx) {
+                var r = (this._regs || [])[idx];
+                if (!r) return;
+                try {
+                    if (typeof Toast !== 'undefined' && Toast.info) Toast.info('Preparing your ticket…');
+                    var canvas = await this._ticketCanvas(r);
+                    var self = this;
+                    canvas.toBlob(function(blob){
+                        if (!blob) { if (typeof Toast !== 'undefined' && Toast.error) Toast.error('Could not generate ticket'); return; }
+                        var fname = ((r.conference_name || 'plexus') + '').replace(/[^a-z0-9]+/gi, '-').toLowerCase().replace(/^-+|-+$/g, '') + '-ticket.png';
+                        self._saveBlob(blob, fname);
+                        if (typeof Toast !== 'undefined' && Toast.success) Toast.success('Ticket downloaded');
+                    }, 'image/png');
+                } catch (e) {
+                    console.error('Ticket download failed:', e);
+                    if (typeof Toast !== 'undefined' && Toast.error) Toast.error('Could not generate ticket');
+                }
+            },
+
+            async saveTicketPdf(idx) {
+                var r = (this._regs || [])[idx];
+                if (!r) return;
+                try {
+                    if (typeof Toast !== 'undefined' && Toast.info) Toast.info('Preparing printable ticket…');
+                    var canvas = await this._ticketCanvas(r);
+                    var dataUrl = canvas.toDataURL('image/png');
+                    this._openPrintImage(dataUrl, escapeHtml(this._guestName(r)) + ' — Plexus 2026 Ticket', 'portrait');
+                } catch (e) {
+                    console.error('Ticket PDF failed:', e);
+                    if (typeof Toast !== 'undefined' && Toast.error) Toast.error('Could not open printable ticket');
+                }
+            },
+
+            _openPrintImage(dataUrl, title, orientation) {
+                var w = window.open('', '_blank');
+                if (!w) { if (typeof Toast !== 'undefined' && Toast.warning) Toast.warning('Please allow pop-ups to save as PDF'); return; }
+                var size = orientation === 'landscape' ? 'A4 landscape' : 'A4 portrait';
+                w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + title + '</title>'
+                    + '<style>@page{size:' + size + ';margin:0;}html,body{margin:0;padding:0;background:#0e0a08;}'
+                    + '.wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;}'
+                    + 'img{max-width:100%;max-height:100vh;display:block;}'
+                    + '.bar{position:fixed;top:0;left:0;right:0;padding:12px;text-align:center;background:#15110f;color:#fff;font-family:Arial,sans-serif;font-size:13px;z-index:2;}'
+                    + '.bar button{margin-left:10px;padding:8px 16px;border:none;border-radius:8px;background:#c9a962;color:#15110f;font-weight:700;cursor:pointer;}'
+                    + '@media print{.bar{display:none;}}</style></head><body>'
+                    + '<div class="bar">Open your browser Print dialog and choose Save as PDF.<button onclick="window.print()">Print / Save as PDF</button></div>'
+                    + '<div class="wrap"><img src="' + dataUrl + '"></div>'
+                    + '<scr' + 'ipt>window.onload=function(){setTimeout(function(){try{window.print();}catch(e){}},400);};</scr' + 'ipt>'
+                    + '</body></html>');
+                w.document.close();
+            },
+
+            async downloadMembershipCard() {
+                try {
+                    var user = this._currentUser();
+                    var name = (user.name || ((user.first_name || '') + ' ' + (user.last_name || '')).trim()) || 'Med&X Member';
+                    var regId = (function(){ try { return localStorage.getItem('plexus_registration_id') || 'MX-2026'; } catch (e) { return 'MX-2026'; } })();
+                    // Canonical profile-synced membership QR — same shape the scanner reads (top-level userId).
+                    var qrPayload = JSON.stringify({ type: 'PLEXUS2026', userId: user.id || '', regId: regId, name: name });
+                    if (typeof Toast !== 'undefined' && Toast.info) Toast.info('Preparing your membership card…');
+                    var meta = null;
+                    try { if (typeof MemberState !== 'undefined') meta = await MemberState.loadMeta(); } catch (e) {}
+                    var qrUrl = await this._qrDataUrl(qrPayload, 380, '#15110f');
+                    var memberId = (user.id ? String(user.id).slice(0, 8).toUpperCase() : '');
+                    var node = this._composeMembership(name, meta, qrUrl, memberId);
+                    var canvas = await this._rasterize(node, 1600, 1000);
+                    var self = this;
+                    canvas.toBlob(function(blob){
+                        if (!blob) { if (typeof Toast !== 'undefined' && Toast.error) Toast.error('Could not generate card'); return; }
+                        self._saveBlob(blob, 'medx-membership-card.png');
+                        if (typeof Toast !== 'undefined' && Toast.success) Toast.success('Membership card downloaded');
+                    }, 'image/png');
+                } catch (e) {
+                    console.error('Membership card failed:', e);
+                    if (typeof Toast !== 'undefined' && Toast.error) Toast.error('Could not generate card');
+                }
             },
 
             renderInterests() {
@@ -84451,14 +84705,16 @@ You can use variables like {first_name} that will be personalized for each recip
 
             // Add to Apple Wallet
             addToAppleWallet() {
-                // In a real implementation, this would generate a .pkpass file
-                // For demo, show a modal explaining the feature
-                this.showToast('Apple Wallet pass will be emailed to you shortly!');
-
-                // TODO: Generate actual .pkpass file with:
-                // - QR code with unique registration ID
-                // - Event details (date, location)
-                // - Package items (conference days, gala, workshops)
+                // Native Apple Wallet .pkpass needs an Apple Developer signing certificate
+                // (Pass Type ID + WWDR cert) which we do not have yet; Google Wallet needs a
+                // Google Wallet API issuer account. Until then, hand the member a premium,
+                // scannable badge image to save on their phone — the same QR the door scans.
+                this.downloadBadgeAsImage();
+                if (typeof Toast !== 'undefined' && Toast.info) {
+                    Toast.info('Saved a badge image — Add to Apple Wallet coming soon.');
+                } else {
+                    this.showToast('Saved a badge image — Add to Apple Wallet coming soon.');
+                }
             },
 
             // Download badge as PNG image using html2canvas on the in-page badge card

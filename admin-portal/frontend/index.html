@@ -13651,11 +13651,27 @@ President, Med&amp;X</textarea>
                             ${(() => {
                                 const ctx = document.getElementById('qrCheckInContext')?.value || 'general';
                                 if (ctx === 'general') return '';
-                                let isReg = false, evtName = '';
-                                if (ctx === 'plexus') { isReg = profile.registrations?.length > 0; evtName = 'Plexus Conference 2026'; }
-                                else if (ctx === 'forum') { isReg = profile.forumRegistrations?.length > 0; evtName = 'Annual Biomedical Forum'; }
-                                else if (ctx.startsWith('bridges')) { isReg = profile.bridgesRegistrations?.length > 0; evtName = 'Building Bridges'; }
-                                return '<div style="text-align:center;padding:16px;margin-bottom:16px;border-radius:12px;background:' + (isReg ? 'rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3)') + '"><i class="fas ' + (isReg ? 'fa-check-circle' : 'fa-times-circle') + '" style="font-size:36px;color:' + (isReg ? '#22c55e' : '#ef4444') + ';"></i><div style="font-size:16px;font-weight:700;color:' + (isReg ? '#22c55e' : '#ef4444') + ';margin-top:8px;">' + (isReg ? 'REGISTERED' : 'NOT REGISTERED') + '</div><div style="font-size:12px;color:var(--text-muted,#c9c2ba);margin-top:4px;">for ' + evtName + '</div></div>';
+                                // Event-aware verdict. Widened to cover gala + every bridges-* context
+                                // (previously gala and the specific bridges cities fell through).
+                                let rows = null, evtName = '';
+                                if (ctx === 'plexus') { rows = profile.registrations; evtName = 'Plexus Conference 2026'; }
+                                else if (ctx === 'gala') { rows = profile.galaRegistrations; evtName = 'Plexus Gala Evening'; }
+                                else if (ctx === 'forum') { rows = profile.forumRegistrations; evtName = 'Annual Biomedical Forum'; }
+                                else if (ctx === 'bridges-croatian') { rows = profile.bridgesRegistrations; evtName = 'Croatian Biomedical Bridges'; }
+                                else if (ctx === 'bridges-zurich') { rows = profile.bridgesRegistrations; evtName = 'Building Bridges: Zurich'; }
+                                else if (ctx === 'bridges-dc') { rows = profile.bridgesRegistrations; evtName = 'Building Bridges: Washington DC'; }
+                                else if (ctx === 'bridges-boston') { rows = profile.bridgesRegistrations; evtName = 'Building Bridges: Boston'; }
+                                else if (ctx.startsWith('bridges')) { rows = profile.bridgesRegistrations; evtName = 'Building Bridges'; }
+                                else { return ''; }
+                                rows = rows || [];
+                                const isReg = rows.length > 0;
+                                const freeEvt = (ctx === 'forum' || ctx.startsWith('bridges'));
+                                const isPaid = freeEvt ? isReg : rows.some(r => r.payment_status === 'paid');
+                                const isIn = rows.some(r => r.checked_in === 1 || r.checked_in === true);
+                                const sub = isReg
+                                    ? (evtName + (freeEvt ? '' : (isPaid ? ' · paid' : ' · UNPAID')) + (isIn ? ' · already checked in' : ' · not yet checked in'))
+                                    : ('for ' + evtName);
+                                return '<div style="text-align:center;padding:16px;margin-bottom:16px;border-radius:12px;background:' + (isReg ? 'rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3)') + '"><i class="fas ' + (isReg ? 'fa-check-circle' : 'fa-times-circle') + '" style="font-size:36px;color:' + (isReg ? '#22c55e' : '#ef4444') + ';"></i><div style="font-size:16px;font-weight:700;color:' + (isReg ? '#22c55e' : '#ef4444') + ';margin-top:8px;">' + (isReg ? 'REGISTERED' : 'NOT REGISTERED') + '</div><div style="font-size:12px;color:var(--text-muted,#c9c2ba);margin-top:4px;">' + sub + '</div></div>';
                             })()}
 
                             <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:20px;">
@@ -21919,6 +21935,8 @@ President, Med&amp;X</textarea>
 
                         <div id="globalCheckinResult"></div>
 
+                        <div id="scanContextPanel" style="margin-top:10px;"></div>
+
                         <div class="qr-recent-list" id="qrRecentList">
                             <h4><i class="fas fa-history"></i> Recent Check-ins</h4>
                             <div id="qrRecentItems"><span style="font-size:12px;color:var(--text-muted)">Loading...</span></div>
@@ -22348,10 +22366,70 @@ President, Med&amp;X</textarea>
                 }
             },
 
+            // ADDITIVE: read-only event-aware enrichment shown UNDER the frozen scan result.
+            // Never triggers a check-in; purely reads /api/admin/scan-context and renders a
+            // glanceable, high-contrast verdict for the event currently selected at the door.
+            async renderScanContext(opts) {
+                const panel = document.getElementById('scanContextPanel');
+                if (!panel) return;
+                try {
+                    const ctx = document.getElementById('qrCheckInContext')?.value || 'general';
+                    const params = new URLSearchParams();
+                    if (opts.email) params.set('email', opts.email);
+                    if (opts.userId) params.set('user_id', opts.userId);
+                    if (opts.reg) params.set('reg', opts.reg);
+                    if (opts.qr) params.set('qr', opts.qr);
+                    params.set('ctx', ctx);
+                    const data = await this.api('/api/admin/scan-context?' + params.toString());
+                    if (!data || !data.person) { panel.innerHTML = ''; return; }
+                    const f = data.flags || {};
+                    const ev = data.active_event || {};
+                    const reg = !!f.registered_for_active_event;
+                    const green = '#22c55e', red = '#ef4444', amber = '#f59e0b';
+                    const color = reg ? (f.already_checked_in ? amber : green) : red;
+                    const icon = reg ? (f.already_checked_in ? 'fa-user-check' : 'fa-check-circle') : 'fa-times-circle';
+                    let verdict;
+                    if (!reg) {
+                        verdict = 'NOT REGISTERED for ' + (ev.label || 'this event');
+                    } else {
+                        const bits = [ev.label || 'this event'];
+                        bits.push(f.paid ? 'paid' : 'UNPAID');
+                        bits.push(f.already_checked_in ? 'already checked in' : 'not yet checked in');
+                        verdict = 'REGISTERED — ' + bits.join(', ');
+                    }
+                    // Their other registrations, shown quietly for door awareness.
+                    const activeBucket = String(ev.key || '').split('-')[0];
+                    const others = (data.registrations || []).filter(r => r.event !== activeBucket);
+                    const otherHtml = others.length
+                        ? '<div style="margin-top:10px;font-size:11px;color:var(--text-muted,#c9c2ba);">Also holds: ' + others.map(r => this.escapeHtml(r.label) + (r.status === 'checked_in' ? ' (checked in)' : '')).join(' · ') + '</div>'
+                        : '';
+                    const p = data.person;
+                    panel.innerHTML =
+                        '<div style="border-radius:14px;padding:16px;background:' + (reg ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)') + ';border:2px solid ' + color + ';">' +
+                            '<div style="display:flex;align-items:center;gap:12px;">' +
+                                '<i class="fas ' + icon + '" style="font-size:30px;color:' + color + ';flex-shrink:0;"></i>' +
+                                '<div style="min-width:0;">' +
+                                    '<div style="font-weight:800;font-size:17px;color:var(--text-primary,#e2e8f0);line-height:1.15;">' + this.escapeHtml(p.name || p.email || 'Guest') + '</div>' +
+                                    (p.institution ? '<div style="font-size:12px;color:var(--text-muted,#c9c2ba);margin-top:2px;">' + this.escapeHtml(p.institution) + '</div>' : (p.email ? '<div style="font-size:12px;color:var(--text-muted,#c9c2ba);margin-top:2px;">' + this.escapeHtml(p.email) + '</div>' : '')) +
+                                '</div>' +
+                            '</div>' +
+                            '<div style="margin-top:12px;padding:12px 14px;border-radius:10px;background:' + color + ';color:#0b0b0b;font-weight:800;font-size:15px;letter-spacing:0.2px;line-height:1.25;">' + this.escapeHtml(verdict) + '</div>' +
+                            otherHtml +
+                        '</div>';
+                } catch (e) {
+                    // Enrichment is best-effort and must never disrupt the door flow.
+                    panel.innerHTML = '';
+                }
+            },
+
             async globalCheckin(code) {
                 const input = document.getElementById('globalCheckinInput');
                 const resultDiv = document.getElementById('globalCheckinResult');
                 if (!code) code = input?.value?.trim();
+
+                // Clear any prior read-only enrichment before a new scan/lookup.
+                const scPanel0 = document.getElementById('scanContextPanel');
+                if (scPanel0) scPanel0.innerHTML = '';
 
                 if (!code) {
                     if (resultDiv) {
@@ -22442,6 +22520,10 @@ President, Med&amp;X</textarea>
                                 <button class="qr-undo-btn" onclick="App.undoGlobalCheckin()"><i class="fas fa-undo"></i> Undo</button>`;
                         }
                         if (input) input.value = '';
+
+                        // ADDITIVE: read-only event-aware enrichment under the frozen result.
+                        // Does not alter the check-in outcome above.
+                        this.renderScanContext({ email: a.email, reg: a.id });
 
                         // Refresh stats + recent
                         this.loadGlobalCheckinStats();

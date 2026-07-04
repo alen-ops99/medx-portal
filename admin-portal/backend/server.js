@@ -6443,6 +6443,149 @@ async function initializeApp() {
         }
     });
 
+    // ADDITIVE READ-ONLY: event-aware scan context for the December door scanner.
+    // Resolves a scanned person (by user_id | email | qr JSON | reg id) to a cross-event
+    // registration snapshot and computes a glanceable verdict for the event being scanned.
+    // NEVER writes and NEVER calls the frozen /api/checkin validation. Pure enrichment.
+    app.get('/api/admin/scan-context', auth, staffOrAdmin, (req, res) => {
+        try {
+            // Event catalog with dates so the door verdict is time/event-aware.
+            const EVENTS = {
+                plexus:             { label: 'Plexus Conference',           date: '2026-12-04', bucket: 'plexus' },
+                gala:               { label: 'Plexus Gala Evening',         date: '2026-12-05', bucket: 'gala' },
+                forum:              { label: 'Annual Biomedical Forum',     date: '2026-12-06', bucket: 'forum' },
+                'bridges-croatian': { label: 'Croatian Biomedical Bridges', date: '2026-12-05', bucket: 'bridges' },
+                'bridges-zurich':   { label: 'Building Bridges: Zurich',    date: '2026-03-15', bucket: 'bridges' },
+                'bridges-dc':       { label: 'Building Bridges: Washington DC', date: '2026-04-18', bucket: 'bridges' },
+                'bridges-boston':   { label: 'Building Bridges: Boston',    date: '2026-09-20', bucket: 'bridges' }
+            };
+
+            // --- resolve identity from any of the accepted inputs ---
+            let email = String(req.query.email || '').trim();
+            let userId = String(req.query.user_id || '').trim();
+            let regId = String(req.query.reg || '').trim();
+            const ctxRaw = String(req.query.ctx || 'general').trim();
+
+            if (req.query.qr) {
+                try {
+                    const p = JSON.parse(req.query.qr);
+                    if (p.userId) userId = userId || String(p.userId);
+                    if (p.email) email = email || String(p.email);
+                    if (!regId) regId = String(p.id || p.reg_id || p.registration_id || '');
+                } catch (e) { /* not JSON, ignore */ }
+            }
+
+            // A ticket scan may only give us a registration id — resolve it to a person.
+            if (!userId && !email && regId) {
+                const r = query.get('SELECT user_id, email FROM registrations WHERE id = ?', [regId])
+                       || query.get('SELECT NULL as user_id, email FROM gala_registrations WHERE id = ?', [regId])
+                       || query.get('SELECT NULL as user_id, email FROM bridges_registrations WHERE id = ?', [regId]);
+                if (r) { userId = r.user_id || userId; email = r.email || email; }
+            }
+
+            // Load the user record (id first, then email).
+            let user = null;
+            if (userId) user = query.get('SELECT id, email, first_name, last_name, institution, created_at FROM users WHERE id = ?', [userId]);
+            if (!user && email) user = query.get('SELECT id, email, first_name, last_name, institution, created_at FROM users WHERE email = ?', [email]);
+            const resolvedEmail = (user && user.email) || email || '';
+            const resolvedId = (user && user.id) || userId || '';
+
+            if (!resolvedEmail && !resolvedId) return res.status(404).json({ error: 'Could not resolve a person from the scan' });
+
+            // --- gather cross-event registrations (read-only) ---
+            const out = [];
+            const norm = (checkedIn, paymentStatus, freeEvent) =>
+                checkedIn ? 'checked_in' : ((paymentStatus === 'paid' || freeEvent) ? 'paid' : 'registered');
+
+            try {
+                const rows = query.all(`SELECT r.payment_status, r.checked_in, r.amount_paid, c.name as conf, t.name as ticket, c.start_date
+                    FROM registrations r LEFT JOIN conferences c ON r.conference_id = c.id LEFT JOIN ticket_types t ON r.ticket_type_id = t.id
+                    WHERE r.user_id = ? OR r.email = ?`, [resolvedId, resolvedEmail]);
+                rows.forEach(r => out.push({ event: 'plexus', label: r.conf || 'Plexus Conference', status: norm(r.checked_in, r.payment_status, false), ticket_type: r.ticket || 'General', date: r.start_date || '2026-12-04' }));
+            } catch (e) {}
+
+            try {
+                const rows = query.all(`SELECT payment_status, checked_in, amount_paid FROM gala_registrations WHERE email = ?`, [resolvedEmail]);
+                rows.forEach(r => out.push({ event: 'gala', label: 'Plexus Gala Evening', status: norm(r.checked_in, r.payment_status, false), ticket_type: 'Gala Seat', date: '2026-12-05' }));
+            } catch (e) {}
+
+            try {
+                const rows = query.all(`SELECT fer.checked_in, fer.payment_status, fe.title, fe.event_date
+                    FROM forum_event_registrations fer LEFT JOIN forum_events fe ON fer.event_id = fe.id
+                    WHERE fer.email = ? OR fer.member_id = ?`, [resolvedEmail, resolvedId]);
+                rows.forEach(r => out.push({ event: 'forum', label: r.title || 'Annual Biomedical Forum', status: norm(r.checked_in, r.payment_status, true), ticket_type: 'Forum', date: r.event_date || '2026-12-06' }));
+            } catch (e) {}
+
+            try {
+                const rows = query.all(`SELECT br.checked_in, br.payment_status, be.name, be.city, be.event_date
+                    FROM bridges_registrations br LEFT JOIN bridges_events be ON br.event_id = be.id
+                    WHERE br.email = ?`, [resolvedEmail]);
+                rows.forEach(r => out.push({ event: 'bridges', event_city: String(r.city || '').toLowerCase(), label: r.name || 'Building Bridges', status: norm(r.checked_in, r.payment_status, true), ticket_type: 'Bridges', date: r.event_date || '' }));
+            } catch (e) {}
+
+            // --- resolve the active/target event (context wins, else by date) ---
+            const today = new Date().toISOString().slice(0, 10);
+            let targetKey = EVENTS[ctxRaw] ? ctxRaw : null;
+            if (!targetKey) {
+                const keys = Object.keys(EVENTS);
+                const todayEv = keys.find(k => EVENTS[k].date === today);
+                if (todayEv) targetKey = todayEv;
+                else {
+                    const upcoming = keys.filter(k => EVENTS[k].date >= today).sort((a, b) => EVENTS[a].date.localeCompare(EVENTS[b].date));
+                    targetKey = upcoming.length ? upcoming[0] : keys.slice().sort((a, b) => EVENTS[b].date.localeCompare(EVENTS[a].date))[0];
+                }
+            }
+            const target = EVENTS[targetKey];
+
+            // Registrations belonging to the target event's bucket.
+            let matchRows = out.filter(r => r.event === target.bucket);
+            if (targetKey.indexOf('bridges-') === 0 && matchRows.length) {
+                const city = targetKey.replace('bridges-', '');
+                const needle = city === 'dc' ? 'washington' : city;
+                const byCity = matchRows.filter(r => (r.event_city || '').indexOf(needle) >= 0 || String(r.label || '').toLowerCase().indexOf(needle) >= 0);
+                if (byCity.length) matchRows = byCity;
+            }
+
+            const registered = matchRows.length > 0;
+            const checkedIn = matchRows.some(r => r.status === 'checked_in');
+            const freeEvent = (target.bucket === 'forum' || target.bucket === 'bridges');
+            const paid = freeEvent ? registered : matchRows.some(r => r.status === 'paid' || r.status === 'checked_in');
+
+            // Name + institution: prefer the user record, else fall back to any registration row
+            // (many gala/plexus guests registered by email only and have no users row).
+            let personName = user ? ((user.first_name || '') + ' ' + (user.last_name || '')).trim() : '';
+            let personInst = (user && user.institution) || '';
+            if ((!personName || !personInst) && resolvedEmail) {
+                const nameRow = query.get('SELECT first_name, last_name, institution FROM registrations WHERE email = ? AND (first_name IS NOT NULL OR last_name IS NOT NULL) LIMIT 1', [resolvedEmail])
+                             || query.get('SELECT first_name, last_name, institution FROM gala_registrations WHERE email = ? LIMIT 1', [resolvedEmail])
+                             || query.get('SELECT first_name, last_name, institution FROM bridges_registrations WHERE email = ? LIMIT 1', [resolvedEmail]);
+                if (nameRow) {
+                    if (!personName) personName = ((nameRow.first_name || '') + ' ' + (nameRow.last_name || '')).trim();
+                    if (!personInst) personInst = nameRow.institution || '';
+                }
+            }
+
+            res.json({
+                person: {
+                    name: personName,
+                    email: resolvedEmail,
+                    institution: personInst,
+                    member_since: (user && user.created_at) || ''
+                },
+                active_event: { key: targetKey, label: target.label, date: target.date, context: ctxRaw },
+                registrations: out.map(({ event_city, ...r }) => r),
+                flags: {
+                    registered_for_active_event: registered,
+                    paid: paid,
+                    already_checked_in: checkedIn
+                }
+            });
+        } catch (error) {
+            console.error('scan-context error:', error);
+            res.status(500).json({ error: 'Failed to build scan context' });
+        }
+    });
+
     // ========== ABSTRACT ROUTES ==========
     app.post('/api/abstracts', auth, (req, res) => {
         const { conference_id, title, abstract_text, keywords, topic_category, presentation_type, authors } = req.body;
