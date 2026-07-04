@@ -117212,6 +117212,23 @@ By applying to this program, I give the following consents:
 
         // Hook into UserPortal for page change announcements
         const originalShowSectionA11y = UserPortal.showSection;
+        // First-party analytics beacon for in-portal navigation (aggregate-only, no cookies/PII).
+        // Mirrors the marketing site's beacon: respects Do-Not-Track / Global Privacy Control and
+        // best-effort fires once per showSection to the same public endpoint (same origin here, so a
+        // relative path). Path is namespaced '/portal/<section>' so portal views never collide with
+        // the marketing site's paths in the shared page_views table.
+        UserPortal._pvBeacon = function(path) {
+            try {
+                var dnt = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+                if (dnt === '1' || dnt === 'yes' || navigator.globalPrivacyControl === true) return;
+                var payload = JSON.stringify({ path: path, ref: '' });
+                var url = '/api/public/pv';
+                var sent = false;
+                if (navigator.sendBeacon) { try { sent = navigator.sendBeacon(url, new Blob([payload], { type: 'text/plain' })); } catch (e) {} }
+                if (!sent) { fetch(url, { method: 'POST', body: payload, headers: { 'Content-Type': 'text/plain' }, keepalive: true }).catch(function () {}); }
+            } catch (e) {}
+        };
+
         UserPortal.showSection = function(section, addToHistory = true) {
             originalShowSectionA11y.call(this, section, addToHistory);
             try {
@@ -117219,6 +117236,7 @@ By applying to this program, I give the following consents:
             } catch (e) {
                 console.error('A11y announce error:', e);
             }
+            try { UserPortal._pvBeacon('/portal/' + section); } catch (e) {}
         };
 
 

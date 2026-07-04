@@ -6359,7 +6359,65 @@ async function initializeApp() {
         updated_at TEXT,
         updated_by TEXT
     )`);
+
+    // First-party, privacy-friendly site analytics — AGGREGATE counters only (no accounts, no
+    // cookies, no IPs, no per-visitor rows), so it is GDPR-clean by design. The public beacon
+    // POST /api/public/pv (user portal) UPSERTs one row per (day, path, referrer_domain, device),
+    // incrementing count; the admin Site-analytics card reads it via GET /api/admin/analytics.
+    // Declared in BOTH portals (shared Turso DB) so the table exists regardless of which boots
+    // first; only the user portal ever writes to it. UNIQUE(day,path,referrer_domain,device) is
+    // the UPSERT target that keeps one running counter per bucket.
+    db.run(`CREATE TABLE IF NOT EXISTS page_views (
+        id TEXT PRIMARY KEY,
+        day TEXT NOT NULL,
+        path TEXT NOT NULL,
+        referrer_domain TEXT NOT NULL DEFAULT 'direct',
+        device TEXT NOT NULL DEFAULT 'desktop',
+        count INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(day, path, referrer_domain, device)
+    )`);
+
+    // ===== Post-event automation: round tracking + one-question feedback =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod). The admin portal runs
+    // the post-event round (stages the thank-you / missed / certificate / feedback batches into the
+    // shared outbox, and issues certificates rows the member portal reads); the public feedback GET
+    // (served by the admin backend) writes event_feedback. Declared in BOTH so the shared table always
+    // exists regardless of which portal boots first; each engine only writes the tables it owns.
+
+    // One row per (event_key, reg_id, kind) — the idempotency marker that makes re-running a round
+    // exactly-once: an email is only staged, and a certificate only issued, when the marker is newly
+    // inserted (INSERT OR IGNORE + getRowsModified()==1). kind: thankyou | missed | cert | feedback.
+    // batch_id links the marker to the outbox batch it belongs to; ref carries the certificate id or
+    // feedback token so the round can find what it created without re-deriving it.
+    db.run(`CREATE TABLE IF NOT EXISTS post_event_log (
+        id TEXT PRIMARY KEY,
+        event_key TEXT NOT NULL DEFAULT 'plexus',
+        reg_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        batch_id TEXT,
+        ref TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(event_key, reg_id, kind)
+    )`);
+
+    // One row per feedback invite. token backs the public GET /api/public/feedback?token=&score=1-10;
+    // score is clamped to 1..10 and recorded at most once per token (responded_at gates a re-tap). The
+    // admin post-event card aggregates AVG(score) + COUNT(score) per event_key. A row is created with
+    // score NULL when the feedback batch is staged, then filled in when the attendee taps their score.
+    db.run(`CREATE TABLE IF NOT EXISTS event_feedback (
+        id TEXT PRIMARY KEY,
+        event_key TEXT NOT NULL DEFAULT 'plexus',
+        reg_id TEXT,
+        email TEXT,
+        token TEXT UNIQUE,
+        score INTEGER,
+        comment TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        responded_at TEXT
+    )`);
     // ====================== SCHEMA-MIRROR:END ======================
+    // pr_posts drifted between portals (admin CREATE has status, user CREATE lacked it) — heal existing DBs.
+    try { db.exec("ALTER TABLE pr_posts ADD COLUMN status TEXT DEFAULT 'published'"); } catch (e) { /* column exists */ }
 
     // Audience scope for member announcements (additive, guarded — deliberately OUTSIDE the mirror
     // block so it never disturbs the byte-identical CREATE TABLE region). Values:
@@ -7623,6 +7681,64 @@ async function submitReset(e){
         } catch (e) {
             res.status(500).json({ error: 'Failed to load status' });
         }
+    });
+
+    // ================= FIRST-PARTY ANALYTICS BEACON (no-auth, no cookies, no IPs, no PII) =================
+    // The static site + member portal fire navigator.sendBeacon here once per pageview. We keep ONLY
+    // aggregate counters — UPSERT one row per (day, path, referrer_domain, device), incrementing count —
+    // so nothing here identifies a visitor. GDPR-clean by design. Bots are dropped, Do-Not-Track is
+    // honored at the edge, and the handler always answers 204 so a beacon can never surface an error.
+    const pvLimiter = rateLimit({ windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many requests.' } });
+    const PV_BOT_RE = /bot|crawl|spider|slurp|bingpreview|facebookexternalhit|embedly|quora|pinterest|vkshare|whatsapp|telegram|headless|lighthouse|preview|monitor|uptime|curl|wget|python-requests|axios|node-fetch|go-http|okhttp|phantom|scrapy/i;
+    // Common two-level public suffixes so subdomains collapse to the true registrable domain
+    // (news.example.co.uk -> example.co.uk, not co.uk). Not exhaustive — a pragmatic set covering
+    // the domains that actually refer traffic to a Croatian medical NGO.
+    const PV_TWO_LEVEL_SLD = new Set(['co', 'com', 'org', 'net', 'ac', 'gov', 'edu', 'or', 'ne', 'go']);
+    function pvRegistrableDomain(ref) {
+        if (!ref) return 'direct';
+        let host = '';
+        try { host = new URL(String(ref)).hostname.toLowerCase(); } catch (e) { return 'direct'; }
+        if (!host) return 'direct';
+        host = host.replace(/^www\./, '');
+        const parts = host.split('.').filter(Boolean);
+        if (parts.length <= 2) return host;
+        const sld = parts[parts.length - 2];
+        return PV_TWO_LEVEL_SLD.has(sld) ? parts.slice(-3).join('.') : parts.slice(-2).join('.');
+    }
+    function pvNormalizePath(p) {
+        if (p == null) return '/';
+        let s = String(p).split('#')[0].split('?')[0].trim();   // strip hash + query
+        if (!s.startsWith('/')) { try { s = new URL(s).pathname; } catch (e) { s = '/' + s.replace(/^\/+/, ''); } }
+        s = s.replace(/\/{2,}/g, '/');
+        if (s.length > 1) s = s.replace(/\/+$/, '');             // drop trailing slash (keep bare root)
+        if (s.length > 180) s = s.slice(0, 180);
+        return s || '/';
+    }
+    app.post('/api/public/pv', pvLimiter, express.text({ type: '*/*', limit: '2kb' }), (req, res) => {
+        try {
+            // Do-Not-Track / Global Privacy Control — respected server-side too, not just in the client.
+            if (req.headers['dnt'] === '1' || req.headers['sec-gpc'] === '1') return res.status(204).end();
+            const ua = String(req.headers['user-agent'] || '');
+            if (!ua || PV_BOT_RE.test(ua)) return res.status(204).end();
+            // sendBeacon sends text/plain; a JSON fetch fallback lands as an object. Accept both.
+            const raw = req.body;
+            let data = {};
+            if (typeof raw === 'string') { try { data = JSON.parse(raw || '{}'); } catch (e) { data = {}; } }
+            else if (raw && typeof raw === 'object') { data = raw; }
+            const path = pvNormalizePath(data.path);
+            const referrer = pvRegistrableDomain(data.ref);
+            const device = /Mobi|Android|iPhone|iPad|iPod|IEMobile|Opera Mini|BlackBerry|Windows Phone/i.test(ua) ? 'mobile' : 'desktop';
+            const day = new Date().toISOString().split('T')[0];
+            const id = (day + '|' + device + '|' + referrer + '|' + path).slice(0, 220);
+            query.run(
+                `INSERT INTO page_views (id, day, path, referrer_domain, device, count)
+                 VALUES (?, ?, ?, ?, ?, 1)
+                 ON CONFLICT(day, path, referrer_domain, device)
+                 DO UPDATE SET count = count + 1`,
+                [id, day, path, referrer, device]
+            );
+        } catch (e) { /* analytics must never break a pageview — swallow and 204 */ }
+        return res.status(204).end();
     });
 
     // ================= ADMIN: WEBSITE CONTENT EDITOR =================

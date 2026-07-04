@@ -249,6 +249,180 @@ function buildEmailTemplate(title, bodyHtml) {
 </body>
 </html>`;
 }
+// ============================================================================
+// PUBLER SOCIAL PUBLISHING  (PR & Media -> "Approve & Schedule")
+// ----------------------------------------------------------------------------
+// Publer is the third-party scheduler that actually pushes an approved post out
+// to Facebook / Instagram / LinkedIn / X. This whole module is a MOCK-SAFE
+// boundary: with no PUBLER_API_KEY set it never touches the network — it logs
+// the exact payload it *would* send and returns a "published (mock)" result, so
+// the composer -> approve -> schedule flow is fully testable before the owner
+// buys/configures Publer. publishToPubler() NEVER throws.
+//
+// API shape verified against https://publer.com/docs (July 2026):
+//   Base URL:  https://app.publer.com/api/v1
+//   Auth headers on every call:
+//        Authorization: Bearer-API <PUBLER_API_KEY>   (note: "Bearer-API", not "Bearer")
+//        Publer-Workspace-Id: <PUBLER_WORKSPACE_ID>
+//        Content-Type: application/json
+//   List connected accounts:  GET /accounts
+//        -> [{ id, provider, name, social_id, picture, type }, ...]
+//           provider in facebook|instagram|linkedin|twitter|tiktok|youtube|...
+//   Schedule a post:  POST /posts/schedule
+//        body: {
+//          bulk: {
+//            state: "scheduled",
+//            posts: [{
+//              networks: { <provider>: { type: "status"|"photo", text,
+//                                        media?: [{ url|id, type:"image" }] } },
+//              accounts: [{ id: <account id>,
+//                           scheduled_at: <ISO 8601 w/ tz, >= 1 min in the future> }]
+//            }]
+//          }
+//        }
+//        -> { job_id }     (async — Publer processes the job in the background)
+//   Confirm delivery:  GET /job_status/{job_id}
+//        -> { success, data: { status: "working"|"complete"|"failed", ... } }
+//   Publish immediately (no schedule): POST /posts/schedule/publish (same body).
+//   Notes: Publer API needs a *Business* plan. Media is normally pre-uploaded
+//   (POST /media) and referenced by id; we pass the hosted Cloudinary/image URL
+//   through and document the pre-upload fallback — it can't be exercised until a
+//   real key + Business plan exist.
+// ============================================================================
+const PUBLER_API_BASE = 'https://app.publer.com/api/v1';
+
+function publerConfigured() {
+    return !!(process.env.PUBLER_API_KEY && process.env.PUBLER_WORKSPACE_ID);
+}
+
+function publerHeaders() {
+    return {
+        'Authorization': `Bearer-API ${process.env.PUBLER_API_KEY}`,
+        'Publer-Workspace-Id': process.env.PUBLER_WORKSPACE_ID,
+        'Content-Type': 'application/json'
+    };
+}
+
+// Map our internal platform keys -> Publer provider keys. Kept explicit so the
+// composer's fb/ig/li/x variants line up with what Publer expects.
+const PUBLER_PROVIDER_BY_PLATFORM = {
+    facebook: 'facebook',
+    instagram: 'instagram',
+    linkedin: 'linkedin',
+    twitter: 'twitter',
+    x: 'twitter'
+};
+
+// List connected accounts. Never throws — returns { ok, accounts, error }.
+async function publerListAccounts() {
+    if (!publerConfigured()) return { ok: false, accounts: [], error: 'not_configured' };
+    try {
+        const resp = await fetch(`${PUBLER_API_BASE}/accounts`, { headers: publerHeaders() });
+        if (!resp.ok) {
+            const body = await resp.text().catch(() => '');
+            return { ok: false, accounts: [], error: `HTTP ${resp.status} ${body.slice(0, 200)}` };
+        }
+        const data = await resp.json().catch(() => []);
+        const accounts = Array.isArray(data) ? data : (data.accounts || data.data || []);
+        return { ok: true, accounts };
+    } catch (e) {
+        return { ok: false, accounts: [], error: e.message };
+    }
+}
+
+// Build a Publer scheduled_at ISO string from a post's date + time. Publer wants
+// full ISO 8601 with timezone, at least a minute in the future; if the slot is
+// missing or already past we bump to now + 2 minutes so nothing is dropped.
+function publerScheduledAt(post) {
+    let dt = null;
+    if (post.scheduled_date) {
+        let time = (post.scheduled_time && /^\d{1,2}:\d{2}/.test(post.scheduled_time)) ? post.scheduled_time.slice(0, 5) : '12:00';
+        const parsed = new Date(`${post.scheduled_date}T${time}:00Z`);
+        if (!isNaN(parsed.getTime())) dt = parsed;
+    }
+    const floor = new Date(Date.now() + 2 * 60 * 1000);
+    if (!dt || dt.getTime() < floor.getTime()) dt = floor;
+    return dt.toISOString();
+}
+
+// Compose the per-platform Publer payload for one calendar post + resolved account.
+function buildPublerPayload(post, account) {
+    const provider = PUBLER_PROVIDER_BY_PLATFORM[(post.platform || '').toLowerCase()] || (post.platform || '').toLowerCase();
+    const text = [post.content_text || '', post.hashtags || ''].filter(Boolean).join('\n\n').trim();
+    const hasImage = !!post.image_url;
+    const network = { type: hasImage ? 'photo' : 'status', text };
+    if (hasImage) {
+        // Publer normally references a pre-uploaded media id. We pass the hosted
+        // (Cloudinary) URL through; if a workspace rejects URL media, upload it
+        // first via POST /media and swap in { id }. Documented URL passthrough —
+        // can't be exercised until a real key + Business plan exist.
+        network.media = [{ url: post.image_url, type: 'image' }];
+    }
+    return {
+        bulk: {
+            state: 'scheduled',
+            posts: [{
+                networks: { [provider]: network },
+                accounts: [{ id: account.id, scheduled_at: publerScheduledAt(post) }]
+            }]
+        }
+    };
+}
+
+// The single entry point the endpoints call. Publishes ONE approved calendar
+// post to its selected platform via Publer. NEVER throws. Returns a normalized
+//   { ok, mock, status, external_post_id, note, payload, response? }
+async function publishToPubler(post) {
+    const provider = PUBLER_PROVIDER_BY_PLATFORM[(post.platform || '').toLowerCase()] || (post.platform || '').toLowerCase();
+
+    // MOCK MODE — no key/workspace configured. Log the payload we *would* send and
+    // hand back a deterministic mock id so the composer flow is fully testable.
+    if (!publerConfigured()) {
+        const payload = buildPublerPayload(post, { id: 'MOCK_ACCOUNT' });
+        console.log('[Publer Mock] would schedule post:', JSON.stringify(payload));
+        return {
+            ok: true,
+            mock: true,
+            status: 'published (mock)',
+            external_post_id: 'mock-' + uuidv4(),
+            note: 'Mock mode — PUBLER_API_KEY not set. Nothing was sent to Publer; the payload was logged. Add PUBLER_API_KEY + PUBLER_WORKSPACE_ID on Render to publish for real.',
+            payload
+        };
+    }
+
+    try {
+        // Resolve the connected account whose provider matches this post's platform.
+        const list = await publerListAccounts();
+        if (!list.ok) {
+            return { ok: false, mock: false, status: 'failed', external_post_id: null, note: 'Could not list Publer accounts: ' + list.error };
+        }
+        const account = list.accounts.find(a => (a.provider || '').toLowerCase() === provider);
+        if (!account) {
+            return { ok: false, mock: false, status: 'failed', external_post_id: null, note: `No connected Publer account for ${provider}. Connect one in Publer, then retry.` };
+        }
+        const payload = buildPublerPayload(post, account);
+        const resp = await fetch(`${PUBLER_API_BASE}/posts/schedule`, {
+            method: 'POST', headers: publerHeaders(), body: JSON.stringify(payload)
+        });
+        const bodyText = await resp.text().catch(() => '');
+        if (!resp.ok) {
+            return { ok: false, mock: false, status: 'failed', external_post_id: null, note: `Publer HTTP ${resp.status}: ${bodyText.slice(0, 300)}`, payload };
+        }
+        let json = {};
+        try { json = JSON.parse(bodyText); } catch (_) {}
+        const jobId = json.job_id || null;
+        return {
+            ok: true, mock: false,
+            status: 'scheduled',
+            external_post_id: jobId,
+            note: jobId ? `Scheduled via Publer (job ${jobId}). Poll /job_status/${jobId} to confirm delivery.` : 'Scheduled via Publer.',
+            payload, response: json
+        };
+    } catch (e) {
+        return { ok: false, mock: false, status: 'failed', external_post_id: null, note: 'Publer error: ' + e.message };
+    }
+}
+
 // ---- Hosted ticket-QR helpers (mirror of user-portal; the /qr/:id.png route lives there) ----
 // Emails reference a hosted QR URL instead of a data: URI because Gmail/Outlook strip data: URIs.
 // The PNG is also attached so the ticket survives image-blocking clients.
@@ -1296,6 +1470,222 @@ function runSeatConfirmAuto() {
         if (daysUntil <= tM && !done('reminder')) { const r = startConfirmRound(ek, 'reminder', null); mark('reminder'); console.log(`[SeatConfirm] AUTO reminder round queued (${r.count}) at T-${daysUntil}`); }
         if (daysUntil <= tR && !done('release')) { const r = releaseUnconfirmed(ek, null); mark('release'); console.log(`[SeatConfirm] AUTO released ${r.released}, offered ${r.offers} at T-${daysUntil}`); }
     } catch (e) { console.warn('[SeatConfirm] auto skipped:', e.message); }
+}
+
+// ===================== POST-EVENT AUTOMATION (Close-event round) =====================
+// After an event, the admin runs ONE "post-event round" from the event's Post-event card. The round
+// (1) issues a certificate of attendance for every checked-in attendee — reusing the EXACT certificates
+// schema the member portal reads (registration_id keyed, unique certificate_number) — then stages FOUR
+// approval-gated outbox batches (source_engine='post-event'): a warm THANK-YOU to checked-in attendees,
+// a gentler SORRY-WE-MISSED-YOU to people who registered but never checked in, a CERTIFICATE-READY note,
+// and a one-question FEEDBACK invite (1-10) whose public link aggregates into event_feedback. Nothing
+// sends until the owner approves each batch in the outbox. The whole round is idempotent: post_event_log
+// has a UNIQUE(event_key, reg_id, kind) marker, so a re-run never re-issues a certificate or re-stages
+// an email. Certificate rows are created directly (client PDF is generated on demand today), so the
+// member portal's My Record shows the certificate the moment the round runs.
+const POST_EVENT_EVENTS = {
+    plexus: { label: 'Plexus Conference 2026', table: 'registrations', certName: 'Plexus Conference 2026', certPrefix: 'PLX26-CERT-' },
+    gala:   { label: 'Plexus Gala Evening 2026', table: 'gala_registrations', certName: 'Plexus Gala Evening 2026', certPrefix: 'GALA26-CERT-' },
+};
+function postEventCfg(eventKey) { return POST_EVENT_EVENTS[eventKey] || null; }
+
+// Everyone who actually attended (checked in), with a usable email + name. The seeded dev tester uses an
+// @medx.local address, so those are kept for a dev run; production has no such addresses.
+function postEventCheckedIn(eventKey) {
+    const cfg = postEventCfg(eventKey); if (!cfg) return [];
+    try {
+        return query.all(`SELECT id, first_name, last_name, email, user_id FROM ${cfg.table}
+            WHERE COALESCE(checked_in,0) = 1 AND email IS NOT NULL AND email != ''`);
+    } catch (e) { return []; }
+}
+// Registered but never checked in — not cancelled/refunded/rejected, has an email.
+function postEventMissed(eventKey) {
+    const cfg = postEventCfg(eventKey); if (!cfg) return [];
+    try {
+        return query.all(`SELECT id, first_name, last_name, email, user_id FROM ${cfg.table}
+            WHERE COALESCE(checked_in,0) = 0 AND email IS NOT NULL AND email != ''
+              AND COALESCE(status,'') NOT IN ('cancelled','canceled','refunded','rejected')`);
+    } catch (e) { return []; }
+}
+function postEventFirstName(r) { return (((r && r.first_name) || '').trim().split(' ')[0]) || 'there'; }
+
+// Issue a certificate of attendance for every checked-in attendee that does not already have one.
+// Idempotent: skips a registration that already has a certificates row (e.g. one the member minted
+// on demand via /api/plexus/my-certificate), and stamps a post_event_log(kind='cert') marker either way.
+function postEventIssueCertificates(eventKey) {
+    const cfg = postEventCfg(eventKey); if (!cfg) return { issued: 0, existing: 0 };
+    let issued = 0, existing = 0;
+    for (const r of postEventCheckedIn(eventKey)) {
+        // Idempotent on the certificates table itself — one certificate per registration. This also
+        // respects a certificate the member already minted on demand via /api/plexus/my-certificate.
+        const already = query.get('SELECT id FROM certificates WHERE registration_id = ?', [r.id]);
+        if (already) { existing++; continue; }
+        const certId = require('crypto').randomUUID();
+        const certNumber = `${cfg.certPrefix}${String(Date.now()).slice(-8)}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
+        const name = [r.first_name, r.last_name].filter(Boolean).join(' ').trim() || 'Attendee';
+        db.run(`INSERT INTO certificates (id, registration_id, certificate_type, certificate_number, recipient_name, conference_name, issue_date)
+                VALUES (?, ?, 'attendance', ?, ?, ?, datetime('now'))`,
+            [certId, r.id, certNumber, name, cfg.certName]);
+        issued++;
+    }
+    if (issued) saveDb();
+    return { issued, existing };
+}
+
+// Build the HTML body for one post-event email kind. Certificates are already issued before this runs.
+function postEventEmail(eventKey, kind, r, base) {
+    const cfg = postEventCfg(eventKey);
+    const first = seatEsc(postEventFirstName(r));
+    const portal = userPortalBase();
+    const myRecord = `${portal}/#mymedx`;
+    // Photos + save-the-date are placeholders until the gallery lands — pointed at the public site.
+    const photosUrl = 'https://medx.hr';
+    if (kind === 'thankyou') {
+        return {
+            subject: `Thank you for joining ${cfg.label}`,
+            html: buildEmailTemplate('Thank you for coming', `
+                <p>Hi ${first},</p>
+                <p>Thank you for being part of <strong>${seatEsc(cfg.label)}</strong>. It was a genuine pleasure to have you with us, and the day was better for your being there.</p>
+                <p>A few things to carry home:</p>
+                <ul style="padding-left:18px;line-height:1.8;">
+                    <li>Your <strong>certificate of attendance</strong> is ready in <a href="${myRecord}" style="color:#0f172a;font-weight:700;">My Med&amp;X</a>.</li>
+                    <li>Event photos will be shared here soon: <a href="${photosUrl}" style="color:#0f172a;font-weight:700;">medx.hr</a>.</li>
+                </ul>
+                <p style="margin-top:22px;"><strong>Save the date</strong> — the next edition returns in December 2027. We would love to see you again.</p>
+                <p style="color:#64748b;font-size:13px;margin-top:22px;">With gratitude,<br>The Med&amp;X team</p>
+            `),
+        };
+    }
+    if (kind === 'missed') {
+        return {
+            subject: `We missed you at ${cfg.label}`,
+            html: buildEmailTemplate('We missed you', `
+                <p>Hi ${first},</p>
+                <p>We noticed you signed up for <strong>${seatEsc(cfg.label)}</strong> but were not able to make it — we completely understand, life gets busy.</p>
+                <p>We would still love to have you in the room. The next edition returns in December 2027, and we will make sure you are among the first to hear when registration opens.</p>
+                <p>In the meantime, you are always welcome in the Med&amp;X community: <a href="${portal}" style="color:#0f172a;font-weight:700;">open the member portal</a>.</p>
+                <p style="color:#64748b;font-size:13px;margin-top:22px;">Warmly,<br>The Med&amp;X team</p>
+            `),
+        };
+    }
+    if (kind === 'cert') {
+        const certRow = query.get('SELECT certificate_number FROM certificates WHERE registration_id = ?', [r.id]);
+        const certNo = certRow && certRow.certificate_number ? `<p style="color:#64748b;font-size:13px;">Certificate number: <strong>${seatEsc(certRow.certificate_number)}</strong></p>` : '';
+        return {
+            subject: `Your ${cfg.label} certificate is ready`,
+            html: buildEmailTemplate('Your certificate is ready', `
+                <p>Hi ${first},</p>
+                <p>Your <strong>certificate of attendance</strong> for ${seatEsc(cfg.label)} is ready. You can view and download it any time from My Med&amp;X.</p>
+                ${certNo}
+                <div style="text-align:center;margin:30px 0;">
+                    <a href="${myRecord}" style="display:inline-block;background:#0f172a;color:#C9A962;text-decoration:none;padding:14px 40px;border-radius:8px;font-weight:700;font-size:16px;">View my certificate</a>
+                </div>
+                <p style="color:#64748b;font-size:13px;">It lives on your permanent record, so it will be there whenever you need it.</p>
+            `),
+        };
+    }
+    if (kind === 'feedback') {
+        // One-question link: ten score buttons, each a public GET that records the score.
+        const token = r._feedbackToken;
+        const scoreRow = [1,2,3,4,5,6,7,8,9,10].map((n) =>
+            `<a href="${base}/api/public/feedback?token=${token}&score=${n}" style="display:inline-block;width:34px;height:34px;line-height:34px;margin:3px;text-align:center;border-radius:8px;background:#0f172a;color:#C9A962;text-decoration:none;font-weight:700;font-size:15px;">${n}</a>`
+        ).join('');
+        return {
+            subject: `One quick question about ${cfg.label}`,
+            html: buildEmailTemplate('How was it?', `
+                <p>Hi ${first},</p>
+                <p>One quick question, and it really is just one: on a scale of 1 to 10, how likely are you to recommend ${seatEsc(cfg.label)} to a colleague?</p>
+                <div style="text-align:center;margin:26px 0;">${scoreRow}</div>
+                <p style="color:#64748b;font-size:12px;text-align:center;">1 = not likely · 10 = very likely. One tap is all it takes — thank you.</p>
+            `),
+        };
+    }
+    return null;
+}
+
+// Stage ONE approval-gated post-event batch for the given kind. Idempotent: a recipient is only added
+// when its post_event_log(kind) marker is newly inserted (INSERT OR IGNORE + getRowsModified()==1), so a
+// re-run never re-stages. batch_id carries the event + kind so the summary can scope by prefix.
+function postEventStageBatch(eventKey, kind, req) {
+    const cfg = postEventCfg(eventKey); if (!cfg) return { batch_id: null, count: 0 };
+    const recipients = (kind === 'missed') ? postEventMissed(eventKey) : postEventCheckedIn(eventKey);
+    if (!recipients.length) return { batch_id: null, count: 0 };
+    const base = seatPublicBase(req);
+    const batchId = `postevent-${eventKey}-${kind}-` + require('crypto').randomUUID();
+    let count = 0;
+    for (const r of recipients) {
+        db.run(`INSERT OR IGNORE INTO post_event_log (id, event_key, reg_id, kind, batch_id) VALUES (?,?,?,?,?)`,
+            [require('crypto').randomUUID(), eventKey, r.id, kind, batchId]);
+        if (db.getRowsModified() !== 1) continue; // already staged for this kind in a prior round
+        if (kind === 'feedback') {
+            // Mint a one-response feedback token and remember it on the marker.
+            r._feedbackToken = seatToken(20);
+            db.run(`INSERT INTO event_feedback (id, event_key, reg_id, email, token) VALUES (?,?,?,?,?)`,
+                [require('crypto').randomUUID(), eventKey, r.id, r.email, r._feedbackToken]);
+            db.run(`UPDATE post_event_log SET ref = ? WHERE event_key = ? AND reg_id = ? AND kind = 'feedback'`,
+                [r._feedbackToken, eventKey, r.id]);
+        }
+        const mail = postEventEmail(eventKey, kind, r, base);
+        if (!mail) continue;
+        db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                VALUES (?, 'pending_approval', ?, 'post-event', ?, ?, ?, ?, 'post-event-engine', datetime('now'))`,
+            [require('crypto').randomUUID(), batchId, 'post_' + kind,
+             JSON.stringify({ to: r.email, subject: mail.subject, html: mail.html }), r.email, mail.subject]);
+        count++;
+    }
+    if (count) saveDb();
+    return { batch_id: count ? batchId : null, count };
+}
+
+// Run the whole round: issue certificates, then stage the four batches. Every step is idempotent.
+function runPostEventRound(eventKey, req) {
+    const cfg = postEventCfg(eventKey); if (!cfg) return { ok: false, error: 'This event does not support a post-event round yet.' };
+    const certs = postEventIssueCertificates(eventKey);
+    const batches = {
+        thankyou: postEventStageBatch(eventKey, 'thankyou', req),
+        cert: postEventStageBatch(eventKey, 'cert', req),
+        feedback: postEventStageBatch(eventKey, 'feedback', req),
+        missed: postEventStageBatch(eventKey, 'missed', req),
+    };
+    return { ok: true, event_key: eventKey, certs, batches };
+}
+
+// Counts + per-kind batch states + feedback aggregate for the admin Post-event card.
+function postEventSummary(eventKey) {
+    const cfg = postEventCfg(eventKey);
+    if (!cfg) return { event_key: eventKey, supported: false };
+    const checkedIn = postEventCheckedIn(eventKey).length;
+    const missed = postEventMissed(eventKey).length;
+    let certsIssued = 0;
+    try { certsIssued = query.get(`SELECT COUNT(*) AS n FROM certificates WHERE registration_id IN (SELECT id FROM ${cfg.table} WHERE COALESCE(checked_in,0)=1)`)?.n || 0; } catch (e) {}
+    const kinds = ['thankyou', 'missed', 'cert', 'feedback'];
+    const batches = {};
+    for (const k of kinds) {
+        const like = `postevent-${eventKey}-${k}-%`;
+        const st = { pending: 0, scheduled: 0, sent: 0, failed: 0, cancelled: 0, pending_batch_id: null };
+        try {
+            query.all("SELECT status, COUNT(*) AS n FROM scheduled_emails WHERE batch_id LIKE ? GROUP BY status", [like]).forEach((row) => {
+                if (row.status === 'pending_approval') st.pending += row.n;
+                else if (st[row.status] !== undefined) st[row.status] += row.n;
+            });
+            const pend = query.get("SELECT batch_id FROM scheduled_emails WHERE batch_id LIKE ? AND status='pending_approval' ORDER BY created_at DESC LIMIT 1", [like]);
+            st.pending_batch_id = pend ? pend.batch_id : null;
+        } catch (e) {}
+        batches[k] = st;
+    }
+    let responses = 0, invites = 0, avg = null;
+    try {
+        const fb = query.get("SELECT COUNT(score) AS responses, AVG(score) AS avg FROM event_feedback WHERE event_key = ? AND score IS NOT NULL", [eventKey]);
+        responses = (fb && fb.responses) || 0;
+        avg = (fb && fb.avg != null) ? Math.round(fb.avg * 10) / 10 : null;
+        invites = query.get("SELECT COUNT(*) AS n FROM event_feedback WHERE event_key = ?", [eventKey])?.n || 0;
+    } catch (e) {}
+    return {
+        event_key: eventKey, supported: true, label: cfg.label,
+        checked_in: checkedIn, missed, certs_issued: certsIssued,
+        batches,
+        feedback: { invites, responses, avg_score: avg },
+    };
 }
 
 async function initializeApp() {
@@ -2661,7 +3051,65 @@ async function initializeApp() {
         updated_at TEXT,
         updated_by TEXT
     )`);
+
+    // First-party, privacy-friendly site analytics — AGGREGATE counters only (no accounts, no
+    // cookies, no IPs, no per-visitor rows), so it is GDPR-clean by design. The public beacon
+    // POST /api/public/pv (user portal) UPSERTs one row per (day, path, referrer_domain, device),
+    // incrementing count; the admin Site-analytics card reads it via GET /api/admin/analytics.
+    // Declared in BOTH portals (shared Turso DB) so the table exists regardless of which boots
+    // first; only the user portal ever writes to it. UNIQUE(day,path,referrer_domain,device) is
+    // the UPSERT target that keeps one running counter per bucket.
+    db.run(`CREATE TABLE IF NOT EXISTS page_views (
+        id TEXT PRIMARY KEY,
+        day TEXT NOT NULL,
+        path TEXT NOT NULL,
+        referrer_domain TEXT NOT NULL DEFAULT 'direct',
+        device TEXT NOT NULL DEFAULT 'desktop',
+        count INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(day, path, referrer_domain, device)
+    )`);
+
+    // ===== Post-event automation: round tracking + one-question feedback =====
+    // Byte-identical in both portal server.js files (shared Turso DB in prod). The admin portal runs
+    // the post-event round (stages the thank-you / missed / certificate / feedback batches into the
+    // shared outbox, and issues certificates rows the member portal reads); the public feedback GET
+    // (served by the admin backend) writes event_feedback. Declared in BOTH so the shared table always
+    // exists regardless of which portal boots first; each engine only writes the tables it owns.
+
+    // One row per (event_key, reg_id, kind) — the idempotency marker that makes re-running a round
+    // exactly-once: an email is only staged, and a certificate only issued, when the marker is newly
+    // inserted (INSERT OR IGNORE + getRowsModified()==1). kind: thankyou | missed | cert | feedback.
+    // batch_id links the marker to the outbox batch it belongs to; ref carries the certificate id or
+    // feedback token so the round can find what it created without re-deriving it.
+    db.run(`CREATE TABLE IF NOT EXISTS post_event_log (
+        id TEXT PRIMARY KEY,
+        event_key TEXT NOT NULL DEFAULT 'plexus',
+        reg_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        batch_id TEXT,
+        ref TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(event_key, reg_id, kind)
+    )`);
+
+    // One row per feedback invite. token backs the public GET /api/public/feedback?token=&score=1-10;
+    // score is clamped to 1..10 and recorded at most once per token (responded_at gates a re-tap). The
+    // admin post-event card aggregates AVG(score) + COUNT(score) per event_key. A row is created with
+    // score NULL when the feedback batch is staged, then filled in when the attendee taps their score.
+    db.run(`CREATE TABLE IF NOT EXISTS event_feedback (
+        id TEXT PRIMARY KEY,
+        event_key TEXT NOT NULL DEFAULT 'plexus',
+        reg_id TEXT,
+        email TEXT,
+        token TEXT UNIQUE,
+        score INTEGER,
+        comment TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        responded_at TEXT
+    )`);
     // ====================== SCHEMA-MIRROR:END ======================
+    // pr_posts drifted between portals (admin CREATE has status, user CREATE lacked it) — heal existing DBs.
+    try { db.exec("ALTER TABLE pr_posts ADD COLUMN status TEXT DEFAULT 'published'"); } catch (e) { /* column exists */ }
 
     // Audience scope for member announcements (additive, guarded — deliberately OUTSIDE the mirror
     // block so it never disturbs the byte-identical CREATE TABLE region). Values:
@@ -4365,6 +4813,11 @@ async function initializeApp() {
     // pr_ai_generations: add user-portal column aliases so either portal works
     try { db.run(`ALTER TABLE pr_ai_generations ADD COLUMN type TEXT`); } catch(e) {}
     try { db.run(`ALTER TABLE pr_ai_generations ADD COLUMN result_text TEXT`); } catch(e) {}
+    // pr_content_calendar: Publer "Approve & Schedule" tracking (external job/post id + a
+    // human-readable note about the last publish attempt). Guarded ALTERs outside the
+    // SCHEMA-MIRROR block — PR & Media lives only in the admin portal.
+    try { db.run(`ALTER TABLE pr_content_calendar ADD COLUMN external_post_id TEXT`); } catch(e) {}
+    try { db.run(`ALTER TABLE pr_content_calendar ADD COLUMN publish_note TEXT`); } catch(e) {}
     // Gala + Forum check-in columns
     try { db.run(`ALTER TABLE gala_registrations ADD COLUMN checked_in INTEGER DEFAULT 0`); } catch(e) {}
     try { db.run(`ALTER TABLE gala_registrations ADD COLUMN checked_in_at TEXT`); } catch(e) {}
@@ -12524,6 +12977,50 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
+    // First-party site analytics — reads the aggregate page_views counters (no PII, no per-visitor
+    // data) written by the user portal's public beacon. Powers the dashboard "Site analytics" card:
+    // 30-day total + daily sparkline series, top pages, top referrers, mobile/desktop split.
+    app.get('/api/admin/analytics', auth, adminOnly, (req, res) => {
+        try {
+            let days = parseInt(req.query.days, 10);
+            if (!Number.isFinite(days) || days < 1) days = 30;
+            if (days > 365) days = 365;
+            // Continuous UTC day axis (zero-filled) so the sparkline reflects real calendar gaps.
+            const axis = [];
+            const byDay = {};
+            for (let i = days - 1; i >= 0; i--) {
+                const d = new Date(); d.setUTCHours(0, 0, 0, 0); d.setUTCDate(d.getUTCDate() - i);
+                const key = d.toISOString().split('T')[0];
+                axis.push(key); byDay[key] = 0;
+            }
+            const since = axis[0];
+            const rows = query.all('SELECT day, path, referrer_domain, device, count FROM page_views WHERE day >= ?', [since]);
+            let total = 0, mobile = 0, desktop = 0;
+            const pages = {}, refs = {};
+            rows.forEach(r => {
+                const c = Number(r.count) || 0;
+                total += c;
+                if (byDay[r.day] !== undefined) byDay[r.day] += c;
+                if (r.device === 'mobile') mobile += c; else desktop += c;
+                pages[r.path] = (pages[r.path] || 0) + c;
+                refs[r.referrer_domain] = (refs[r.referrer_domain] || 0) + c;
+            });
+            const topPages = Object.entries(pages).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([path, count]) => ({ path, count }));
+            const topReferrers = Object.entries(refs).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([domain, count]) => ({ domain, count }));
+            res.json({
+                days,
+                total,
+                series: axis.map(d => ({ day: d, count: byDay[d] })),
+                devices: { mobile, desktop },
+                top_pages: topPages,
+                top_referrers: topReferrers,
+                generated_at: new Date().toISOString()
+            });
+        } catch (e) {
+            res.status(500).json({ error: 'Failed to load analytics' });
+        }
+    });
+
     app.get('/api/admin/analytics/:confId', auth, adminOnly, (req, res) => {
         const cid = req.params.confId;
         res.json({
@@ -17530,6 +18027,73 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, postId });
     });
 
+    // Approve & Schedule -> hand the post off to Publer. This IS the approve click:
+    // nothing reaches Publer without hitting this route. Mock-safe (publishToPubler
+    // never throws); when no PUBLER_API_KEY is set the post is marked "published (mock)".
+    app.post('/api/pr/calendar/:id/approve-schedule', auth, async (req, res) => {
+        const item = query.get('SELECT * FROM pr_content_calendar WHERE id = ?', [req.params.id]);
+        if (!item) return res.status(404).json({ error: 'Not found' });
+
+        // IG image guard — Instagram will not accept a text-only post.
+        if ((item.platform || '').toLowerCase() === 'instagram' && !item.image_url) {
+            return res.status(400).json({ error: 'Instagram requires an image. Add an image URL before scheduling.' });
+        }
+        if (!item.scheduled_date) {
+            return res.status(400).json({ error: 'Set a schedule date before approving & scheduling.' });
+        }
+
+        // Mark approved first — the audit trail records who approved and when.
+        db.run(`UPDATE pr_content_calendar SET status = 'approved', approved_by = ?, approved_at = datetime('now') WHERE id = ?`,
+            [req.user?.id || null, item.id]);
+
+        // Hand off to Publer (mock-safe, never throws).
+        const result = await publishToPubler(item);
+        // mock -> "published"; real success -> "scheduled" (queued in Publer); failure -> stays "approved".
+        const finalStatus = result.mock ? 'published' : (result.ok ? 'scheduled' : 'approved');
+        db.run(`UPDATE pr_content_calendar
+                SET status = ?, external_post_id = ?, publish_note = ?,
+                    published_at = CASE WHEN ? = 'published' THEN datetime('now') ELSE published_at END
+                WHERE id = ?`,
+            [finalStatus, result.external_post_id || null, result.note || null, finalStatus, item.id]);
+
+        // Record a pr_posts row so the post shows in Social Posts + analytics.
+        let postId = null;
+        if (result.ok) {
+            postId = uuidv4();
+            db.run(`INSERT INTO pr_posts (id, project, platform, content_text, image_url, link_url, external_post_id, published_at, status, calendar_id, campaign_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [postId, item.project, item.platform, item.content_text, item.image_url, item.link_url,
+                 result.external_post_id || null, new Date().toISOString(),
+                 result.mock ? 'published (mock)' : 'scheduled', item.id, item.campaign_id]);
+        }
+        saveDb();
+        // 200 even on a Publer soft-failure so the composer can surface the note.
+        res.json({ success: result.ok, mock: !!result.mock, status: finalStatus, external_post_id: result.external_post_id || null, note: result.note, postId });
+    });
+
+    // Publer connection status for the PR & Media status card. Never errors out —
+    // returns { connected, configured, accounts, message } so the card always renders.
+    app.get('/api/pr/publer/status', auth, async (req, res) => {
+        if (!publerConfigured()) {
+            return res.json({
+                connected: false, configured: false, accounts: [],
+                message: 'Publer: not connected — add PUBLER_API_KEY on Render to activate'
+            });
+        }
+        const list = await publerListAccounts();
+        if (!list.ok) {
+            return res.json({
+                connected: false, configured: true, accounts: [],
+                message: 'Publer key is set but the accounts call failed: ' + list.error
+            });
+        }
+        res.json({
+            connected: true, configured: true, accounts: list.accounts,
+            workspaceId: process.env.PUBLER_WORKSPACE_ID,
+            message: `Publer connected — ${list.accounts.length} account(s).`
+        });
+    });
+
     app.delete('/api/pr/calendar/:id', auth, (req, res) => {
         db.run('DELETE FROM pr_content_calendar WHERE id = ?', [req.params.id]);
         saveDb();
@@ -21967,6 +22531,26 @@ By applying to this program, I provide the following consents:
         } catch (e) { console.error('[outbox] cancel', e.message); res.status(500).json({ error: e.message }); }
     });
 
+    // ========== POST-EVENT (Close-event round) — admin panel API ==========
+    // The card reads the summary (checked-in / missed / certs issued / feedback avg + per-kind batch
+    // states); the ONE button runs the round (issues certificates + stages the four approval-gated
+    // batches). Approval/discard reuse the existing /api/admin/outbox/:batch endpoints.
+    app.get('/api/admin/post-event/summary', auth, adminOnly, (req, res) => {
+        try { res.json(postEventSummary(String(req.query.event_key || 'plexus'))); }
+        catch (e) { console.error('[post-event] summary', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.post('/api/admin/post-event/run-round', auth, adminOnly, (req, res) => {
+        try {
+            const ek = String((req.body && req.body.event_key) || 'plexus');
+            const r = runPostEventRound(ek, req);
+            if (!r.ok) return res.status(400).json({ error: r.error });
+            const staged = Object.values(r.batches).reduce((a, b) => a + (b.count || 0), 0);
+            logAudit(req, 'post_event_round', `${ek}: ${r.certs.issued} certificate(s) issued, ${staged} email(s) staged for approval`);
+            res.json({ success: true, ...r, staged, summary: postEventSummary(ek) });
+        } catch (e) { console.error('[post-event] run-round', e.message); res.status(500).json({ error: e.message }); }
+    });
+
     // ========== CONFIRM-YOUR-SEAT (#3) — admin panel API ==========
     // Counts + config for the confirm-seat card in the Plexus section.
     app.get('/api/admin/seat-confirmations/summary', auth, adminOnly, (req, res) => {
@@ -22074,6 +22658,35 @@ By applying to this program, I provide the following consents:
             console.log(`[Waitlist] Offer claimed by ${o.email || o.waitlist_id}`);
             return res.send(seatResultPage({ heading: 'Your seat is reserved', sub: 'A Plexus 2026 seat is yours. Finish your registration to lock it in — your details are already filled in.', accent: '#16a34a', cta: { href: buildRegUrl(), label: 'Complete your registration' } }));
         } catch (e) { console.error('[public claim-seat]', e.message); return res.status(500).send(seatResultPage({ heading: 'Something went wrong', sub: 'Please try again in a moment.', accent: '#dc2626' })); }
+    });
+
+    // One-question post-event feedback (1-10). No auth — the token in the link is the credential.
+    // With a score: record it once (responded_at gates re-taps) and thank the attendee. Without a
+    // score: show the 1-10 picker. Aggregated as AVG(score) on the admin Post-event card.
+    app.get('/api/public/feedback', publicLimiter, (req, res) => {
+        const token = String(req.query.token || '');
+        const rawScore = req.query.score;
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        try {
+            if (!token) return res.status(400).send(seatResultPage({ heading: 'Invalid link', sub: 'This feedback link is missing its token.', accent: '#dc2626' }));
+            const row = query.get("SELECT * FROM event_feedback WHERE token = ?", [token]);
+            if (!row) return res.status(404).send(seatResultPage({ heading: 'Link not found', sub: 'We could not find this feedback link. It may have already been used.', accent: '#dc2626' }));
+            const label = (postEventCfg(row.event_key) && postEventCfg(row.event_key).label) || 'the event';
+            if (row.responded_at) {
+                return res.send(seatResultPage({ heading: 'Thank you', sub: `We already have your rating for ${seatEsc(label)} — thank you for taking the time.`, accent: '#16a34a' }));
+            }
+            if (rawScore === undefined || rawScore === '') {
+                const buttons = [1,2,3,4,5,6,7,8,9,10].map((n) => `<a href="${seatPublicBase(req)}/api/public/feedback?token=${seatEsc(token)}&score=${n}" style="display:inline-block;width:40px;height:40px;line-height:40px;margin:4px;text-align:center;border-radius:9px;background:#0f172a;color:#C9A962;text-decoration:none;font-weight:700;">${n}</a>`).join('');
+                return res.send(seatResultPage({ heading: 'How was it?', sub: `On a scale of 1 to 10, how likely are you to recommend ${seatEsc(label)} to a colleague?<br><br>${buttons}`, accent: '#0f172a' }));
+            }
+            let score = parseInt(rawScore, 10);
+            if (!Number.isFinite(score)) return res.status(400).send(seatResultPage({ heading: 'Invalid score', sub: 'Please tap one of the numbers from 1 to 10.', accent: '#dc2626' }));
+            score = Math.max(1, Math.min(10, score));
+            db.run("UPDATE event_feedback SET score = ?, responded_at = datetime('now') WHERE id = ? AND responded_at IS NULL", [score, row.id]);
+            saveDb();
+            console.log(`[PostEvent] Feedback ${score}/10 for ${row.event_key} from ${row.email || row.reg_id}`);
+            return res.send(seatResultPage({ heading: 'Thank you', sub: `You rated ${seatEsc(label)} a <strong>${score}/10</strong>. Thank you — your feedback helps us make the next edition better.`, accent: '#16a34a' }));
+        } catch (e) { console.error('[public feedback]', e.message); return res.status(500).send(seatResultPage({ heading: 'Something went wrong', sub: 'Please try again in a moment.', accent: '#dc2626' })); }
     });
 
     // ========== NAG->DO ACTION CENTER (daily scan + one-click DO buttons) ==========
