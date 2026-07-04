@@ -23,6 +23,9 @@ permissions:
   issues: write
   contents: read
 
+env:
+  GH_REPO: ${{ github.repository }}
+
 jobs:
   probe:
     runs-on: ubuntu-latest
