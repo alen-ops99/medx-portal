@@ -24,9 +24,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <!-- The dashboard + splash hero photo is referenced only from CSS, so on a cold cache it
+         started downloading long after first paint (hero showed as a bare gradient until a
+         refresh). Preloading starts the fetch with the document itself. -->
+    <link rel="preload" as="image" href="/assets/photos/plexus_25_gala_grupna.jpg">
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js" crossorigin="anonymous" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" integrity="sha384-9Q0jWoineiIq95JeIyBsNV90KKLfDsbkj29k/YFxf76a2JwkHDYkMuSbNGN6XJfV" crossorigin="anonymous" defer></script>
+    <!-- jsQR self-hosted: jsDelivr re-minifies on their side, so a pinned SRI hash rots and the
+         browser blocks the scanner library. Vendored like Font Awesome, no SRI needed same-origin. -->
+    <script src="/vendor/jsqr/jsQR.min.js" defer></script>
     <script src="https://js.stripe.com/v3/" async></script>
     <style>
         :root {
@@ -6233,6 +6239,10 @@
             z-index: 8002;
             transform: translateY(20px);
             opacity: 0;
+            /* When idle this fixed, invisible box floated over the top navigation and
+               swallowed clicks on the tabs beneath it — keep it fully inert until active. */
+            visibility: hidden;
+            pointer-events: none;
             transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
             border: 1px solid rgba(201, 169, 98, 0.2);
         }
@@ -6240,11 +6250,14 @@
         .onboarding-tooltip.active {
             transform: translateY(0);
             opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
         }
 
         /* Smooth connecting line instead of arrow */
         .onboarding-connector {
             position: fixed;
+            pointer-events: none;
             width: 2px;
             background: linear-gradient(to bottom, var(--up-gold), transparent);
             z-index: 8001;
@@ -9941,7 +9954,7 @@
         }
 
         .up-container {
-            max-width: 1200px;
+            max-width: 1320px;
             margin: 0 auto;
             padding: 24px;
         }
@@ -10029,7 +10042,7 @@
         }
 
         .hub-container {
-            max-width: 980px;
+            max-width: 1320px;
             margin: 0 auto;
             padding: 48px 24px 80px;
             overflow-x: hidden;
@@ -17125,6 +17138,10 @@
         .feed-chip.news { color:#6b5b4a; background:rgba(20,15,12,.06); border-color:rgba(20,15,12,.12); }
         .feed-empty, .opp-empty, .talk-empty { text-align:center; padding:44px 20px; color:var(--up-text-muted,var(--muted)); }
         .feed-empty i, .opp-empty i, .talk-empty i { font-size:30px; opacity:.4; display:block; margin-bottom:12px; }
+        .feed-summary { background:linear-gradient(180deg,rgba(201,169,98,.10),rgba(201,169,98,.04)); border:1px solid rgba(201,169,98,.30); border-radius:14px; padding:13px 15px; margin:0 0 12px; }
+        .feed-summary-eyebrow { display:flex; align-items:center; gap:7px; font-family:var(--sans,'Inter',sans-serif); font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#a07c1f; margin-bottom:6px; }
+        .feed-summary-eyebrow i { font-size:11px; }
+        .feed-summary-text { margin:0; font-size:13px; line-height:1.55; color:var(--up-text,#15110f); }
 
         /* Feed "See all" modal */
         .feed-modal-overlay { position:fixed; inset:0; background:rgba(20,15,12,.55); backdrop-filter:blur(4px); z-index:10000; display:flex; align-items:flex-start; justify-content:center; padding:40px 16px; overflow-y:auto; }
@@ -17174,6 +17191,26 @@
         .talk-body h4 { margin:0 0 6px; font-family:'Fraunces',Georgia,serif; font-size:16px; line-height:1.3; color:var(--up-text,var(--ink,#15110f)); }
         .talk-speaker { font-size:13px; color:var(--up-text-secondary,var(--muted)); }
         .talk-event { display:inline-block; margin-top:10px; font-size:11px; font-weight:600; color:var(--up-text-muted,var(--muted)); border:1px solid var(--up-border,var(--line)); padding:2px 8px; border-radius:6px; }
+
+        /* Talk library — grouped premium sections + duration + sample ribbon (redesign) */
+        .talks-grid.talks-grouped { display:block; }
+        .talk-section { margin-bottom:34px; }
+        .talk-section-head { display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; padding-bottom:12px; margin-bottom:18px; border-bottom:1px solid var(--up-border,var(--line,rgba(20,15,12,.1))); }
+        .talk-section-head .tsh-left { display:flex; flex-direction:column; gap:3px; }
+        .talk-section-head h3 { margin:0; font-family:'Fraunces',Georgia,serif; font-size:22px; font-weight:600; letter-spacing:-.01em; color:var(--up-text,var(--ink,#15110f)); }
+        .talk-section-head .tsh-sub { font-size:12.5px; color:var(--up-text-secondary,var(--muted)); }
+        .talk-section-count { flex-shrink:0; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#a07c1f; background:rgba(201,169,98,.14); border:1px solid rgba(201,169,98,.34); padding:4px 10px; border-radius:999px; white-space:nowrap; }
+        .talk-duration { position:absolute; top:10px; left:10px; display:inline-flex; align-items:center; gap:4px; background:rgba(20,15,12,.72); color:#fff; font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; }
+        .talk-duration i { font-size:9px; opacity:.85; }
+        .talk-ribbon { position:absolute; left:0; right:0; bottom:0; padding:7px 12px; font-size:10px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; text-align:left; line-height:1.3; }
+        .talk-ribbon.sample { background:rgba(201,169,98,.95); color:var(--ink,#15110f); }
+        .talk-ribbon.soon { background:rgba(20,15,12,.72); color:#fff; }
+        .talk-body .talk-src { display:flex; align-items:center; gap:6px; margin-top:9px; font-size:12px; font-weight:600; color:var(--up-text-secondary,var(--muted)); }
+        .talk-body .talk-src i { color:var(--crimson,#9b1b22); font-size:11px; }
+        .talk-coming-soon { border:1px dashed rgba(201,169,98,.5); background:linear-gradient(180deg,rgba(201,169,98,.06),rgba(201,169,98,.02)); border-radius:16px; padding:34px 22px; text-align:center; color:var(--up-text-secondary,var(--muted)); }
+        .talk-coming-soon i { font-size:26px; color:var(--gold,#c9a962); opacity:.75; display:block; margin-bottom:12px; }
+        .talk-coming-soon p { margin:0; font-size:13.5px; line-height:1.55; max-width:460px; margin-left:auto; margin-right:auto; }
+        .talk-section-future .talk-section-head { border-bottom-style:dashed; }
 
         /* ===== Mentorship matching (menu 10) ===== */
         .ment-status-card { background:var(--up-bg,#fff); border:1px solid var(--up-border,var(--line)); border-radius:16px; padding:18px 20px; margin-bottom:22px; }
@@ -23285,6 +23322,64 @@
         .gala-gallery-item:hover img {
             transform: scale(1.05);
         }
+
+        /* ===== Gala Evening cluster fixes (overnight campaign 2026-07-05) ===== */
+        /* Countdown labels: crisp over the photographic hero scrim */
+        .gala-hero .gala-countdown-label,
+        [data-theme="light"] .gala-hero .gala-countdown-label{color:rgba(255,255,255,.9)!important;font-weight:700;text-shadow:0 1px 6px rgba(0,0,0,.55);}
+        .gala-hero .gala-countdown-value{text-shadow:0 2px 14px rgba(0,0,0,.5);}
+        /* Secondary hero button: frosted, readable white on the dark photo */
+        .gala-hero .gala-btn-secondary,
+        [data-theme="light"] .gala-hero .gala-btn-secondary{background:rgba(255,255,255,.14)!important;color:#fff!important;border:1px solid rgba(255,255,255,.55)!important;backdrop-filter:blur(3px);text-shadow:0 1px 4px rgba(0,0,0,.35);}
+        .gala-hero .gala-btn-secondary:hover,
+        [data-theme="light"] .gala-hero .gala-btn-secondary:hover{background:rgba(255,255,255,.24)!important;border-color:rgba(255,255,255,.85)!important;}
+        /* Get-updates toggle promoted onto the hero, below the countdown (suppresses the auto cream row) */
+        .gala-hero-notify{position:relative;z-index:2;display:inline-flex;align-items:center;gap:12px;margin:0 auto 24px;padding:8px 10px 8px 16px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.4);border-radius:999px;backdrop-filter:blur(4px);}
+        .gala-hero-notify .gxn-ico{color:var(--up-gold,#c9a962);font-size:14px;}
+        .gala-hero-notify .gxn-copy{display:flex;flex-direction:column;line-height:1.15;text-align:left;}
+        .gala-hero-notify .gxn-title{font-size:13px;font-weight:600;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.35);}
+        .gala-hero-notify .gxn-state{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.75);}
+        .gala-hero-notify.on .gxn-state{color:#f0d79a;}
+        .gala-hero-notify .mx-notify-switch{width:44px;height:26px;background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);flex-shrink:0;}
+        .gala-hero-notify.on .mx-notify-switch{background:var(--up-gold,#c9a962);border-color:var(--up-gold,#c9a962);}
+        .gala-hero-notify .mx-notify-switch::after{width:20px;height:20px;}
+        .gala-hero-notify.on .mx-notify-switch::after{transform:translateX(18px);}
+        /* Networking / bridge-building feature band — the felt centerpiece */
+        .gala-feature{display:grid;grid-template-columns:1.05fr 1fr;gap:0;border:1px solid var(--up-border,#e7e2da);border-radius:20px;overflow:hidden;background:var(--up-bg,#fbf9f6);box-shadow:0 1px 2px rgba(21,17,15,.05);margin:32px 0;}
+        .gala-feature-media{position:relative;min-height:340px;background-size:cover;background-position:center;}
+        .gala-feature-media::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent 58%,var(--up-bg,#fbf9f6));}
+        .gala-feature-body{padding:38px 40px;display:flex;flex-direction:column;justify-content:center;}
+        .gala-feature-eyebrow{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--up-gold,#c9a962);margin:0 0 12px;display:flex;align-items:center;gap:8px;}
+        .gala-feature-title{font-family:var(--serif,'Fraunces',Georgia,serif);font-size:27px;font-weight:600;line-height:1.14;letter-spacing:-.01em;color:var(--up-text,#15110f);margin:0 0 14px;}
+        .gala-feature-text{font-size:14.5px;line-height:1.75;color:var(--up-text-secondary,#6e6e73);margin:0 0 10px;}
+        @media(max-width:820px){.gala-feature{grid-template-columns:1fr;}.gala-feature-media{min-height:210px;}.gala-feature-media::after{background:linear-gradient(180deg,transparent 52%,var(--up-bg,#fbf9f6));}.gala-feature-body{padding:26px 24px;}.gala-feature-title{font-size:23px;}}
+        /* Featured performers — designed placeholder slot pending real names */
+        .gala-perform{display:flex;align-items:center;gap:22px;border:1px dashed rgba(201,169,98,.55);border-radius:18px;padding:26px 30px;margin:32px 0;background:linear-gradient(180deg,rgba(201,169,98,.055),rgba(201,169,98,.02));}
+        .gala-perform-ico{width:56px;height:56px;border-radius:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:23px;color:var(--up-gold,#c9a962);background:var(--up-bg,#fbf9f6);border:1px solid rgba(201,169,98,.4);}
+        .gala-perform-body{flex:1;min-width:0;}
+        .gala-perform-eyebrow{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--up-gold,#c9a962);margin:0 0 4px;}
+        .gala-perform-title{font-family:var(--serif,'Fraunces',Georgia,serif);font-size:20px;font-weight:600;color:var(--up-text,#15110f);margin:0 0 5px;letter-spacing:-.01em;}
+        .gala-perform-text{font-size:13.5px;line-height:1.6;color:var(--up-text-secondary,#6e6e73);margin:0;}
+        .gala-perform-chip{flex-shrink:0;align-self:center;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#7a5a12;background:rgba(201,169,98,.18);border:1px solid rgba(201,169,98,.4);border-radius:999px;padding:6px 14px;white-space:nowrap;}
+        @media(max-width:640px){.gala-perform{flex-direction:column;align-items:flex-start;gap:14px;padding:22px;}.gala-perform-chip{align-self:flex-start;}}
+        /* Elegant limited-seating note (no fake urgency) */
+        .gala-seating{display:inline-flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:var(--up-text-secondary,#6e6e73);background:var(--up-bg-subtle,#f3efe9);border:1px solid var(--up-border,#e7e2da);border-radius:999px;padding:9px 16px;margin-top:4px;}
+        .gala-seating i{color:var(--up-gold,#c9a962);}
+        /* Program-at-a-glance preview -> full schedule */
+        .gala-glance{border:1px solid var(--up-border,#e7e2da);border-radius:20px;overflow:hidden;margin:32px 0;background:var(--up-bg,#fbf9f6);}
+        .gala-glance-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:24px 28px 6px;}
+        .gala-glance-head h3{font-family:var(--serif,'Fraunces',Georgia,serif);font-size:21px;font-weight:600;color:var(--up-text,#15110f);margin:0;letter-spacing:-.01em;}
+        .gala-glance-rows{padding:8px 28px 24px;display:flex;flex-direction:column;}
+        .gala-glance-row{display:flex;align-items:center;gap:16px;padding:12px 0;border-top:1px solid var(--up-border,#e7e2da);}
+        .gala-glance-row:first-child{border-top:none;}
+        .gala-glance-time{font-family:var(--serif,'Fraunces',Georgia,serif);font-size:15px;font-weight:600;color:var(--up-gold,#c9a962);min-width:52px;}
+        .gala-glance-label{font-size:14px;font-weight:600;color:var(--up-text,#15110f);}
+        .gala-glance-cta{border:none;background:var(--crimson,#9b1b22);color:#fff;font-family:inherit;font-weight:600;font-size:13.5px;border-radius:10px;padding:11px 20px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:transform .12s ease;}
+        .gala-glance-cta:hover{transform:translateY(-1px);}
+        @media(max-width:560px){.gala-glance-head,.gala-glance-rows{padding-left:20px;padding-right:20px;}.gala-glance-cta{width:100%;justify-content:center;}}
+        /* Moments gallery: 2x2, four gala-evening photos only (no daytime conference shots) */
+        .gala-gallery-grid{grid-template-columns:repeat(2,1fr);max-width:820px;}
+        @media(max-width:768px){.gala-gallery-grid{grid-template-columns:repeat(2,1fr);}}
 
         /* Gala Speakers */
         .gala-speakers-header {
@@ -29685,7 +29780,7 @@
 
         /* ===== SMART NETWORKING STYLES ===== */
         .network-container {
-            max-width: 1200px;
+            max-width: 1320px;
             margin: 0 auto;
             padding: 24px;
         }
@@ -30812,6 +30907,44 @@
         .profile-location { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--crimson, #9b1b22); margin-top: 6px; }
         .profile-location i { font-size: 12px; }
         @media (max-width: 640px) { .directory-city-cards { grid-template-columns: 1fr; } }
+
+        /* ===== Network discovery redesign — hero search, monograms, featured strip, load-more ===== */
+        .discover-hero { margin: 4px 0 16px; }
+        .discover-hero h2 { font-family:'Fraunces',Georgia,serif; font-size:24px; font-weight:600; letter-spacing:-.01em; color:var(--up-text,var(--ink,#15110f)); margin:0 0 4px; }
+        .discover-hero p { font-size:13.5px; color:var(--up-text-secondary,var(--muted)); margin:0; }
+        .discovery-filters .discovery-search { flex:1 1 100%; min-width:100%; }
+        .discovery-filters .discovery-search input { padding:15px 16px 15px 46px; font-size:15px; border-radius:14px; }
+        .discovery-filters .discovery-search i { left:18px; font-size:15px; }
+
+        /* Elegant cream/ink Fraunces monogram (photo when available, initials otherwise) */
+        .directory-monogram { width:56px; height:56px; border-radius:50%; background:var(--paper,#f3efe9); border:1px solid rgba(201,169,98,.42); color:var(--ink,#15110f); display:flex; align-items:center; justify-content:center; font-family:'Fraunces',Georgia,serif; font-size:21px; font-weight:600; letter-spacing:.01em; flex-shrink:0; overflow:hidden; }
+        .directory-monogram img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+
+        /* Featured / new-members strip */
+        .discover-strip { margin: 4px 0 26px; }
+        .discover-strip-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:12px; }
+        .discover-strip-head h3 { margin:0; font-family:'Fraunces',Georgia,serif; font-size:17px; font-weight:600; color:var(--up-text,var(--ink,#15110f)); display:flex; align-items:center; gap:8px; }
+        .discover-strip-head h3 i { color:var(--gold,#c9a962); font-size:14px; }
+        .discover-strip-head span { font-size:12px; color:var(--up-text-muted,var(--muted)); font-weight:500; white-space:nowrap; }
+        .discover-strip-scroll { display:flex; gap:14px; overflow-x:auto; padding:4px 2px 10px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
+        .discover-strip-scroll::-webkit-scrollbar { height:6px; }
+        .discover-strip-scroll::-webkit-scrollbar-thumb { background:rgba(20,15,12,.14); border-radius:999px; }
+        .strip-card { scroll-snap-align:start; flex:0 0 236px; background:var(--up-bg,#fff); border:1px solid var(--up-border,var(--line)); border-radius:16px; padding:16px; display:flex; flex-direction:column; align-items:center; text-align:center; transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+        .strip-card:hover { transform:translateY(-2px); border-color:rgba(201,169,98,.5); box-shadow:0 10px 26px -14px rgba(21,17,15,.28); }
+        .strip-tag { align-self:flex-start; font-size:9.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; padding:3px 8px; border-radius:5px; }
+        .strip-tag.featured { color:#9b1b22; background:rgba(155,27,34,.09); border:1px solid rgba(155,27,34,.24); }
+        .strip-tag.new { color:#a07c1f; background:rgba(201,169,98,.16); border:1px solid rgba(201,169,98,.4); }
+        .strip-card h4 { margin:10px 0 2px; font-size:14.5px; font-weight:700; color:var(--up-text,var(--ink,#15110f)); }
+        .strip-card .strip-role { font-size:12px; color:var(--up-text-secondary,var(--muted)); line-height:1.4; margin-bottom:12px; min-height:34px; }
+        .strip-card .strip-connect { width:100%; padding:8px 12px; border-radius:10px; border:1px solid var(--ink,#15110f); background:var(--ink,#15110f); color:#fff; font-size:12.5px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px; transition:opacity .15s ease; }
+        .strip-card .strip-connect:hover { opacity:.88; }
+
+        /* Load-more */
+        .directory-loadmore { grid-column:1/-1; display:flex; flex-direction:column; align-items:center; gap:8px; padding:16px 0 4px; }
+        .directory-loadmore button { padding:11px 26px; border-radius:999px; border:1px solid var(--ink,#15110f); background:transparent; color:var(--ink,#15110f); font-size:13.5px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:8px; transition:background .15s ease, color .15s ease; }
+        .directory-loadmore button:hover { background:var(--ink,#15110f); color:#fff; }
+        .directory-loadmore .lm-note { font-size:12px; color:var(--up-text-muted,var(--muted)); }
+        @media (max-width:640px){ .strip-card { flex-basis:200px; } .discover-hero h2 { font-size:21px; } }
 
         /* Meeting Scheduler */
         .meetings-list {
@@ -46712,8 +46845,12 @@
 }
 .welcome-tour-overlay.active { display: block; }
 .welcome-tour-step { display: none; position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-.welcome-tour-step.active { display: flex; align-items: center; justify-content: center; animation: wtFadeIn 0.5s ease; }
+.welcome-tour-step.active { display: flex; align-items: center; justify-content: center; z-index: 1; animation: wtEnter 0.55s cubic-bezier(0.22, 0.61, 0.36, 1); }
+.welcome-tour-step.wt-leaving { display: flex; align-items: center; justify-content: center; z-index: 0; pointer-events: none; animation: wtLeave 0.45s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
 @keyframes wtFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wtEnter { from { opacity: 0; transform: scale(0.99); } to { opacity: 1; transform: scale(1); } }
+@keyframes wtLeave { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.985); } }
+@media (prefers-reduced-motion: reduce) { .welcome-tour-step.active, .welcome-tour-step.wt-leaving { animation: wtFadeIn 0.2s ease; } }
 
 /* Step 0: Welcome Splash */
 .welcome-splash { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; }
@@ -46816,6 +46953,9 @@
 .wt-program-content p { font-size: 13px; color: rgba(255, 255, 255, 0.5); margin: 0 0 10px 0; line-height: 1.5; }
 .wt-program-tags { display: flex; gap: 8px; }
 .wt-program-tags span { font-size: 11px; padding: 4px 10px; background: rgba(255, 255, 255, 0.05); border-radius: 14px; color: rgba(255, 255, 255, 0.5); }
+.wt-program-visual.bridges { background: rgba(201, 169, 98, 0.15); color: var(--gold); }
+.wt-programs-note { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12.5px; color: rgba(255, 255, 255, 0.55); text-align: center; margin: -18px 0 28px; }
+.wt-programs-note i { color: var(--gold); font-size: 12px; }
 .wt-program-check { width: 28px; height: 28px; border: 2px solid rgba(255, 255, 255, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: transparent; transition: all 0.2s ease; font-size: 14px; flex-shrink: 0; align-self: center; }
 .wt-program-card.selected .wt-program-check { background: var(--gold); border-color: var(--gold); color: var(--emph-bg); }
 
@@ -46901,6 +47041,15 @@
 .wt-fdot { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.2); cursor: pointer; transition: all 0.2s ease; }
 .wt-fdot:hover { background: rgba(255,255,255,0.4); }
 .wt-fdot.active { background: var(--gold); width: 28px; border-radius: 5px; }
+
+/* Condensed capabilities grid (Step 5) — replaces the auto-advancing carousel */
+.wt-capabilities { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 28px; text-align: left; }
+.wt-capability { display: flex; gap: 14px; align-items: flex-start; padding: 18px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; transition: border-color 0.2s ease, transform 0.2s ease; }
+.wt-capability:hover { border-color: rgba(201,169,98,0.35); transform: translateY(-2px); }
+.wt-capability-icon { flex-shrink: 0; width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; background: rgba(201,169,98,0.14); color: var(--gold); }
+.wt-capability-text h4 { font-size: 15px; font-weight: 700; color: #fff; margin: 0 0 5px; }
+.wt-capability-text p { font-size: 12.5px; line-height: 1.5; color: rgba(255,255,255,0.6); margin: 0; }
+@media (max-width: 600px) { .wt-capabilities { grid-template-columns: 1fr; } }
 
 /* Rewards Explainer (Step 6) */
 .wt-rewards-explainer {
@@ -46995,6 +47144,16 @@
     .welcome-tour-step.active { align-items: flex-start; padding-top: 20px; }
     .welcome-tour-container { max-height: none; padding-bottom: 40px; }
     .wt-interests-grid { max-height: 50vh; overflow-y: auto; }
+}
+
+/* Desktop: give the profile step a real two-column form, not a phone column */
+@media (min-width: 768px) {
+    #welcomeTourStep1 .welcome-tour-container { max-width: 760px; }
+    #welcomeTourStep1 .welcome-tour-card { padding: 44px 48px; }
+    #welcomeTourStep1 .wt-form { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 24px; }
+    #welcomeTourStep1 .wt-form-row { display: contents; }
+    #welcomeTourStep1 .wt-form-group.wt-fullwidth { grid-column: 1 / -1; }
+    #welcomeTourStep1 .wt-actions { margin-top: 8px; }
 }
 
 /* ===== DASHBOARD CUSTOMIZER ===== */
@@ -50857,18 +51016,23 @@ button:focus-visible, .btn:focus-visible, [class*="-btn"]:focus-visible {
 .achievement-desc { font-size: 11px; color: var(--muted); }
 .achievement-points { display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; padding: 4px 10px; background: rgba(201, 169, 98, 0.15); border-radius: 12px; font-size: 11px; font-weight: 600; color: var(--gold); }
 .achievement-card.locked .achievement-points { background: var(--emph-line); color: var(--muted); }
-.achievement-unlock-modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); z-index: 100001; display: none; align-items: center; justify-content: center; backdrop-filter: blur(8px); }
+.achievement-unlock-modal { position: fixed; inset: 0; background: rgba(21, 17, 15, 0.55); z-index: 100001; display: none; align-items: center; justify-content: center; backdrop-filter: blur(10px); padding: 24px; }
 .achievement-unlock-modal.active { display: flex; }
-.achievement-unlock-content { text-align: center; animation: unlockPop 0.5s ease; }
-@keyframes unlockPop { 0% { transform: scale(0.5); opacity: 0; } 50% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }
-.achievement-unlock-badge { width: 140px; height: 140px; border-radius: 50%; background: linear-gradient(135deg, #ffd700, #daa520); display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; font-size: 56px; color: var(--ink); box-shadow: 0 0 80px rgba(255, 215, 0, 0.5); animation: badgeGlow 2s ease infinite; }
-@keyframes badgeGlow { 0%, 100% { box-shadow: 0 0 40px rgba(255, 215, 0, 0.5); } 50% { box-shadow: 0 0 80px rgba(255, 215, 0, 0.8); } }
-.achievement-unlock-title { font-size: 14px; color: var(--gold); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
-.achievement-unlock-name { font-size: 28px; font-weight: 700; color: white; margin-bottom: 12px; }
-.achievement-unlock-desc { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
-.achievement-unlock-points { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: rgba(201, 169, 98, 0.2); border-radius: 30px; font-size: 20px; font-weight: 700; color: var(--gold); }
-.achievement-unlock-close { margin-top: 32px; padding: 12px 32px; background: var(--gold); border: none; border-radius: 10px; color: var(--ink); font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-.achievement-unlock-close:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(201, 169, 98, 0.35); }
+.achievement-unlock-content { position: relative; text-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 48px 44px 36px; max-width: 400px; width: 100%; box-shadow: 0 30px 90px rgba(21, 17, 15, 0.28); animation: unlockPop 0.55s cubic-bezier(0.22, 0.61, 0.36, 1); }
+@keyframes unlockPop { 0% { transform: scale(0.9) translateY(12px); opacity: 0; } 60% { transform: scale(1.02); } 100% { transform: scale(1) translateY(0); opacity: 1; } }
+.achievement-unlock-badge { width: 116px; height: 116px; border-radius: 50%; background: linear-gradient(135deg, #e4c877, var(--gold)); display: flex; align-items: center; justify-content: center; margin: 0 auto 22px; font-size: 46px; color: var(--ink); box-shadow: 0 12px 34px rgba(201, 169, 98, 0.4); animation: badgeGlow 2.4s ease infinite; }
+@keyframes badgeGlow { 0%, 100% { box-shadow: 0 12px 34px rgba(201, 169, 98, 0.34); } 50% { box-shadow: 0 12px 48px rgba(201, 169, 98, 0.55); } }
+.achievement-unlock-content h3 { font-family: 'Fraunces', Georgia, serif; font-size: 27px; font-weight: 600; color: var(--ink); margin: 0 0 10px; letter-spacing: -0.01em; }
+.achievement-unlock-title { font-size: 12px; color: #a8842f; text-transform: uppercase; letter-spacing: 2px; font-weight: 700; margin-bottom: 8px; }
+.achievement-unlock-name { font-size: 28px; font-weight: 700; color: var(--ink); margin-bottom: 12px; }
+.achievement-unlock-desc { font-size: 14.5px; color: var(--muted); line-height: 1.5; margin-bottom: 22px; }
+.achievement-unlock-reward { display: inline-flex; align-items: center; gap: 8px; padding: 11px 22px; background: rgba(201, 169, 98, 0.14); border: 1px solid rgba(201, 169, 98, 0.3); border-radius: 999px; font-size: 16px; font-weight: 700; color: #a8842f; }
+.achievement-unlock-reward i { font-size: 15px; }
+.achievement-unlock-points { display: inline-flex; align-items: center; gap: 8px; padding: 11px 22px; background: rgba(201, 169, 98, 0.14); border: 1px solid rgba(201, 169, 98, 0.3); border-radius: 999px; font-size: 16px; font-weight: 700; color: #a8842f; }
+.achievement-unlock-btn { margin-top: 30px; width: 100%; padding: 15px 28px; background: var(--crimson); border: none; border-radius: 14px; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 10px 26px rgba(155, 27, 34, 0.24); }
+.achievement-unlock-btn:hover { transform: translateY(-2px); box-shadow: 0 14px 32px rgba(155, 27, 34, 0.32); }
+.achievement-unlock-close { margin-top: 30px; padding: 13px 32px; background: var(--crimson); border: none; border-radius: 12px; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; }
+.achievement-unlock-close:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(155, 27, 34, 0.3); }
 
 /* Achievements Section Additional Styles */
 .achievements-section { background: linear-gradient(135deg, var(--emph-bg-2) 0%, #15151f 100%); }
@@ -55580,6 +55744,7 @@ h1,h2,h3,.card-title,.section-title,.hub-hero-title,.hero-title,.page-title,.vie
   font-family:var(--sans);font-size:14px;font-weight:600;color:var(--ink-soft,#4a443f);text-decoration:none;line-height:1;white-space:nowrap;
   transition:color .15s ease;}
 .up-tb-item i.up-tb-caret{font-size:9px;color:var(--muted,#8a847b);transition:transform .18s ease;}
+.up-tb-item i.up-tb-ext{font-size:10px;color:var(--muted,#8a847b);}
 .up-tb-item:hover{color:var(--ink,#15110f);}
 .up-tb-item.active{color:var(--ink,#15110f);}
 .up-tb-item:hover::after{content:'';position:absolute;left:13px;right:13px;bottom:-1px;height:2px;background:var(--line-strong,#d9d2c7);border-radius:2px;}
@@ -55695,7 +55860,7 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
 .auth-modal-close,.up-generic-modal-close,.up-help-close{min-width:44px !important;min-height:44px !important;display:inline-flex !important;align-items:center !important;justify-content:center !important;}
 /* ===== Editorial dashboard hero (greeting + next event, website-style photographic) ===== */
 #upNextEvent{margin:0 0 22px;}
-.up-hero{position:relative;overflow:hidden;border-radius:18px;min-height:min(352px,48vh);display:flex;flex-direction:column;justify-content:flex-end;padding:26px 24px;color:#f3efe9;box-shadow:var(--shadow-md);background:linear-gradient(180deg, rgba(18,15,13,.28) 0%, rgba(18,15,13,.55) 48%, rgba(18,15,13,.92) 100%), url('/assets/photos/plexus_25_gala_grupna.jpg') center/cover;}
+.up-hero{position:relative;overflow:hidden;border-radius:18px;min-height:min(352px,48vh);display:flex;flex-direction:column;justify-content:flex-end;padding:26px 24px;color:#f3efe9;box-shadow:var(--shadow-md);background:linear-gradient(180deg, rgba(18,15,13,.28) 0%, rgba(18,15,13,.55) 48%, rgba(18,15,13,.92) 100%), url('/assets/photos/plexus_25_gala_grupna.jpg') center/cover;background-color:#14110f;}
 .up-hero-greeting{font-family:var(--serif);font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1.05;margin-bottom:16px;}
 .up-hero-eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(243,239,233,.78);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .up-hero-status{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22);padding:3px 9px;border-radius:999px;}
@@ -55812,6 +55977,12 @@ button,input,select,textarea{font-family:var(--sans);}
 .wt-achievement-name,.wt-rewards-title{color:var(--ink) !important;}
 .wt-achievement-label,.wt-rewards-desc,.wt-rewards-benefits,.wt-tier span{color:var(--muted) !important;}
 .wt-celebration-btn{background:var(--crimson) !important;color:#fff !important;box-shadow:0 8px 24px rgba(155,27,34,.22) !important;}
+.wt-programs-note{color:var(--muted) !important;}
+.wt-programs-note i{color:var(--gold) !important;}
+.wt-capability{background:var(--paper) !important;border:1px solid var(--line) !important;}
+.wt-capability:hover{border-color:var(--gold) !important;}
+.wt-capability-text h4{color:var(--ink) !important;}
+.wt-capability-text p{color:var(--muted) !important;}
 /* === end MEDX-TOKENS-INJECTED === */
 
 </style>
@@ -56321,15 +56492,37 @@ button,input,select,textarea{font-family:var(--sans);}
             <a href="#" class="landing-logo">Med<span>&</span>X</a>
         </nav>
 
+        <!-- Premium refinements for the entry screen (elevate, not redesign) -->
+        <style id="splashPremium">
+        .splash-entry-content{max-width:560px !important;padding:46px 28px !important;}
+        .splash-entry-logo{margin-bottom:18px !important;}
+        .splash-entry-kicker{font-size:12px;letter-spacing:.36em;text-transform:uppercase;color:rgba(201,169,98,.9);font-weight:700;margin:0 0 16px;opacity:0;animation:splashFadeUp .7s ease .12s forwards;}
+        .splash-entry-subtitle{font-size:31px !important;line-height:1.15 !important;letter-spacing:-.015em !important;margin:0 0 14px !important;}
+        .splash-entry-description{font-size:15px !important;line-height:1.65 !important;max-width:430px;margin:0 auto 42px !important;}
+        .splash-entry-divider{margin:0 auto 40px !important;width:52px !important;}
+        .splash-entry-actions{width:322px !important;gap:14px !important;}
+        .splash-btn-primary{border-radius:16px !important;padding:17px 32px !important;letter-spacing:.3px;position:relative;overflow:hidden;box-shadow:0 10px 30px rgba(155,27,34,.42) !important;transition:transform .18s ease,box-shadow .18s ease !important;}
+        .splash-btn-primary::after{content:'';position:absolute;left:0;right:0;top:0;height:46%;background:linear-gradient(180deg,rgba(255,255,255,.16),transparent);pointer-events:none;}
+        .splash-btn-primary:hover{transform:translateY(-2px);box-shadow:0 16px 42px rgba(155,27,34,.52) !important;}
+        .splash-btn-secondary{border-radius:16px !important;padding:16px 32px !important;background:rgba(255,255,255,.07) !important;border:1px solid rgba(243,239,233,.34) !important;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:background .2s ease,border-color .2s ease,color .2s ease !important;}
+        .splash-btn-secondary:hover{background:rgba(255,255,255,.13) !important;border-color:rgba(201,169,98,.6) !important;color:#fff !important;}
+        .splash-entry-vignette{position:absolute;inset:0;pointer-events:none;z-index:0;background:radial-gradient(ellipse 72% 62% at 50% 40%,transparent 42%,rgba(10,8,7,.58) 100%);}
+        .splash-entry-grain{position:absolute;inset:0;pointer-events:none;z-index:0;opacity:.045;mix-blend-mode:overlay;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+        @media(max-width:480px){.splash-entry-subtitle{font-size:24px !important;}.splash-entry-kicker{letter-spacing:.3em;font-size:11px;}.splash-entry-actions{width:100% !important;max-width:300px;}}
+        </style>
         <!-- Redesigned splash / entry screen -->
         <div class="splash-entry" id="splashEntry">
             <!-- Animated orbs -->
             <div class="splash-entry-orb splash-entry-orb-1"></div>
             <div class="splash-entry-orb splash-entry-orb-2"></div>
             <div class="splash-entry-orb splash-entry-orb-3"></div>
+            <!-- Premium texture layers -->
+            <div class="splash-entry-vignette"></div>
+            <div class="splash-entry-grain"></div>
 
             <div class="splash-entry-content">
                 <div class="splash-entry-logo"><img src="/assets/images/medx-logo.png" alt="Med&amp;X"></div>
+                <div class="splash-entry-kicker">Med&amp;X Member Portal</div>
                 <p class="splash-entry-subtitle">Connecting biomedicine's next generation</p>
                 <div class="splash-entry-divider"></div>
                 <p class="splash-entry-description">Conferences, programs, and a network of researchers and clinicians — in one place.</p>
@@ -56767,10 +56960,19 @@ button,input,select,textarea{font-family:var(--sans);}
             <div class="suwiz-step" id="regStep3" style="display:none; text-align:center;">
                 <div class="suwiz-confirm-icon"><i class="fas fa-envelope-open-text"></i></div>
                 <h2>Check your email</h2>
-                <p>We sent a confirmation link to <strong id="regConfirmEmail" style="color:var(--ink,#15110f);"></strong>. Click it to confirm your account.</p>
-                <button type="button" class="auth-btn" onclick="UserPortal.regFinish()">Continue to Med&X <i class="fas fa-arrow-right" style="margin-left:6px;"></i></button>
-                <p class="auth-link" style="margin-top:16px;">Didn't get it? <a href="#" id="regResendLink" onclick="UserPortal.resendVerification(); return false;">Resend email</a></p>
-                <p class="suwiz-hint">You can start exploring right away &mdash; we'll keep a gentle reminder at the top until your email is confirmed.</p>
+                <p style="overflow-wrap:anywhere;">We sent a confirmation link to <strong id="regConfirmEmail" style="color:var(--ink,#15110f);word-break:break-word;overflow-wrap:anywhere;"></strong>. Open it to confirm your account.</p>
+                <!-- Dev/demo (no mail provider yet): surface the confirm link so signup never dead-ends -->
+                <div id="regDevVerifyBox" style="display:none; margin:18px 0 6px; padding:15px 16px; background:rgba(201,169,98,.1); border:1px solid rgba(201,169,98,.35); border-radius:12px; text-align:left;">
+                    <div style="font-size:12px;font-weight:700;color:var(--ink,#15110f);margin-bottom:6px;"><i class="fas fa-flask" style="color:var(--gold,#c9a962);margin-right:6px;"></i>Demo mode</div>
+                    <p style="font-size:12.5px;color:var(--muted,#8a847b);margin:0 0 12px;line-height:1.5;">Email sending activates when the mail key is added. Until then, confirm your account with this link:</p>
+                    <a id="regDevVerifyLink" href="#" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:7px;background:var(--crimson,#9b1b22);color:#fff;text-decoration:none;border-radius:9px;padding:10px 16px;font-size:13px;font-weight:600;">Confirm my email now <i class="fas fa-up-right-from-square" style="font-size:11px;"></i></a>
+                </div>
+                <button type="button" class="auth-btn" onclick="UserPortal.regFinish()" style="margin-top:16px;">Continue to Med&X <i class="fas fa-arrow-right" style="margin-left:6px;"></i></button>
+                <div style="margin-top:14px;">
+                    <button type="button" class="auth-btn" id="regResendBtn" onclick="UserPortal.resendVerification()" style="background:transparent;color:var(--crimson,#9b1b22);border:1px solid var(--crimson,#9b1b22);">Resend link</button>
+                </div>
+                <p class="suwiz-hint">Can't find it? Check your spam or promotions folder &mdash; it can take a minute to arrive.</p>
+                <p class="suwiz-hint" style="margin-top:8px;">You can start exploring right away &mdash; we'll keep a gentle reminder at the top until your email is confirmed.</p>
             </div>
         </div>
     </div>
@@ -57282,7 +57484,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                     <input type="text" id="wtLastName" placeholder="Smith" autocomplete="family-name" maxlength="100">
                                 </div>
                             </div>
-                            <div class="wt-form-group">
+                            <div class="wt-form-group wt-fullwidth">
                                 <label>Email <span style="color: var(--danger);">*</span></label>
                                 <input type="email" id="wtEmail" placeholder="john@university.edu" autocomplete="email" maxlength="254">
                             </div>
@@ -57484,7 +57686,22 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                                 <div class="wt-program-check"><i class="fas fa-check-circle"></i></div>
                             </div>
+                            <div class="wt-program-card" data-program="bridges" onclick="WelcomeTour.toggleProgram(this)">
+                                <div class="wt-program-visual bridges">
+                                    <i class="fas fa-bridge"></i>
+                                </div>
+                                <div class="wt-program-content">
+                                    <h4>Building Bridges</h4>
+                                    <p>Intimate networking dinners connecting the Croatian biomedical community with leading institutions worldwide.</p>
+                                    <div class="wt-program-tags">
+                                        <span>Zurich - Boston - Zagreb</span>
+                                        <span>Networking</span>
+                                    </div>
+                                </div>
+                                <div class="wt-program-check"><i class="fas fa-check-circle"></i></div>
+                            </div>
                         </div>
+                        <p class="wt-programs-note"><i class="fas fa-info-circle"></i> Pick anything that speaks to you. You can change these choices later in Settings.</p>
                         <div class="wt-actions">
                             <button class="wt-btn secondary" onclick="WelcomeTour.prevStep()">
                                 <i class="fas fa-arrow-left"></i> Back
@@ -57513,71 +57730,34 @@ button,input,select,textarea{font-family:var(--sans);}
                         <h2>Here's what you can do</h2>
                         <p>Your Med&X portal gives you access to amazing opportunities</p>
 
-                        <div class="wt-features-showcase">
-                            <div class="wt-feature-slide active" id="wtFeatureSlide0">
-                                <div class="wt-feature-visual">
-                                    <div class="wt-feature-mockup dashboard">
-                                        <div class="mockup-sidebar">
-                                            <div class="mockup-nav-item active"></div>
-                                            <div class="mockup-nav-item"></div>
-                                            <div class="mockup-nav-item"></div>
-                                            <div class="mockup-nav-item"></div>
-                                        </div>
-                                        <div class="mockup-content">
-                                            <div class="mockup-card"></div>
-                                            <div class="mockup-card"></div>
-                                        </div>
-                                    </div>
+                        <div class="wt-capabilities">
+                            <div class="wt-capability">
+                                <div class="wt-capability-icon"><i class="fas fa-home"></i></div>
+                                <div class="wt-capability-text">
+                                    <h4>Your dashboard</h4>
+                                    <p>A personalized home with recommendations, upcoming events, and quick actions.</p>
                                 </div>
-                                <h4><i class="fas fa-home"></i> Your Dashboard</h4>
-                                <p>Personalized homepage with recommendations, upcoming events, and quick actions tailored to you.</p>
                             </div>
-
-                            <div class="wt-feature-slide" id="wtFeatureSlide1">
-                                <div class="wt-feature-visual">
-                                    <div class="wt-feature-mockup programs">
-                                        <div class="mockup-program plexus"><i class="fas fa-users"></i></div>
-                                        <div class="mockup-program accelerator"><i class="fas fa-rocket"></i></div>
-                                        <div class="mockup-program forum"><i class="fas fa-landmark"></i></div>
-                                    </div>
+                            <div class="wt-capability">
+                                <div class="wt-capability-icon"><i class="fas fa-layer-group"></i></div>
+                                <div class="wt-capability-text">
+                                    <h4>Four projects</h4>
+                                    <p>Plexus Conference, the Accelerator, the Biomedical Forum, and Building Bridges.</p>
                                 </div>
-                                <h4><i class="fas fa-layer-group"></i> Three Programs</h4>
-                                <p>Access Plexus Conference, Accelerator internships, and the exclusive Biomedical Forum.</p>
                             </div>
-
-                            <div class="wt-feature-slide" id="wtFeatureSlide2">
-                                <div class="wt-feature-visual">
-                                    <div class="wt-feature-mockup network">
-                                        <div class="mockup-avatar" style="--delay: 0s;"></div>
-                                        <div class="mockup-avatar" style="--delay: 0.1s;"></div>
-                                        <div class="mockup-avatar" style="--delay: 0.2s;"></div>
-                                        <div class="mockup-avatar" style="--delay: 0.3s;"></div>
-                                        <div class="mockup-lines"></div>
-                                    </div>
+                            <div class="wt-capability">
+                                <div class="wt-capability-icon"><i class="fas fa-users"></i></div>
+                                <div class="wt-capability-text">
+                                    <h4>Smart networking</h4>
+                                    <p>Connect with researchers, clinicians, and industry leaders who share your interests.</p>
                                 </div>
-                                <h4><i class="fas fa-users"></i> Smart Networking</h4>
-                                <p>Connect with researchers, clinicians, and industry leaders who share your interests.</p>
                             </div>
-
-                            <div class="wt-feature-slide" id="wtFeatureSlide3">
-                                <div class="wt-feature-visual">
-                                    <div class="wt-feature-mockup rewards">
-                                        <div class="mockup-badge"><i class="fas fa-trophy"></i></div>
-                                        <div class="mockup-points">+100</div>
-                                        <div class="mockup-progress"></div>
-                                    </div>
+                            <div class="wt-capability">
+                                <div class="wt-capability-icon"><i class="fas fa-award"></i></div>
+                                <div class="wt-capability-text">
+                                    <h4>Rewards and achievements</h4>
+                                    <p>Earn points, unlock badges, and climb the leaderboard as you take part.</p>
                                 </div>
-                                <h4><i class="fas fa-award"></i> Rewards & Achievements</h4>
-                                <p>Earn points, unlock badges, and climb the leaderboard as you engage with the community.</p>
-                            </div>
-                        </div>
-
-                        <div class="wt-feature-nav">
-                            <div class="wt-feature-dots">
-                                <span class="wt-fdot active" onclick="WelcomeTour.showFeature(0)"></span>
-                                <span class="wt-fdot" onclick="WelcomeTour.showFeature(1)"></span>
-                                <span class="wt-fdot" onclick="WelcomeTour.showFeature(2)"></span>
-                                <span class="wt-fdot" onclick="WelcomeTour.showFeature(3)"></span>
                             </div>
                         </div>
 
@@ -58122,7 +58302,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     <i class="fas fa-coins"></i>
                     <span id="achievementUnlockPoints">+100</span> points
                 </div>
-                <button class="onboarding-btn primary" onclick="Achievements.closeUnlockModal()">Awesome!</button>
+                <button class="achievement-unlock-btn" onclick="Achievements.closeUnlockModal()">Continue</button>
             </div>
         </div>
 
@@ -58137,6 +58317,7 @@ button,input,select,textarea{font-family:var(--sans);}
             <button class="up-tb-item" data-nav="network" onclick="UserPortal.showSection('network')">Network</button>
             <button class="up-tb-item" data-nav="talks" onclick="UserPortal.showSection('talks')">Talk Library</button>
             <button class="up-tb-item" data-nav="mymedx" onclick="UserPortal.showSection('mymedx')">My Med&amp;X</button>
+            <a class="up-tb-item" href="https://medx-website-preview.netlify.app" target="_blank" rel="noopener" aria-label="Med&amp;X website (opens in a new tab)">Website <i class="fas fa-external-link-alt up-tb-ext" aria-hidden="true"></i></a>
           </nav>
           <div class="up-tb-spacer"></div>
           <button class="up-tb-icon" id="upTbBell" aria-label="Notifications" onclick="if(typeof NotificationSystem!=='undefined'&amp;&amp;NotificationSystem.toggle){NotificationSystem.toggle();}else{UserPortal.toggleNotifications();}">
@@ -58384,7 +58565,9 @@ button,input,select,textarea{font-family:var(--sans);}
                       };
                       window.MedXNextEvent=NE;
                       function maybeRender(){ var h=(location.hash||'').replace('#',''); if(!h||h==='dashboard'){ NE.render(); } }
-                      if(document.readyState!=='loading') setTimeout(maybeRender,250); else window.addEventListener('load',function(){ setTimeout(maybeRender,250); });
+                      // Paint at DOMContentLoaded (all scripts parsed) instead of window.load + 250ms —
+                      // waiting for every image/font left the hero slot empty on slow first loads.
+                      if(document.readyState!=='loading') setTimeout(maybeRender,0); else document.addEventListener('DOMContentLoaded',function(){ setTimeout(maybeRender,0); });
                       window.addEventListener('hashchange',maybeRender);
                     })();
                     </script>
@@ -58409,6 +58592,19 @@ button,input,select,textarea{font-family:var(--sans);}
                     .mx-hub-bell:hover{color:var(--ink,#15110f);border-color:var(--ink-soft,#8a847b);}
                     .mx-hub-bell.on{background:rgba(201,169,98,.18);border-color:rgba(201,169,98,.6);color:#a8842f;}
                     .mx-hub-empty{grid-column:1/-1;padding:18px;text-align:center;color:var(--muted,#6e6e73);font-size:13px;}
+                    /* Per-project accent — a quiet top strip + tinted icon so each card is instantly recognizable (not four loud colors). */
+                    .mx-hub-card{overflow:hidden;}
+                    .mx-hub-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--line-strong,#d9d2c7);}
+                    .mx-hub-card--plexus::before{background:#9b1b22;}
+                    .mx-hub-card--gala::before{background:#c9a962;}
+                    .mx-hub-card--accelerator::before{background:#2f6b52;}
+                    .mx-hub-card--forum::before{background:#3a4a63;}
+                    .mx-hub-card--bridges::before{background:#2f6f7a;}
+                    .mx-hub-card--plexus .mx-hub-ico{background:rgba(155,27,34,.10);border-color:rgba(155,27,34,.22);color:#9b1b22;}
+                    .mx-hub-card--gala .mx-hub-ico{background:rgba(201,169,98,.16);border-color:rgba(201,169,98,.34);color:#a8842f;}
+                    .mx-hub-card--accelerator .mx-hub-ico{background:rgba(47,107,82,.10);border-color:rgba(47,107,82,.22);color:#2f6b52;}
+                    .mx-hub-card--forum .mx-hub-ico{background:rgba(58,74,99,.10);border-color:rgba(58,74,99,.22);color:#3a4a63;}
+                    .mx-hub-card--bridges .mx-hub-ico{background:rgba(47,111,122,.10);border-color:rgba(47,111,122,.22);color:#2f6f7a;}
                     @media(max-width:760px){.mx-hub-grid{grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:80%;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px;}.mx-hub-grid::-webkit-scrollbar{display:none;}.mx-hub-card{scroll-snap-align:start;}}
                     /* Warm-ink chapter band (monograph grammar, echoes the website's numbered chapters) */
                     .mx-chapter-band{display:flex;align-items:center;gap:18px;background:var(--emph-bg,#14110f);border-radius:16px;padding:20px 24px;margin:6px 0 20px;}
@@ -58469,7 +58665,7 @@ button,input,select,textarea{font-family:var(--sans);}
                           host.innerHTML=list.map(function(p){
                             var k=p.project_key; var kind=KINDS[p.status_kind]||'info'; var ico=ICONS[k]||'fa-star';
                             var on=PH._subs.indexOf(k)>=0; var target=p.cta_target||k;
-                            return '<div class="mx-hub-card" role="button" tabindex="0" onclick="MedXProjectHub.go(\''+esc(target)+'\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();MedXProjectHub.go(\''+esc(target)+'\');}">'
+                            return '<div class="mx-hub-card mx-hub-card--'+esc(k)+'" role="button" tabindex="0" onclick="MedXProjectHub.go(\''+esc(target)+'\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();MedXProjectHub.go(\''+esc(target)+'\');}">'
                               +'<div class="mx-hub-top"><div class="mx-hub-idname"><div class="mx-hub-ico"><i class="fas '+ico+'"></i></div>'
                               +'<div class="mx-hub-name">'+esc(NAMES[k]||k)+'</div></div>'
                               +'<button class="mx-hub-bell'+(on?' on':'')+'" title="'+(on?'You will be notified':'Get notified')+'" aria-pressed="'+(on?'true':'false')+'" onclick="event.stopPropagation();MedXProjectHub.toggle(\''+esc(k)+'\',this)"><i class="fas fa-bell"></i></button></div>'
@@ -58587,12 +58783,13 @@ button,input,select,textarea{font-family:var(--sans);}
 
                     <!-- Membership value strip — what belonging includes (quiet, informational) -->
                     <style>
-                    .mx-value-strip{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;margin:0 0 18px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+                    .mx-value-strip{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;padding:2px 2px 6px;margin:0 0 18px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
                     .mx-value-strip::-webkit-scrollbar{display:none;}
                     .mx-value-chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;background:var(--up-bg,#fbf9f6);border:1px solid var(--up-border,#e7e2da);border-radius:999px;padding:8px 14px;font-family:var(--sans,'Inter',sans-serif);font-size:12.5px;font-weight:600;color:var(--up-text-secondary,#6e6e73);cursor:pointer;white-space:nowrap;transition:border-color .2s ease,color .2s ease;line-height:1;}
                     .mx-value-chip i{font-size:12px;color:var(--gold,#c9a962);}
                     .mx-value-chip:not(.static):hover{border-color:rgba(201,169,98,.55);color:var(--up-text,#15110f);}
                     .mx-value-chip.static{cursor:default;}
+                    @media(max-width:760px){.mx-value-strip{flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;}}
                     </style>
                     <nav class="mx-value-strip" id="mxValueStrip" aria-label="What your membership includes">
                         <button type="button" class="mx-value-chip" onclick="UserPortal.showSection('network')"><i class="fas fa-address-book"></i><span>Member directory</span></button>
@@ -58658,6 +58855,60 @@ button,input,select,textarea{font-family:var(--sans);}
                             <span>Add Widgets</span>
                         </button>
                     </div>
+
+                    <!-- Dashboard snapshot — gives the "Your Dashboard" heading real content (no orphan heading) -->
+                    <style>
+                    .dash-snapshot{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:2px 0 22px;}
+                    .dash-snap-tile{background:var(--paper,#fbf9f6);border:1px solid var(--line,#e2dcd3);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:3px;box-shadow:0 1px 2px rgba(21,17,15,.05);}
+                    .dash-snap-top{display:flex;align-items:center;gap:10px;}
+                    .dash-snap-ico{width:30px;height:30px;border-radius:9px;background:var(--paper-2,#f3efe9);border:1px solid var(--line,#e2dcd3);display:flex;align-items:center;justify-content:center;color:var(--gold,#c9a962);font-size:12px;flex-shrink:0;}
+                    .dash-snap-num{font-family:var(--serif,'Fraunces',Georgia,serif);font-size:24px;font-weight:600;line-height:1;color:var(--ink,#15110f);letter-spacing:-.01em;}
+                    .dash-snap-label{font-size:12px;font-weight:700;color:var(--ink,#15110f);margin-top:5px;}
+                    .dash-snap-sub{font-size:11.5px;color:var(--muted,#6e6e73);line-height:1.35;}
+                    @media(max-width:760px){.dash-snapshot{grid-template-columns:repeat(2,1fr);}}
+                    </style>
+                    <div class="dash-snapshot" id="dashSnapshot" aria-label="Your membership at a glance">
+                        <div class="dash-snap-tile">
+                            <div class="dash-snap-top"><div class="dash-snap-ico"><i class="fas fa-star"></i></div><span class="dash-snap-num" id="dsPoints">0</span></div>
+                            <div class="dash-snap-label">Points balance</div>
+                            <div class="dash-snap-sub">Earned at Med&amp;X events</div>
+                        </div>
+                        <div class="dash-snap-tile">
+                            <div class="dash-snap-top"><div class="dash-snap-ico"><i class="fas fa-ticket-alt"></i></div><span class="dash-snap-num" id="dsRegs">0</span></div>
+                            <div class="dash-snap-label">Registrations</div>
+                            <div class="dash-snap-sub">Events you have joined</div>
+                        </div>
+                        <div class="dash-snap-tile">
+                            <div class="dash-snap-top"><div class="dash-snap-ico"><i class="fas fa-bell"></i></div><span class="dash-snap-num" id="dsFollow">0</span></div>
+                            <div class="dash-snap-label">Following</div>
+                            <div class="dash-snap-sub">Projects you track</div>
+                        </div>
+                        <div class="dash-snap-tile">
+                            <div class="dash-snap-top"><div class="dash-snap-ico"><i class="fas fa-id-badge"></i></div><span class="dash-snap-num" id="dsSince">2026</span></div>
+                            <div class="dash-snap-label">Member since</div>
+                            <div class="dash-snap-sub" id="dsStandingSub">Member in good standing</div>
+                        </div>
+                    </div>
+                    <script>
+                    (function(){
+                      function token(){ return (typeof UserPortal!=='undefined'&&UserPortal.token)||localStorage.getItem('medx_user_token'); }
+                      function base(){ return (typeof API_BASE!=='undefined')?API_BASE:''; }
+                      function set(id,v){ var el=document.getElementById(id); if(el&&v!=null&&v!=='') el.textContent=v; }
+                      var DS={
+                        load:function(){
+                          var tk=token(); if(!tk) return;
+                          var h={'Authorization':'Bearer '+tk};
+                          try{ var subs=JSON.parse(localStorage.getItem('medx_notify_topics')||'[]'); if(Array.isArray(subs)) set('dsFollow', subs.length); }catch(e){}
+                          fetch(base()+'/api/rewards/summary',{headers:h}).then(function(r){return r.ok?r.json():null;}).then(function(d){ if(d&&typeof d.balance!=='undefined') set('dsPoints', d.balance); }).catch(function(){});
+                          fetch(base()+'/api/registrations/my',{headers:h}).then(function(r){return r.ok?r.json():null;}).then(function(d){ if(Array.isArray(d)) set('dsRegs', d.length); }).catch(function(){});
+                          fetch(base()+'/api/member/meta',{headers:h}).then(function(r){return r.ok?r.json():null;}).then(function(d){ if(d){ var y=String(d.member_since||'').slice(0,4); if(y) set('dsSince', y); if(d.standing_label) set('dsStandingSub', d.standing_label); } }).catch(function(){});
+                        }
+                      };
+                      window.MedXDashSnapshot=DS;
+                      if(document.readyState!=='loading'){ DS.load(); } else { document.addEventListener('DOMContentLoaded',function(){ DS.load(); }); }
+                      window.addEventListener('hashchange',function(){ var hs=(location.hash||'').replace('#',''); if(!hs||hs==='dashboard') DS.load(); });
+                    })();
+                    </script>
 
                     <!-- Featured Carousel -->
                     <div class="featured-carousel" id="featuredCarousel" data-widget="featured" style="display:none;">
@@ -58784,31 +59035,48 @@ button,input,select,textarea{font-family:var(--sans);}
                     <!-- Simplified Bento Grid -->
                     <section class="hub-bento hub-bento-clean" id="dashboardBento">
 
-                        <!-- OLD Programs Section removed - now in side-by-side layout above -->
-                        <div class="hub-programs-trio" style="display:none;">
-                            <div class="hub-program-tile" onclick="UserPortal.showSection('plexus')">
-                                <div class="hub-program-tile-icon plexus"><i class="fas fa-users"></i></div>
-                                <div class="hub-program-tile-content">
-                                    <h4>Plexus Conference</h4>
-                                    <p>Dec 4-5, 2026</p>
+                        <!-- Programs live in the "Your programs" hub above. This band is now the community entry point. -->
+                        <style>
+                        .mx-network-head{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:2px;}
+                        .mx-network-head h3{font-family:var(--serif,'Fraunces',Georgia,serif);font-size:19px;font-weight:600;color:var(--ink,#15110f);letter-spacing:-.01em;margin:0 0 3px;}
+                        .mx-network-head p{font-size:13px;color:var(--muted,#6e6e73);margin:0;line-height:1.45;max-width:62ch;}
+                        .mx-network-all{flex-shrink:0;display:inline-flex;align-items:center;gap:7px;background:var(--emph-bg,#14110f);color:var(--paper,#fbf9f6);border:none;border-radius:999px;padding:9px 16px;font-family:var(--sans,'Inter',sans-serif);font-size:12.5px;font-weight:700;cursor:pointer;transition:opacity .15s ease;}
+                        .mx-network-all:hover{opacity:.9;}
+                        .mx-network-card{background:var(--paper,#fbf9f6);border:1px solid var(--line,#e2dcd3);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:8px;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;box-shadow:0 1px 2px rgba(21,17,15,.05);}
+                        .mx-network-card:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(21,17,15,.10);border-color:rgba(201,169,98,.5);}
+                        .mx-network-ico{width:38px;height:38px;border-radius:11px;background:var(--paper-2,#f3efe9);border:1px solid var(--line,#e2dcd3);display:flex;align-items:center;justify-content:center;color:var(--gold,#c9a962);font-size:15px;}
+                        .mx-network-card h4{font-family:var(--serif,'Fraunces',Georgia,serif);font-size:16px;font-weight:600;color:var(--ink,#15110f);margin:2px 0 0;letter-spacing:-.01em;}
+                        .mx-network-card p{font-size:12.5px;color:var(--muted,#6e6e73);line-height:1.5;margin:0;flex:1;}
+                        .mx-network-cta{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--crimson,#9b1b22);margin-top:2px;}
+                        .mx-network-cta i{transition:transform .15s ease;}
+                        .mx-network-card:hover .mx-network-cta i{transform:translateX(3px);}
+                        @media(max-width:768px){.mx-network-head{flex-direction:column;align-items:flex-start;gap:10px;}}
+                        </style>
+                        <div class="hub-programs-trio mx-network-band" style="display:none;">
+                            <div class="mx-network-head">
+                                <div>
+                                    <h3>Grow your network</h3>
+                                    <p>Med&amp;X is a community first. Meet the people behind the programs, start a conversation, and see who is here.</p>
                                 </div>
-                                <i class="fas fa-chevron-right hub-program-tile-arrow"></i>
+                                <button class="mx-network-all" onclick="UserPortal.showSection('network')">Open the Network <i class="fas fa-arrow-right"></i></button>
                             </div>
-                            <div class="hub-program-tile" onclick="UserPortal.showSection('accelerator')">
-                                <div class="hub-program-tile-icon accelerator"><i class="fas fa-rocket"></i></div>
-                                <div class="hub-program-tile-content">
-                                    <h4>Accelerator</h4>
-                                    <p>Applications open Nov 2026</p>
-                                </div>
-                                <i class="fas fa-chevron-right hub-program-tile-arrow"></i>
+                            <div class="mx-network-card" role="button" tabindex="0" onclick="UserPortal.showSection('network')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();UserPortal.showSection('network');}">
+                                <div class="mx-network-ico"><i class="fas fa-user-plus"></i></div>
+                                <h4>Build your network</h4>
+                                <p>Find researchers and clinicians who share your field, and follow the people whose work you want to track.</p>
+                                <span class="mx-network-cta">Get started <i class="fas fa-arrow-right"></i></span>
                             </div>
-                            <div class="hub-program-tile" onclick="UserPortal.showSection('forum')">
-                                <div class="hub-program-tile-icon forum"><i class="fas fa-landmark"></i></div>
-                                <div class="hub-program-tile-content">
-                                    <h4>Biomedical Forum</h4>
-                                    <p>Invite-only</p>
-                                </div>
-                                <i class="fas fa-chevron-right hub-program-tile-arrow"></i>
+                            <div class="mx-network-card" role="button" tabindex="0" onclick="UserPortal.showSection('network')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();UserPortal.showSection('network');}">
+                                <div class="mx-network-ico"><i class="fas fa-comments"></i></div>
+                                <h4>Connect with members</h4>
+                                <p>Send a message, request a warm introduction, or join a group conversation with the wider community.</p>
+                                <span class="mx-network-cta">Say hello <i class="fas fa-arrow-right"></i></span>
+                            </div>
+                            <div class="mx-network-card" role="button" tabindex="0" onclick="UserPortal.showSection('network')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();UserPortal.showSection('network');}">
+                                <div class="mx-network-ico"><i class="fas fa-compass"></i></div>
+                                <h4>Explore the community</h4>
+                                <p>Browse the member directory, the opportunity board, and what others are sharing across Med&amp;X.</p>
+                                <span class="mx-network-cta">Take a look <i class="fas fa-arrow-right"></i></span>
                             </div>
                         </div>
 
@@ -59359,6 +59627,91 @@ button,input,select,textarea{font-family:var(--sans);}
             @media(max-width:900px){.mxlead-kn-grid{grid-template-columns:repeat(3,1fr);}}
             @media(max-width:560px){.mxlead-kn-grid{grid-template-columns:1fr 1fr;}.mxlead-kn-img{width:66px;height:66px;}.mxlead-title{font-size:20px;}.mxlead-row{flex-wrap:wrap;}.mxlead-head{gap:12px;}}
             </style>
+            <style id="pxClusterFix">
+/* ===== Plexus overview cluster fixes (overnight campaign) ===== */
+/* (9) Countdown labels were pale/greyed over the photo hero -> crisp on the dark scrim */
+.px-hero .px-countdown-value{color:#fff;text-shadow:0 1px 12px rgba(0,0,0,.5);}
+.px-hero .px-countdown-label{color:rgba(255,255,255,.92) !important;font-weight:700;text-shadow:0 1px 6px rgba(0,0,0,.55);}
+[data-theme="light"] .px-hero .px-countdown-label{color:rgba(255,255,255,.92) !important;}
+/* (10) Secondary hero buttons were dark-ink on a dark photo -> frost + white text */
+.px-hero .px-hero-btn-secondary,[data-theme="light"] .px-hero .px-hero-btn-secondary{background:rgba(255,255,255,.14) !important;color:#fff !important;border:1px solid rgba(255,255,255,.55) !important;backdrop-filter:blur(3px);text-shadow:0 1px 4px rgba(0,0,0,.35);}
+.px-hero .px-hero-btn-secondary:hover,[data-theme="light"] .px-hero .px-hero-btn-secondary:hover{background:rgba(255,255,255,.24) !important;border-color:rgba(255,255,255,.85) !important;}
+/* (8) Get-updates toggle promoted onto the hero, below the countdown */
+.px-hero-notify{position:relative;z-index:2;display:inline-flex;align-items:center;gap:12px;margin:0 auto 22px;padding:8px 10px 8px 16px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.4);border-radius:999px;backdrop-filter:blur(4px);}
+.px-hero-notify .pxn-ico{color:var(--up-gold,#c9a962);font-size:14px;}
+.px-hero-notify .pxn-copy{display:flex;flex-direction:column;line-height:1.15;text-align:left;}
+.px-hero-notify .pxn-title{font-size:13px;font-weight:600;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.35);}
+.px-hero-notify .pxn-state{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.75);}
+.px-hero-notify.on .pxn-state{color:#f0d79a;}
+.px-hero-notify .mx-notify-switch{width:44px;height:26px;background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);flex-shrink:0;}
+.px-hero-notify.on .mx-notify-switch{background:var(--up-gold,#c9a962);border-color:var(--up-gold,#c9a962);}
+.px-hero-notify .mx-notify-switch::after{width:20px;height:20px;}
+.px-hero-notify.on .mx-notify-switch::after{transform:translateX(18px);}
+/* (1) Keynote portraits -> face-centered circular crop */
+.mxlead-kn-imgwrap{width:84px;height:84px;border-radius:50%;overflow:hidden;margin:0 auto 11px;border:2px solid rgba(201,169,98,.45);background:var(--up-bg-subtle,#f3efe9);}
+.mxlead-kn-imgwrap img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s ease;}
+.mxlead-kn:hover .mxlead-kn-imgwrap img{filter:brightness(1.02);}
+.kn-focus-body img{object-position:50% 6%;transform:scale(1.55);}
+.kn-focus-high img{object-position:50% 20%;transform:scale(1.16);}
+.kn-focus-mid img{object-position:50% 28%;transform:scale(1.1);}
+.kn-focus-tight img{object-position:50% 36%;transform:scale(1.03);}
+/* (6) institution logo lockup below the name (mono duotone; a real <img> logo can replace .knl-mono later) */
+.mxlead-kn-logo{display:inline-flex;align-items:center;gap:6px;margin-top:7px;max-width:100%;padding:3px 10px 3px 4px;border:1px solid var(--up-border,#e7e2da);border-radius:999px;background:var(--up-bg,#fbf9f6);}
+.mxlead-kn-logo .knl-mono{min-width:20px;height:19px;padding:0 5px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-family:var(--serif,'Fraunces',Georgia,serif);font-size:8.5px;font-weight:700;color:#fff;background:linear-gradient(135deg,#1f3a5f,#274b7a);letter-spacing:.02em;flex-shrink:0;}
+.mxlead-kn-logo .knl-name{font-size:10px;font-weight:700;color:var(--up-text-secondary,#6e6e73);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mxlead-kn{cursor:pointer;outline:none;}
+.mxlead-kn:focus-visible{outline:2px solid var(--up-gold,#c9a962);outline-offset:2px;}
+.mxlead-kn-more{font-size:10.5px;font-weight:600;color:var(--crimson,#9b1b22);margin-top:9px;display:inline-flex;align-items:center;gap:5px;opacity:.55;transition:opacity .18s ease;}
+.mxlead-kn:hover .mxlead-kn-more{opacity:1;}
+/* (6) keynote bio popup */
+.pxkb-modal{position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(21,17,15,.55);backdrop-filter:blur(4px);}
+.pxkb-modal.active{display:flex;animation:pxkbFade .2s ease;}
+@keyframes pxkbFade{from{opacity:0}to{opacity:1}}
+.pxkb-card{background:var(--up-bg,#fbf9f6);border:1px solid var(--up-border,#e7e2da);border-radius:20px;max-width:520px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 30px 80px rgba(21,17,15,.35);position:relative;animation:pxkbRise .25s ease;}
+@keyframes pxkbRise{from{transform:translateY(14px);opacity:.6}to{transform:translateY(0);opacity:1}}
+.pxkb-close{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:50%;border:1px solid var(--up-border,#e7e2da);background:var(--up-bg,#fbf9f6);color:var(--up-text,#15110f);cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;}
+.pxkb-close:hover{background:var(--up-bg-subtle,#f3efe9);}
+.pxkb-head{display:flex;gap:16px;align-items:center;padding:26px 26px 18px;border-bottom:1px solid var(--up-border,#e7e2da);}
+.pxkb-avatar{width:88px;height:88px;border-radius:50%;overflow:hidden;flex-shrink:0;border:2px solid rgba(201,169,98,.5);background:var(--up-bg-subtle,#f3efe9);}
+.pxkb-avatar img{width:100%;height:100%;object-fit:cover;object-position:50% 20%;}
+.pxkb-badge{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#15803d;background:rgba(21,128,61,.1);border-radius:999px;padding:3px 9px;display:inline-block;margin-bottom:7px;}
+.pxkb-name{font-family:var(--serif,'Fraunces',Georgia,serif);font-size:21px;font-weight:600;color:var(--up-text,#15110f);line-height:1.15;letter-spacing:-.01em;}
+.pxkb-role{font-size:13px;color:var(--up-text-secondary,#6e6e73);margin-top:3px;}
+.pxkb-org{font-size:12.5px;color:var(--up-gold,#c9a962);font-weight:700;margin-top:2px;}
+.pxkb-body{padding:20px 26px 26px;}
+.pxkb-body h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--up-text-muted,#8a847b);margin:0 0 8px;}
+.pxkb-bio{font-size:14px;line-height:1.65;color:var(--up-text,#15110f);margin:0;}
+.pxkb-tags{display:flex;flex-wrap:wrap;gap:7px;margin-top:16px;}
+.pxkb-tag{font-size:11px;font-weight:600;color:var(--up-text-secondary,#6e6e73);background:var(--up-bg-subtle,#f3efe9);border:1px solid var(--up-border,#e7e2da);border-radius:999px;padding:4px 11px;}
+/* (2) program at a glance */
+.px-program-block{margin:0 0 32px;}
+.px-program-glance{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;}
+.px-pg-day{background:var(--up-bg,#fbf9f6);border:1px solid var(--up-border,#e7e2da);border-radius:16px;padding:20px 22px;}
+.px-pg-day h4{font-family:var(--serif,'Fraunces',Georgia,serif);font-size:16px;font-weight:600;color:var(--up-text,#15110f);margin:0 0 3px;}
+.px-pg-day .px-pg-date{font-size:12px;color:var(--up-gold,#c9a962);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;}
+.px-pg-item{display:flex;gap:12px;align-items:baseline;padding:7px 0;border-top:1px dashed var(--up-border,#e7e2da);font-size:13px;color:var(--up-text-secondary,#6e6e73);}
+.px-pg-item .px-pg-time{font-weight:700;color:var(--up-text,#15110f);min-width:52px;font-variant-numeric:tabular-nums;}
+@media(max-width:720px){.px-program-glance{grid-template-columns:1fr;}}
+/* (7) venue announcement slot */
+.px-venue-slot{display:flex;align-items:center;gap:16px;background:linear-gradient(120deg,rgba(201,169,98,.1),rgba(155,27,34,.05));border:1px solid rgba(201,169,98,.4);border-radius:16px;padding:18px 22px;margin:0 0 32px;}
+.px-venue-ico{width:46px;height:46px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--up-bg,#fbf9f6);border:1px solid rgba(201,169,98,.5);color:var(--up-gold,#c9a962);font-size:19px;}
+.px-venue-copy{flex:1;min-width:0;}
+.px-venue-label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--up-gold,#c9a962);margin-bottom:2px;}
+.px-venue-main{font-family:var(--serif,'Fraunces',Georgia,serif);font-size:17px;font-weight:600;color:var(--up-text,#15110f);line-height:1.25;}
+.px-venue-sub{font-size:12.5px;color:var(--up-text-secondary,#6e6e73);margin-top:2px;}
+.px-venue-pill{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--up-text-muted,#8a847b);background:var(--up-bg,#fbf9f6);border:1px solid var(--up-border,#e7e2da);border-radius:999px;padding:4px 11px;flex-shrink:0;}
+@media(max-width:560px){.px-venue-slot{flex-direction:column;align-items:flex-start;gap:12px;}}
+/* (5) My Schedule register CTA */
+.px-sched-cta{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:var(--up-bg-subtle,#f3efe9);border:1px solid var(--up-border,#e7e2da);border-radius:14px;padding:16px 18px;margin:0 20px 16px;}
+.px-sched-cta-ico{width:40px;height:40px;border-radius:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--up-bg,#fbf9f6);border:1px solid var(--up-border,#e7e2da);color:var(--up-gold,#c9a962);font-size:16px;}
+.px-sched-cta-copy{flex:1;min-width:200px;}
+.px-sched-cta-copy p{margin:0;font-size:13px;line-height:1.5;color:var(--up-text-secondary,#6e6e73);}
+.px-sched-cta-copy strong{color:var(--up-text,#15110f);font-weight:700;}
+.px-sched-cta-btn{flex-shrink:0;background:var(--crimson,#9b1b22);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-weight:600;font-size:13.5px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;}
+.px-sched-cta-btn:hover{background:#7f1519;}
+/* (3) width parity: widen overview blocks to the hero premium width */
+#px-panel-overview .px-info-grid,#px-panel-overview .px-overview-twin-cards,#px-panel-overview .gala-featured-card,#px-panel-overview .px-connect-section,#px-panel-overview .px-mysched-card{max-width:none !important;}
+</style>
             <div class="up-section" id="up-section-plexus">
                 <div class="up-container" style="position: relative;">
                     <!-- Home Button (outside hero to avoid click interception) -->
@@ -59388,6 +59741,14 @@ button,input,select,textarea{font-family:var(--sans);}
                                 <div class="px-countdown-value" id="pxSeconds">--</div>
                                 <div class="px-countdown-label">Seconds</div>
                             </div>
+                        </div>
+                        <div class="px-hero-notify" data-mx-notify="plexus" title="Get updates about Plexus 2026">
+                            <i class="fas fa-bell pxn-ico"></i>
+                            <span class="pxn-copy">
+                                <span class="pxn-title">Get updates from Plexus</span>
+                                <span class="mx-notify-state pxn-state">Off</span>
+                            </span>
+                            <button type="button" class="mx-notify-switch" role="switch" aria-checked="false" aria-label="Get updates about Plexus 2026" onclick="MedXNotify.toggle('plexus')"></button>
                         </div>
                         <div class="px-hero-actions">
                             <button class="px-hero-btn px-hero-btn-primary" onclick="PlexusPortal.showTab('register')">
@@ -59456,44 +59817,129 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                             </div>
                             <div class="mxlead-kn-grid">
-                                <div class="mxlead-kn">
-                                    <img class="mxlead-kn-img" src="assets/gala/gala_keynote_smith_finsbury.jpg" alt="Lord Smith of Finsbury" loading="lazy">
+                                <div class="mxlead-kn kn-focus-body" role="button" tabindex="0" aria-label="View bio for Lord Smith of Finsbury" onclick="PlexusPortal.showKeynoteBio('smith')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();PlexusPortal.showKeynoteBio('smith');}">
+                                    <div class="mxlead-kn-imgwrap"><img src="assets/gala/gala_keynote_smith_finsbury.jpg" alt="Lord Smith of Finsbury" loading="lazy"></div>
                                     <span class="mxlead-kn-badge">Confirmed</span>
                                     <p class="mxlead-kn-name">Lord Smith of Finsbury</p>
                                     <p class="mxlead-kn-role">Chancellor</p>
-                                    <p class="mxlead-kn-org">University of Cambridge</p>
+                                    <span class="mxlead-kn-logo"><span class="knl-mono">CAM</span><span class="knl-name">University of Cambridge</span></span>
+                                    <span class="mxlead-kn-more"><i class="fas fa-arrow-right"></i> View bio</span>
                                 </div>
-                                <div class="mxlead-kn">
-                                    <img class="mxlead-kn-img" src="assets/gala/gala_keynote_spisso.jpg" alt="Johnese Spisso, MPA" loading="lazy">
+                                <div class="mxlead-kn kn-focus-high" role="button" tabindex="0" aria-label="View bio for Johnese Spisso, MPA" onclick="PlexusPortal.showKeynoteBio('spisso')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();PlexusPortal.showKeynoteBio('spisso');}">
+                                    <div class="mxlead-kn-imgwrap"><img src="assets/gala/gala_keynote_spisso.jpg" alt="Johnese Spisso, MPA" loading="lazy"></div>
                                     <span class="mxlead-kn-badge">Confirmed</span>
                                     <p class="mxlead-kn-name">Johnese Spisso, MPA</p>
                                     <p class="mxlead-kn-role">President, UCLA Health</p>
-                                    <p class="mxlead-kn-org">UCLA Hospital System CEO</p>
+                                    <span class="mxlead-kn-logo"><span class="knl-mono">UCLA</span><span class="knl-name">UCLA Health</span></span>
+                                    <span class="mxlead-kn-more"><i class="fas fa-arrow-right"></i> View bio</span>
                                 </div>
-                                <div class="mxlead-kn">
-                                    <img class="mxlead-kn-img" src="assets/gala/gala_keynote_delcarmen.jpg" alt="Dr Marcela del Carmen" loading="lazy">
+                                <div class="mxlead-kn kn-focus-mid" role="button" tabindex="0" aria-label="View bio for Dr Marcela del Carmen" onclick="PlexusPortal.showKeynoteBio('delcarmen')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();PlexusPortal.showKeynoteBio('delcarmen');}">
+                                    <div class="mxlead-kn-imgwrap"><img src="assets/gala/gala_keynote_delcarmen.jpg" alt="Dr Marcela del Carmen" loading="lazy"></div>
                                     <span class="mxlead-kn-badge">Confirmed</span>
                                     <p class="mxlead-kn-name">Dr Marcela del Carmen</p>
                                     <p class="mxlead-kn-role">President</p>
-                                    <p class="mxlead-kn-org">Massachusetts General Hospital</p>
+                                    <span class="mxlead-kn-logo"><span class="knl-mono">MGH</span><span class="knl-name">Massachusetts General Hospital</span></span>
+                                    <span class="mxlead-kn-more"><i class="fas fa-arrow-right"></i> View bio</span>
                                 </div>
-                                <div class="mxlead-kn">
-                                    <img class="mxlead-kn-img" src="assets/gala/gala_keynote_kevin_smith.jpg" alt="Dr Kevin Smith" loading="lazy">
+                                <div class="mxlead-kn kn-focus-mid" role="button" tabindex="0" aria-label="View bio for Dr Kevin Smith" onclick="PlexusPortal.showKeynoteBio('kevinsmith')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();PlexusPortal.showKeynoteBio('kevinsmith');}">
+                                    <div class="mxlead-kn-imgwrap"><img src="assets/gala/gala_keynote_kevin_smith.jpg" alt="Dr Kevin Smith" loading="lazy"></div>
                                     <span class="mxlead-kn-badge">Confirmed</span>
                                     <p class="mxlead-kn-name">Dr Kevin Smith</p>
                                     <p class="mxlead-kn-role">President &amp; CEO</p>
-                                    <p class="mxlead-kn-org">University Health Network</p>
+                                    <span class="mxlead-kn-logo"><span class="knl-mono">UHN</span><span class="knl-name">University Health Network</span></span>
+                                    <span class="mxlead-kn-more"><i class="fas fa-arrow-right"></i> View bio</span>
                                 </div>
-                                <div class="mxlead-kn">
-                                    <img class="mxlead-kn-img" src="assets/gala/gala_keynote_anderson.jpg" alt="Dr Paul Anderson" loading="lazy">
+                                <div class="mxlead-kn kn-focus-tight" role="button" tabindex="0" aria-label="View bio for Dr Paul Anderson" onclick="PlexusPortal.showKeynoteBio('anderson')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();PlexusPortal.showKeynoteBio('anderson');}">
+                                    <div class="mxlead-kn-imgwrap"><img src="assets/gala/gala_keynote_anderson.jpg" alt="Dr Paul Anderson" loading="lazy"></div>
                                     <span class="mxlead-kn-badge">Confirmed</span>
                                     <p class="mxlead-kn-name">Dr Paul Anderson</p>
                                     <p class="mxlead-kn-role">Chief Academic Officer</p>
-                                    <p class="mxlead-kn-org">Mass General Brigham</p>
+                                    <span class="mxlead-kn-logo"><span class="knl-mono">MGB</span><span class="knl-name">Mass General Brigham</span></span>
+                                    <span class="mxlead-kn-more"><i class="fas fa-arrow-right"></i> View bio</span>
                                 </div>
                             </div>
                             <p class="mxlead-foot">Two of our keynote speakers also hold Harvard Medical School professorships.</p>
                         </div>
+                        <!-- (2) Program at a glance -->
+                        <div class="mxlead px-program-block">
+                            <div class="mxlead-head">
+                                <div>
+                                    <p class="mxlead-eyebrow"><i class="fas fa-calendar-alt"></i> The Program</p>
+                                    <h2 class="mxlead-title">Two days, mapped out</h2>
+                                    <p class="mxlead-sub">Keynotes, research sessions, workshops, and the Gala Evening across December 4 and 5. Here is the shape of it.</p>
+                                </div>
+                                <div class="mxlead-actions">
+                                    <button class="mxlead-btn mxlead-btn-primary" onclick="PlexusPortal.showTab('schedule')"><i class="fas fa-calendar-alt"></i> See the full program</button>
+                                </div>
+                            </div>
+                            <div class="px-program-glance">
+                                <div class="px-pg-day">
+                                    <h4>Day 1 — Opening and Keynotes</h4>
+                                    <div class="px-pg-date">Friday, December 4</div>
+                                    <div class="px-pg-item"><span class="px-pg-time">09:00</span><span>Opening ceremony and welcome</span></div>
+                                    <div class="px-pg-item"><span class="px-pg-time">09:30</span><span>Morning keynote lectures</span></div>
+                                    <div class="px-pg-item"><span class="px-pg-time">14:00</span><span>Workshops and research sessions</span></div>
+                                    <div class="px-pg-item"><span class="px-pg-time">17:00</span><span>Poster session and networking</span></div>
+                                </div>
+                                <div class="px-pg-day">
+                                    <h4>Day 2 — Research and Gala</h4>
+                                    <div class="px-pg-date">Saturday, December 5</div>
+                                    <div class="px-pg-item"><span class="px-pg-time">09:30</span><span>Research presentations</span></div>
+                                    <div class="px-pg-item"><span class="px-pg-time">13:00</span><span>Panels and closing keynote</span></div>
+                                    <div class="px-pg-item"><span class="px-pg-time">19:30</span><span>Gala Evening and Annual Awards</span></div>
+                                    <div class="px-pg-item"><span class="px-pg-time">—</span><span>Full session times live in the program</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- (5) My Schedule promoted near the top; becomes personal once you register -->
+                        <div class="up-card px-mysched-card" style="margin: 0 0 32px;">
+                            <div class="up-card-header">
+                                <h3 class="up-card-title"><i class="fas fa-bookmark" style="margin-right: 8px; color: var(--up-gold);"></i> My Schedule</h3>
+                                <div class="calendar-dropdown" id="calendarDropdown">
+                                    <button class="calendar-dropdown-btn" onclick="EventCalendar.toggleDropdown()">
+                                        <i class="fas fa-calendar-plus"></i> Add to Calendar
+                                    </button>
+                                    <div class="calendar-dropdown-menu">
+                                        <div class="calendar-option" onclick="EventCalendar.addTo('google')">
+                                            <div class="calendar-option-icon google"><i class="fab fa-google"></i></div>
+                                            <span class="calendar-option-text">Google Calendar</span>
+                                        </div>
+                                        <div class="calendar-option" onclick="EventCalendar.addTo('apple')">
+                                            <div class="calendar-option-icon apple"><i class="fab fa-apple"></i></div>
+                                            <span class="calendar-option-text">Apple Calendar</span>
+                                        </div>
+                                        <div class="calendar-option" onclick="EventCalendar.addTo('outlook')">
+                                            <div class="calendar-option-icon outlook"><i class="fab fa-microsoft"></i></div>
+                                            <span class="calendar-option-text">Outlook</span>
+                                        </div>
+                                        <div class="calendar-option" onclick="EventCalendar.addTo('ics')">
+                                            <div class="calendar-option-icon ics"><i class="fas fa-download"></i></div>
+                                            <span class="calendar-option-text">Download .ics</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <p style="color: var(--up-text-muted); font-size: 13px; margin: -8px 0 16px 0; padding: 0 20px;">Your personal conference agenda</p>
+                            <div class="px-sched-cta" id="pxSchedRegCta">
+                                <div class="px-sched-cta-ico"><i class="fas fa-calendar-check"></i></div>
+                                <div class="px-sched-cta-copy"><p><strong>This becomes your schedule once you register.</strong> Tap any program or speaker session to pre-fill it, then add the whole thing to your calendar.</p></div>
+                                <button class="px-sched-cta-btn" onclick="PlexusPortal.showTab('register')"><i class="fas fa-ticket-alt"></i> Register</button>
+                            </div>
+                            <div class="up-card-body">
+                                <div id="myScheduleSessions" style="display: flex; flex-direction: column; gap: 12px;">
+                                    <!-- Populated by JavaScript -->
+                                </div>
+                                <div id="myScheduleEmpty" style="text-align: center; padding: 32px; color: var(--up-text-muted);">
+                                    <i class="far fa-bookmark" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
+                                    <p>No sessions saved yet. Tap a program item or a speaker session to add it here.</p>
+                                    <button class="px-sched-cta-btn" style="margin-top: 12px;" onclick="PlexusPortal.showTab('schedule')">
+                                        <i class="fas fa-calendar-alt"></i> Browse the program
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Info Cards - Centered -->
                         <div class="px-info-grid" style="max-width: 900px; margin: 0 auto 32px auto;">
                             <div class="px-info-card">
@@ -59516,6 +59962,17 @@ button,input,select,textarea{font-family:var(--sans);}
                                 <div class="px-info-card-value" style="font-size: 16px; line-height: 1.3;">Global Community</div>
                                 <div class="px-info-card-label">Researchers worldwide</div>
                             </div>
+                        </div>
+
+                        <!-- (7) Venue announcement slot (designed to take the hotel name later) -->
+                        <div class="px-venue-slot" id="pxVenueSlot" data-mx-venue="plexus">
+                            <div class="px-venue-ico"><i class="fas fa-map-marker-alt"></i></div>
+                            <div class="px-venue-copy">
+                                <div class="px-venue-label">Conference Venue</div>
+                                <div class="px-venue-main" id="pxVenueName">Venue announcement coming soon</div>
+                                <div class="px-venue-sub">We are finalizing a landmark venue in central Zagreb. The hotel name and address will appear here shortly.</div>
+                            </div>
+                            <span class="px-venue-pill" id="pxVenuePill">Zagreb · Dec 4–5</span>
                         </div>
 
                         <!-- About Plexus + Key Dates (side-by-side twin cards) -->
@@ -59639,22 +60096,22 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                             <div class="px-gallery-grid">
                                 <div class="px-gallery-item">
-                                    <img src="https://images.squarespace-cdn.com/content/v1/65982200bf95c64c8e823ecc/3d2949c3-41fa-48e2-9c50-df3116cb6800/Plexus+conference+-+Day+1-23.jpg" alt="Plexus 2024 — Keynote Session" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;width:100%;height:100%;min-height:180px;background:linear-gradient(135deg,var(--emph-bg-2),#334155);display:flex;align-items:center;justify-content:center;border-radius:12px;color: var(--muted);font-size:14px;font-weight:500;&quot;>Plexus 2024</div>';">
+                                    <img src="assets/photos/plexus_moment_keynote.jpg" alt="Plexus — Keynote Session" loading="lazy" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;width:100%;height:100%;min-height:180px;background:linear-gradient(135deg,var(--emph-bg-2,#1f2937),#334155);display:flex;align-items:center;justify-content:center;border-radius:12px;color:#e5e7eb;font-size:14px;font-weight:500;&quot;>Keynote Session</div>';">
                                 </div>
                                 <div class="px-gallery-item">
-                                    <img src="https://images.squarespace-cdn.com/content/v1/65982200bf95c64c8e823ecc/c5ba9724-0a82-46b1-b8f0-d66190200241/Plexus+conference+-+Day+1-24.jpg" alt="Plexus 2024 — Panel Discussion" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;width:100%;height:100%;min-height:180px;background:linear-gradient(135deg,var(--emph-bg-2),#334155);display:flex;align-items:center;justify-content:center;border-radius:12px;color: var(--muted);font-size:14px;font-weight:500;&quot;>Panel Discussion</div>';">
+                                    <img src="assets/photos/plexus_moment_panel.jpg" alt="Plexus — Panel Discussion" loading="lazy" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;width:100%;height:100%;min-height:180px;background:linear-gradient(135deg,var(--emph-bg-2,#1f2937),#334155);display:flex;align-items:center;justify-content:center;border-radius:12px;color:#e5e7eb;font-size:14px;font-weight:500;&quot;>Panel Discussion</div>';">
                                 </div>
                                 <div class="px-gallery-item">
-                                    <img src="https://images.squarespace-cdn.com/content/v1/65982200bf95c64c8e823ecc/43fce86e-5811-4cab-a952-f13ef45e630b/375A5023.jpg" alt="Plexus 2023 — Opening Ceremony" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;width:100%;height:100%;min-height:180px;background:linear-gradient(135deg,#312e81,#4c1d95);display:flex;align-items:center;justify-content:center;border-radius:12px;color:#a5b4fc;font-size:14px;font-weight:500;&quot;>Opening Ceremony</div>';">
+                                    <img src="assets/photos/plexus_moment_talk.jpg" alt="Plexus — Research Talks" loading="lazy" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;width:100%;height:100%;min-height:180px;background:linear-gradient(135deg,var(--emph-bg-2,#1f2937),#334155);display:flex;align-items:center;justify-content:center;border-radius:12px;color:#e5e7eb;font-size:14px;font-weight:500;&quot;>Research Talks</div>';">
                                 </div>
                                 <div class="px-gallery-item">
-                                    <img src="https://images.squarespace-cdn.com/content/v1/65982200bf95c64c8e823ecc/0595d4e3-e9c6-4d84-98c4-f1be67f2a547/375A4748.jpg" alt="Plexus 2023 — Poster Session" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;width:100%;height:100%;min-height:180px;background:linear-gradient(135deg,var(--emph-bg-2),#334155);display:flex;align-items:center;justify-content:center;border-radius:12px;color: var(--muted);font-size:14px;font-weight:500;&quot;>Poster Session</div>';">
+                                    <img src="assets/photos/plexus_moment_gala.jpg" alt="Plexus — Gala Evening" loading="lazy" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;width:100%;height:100%;min-height:180px;background:linear-gradient(135deg,var(--emph-bg-2,#1f2937),#334155);display:flex;align-items:center;justify-content:center;border-radius:12px;color:#e5e7eb;font-size:14px;font-weight:500;&quot;>Gala Evening</div>';">
                                 </div>
                                 <div class="px-gallery-item">
-                                    <img src="https://images.squarespace-cdn.com/content/v1/65982200bf95c64c8e823ecc/d8cc767b-1ff4-4ed0-bc7e-6ff1ec3fba12/Lucija+Skejic%CC%81+-+375A7215.jpg" alt="Plexus 2024 — Networking" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;width:100%;height:100%;min-height:180px;background:linear-gradient(135deg,#713f12,#92400e);display:flex;align-items:center;justify-content:center;border-radius:12px;color:#fbbf24;font-size:14px;font-weight:500;&quot;>Networking</div>';">
+                                    <img src="assets/photos/plexus_moment_networking.jpg" alt="Plexus — Networking" loading="lazy" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;width:100%;height:100%;min-height:180px;background:linear-gradient(135deg,var(--emph-bg-2,#1f2937),#334155);display:flex;align-items:center;justify-content:center;border-radius:12px;color:#e5e7eb;font-size:14px;font-weight:500;&quot;>Networking</div>';">
                                 </div>
                                 <div class="px-gallery-item">
-                                    <img src="https://images.squarespace-cdn.com/content/v1/65982200bf95c64c8e823ecc/aab785ef-877b-4a21-a052-b5f88a0541d4/PHOTO-2023-09-05-11-36-15+3.jpg" alt="Plexus Team" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;width:100%;height:100%;min-height:180px;background:linear-gradient(135deg,var(--emph-bg-2),#334155);display:flex;align-items:center;justify-content:center;border-radius:12px;color: var(--muted);font-size:14px;font-weight:500;&quot;>Plexus Team</div>';">
+                                    <img src="assets/photos/plexus_moment_awards.jpg" alt="Plexus — Awards and Community" loading="lazy" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;width:100%;height:100%;min-height:180px;background:linear-gradient(135deg,var(--emph-bg-2,#1f2937),#334155);display:flex;align-items:center;justify-content:center;border-radius:12px;color:#e5e7eb;font-size:14px;font-weight:500;&quot;>Awards and Community</div>';">
                                 </div>
                             </div>
                         </div>
@@ -59672,48 +60129,7 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                         </div>
 
-                        <!-- My Schedule / Agenda Builder (moved up above FAQ) -->
-                        <div class="up-card" style="margin-top: 24px; max-width: 900px; margin-left: auto; margin-right: auto;">
-                            <div class="up-card-header">
-                                <h3 class="up-card-title"><i class="fas fa-bookmark" style="margin-right: 8px; color: var(--up-gold);"></i> My Schedule</h3>
-                                <div class="calendar-dropdown" id="calendarDropdown">
-                                    <button class="calendar-dropdown-btn" onclick="EventCalendar.toggleDropdown()">
-                                        <i class="fas fa-calendar-plus"></i> Add to Calendar
-                                    </button>
-                                    <div class="calendar-dropdown-menu">
-                                        <div class="calendar-option" onclick="EventCalendar.addTo('google')">
-                                            <div class="calendar-option-icon google"><i class="fab fa-google"></i></div>
-                                            <span class="calendar-option-text">Google Calendar</span>
-                                        </div>
-                                        <div class="calendar-option" onclick="EventCalendar.addTo('apple')">
-                                            <div class="calendar-option-icon apple"><i class="fab fa-apple"></i></div>
-                                            <span class="calendar-option-text">Apple Calendar</span>
-                                        </div>
-                                        <div class="calendar-option" onclick="EventCalendar.addTo('outlook')">
-                                            <div class="calendar-option-icon outlook"><i class="fab fa-microsoft"></i></div>
-                                            <span class="calendar-option-text">Outlook</span>
-                                        </div>
-                                        <div class="calendar-option" onclick="EventCalendar.addTo('ics')">
-                                            <div class="calendar-option-icon ics"><i class="fas fa-download"></i></div>
-                                            <span class="calendar-option-text">Download .ics</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <p style="color: var(--up-text-muted); font-size: 13px; margin: -8px 0 16px 0; padding: 0 20px;">Build your personalized conference schedule</p>
-                            <div class="up-card-body">
-                                <div id="myScheduleSessions" style="display: flex; flex-direction: column; gap: 12px;">
-                                    <!-- Populated by JavaScript -->
-                                </div>
-                                <div id="myScheduleEmpty" style="text-align: center; padding: 32px; color: var(--up-text-muted);">
-                                    <i class="far fa-bookmark" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
-                                    <p>No sessions bookmarked yet</p>
-                                    <button class="px-hero-btn px-hero-btn-secondary" style="margin-top: 12px;" onclick="PlexusPortal.showTab('schedule')">
-                                        Browse Schedule
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+                        <!-- My Schedule moved to top of overview (see px-mysched-card) -->
 
                         <!-- Contact Section -->
                         <div class="px-contact-section">
@@ -61301,6 +61717,27 @@ button,input,select,textarea{font-family:var(--sans);}
                         </div>
                     </div>
 
+                    <!-- (6) Keynote bio popup -->
+                    <div class="pxkb-modal" id="pxKeynoteModal" onclick="if(event.target===this)PlexusPortal.closeKeynoteBio()">
+                        <div class="pxkb-card" role="dialog" aria-modal="true" aria-labelledby="pxkbName">
+                            <button class="pxkb-close" onclick="PlexusPortal.closeKeynoteBio()" aria-label="Close speaker bio"><i class="fas fa-times"></i></button>
+                            <div class="pxkb-head">
+                                <div class="pxkb-avatar"><img id="pxkbImg" src="" alt=""></div>
+                                <div>
+                                    <span class="pxkb-badge" id="pxkbBadge">Confirmed Keynote</span>
+                                    <div class="pxkb-name" id="pxkbName"></div>
+                                    <div class="pxkb-role" id="pxkbRole"></div>
+                                    <div class="pxkb-org" id="pxkbOrg"></div>
+                                </div>
+                            </div>
+                            <div class="pxkb-body">
+                                <h4>About</h4>
+                                <p class="pxkb-bio" id="pxkbBio"></p>
+                                <div class="pxkb-tags" id="pxkbTags"></div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Explore Zagreb Panel -->
                     <div class="px-panel" id="px-panel-city">
                         <div class="px-city-hero">
@@ -62283,12 +62720,21 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                             </div>
 
+                            <div class="gala-hero-notify" data-mx-notify="gala" title="Get updates about the Gala Evening">
+                                <i class="fas fa-bell gxn-ico"></i>
+                                <span class="gxn-copy">
+                                    <span class="gxn-title">Get updates from the Gala Evening</span>
+                                    <span class="mx-notify-state gxn-state">Off</span>
+                                </span>
+                                <button type="button" class="mx-notify-switch" role="switch" aria-checked="false" aria-label="Get updates about the Gala Evening" onclick="MedXNotify.toggle('gala')"></button>
+                            </div>
+
                             <div class="gala-hero-actions">
                                 <button class="gala-btn gala-btn-primary" onclick="GalaPortal.showTab('register')">
                                     Reserve Your Seat <i class="fas fa-arrow-right"></i>
                                 </button>
-                                <button class="gala-btn gala-btn-secondary" onclick="GalaPortal.showTab('overview')">
-                                    Learn More
+                                <button class="gala-btn gala-btn-secondary" onclick="GalaPortal.showTab('schedule')">
+                                    View the Evening Program
                                 </button>
                             </div>
                         </div>
@@ -62372,28 +62818,52 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                             <p class="mxlead-foot">Two of our keynote speakers also hold Harvard Medical School professorships.</p>
                         </div>
+
+                        <!-- Networking & bridge-building — the felt centerpiece of the evening -->
+                        <div class="gala-feature">
+                            <div class="gala-feature-media" style="background-image:url('assets/photos/plexus_moment_networking.jpg')"></div>
+                            <div class="gala-feature-body">
+                                <p class="gala-feature-eyebrow"><i class="fas fa-handshake"></i> Why the evening exists</p>
+                                <h2 class="gala-feature-title">Where Croatian and international biomedicine meet</h2>
+                                <p class="gala-feature-text">The Gala Evening is built for the conversations that outlast the night. Over cocktails and a shared table, Croatia's clinicians and researchers sit beside the people who lead the world's foremost hospitals and universities.</p>
+                                <p class="gala-feature-text">Every seat is placed to build a bridge &mdash; a mentor found, a collaboration started, a door opened between a young Croatian scientist and a laboratory abroad.</p>
+                                <span class="gala-seating"><i class="fas fa-gem"></i> Seating is limited to keep the room personal</span>
+                            </div>
+                        </div>
+
                         <!-- Highlight Cards -->
                         <div class="gala-highlights-grid">
                             <div class="gala-highlight-card">
-                                <div class="gala-highlight-icon"><i class="fas fa-users"></i></div>
-                                <h4>150+ Leaders</h4>
-                                <p>Senior biomedical professionals from 20+ countries</p>
-                            </div>
-                            <div class="gala-highlight-card">
                                 <div class="gala-highlight-icon"><i class="fas fa-microphone-alt"></i></div>
-                                <h4>Exceptional Speakers</h4>
-                                <p>Biomedical leaders and industry pioneers</p>
-                            </div>
-                            <div class="gala-highlight-card">
-                                <div class="gala-highlight-icon"><i class="fas fa-trophy"></i></div>
-                                <h4>Annual Awards</h4>
-                                <p>Biomedical Forum recognition ceremony</p>
+                                <h4>World-Class Speakers</h4>
+                                <p>The heads of the world's leading hospitals and universities, in person</p>
                             </div>
                             <div class="gala-highlight-card">
                                 <div class="gala-highlight-icon"><i class="fas fa-handshake"></i></div>
-                                <h4>Elite Networking</h4>
-                                <p>Cocktails, dinner, and exclusive connections</p>
+                                <h4>Bridge-Building</h4>
+                                <p>Croatian and international biomedicine, together at one table</p>
                             </div>
+                            <div class="gala-highlight-card">
+                                <div class="gala-highlight-icon"><i class="fas fa-music"></i></div>
+                                <h4>Live Performances</h4>
+                                <p>Music and celebration to close the night, performers announced soon</p>
+                            </div>
+                            <div class="gala-highlight-card">
+                                <div class="gala-highlight-icon"><i class="fas fa-gem"></i></div>
+                                <h4>Intimate by Design</h4>
+                                <p>Seating is limited, so the evening stays senior and personal</p>
+                            </div>
+                        </div>
+
+                        <!-- Featured performers — designed placeholder pending real names -->
+                        <div class="gala-perform">
+                            <div class="gala-perform-ico"><i class="fas fa-music"></i></div>
+                            <div class="gala-perform-body">
+                                <p class="gala-perform-eyebrow">Live on the night</p>
+                                <h3 class="gala-perform-title">Featured performers &mdash; to be announced</h3>
+                                <p class="gala-perform-text">The evening closes with live music and celebration. Our featured singers and performers are being confirmed and will be revealed closer to December.</p>
+                            </div>
+                            <span class="gala-perform-chip">Announced soon</span>
                         </div>
 
                         <!-- About the Gala -->
@@ -62403,7 +62873,10 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                             <div class="up-card-body">
                                 <p style="color: var(--up-text-secondary); line-height: 1.8; margin-bottom: 16px;">
-                                    The anchor dinner of Plexus 2026 &mdash; 150+ leaders in biomedicine for the Biomedical Forum Awards, a five-course dinner, keynote addresses, and live music.
+                                    The anchor dinner of Plexus 2026. The people who lead the world's foremost hospitals and universities join Croatia's rising clinicians and researchers for the Biomedical Forum Awards, a five-course dinner, keynote addresses, and live music.
+                                </p>
+                                <p style="color: var(--up-text-secondary); line-height: 1.8; margin-bottom: 16px;">
+                                    Seating is limited by design. The evening is kept intimate so every guest is within reach of the people who lead their field, and so the conversations that start here can carry on long afterward.
                                 </p>
                                 <p style="color: var(--up-text-secondary); line-height: 1.8;">
                                     <strong>Dress Code:</strong> Black Tie / Formal Evening Attire
@@ -62458,21 +62931,36 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                         </div>
 
-                        <!-- Photo Gallery -->
+                        <!-- Program at a glance -> full evening schedule -->
+                        <div class="gala-glance">
+                            <div class="gala-glance-head">
+                                <h3>The evening at a glance</h3>
+                                <button class="gala-glance-cta" onclick="GalaPortal.showTab('schedule')">See the full program <i class="fas fa-arrow-right"></i></button>
+                            </div>
+                            <div class="gala-glance-rows">
+                                <div class="gala-glance-row"><span class="gala-glance-time">18:00</span><span class="gala-glance-label">Welcome reception and champagne</span></div>
+                                <div class="gala-glance-row"><span class="gala-glance-time">19:00</span><span class="gala-glance-label">Opening and keynote addresses</span></div>
+                                <div class="gala-glance-row"><span class="gala-glance-time">20:00</span><span class="gala-glance-label">Five-course gala dinner</span></div>
+                                <div class="gala-glance-row"><span class="gala-glance-time">21:30</span><span class="gala-glance-label">Biomedical Forum Annual Awards</span></div>
+                                <div class="gala-glance-row"><span class="gala-glance-time">22:30</span><span class="gala-glance-label">Live music, dancing, and networking</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Photo Gallery — real photos from previous Med&X gala evenings -->
                         <div class="gala-gallery-section">
                             <h3>Moments from Previous Galas</h3>
                             <div class="gala-gallery-grid">
                                 <div class="gala-gallery-item">
-                                    <img src="https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=400&h=300&fit=crop" alt="Elegant Ballroom" loading="lazy">
+                                    <img src="assets/photos/plexus_moment_networking.jpg" alt="Guests networking under warm string lights at a previous gala" loading="lazy">
                                 </div>
                                 <div class="gala-gallery-item">
-                                    <img src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=300&fit=crop" alt="Award Ceremony" loading="lazy">
+                                    <img src="assets/photos/plexus_25_gala.jpg" alt="Dinner under the ballroom dome at a previous Med&X gala" loading="lazy">
                                 </div>
                                 <div class="gala-gallery-item">
-                                    <img src="https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=400&h=300&fit=crop" alt="Networking Reception" loading="lazy">
+                                    <img src="assets/photos/plexus_moment_gala.jpg" alt="The gala ballroom during the evening program" loading="lazy">
                                 </div>
                                 <div class="gala-gallery-item">
-                                    <img src="https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&h=300&fit=crop" alt="Gala Dinner" loading="lazy">
+                                    <img src="assets/photos/plexus_25_gala_grupna.jpg" alt="Guests gathered together at the Gala Evening" loading="lazy">
                                 </div>
                             </div>
                         </div>
@@ -62522,6 +63010,17 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                         </div>
                         <p class="mxlead-foot">Two of our keynote speakers also hold Harvard Medical School professorships.</p>
+
+                        <!-- Featured performers — designed placeholder pending real names -->
+                        <div class="gala-perform" style="margin-bottom:0;">
+                            <div class="gala-perform-ico"><i class="fas fa-music"></i></div>
+                            <div class="gala-perform-body">
+                                <p class="gala-perform-eyebrow">Live on the night</p>
+                                <h3 class="gala-perform-title">Featured performers &mdash; to be announced</h3>
+                                <p class="gala-perform-text">Alongside the keynotes, the evening features live music. Our singers and performers are being confirmed and will be announced closer to December.</p>
+                            </div>
+                            <span class="gala-perform-chip">Announced soon</span>
+                        </div>
                     </div>
 
                     <!-- Gala Schedule Panel -->
@@ -66225,6 +66724,10 @@ button,input,select,textarea{font-family:var(--sans);}
 
                     <!-- Discover Panel -->
                     <div class="network-panel active" id="network-panel-discover">
+                        <div class="discover-hero">
+                            <h2>Discover the Med&amp;X network</h2>
+                            <p>Search members by name, field, institution, or program.</p>
+                        </div>
                         <div class="discovery-filters">
                             <div class="discovery-search">
                                 <i class="fas fa-search"></i>
@@ -66283,6 +66786,11 @@ button,input,select,textarea{font-family:var(--sans);}
                                     <option value="accelerator">Accelerator</option>
                                     <option value="forum">Biomedical Forum</option>
                                     <option value="bridges">Building Bridges</option>
+                                </select>
+                            </div>
+                            <div class="discovery-filter">
+                                <select id="filterInstitution" onchange="NetworkingPortal.filterMembers()">
+                                    <option value="">All institutions</option>
                                 </select>
                             </div>
                             <div class="connections-view-toggle directory-view-toggle">
@@ -68414,33 +68922,126 @@ button,input,select,textarea{font-family:var(--sans);}
 
             <!-- My Med&X Section -->
             <div class="up-section" id="up-section-mymedx">
-                <div class="mymedx-container" style="max-width: 800px; margin: 0 auto; padding: 20px 16px 40px;">
+                <div class="mymedx-container" style="max-width: 1120px; margin: 0 auto; padding: 24px 24px 48px;">
                     <!-- Home Button -->
                     <button class="mx-home-crumb" onclick="UserPortal.showSection('dashboard')" title="Back to Home"><i class="fas fa-arrow-left"></i><span>Back to Home</span></button>
 
                     <!-- Hero Header -->
                     <div style="text-align: center; padding: 40px 0 24px;">
-                        <div style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, var(--crimson), var(--crimson-deep)); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 28px; color: #fff;">
+                        <div id="mymedxHeroAvatar" style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, var(--crimson), var(--crimson-deep)); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 28px; color: #fff; overflow: hidden; border: 2px solid rgba(201,169,98,.55); box-shadow: 0 10px 24px rgba(155,27,34,.18);">
                             <i class="fas fa-user-circle"></i>
                         </div>
                         <h1 style="font-size: 24px; font-weight: 700; color: var(--up-text, #1d1d1f); margin: 0 0 4px;">My Med&amp;X</h1>
                         <p style="font-size: 14px; color: var(--up-text-secondary, #6e6e73); margin: 0;">Your membership, programs, and registrations</p>
                     </div>
 
-                    <!-- Tier Card -->
-                    <div id="mymedxTierCard" style="background: linear-gradient(135deg, var(--up-bg-subtle, #f5f5f7), var(--up-bg, #ffffff)); border: 1px solid var(--up-border, #d2d2d7); border-radius: 16px; padding: 20px; margin-bottom: 20px;">
-                        <!-- Populated by MyMedXPortal.renderTierCard() -->
+                    <!-- ===== Premium membership hero (menu 22) ===== -->
+                    <style id="mymedxHeroStyles">
+                    .mmx-hero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:22px;margin-bottom:30px;align-items:stretch;}
+                    .mmx-hero-cardcol{display:flex;flex-direction:column;gap:12px;}
+                    .mmx-card{position:relative;border-radius:20px;overflow:hidden;background:linear-gradient(135deg,#fbf9f6,#f3efe9);border:1px solid rgba(201,169,98,.45);box-shadow:0 18px 44px rgba(21,17,15,.12);}
+                    .mmx-card-top{height:8px;background:linear-gradient(90deg,#7d161c,#9b1b22,#c2484e,#9b1b22,#7d161c);}
+                    .mmx-card-body{display:flex;gap:18px;padding:24px 26px;align-items:stretch;}
+                    .mmx-card-left{flex:1;min-width:0;display:flex;flex-direction:column;}
+                    .mmx-card-logo{height:30px;width:auto;align-self:flex-start;margin-bottom:16px;}
+                    .mmx-card-eyebrow{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:#a38a4f;font-weight:700;}
+                    .mmx-card-idrow{display:flex;align-items:center;gap:14px;margin:2px 0 8px;min-width:0;}
+                    .mmx-card-portrait{width:56px;height:56px;border-radius:16px;overflow:hidden;flex-shrink:0;background:linear-gradient(135deg,#7d161c,#9b1b22);display:flex;align-items:center;justify-content:center;border:1px solid rgba(201,169,98,.5);box-shadow:0 6px 16px rgba(155,27,34,.2);}
+                    .mmx-card-portrait img{width:100%;height:100%;object-fit:cover;display:block;}
+                    .mmx-card-portrait span{font-family:var(--serif,'Fraunces',serif);font-size:21px;font-weight:600;color:#f7ead1;letter-spacing:.03em;}
+                    .mmx-card-idrow .mmx-card-name{margin:3px 0 0;}
+                    #mymedxHeroAvatar img{width:100%;height:100%;object-fit:cover;display:block;}
+                    #mymedxHeroAvatar span{font-family:var(--serif,'Fraunces',serif);font-size:23px;font-weight:600;color:#f7ead1;letter-spacing:.03em;}
+                    .mmx-card-name{font-family:var(--serif,'Fraunces',serif);font-size:31px;line-height:1.04;font-weight:600;color:#15110f;margin:7px 0 6px;letter-spacing:-.01em;word-break:break-word;}
+                    .mmx-card-since{font-size:13px;color:#6b6258;margin-bottom:15px;}
+                    .mmx-card-standing{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;background:#ffffff;border:1px solid #e2dcd3;border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:600;color:#15110f;}
+                    .mmx-card-check{display:inline-flex;width:18px;height:18px;border-radius:50%;background:#2f6b3a;color:#fff;align-items:center;justify-content:center;font-size:11px;line-height:1;}
+                    .mmx-card-id{margin-top:auto;padding-top:16px;font-size:11px;color:#a39a8d;letter-spacing:.02em;}
+                    .mmx-card-right{width:120px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;}
+                    .mmx-card-qr{width:100px;height:100px;background:#fff;border:1px solid #e2dcd3;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#c9bfb0;font-size:34px;box-shadow:0 6px 18px rgba(21,17,15,.08);}
+                    .mmx-card-qr-label{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#8a827a;font-weight:700;}
+                    .mmx-card-dl{display:inline-flex;align-items:center;justify-content:center;gap:9px;background:var(--crimson,#9b1b22);color:#fff;border:none;border-radius:12px;padding:14px 18px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:transform .15s ease,box-shadow .15s ease;box-shadow:0 8px 22px rgba(155,27,34,.24);}
+                    .mmx-card-dl:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(155,27,34,.32);}
+                    .mmx-card-note{font-size:12px;color:var(--muted,#6b6258);display:flex;align-items:flex-start;gap:7px;line-height:1.5;}
+                    .mmx-card-note i{color:var(--gold,#c9a962);margin-top:2px;}
+                    .mmx-hero-sidecol{display:flex;flex-direction:column;gap:16px;}
+                    .mmx-recog{background:linear-gradient(135deg,#f3efe9,#fbf9f6);border:1px solid var(--line,#e2dcd3);border-radius:18px;padding:20px 22px;}
+                    .mmx-recog-head{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink,#15110f);margin-bottom:4px;}
+                    .mmx-recog-head i{color:var(--crimson,#9b1b22);}
+                    .mmx-badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+                    .mmx-points{background:linear-gradient(140deg,#1a1512,#2c211a);border:1px solid rgba(201,169,98,.28);border-radius:18px;padding:20px 22px;color:#f3efe9;flex:1;display:flex;flex-direction:column;justify-content:center;}
+                    .mmx-points-row{display:flex;align-items:center;gap:14px;}
+                    .mmx-points-ico{width:46px;height:46px;border-radius:13px;background:rgba(201,169,98,.16);border:1px solid rgba(201,169,98,.32);display:flex;align-items:center;justify-content:center;color:#c9a962;font-size:20px;flex-shrink:0;}
+                    .mmx-points-label{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:rgba(243,239,233,.6);font-weight:700;}
+                    .mmx-points-value{font-family:var(--serif,'Fraunces',serif);font-size:40px;line-height:1;font-weight:600;color:#e8d5a8;margin-top:2px;}
+                    .mmx-points-meta{font-size:12.5px;color:rgba(243,239,233,.55);margin-top:12px;}
+                    .mmx-points-actions{display:flex;align-items:center;gap:16px;margin-top:16px;flex-wrap:wrap;}
+                    .mmx-points-cta{display:inline-flex;align-items:center;gap:8px;background:var(--crimson,#9b1b22);color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
+                    .mmx-points-link{font-size:12.5px;color:#c9a962;font-weight:600;cursor:pointer;text-decoration:none;background:none;border:none;font-family:inherit;padding:0;}
+                    .mmx-points-link:hover{text-decoration:underline;}
+                    /* Past purchases */
+                    .mmx-purchase-intro{font-size:13px;color:var(--up-text-secondary,#6b6258);line-height:1.55;margin:0 0 14px;padding-left:4px;max-width:720px;}
+                    .mmx-purchase{display:flex;gap:14px;justify-content:space-between;align-items:center;background:var(--surface,#fff);border:1px solid var(--line,#e2dcd3);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm,0 1px 2px rgba(21,17,15,.04));flex-wrap:wrap;}
+                    .mmx-purchase-main{min-width:0;flex:1;}
+                    .mmx-purchase-title{font-size:15px;font-weight:700;color:var(--ink,#15110f);font-family:var(--serif,'Fraunces',serif);}
+                    .mmx-purchase-sub{font-size:12.5px;color:var(--muted,#6b6258);margin-top:3px;}
+                    .mmx-purchase-meta{font-size:12.5px;color:var(--muted,#6b6258);margin-top:6px;}
+                    .mmx-purchase-meta strong{color:var(--ink,#15110f);}
+                    .mmx-purchase-side{display:flex;flex-direction:column;align-items:flex-end;gap:10px;}
+                    .mmx-purchase-status{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--paper-2,#f3efe9);border:1px solid var(--line,#e2dcd3);padding:4px 10px;border-radius:999px;}
+                    .mmx-purchase-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
+                    .mmx-purchase-btn{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--line-strong,var(--line,#d8d1c6));color:var(--ink,#15110f);border-radius:9px;padding:8px 12px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s ease,border-color .15s ease;}
+                    .mmx-purchase-btn:hover{background:var(--paper-2,#f3efe9);}
+                    .mmx-purchase-btn.refund{color:var(--crimson,#9b1b22);border-color:rgba(155,27,34,.3);}
+                    .mmx-purchase-btn.refund:hover{background:rgba(155,27,34,.06);}
+                    .mmx-purchase-empty{text-align:center;padding:26px 20px;border:1px dashed var(--line,#e2dcd3);border-radius:14px;color:var(--muted,#6b6258);font-size:13px;}
+                    /* Inquiry modal */
+                    .mmx-inq-overlay{position:fixed;inset:0;z-index:12000;background:rgba(21,17,15,.55);display:none;align-items:center;justify-content:center;padding:20px;}
+                    .mmx-inq-overlay.open{display:flex;}
+                    .mmx-inq-card{position:relative;background:var(--surface,#fff);border:1px solid var(--line,#e2dcd3);border-radius:18px;padding:26px 26px 22px;max-width:460px;width:100%;box-shadow:0 30px 70px rgba(21,17,15,.32);}
+                    .mmx-inq-x{position:absolute;top:14px;right:16px;background:none;border:none;font-size:22px;line-height:1;color:var(--muted,#6b6258);cursor:pointer;}
+                    .mmx-inq-eyebrow{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--crimson,#9b1b22);font-weight:700;}
+                    .mmx-inq-title{font-family:var(--serif,'Fraunces',serif);font-size:21px;font-weight:600;color:var(--ink,#15110f);margin:6px 0 10px;}
+                    .mmx-inq-lede{font-size:13px;color:var(--muted,#6b6258);line-height:1.55;margin:0 0 14px;}
+                    .mmx-inq-text{width:100%;box-sizing:border-box;border:1px solid var(--line,#e2dcd3);border-radius:10px;padding:11px 13px;font-size:14px;font-family:inherit;color:var(--ink,#15110f);resize:vertical;background:var(--paper,#fbf9f6);}
+                    .mmx-inq-text:focus{outline:none;border-color:var(--crimson,#9b1b22);}
+                    .mmx-inq-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;}
+                    .mmx-inq-cancel{background:transparent;border:1px solid var(--line,#e2dcd3);color:var(--ink,#15110f);border-radius:10px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+                    .mmx-inq-send{background:var(--crimson,#9b1b22);border:none;color:#fff;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
+                    .mmx-inq-send:disabled{opacity:.6;cursor:default;}
+                    .mmx-inq-foot{display:flex;align-items:flex-start;gap:7px;font-size:11.5px;color:var(--muted,#6b6258);line-height:1.5;margin-top:14px;}
+                    .mmx-inq-foot i{color:var(--gold,#c9a962);margin-top:2px;}
+                    @media(max-width:860px){.mmx-hero{grid-template-columns:1fr;}.mmx-card-name{font-size:27px;}}
+                    @media(max-width:480px){.mmx-card-body{flex-direction:column;}.mmx-card-right{flex-direction:row;width:auto;align-self:flex-start;gap:14px;}.mmx-purchase-side{align-items:flex-start;width:100%;}.mmx-purchase-actions{justify-content:flex-start;}}
+                    </style>
+                    <div class="mmx-hero">
+                        <div class="mmx-hero-cardcol">
+                            <div id="mymedxCardVisual" class="mmx-card"><!-- MyMedXPortal.renderMembershipCardVisual() --></div>
+                            <button class="mmx-card-dl" onclick="MyMedXPortal.downloadMembershipCard()"><i class="fas fa-id-card"></i> Download membership card</button>
+                            <div class="mmx-card-note"><i class="fas fa-qrcode"></i><span>Your QR carries your key info for fast check-in at Med&amp;X events. Apple Wallet coming soon.</span></div>
+                        </div>
+                        <div class="mmx-hero-sidecol">
+                            <div id="mymedxTierCard" class="mmx-recog"><!-- MyMedXPortal.renderRecognition() --></div>
+                            <div class="mmx-points">
+                                <div class="mmx-points-row">
+                                    <div class="mmx-points-ico"><i class="fas fa-gift"></i></div>
+                                    <div>
+                                        <div class="mmx-points-label">Rewards points</div>
+                                        <div class="mmx-points-value" id="mymedxRewardsBalance">0</div>
+                                    </div>
+                                </div>
+                                <div class="mmx-points-meta"><span id="mymedxPointsLifetime">0</span> lifetime points earned</div>
+                                <div class="mmx-points-actions">
+                                    <button class="mmx-points-cta" onclick="UserPortal.showSection('rewards')">Open Rewards <i class="fas fa-arrow-right"></i></button>
+                                    <button class="mmx-points-link" onclick="UserPortal.showSection('rewards')">How to earn &amp; redeem</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-
-                    <!-- Rewards balance (quiet entry into Med&X Rewards) -->
-                    <button onclick="UserPortal.showSection('rewards')" style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:12px;background:var(--surface, #fff);border:1px solid var(--line, #e2dcd3);border-radius:14px;padding:14px 16px;margin-bottom:20px;cursor:pointer;font-family:inherit;text-align:left;">
-                        <span style="display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:var(--ink, #15110f);"><i class="fas fa-gift" style="color:var(--gold, #c9a962);"></i> Rewards balance</span>
-                        <span style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted, #6b6258);"><strong id="mymedxRewardsBalance" style="font-size:15px;color:var(--ink, #15110f);">0</strong> points <i class="fas fa-chevron-right" style="font-size:11px;color:var(--muted, #6b6258);"></i></span>
-                    </button>
 
                     <!-- Programs Grid -->
                     <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0 0 12px; padding-left: 4px;">My Programs</h3>
-                    <div id="mymedxPrograms" style="display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 24px;">
+                    <div id="mymedxPrograms" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-bottom: 24px;">
                         <!-- Populated by MyMedXPortal.renderPrograms() -->
                     </div>
 
@@ -68448,6 +69049,13 @@ button,input,select,textarea{font-family:var(--sans);}
                     <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0 0 12px; padding-left: 4px;">My Wallet</h3>
                     <div id="mymedxQRCodes" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 24px;">
                         <!-- Populated by MyMedXPortal.renderQRCodes() -->
+                    </div>
+
+                    <!-- Past purchases (orders + refund / ask-the-team, via the messages inbox) -->
+                    <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0 0 8px; padding-left: 4px;">Past purchases</h3>
+                    <p class="mmx-purchase-intro">We want you fully satisfied with every Med&amp;X purchase. Ask us anything about an order or request a refund right here, and our team will get back to you fast.</p>
+                    <div id="mymedxPurchases" style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">
+                        <!-- Populated by MyMedXPortal.renderPurchases() -->
                     </div>
 
                     <!-- Interests -->
@@ -76308,6 +76916,9 @@ You can use variables like {first_name} that will be personalized for each recip
         const MyMedXPortal = {
             init() {
                 this.renderTierCard();
+                this.renderMembershipCardVisual();
+                this.loadPhoto();
+                this.loadPoints();
                 this.renderPrograms();
                 this.renderQRCodes();
                 this.renderInterests();
@@ -76328,8 +76939,8 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (wc) wc.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--muted);font-size:13px;">Loading your tickets…</div>';
                 fetch(apiBase + '/api/registrations/my', { headers: token ? { 'Authorization': 'Bearer ' + token } : {} })
                     .then(function(r){ return r.ok ? r.json() : Promise.reject('err'); })
-                    .then(function(regs){ self._regs = Array.isArray(regs) ? regs : []; self.renderRecognition(self._regs); self._renderWalletCards(self._regs); })
-                    .catch(function(){ self._regs = []; self.renderRecognition([]); self._renderWalletCards(null); })
+                    .then(function(regs){ self._regs = Array.isArray(regs) ? regs : []; self.renderRecognition(self._regs); self._renderWalletCards(self._regs); self.renderPurchases(self._regs); })
+                    .catch(function(){ self._regs = []; self.renderRecognition([]); self._renderWalletCards(null); self.renderPurchases([]); })
                     .then(function(){ self._memberDataLoading = false; });
             },
 
@@ -76353,23 +76964,15 @@ You can use variables like {first_name} that will be personalized for each recip
                 try { if (localStorage.getItem('forum_member')==='1' || (JSON.parse(localStorage.getItem('forum_registered_events')||'[]')).length) badges.push({icon:'fa-landmark', label:'Forum participant', color:'var(--cat-forum)'}); } catch(e){}
 
                 var badgesHtml = badges.length
-                    ? '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">' + badges.map(function(b){
+                    ? '<div class="mmx-badges">' + badges.map(function(b){
                         return '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:600;color:'+b.color+';background:var(--paper-2);border:1px solid var(--line);"><i class="fas '+b.icon+'"></i>'+b.label+'</span>';
                       }).join('') + '</div>'
                     : '<div style="margin-top:12px;font-size:13px;color:var(--muted);">Your recognition appears here as you register for and attend Med&X events.</div>';
 
                 container.innerHTML =
-                    '<div style="display:flex;align-items:center;gap:14px;">'
-                      + '<div style="width:48px;height:48px;border-radius:12px;background:var(--paper-2);display:flex;align-items:center;justify-content:center;"><i class="fas fa-id-badge" style="font-size:22px;color:var(--crimson);"></i></div>'
-                      + '<div style="flex:1;min-width:0;"><div style="font-size:18px;font-weight:700;color:var(--ink);font-family:var(--serif);">'+name+'</div>'
-                      + '<div style="font-size:13px;color:var(--muted);">Active member</div></div>'
-                    + '</div>'
+                    '<div class="mmx-recog-head"><i class="fas fa-medal"></i> Recognition &amp; standing</div>'
                     + '<div id="mymedxMembershipMeta"></div>'
-                    + badgesHtml
-                    + '<div style="margin-top:18px;display:flex;flex-direction:column;gap:6px;align-items:flex-start;">'
-                        + '<button onclick="MyMedXPortal.downloadMembershipCard()" style="display:inline-flex;align-items:center;gap:8px;background:var(--ink);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-id-card"></i> Download membership card</button>'
-                        + '<div style="font-size:11px;color:var(--muted);">Add to Apple Wallet coming soon.</div>'
-                    + '</div>';
+                    + badgesHtml;
                 this._renderMembershipMeta();
             },
 
@@ -76816,6 +77419,7 @@ You can use variables like {first_name} that will be personalized for each recip
                         + (qrUrl ? '<img src="' + qrUrl + '" style="width:380px;height:380px;display:block;">' : '<div style="width:380px;height:380px;display:flex;align-items:center;justify-content:center;color:#6b6258;font-size:18px;">QR unavailable</div>')
                         + '<div style="font-size:21px;letter-spacing:3px;text-transform:uppercase;color:#15110f;font-weight:700;margin-top:28px;">Scan to verify</div>'
                         + '<div style="font-size:18px;color:#6b6258;margin-top:8px;">Med&amp;X Membership</div>'
+                        + '<div style="font-size:16px;color:#a38a4f;margin-top:16px;max-width:300px;text-align:center;line-height:1.45;">This QR carries your key info for check-in at Med&amp;X events.</div>'
                       + '</div>'
                     + '</div>'
                   + '</div>';
@@ -76882,6 +77486,7 @@ You can use variables like {first_name} that will be personalized for each recip
 
             async downloadMembershipCard() {
                 try {
+                    await this._ensureLibs();
                     var user = this._currentUser();
                     var name = (user.name || ((user.first_name || '') + ' ' + (user.last_name || '')).trim()) || 'Med&X Member';
                     var regId = (function(){ try { return localStorage.getItem('plexus_registration_id') || 'MX-2026'; } catch (e) { return 'MX-2026'; } })();
@@ -76902,7 +77507,266 @@ You can use variables like {first_name} that will be personalized for each recip
                     }, 'image/png');
                 } catch (e) {
                     console.error('Membership card failed:', e);
-                    if (typeof Toast !== 'undefined' && Toast.error) Toast.error('Could not generate card');
+                    var _m = (e && /load|offline|network|connection/i.test(e.message || '')) ? e.message : 'Could not generate card. Please try again.';
+                    if (typeof Toast !== 'undefined' && Toast.error) Toast.error(_m);
+                }
+            },
+
+            // Make the client-side card/ticket renderers resilient. The QR + html2canvas libs load via
+            // <script defer> from a CDN, so a fast click (or a slow/blocked CDN) can reach the download
+            // before they exist. Wait briefly, then re-inject from the CDN, and only fail with a clear
+            // message so the card download never silently dead-ends.
+            _ensureLibs() {
+                var ready = function(){ return typeof html2canvas !== 'undefined' && typeof QRCode !== 'undefined' && QRCode.toDataURL; };
+                if (ready()) return Promise.resolve();
+                var inject = function(src){ return new Promise(function(res){ var t = document.createElement('script'); t.src = src; t.async = true; t.onload = function(){ res(true); }; t.onerror = function(){ res(false); }; document.head.appendChild(t); }); };
+                return new Promise(function(resolve, reject){
+                    var waited = 0;
+                    (function poll(){
+                        if (ready()) return resolve();
+                        waited += 120;
+                        if (waited < 2600) return setTimeout(poll, 120);
+                        var jobs = [];
+                        if (typeof QRCode === 'undefined') jobs.push(inject('https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js'));
+                        if (typeof html2canvas === 'undefined') jobs.push(inject('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'));
+                        Promise.all(jobs).then(function(){
+                            var extra = 0;
+                            (function poll2(){
+                                if (ready()) return resolve();
+                                extra += 150;
+                                if (extra < 2500) return setTimeout(poll2, 150);
+                                reject(new Error("We couldn't load the card designer (you may be offline). Please check your connection and try again."));
+                            })();
+                        });
+                    })();
+                });
+            },
+
+            // On-screen membership card (the beautiful hero preview of the downloadable card).
+            renderMembershipCardVisual() {
+                var el = document.getElementById('mymedxCardVisual');
+                if (!el) return;
+                var user = this._currentUser();
+                var name = (user.name || ((user.first_name || '') + ' ' + (user.last_name || '')).trim()) || 'Med&X Member';
+                var memberId = user.id ? String(user.id).slice(0, 8).toUpperCase() : '';
+                var self = this;
+                el.innerHTML = this._cardVisualHtml(name, null, memberId);
+                self._paintCardQr(user, name);
+                if (typeof MemberState !== 'undefined') {
+                    MemberState.loadMeta().then(function(m){
+                        el.innerHTML = self._cardVisualHtml(name, m, memberId);
+                        self._paintCardQr(user, name);
+                    }).catch(function(){});
+                }
+            },
+
+            _cardVisualHtml(name, meta, memberId) {
+                var memberType = (meta && meta.member_type_label) || 'Med&X Member';
+                var sinceY = (meta && meta.member_since) ? String(meta.member_since).slice(0, 4) : '';
+                var standing = (meta && meta.standing_label) || 'Member in good standing';
+                var sinceLine = memberType + (sinceY ? (' · Member since ' + sinceY) : '');
+                return ''
+                    + '<div class="mmx-card-top"></div>'
+                    + '<div class="mmx-card-body">'
+                        + '<div class="mmx-card-left">'
+                            + '<img src="/assets/images/medx-logo.png" alt="Med&X" class="mmx-card-logo">'
+                            + '<div class="mmx-card-idrow">'
+                                + '<div class="mmx-card-portrait" id="mymedxCardPortrait">' + this._portraitInnerHtml(name) + '</div>'
+                                + '<div style="min-width:0;">'
+                                    + '<div class="mmx-card-eyebrow">Member</div>'
+                                    + '<div class="mmx-card-name">' + escapeHtml(name) + '</div>'
+                                + '</div>'
+                            + '</div>'
+                            + '<div class="mmx-card-since">' + escapeHtml(sinceLine) + '</div>'
+                            + '<div class="mmx-card-standing"><span class="mmx-card-check">✓</span>' + escapeHtml(standing) + '</div>'
+                            + (memberId ? '<div class="mmx-card-id">medx.hr · Member ID ' + escapeHtml(memberId) + '</div>' : '')
+                        + '</div>'
+                        + '<div class="mmx-card-right">'
+                            + '<div id="mymedxCardQr" class="mmx-card-qr"><i class="fas fa-qrcode"></i></div>'
+                            + '<div class="mmx-card-qr-label">Scan to verify</div>'
+                        + '</div>'
+                    + '</div>';
+            },
+
+            // ===== Member photo (users.photo_url) with an initials monogram fallback =====
+            // The hero avatar and the membership card portrait always carry a personal mark:
+            // the member's photo when one is on file, otherwise their initials. The photo is
+            // preloaded before it is shown so a dead URL can never render as a broken image.
+            _initialsFor(name) {
+                var parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+                if (!parts.length) return 'MX';
+                var ini = parts[0].charAt(0) + (parts.length > 1 ? parts[parts.length - 1].charAt(0) : '');
+                return ini.toUpperCase();
+            },
+
+            _portraitInnerHtml(nameOverride) {
+                var user = this._currentUser();
+                var name = nameOverride || (user.name || ((user.first_name || '') + ' ' + (user.last_name || '')).trim()) || 'Med&X Member';
+                if (this._photoUrl) return '<img src="' + escapeHtml(this._photoUrl) + '" alt="' + escapeHtml(name) + '">';
+                return '<span>' + escapeHtml(this._initialsFor(name)) + '</span>';
+            },
+
+            _applyPortraits() {
+                var hero = document.getElementById('mymedxHeroAvatar');
+                if (hero) hero.innerHTML = this._portraitInnerHtml();
+                var card = document.getElementById('mymedxCardPortrait');
+                if (card) card.innerHTML = this._portraitInnerHtml();
+            },
+
+            loadPhoto() {
+                var self = this;
+                this._applyPortraits();
+                var t = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
+                var base = (typeof API_BASE !== 'undefined' ? API_BASE : '');
+                fetch(base + '/api/auth/me', { headers: t ? { 'Authorization': 'Bearer ' + t } : {} })
+                    .then(function(r){ return r.ok ? r.json() : null; })
+                    .then(function(d){
+                        if (!d || !d.photo_url) return;
+                        var img = new Image();
+                        img.onload = function(){ self._photoUrl = d.photo_url; self._applyPortraits(); };
+                        img.src = d.photo_url;
+                    })
+                    .catch(function(){});
+            },
+
+            _paintCardQr(user, name) {
+                var el = document.getElementById('mymedxCardQr');
+                if (!el) return;
+                var regId = (function(){ try { return localStorage.getItem('plexus_registration_id') || 'MX-2026'; } catch (e) { return 'MX-2026'; } })();
+                var payload = JSON.stringify({ type: 'PLEXUS2026', userId: (user && user.id) || '', regId: regId, name: name });
+                if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
+                    QRCode.toCanvas(document.createElement('canvas'), payload, { width: 100, margin: 1, color: { dark: '#15110f', light: '#ffffff' } }, function(err, canvas){
+                        if (err || !canvas) return;
+                        canvas.style.width = '100px'; canvas.style.height = '100px';
+                        el.innerHTML = ''; el.appendChild(canvas);
+                    });
+                }
+            },
+
+            // Rewards points panel — pull the live balance/lifetime so MyMedX shows real numbers even
+            // if the Rewards section has not been opened yet this session.
+            loadPoints() {
+                var apply = function(bal, life){
+                    var b = document.getElementById('mymedxRewardsBalance'); if (b) b.textContent = (bal || 0).toLocaleString();
+                    var l = document.getElementById('mymedxPointsLifetime'); if (l) l.textContent = (life || 0).toLocaleString();
+                };
+                if (typeof RewardsPortal !== 'undefined' && RewardsPortal.data) apply(RewardsPortal.data.balance, RewardsPortal.data.lifetime_points);
+                var t = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
+                var base = (typeof API_BASE !== 'undefined' ? API_BASE : '');
+                fetch(base + '/api/rewards/summary', { headers: t ? { 'Authorization': 'Bearer ' + t } : {} })
+                    .then(function(r){ return r.ok ? r.json() : null; })
+                    .then(function(d){ if (d) apply(d.balance, d.lifetime_points); })
+                    .catch(function(){});
+            },
+
+            // Past purchases — read-only list of the member's registrations/tickets, each with a warm
+            // "ask about this" + "request a refund" action that FILES a support inquiry through the
+            // existing messages inbox (POST /api/purchases/inquiry). No Stripe refund is ever called.
+            renderPurchases(regs) {
+                var el = document.getElementById('mymedxPurchases');
+                if (!el) return;
+                regs = regs || [];
+                if (!regs.length) {
+                    el.innerHTML = '<div class="mmx-purchase-empty">Your purchases and receipts appear here after you register for a Med&X event. <a href="#" onclick="event.preventDefault();UserPortal.showSection(\'plexus\');" style="color:var(--crimson);font-weight:600;">Browse events</a></div>';
+                    return;
+                }
+                el.innerHTML = regs.map(function(r, i){
+                    var paid = (r.payment_status === 'paid');
+                    var free = (!r.amount_paid || Number(r.amount_paid) === 0);
+                    var statusLabel = paid ? 'Paid' : (free ? 'Confirmed' : 'Payment pending');
+                    var statusColor = (paid || free) ? 'var(--success)' : 'var(--warning)';
+                    var amount = (r.amount_paid != null && Number(r.amount_paid) > 0) ? ('€' + Number(r.amount_paid).toFixed(2)) : (free ? 'Free' : '');
+                    var dates = MyMedXPortal._fmtDateRange(r.start_date, r.end_date);
+                    var when = r.created_at ? new Date(String(r.created_at).replace(' ', 'T')).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+                    var metaBits = [];
+                    if (amount) metaBits.push('<strong>' + amount + '</strong>');
+                    if (r.invoice_number) metaBits.push('Invoice #' + escapeHtml(String(r.invoice_number)));
+                    if (when && when !== 'Invalid Date') metaBits.push(when);
+                    return '<div class="mmx-purchase">'
+                        + '<div class="mmx-purchase-main">'
+                            + '<div class="mmx-purchase-title">' + escapeHtml(r.conference_name || 'Med&X event') + '</div>'
+                            + '<div class="mmx-purchase-sub">' + escapeHtml(r.ticket_name || r.registration_type || 'Ticket') + (dates ? (' · ' + dates) : '') + '</div>'
+                            + (metaBits.length ? '<div class="mmx-purchase-meta">' + metaBits.join(' · ') + '</div>' : '')
+                        + '</div>'
+                        + '<div class="mmx-purchase-side">'
+                            + '<span class="mmx-purchase-status" style="color:' + statusColor + ';">' + statusLabel + '</span>'
+                            + '<div class="mmx-purchase-actions">'
+                                + '<button class="mmx-purchase-btn" onclick="MyMedXPortal.openPurchaseInquiry(' + i + ',\'question\')"><i class="fas fa-comment-dots"></i> Ask about this</button>'
+                                + '<button class="mmx-purchase-btn refund" onclick="MyMedXPortal.openPurchaseInquiry(' + i + ',\'refund\')"><i class="fas fa-rotate-left"></i> Request a refund</button>'
+                            + '</div>'
+                        + '</div>'
+                    + '</div>';
+                }).join('');
+            },
+
+            openPurchaseInquiry(idx, kind) {
+                var r = (this._regs || [])[idx];
+                if (!r) return;
+                var isRefund = (kind === 'refund');
+                var evt = (r.conference_name || 'Med&X event') + (r.ticket_name ? (' — ' + r.ticket_name) : '');
+                var self = this;
+                var ov = document.getElementById('mmxInquiryOverlay');
+                if (!ov) {
+                    ov = document.createElement('div');
+                    ov.id = 'mmxInquiryOverlay';
+                    ov.className = 'mmx-inq-overlay';
+                    document.body.appendChild(ov);
+                    ov.addEventListener('click', function(e){ if (e.target === ov) self.closePurchaseInquiry(); });
+                }
+                ov.innerHTML = '<div class="mmx-inq-card">'
+                    + '<button class="mmx-inq-x" onclick="MyMedXPortal.closePurchaseInquiry()" aria-label="Close">&times;</button>'
+                    + '<div class="mmx-inq-eyebrow">' + (isRefund ? 'Refund request' : 'Ask about this purchase') + '</div>'
+                    + '<div class="mmx-inq-title">' + escapeHtml(evt) + '</div>'
+                    + '<p class="mmx-inq-lede">' + (isRefund
+                        ? 'Tell us briefly why you would like a refund. Our team reviews every request personally and replies fast.'
+                        : 'Ask us anything about this purchase. We want you fully satisfied and reply quickly.') + '</p>'
+                    + '<textarea id="mmxInquiryText" class="mmx-inq-text" rows="4" placeholder="' + (isRefund ? 'e.g. I can no longer attend and would like a refund.' : 'e.g. Can I transfer my ticket to a colleague?') + '"></textarea>'
+                    + '<div class="mmx-inq-actions">'
+                        + '<button class="mmx-inq-cancel" onclick="MyMedXPortal.closePurchaseInquiry()">Cancel</button>'
+                        + '<button class="mmx-inq-send" id="mmxInquirySend" onclick="MyMedXPortal.submitPurchaseInquiry(' + idx + ',\'' + kind + '\')">Send to the team</button>'
+                    + '</div>'
+                    + '<div class="mmx-inq-foot"><i class="fas fa-shield-heart"></i><span>This files a message with the Med&X team through your inbox. It never charges or cancels anything automatically.</span></div>'
+                + '</div>';
+                ov.classList.add('open');
+                setTimeout(function(){ var t = document.getElementById('mmxInquiryText'); if (t) t.focus(); }, 60);
+            },
+
+            closePurchaseInquiry() {
+                var ov = document.getElementById('mmxInquiryOverlay');
+                if (ov) ov.classList.remove('open');
+            },
+
+            async submitPurchaseInquiry(idx, kind) {
+                var r = (this._regs || [])[idx];
+                if (!r) return;
+                var txt = document.getElementById('mmxInquiryText');
+                var msg = txt ? txt.value.trim() : '';
+                if (kind === 'refund' && !msg) {
+                    if (typeof Toast !== 'undefined' && Toast.warning) Toast.warning('Please add a short note so we can help.');
+                    return;
+                }
+                var btn = document.getElementById('mmxInquirySend');
+                if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+                try {
+                    var t = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
+                    var base = (typeof API_BASE !== 'undefined' ? API_BASE : '');
+                    var headers = { 'Content-Type': 'application/json' };
+                    if (t) headers['Authorization'] = 'Bearer ' + t;
+                    var res = await fetch(base + '/api/purchases/inquiry', {
+                        method: 'POST', headers: headers,
+                        body: JSON.stringify({ registration_id: r.id, kind: kind, message: msg })
+                    });
+                    var data = await res.json().catch(function(){ return {}; });
+                    if (res.ok && data.success) {
+                        this.closePurchaseInquiry();
+                        if (typeof Toast !== 'undefined' && Toast.success) Toast.success(kind === 'refund' ? 'Refund request sent. The team will be in touch soon.' : 'Message sent. The team will reply soon.');
+                    } else {
+                        if (btn) { btn.disabled = false; btn.textContent = 'Send to the team'; }
+                        if (typeof Toast !== 'undefined' && Toast.error) Toast.error((data && data.error) || 'Could not send. Please try again.');
+                    }
+                } catch (e) {
+                    if (btn) { btn.disabled = false; btn.textContent = 'Send to the team'; }
+                    if (typeof Toast !== 'undefined' && Toast.error) Toast.error('Could not send. Please try again.');
                 }
             },
 
@@ -77445,6 +78309,18 @@ You can use variables like {first_name} that will be personalized for each recip
                 this.showUserPortal(true, true);
             },
 
+            // Dev/demo delivery: when the backend reports no mail provider it hands back a working
+            // verification link (devVerifyUrl). Surface it in the confirm screen so signup never
+            // dead-ends before RESEND_API_KEY is added. In production this field is never returned.
+            _surfaceDevVerify(data) {
+                if (!data || !data.devVerifyUrl) return;
+                this._devVerifyUrl = data.devVerifyUrl;
+                const lk = document.getElementById('regDevVerifyLink');
+                if (lk) lk.href = data.devVerifyUrl;
+                const bx = document.getElementById('regDevVerifyBox');
+                if (bx) bx.style.display = '';
+            },
+
             // Show/hide the soft-gate "confirm your email" banner based on the current user's state.
             // Only shown when we explicitly know email is unverified (email_verified === 0); legacy/demo
             // users without the field are never nagged.
@@ -77532,7 +78408,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 }
                 // Works from three places: the login-error resend button, the step-3 confirm link,
                 // and the soft-gate banner. Whichever is present gets the busy/label treatment.
-                const btn = document.getElementById('resendVerificationBtn') || document.getElementById('upVerifyResendBtn');
+                const btn = document.getElementById('regResendBtn') || document.getElementById('resendVerificationBtn') || document.getElementById('upVerifyResendBtn');
                 const btnLabel = btn ? btn.textContent : 'Resend link';
                 if (btn) {
                     btn.disabled = true;
@@ -77546,6 +78422,7 @@ You can use variables like {first_name} that will be personalized for each recip
                     });
                     const data = await res.json();
                     if (data.success) {
+                        if (data.devVerifyUrl) this._surfaceDevVerify(data);
                         Toast.success(data.message || 'Confirmation email sent! Check your inbox.');
                         if (btn) {
                             btn.textContent = 'Email sent';
@@ -77857,6 +78734,7 @@ You can use variables like {first_name} that will be personalized for each recip
                         sessionStorage.removeItem('medx_verify_dismissed');
                         const ce = document.getElementById('regConfirmEmail');
                         if (ce) ce.textContent = email;
+                        this._surfaceDevVerify(data);
                         this.regGoStep(3);
                     } else {
                         document.getElementById('userRegisterError').textContent = data.error || 'Registration failed';
@@ -84042,6 +84920,47 @@ You can use variables like {first_name} that will be personalized for each recip
                 }
             },
 
+            // ===== KEYNOTE BIOS (overview strip) =====
+            // Curated deterministic bios. aiDraft: when the AI key lands, set `aiDraft`
+            // per speaker (aiDraftKey names the prompt slot); showKeynoteBio prefers it over `bio`.
+            keynoteSpeakers: {
+                smith: { name:'Lord Smith of Finsbury', role:'Chancellor', org:'University of Cambridge', img:'assets/gala/gala_keynote_smith_finsbury.jpg', aiDraftKey:'plexus.keynote.smith', aiDraft:'',
+                    tags:['University leadership','Public policy','Higher education'],
+                    bio:'Lord Smith of Finsbury serves as Chancellor of the University of Cambridge, one of the world\u2019s foremost centers of research and learning. A former UK cabinet minister and long-standing public servant, he brings a rare vantage point on how universities, government, and society advance science together. At Plexus he opens a conversation on the institutions that carry biomedicine forward.' },
+                spisso: { name:'Johnese Spisso, MPA', role:'President, UCLA Health', org:'UCLA Health', img:'assets/gala/gala_keynote_spisso.jpg', aiDraftKey:'plexus.keynote.spisso', aiDraft:'',
+                    tags:['Health systems','Hospital leadership','Academic medicine'],
+                    bio:'Johnese Spisso is President of UCLA Health and CEO of the UCLA Hospital System, leading one of the most respected academic health systems in the United States. Her work spans clinical excellence, research, and the operational craft of running world-class hospitals. She joins Plexus to share how large academic centers turn discovery into care at scale.' },
+                delcarmen: { name:'Dr Marcela del Carmen', role:'President', org:'Massachusetts General Hospital', img:'assets/gala/gala_keynote_delcarmen.jpg', aiDraftKey:'plexus.keynote.delcarmen', aiDraft:'',
+                    tags:['Gynecologic oncology','Hospital leadership','Harvard Medical School'],
+                    bio:'Dr Marcela del Carmen is President of Massachusetts General Hospital and a professor at Harvard Medical School. A gynecologic oncologist by training, she has led on quality, equity, and the physician workforce at one of the oldest and largest teaching hospitals in America. Her keynote looks at leadership in medicine where clinical care and research meet.' },
+                kevinsmith: { name:'Dr Kevin Smith', role:'President and CEO', org:'University Health Network', img:'assets/gala/gala_keynote_kevin_smith.jpg', aiDraftKey:'plexus.keynote.kevinsmith', aiDraft:'',
+                    tags:['Research hospitals','Innovation','Canada'],
+                    bio:'Dr Kevin Smith is President and CEO of University Health Network, Canada\u2019s largest research hospital network and a global leader in transplant, cardiac, and cancer care. He has spent his career building systems where research and patient care reinforce each other. At Plexus he addresses how discovery hospitals stay at the frontier.' },
+                anderson: { name:'Dr Paul Anderson', role:'Chief Academic Officer', org:'Mass General Brigham', img:'assets/gala/gala_keynote_anderson.jpg', aiDraftKey:'plexus.keynote.anderson', aiDraft:'',
+                    tags:['Academic medicine','Research strategy','Harvard Medical School'],
+                    bio:'Dr Paul Anderson is Chief Academic Officer of Mass General Brigham and a professor at Harvard Medical School, overseeing research and education across one of the largest academic medical enterprises in the world. A physician-scientist, he has shaped how a major system sets its research agenda. His keynote considers where biomedical research heads next.' },
+            },
+
+            showKeynoteBio(id) {
+                const sp = this.keynoteSpeakers[id];
+                if (!sp) return;
+                const esc = (v) => String(v==null?'':v).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+                const bio = (typeof sp.aiDraft === 'string' && sp.aiDraft.trim()) ? sp.aiDraft : sp.bio;
+                const img = document.getElementById('pxkbImg');
+                img.src = sp.img; img.alt = sp.name;
+                document.getElementById('pxkbName').textContent = sp.name;
+                document.getElementById('pxkbRole').textContent = sp.role;
+                document.getElementById('pxkbOrg').textContent = sp.org;
+                document.getElementById('pxkbBio').textContent = bio;
+                document.getElementById('pxkbTags').innerHTML = (sp.tags||[]).map(t => '<span class="pxkb-tag">'+esc(t)+'</span>').join('');
+                document.getElementById('pxKeynoteModal').classList.add('active');
+            },
+
+            closeKeynoteBio() {
+                const m = document.getElementById('pxKeynoteModal');
+                if (m) m.classList.remove('active');
+            },
+
             // ===== SPEAKER MODAL =====
 
             currentSpeaker: null,
@@ -89457,6 +90376,8 @@ You can use variables like {first_name} that will be personalized for each recip
 
             // ===== Member Directory (internal-Facebook style) =====
             directoryView: 'list',
+            pageSize: 12,
+            pageShown: 12,
             directoryMembers: null,
             directorySeed: [
                 { id:'seed-maria-garcia', first_name:'Maria', last_name:'Garcia', title:'Neurologist', institution:'Harvard Medical School', city:'Boston', country:'United States', specialtyKey:'neurology', specialtyLabel:'Neurology', interests:['Sleep Disorders','Movement Disorders'], projects:['plexus','forum'], mutuals:['James Kim','Anna Larsson'], mutualCount:2, careerStage:'Senior', online:true, bio:'Clinical neurologist specializing in sleep and movement disorders. Runs the Sleep & Movement Disorders Clinic and mentors early-career researchers in translational neuroscience.' },
@@ -89487,6 +90408,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 else if (u.research_interests) interests = String(u.research_interests).split(',').map(t => t.trim()).filter(Boolean);
                 return {
                     id: u.id, first_name: first, last_name: last, name, initials,
+                    photo: u.photo_url || u.photo || '',
                     title: u.title || u.career_stage || 'Med&X member',
                     institution: u.institution || '',
                     city: u.city || '',
@@ -89517,7 +90439,9 @@ You can use variables like {first_name} that will be personalized for each recip
                 apiUsers.forEach(u => { const m = this._normalizeMember(u, false); if (m.id && !seen.has(m.id)) { seen.add(m.id); merged.push(m); } });
                 (this.directorySeed || []).forEach(u => { const m = this._normalizeMember(u, true); if (!seen.has(m.id)) { seen.add(m.id); merged.push(m); } });
                 this.directoryMembers = merged;
+                this.pageShown = this.pageSize;
                 this.populateDirectoryFilters();
+                this.renderSpotlight();
                 this.renderDiscover();
             },
 
@@ -89537,6 +90461,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 };
                 fill('filterCountry', [...new Set(members.map(m => m.country).filter(Boolean))]);
                 fill('filterCity', [...new Set(members.map(m => m.city).filter(Boolean))]);
+                fill('filterInstitution', [...new Set(members.map(m => m.institution).filter(Boolean))]);
             },
 
             _filteredMembers() {
@@ -89546,10 +90471,12 @@ You can use variables like {first_name} that will be personalized for each recip
                 const country = document.getElementById('filterCountry')?.value || '';
                 const city = document.getElementById('filterCity')?.value || '';
                 const project = document.getElementById('filterProject')?.value || '';
+                const institution = document.getElementById('filterInstitution')?.value || '';
                 return members.filter(m => {
                     if (specialty && m.specialtyKey !== specialty) return false;
                     if (country && m.country !== country) return false;
                     if (city && m.city !== city) return false;
+                    if (institution && m.institution !== institution) return false;
                     if (project && !(m.projects || []).includes(project)) return false;
                     if (q) {
                         const hay = [m.name, m.institution, m.city, m.country, m.specialtyLabel, (m.interests || []).join(' ')].join(' ').toLowerCase();
@@ -89571,7 +90498,6 @@ You can use variables like {first_name} that will be personalized for each recip
                 const title = escapeHtml(m.title);
                 const inst = escapeHtml(m.institution);
                 const loc = [m.city, m.country].filter(Boolean).map(escapeHtml).join(', ');
-                const color = this._avatarColor(m.name);
                 const chips = [];
                 if (m.specialtyLabel) chips.push(m.specialtyLabel);
                 (m.interests || []).slice(0, m.specialtyLabel ? 2 : 3).forEach(t => chips.push(t));
@@ -89582,7 +90508,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 const ex = m.isExample ? '<span class="directory-example">Example</span>' : '';
                 return `<div class="connection-card directory-card" onclick="NetworkingPortal.viewProfile('${m.id}')" style="cursor:pointer;">
                     <div class="connection-card-header">
-                        <div class="connection-avatar" style="background:linear-gradient(135deg,${color});">${initials}</div>
+                        <div class="directory-monogram">${m.photo ? '<img src="' + escapeHtml(m.photo) + '" alt="" loading="lazy">' : initials}</div>
                         <div class="connection-info">
                             <h4>${name}${ex}</h4>
                             <p class="directory-role">${title}${inst ? ' · ' + inst : ''}</p>
@@ -89629,7 +90555,15 @@ You can use variables like {first_name} that will be personalized for each recip
                     }).join('');
                 } else {
                     grid.classList.remove('directory-grouped');
-                    grid.innerHTML = list.map(m => this._directoryCard(m)).join('');
+                    const shown = Math.min(this.pageShown, list.length);
+                    let html = list.slice(0, shown).map(m => this._directoryCard(m)).join('');
+                    if (list.length > shown) {
+                        html += '<div class="directory-loadmore">'
+                            + '<button onclick="NetworkingPortal.loadMoreDiscover()">Load more members <i class="fas fa-arrow-down"></i></button>'
+                            + '<span class="lm-note">Showing ' + shown + ' of ' + list.length + '</span>'
+                            + '</div>';
+                    }
+                    grid.innerHTML = html;
                 }
             },
 
@@ -89638,6 +90572,43 @@ You can use variables like {first_name} that will be personalized for each recip
                 document.querySelectorAll('.directory-view-toggle .view-toggle-btn').forEach(b => b.classList.remove('active'));
                 if (btn) btn.classList.add('active');
                 this.renderDiscover();
+            },
+
+            loadMoreDiscover() {
+                this.pageShown += this.pageSize;
+                this.renderDiscover();
+            },
+
+            renderSpotlight() {
+                const wrap = document.getElementById('discoverSpotlight');
+                if (!wrap) return;
+                const members = this.directoryMembers || [];
+                if (!members.length) { wrap.innerHTML = ''; return; }
+                // Newest first (API returns newest-first; seeds are appended after). The first two
+                // get a Featured tag, the rest are flagged New — a warm entry point into the network.
+                const strip = members.slice(0, 8);
+                const cards = strip.map((m, i) => this._spotlightCard(m, i < 2 ? 'featured' : 'new')).join('');
+                wrap.innerHTML = '<div class="discover-strip">'
+                    + '<div class="discover-strip-head"><h3><i class="fas fa-seedling"></i> New and featured members</h3>'
+                    + '<span>Say hello to people who just joined</span></div>'
+                    + '<div class="discover-strip-scroll">' + cards + '</div></div>';
+            },
+
+            _spotlightCard(m, tag) {
+                const initials = escapeHtml(m.initials);
+                const name = escapeHtml(m.name);
+                const role = [m.title, m.institution].filter(Boolean).map(escapeHtml).join(' &middot; ');
+                const avatar = m.photo
+                    ? '<div class="directory-monogram"><img src="' + escapeHtml(m.photo) + '" alt="" loading="lazy"></div>'
+                    : '<div class="directory-monogram">' + initials + '</div>';
+                const tagLabel = tag === 'featured' ? 'Featured' : 'New';
+                return '<div class="strip-card">'
+                    + '<span class="strip-tag ' + tag + '">' + tagLabel + '</span>'
+                    + avatar
+                    + '<h4>' + name + '</h4>'
+                    + '<div class="strip-role">' + (role || 'Med&amp;X member') + '</div>'
+                    + '<button class="strip-connect" onclick="NetworkingPortal.viewProfile(\'' + m.id + '\')"><i class="fas fa-user"></i> View profile</button>'
+                    + '</div>';
             },
 
             showTab(tabName) {
@@ -90577,6 +91548,7 @@ You can use variables like {first_name} that will be personalized for each recip
 
             filterMembers() {
                 // Re-render the member directory applying the current filter + search values.
+                this.pageShown = this.pageSize;
                 this.renderDiscover();
             },
 
@@ -118475,30 +119447,32 @@ By applying to this program, I give the following consents:
             },
 
             showStep(stepNum) {
-                // Hide all steps
-                document.querySelectorAll('.welcome-tour-step').forEach(step => {
-                    step.classList.remove('active');
-                });
-
-                // Show target step
-                const step = document.getElementById(`welcomeTourStep${stepNum}`);
-                if (step) {
-                    step.classList.add('active');
-                } else {
+                const target = document.getElementById(`welcomeTourStep${stepNum}`);
+                if (!target) {
                     // Safety: if step element is missing, complete the tour to avoid black screen
                     console.warn(`WelcomeTour: step ${stepNum} not found, completing tour`);
                     this.complete();
                     return;
                 }
 
-                // Start feature showcase auto-advance for step 5
-                if (stepNum === 5) {
-                    this.currentFeature = 0;
-                    this.showFeature(0);
-                    this.startFeatureAutoAdvance();
-                } else {
-                    this.stopFeatureAutoAdvance();
+                // Crossfade: keep the outgoing step painted while the new one fades in.
+                const outgoing = document.querySelector('.welcome-tour-step.active');
+                document.querySelectorAll('.welcome-tour-step').forEach(step => {
+                    if (step !== outgoing && step !== target) {
+                        step.classList.remove('active', 'wt-leaving');
+                    }
+                });
+                if (outgoing && outgoing !== target) {
+                    outgoing.classList.remove('active');
+                    outgoing.classList.add('wt-leaving');
+                    setTimeout(() => outgoing.classList.remove('wt-leaving'), 470);
                 }
+                target.classList.remove('wt-leaving');
+                void target.offsetWidth; // restart the enter animation
+                target.classList.add('active');
+
+                // Step 5 is now a single glanceable grid; nothing to auto-advance.
+                this.stopFeatureAutoAdvance();
 
                 // Create confetti on celebration
                 if (stepNum === 6) {
@@ -119385,6 +120359,9 @@ By applying to this program, I give the following consents:
             },
 
             renderCompact() {
+                // #newsCompactList is owned by MemberFeed (live /api/feed/home). Delegate so the
+                // client-side SharedData mock never clobbers the real member feed.
+                if (typeof MemberFeed !== 'undefined') { if (MemberFeed._loaded) MemberFeed.renderCompact(); else MemberFeed.load(); return; }
                 const compactContainer = document.getElementById('newsCompactList');
                 if (!compactContainer) return;
 
@@ -119455,6 +120432,8 @@ By applying to this program, I give the following consents:
         // =========================================
         const MemberFeed = {
             items: [],
+            summary: '',
+            summarySource: '',
             _loaded: false,
             TYPE_META: {
                 opportunity: { label: 'Opportunity', icon: 'fa-briefcase' },
@@ -119470,13 +120449,24 @@ By applying to this program, I give the following consents:
                     container.innerHTML = '<div class="feed-empty"><i class="fas fa-spinner fa-spin"></i><p>Loading the latest from Med&amp;X…</p></div>';
                 }
                 try {
-                    const items = await UserPortal.api('/api/feed');
-                    this.items = Array.isArray(items) ? items : [];
+                    // Preferred: the enriched home feed (news + announcements + community + a short summary).
+                    let data = null;
+                    try { data = await UserPortal.api('/api/feed/home'); } catch (e) { data = null; }
+                    if (data && Array.isArray(data.items)) {
+                        this.items = data.items;
+                        this.summary = data.summary || '';
+                        this.summarySource = data.summary_source || '';
+                    } else {
+                        // Resilient fallback to the flat feed array.
+                        const items = await UserPortal.api('/api/feed');
+                        this.items = Array.isArray(items) ? items : [];
+                        this.summary = '';
+                    }
                     this._loaded = true;
                     this.renderCompact();
                 } catch (e) {
                     console.error('[MemberFeed] load failed:', e);
-                    if (container) {
+                    if (container && !this.items.length) {
                         container.innerHTML = '<div class="feed-empty"><i class="fas fa-triangle-exclamation"></i><p>We could not load the feed right now. Please try again shortly.</p></div>';
                     }
                 }
@@ -119514,11 +120504,14 @@ By applying to this program, I give the following consents:
             renderCompact() {
                 const container = document.getElementById('newsCompactList');
                 if (!container) return;
+                const summaryHtml = this.summary
+                    ? '<div class="feed-summary"><div class="feed-summary-eyebrow"><i class="fas fa-wand-magic-sparkles"></i> What is happening at Med&amp;X</div><p class="feed-summary-text">' + escapeHtml(this.summary) + '</p></div>'
+                    : '';
                 if (!this.items.length) {
-                    container.innerHTML = '<div class="feed-empty"><i class="fas fa-newspaper"></i><p>Nothing new right now. Check back soon.</p></div>';
+                    container.innerHTML = summaryHtml + '<div class="feed-empty"><i class="fas fa-newspaper"></i><p>Nothing new right now. Check back soon.</p></div>';
                     return;
                 }
-                container.innerHTML = '<div class="feed-list">' + this.items.slice(0, 5).map(it => this.cardHtml(it)).join('') + '</div>';
+                container.innerHTML = summaryHtml + '<div class="feed-list">' + this.items.slice(0, 5).map(it => this.cardHtml(it)).join('') + '</div>';
             },
 
             open(link) {
@@ -120195,27 +121188,77 @@ By applying to this program, I give the following consents:
                 if (this.yearFilter) list = list.filter(t => String(t.year) === this.yearFilter);
                 if (this.eventFilter) list = list.filter(t => t.event_label === this.eventFilter);
                 if (!list.length) {
-                    grid.innerHTML = '<div class="talk-empty" style="grid-column:1/-1;"><i class="fas fa-film"></i><p>No sessions in the library yet. Recordings from past conferences will appear here.</p></div>';
+                    grid.classList.remove('talks-grouped');
+                    grid.innerHTML = '<div class="talk-empty" style="grid-column:1/-1;"><i class="fas fa-film"></i><p>No sessions match this filter yet. Try another year or theme.</p></div>';
                     return;
                 }
-                grid.innerHTML = list.map(t => {
-                    const isPlaceholder = !t.video_url || t.video_url === '#placeholder';
-                    const thumb = t.thumb_url
-                        ? `<img src="${escapeHtml(t.thumb_url)}" alt="">`
-                        : `<div class="talk-play"><i class="fas fa-play"></i></div>`;
-                    const year = t.year ? `<span class="talk-year">${escapeHtml(String(t.year))}</span>` : '';
-                    const example = isPlaceholder ? '<span class="talk-example">Example</span>' : '';
-                    const speaker = t.speaker ? `<div class="talk-speaker">${escapeHtml(t.speaker)}</div>` : '';
-                    const event = t.event_label ? `<span class="talk-event">${escapeHtml(t.event_label)}</span>` : '';
-                    return `<div class="talk-card" onclick="TalkLibrary.play('${String(t.video_url || '').replace(/'/g, "\\'")}')">
-                        <div class="talk-thumb">${thumb}${year}${example}</div>
-                        <div class="talk-body">
-                            <h4>${escapeHtml(t.title || '')}</h4>
-                            ${speaker}
-                            ${event}
+                // Group into premium sections. The API returns year DESC, so first-seen order puts
+                // Plexus editions on top and the neutral sample themes below.
+                const groups = [];
+                const byLabel = {};
+                list.forEach(t => {
+                    const key = t.event_label || 'Sessions';
+                    if (!byLabel[key]) { byLabel[key] = { label: key, items: [], sample: false }; groups.push(byLabel[key]); }
+                    byLabel[key].items.push(t);
+                    if (t.is_sample) byLabel[key].sample = true;
+                });
+                grid.classList.add('talks-grouped');
+                let html = groups.map(g => this._sectionHtml(g)).join('');
+                if (!this.yearFilter && !this.eventFilter) html += this._futureSectionHtml();
+                grid.innerHTML = html;
+            },
+
+            _sectionHtml(g) {
+                const sub = g.sample
+                    ? 'Sample talks — public sessions standing in until Plexus recordings publish'
+                    : 'On-demand recordings from the meeting';
+                const cards = g.items.map(t => this._cardHtml(t)).join('');
+                return `<div class="talk-section">
+                    <div class="talk-section-head">
+                        <div class="tsh-left">
+                            <h3>${escapeHtml(g.label)}</h3>
+                            <span class="tsh-sub">${sub}</span>
                         </div>
-                    </div>`;
-                }).join('');
+                        <span class="talk-section-count">${g.items.length} session${g.items.length === 1 ? '' : 's'}</span>
+                    </div>
+                    <div class="talks-grid">${cards}</div>
+                </div>`;
+            },
+
+            _cardHtml(t) {
+                const isPlaceholder = !t.video_url || t.video_url === '#placeholder';
+                const thumb = t.thumb_url
+                    ? `<img src="${escapeHtml(t.thumb_url)}" alt="" loading="lazy">`
+                    : `<div class="talk-play"><i class="fas fa-play"></i></div>`;
+                const year = t.year ? `<span class="talk-year">${escapeHtml(String(t.year))}</span>` : '';
+                const duration = t.duration ? `<span class="talk-duration"><i class="fas fa-clock"></i> ${escapeHtml(t.duration)}</span>` : '';
+                let ribbon = '';
+                if (t.is_sample) ribbon = '<span class="talk-ribbon sample">Sample — replaced by Plexus recordings</span>';
+                else if (isPlaceholder) ribbon = '<span class="talk-ribbon soon">Coming soon</span>';
+                const speaker = t.speaker ? `<div class="talk-src"><i class="fas fa-microphone"></i> ${escapeHtml(t.speaker)}</div>` : '';
+                return `<div class="talk-card" onclick="TalkLibrary.play('${String(t.video_url || '').replace(/'/g, "\\'")}')">
+                    <div class="talk-thumb">${thumb}${duration}${year}${ribbon}</div>
+                    <div class="talk-body">
+                        <h4>${escapeHtml(t.title || '')}</h4>
+                        ${speaker}
+                    </div>
+                </div>`;
+            },
+
+            _futureSectionHtml() {
+                return `<div class="talk-section talk-section-future">
+                    <div class="talk-section-head">
+                        <div class="tsh-left">
+                            <h3>Plexus 2026</h3>
+                            <span class="tsh-sub">The December meeting in Zagreb</span>
+                        </div>
+                        <span class="talk-section-count">Coming soon</span>
+                    </div>
+                    <div class="talk-coming-soon">
+                        <i class="fas fa-clapperboard"></i>
+                        <p>Keynotes and sessions from Plexus 2026 will be published here on demand after the conference. Registered members get first access.</p>
+                    </div>
+                </div>`;
             },
 
             play(url) {

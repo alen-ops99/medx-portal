@@ -6518,6 +6518,13 @@ async function initializeApp() {
     // pr_posts drifted between portals (admin CREATE has status, user CREATE lacked it) — heal existing DBs.
     try { db.exec("ALTER TABLE pr_posts ADD COLUMN status TEXT DEFAULT 'published'"); } catch (e) { /* column exists */ }
 
+    // Talk library: on-demand duration label + sample flag (additive, guarded — deliberately
+    // OUTSIDE the mirror block so they never disturb the byte-identical CREATE TABLE region).
+    // Sample rows carry a real public YouTube URL for layout realism and are badged in the UI
+    // as "Sample — replaced by Plexus recordings" until real conference recordings are attached.
+    try { db.run('ALTER TABLE talks ADD COLUMN duration TEXT'); } catch (e) {}
+    try { db.run('ALTER TABLE talks ADD COLUMN is_sample INTEGER DEFAULT 0'); } catch (e) {}
+
     // Audience scope for member announcements (additive, guarded — deliberately OUTSIDE the mirror
     // block so it never disturbs the byte-identical CREATE TABLE region). Values:
     //   'everyone' | 'interested' | 'registered' | 'interested_not_registered'.
@@ -6656,6 +6663,27 @@ async function initializeApp() {
                 db.run(`INSERT INTO talks (id, title, speaker, event_label, year, video_url, thumb_url, published)
                     VALUES (?,?,?,?,?, '#placeholder', NULL, 1)`,
                     [uuidv4(), t[0], t[1], t[2], t[3]]);
+            }
+        });
+
+        // Publicly embeddable science talks so the on-demand library layout is real before any
+        // Plexus recordings are attached. Every one of these is clearly badged in the UI as a
+        // "Sample — replaced by Plexus recordings" and grouped under a neutral theme label (never a
+        // Plexus edition) so it can never be mistaken for a confirmed Plexus session. Real videos +
+        // real thumbnails + real durations give the grouped sections a true premium feel.
+        // [title, speaker/source, theme label, year, youTubeId, duration]
+        const sampleTalkSeeds = [
+            ['Sleep is your superpower', 'Matt Walker · TED', 'Sleep science', 2019, '5MuIMqhT8DM', '19:18'],
+            ['The benefits of a good night’s sleep', 'Shai Marcu · TED-Ed', 'Sleep science', 2015, 'gedoSfZvBgE', '5:45'],
+            ['How CRISPR lets us edit our DNA', 'Jennifer Doudna · TED', 'Frontiers of biomedicine', 2015, 'TdBAHexVYzc', '15:53'],
+            ['The deadliest being on the planet — the bacteriophage', 'Kurzgesagt', 'Frontiers of biomedicine', 2018, 'YI3tsmFsrOg', '7:08'],
+            ['How the food you eat affects your brain', 'Mia Nacamulli · TED-Ed', 'Frontiers of biomedicine', 2016, 'xyQY8a-ng6g', '4:52']
+        ];
+        sampleTalkSeeds.forEach(t => {
+            if (!query.get('SELECT id FROM talks WHERE title = ? AND event_label = ?', [t[0], t[2]])) {
+                db.run(`INSERT INTO talks (id, title, speaker, event_label, year, video_url, thumb_url, duration, is_sample, published)
+                    VALUES (?,?,?,?,?,?,?,?, 1, 1)`,
+                    [uuidv4(), t[0], t[1], t[2], t[3], 'https://www.youtube.com/watch?v=' + t[4], 'https://i.ytimg.com/vi/' + t[4] + '/hqdefault.jpg', t[5]]);
             }
         });
 
@@ -7184,15 +7212,22 @@ async function initializeApp() {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [id, email, hash, first_name, last_name, institution, country, 0, null]);
             saveDb();
 
-            await issueEmailVerification({ id, email, first_name }, req);
+            const verifyUrl = await issueEmailVerification({ id, email, first_name }, req);
             // WELCOME DRIP (#5): T+0 welcome + T+3 interests, idempotent per user (drip_log).
             try { scheduleWelcomeDrip({ id, email, first_name }); } catch (e) { console.error('welcome-drip enqueue:', e && e.message); }
 
             const token = jwt.sign({ id, email, is_admin: 0 }, JWT_SECRET, { expiresIn: '7d' });
+            // Dev/demo delivery hint: when no mail provider is configured the verification email
+            // cannot actually send, so we hand the signed-in link straight back to the UI. This keeps
+            // signup from dead-ending before RESEND_API_KEY is added. In production (provider set) the
+            // link is NEVER returned — the member gets it by email only.
+            const mailReady = !!process.env.RESEND_API_KEY;
             res.json({
                 success: true,
                 token,
                 needsVerification: true,
+                emailDelivery: mailReady ? 'sent' : 'dev',
+                devVerifyUrl: mailReady ? undefined : verifyUrl,
                 user: { id, email, first_name, last_name, institution, is_admin: 0, email_verified: 0 }
             });
         } catch (e) { console.error(e); res.status(500).json({ error: 'Registration failed' }); }
@@ -7716,10 +7751,20 @@ async function initializeApp() {
             const { email } = req.body || {};
             if (!email || typeof email !== 'string') return res.status(400).json({ error: 'Email is required' });
             const user = query.get('SELECT id, email, first_name, email_verified FROM users WHERE email = ?', [email]);
+            let devVerifyUrl;
             if (user && !user.email_verified) {
-                await issueEmailVerification(user, req);
+                const verifyUrl = await issueEmailVerification(user, req);
+                if (!process.env.RESEND_API_KEY) devVerifyUrl = verifyUrl;
             }
-            return res.json({ success: true, message: 'If that account still needs confirming, a link is on its way. Check your inbox.' });
+            // In dev/demo (no mail provider) surface the fresh link so the pending screen never dead-ends.
+            return res.json({
+                success: true,
+                message: devVerifyUrl
+                    ? 'Email sending is not active yet, so here is your confirmation link.'
+                    : 'If that account still needs confirming, a link is on its way. Check your inbox.',
+                emailDelivery: process.env.RESEND_API_KEY ? 'sent' : 'dev',
+                devVerifyUrl
+            });
         } catch (e) {
             console.error('request-verification error:', e);
             res.status(500).json({ error: 'Could not send confirmation email' });
@@ -8265,6 +8310,75 @@ async function submitReset(e){
             WHERE r.user_id = ? ORDER BY r.created_at DESC`, [req.user.id]));
     });
 
+    // Purchase support — a member asks about, or requests a refund for, one of their own purchases.
+    // This NEVER touches Stripe. It simply FILES an inquiry into the same member<->admin channel the
+    // Accelerator "ask a coordinator" flow uses (direct_messages, sender_type='user'), which the admin
+    // portal surfaces in its inbox. The team reads it and handles any refund manually. Read-only on the
+    // financial record; the frozen payments handler is untouched.
+    app.post('/api/purchases/inquiry', auth, (req, res) => {
+        try {
+            const { registration_id, kind, message } = req.body || {};
+            const type = (kind === 'refund') ? 'refund' : 'question';
+            const note = (message && String(message).trim()) || '';
+            if (type === 'refund' && !note) {
+                // A refund request should say why, so the team can act on it quickly.
+                return res.status(400).json({ error: 'Please add a short note about your refund request.' });
+            }
+
+            // Resolve the purchase read-only, and confirm it belongs to this member.
+            let purchase = null;
+            if (registration_id) {
+                purchase = query.get(
+                    `SELECT r.id, r.amount_paid, r.payment_status, r.invoice_number, r.created_at,
+                            c.name AS conference_name, t.name AS ticket_name
+                       FROM registrations r
+                       JOIN conferences c ON r.conference_id = c.id
+                       JOIN ticket_types t ON r.ticket_type_id = t.id
+                      WHERE r.id = ? AND r.user_id = ?`,
+                    [registration_id, req.user.id]
+                );
+                if (!purchase) return res.status(404).json({ error: 'We could not find that purchase on your account.' });
+            }
+
+            const me = query.get('SELECT first_name, last_name, email FROM users WHERE id = ?', [req.user.id]) || {};
+            const memberName = `${me.first_name || ''} ${me.last_name || ''}`.trim() || (req.user.email || 'Member');
+            const admin = query.get("SELECT email FROM users WHERE is_admin = 1 AND email IS NOT NULL ORDER BY created_at ASC LIMIT 1");
+            const to = (admin && admin.email) || 'info@medx.hr';
+
+            const eventLabel = purchase ? `${purchase.conference_name}${purchase.ticket_name ? ' — ' + purchase.ticket_name : ''}` : 'a purchase';
+            const title = (type === 'refund' ? 'Refund request — ' : 'Question about a purchase — ') + eventLabel;
+
+            const lines = [];
+            lines.push(type === 'refund'
+                ? `${memberName} is requesting a refund.`
+                : `${memberName} has a question about a purchase.`);
+            if (purchase) {
+                lines.push('');
+                lines.push(`Event: ${purchase.conference_name}`);
+                if (purchase.ticket_name) lines.push(`Ticket: ${purchase.ticket_name}`);
+                if (purchase.amount_paid != null) lines.push(`Amount paid: €${Number(purchase.amount_paid).toFixed(2)}`);
+                if (purchase.invoice_number) lines.push(`Invoice: #${purchase.invoice_number}`);
+                if (purchase.payment_status) lines.push(`Payment status: ${purchase.payment_status}`);
+                lines.push(`Reference: ${purchase.id}`);
+            }
+            if (note) { lines.push(''); lines.push('Member note:'); lines.push(note); }
+            lines.push('');
+            lines.push(`Reply-to: ${me.email || req.user.email || ''}`);
+
+            const id = uuidv4();
+            db.run(
+                `INSERT INTO direct_messages (id, sender_id, receiver_id, sender_type, receiver_type, title, content, is_read)
+                 VALUES (?, ?, ?, 'user', 'admin', ?, ?, 0)`,
+                [id, me.email || req.user.email, to, title, lines.join('\n')]
+            );
+            saveDb();
+            res.json({ success: true, id, kind: type });
+        } catch (err) {
+            console.error('Purchase inquiry failed:', err);
+            res.status(500).json({ error: 'Could not send your message. Please try again in a moment.' });
+        }
+    });
+
     app.get('/api/registrations/:id', auth, (req, res) => {
         const reg = query.get(`SELECT r.*, c.name as conference_name, c.start_date, c.end_date, c.venue_name, t.name as ticket_name, t.includes_gala, u.first_name, u.last_name, u.email, u.institution
             FROM registrations r JOIN conferences c ON r.conference_id = c.id JOIN ticket_types t ON r.ticket_type_id = t.id JOIN users u ON r.user_id = u.id
@@ -8532,6 +8646,122 @@ async function submitReset(e){
             FROM feed_items WHERE published = 1 ORDER BY datetime(posted_at) DESC LIMIT 20`));
     });
 
+    // Member-safe summary composed from the real feed items. Used whenever the live AI draft is
+    // unavailable (no ANTHROPIC_API_KEY, rate limited, or timed out) so members always read clean
+    // prose and never the raw '[Draft]' mock text.
+    function composeFeedSummary(list) {
+        const items = (list || []).filter(i => i && i.title);
+        if (!items.length) {
+            return 'Med&X is between announcements right now. New calls, events, and opportunities will land here as soon as they open.';
+        }
+        const clean = (t) => String(t).replace(/\s+/g, ' ').trim().replace(/[.\s]+$/, '');
+        const lead = clean(items[0].title);
+        const rest = items.slice(1, 3).map(i => clean(i.title)).filter(Boolean);
+        let s = 'Here is what is happening at Med&X. ' + lead;
+        if (rest.length === 1) s += ', plus ' + rest[0];
+        else if (rest.length === 2) s += ', plus ' + rest[0] + ' and ' + rest[1];
+        s += '.';
+        const extra = items.length - 1 - rest.length;
+        if (extra > 0) {
+            s += ' There ' + (extra === 1 ? 'is 1 more update' : 'are ' + extra + ' more updates') +
+                 ' below across events, the community, and the opportunity board.';
+        }
+        return s;
+    }
+
+    // Short-lived cache for the AI "what is happening" summary so a busy dashboard does not call the
+    // model on every load. Keyed by the signature of the top items (org-level content, so sharing is fine).
+    const _homeSummaryCache = new Map();
+    const HOME_SUMMARY_TTL_MS = 10 * 60 * 1000;
+
+    // Living Member Home feed + a short "what is happening at Med&X" summary. Merges the curated
+    // feed_items with recent broadcast announcements and community forum posts into one activity
+    // stream. The summary uses the shared aiDraft boundary when a key is present, and the hand-written
+    // deterministic summary above (never the raw mock) otherwise.
+    app.get('/api/feed/home', auth, async (req, res) => {
+        try {
+            const items = [];
+            const feed = query.all(`SELECT id, type, title, body, link_url, link_label, image_url, posted_at
+                FROM feed_items WHERE published = 1 ORDER BY datetime(posted_at) DESC LIMIT 20`);
+            feed.forEach(f => items.push({
+                id: 'feed-' + f.id, type: f.type || 'news', title: f.title, body: f.body,
+                link_url: f.link_url, link_label: f.link_label, image_url: f.image_url,
+                posted_at: f.posted_at, source: 'news'
+            }));
+
+            // Recent broadcast announcements — same audience gating as GET /api/announcements.
+            try {
+                const subs = query.all('SELECT project_key FROM notify_topics WHERE user_id = ?', [req.user.id]).map(r => r.project_key);
+                const regProjects = (typeof memberRegisteredProjects === 'function') ? memberRegisteredProjects(req.user && req.user.email) : [];
+                const anns = query.all(`SELECT id, project_key, title, body, link_section, audience_scope, created_at
+                    FROM member_announcements ORDER BY datetime(created_at) DESC LIMIT 12`);
+                anns.filter(a => {
+                    if (!a.project_key) return true;
+                    const scope = a.audience_scope || 'everyone';
+                    if (scope === 'everyone') return true;
+                    const isFollowing = subs.indexOf(a.project_key) >= 0;
+                    const isRegistered = regProjects.indexOf(a.project_key) >= 0;
+                    if (scope === 'interested') return isFollowing;
+                    if (scope === 'registered') return isRegistered;
+                    if (scope === 'interested_not_registered') return isFollowing && !isRegistered;
+                    return true;
+                }).forEach(a => items.push({
+                    id: 'ann-' + a.id, type: 'call', title: a.title, body: a.body,
+                    link_url: a.link_section || a.project_key || '', link_label: 'Read more',
+                    posted_at: a.created_at, source: 'announcement'
+                }));
+            } catch (e) { /* announcements optional */ }
+
+            // Recent community forum posts.
+            try {
+                const posts = query.all(`SELECT fp.id, fp.title, fp.content, fp.created_at, u.first_name
+                    FROM forum_posts fp JOIN forum_members fm ON fp.author_id = fm.id JOIN users u ON fm.user_id = u.id
+                    WHERE fp.moderation_status = 'approved' ORDER BY datetime(fp.created_at) DESC LIMIT 4`);
+                posts.forEach(p => items.push({
+                    id: 'post-' + p.id, type: 'spotlight',
+                    title: p.title || ((p.first_name || 'A member') + ' shared an update in the forum'),
+                    body: String(p.content || '').replace(/\s+/g, ' ').trim().slice(0, 160),
+                    link_url: 'forum', link_label: 'Open the forum',
+                    posted_at: p.created_at, source: 'forum'
+                }));
+            } catch (e) { /* forum optional */ }
+
+            const seen = new Set();
+            const merged = items
+                .filter(it => { const k = String(it.title || '').toLowerCase(); if (!k || seen.has(k)) return false; seen.add(k); return true; })
+                .sort((a, b) => new Date(String(b.posted_at || '').replace(' ', 'T')) - new Date(String(a.posted_at || '').replace(' ', 'T')))
+                .slice(0, 14);
+
+            const top = merged.slice(0, 6);
+            const sig = top.map(t => t.id).join('|');
+            let summary = composeFeedSummary(top);
+            let summarySource = 'composed';
+
+            const cached = _homeSummaryCache.get(sig);
+            if (cached && (Date.now() - cached.at) < HOME_SUMMARY_TTL_MS) {
+                summary = cached.text; summarySource = cached.source;
+            } else if (top.length) {
+                try {
+                    const draft = await aiDraft({
+                        purpose: 'Write a warm, specific two-sentence summary of what is happening at Med&X right now for a logged-in member. Name the most important items. Do not use a greeting or a sign-off.',
+                        context: { updates: top.map(t => t.title + (t.body ? ' - ' + String(t.body).slice(0, 90) : '')) },
+                        maxTokens: 220
+                    });
+                    if (draft && draft.text && !draft.mock) {
+                        summary = draft.text.trim();
+                        summarySource = 'ai';
+                    }
+                    _homeSummaryCache.set(sig, { text: summary, source: summarySource, at: Date.now() });
+                } catch (e) { /* keep the composed summary */ }
+            }
+
+            res.json({ items: merged, summary, summary_source: summarySource, count: merged.length });
+        } catch (err) {
+            console.error('[feed/home] failed:', err.message);
+            res.status(500).json({ error: 'Failed to load the home feed' });
+        }
+    });
+
     // Opportunity board — approved only, optional ?kind= filter.
     app.get('/api/opportunities', auth, (req, res) => {
         const kind = req.query.kind;
@@ -8560,7 +8790,7 @@ async function submitReset(e){
 
     // On-demand talk library — published sessions only.
     app.get('/api/talks', auth, (req, res) => {
-        res.json(query.all(`SELECT id, title, speaker, event_label, year, video_url, thumb_url
+        res.json(query.all(`SELECT id, title, speaker, event_label, year, video_url, thumb_url, duration, is_sample
             FROM talks WHERE published = 1 ORDER BY year DESC, title ASC`));
     });
 
@@ -20813,6 +21043,86 @@ By applying to this program, I provide the following consents:
                 dietary: caReg.dietary || ''
             }
         });
+    });
+
+    // ===== SCAN ENRICHMENT (read-only, additive) =====
+    // The owner wants a scanned guest's FULL picture at the door — every event they are registered
+    // for, plus membership standing. The QR payload and the /api/admin/checkin/verify validation are
+    // FROZEN (≈3000 issued tickets must keep validating), so this is a SEPARATE read-only lookup keyed
+    // on the email (or member id) the scanner already resolved. It touches nothing in the check-in
+    // path: no marking, no writes, no change to QR content. The admin scanner UI can call this after a
+    // successful verify to render "also registered for…". See /tmp/medx-crossportal-todo.md for the
+    // admin-portal wiring (that frontend is outside this portal's territory).
+    app.get('/api/admin/checkin/enrich', auth, adminOnly, (req, res) => {
+        try {
+            const email = (req.query.email || '').toString().trim();
+            const userId = (req.query.userId || req.query.memberId || '').toString().trim();
+            if (!email && !userId) return res.status(400).json({ error: 'email or userId required' });
+
+            const user = userId
+                ? query.get('SELECT id, email, first_name, last_name, institution, country, tier, email_verified, created_at FROM users WHERE id = ?', [userId])
+                : query.get('SELECT id, email, first_name, last_name, institution, country, tier, email_verified, created_at FROM users WHERE LOWER(email) = LOWER(?)', [email]);
+            const lookupEmail = email || (user && user.email) || '';
+
+            const registrations = [];
+            // Conference registrations tied to the member account.
+            try {
+                if (user && user.id) {
+                    const regs = query.all(
+                        `SELECT c.name AS event, t.name AS ticket, r.payment_status, r.checked_in, c.start_date
+                           FROM registrations r
+                           JOIN conferences c ON r.conference_id = c.id
+                           JOIN ticket_types t ON r.ticket_type_id = t.id
+                          WHERE r.user_id = ? ORDER BY r.created_at DESC`, [user.id]);
+                    regs.forEach(r => registrations.push({
+                        kind: 'conference', event: r.event, ticket: r.ticket || '',
+                        status: r.payment_status || '', checked_in: !!r.checked_in, date: r.start_date || ''
+                    }));
+                }
+            } catch (e) {}
+            // Gala seats by email.
+            try {
+                if (lookupEmail) {
+                    const gala = query.all(
+                        `SELECT payment_status, checked_in, created_at FROM gala_registrations
+                          WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC`, [lookupEmail]);
+                    gala.forEach(g => registrations.push({
+                        kind: 'gala', event: 'Plexus Gala', ticket: '',
+                        status: g.payment_status || '', checked_in: !!g.checked_in, date: ''
+                    }));
+                }
+            } catch (e) {}
+            // Bridges / Donor Night seats by email.
+            try {
+                if (lookupEmail) {
+                    const bridges = query.all(
+                        `SELECT br.checked_in, br.status, be.name AS event
+                           FROM bridges_registrations br
+                           LEFT JOIN bridges_events be ON br.event_id = be.id
+                          WHERE LOWER(br.email) = LOWER(?) ORDER BY br.registered_at DESC`, [lookupEmail]);
+                    bridges.forEach(b => registrations.push({
+                        kind: 'bridges', event: b.event || 'Building Bridges', ticket: '',
+                        status: b.status || '', checked_in: !!b.checked_in, date: ''
+                    }));
+                }
+            } catch (e) {}
+
+            const membership = user ? {
+                is_member: true,
+                name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+                email: user.email || '',
+                institution: user.institution || '',
+                country: user.country || '',
+                tier: user.tier || 'member',
+                email_verified: !!user.email_verified,
+                member_since: user.created_at || ''
+            } : { is_member: false };
+
+            res.json({ found: !!user || registrations.length > 0, membership, registrations });
+        } catch (err) {
+            console.error('Scan enrich failed:', err);
+            res.status(500).json({ error: 'Could not load member details' });
+        }
     });
 
     // ========== TEST QR EMAIL — admin sends themselves a working QR to test the scanner ==========
