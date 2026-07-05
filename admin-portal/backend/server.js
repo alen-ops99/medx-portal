@@ -215,6 +215,44 @@ async function sendEmail(to, subject, htmlContent, attachments) {
 // relative paths. logo.png (color wordmark) is verified to serve 200 from the user
 // portal, so it sits on a clean white header band. Accents theme the title bar +
 // digest highlights: crimson (default), ink (navy), gold.
+// ===================== ADMIN TEAM CHAT: meeting .ics builder =====================
+// Valid RFC 5545 VCALENDAR with a full Europe/Zagreb VTIMEZONE (CET/CEST DST rules) so the
+// winning meeting slot imports at the correct Zagreb wall-clock time. Candidate times are
+// picked in local Zagreb time; DTSTART/DTEND carry TZID=Europe/Zagreb.
+function _tcPad2(n) { return String(n).padStart(2, '0'); }
+function _tcIcsEscape(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
+function buildMeetingIcs(opts) {
+    opts = opts || {};
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(opts.startLocal || ''));
+    if (!m) return null;
+    const y = +m[1], mo = +m[2], d = +m[3], h = +m[4], mi = +m[5];
+    const dur = Math.max(15, parseInt(opts.durationMin || 60, 10));
+    const endD = new Date(Date.UTC(y, mo - 1, d, h, mi, 0) + dur * 60000);
+    const startStr = `${y}${_tcPad2(mo)}${_tcPad2(d)}T${_tcPad2(h)}${_tcPad2(mi)}00`;
+    const endStr = `${endD.getUTCFullYear()}${_tcPad2(endD.getUTCMonth() + 1)}${_tcPad2(endD.getUTCDate())}T${_tcPad2(endD.getUTCHours())}${_tcPad2(endD.getUTCMinutes())}00`;
+    const now = new Date();
+    const dtstamp = `${now.getUTCFullYear()}${_tcPad2(now.getUTCMonth() + 1)}${_tcPad2(now.getUTCDate())}T${_tcPad2(now.getUTCHours())}${_tcPad2(now.getUTCMinutes())}${_tcPad2(now.getUTCSeconds())}Z`;
+    const uid = opts.uid || (uuidv4() + '@medx.hr');
+    const org = opts.organizerEmail || 'president@medx.hr';
+    const lines = [
+        'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Med&X//Team Chat//EN', 'CALSCALE:GREGORIAN', 'METHOD:REQUEST',
+        'BEGIN:VTIMEZONE', 'TZID:Europe/Zagreb',
+        'BEGIN:DAYLIGHT', 'TZOFFSETFROM:+0100', 'TZOFFSETTO:+0200', 'TZNAME:CEST', 'DTSTART:19700329T020000', 'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU', 'END:DAYLIGHT',
+        'BEGIN:STANDARD', 'TZOFFSETFROM:+0200', 'TZOFFSETTO:+0100', 'TZNAME:CET', 'DTSTART:19701025T030000', 'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU', 'END:STANDARD',
+        'END:VTIMEZONE',
+        'BEGIN:VEVENT', 'UID:' + uid, 'DTSTAMP:' + dtstamp,
+        'DTSTART;TZID=Europe/Zagreb:' + startStr, 'DTEND;TZID=Europe/Zagreb:' + endStr,
+        'SUMMARY:' + _tcIcsEscape(opts.title || 'Med&X team meeting'),
+        'DESCRIPTION:' + _tcIcsEscape(opts.description || ''),
+        'LOCATION:' + _tcIcsEscape(opts.location || ''),
+        'ORGANIZER;CN=' + _tcIcsEscape(opts.organizerName || 'Med&X') + ':mailto:' + org,
+        'STATUS:CONFIRMED', 'SEQUENCE:0', 'TRANSP:OPAQUE'
+    ];
+    (opts.attendees || []).forEach(a => { if (a) lines.push('ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:' + a); });
+    lines.push('END:VEVENT', 'END:VCALENDAR');
+    return lines.join('\r\n') + '\r\n';
+}
+
 const MEDX_LOGO_URL = 'https://medx-user-portal.onrender.com/assets/logo.png';
 const MEDX_EMAIL_ACCENTS = {
     crimson: { bar: '#9b1b22', text: '#ffffff', soft: '#f7ebec', line: '#9b1b22' },
@@ -222,6 +260,13 @@ const MEDX_EMAIL_ACCENTS = {
     gold: { bar: '#C9A962', text: '#1f2937', soft: '#faf5e9', line: '#C9A962' }
 };
 function medxEmailAccent(name) { return MEDX_EMAIL_ACCENTS[name] || MEDX_EMAIL_ACCENTS.ink; }
+
+// Public newsletter signup page served by THIS backend (GET /newsletter). Every outgoing email
+// template links to it from the footer so any recipient can join the mailing list and pick the
+// projects they care about (interests feed the audience segments).
+function newsletterSignupUrl() {
+    return (process.env.RENDER_EXTERNAL_URL || process.env.ADMIN_PORTAL_URL || ('http://localhost:' + (process.env.PORT || 3002))).replace(/\/+$/, '') + '/newsletter';
+}
 
 // Branded email template builder — wraps content in Med&X styled HTML. Email-client-safe:
 // 600px table layout, inline CSS only, absolute URLs, Georgia serif headers (echoing
@@ -245,7 +290,7 @@ function buildEmailTemplate(title, bodyHtml, opts) {
 <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%;">
     <!-- Header: the REAL Med&X logo on a clean white band -->
     <tr><td style="background: #ffffff; padding: 26px 32px 20px; border-radius: 12px 12px 0 0; text-align: center; border: 1px solid #e2e8f0; border-bottom: 3px solid ${accent.line};">
-        <img src="${MEDX_LOGO_URL}" alt="Med&amp;X" width="164" height="36" style="display: inline-block; height: 36px; width: 164px; max-width: 60%; border: 0; outline: none; text-decoration: none;" />
+        <img src="${MEDX_LOGO_URL}" alt="Med&amp;X" width="164" height="36" style="display: inline-block; height: 36px; width: 164px; max-width: 60%; border: 0; outline: none; text-decoration: none; color: #15110f; font-family: Georgia, 'Times New Roman', serif; font-size: 26px; font-weight: 700; letter-spacing: 0.5px;" />
         <div style="color: #94a3b8; font-size: 11px; margin-top: 10px; letter-spacing: 2px; text-transform: uppercase; font-family: Arial, Helvetica, sans-serif;">Building Bridges in Biomedicine</div>
     </td></tr>
     ${titleBar}
@@ -263,6 +308,9 @@ function buildEmailTemplate(title, bodyHtml, opts) {
             <a href="https://medx.hr" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 8px;">Website</a>
             <a href="https://www.linkedin.com/company/med-x-croatia/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 8px;">LinkedIn</a>
             <a href="https://www.instagram.com/medx.hr/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 8px;">Instagram</a>
+        </div>
+        <div style="margin-bottom: 12px;">
+            <a href="${newsletterSignupUrl()}" style="color: #94a3b8; text-decoration: underline; font-size: 11px;">Sign up for our newsletter</a>
         </div>
         <div style="color: #64748b; font-size: 11px; line-height: 1.55;">
             Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organizing and delivering this event.
@@ -584,7 +632,7 @@ app.use((req, res, next) => {
 
 // Create uploads directory
 const uploadsDir = path.join(__dirname, 'uploads');
-['abstracts', 'posters', 'documents', 'badges', 'photos', 'tickets', 'accelerator', 'chat'].forEach(dir => {
+['abstracts', 'posters', 'documents', 'badges', 'photos', 'tickets', 'accelerator', 'chat', 'content-studio'].forEach(dir => {
     const dirPath = path.join(uploadsDir, dir);
     if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
 });
@@ -3581,8 +3629,112 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
     // ====================== SCHEMA-MIRROR:END ======================
+
+    // ADMIN-ONLY: Content studio — a log of pieces made in the creation studio (graphics, slideshow
+    // videos, PDFs). Not shared with the user portal. The generated file lives under
+    // /uploads/content-studio; this row records it for the "recent creations" gallery and links a piece
+    // to any pr_content_calendar row it was scheduled into.
+    db.run(`CREATE TABLE IF NOT EXISTS content_studio_assets (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        template TEXT,
+        aspect TEXT,
+        project TEXT,
+        title TEXT,
+        caption TEXT,
+        asset_url TEXT NOT NULL,
+        mime TEXT,
+        bytes INTEGER DEFAULT 0,
+        calendar_id TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
     // pr_posts drifted between portals (admin CREATE has status, user CREATE lacked it) — heal existing DBs.
     try { db.exec("ALTER TABLE pr_posts ADD COLUMN status TEXT DEFAULT 'published'"); } catch (e) { /* column exists */ }
+
+    // ====================== ADMIN TEAM CHAT (cluster) schema ======================
+    // Internal team chat lives ONLY in the admin portal, so all of this is deliberately
+    // OUTSIDE the SCHEMA-MIRROR block. It reuses the existing chat_channels / chat_messages /
+    // channel_members / channel_read_status tables and adds team-channel + DM markers, a poll
+    // link + kind on messages, plus chat_attachments and the Doodle-style meeting poll tables.
+    try { db.run("ALTER TABLE chat_channels ADD COLUMN is_team_channel INTEGER DEFAULT 0"); } catch (e) {}
+    try { db.run("ALTER TABLE chat_channels ADD COLUMN is_dm INTEGER DEFAULT 0"); } catch (e) {}
+    try { db.run("ALTER TABLE chat_channels ADD COLUMN display_name TEXT"); } catch (e) {}
+    try { db.run("ALTER TABLE chat_channels ADD COLUMN dm_a TEXT"); } catch (e) {}
+    try { db.run("ALTER TABLE chat_channels ADD COLUMN dm_b TEXT"); } catch (e) {}
+    try { db.run("ALTER TABLE chat_messages ADD COLUMN poll_id TEXT"); } catch (e) {}
+    try { db.run("ALTER TABLE chat_messages ADD COLUMN kind TEXT DEFAULT 'text'"); } catch (e) {}
+    db.run(`CREATE TABLE IF NOT EXISTS chat_attachments (
+        id TEXT PRIMARY KEY,
+        message_id TEXT NOT NULL,
+        url TEXT NOT NULL,
+        name TEXT,
+        mime TEXT,
+        kind TEXT DEFAULT 'file',
+        bytes INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS meeting_polls (
+        id TEXT PRIMARY KEY,
+        channel_id TEXT NOT NULL,
+        message_id TEXT,
+        created_by TEXT,
+        title TEXT NOT NULL,
+        description TEXT,
+        options_json TEXT NOT NULL,
+        duration_min INTEGER DEFAULT 60,
+        zoom_link TEXT,
+        deadline TEXT,
+        status TEXT DEFAULT 'open',
+        winning_index INTEGER,
+        outbox_batch TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        closed_at TEXT
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS meeting_poll_votes (
+        id TEXT PRIMARY KEY,
+        poll_id TEXT NOT NULL,
+        member_id TEXT NOT NULL,
+        option_index INTEGER NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(poll_id, member_id, option_index)
+    )`);
+    // chat_messages carried a strict sender_id->users(id) foreign key from an early schema, but
+    // the whole app stores TEAM MEMBER ids as sender_id (sql.js ran with foreign_keys OFF; the
+    // libsql migration enforces them, which silently blocked every chat insert). Rebuild the table
+    // without foreign keys so team chat can store messages. Guarded + one-time: only fires while the
+    // users FK is still present, and preserves any existing rows.
+    try {
+        const fks = query.all("PRAGMA foreign_key_list('chat_messages')") || [];
+        const hasUsersFk = fks.some(fk => fk && fk.table === 'users');
+        if (hasUsersFk) {
+            db.run("PRAGMA foreign_keys=OFF");
+            db.run("ALTER TABLE chat_messages RENAME TO chat_messages_fkold");
+            db.run(`CREATE TABLE chat_messages (
+                id TEXT PRIMARY KEY,
+                sender_id TEXT NOT NULL,
+                channel_id TEXT,
+                message TEXT,
+                message_type TEXT DEFAULT 'text',
+                file_url TEXT,
+                file_name TEXT,
+                file_type TEXT,
+                reply_to TEXT,
+                is_read INTEGER DEFAULT 0,
+                poll_id TEXT,
+                kind TEXT DEFAULT 'text',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )`);
+            db.run(`INSERT INTO chat_messages (id, sender_id, channel_id, message, message_type, file_url, file_name, file_type, reply_to, is_read, poll_id, kind, created_at)
+                    SELECT id, sender_id, channel_id, message, message_type, file_url, file_name, file_type, reply_to, is_read,
+                           poll_id, COALESCE(kind,'text'), created_at FROM chat_messages_fkold`);
+            db.run("DROP TABLE chat_messages_fkold");
+            db.run("PRAGMA foreign_keys=ON");
+            console.log('[TeamChat] rebuilt chat_messages without stale foreign keys');
+        }
+    } catch (e) { console.error('[TeamChat] chat_messages FK rebuild skipped:', e.message); }
+
+    // ==================== END ADMIN TEAM CHAT schema ====================
 
     // Audience scope for member announcements (additive, guarded — deliberately OUTSIDE the mirror
     // block so it never disturbs the byte-identical CREATE TABLE region). Values:
@@ -5382,6 +5534,40 @@ async function initializeApp() {
         try { db.run(`ALTER TABLE ${t} ADD COLUMN seat_number TEXT`); } catch(e) {}
     }
 
+    // ============ EVENT-COMBO INVITE LINKS (admin-only, NOT mirrored) ============
+    // A combo link presents any chosen set of the four public events (conference / gala /
+    // bridges / donor) on ONE new public page (GET /e/:token on this backend). Registration
+    // always flows through the EXISTING frozen entry points (the /plexus/:token chooser and
+    // the /donor-night page) — this table only powers the presentation page + generator UI,
+    // so already-sent invite links are untouched.
+    db.run(`CREATE TABLE IF NOT EXISTS combo_invite_links (
+        id TEXT PRIMARY KEY,
+        token TEXT UNIQUE NOT NULL,
+        label TEXT,
+        events_json TEXT NOT NULL,
+        reg_token TEXT,
+        notes TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        revoked INTEGER DEFAULT 0,
+        view_count INTEGER DEFAULT 0
+    )`);
+
+    // Newsletter interest choices keyed by EMAIL (admin-only, mirror-free). Populated by the
+    // public /newsletter signup page and by admins; resolved into audience segments at send
+    // time. interest ∈ plexus | accelerator | forum | bridges | everything.
+    db.run(`CREATE TABLE IF NOT EXISTS newsletter_interests (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        interest TEXT NOT NULL,
+        source TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(email, interest)
+    )`);
+    // Which audience segments a composed PR newsletter targets (JSON array of segment ids).
+    // Guarded ALTER outside the mirror block (admin-only column on an admin-only table).
+    try { db.run("ALTER TABLE pr_newsletters ADD COLUMN target_segments TEXT"); } catch (e) {}
+
     // Gala invite links table — admin-generated shareable URLs (generic paid + VIP free)
     db.run(`CREATE TABLE IF NOT EXISTS gala_invite_links (
         id TEXT PRIMARY KEY,
@@ -5464,6 +5650,38 @@ async function initializeApp() {
     try { db.run(`ALTER TABLE gala_settings ADD COLUMN keynote_name TEXT`); } catch (e) {}
     try { db.run(`ALTER TABLE gala_settings ADD COLUMN keynote_role TEXT`); } catch (e) {}
     try { db.run(`ALTER TABLE gala_settings ADD COLUMN keynote_image_url TEXT`); } catch (e) {}
+
+    // ============ GALA COMMAND CENTER — dinner menu options (admin-only, event-config) ============
+    // The venue's dinner menu. A guest's meal choice is DERIVED from the free-text `dietary` field
+    // on gala_registrations (the public registration handler is frozen and never writes an explicit
+    // menu id), so this table only stores what the venue OFFERS plus the keywords used to bucket a
+    // guest's dietary text into an option. Adding / renaming / removing an option NEVER touches a
+    // guest row — a guest whose recorded choice no longer maps to any active option is surfaced as a
+    // follow-up flag in the UI. Lives OUTSIDE the SCHEMA-MIRROR block (admin-only, not shared).
+    db.run(`CREATE TABLE IF NOT EXISTS gala_menu_options (
+        id TEXT PRIMARY KEY,
+        label TEXT NOT NULL,
+        keywords TEXT,
+        sort_order INTEGER DEFAULT 0,
+        is_default INTEGER DEFAULT 0,
+        active INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    try {
+        const moCount = query.get("SELECT COUNT(*) AS c FROM gala_menu_options")?.c || 0;
+        if (!moCount) {
+            const seed = [
+                ['Meat / Standard', 'meat,standard,regular,omnivore,none,no special,no dietary,classic,no restrictions', 0, 1],
+                ['Fish', 'fish,pescatarian,seafood,salmon', 1, 0],
+                ['Vegetarian', 'vegetarian,veggie,lacto,ovo', 2, 0],
+                ['Vegan', 'vegan,plant-based,plant based', 3, 0],
+            ];
+            for (const [label, kw, so, isd] of seed) {
+                db.run("INSERT INTO gala_menu_options (id, label, keywords, sort_order, is_default, active) VALUES (?,?,?,?,?,1)",
+                    [uuidv4(), label, kw, so, isd]);
+            }
+        }
+    } catch (e) { console.warn('[gala menu options seed]', e.message); }
 
     // ONE-TIME TEST-DATA WIPE (mirror of user-portal migration) — clears fake Gala
     // and Croatians Abroad registrations from pre-launch testing. Idempotent via
@@ -12547,6 +12765,361 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
+    // ========================= ADMIN TEAM CHAT (cluster) =========================
+    // A first-class internal chat for the admin team: an All-Team channel, creatable sub-team
+    // channels (PR, Finances, ...), and 1:1 DMs — all membership-aware, with image/file
+    // attachments and inline Doodle-style meeting polls that produce a calendar invite (.ics +
+    // Zoom link) through the approval outbox. Admin-only, polling-based (no websockets).
+    // Namespaced under /api/teamchat so the legacy dashboard chat rail keeps working untouched.
+    const tcHtmlEscape = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const tcEnsureMember = (req) => {
+        let mem = query.get("SELECT * FROM team_members WHERE user_id = ?", [req.user.id]);
+        if (!mem) {
+            const id = uuidv4();
+            const nm = ((req.user.email || 'Team Member').split('@')[0] || 'Team Member').replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            db.run("INSERT INTO team_members (id, user_id, name, role, avatar_color) VALUES (?, ?, ?, 'Admin', '#9b1b22')", [id, req.user.id, nm]);
+            mem = query.get("SELECT * FROM team_members WHERE id = ?", [id]);
+        }
+        return mem;
+    };
+    const tcAllTeam = () => query.get("SELECT * FROM chat_channels WHERE is_team_channel = 1 AND name = 'all-team'");
+    const tcIsMember = (channelId, memberId) => {
+        const ch = query.get("SELECT id, name, is_team_channel, is_dm, dm_a, dm_b FROM chat_channels WHERE id = ?", [channelId]);
+        if (!ch) return false;
+        if (ch.is_team_channel && ch.name === 'all-team') return true;
+        if (ch.is_dm) return ch.dm_a === memberId || ch.dm_b === memberId;
+        return !!query.get("SELECT id FROM channel_members WHERE channel_id = ? AND member_id = ?", [channelId, memberId]);
+    };
+    const tcUnread = (channelId, memberId) => {
+        const lr = query.get("SELECT last_read_at FROM channel_read_status WHERE user_id = ? AND channel_id = ?", [memberId, channelId]);
+        if (lr && lr.last_read_at) return query.get("SELECT COUNT(*) c FROM chat_messages WHERE channel_id = ? AND created_at > ? AND sender_id != ?", [channelId, lr.last_read_at, memberId])?.c || 0;
+        return query.get("SELECT COUNT(*) c FROM chat_messages WHERE channel_id = ? AND sender_id != ?", [channelId, memberId])?.c || 0;
+    };
+    const tcLast = (channelId) => query.get("SELECT m.message, m.kind, m.file_type, m.created_at, t.name sender_name FROM chat_messages m LEFT JOIN team_members t ON m.sender_id = t.id WHERE m.channel_id = ? ORDER BY m.created_at DESC LIMIT 1", [channelId]);
+    const tcMarkRead = (channelId, meId) => {
+        if (!channelId || !meId) return;
+        const ex = query.get("SELECT id FROM channel_read_status WHERE user_id = ? AND channel_id = ?", [meId, channelId]);
+        if (ex) db.run("UPDATE channel_read_status SET last_read_at = datetime('now') WHERE id = ?", [ex.id]);
+        else db.run("INSERT INTO channel_read_status (id, user_id, channel_id, last_read_at) VALUES (?, ?, ?, datetime('now'))", [uuidv4(), meId, channelId]);
+    };
+    const tcPollDetail = (pollId, meId) => {
+        const p = query.get("SELECT * FROM meeting_polls WHERE id = ?", [pollId]);
+        if (!p) return null;
+        let opts = [];
+        try { opts = JSON.parse(p.options_json || '[]'); } catch (e) { opts = []; }
+        const votes = query.all("SELECT v.option_index, v.member_id, t.name FROM meeting_poll_votes v LEFT JOIN team_members t ON v.member_id = t.id WHERE v.poll_id = ?", [pollId]);
+        const options = opts.map((iso, i) => {
+            const vs = votes.filter(v => v.option_index === i);
+            return { index: i, start: iso, count: vs.length, voters: vs.map(v => v.name || 'Teammate'), mine: !!vs.find(v => v.member_id === meId) };
+        });
+        const proposer = query.get("SELECT name FROM team_members WHERE id = ?", [p.created_by]);
+        return {
+            id: p.id, title: p.title, description: p.description || '', duration_min: p.duration_min || 60,
+            zoom_link: p.zoom_link || '', deadline: p.deadline || null, status: p.status, winning_index: p.winning_index,
+            created_by: p.created_by, proposer_name: proposer && proposer.name ? proposer.name : 'Teammate',
+            options, voter_total: new Set(votes.map(v => v.member_id)).size, outbox_batch: p.outbox_batch || null
+        };
+    };
+    const tcFormatSlot = (startLocal, dur) => {
+        const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(startLocal || ''));
+        if (!m) return { dateLabel: String(startLocal || ''), full: String(startLocal || '') };
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const y = +m[1], mo = +m[2], d = +m[3], h = +m[4], mi = +m[5];
+        const dow = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
+        const e = new Date(Date.UTC(y, mo - 1, d, h, mi) + (dur || 60) * 60000);
+        const t2 = (hh, mm) => _tcPad2(hh) + ':' + _tcPad2(mm);
+        const dateLabel = days[dow] + ', ' + months[mo - 1] + ' ' + d;
+        const full = dateLabel + ', ' + t2(h, mi) + '-' + t2(e.getUTCHours(), e.getUTCMinutes()) + ' (Europe/Zagreb)';
+        return { dateLabel, full };
+    };
+
+    // Overview: the whole left rail in one call.
+    app.get('/api/teamchat/overview', auth, adminOnly, (req, res) => {
+        try {
+            const me = tcEnsureMember(req);
+            const at = tcAllTeam();
+            if (at) db.run("INSERT OR IGNORE INTO channel_members (id, channel_id, member_id, role) VALUES (?, ?, ?, 'member')", [uuidv4(), at.id, me.id]);
+            const teamRows = query.all("SELECT * FROM chat_channels WHERE is_team_channel = 1 ORDER BY (name='all-team') DESC, sort_order ASC, display_name ASC");
+            const channels = teamRows.filter(c => tcIsMember(c.id, me.id)).map(c => {
+                const last = tcLast(c.id);
+                return {
+                    id: c.id, name: c.name, display_name: c.display_name || c.name, description: c.description || '',
+                    is_all: c.name === 'all-team' ? 1 : 0,
+                    member_count: query.get("SELECT COUNT(*) c FROM channel_members WHERE channel_id = ?", [c.id])?.c || 0,
+                    unread: tcUnread(c.id, me.id),
+                    last_at: (last && last.created_at) || c.created_at,
+                    last_preview: last ? (last.kind === 'poll' ? 'Meeting poll' : (last.file_type ? 'Attachment' : (last.message || ''))) : ''
+                };
+            });
+            const dmRows = query.all("SELECT * FROM chat_channels WHERE is_dm = 1 AND (dm_a = ? OR dm_b = ?)", [me.id, me.id]);
+            const dms = dmRows.map(c => {
+                const otherId = c.dm_a === me.id ? c.dm_b : c.dm_a;
+                const other = query.get("SELECT id, name, role, avatar_color, photo_url FROM team_members WHERE id = ?", [otherId]) || { id: otherId, name: 'Teammate' };
+                const last = tcLast(c.id);
+                return { id: c.id, other, unread: tcUnread(c.id, me.id), last_at: (last && last.created_at) || c.created_at, last_preview: last ? (last.file_type ? 'Attachment' : (last.message || '')) : '' };
+            }).sort((a, b) => String(b.last_at || '').localeCompare(String(a.last_at || '')));
+            const roster = query.all("SELECT id, name, role, avatar_color, photo_url, user_id FROM team_members ORDER BY name").map(r => ({ ...r, is_me: r.id === me.id ? 1 : 0 }));
+            res.json({ me: { id: me.id, name: me.name, role: me.role, avatar_color: me.avatar_color, photo_url: me.photo_url }, channels, dms, roster });
+        } catch (e) { console.error('[teamchat] overview', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Messages for a channel (membership-checked), oldest first, with sender, attachments and poll data.
+    app.get('/api/teamchat/messages', auth, adminOnly, (req, res) => {
+        try {
+            const me = tcEnsureMember(req);
+            const channelId = req.query.channel_id;
+            if (!channelId || !tcIsMember(channelId, me.id)) return res.status(403).json({ error: 'Not a member of this channel' });
+            const rows = query.all("SELECT m.*, t.name sender_name, t.avatar_color, t.role sender_role, t.photo_url sender_photo, r.message reply_message, rt.name reply_sender_name FROM chat_messages m LEFT JOIN team_members t ON m.sender_id = t.id LEFT JOIN chat_messages r ON m.reply_to = r.id LEFT JOIN team_members rt ON r.sender_id = rt.id WHERE m.channel_id = ? ORDER BY m.created_at ASC LIMIT 300", [channelId]);
+            const out = rows.map(m => {
+                const atts = query.all("SELECT url, name, mime, kind, bytes FROM chat_attachments WHERE message_id = ?", [m.id]);
+                if (!atts.length && m.file_url) atts.push({ url: m.file_url, name: m.file_name, mime: null, kind: m.file_type === 'image' ? 'image' : 'file', bytes: 0 });
+                let poll = null;
+                if (m.poll_id) poll = tcPollDetail(m.poll_id, me.id);
+                return {
+                    id: m.id, sender_id: m.sender_id, sender_name: m.sender_name, sender_role: m.sender_role, avatar_color: m.avatar_color, sender_photo: m.sender_photo,
+                    message: m.message, kind: m.kind || 'text', created_at: m.created_at,
+                    reply_to: m.reply_to, reply_message: m.reply_message, reply_sender_name: m.reply_sender_name,
+                    attachments: atts, poll, is_me: m.sender_id === me.id ? 1 : 0
+                };
+            });
+            res.json(out);
+        } catch (e) { console.error('[teamchat] messages', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.post('/api/teamchat/messages', auth, adminOnly, (req, res) => {
+        try {
+            const me = tcEnsureMember(req);
+            const { channel_id, message, reply_to, attachment } = req.body || {};
+            if (!channel_id || !tcIsMember(channel_id, me.id)) return res.status(403).json({ error: 'Not a member of this channel' });
+            const text = (message || '').toString();
+            if (!text.trim() && !attachment) return res.status(400).json({ error: 'Empty message' });
+            const id = uuidv4();
+            const fileUrl = attachment && attachment.url ? attachment.url : null;
+            const fileName = attachment && attachment.name ? attachment.name : null;
+            const fileType = attachment ? (attachment.kind === 'image' ? 'image' : 'file') : null;
+            db.run("INSERT INTO chat_messages (id, sender_id, channel_id, message, kind, reply_to, file_url, file_name, file_type, message_type) VALUES (?, ?, ?, ?, 'text', ?, ?, ?, ?, 'text')",
+                [id, me.id, channel_id, text, reply_to || null, fileUrl, fileName, fileType]);
+            if (attachment && attachment.url) {
+                db.run("INSERT INTO chat_attachments (id, message_id, url, name, mime, kind, bytes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    [uuidv4(), id, attachment.url, attachment.name || 'file', attachment.mime || null, attachment.kind === 'image' ? 'image' : 'file', attachment.bytes || 0]);
+            }
+            tcMarkRead(channel_id, me.id);
+            saveDb();
+            res.json({ success: true, id });
+        } catch (e) { console.error('[teamchat] send', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.post('/api/teamchat/upload', auth, adminOnly, upload.single('file'), (req, res) => {
+        try {
+            if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+            const chatDir = path.join(uploadsDir, 'chat');
+            if (!fs.existsSync(chatDir)) fs.mkdirSync(chatDir, { recursive: true });
+            const newPath = path.join(chatDir, req.file.filename);
+            try { fs.renameSync(req.file.path, newPath); } catch (e) {}
+            const isImg = (req.file.mimetype || '').startsWith('image/');
+            res.json({ url: '/uploads/chat/' + req.file.filename, name: req.file.originalname, mime: req.file.mimetype, kind: isImg ? 'image' : 'file', bytes: req.file.size });
+        } catch (e) { console.error('[teamchat] upload', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.post('/api/teamchat/read', auth, adminOnly, (req, res) => {
+        try { const me = tcEnsureMember(req); tcMarkRead(req.body.channel_id, me.id); saveDb(); res.json({ success: true }); }
+        catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    app.post('/api/teamchat/channels', auth, adminOnly, (req, res) => {
+        try {
+            const me = tcEnsureMember(req);
+            const { name, description, member_ids } = req.body || {};
+            const display = (name || '').toString().trim();
+            if (!display) return res.status(400).json({ error: 'Channel name required' });
+            const key = (display.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')) || ('team-' + Date.now());
+            const id = uuidv4();
+            db.run("INSERT INTO chat_channels (id, name, display_name, description, is_team_channel, project, sort_order, created_by) VALUES (?, ?, ?, ?, 1, NULL, 10, ?)",
+                [id, key, display, description || '', me.id]);
+            const ids = Array.isArray(member_ids) ? member_ids.slice() : [];
+            if (!ids.includes(me.id)) ids.push(me.id);
+            ids.forEach(mid => db.run("INSERT OR IGNORE INTO channel_members (id, channel_id, member_id, role) VALUES (?, ?, ?, ?)", [uuidv4(), id, mid, mid === me.id ? 'owner' : 'member']));
+            saveDb();
+            logAudit(req, 'teamchat_channel_create', display + ' (' + ids.length + ' member' + (ids.length === 1 ? '' : 's') + ')');
+            res.json({ success: true, id });
+        } catch (e) { console.error('[teamchat] channel create', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.put('/api/teamchat/channels/:id', auth, adminOnly, (req, res) => {
+        try {
+            const ch = query.get("SELECT * FROM chat_channels WHERE id = ?", [req.params.id]);
+            if (!ch || !ch.is_team_channel) return res.status(404).json({ error: 'Channel not found' });
+            const { display_name, description } = req.body || {};
+            db.run("UPDATE chat_channels SET display_name = COALESCE(?, display_name), description = COALESCE(?, description) WHERE id = ?", [display_name || null, description == null ? null : description, req.params.id]);
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    app.delete('/api/teamchat/channels/:id', auth, adminOnly, (req, res) => {
+        try {
+            const ch = query.get("SELECT * FROM chat_channels WHERE id = ?", [req.params.id]);
+            if (!ch || !ch.is_team_channel) return res.status(404).json({ error: 'Channel not found' });
+            if (ch.name === 'all-team') return res.status(400).json({ error: 'The All Team channel cannot be deleted' });
+            const msgs = query.all("SELECT id FROM chat_messages WHERE channel_id = ?", [req.params.id]);
+            msgs.forEach(mm => db.run("DELETE FROM chat_attachments WHERE message_id = ?", [mm.id]));
+            const polls = query.all("SELECT id FROM meeting_polls WHERE channel_id = ?", [req.params.id]);
+            polls.forEach(pp => db.run("DELETE FROM meeting_poll_votes WHERE poll_id = ?", [pp.id]));
+            db.run("DELETE FROM meeting_polls WHERE channel_id = ?", [req.params.id]);
+            db.run("DELETE FROM chat_messages WHERE channel_id = ?", [req.params.id]);
+            db.run("DELETE FROM channel_members WHERE channel_id = ?", [req.params.id]);
+            db.run("DELETE FROM channel_read_status WHERE channel_id = ?", [req.params.id]);
+            db.run("DELETE FROM chat_channels WHERE id = ?", [req.params.id]);
+            saveDb();
+            logAudit(req, 'teamchat_channel_delete', ch.display_name || ch.name);
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    app.get('/api/teamchat/channels/:id/members', auth, adminOnly, (req, res) => {
+        const rows = query.all("SELECT cm.member_id, cm.role, t.name, t.avatar_color, t.photo_url, t.role AS title FROM channel_members cm LEFT JOIN team_members t ON cm.member_id = t.id WHERE cm.channel_id = ? ORDER BY t.name", [req.params.id]);
+        res.json(rows);
+    });
+
+    app.post('/api/teamchat/channels/:id/members', auth, adminOnly, (req, res) => {
+        try {
+            const ids = req.body.member_ids || (req.body.member_id ? [req.body.member_id] : []);
+            ids.forEach(mid => db.run("INSERT OR IGNORE INTO channel_members (id, channel_id, member_id, role) VALUES (?, ?, ?, 'member')", [uuidv4(), req.params.id, mid]));
+            saveDb();
+            res.json({ success: true, added: ids.length });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    app.delete('/api/teamchat/channels/:id/members/:memberId', auth, adminOnly, (req, res) => {
+        const ch = query.get("SELECT name FROM chat_channels WHERE id = ?", [req.params.id]);
+        if (ch && ch.name === 'all-team') return res.status(400).json({ error: 'Everyone stays in All Team' });
+        db.run("DELETE FROM channel_members WHERE channel_id = ? AND member_id = ?", [req.params.id, req.params.memberId]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    app.post('/api/teamchat/dm', auth, adminOnly, (req, res) => {
+        try {
+            const me = tcEnsureMember(req);
+            const target = req.body.target_member_id;
+            if (!target || target === me.id) return res.status(400).json({ error: 'Pick a teammate' });
+            const other = query.get("SELECT id, name, role, avatar_color, photo_url FROM team_members WHERE id = ?", [target]);
+            if (!other) return res.status(404).json({ error: 'Teammate not found' });
+            const pair = [me.id, target].sort();
+            const a = pair[0], b = pair[1];
+            let ch = query.get("SELECT * FROM chat_channels WHERE is_dm = 1 AND dm_a = ? AND dm_b = ?", [a, b]);
+            if (!ch) {
+                const id = uuidv4();
+                db.run("INSERT INTO chat_channels (id, name, display_name, is_dm, dm_a, dm_b, project, created_by) VALUES (?, ?, ?, 1, ?, ?, 'dm', ?)",
+                    [id, 'dm:' + a + ':' + b, 'Direct message', a, b, me.id]);
+                db.run("INSERT OR IGNORE INTO channel_members (id, channel_id, member_id, role) VALUES (?, ?, ?, 'member')", [uuidv4(), id, a]);
+                db.run("INSERT OR IGNORE INTO channel_members (id, channel_id, member_id, role) VALUES (?, ?, ?, 'member')", [uuidv4(), id, b]);
+                saveDb();
+                ch = query.get("SELECT * FROM chat_channels WHERE id = ?", [id]);
+            }
+            res.json({ id: ch.id, other });
+        } catch (e) { console.error('[teamchat] dm', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.post('/api/teamchat/polls', auth, adminOnly, (req, res) => {
+        try {
+            const me = tcEnsureMember(req);
+            const { channel_id, title, options, duration_min, zoom_link, deadline, description } = req.body || {};
+            if (!channel_id || !tcIsMember(channel_id, me.id)) return res.status(403).json({ error: 'Not a member of this channel' });
+            const opts = (Array.isArray(options) ? options : []).map(x => String(x || '').trim()).filter(x => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(x));
+            if (opts.length < 2 || opts.length > 5) return res.status(400).json({ error: 'Propose 2 to 5 candidate times' });
+            const t = (title || '').toString().trim() || 'Team meeting';
+            const pollId = uuidv4();
+            const msgId = uuidv4();
+            db.run("INSERT INTO meeting_polls (id, channel_id, message_id, created_by, title, description, options_json, duration_min, zoom_link, deadline, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')",
+                [pollId, channel_id, msgId, me.id, t, description || '', JSON.stringify(opts), parseInt(duration_min || 60, 10), (zoom_link || 'https://harvard.zoom.us/my/alen1').toString().trim(), deadline || null]);
+            db.run("INSERT INTO chat_messages (id, sender_id, channel_id, message, kind, poll_id, message_type) VALUES (?, ?, ?, ?, 'poll', ?, 'text')",
+                [msgId, me.id, channel_id, t, pollId]);
+            tcMarkRead(channel_id, me.id);
+            saveDb();
+            res.json({ success: true, poll_id: pollId });
+        } catch (e) { console.error('[teamchat] poll create', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.post('/api/teamchat/polls/:id/vote', auth, adminOnly, (req, res) => {
+        try {
+            const me = tcEnsureMember(req);
+            const p = query.get("SELECT * FROM meeting_polls WHERE id = ?", [req.params.id]);
+            if (!p) return res.status(404).json({ error: 'Poll not found' });
+            if (p.status !== 'open') return res.status(400).json({ error: 'This poll is closed' });
+            if (!tcIsMember(p.channel_id, me.id)) return res.status(403).json({ error: 'Not a member of this channel' });
+            const oi = parseInt(req.body.option_index, 10);
+            let optCount = 0; try { optCount = JSON.parse(p.options_json || '[]').length; } catch (e) {}
+            if (isNaN(oi) || oi < 0 || oi >= optCount) return res.status(400).json({ error: 'Bad option' });
+            const existing = query.get("SELECT id FROM meeting_poll_votes WHERE poll_id = ? AND member_id = ? AND option_index = ?", [p.id, me.id, oi]);
+            if (existing) db.run("DELETE FROM meeting_poll_votes WHERE id = ?", [existing.id]);
+            else db.run("INSERT OR IGNORE INTO meeting_poll_votes (id, poll_id, member_id, option_index) VALUES (?, ?, ?, ?)", [uuidv4(), p.id, me.id, oi]);
+            saveDb();
+            res.json({ success: true, poll: tcPollDetail(p.id, me.id) });
+        } catch (e) { console.error('[teamchat] vote', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.post('/api/teamchat/polls/:id/close', auth, adminOnly, (req, res) => {
+        try {
+            const me = tcEnsureMember(req);
+            const p = query.get("SELECT * FROM meeting_polls WHERE id = ?", [req.params.id]);
+            if (!p) return res.status(404).json({ error: 'Poll not found' });
+            if (p.status === 'closed') return res.status(400).json({ error: 'Already closed' });
+            if (p.created_by !== me.id && !req.user.is_admin) return res.status(403).json({ error: 'Only the proposer can close this poll' });
+            let opts = []; try { opts = JSON.parse(p.options_json || '[]'); } catch (e) {}
+            if (!opts.length) return res.status(400).json({ error: 'No options' });
+            let winIdx = (req.body && req.body.winning_index != null) ? parseInt(req.body.winning_index, 10) : null;
+            if (winIdx == null || isNaN(winIdx) || winIdx < 0 || winIdx >= opts.length) {
+                const tally = opts.map((_, i) => query.get("SELECT COUNT(*) c FROM meeting_poll_votes WHERE poll_id = ? AND option_index = ?", [p.id, i])?.c || 0);
+                let best = 0; for (let i = 1; i < tally.length; i++) if (tally[i] > tally[best]) best = i; winIdx = best;
+            }
+            const startLocal = opts[winIdx];
+            const zoom = p.zoom_link || 'https://harvard.zoom.us/my/alen1';
+            const dur = p.duration_min || 60;
+            const when = tcFormatSlot(startLocal, dur);
+            const admins = query.all("SELECT DISTINCT email FROM users WHERE is_admin = 1 AND email IS NOT NULL AND email <> ''");
+            const attendees = admins.map(a => a.email);
+            const ics = buildMeetingIcs({
+                title: p.title, startLocal, durationMin: dur,
+                description: 'Med&X team meeting.\nJoin Zoom: ' + zoom + '\nProposed and scheduled through the Med&X admin team chat.',
+                location: zoom, organizerName: 'Med&X', organizerEmail: 'president@medx.hr', attendees
+            });
+            const icsB64 = Buffer.from(ics || '', 'utf8').toString('base64');
+            const batchId = 'meeting-' + p.id;
+            const subject = 'Meeting confirmed - ' + p.title + ' (' + when.dateLabel + ')';
+            const bodyHtml = buildEmailTemplate('Meeting confirmed', ''
+                + '<p style="margin:0 0 12px;">The team picked a time for <strong>' + tcHtmlEscape(p.title) + '</strong>.</p>'
+                + '<table role="presentation" width="100%" style="border-collapse:collapse;margin:8px 0 16px;">'
+                + '<tr><td style="padding:6px 0;color:#6b7280;width:90px;">When</td><td style="padding:6px 0;font-weight:600;">' + tcHtmlEscape(when.full) + '</td></tr>'
+                + '<tr><td style="padding:6px 0;color:#6b7280;">Duration</td><td style="padding:6px 0;">' + dur + ' minutes</td></tr>'
+                + '<tr><td style="padding:6px 0;color:#6b7280;">Join</td><td style="padding:6px 0;"><a href="' + tcHtmlEscape(zoom) + '" style="color:#9b1b22;">' + tcHtmlEscape(zoom) + '</a></td></tr>'
+                + '</table>'
+                + '<p style="margin:0 0 8px;color:#6b7280;font-size:13px;">A calendar invite (.ics) is attached. Open it to add this meeting to your calendar. Times are Europe/Zagreb.</p>',
+                { accent: 'crimson' });
+            let count = 0;
+            for (const email of attendees) {
+                const payload = { to: email, subject, html: bodyHtml, attachments: [{ filename: 'medx-meeting.ics', content_b64: icsB64, type: 'text/calendar' }] };
+                db.run("INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at) VALUES (?, 'pending_approval', ?, 'meeting-invite', 'meeting_invite', ?, ?, ?, ?, datetime('now'))",
+                    [uuidv4(), batchId, JSON.stringify(payload), email, subject, req.user.email || 'teamchat']);
+                count++;
+            }
+            db.run("UPDATE meeting_polls SET status = 'closed', winning_index = ?, outbox_batch = ?, closed_at = datetime('now') WHERE id = ?", [winIdx, batchId, p.id]);
+            db.run("INSERT INTO chat_messages (id, sender_id, channel_id, message, kind, message_type) VALUES (?, ?, ?, ?, 'system', 'text')",
+                [uuidv4(), me.id, p.channel_id, 'Meeting confirmed for ' + when.full + '. Calendar invites (with the Zoom link) are queued for approval to ' + count + ' admin' + (count === 1 ? '' : 's') + '.']);
+            saveDb();
+            logAudit(req, 'teamchat_meeting_close', p.title + ' -> ' + when.full + ' (' + count + ' invite(s) queued)');
+            res.json({ success: true, winning_index: winIdx, batch_id: batchId, recipients: count, when: when.full });
+        } catch (e) { console.error('[teamchat] poll close', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.get('/api/teamchat/polls/:id', auth, adminOnly, (req, res) => {
+        const me = tcEnsureMember(req);
+        const d = tcPollDetail(req.params.id, me.id);
+        if (!d) return res.status(404).json({ error: 'Poll not found' });
+        res.json(d);
+    });
+
     // ========== PINNED ITEMS ROUTES ==========
 
     // Get user's pinned items
@@ -15666,6 +16239,17 @@ By applying to this program, I provide the following consents:
     // Each segment resolves to a de-duplicated list of lowercased recipient emails at SEND time
     // (never stored), reusing the same membership sources as GET /api/admin/audiences/:project. An
     // unknown id yields an empty list, so a stale client can never blast an unintended audience.
+    // Project interests a person can pick on the public /newsletter signup page. Stored
+    // admin-side in newsletter_interests keyed by email, resolved into segments below.
+    const NEWSLETTER_INTERESTS = [
+        { key: 'plexus', label: 'Plexus Conference' },
+        { key: 'accelerator', label: 'Med&X Accelerator' },
+        { key: 'forum', label: 'Biomedical Forum' },
+        { key: 'bridges', label: 'Building Bridges' },
+        { key: 'everything', label: 'Everything Med&X does' }
+    ];
+    const NEWSLETTER_INTEREST_KEYS = NEWSLETTER_INTERESTS.map((i) => i.key);
+
     const NEWSLETTER_SEGMENTS = [
         { id: 'all_subscribers', label: 'All subscribers' },
         { id: 'forum_members', label: 'Forum members' },
@@ -15675,7 +16259,11 @@ By applying to this program, I provide the following consents:
         { id: 'interested_gala', label: 'Interested in the Gala' },
         { id: 'interested_accelerator', label: 'Interested in the Accelerator' },
         { id: 'interested_forum', label: 'Interested in the Forum' },
-        { id: 'interested_bridges', label: 'Interested in Building Bridges' }
+        { id: 'interested_bridges', label: 'Interested in Building Bridges' },
+        { id: 'subs_plexus', label: 'Subscribers: Plexus interest' },
+        { id: 'subs_accelerator', label: 'Subscribers: Accelerator interest' },
+        { id: 'subs_forum', label: 'Subscribers: Biomedical Forum interest' },
+        { id: 'subs_bridges', label: 'Subscribers: Building Bridges interest' }
     ];
     function isNewsletterSegment(id) { return NEWSLETTER_SEGMENTS.some((s) => s.id === id); }
     function resolveSegmentEmails(id) {
@@ -15689,7 +16277,27 @@ By applying to this program, I provide the following consents:
             if (!PROJECT_HUB_ORDER.includes(project)) return [];
             return distinct("SELECT DISTINCT LOWER(TRIM(u.email)) AS email FROM notify_topics nt JOIN users u ON u.id = nt.user_id WHERE nt.project_key = ? AND u.email IS NOT NULL AND TRIM(u.email) <> ''", [project]);
         }
+        // Signup-page interests (newsletter_interests keyed by email). 'everything' matches every
+        // interest segment. Unsubscribed pr_subscribers rows are always excluded.
+        if (id.indexOf('subs_') === 0) {
+            const interest = id.slice('subs_'.length);
+            if (!NEWSLETTER_INTEREST_KEYS.includes(interest)) return [];
+            return distinct(`SELECT DISTINCT LOWER(TRIM(ni.email)) AS email FROM newsletter_interests ni
+                WHERE ni.interest IN (?, 'everything') AND ni.email IS NOT NULL AND TRIM(ni.email) <> ''
+                AND NOT EXISTS (SELECT 1 FROM pr_subscribers ps WHERE LOWER(TRIM(ps.email)) = LOWER(TRIM(ni.email)) AND ps.status = 'unsubscribed')`, [interest]);
+        }
         return [];
+    }
+    // Resolve ONE OR MORE segments into a single recipient list. A person matching several of the
+    // selected segments appears exactly once — the Set keys on the lowercased trimmed email.
+    function resolveSegmentsUnion(ids) {
+        const set = new Set();
+        (Array.isArray(ids) ? ids : [ids]).forEach((id) => {
+            if (!isNewsletterSegment(id)) return;
+            resolveSegmentEmails(id).forEach((e) => set.add(String(e).toLowerCase().trim()));
+        });
+        set.delete('');
+        return Array.from(set);
     }
     function newsletterSegmentCounts() {
         return NEWSLETTER_SEGMENTS.map((s) => ({ id: s.id, label: s.label, count: resolveSegmentEmails(s.id).length }));
@@ -15725,6 +16333,19 @@ By applying to this program, I provide the following consents:
     // Absolute portal deep link for a member-facing section. The digest goes to members, who
     // live on the user portal (its router opens a section from location.hash).
     function digestPortalLink(section) { return `${userPortalBase()}/#${section || 'dashboard'}`; }
+
+    // Normalize a stored feed link_url into an EMAIL-SAFE absolute URL. Feed items save an in-app
+    // section slug (e.g. 'plexus') that the user-portal router resolves from location.hash — bare in
+    // an email that becomes a broken relative link, so wrap slugs as portal deep links while keeping
+    // real absolute (http/mailto) links untouched.
+    function digestFeedUrl(link) {
+        link = String(link == null ? '' : link).trim();
+        if (!link) return digestPortalLink('dashboard');
+        if (/^(https?:|mailto:)/i.test(link)) return link;
+        if (link.charAt(0) === '#') return digestPortalLink(link.slice(1) || 'dashboard');
+        if (link.charAt(0) === '/') return userPortalBase() + link;
+        return digestPortalLink(link);
+    }
 
     // Convert a picked photo URL (…/photo-library/<sub>/<file>) into an email-safe hosted CDN
     // URL. Keeps an already-absolute https URL, drops anything else.
@@ -15784,7 +16405,7 @@ By applying to this program, I provide the following consents:
         } catch (e) {}
         try {
             const feed = query.all("SELECT title, body, link_url FROM feed_items WHERE COALESCE(published,1) = 1 AND datetime(posted_at) >= datetime('now','-45 days') ORDER BY datetime(posted_at) DESC LIMIT 6");
-            model.feed = feed.map((f) => ({ title: f.title || '', body: String(f.body || '').slice(0, 220), url: f.link_url || digestPortalLink('dashboard') }));
+            model.feed = feed.map((f) => ({ title: f.title || '', body: String(f.body || '').slice(0, 220), url: digestFeedUrl(f.link_url) }));
         } catch (e) {}
         return model;
     }
@@ -15830,7 +16451,7 @@ By applying to this program, I provide the following consents:
         return `<div style="margin:0 0 14px;padding:0 0 12px;border-bottom:1px solid #eef1f6;">
             <div style="font-family:Georgia,'Times New Roman',serif;font-size:16px;font-weight:700;color:#0f172a;margin-bottom:4px;">${nagEscape(f.title)}</div>
             ${f.body ? `<div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:8px;">${nagEscape(f.body)}</div>` : ''}
-            ${digestReadMore(f.url, 'Read more', accent)}
+            ${digestReadMore(digestFeedUrl(f.url), 'Read more', accent)}
         </div>`;
     }
     function defaultDigestSettings() {
@@ -15846,7 +16467,14 @@ By applying to this program, I provide the following consents:
         const parts = [];
         if (show.highlights && settings.highlightText) parts.push(digestHighlightBar(settings.highlightText, accent));
         parts.push(`<div style="text-align:center;margin:0 0 22px;"><img src="${nagEscape(heroUrl)}" alt="Med&amp;X" width="536" style="display:block;margin:0 auto;width:100%;max-width:536px;height:auto;border-radius:12px;" /></div>`);
-        parts.push(`<p style="margin:0 0 6px;color:#334155;font-size:15px;line-height:1.7;">Here is what is happening across Med&amp;X${model.monthLabel ? ' in ' + nagEscape(model.monthLabel) : ''}. Take a look, then approve to share it with our members.</p>`);
+        if (model.intro) {
+            // Composed newsletters carry a hand-written intro — render it as paragraphs in place
+            // of the digest's stock opener. Digest models never set intro, so nothing regresses.
+            parts.push(String(model.intro).split(/\n{2,}/).map((t) => t.trim()).filter(Boolean)
+                .map((t) => `<p style="margin:0 0 14px;color:#334155;font-size:15px;line-height:1.7;">${nagEscape(t).replace(/\n/g, '<br>')}</p>`).join(''));
+        } else {
+            parts.push(`<p style="margin:0 0 6px;color:#334155;font-size:15px;line-height:1.7;">Here is what is happening across Med&amp;X${model.monthLabel ? ' in ' + nagEscape(model.monthLabel) : ''}. Take a look, then approve to share it with our members.</p>`);
+        }
         if (show.announcements && anns.length) {
             parts.push(digestSectionHead('News', 'Latest announcements', accent));
             parts.push(anns.map((a) => digestAnnouncementItem(a, accent)).join(''));
@@ -15862,7 +16490,7 @@ By applying to this program, I provide the following consents:
             parts.push(feed.map((f) => digestFeedItem(f, accent)).join(''));
             parts.push(digestSeeEverything(digestPortalLink('dashboard'), 'See the full feed', accent));
         }
-        if (!anns.length && !events.length && !feed.length) parts.push('<p style="color:#64748b;">No new published content yet. Add announcements, events, or feed items and regenerate.</p>');
+        if (!model.intro && !anns.length && !events.length && !feed.length) parts.push('<p style="color:#64748b;">No new published content yet. Add announcements, events, or feed items and regenerate.</p>');
         return buildEmailTemplate(model.subject || 'Med&X Monthly Digest', parts.join(''), { accent: settings.accent });
     }
     function monthlyDigestMarkerDone(monthKey) {
@@ -15916,7 +16544,7 @@ By applying to this program, I provide the following consents:
     // an instant preview. Body: { accent, highlightText, show:{...}, heroImage }.
     app.post('/api/admin/digest/:id/restyle', auth, adminOnly, (req, res) => {
         try {
-            const row = query.get("SELECT id, content_json, settings_json FROM pr_newsletters WHERE id = ? AND template = 'monthly-digest'", [req.params.id]);
+            const row = query.get("SELECT id, content_json, settings_json FROM pr_newsletters WHERE id = ? AND template IN ('monthly-digest', 'newsletter')", [req.params.id]);
             if (!row) return res.status(404).json({ error: 'not_found' });
             let model = {}; try { model = JSON.parse(row.content_json || '{}') || {}; } catch (e) { model = {}; }
             let settings = {}; try { settings = JSON.parse(row.settings_json || '{}') || {}; } catch (e) { settings = {}; }
@@ -15930,6 +16558,243 @@ By applying to this program, I provide the following consents:
             saveDb();
             res.json({ success: true, content_html: contentHtml, settings });
         } catch (e) { console.error('[digest] restyle', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ============ PR NEWSLETTER AREA: compose flow + audience staging + interests ============
+    // The composer builds a branded draft with the upgraded template (real logo header,
+    // highlights bar, curated sections, style controls) and the stage step resolves EVERY
+    // selected audience segment into one de-duplicated recipient list before parking the
+    // batch in the approval outbox. Nothing sends without owner approval.
+
+    // Interest catalog + live per-interest counts (and one person's interests via ?email=).
+    app.get('/api/admin/newsletter-interests', auth, adminOnly, (req, res) => {
+        try {
+            const email = String(req.query.email || '').toLowerCase().trim();
+            const counts = NEWSLETTER_INTERESTS.map((i) => {
+                let count = 0;
+                try { count = (query.get('SELECT COUNT(DISTINCT LOWER(TRIM(email))) AS c FROM newsletter_interests WHERE interest = ?', [i.key]) || {}).c || 0; } catch (e) {}
+                return { key: i.key, label: i.label, count };
+            });
+            const out = { interests: counts };
+            if (email) {
+                try { out.selected = query.all('SELECT interest FROM newsletter_interests WHERE LOWER(TRIM(email)) = ?', [email]).map((r) => r.interest); } catch (e) { out.selected = []; }
+            }
+            res.json(out);
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Set one person's interests (admin-side correction tool). Body: { email, interests: [...] }.
+    app.post('/api/admin/newsletter-interests', auth, adminOnly, (req, res) => {
+        try {
+            const email = String((req.body || {}).email || '').toLowerCase().trim();
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'A valid email is required.' });
+            const interests = (Array.isArray((req.body || {}).interests) ? req.body.interests : []).filter((k) => NEWSLETTER_INTEREST_KEYS.includes(k));
+            db.run('DELETE FROM newsletter_interests WHERE LOWER(TRIM(email)) = ?', [email]);
+            for (const k of interests) {
+                db.run('INSERT OR IGNORE INTO newsletter_interests (id, email, interest, source) VALUES (?, ?, ?, ?)', [uuidv4(), email, k, 'admin']);
+            }
+            saveDb();
+            logAudit(req, 'newsletter.interests', `${email}: ${interests.join(', ') || '(cleared)'}`);
+            res.json({ success: true, email, interests });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Preview the audience for a set of segments WITHOUT staging anything. Returns the
+    // de-duplicated unique count next to the raw per-segment sum so the composer can show
+    // "X unique people (Y matches across segments)".
+    app.post('/api/admin/pr-newsletters/audience-preview', auth, adminOnly, (req, res) => {
+        try {
+            const segments = (Array.isArray((req.body || {}).segments) ? req.body.segments : []).filter(isNewsletterSegment);
+            let rawSum = 0;
+            segments.forEach((id) => { rawSum += resolveSegmentEmails(id).length; });
+            const unique = resolveSegmentsUnion(segments).length;
+            res.json({ segments, unique, raw_sum: rawSum, deduped: Math.max(0, rawSum - unique) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Compose a branded newsletter DRAFT with the upgraded template. Body:
+    // { subject, intro, highlightText, include: {highlights, announcements, events, feed}, segments: [...] }.
+    app.post('/api/admin/pr-newsletters/compose', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const subject = String(b.subject || '').trim().slice(0, 200);
+            if (!subject) return res.status(400).json({ error: 'A subject is required.' });
+            const segments = (Array.isArray(b.segments) ? b.segments : []).filter(isNewsletterSegment);
+            const include = Object.assign({ highlights: true, announcements: false, events: true, feed: false }, b.include || {});
+            const model = assembleDigestModel();
+            model.subject = subject;
+            model.intro = String(b.intro || '').slice(0, 4000);
+            const settings = defaultDigestSettings();
+            settings.show = { highlights: !!include.highlights, announcements: !!include.announcements, events: !!include.events, feed: !!include.feed };
+            if (typeof b.highlightText === 'string') settings.highlightText = b.highlightText.slice(0, 300);
+            if (!settings.show.highlights) settings.highlightText = settings.highlightText || '';
+            const contentHtml = renderDigestHtml(model, settings);
+            const nlId = uuidv4();
+            db.run(`INSERT INTO pr_newsletters (id, project, name, subject, preview_text, content_html, content_json, settings_json, template, status, target_segments, created_by, created_at)
+                    VALUES (?, 'all', ?, ?, ?, ?, ?, ?, 'newsletter', 'draft', ?, ?, datetime('now'))`,
+                [nlId, subject, subject, (model.intro || '').replace(/\s+/g, ' ').slice(0, 140) || 'News from Med&X', contentHtml, JSON.stringify(model), JSON.stringify(settings), JSON.stringify(segments), (req.user && req.user.email) || 'admin']);
+            saveDb();
+            logAudit(req, 'newsletter.compose', `"${subject}" draft ${nlId} (${segments.join(', ') || 'no audience yet'})`);
+            res.json({ success: true, id: nlId, recipients: resolveSegmentsUnion(segments).length });
+        } catch (e) { console.error('[pr-newsletter] compose', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Stage a PR newsletter to its audience through the approval outbox. Resolves EVERY selected
+    // segment and de-duplicates by email — a person in several segments gets exactly ONE email.
+    app.post('/api/admin/pr-newsletters/:id/stage', auth, adminOnly, (req, res) => {
+        try {
+            const nl = query.get('SELECT * FROM pr_newsletters WHERE id = ?', [req.params.id]);
+            if (!nl) return res.status(404).json({ error: 'Newsletter not found' });
+            if (nl.status === 'sent') return res.status(400).json({ error: 'This newsletter was already sent.' });
+            if (!nl.content_html) return res.status(400).json({ error: 'This newsletter has no content yet.' });
+            let segments = Array.isArray((req.body || {}).segments) ? req.body.segments : null;
+            if (!segments) { try { segments = JSON.parse(nl.target_segments || '[]'); } catch (e) { segments = []; } }
+            segments = (segments || []).filter(isNewsletterSegment);
+            if (!segments.length) return res.status(400).json({ error: 'Pick at least one audience segment.' });
+            const emails = resolveSegmentsUnion(segments);
+            if (!emails.length) return res.status(400).json({ error: 'The selected segments have no recipients yet.' });
+            const subject = nl.subject || nl.name || 'Med&X Newsletter';
+            const batchId = 'pr-newsletter-' + require('crypto').randomUUID();
+            for (const to of emails) {
+                db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                        VALUES (?, 'pending_approval', ?, 'newsletter', 'pr-newsletter', ?, ?, ?, ?, datetime('now'))`,
+                    [require('crypto').randomUUID(), batchId, JSON.stringify({ to, subject, html: nl.content_html }), to, subject, (req.user && req.user.email) || 'admin']);
+            }
+            db.run(`UPDATE pr_newsletters SET status = 'scheduled', target_segments = ?, recipient_count = ?, updated_at = datetime('now') WHERE id = ?`,
+                [JSON.stringify(segments), emails.length, req.params.id]);
+            saveDb();
+            logAudit(req, 'newsletter.stage', `"${subject}": ${emails.length} unique recipient(s) across ${segments.length} segment(s) (batch ${batchId})`);
+            res.json({ success: true, staged: emails.length, segments, batch_id: batchId, approval_required: true, message: `${emails.length} unique recipient(s) staged for approval in the outbox.` });
+        } catch (e) { console.error('[pr-newsletter] stage', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ---------- PUBLIC newsletter signup (the footer link target on every outgoing email) ----------
+    function newsletterSignupPage() {
+        const interestPills = NEWSLETTER_INTERESTS.map((i) => `
+            <label class="pill"><input type="checkbox" name="interest" value="${i.key}"><span>${i.label.replace(/&/g, '&amp;')}</span></label>`).join('');
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Med&X Newsletter — Sign up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#fbf9f6; color:#15110f; font-family:'Inter',-apple-system,sans-serif; min-height:100vh; display:flex; flex-direction:column; }
+    .wrap { width:100%; max-width:620px; margin:0 auto; padding:56px 22px 40px; flex:1; }
+    .eyebrow { font-size:11px; letter-spacing:3px; text-transform:uppercase; color:#9b1b22; font-weight:700; margin-bottom:14px; }
+    h1 { font-family:'Fraunces',Georgia,serif; font-size:clamp(30px,6vw,42px); font-weight:600; line-height:1.12; margin-bottom:14px; }
+    .lede { color:#5c5650; font-size:16px; line-height:1.65; margin-bottom:32px; max-width:52ch; }
+    .card { background:#ffffff; border:1px solid #ece7df; border-radius:16px; padding:28px; box-shadow:0 10px 30px rgba(21,17,15,0.05); }
+    label.f { display:block; font-size:12px; font-weight:600; letter-spacing:0.4px; text-transform:uppercase; color:#8a827a; margin:0 0 7px; }
+    input[type=text], input[type=email] { width:100%; padding:12px 14px; border:1px solid #ddd5c9; border-radius:10px; background:#fbf9f6; font-family:'Inter',sans-serif; font-size:15px; color:#15110f; margin-bottom:18px; }
+    input:focus { outline:2px solid #9b1b22; outline-offset:1px; border-color:transparent; }
+    .pills { display:flex; flex-wrap:wrap; gap:9px; margin:2px 0 24px; }
+    .pill { display:inline-flex; align-items:center; cursor:pointer; }
+    .pill input { position:absolute; opacity:0; pointer-events:none; }
+    .pill span { display:inline-block; padding:9px 16px; border:1.5px solid #ddd5c9; border-radius:999px; font-size:13.5px; font-weight:500; color:#5c5650; background:#fff; transition:all .15s; }
+    .pill input:checked + span { background:#9b1b22; border-color:#9b1b22; color:#fff; }
+    .btn { width:100%; padding:14px 20px; background:#9b1b22; color:#fff; border:none; border-radius:10px; font-family:'Inter',sans-serif; font-size:15px; font-weight:600; letter-spacing:0.2px; cursor:pointer; }
+    .btn:hover { background:#7e151b; }
+    .btn[disabled] { opacity:0.6; cursor:default; }
+    .fine { color:#8a827a; font-size:12px; line-height:1.6; margin-top:16px; }
+    .fine a { color:#9b1b22; }
+    .ok { display:none; text-align:center; padding:26px 6px; }
+    .ok .tick { width:52px; height:52px; border-radius:50%; background:#f3ead6; color:#9c7c33; font-size:22px; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; }
+    .ok h2 { font-family:'Fraunces',Georgia,serif; font-size:24px; font-weight:600; margin-bottom:8px; }
+    .ok p { color:#5c5650; font-size:14.5px; line-height:1.6; }
+    .err { display:none; background:#fdf2f2; border:1px solid #ecc8c8; color:#9b1b22; border-radius:10px; padding:11px 14px; font-size:13.5px; margin-bottom:16px; }
+    footer { text-align:center; padding:26px 20px 34px; color:#8a827a; font-size:12.5px; }
+    footer a { color:#9b1b22; text-decoration:none; font-weight:600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <div class="eyebrow">Med&amp;X Newsletter</div>
+    <h1>Stay close to the work</h1>
+    <p class="lede">Conference news, fellowship openings, and stories from the Med&amp;X community, delivered a few times a year. Tell us what you care about and we will match what we send to it.</p>
+    <div class="card">
+        <div class="err" id="err"></div>
+        <form id="f">
+            <label class="f" for="name">Name <span style="text-transform:none;font-weight:400;">(optional)</span></label>
+            <input type="text" id="name" autocomplete="name" placeholder="Ana Horvat">
+            <label class="f" for="email">Email</label>
+            <input type="email" id="email" autocomplete="email" required placeholder="you@example.com">
+            <label class="f">What are you interested in?</label>
+            <div class="pills">${interestPills}</div>
+            <button class="btn" id="go" type="submit">Sign me up</button>
+        </form>
+        <div class="ok" id="ok">
+            <div class="tick">&#10003;</div>
+            <h2>You are on the list</h2>
+            <p>Watch your inbox for the next issue. You can unsubscribe with one click at any time.</p>
+        </div>
+        <p class="fine" id="fine">Your data is processed under the EU General Data Protection Regulation (GDPR) and used only to send you the Med&amp;X newsletter. Read our <a href="https://medx-user-portal.onrender.com/privacy">privacy policy</a>.</p>
+    </div>
+</div>
+<footer>Med&amp;X &middot; Building Bridges in Biomedicine &middot; <a href="https://medx.hr">medx.hr</a></footer>
+<script>
+document.getElementById('f').addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    var btn = document.getElementById('go'), err = document.getElementById('err');
+    err.style.display = 'none';
+    btn.disabled = true; btn.textContent = 'Signing you up…';
+    var interests = Array.prototype.slice.call(document.querySelectorAll('input[name=interest]:checked')).map(function (c) { return c.value; });
+    try {
+        var r = await fetch('/api/public/newsletter/subscribe', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: document.getElementById('email').value, name: document.getElementById('name').value, interests: interests })
+        });
+        var d = await r.json().catch(function () { return {}; });
+        if (!r.ok) throw new Error(d.error || 'Something went wrong. Please try again.');
+        document.getElementById('f').style.display = 'none';
+        document.getElementById('fine').style.display = 'none';
+        document.getElementById('ok').style.display = 'block';
+    } catch (e) {
+        err.textContent = e.message; err.style.display = 'block';
+        btn.disabled = false; btn.textContent = 'Sign me up';
+    }
+});
+</script>
+</body>
+</html>`;
+    }
+
+    app.get('/newsletter', publicLimiter, (req, res) => {
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.send(newsletterSignupPage());
+    });
+
+    // Public signup: upsert the pr_subscribers row + replace this email's interest rows.
+    // Re-subscribing after an unsubscribe reactivates the row. No auth — rate-limited.
+    app.post('/api/public/newsletter/subscribe', publicLimiter, (req, res) => {
+        try {
+            const b = req.body || {};
+            const email = String(b.email || '').toLowerCase().trim();
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return res.status(400).json({ error: 'Please enter a valid email address.' });
+            let interests = (Array.isArray(b.interests) ? b.interests : []).filter((k) => NEWSLETTER_INTEREST_KEYS.includes(k));
+            if (!interests.length) interests = ['everything'];
+            const name = String(b.name || '').trim().slice(0, 120);
+            const firstName = name ? name.split(/\s+/)[0] : null;
+            const lastName = name && name.split(/\s+/).length > 1 ? name.split(/\s+/).slice(1).join(' ') : null;
+            const existing = query.get('SELECT id FROM pr_subscribers WHERE LOWER(TRIM(email)) = ?', [email]);
+            if (existing) {
+                db.run(`UPDATE pr_subscribers SET status = 'active', unsubscribed_at = NULL, subscribed_projects = ?,
+                        first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name) WHERE id = ?`,
+                    [interests.join(','), firstName, lastName, existing.id]);
+            } else {
+                db.run(`INSERT INTO pr_subscribers (id, email, first_name, last_name, subscribed_projects, language, source, status)
+                        VALUES (?, ?, ?, ?, ?, 'en', 'newsletter-signup', 'active')`,
+                    [uuidv4(), email, firstName, lastName, interests.join(',')]);
+            }
+            db.run('DELETE FROM newsletter_interests WHERE LOWER(TRIM(email)) = ?', [email]);
+            for (const k of interests) {
+                db.run('INSERT OR IGNORE INTO newsletter_interests (id, email, interest, source) VALUES (?, ?, ?, ?)', [uuidv4(), email, k, 'signup-page']);
+            }
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { console.error('[newsletter signup]', e.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
     });
 
     // List all newsletters
@@ -19009,9 +19874,16 @@ By applying to this program, I provide the following consents:
 
     app.put('/api/pr/newsletters/:id', auth, (req, res) => {
         const { project, name, subject, preview_text, content_html, content_json, template, status, scheduled_for, campaign_id } = req.body;
+        // Preserve template + content_json when the client omits them (the raw-HTML editor only
+        // sends the visible fields) — otherwise saving a digest or composed newsletter from the
+        // raw editor silently reset template to 'default' and wiped the stored data model,
+        // breaking the Review + restyle + audience staging flows.
+        const existing = query.get('SELECT template, content_json FROM pr_newsletters WHERE id = ?', [req.params.id]) || {};
         db.run(`UPDATE pr_newsletters SET project = ?, name = ?, subject = ?, preview_text = ?, content_html = ?, content_json = ?, template = ?, status = ?, scheduled_for = ?, campaign_id = ?, updated_at = datetime('now')
             WHERE id = ?`,
-            [project || null, name, subject, preview_text || null, content_html || null, content_json || null, template || 'default', status, scheduled_for || null, campaign_id || null, req.params.id]);
+            [project || null, name, subject, preview_text || null, content_html || null,
+             (content_json !== undefined && content_json !== null) ? content_json : (existing.content_json || null),
+             template || existing.template || 'default', status, scheduled_for || null, campaign_id || null, req.params.id]);
         saveDb();
         res.json({ success: true });
     });
@@ -19516,6 +20388,463 @@ By applying to this program, I provide the following consents:
         saveDb();
         res.json({ success: true, last_contacted: now });
     });
+
+    // ============================================================================
+    // MY NETWORK — CSV/XLSX IMPORT + AI OUTREACH (approval-gated)  [admin cluster]
+    // ----------------------------------------------------------------------------
+    // Import: parse a CSV or XLSX of contacts, preview a column mapping, then commit
+    // with dedupe-by-email (added / merged / skipped). CSV is first-class (own parser
+    // handling BOM, CRLF and quoted commas); .xlsx/.xls go through SheetJS. Outreach:
+    // draft one personalized email per selected contact via aiDraft (clean fallback,
+    // never a raw '[Draft]') and STAGE them into the ONE approval outbox — nothing
+    // sends directly. Everything below is admin-only.
+    // ============================================================================
+
+    const contactImportUpload = multer({
+        storage: multer.memoryStorage(),
+        limits: { fileSize: 5 * 1024 * 1024 }
+    });
+
+    // Robust CSV: strips BOM, tolerates CRLF, honors "quoted, commas" and "" escapes.
+    function parseCsvRobust(text) {
+        if (!text) return [];
+        if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // strip BOM
+        const rows = [];
+        let row = [], field = '', inQuotes = false;
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            if (inQuotes) {
+                if (ch === '"') {
+                    if (text[i + 1] === '"') { field += '"'; i++; }
+                    else inQuotes = false;
+                } else field += ch;
+            } else {
+                if (ch === '"') inQuotes = true;
+                else if (ch === ',') { row.push(field); field = ''; }
+                else if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+                else if (ch === '\r') { /* CRLF: newline handled on \n */ }
+                else field += ch;
+            }
+        }
+        if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+        return rows;
+    }
+
+    // Canonical import fields -> normalized header synonyms (lowercase, alnum-only).
+    const CONTACT_FIELD_SYNONYMS = {
+        first_name:   ['firstname', 'first', 'givenname', 'fname', 'forename'],
+        last_name:    ['lastname', 'last', 'surname', 'familyname', 'lname'],
+        name:         ['name', 'fullname', 'contact', 'contactname', 'person'],
+        email:        ['email', 'emailaddress', 'mail', 'email', 'emailid'],
+        organization: ['organization', 'organisation', 'institution', 'company', 'org', 'employer', 'affiliation', 'institute'],
+        position:     ['position', 'role', 'title', 'jobtitle', 'job', 'occupation'],
+        phone:        ['phone', 'mobile', 'tel', 'telephone', 'phonenumber', 'cell'],
+        city:         ['city', 'town'],
+        country:      ['country', 'nation'],
+        tags:         ['tags', 'tag', 'labels', 'label', 'keywords'],
+        projects:     ['projects', 'project'],
+        notes:        ['notes', 'note', 'comment', 'comments', 'remarks', 'remark']
+    };
+    const normHeader = (h) => String(h == null ? '' : h).toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    function suggestContactMapping(columns) {
+        const map = {};
+        const used = new Set();
+        for (const [field, syns] of Object.entries(CONTACT_FIELD_SYNONYMS)) {
+            for (const col of columns) {
+                if (used.has(col)) continue;
+                if (syns.includes(normHeader(col))) { map[field] = col; used.add(col); break; }
+            }
+        }
+        // If a combined "name" was matched, do not also claim a split first/last of the same column.
+        return map;
+    }
+
+    // Turn an uploaded file into an array-of-arrays. Extension-first so a CSV that
+    // some clients mislabel as application/vnd.ms-excel still parses as CSV.
+    function contactFileToAoa(file) {
+        const name = String(file.originalname || '').toLowerCase();
+        if (/\.(csv|tsv|txt)$/.test(name)) {
+            const aoa = parseCsvRobust(file.buffer.toString('utf8'));
+            return aoa.filter((r) => r.some((c) => String(c).trim() !== ''));
+        }
+        // .xlsx / .xls (or unknown) -> SheetJS
+        const wb = XLSX.read(file.buffer, { type: 'buffer' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        return XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' });
+    }
+
+    // aoa -> { columns, rows(objects) } with de-duplicated column names.
+    function aoaToTable(aoa) {
+        if (!aoa || !aoa.length) return { columns: [], rows: [] };
+        const rawHeaders = aoa[0].map((h, i) => String(h == null ? '' : h).trim() || `Column ${i + 1}`);
+        const seen = {};
+        const columns = rawHeaders.map((h) => {
+            if (seen[h] == null) { seen[h] = 0; return h; }
+            seen[h] += 1; return `${h} (${seen[h] + 1})`;
+        });
+        const rows = [];
+        for (let r = 1; r < aoa.length; r++) {
+            const obj = {};
+            columns.forEach((c, i) => { obj[c] = aoa[r][i] == null ? '' : String(aoa[r][i]).trim(); });
+            rows.push(obj);
+        }
+        return { columns, rows };
+    }
+
+    // STEP 1 — preview: parse the file, return columns + sample + a suggested mapping.
+    // The full parsed rows come back so commit is stateless (contact lists are small).
+    app.post('/api/contacts/import/preview', auth, adminOnly, contactImportUpload.single('file'), (req, res) => {
+        try {
+            if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+            let aoa;
+            try { aoa = contactFileToAoa(req.file); }
+            catch (e) { return res.status(400).json({ error: 'Could not read that file. Please upload a CSV or XLSX with a header row.' }); }
+            const { columns, rows } = aoaToTable(aoa);
+            if (!columns.length) return res.status(400).json({ error: 'The file appears to be empty.' });
+            const suggested_mapping = suggestContactMapping(columns);
+            res.json({
+                columns,
+                rows,
+                total: rows.length,
+                sample: rows.slice(0, 8),
+                suggested_mapping,
+                fields: Object.keys(CONTACT_FIELD_SYNONYMS),
+                filename: req.file.originalname
+            });
+        } catch (e) { console.error('[contacts.import.preview]', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // STEP 2 — commit: apply the mapping, dedupe by email, insert or merge.
+    app.post('/api/contacts/import/commit', auth, adminOnly, (req, res) => {
+        try {
+            const mapping = (req.body && req.body.mapping) || {};
+            const rows = Array.isArray(req.body && req.body.rows) ? req.body.rows : [];
+            if (!rows.length) return res.status(400).json({ error: 'No rows to import' });
+
+            const val = (row, field) => (mapping[field] && row[mapping[field]] != null) ? String(row[mapping[field]]).trim() : '';
+            const unionTags = (a, b) => {
+                const set = [];
+                [...String(a || '').split(','), ...String(b || '').split(',')].forEach((t) => {
+                    const v = t.trim(); if (v && !set.some((x) => x.toLowerCase() === v.toLowerCase())) set.push(v);
+                });
+                return set.join(',');
+            };
+
+            const seenEmails = new Set();
+            let added = 0, merged = 0, skipped = 0;
+            const details = { added: [], merged: [], skipped: [] };
+
+            for (const row of rows) {
+                // Resolve name (split a combined "name" column if first/last are absent).
+                let first = val(row, 'first_name');
+                let last = val(row, 'last_name');
+                if (!first && !last) {
+                    const full = val(row, 'name');
+                    if (full) {
+                        const parts = full.split(/\s+/);
+                        first = parts.shift() || '';
+                        last = parts.join(' ');
+                    }
+                }
+                const email = val(row, 'email');
+                const emailKey = email.toLowerCase();
+                const display = [first, last].filter(Boolean).join(' ') || email || '(unnamed)';
+
+                if (!first && !last && !email) { skipped++; details.skipped.push({ who: '(empty row)', reason: 'no name or email' }); continue; }
+                if (emailKey && seenEmails.has(emailKey)) { skipped++; details.skipped.push({ who: display, reason: 'duplicate email in file' }); continue; }
+                if (emailKey) seenEmails.add(emailKey);
+
+                const incoming = {
+                    first_name: first || '',
+                    last_name: last || '',
+                    email: email || '',
+                    organization: val(row, 'organization'),
+                    position: val(row, 'position'),
+                    phone: val(row, 'phone'),
+                    city: val(row, 'city'),
+                    country: val(row, 'country'),
+                    tags: val(row, 'tags'),
+                    projects: val(row, 'projects'),
+                    notes: val(row, 'notes')
+                };
+
+                const existing = emailKey ? query.get('SELECT * FROM contacts WHERE lower(email) = ? LIMIT 1', [emailKey]) : null;
+                if (existing) {
+                    // MERGE: fill blanks on the existing record, union tags/projects.
+                    const upd = {
+                        first_name: existing.first_name || incoming.first_name,
+                        last_name: existing.last_name || incoming.last_name,
+                        organization: existing.organization || incoming.organization,
+                        position: existing.position || incoming.position,
+                        phone: existing.phone || incoming.phone,
+                        city: existing.city || incoming.city,
+                        country: existing.country || incoming.country,
+                        tags: unionTags(existing.tags, incoming.tags),
+                        projects: unionTags(existing.projects, incoming.projects),
+                        notes: existing.notes || incoming.notes
+                    };
+                    db.run(`UPDATE contacts SET first_name=?, last_name=?, organization=?, position=?, phone=?, city=?, country=?, tags=?, projects=?, notes=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+                        [upd.first_name, upd.last_name, upd.organization, upd.position, upd.phone, upd.city, upd.country, upd.tags, upd.projects, upd.notes, existing.id]);
+                    merged++; details.merged.push({ who: display });
+                } else {
+                    const id = uuidv4();
+                    db.run(`INSERT INTO contacts (id, first_name, last_name, email, phone, organization, position, contact_type, projects, tags, city, country, notes, created_by)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, 'general', ?, ?, ?, ?, ?, ?)`,
+                        [id, incoming.first_name, incoming.last_name, incoming.email, incoming.phone, incoming.organization, incoming.position, incoming.projects, incoming.tags, incoming.city, incoming.country, incoming.notes, req.user.id]);
+                    added++; details.added.push({ who: display });
+                }
+            }
+            saveDb();
+            logAudit(req, 'contacts.import', `${added} added, ${merged} merged, ${skipped} skipped`);
+            res.json({ success: true, added, merged, skipped, total: rows.length, details });
+        } catch (e) { console.error('[contacts.import.commit]', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ---- Outreach helpers ------------------------------------------------------
+    const GALA_BROCHURE_URL = 'https://medx-website-preview.netlify.app/plexus-gala-sponsor.pdf';
+
+    function outreachIntentToSubject(intent) {
+        const s = String(intent || '').trim();
+        if (!s) return 'A note from Med&X';
+        let first = s.split(/[.!?\n]/)[0].trim();
+        if (first.length > 72) first = first.slice(0, 69) + '...';
+        return first.charAt(0).toUpperCase() + first.slice(1);
+    }
+
+    // Clean, ready-to-send offline draft — never a raw '[Draft]'. Used whenever aiDraft
+    // is in mock mode (no ANTHROPIC_API_KEY) or falls back.
+    function outreachFallbackBody(contact, intent, opts) {
+        const name = (contact.first_name || '').trim() || 'there';
+        const lines = [];
+        lines.push(`Dear ${name},`);
+        lines.push('');
+        const ask = String(intent || '').trim() || 'I wanted to reach out on behalf of Med&X and share what we are building around the Plexus Conference.';
+        lines.push(ask);
+        const role = [contact.position, contact.organization].filter(Boolean).join(' at ');
+        if (role) lines.push('', `Given your work as ${role}, I thought this would be genuinely relevant to you.`);
+        if (opts && opts.attach_brochure) lines.push('', 'I have included our Plexus Gala partnership brochure so you can see the tiers and reach at a glance.');
+        if (opts && Array.isArray(opts.links) && opts.links.length) {
+            lines.push('', 'A couple of useful links:');
+            opts.links.forEach((l) => lines.push(`- ${l.label}: ${l.url}`));
+        }
+        lines.push('', 'I would be glad to find a time to talk. Warm regards,', 'The Med&X Team');
+        return lines.join('\n');
+    }
+
+    function outreachTextToHtml(text, opts) {
+        const blocks = String(text || '').split(/\n{2,}/).map((p) =>
+            `<p style="margin:0 0 14px;">${nagEscape(p).replace(/\n/g, '<br>')}</p>`).join('');
+        let extras = '';
+        if (opts && opts.attach_brochure) {
+            extras += `<div style="margin:18px 0 0;"><a href="${GALA_BROCHURE_URL}" style="display:inline-block;background:#9b1b22;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:600;">View the Gala partnership brochure (PDF)</a></div>`;
+        }
+        if (opts && Array.isArray(opts.links) && opts.links.length) {
+            extras += `<div style="margin:14px 0 0;font-size:14px;">${opts.links.map((l) => `<div style="margin:0 0 4px;">&#8226; <a href="${nagEscape(l.url)}" style="color:#9b1b22;">${nagEscape(l.label)}</a></div>`).join('')}</div>`;
+        }
+        return blocks + extras;
+    }
+
+    // STEP 1 — draft: one personalized email per selected contact (aiDraft or clean fallback).
+    app.post('/api/contacts/outreach/draft', auth, adminOnly, async (req, res) => {
+        try {
+            const ids = Array.isArray(req.body && req.body.contact_ids) ? req.body.contact_ids : [];
+            const intent = String((req.body && req.body.intent) || '').trim();
+            const tone = String((req.body && req.body.tone) || 'warm').trim();
+            const attach_brochure = !!(req.body && req.body.attach_brochure);
+            const links = Array.isArray(req.body && req.body.links) ? req.body.links.filter((l) => l && l.url && l.label) : [];
+            if (!ids.length) return res.status(400).json({ error: 'Select at least one contact' });
+            if (!intent) return res.status(400).json({ error: 'Tell the assistant what to send first' });
+
+            const subjectSuggestion = outreachIntentToSubject(intent);
+            const opts = { attach_brochure, links };
+            const drafts = [];
+            let usedAi = false;
+            for (const id of ids) {
+                const c = query.get('SELECT * FROM contacts WHERE id = ?', [id]);
+                if (!c) continue;
+                const context = {
+                    recipient_name: [c.first_name, c.last_name].filter(Boolean).join(' '),
+                    organization: c.organization || '',
+                    position: c.position || '',
+                    tags: c.tags || '',
+                    notes: c.notes || '',
+                    what_to_send: intent,
+                    tone,
+                    attachments: [attach_brochure ? 'Gala partnership brochure (PDF)' : null, ...links.map((l) => l.label)].filter(Boolean).join(', ')
+                };
+                let body;
+                try {
+                    const r = await aiDraft({
+                        purpose: `Write a short, warm, personalized outreach email to this Med&X contact. ${tone === 'formal' ? 'Keep it formal and respectful.' : 'Keep it warm and human.'} Address them by first name, reference their role and organization naturally, and make one clear ask. Sign off as "The Med&X Team". Do not invent facts.`,
+                        context,
+                        maxTokens: 500
+                    });
+                    if (r && !r.mock && r.text) { body = r.text; usedAi = true; }
+                    else body = outreachFallbackBody(c, intent, opts);
+                } catch (e) { body = outreachFallbackBody(c, intent, opts); }
+                drafts.push({
+                    contact_id: c.id,
+                    name: [c.first_name, c.last_name].filter(Boolean).join(' ') || c.email || 'Contact',
+                    email: c.email || '',
+                    organization: c.organization || '',
+                    subject: subjectSuggestion,
+                    body
+                });
+            }
+            if (!drafts.length) return res.status(404).json({ error: 'None of the selected contacts were found' });
+            res.json({ success: true, drafts, used_ai: usedAi, attach_brochure, links, mock_notice: usedAi ? null : 'Drafted with the built-in composer. Add an AI key for model-written copy.' });
+        } catch (e) { console.error('[contacts.outreach.draft]', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // STEP 2 — queue: stage the (edited) drafts into the ONE approval outbox. Never sends.
+    app.post('/api/contacts/outreach/queue', auth, adminOnly, (req, res) => {
+        try {
+            const drafts = Array.isArray(req.body && req.body.drafts) ? req.body.drafts : [];
+            const attach_brochure = !!(req.body && req.body.attach_brochure);
+            const links = Array.isArray(req.body && req.body.links) ? req.body.links.filter((l) => l && l.url && l.label) : [];
+            if (!drafts.length) return res.status(400).json({ error: 'Nothing to queue' });
+            const opts = { attach_brochure, links };
+            const batchId = 'network-outreach-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
+            let staged = 0, skipped = 0;
+            for (const d of drafts) {
+                const to = String(d.email || '').trim();
+                if (!to) { skipped++; continue; }
+                const subject = String(d.subject || '').trim() || 'A note from Med&X';
+                const bodyText = String(d.body || '').trim();
+                const html = buildEmailTemplate(subject, outreachTextToHtml(bodyText, opts), { accent: 'crimson' });
+                const payload = { to, subject, html, body_text: bodyText, channel: 'email', project: 'network', recipient_name: d.name || '' };
+                db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                        VALUES (?, 'pending_approval', ?, 'network-outreach', 'network_outreach', ?, ?, ?, ?, datetime('now'))`,
+                    [uuidv4(), batchId, JSON.stringify(payload), to, subject, req.user?.email || 'admin']);
+                staged++;
+            }
+            saveDb();
+            logAudit(req, 'contacts.outreach_queue', `${staged} outreach email(s) staged for approval${skipped ? ', ' + skipped + ' skipped (no email)' : ''}`);
+            res.json({ success: true, batch_id: batchId, staged, skipped, approval_required: true, message: `${staged} personalized email(s) staged for approval in the outbox.` });
+        } catch (e) { console.error('[contacts.outreach.queue]', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ============================================================================
+    // ADMIN AI ASSISTANT — deterministic layer (no AI key needed).
+    // ----------------------------------------------------------------------------
+    // The admin assistant (FAB -> POST /api/admin/assistant, agentic when an
+    // ANTHROPIC_API_KEY is set) routes through this first. It answers data questions
+    // from the real DB, finds contacts in My Network, and drafts a reminder to unpaid
+    // registrants that lands in the ONE approval outbox (never sends). It returns
+    // { answer, pending, kind } — kind 'unpaid-reminder' | 'contact-search' are
+    // "precise" (DB actions the LLM tools do not cover, so they run in BOTH modes);
+    // 'data'/'notice' are only used when no key is present; null means "not for me,
+    // hand off to the live agent (or a clean key-free notice)."
+    // ============================================================================
+    const ASSIST_PRECISE_KINDS = ['unpaid-reminder', 'contact-search'];
+    async function assistDeterministicAnswer(rawQ, req) {
+        try {
+            const q = String(rawQ || '').trim();
+            if (!q) return null;
+            const lc = q.toLowerCase();
+            const has = (...ws) => ws.some((w) => lc.includes(w));
+            const num = (sql, p = []) => { try { const r = query.get(sql, p); return r ? (r.c || 0) : 0; } catch (e) { return 0; } };
+            const wantsDraft = has('draft', 'write', 'compose', 'remind', 'reminder', 'follow up', 'follow-up');
+            const aboutUnpaid = has('unpaid', 'not paid', 'outstanding', 'owe', 'pending payment', "haven't paid", 'havent paid');
+
+            // 1) PRECISE: draft a reminder to unpaid registrants -> approval outbox.
+            if (wantsDraft && aboutUnpaid) {
+                const rows = query.all("SELECT id, first_name, last_name, email FROM registrations WHERE (payment_status IS NULL OR payment_status NOT IN ('paid','waived')) AND email IS NOT NULL AND email != ''");
+                if (!rows.length) {
+                    const anyUnpaid = num("SELECT COUNT(*) c FROM registrations WHERE (payment_status IS NULL OR payment_status NOT IN ('paid','waived'))");
+                    const answer = anyUnpaid
+                        ? `There ${anyUnpaid === 1 ? 'is' : 'are'} ${anyUnpaid} unpaid registrant${anyUnpaid === 1 ? '' : 's'}, but none have an email on file, so I could not stage a reminder.`
+                        : 'Good news — there are no unpaid registrants right now, so there is nothing to remind.';
+                    return { kind: 'unpaid-reminder', answer, pending: [] };
+                }
+                const batchId = 'assistant-reminder-' + Date.now().toString(36);
+                let staged = 0;
+                for (const r of rows) {
+                    const name = [r.first_name, r.last_name].filter(Boolean).join(' ') || 'there';
+                    const fallback = `Dear ${name},\n\nWe are looking forward to welcoming you to the Plexus Conference. Our records show your registration payment is still outstanding. Whenever it suits you, you can complete it from your registration confirmation email.\n\nIf you have already paid, please ignore this note. We are happy to help with any questions.\n\nWarm regards,\nThe Med&X Team`;
+                    let body;
+                    try {
+                        const d = await aiDraft({
+                            purpose: 'Write a short, friendly payment reminder to a Plexus Conference registrant whose payment is still outstanding. One clear ask, no pressure. Sign as "The Med&X Team".',
+                            context: { recipient_name: name, event: 'Plexus Conference 2026' },
+                            maxTokens: 320
+                        });
+                        body = (d && !d.mock && d.text) ? d.text : fallback;
+                    } catch (e) { body = fallback; }
+                    const subject = 'A gentle reminder about your Plexus registration';
+                    const html = buildEmailTemplate(subject, outreachTextToHtml(body, {}), { accent: 'crimson' });
+                    const payload = { to: r.email, subject, html, body_text: body, channel: 'email', project: 'plexus', recipient_name: name };
+                    db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                            VALUES (?, 'pending_approval', ?, 'assistant-reminder', 'assistant_reminder', ?, ?, ?, ?, datetime('now'))`,
+                        [uuidv4(), batchId, JSON.stringify(payload), r.email, subject, (req && req.user && req.user.email) || 'admin']);
+                    staged++;
+                }
+                saveDb();
+                if (req) logAudit(req, 'assistant.draft_reminder', `${staged} unpaid-registrant reminder(s) staged`);
+                return {
+                    kind: 'unpaid-reminder', pending: [],
+                    answer: `I drafted a payment reminder for ${staged} unpaid registrant${staged === 1 ? '' : 's'} and staged the batch in the approval outbox. Nothing has been sent — open the outbox (Emails) to review and approve.`,
+                    batch_id: batchId, staged
+                };
+            }
+
+            // 2) PRECISE: find a contact from / at an organization (or by a name/keyword).
+            if (has('find', 'search', 'who is', 'contact from', 'contact at', 'lookup', 'look up')) {
+                let needle = '';
+                const m = q.match(/(?:from|at|for|named|called)\s+([A-Za-z0-9&.\- ]{2,40})/i);
+                if (m) needle = m[1].trim().replace(/[?.!]$/, '');
+                if (!needle) { const m2 = q.match(/contact\s+([A-Za-z0-9&.\-]{2,40})/i); if (m2) needle = m2[1].trim(); }
+                if (!needle) needle = q.replace(/find|search|the|contact|who is|lookup|look up|from|at|for/gi, '').trim();
+                const like = `%${needle}%`;
+                const found = needle ? query.all(
+                    `SELECT first_name, last_name, email, organization, position, phone, tags FROM contacts
+                     WHERE organization LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR tags LIKE ? OR notes LIKE ?
+                     ORDER BY is_favorite DESC, last_name LIMIT 8`,
+                    [like, like, like, like, like, like]) : [];
+                if (found.length) {
+                    const top = found[0];
+                    const name = [top.first_name, top.last_name].filter(Boolean).join(' ');
+                    return {
+                        kind: 'contact-search', pending: [],
+                        answer: `Found ${found.length} contact${found.length === 1 ? '' : 's'} matching "${needle}". The closest is ${name}${top.position ? `, ${top.position}` : ''}${top.organization ? ` at ${top.organization}` : ''}${top.email ? ` (${top.email})` : ''}. Open My Network to see them all.`,
+                        data: { query: needle, matches: found.map((c) => ({ name: [c.first_name, c.last_name].filter(Boolean).join(' '), organization: c.organization, position: c.position, email: c.email, phone: c.phone, tags: c.tags })) }
+                    };
+                }
+                return { kind: 'contact-search', pending: [], answer: `I could not find a contact matching "${needle || q}" in My Network. Try a different name or organization, or import your contacts.`, data: { query: needle, matches: [] } };
+            }
+
+            // 3) DATA (no-key only): paid gala guests.
+            if (has('gala') && has('how many', 'count', 'number', 'guests', 'paid', 'confirmed')) {
+                const paid = num("SELECT COUNT(*) c FROM gala_registrations WHERE payment_status = 'paid'");
+                const total = num('SELECT COUNT(*) c FROM gala_registrations');
+                const checkedIn = num('SELECT COUNT(*) c FROM gala_registrations WHERE checked_in = 1');
+                return { kind: 'data', pending: [], answer: `There ${paid === 1 ? 'is' : 'are'} ${paid} paid gala guest${paid === 1 ? '' : 's'} so far, out of ${total} total registration${total === 1 ? '' : 's'}${checkedIn ? `, and ${checkedIn} already checked in` : ''}.` };
+            }
+
+            // 4) DATA (no-key only): unpaid registrants (count, no draft asked).
+            if (aboutUnpaid && has('how many', 'count', 'number', 'registr', 'who')) {
+                const unpaid = num("SELECT COUNT(*) c FROM registrations WHERE (payment_status IS NULL OR payment_status NOT IN ('paid','waived'))");
+                return { kind: 'data', pending: [], answer: `There ${unpaid === 1 ? 'is' : 'are'} ${unpaid} registrant${unpaid === 1 ? '' : 's'} with an outstanding payment. Ask me to "draft a reminder to unpaid registrants" and I will stage it in the outbox.` };
+            }
+
+            // 5) DATA (no-key only): broad counts.
+            if (has('how many', 'count', 'number', 'total')) {
+                if (has('contact', 'network')) { const c = num('SELECT COUNT(*) c FROM contacts'); return { kind: 'data', pending: [], answer: `You have ${c} contact${c === 1 ? '' : 's'} in My Network.` }; }
+                if (has('member', 'user')) { const c = num('SELECT COUNT(*) c FROM users'); return { kind: 'data', pending: [], answer: `There ${c === 1 ? 'is' : 'are'} ${c} member account${c === 1 ? '' : 's'} in the portal.` }; }
+                if (has('checked in', 'checked-in', 'attendance')) { const c = num('SELECT COUNT(*) c FROM registrations WHERE checked_in = 1'); return { kind: 'data', pending: [], answer: `${c} registrant${c === 1 ? '' : 's'} have checked in.` }; }
+                const reg = num('SELECT COUNT(*) c FROM registrations');
+                const paid = num("SELECT COUNT(*) c FROM registrations WHERE payment_status = 'paid'");
+                return { kind: 'data', pending: [], answer: `There are ${reg} Plexus registration${reg === 1 ? '' : 's'}, ${paid} of them paid.` };
+            }
+
+            // 6) Draft with no clear audience: guide the user (no-key only; the live agent can draft).
+            if (wantsDraft) {
+                return { kind: 'notice', pending: [], answer: 'Tell me who it is for and I will stage it in the approval outbox — for example "draft a reminder to unpaid registrants". I can also answer data questions like "how many paid gala guests" or "find the contact from Pliva".' };
+            }
+            return null; // open-ended -> live agent (with key) or a clean notice (without)
+        } catch (e) { console.error('[assistant.deterministic]', e.message); return null; }
+    }
 
     // ========== BUILDING BRIDGES API ENDPOINTS ==========
 
@@ -20029,6 +21358,234 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, registration: updated });
     });
 
+    // ==================================================================================
+    // GALA COMMAND CENTER — menu options, who-is-coming brief, guest messaging, program.
+    // All outbound goes through the ONE approval outbox (scheduled_emails pending_approval)
+    // and the sendEmail() mock boundary. AI copy goes through aiDraft() with clean fallbacks.
+    // Nothing here touches the frozen registration / payment / QR rails.
+    // ==================================================================================
+
+    // ---- Dinner menu options manager (event-config only; guest rows are never mutated) ----
+    app.get('/api/admin/gala/menu-options', auth, adminOnly, (req, res) => {
+        try {
+            const options = query.all("SELECT * FROM gala_menu_options WHERE active = 1 ORDER BY sort_order, created_at");
+            res.json({ options });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/gala/menu-options', auth, adminOnly, (req, res) => {
+        try {
+            const label = String((req.body && req.body.label) || '').trim();
+            if (!label) return res.status(400).json({ error: 'Label is required' });
+            const keywords = (String((req.body && req.body.keywords) || '').trim() || label.toLowerCase());
+            const maxSo = query.get("SELECT COALESCE(MAX(sort_order), -1) AS m FROM gala_menu_options")?.m;
+            const id = uuidv4();
+            db.run("INSERT INTO gala_menu_options (id, label, keywords, sort_order, is_default, active) VALUES (?,?,?,?,0,1)",
+                [id, label.slice(0, 80), keywords.slice(0, 300), (Number.isFinite(maxSo) ? maxSo : -1) + 1]);
+            saveDb();
+            logAudit(req, 'gala.menu_option_add', label);
+            res.json({ success: true, option: query.get("SELECT * FROM gala_menu_options WHERE id = ?", [id]) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.put('/api/admin/gala/menu-options/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = query.get("SELECT * FROM gala_menu_options WHERE id = ?", [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Option not found' });
+            const fields = [], values = [];
+            if (req.body.label !== undefined) { fields.push('label = ?'); values.push(String(req.body.label).trim().slice(0, 80)); }
+            if (req.body.keywords !== undefined) { fields.push('keywords = ?'); values.push(String(req.body.keywords).trim().slice(0, 300)); }
+            if (req.body.sort_order !== undefined) { fields.push('sort_order = ?'); values.push(parseInt(req.body.sort_order, 10) || 0); }
+            if (!fields.length) return res.status(400).json({ error: 'Nothing to update' });
+            values.push(req.params.id);
+            db.run(`UPDATE gala_menu_options SET ${fields.join(', ')} WHERE id = ?`, values);
+            saveDb();
+            logAudit(req, 'gala.menu_option_edit', row.label);
+            res.json({ success: true, option: query.get("SELECT * FROM gala_menu_options WHERE id = ?", [req.params.id]) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.delete('/api/admin/gala/menu-options/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = query.get("SELECT * FROM gala_menu_options WHERE id = ?", [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Option not found' });
+            const activeCount = query.get("SELECT COUNT(*) AS c FROM gala_menu_options WHERE active = 1")?.c || 0;
+            if (activeCount <= 1) return res.status(400).json({ error: 'Keep at least one menu option.' });
+            // Hard-delete the OPTION only. Guest dietary values stay exactly as recorded; any guest
+            // whose choice no longer maps to an active option is flagged in the UI for follow-up.
+            db.run("DELETE FROM gala_menu_options WHERE id = ?", [req.params.id]);
+            saveDb();
+            logAudit(req, 'gala.menu_option_remove', row.label);
+            res.json({ success: true, removed: row.label });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ---- Who is coming: institutions grouping + AI intelligence brief (aiDraft + fallback) ----
+    app.get('/api/admin/gala/who-is-coming', auth, adminOnly, async (req, res) => {
+        try {
+            const regs = query.all("SELECT first_name,last_name,email,institution,title,status,payment_status FROM gala_registrations");
+            const attending = regs.filter(r => r.status !== 'rejected');
+            const byInst = {};
+            attending.forEach(r => {
+                const inst = ((r.institution || '').trim()) || 'Unspecified';
+                (byInst[inst] = byInst[inst] || []).push(r);
+            });
+            const institutions = Object.entries(byInst).map(([name, list]) => ({
+                name, count: list.length,
+                confirmed: list.filter(g => g.payment_status === 'paid' || g.status === 'confirmed').length,
+                guests: list.map(g => ({ name: `${g.first_name || ''} ${g.last_name || ''}`.trim(), title: g.title || '', confirmed: g.payment_status === 'paid' || g.status === 'confirmed' }))
+            })).sort((a, b) => b.count - a.count);
+            const NOTABLE = /\b(prof|professor|chair|chief|ceo|cto|cfo|coo|president|vice[- ]?president|\bvp\b|director|head|dean|founder|co[- ]?founder|minister|principal|rector|chancellor|editor[- ]in[- ]chief|nobel|consultant|primarius)\b/i;
+            const notable = attending.filter(r => NOTABLE.test(String(r.title || ''))).map(r => ({
+                name: `${r.first_name || ''} ${r.last_name || ''}`.trim(), title: r.title || '', institution: r.institution || '',
+                confirmed: r.payment_status === 'paid' || r.status === 'confirmed'
+            }));
+            const topInst = institutions.slice(0, 6).map(i => `${i.name} (${i.count})`).join(', ');
+            const notableList = notable.slice(0, 12).map(n => `${n.name}${n.title ? ', ' + n.title : ''}${n.institution ? ' — ' + n.institution : ''}`);
+            // Deterministic, readable fallback composed from the real data (never shows '[Draft]').
+            const composeFallback = () => {
+                if (!attending.length) return 'No guests have registered for the Gala yet. Once invitations go out, this brief will highlight the senior guests and best-represented institutions to help you plan the room.';
+                const parts = [];
+                parts.push(`${attending.length} guest${attending.length === 1 ? '' : 's'} across ${institutions.length} institution${institutions.length === 1 ? '' : 's'} are on the Gala list so far.`);
+                if (topInst) parts.push(`The rooms best represented are ${topInst}.`);
+                if (notableList.length) parts.push(`Notable guests to greet personally include ${notableList.slice(0, 5).join('; ')}${notableList.length > 5 ? ', and others' : ''}.`);
+                else parts.push('No senior titles are flagged yet, so watch for professors, directors, and founders as more guests confirm.');
+                parts.push('Suggestion: seat the most senior guests near the keynote and brief the host on their institutions before the reception.');
+                return parts.join(' ');
+            };
+            let brief = composeFallback(), mock = true;
+            try {
+                const r = await aiDraft({
+                    purpose: 'Write a short who-is-coming intelligence brief for the Med&X Gala host team. 3 to 5 sentences. Highlight notable senior guests, the institutions best represented, and one concrete suggestion for the host. Warm, specific, American English. No semicolons.',
+                    context: { total_guests: attending.length, institutions_represented: institutions.length, best_represented: topInst || '(none yet)', notable_guests: notableList.join('; ') || '(none flagged yet)' },
+                    maxTokens: 320
+                });
+                if (r && r.text && !r.mock && !/^\[Draft\]/.test(r.text)) { brief = r.text.trim(); mock = false; }
+            } catch (e) { /* fallback stays */ }
+            res.json({ total: attending.length, institution_count: institutions.length, institutions, notable, brief, mock });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ---- Per-guest personalized message: DRAFT (routes portal-if-member else email) ----
+    app.post('/api/admin/gala/guest-message/draft', auth, adminOnly, async (req, res) => {
+        try {
+            const reg = query.get("SELECT * FROM gala_registrations WHERE id = ?", [(req.body && req.body.registration_id) || '']);
+            if (!reg) return res.status(404).json({ error: 'Guest not found' });
+            const member = reg.email ? query.get("SELECT id, first_name, last_name FROM users WHERE lower(email) = lower(?)", [reg.email]) : null;
+            const name = `${reg.first_name || ''} ${reg.last_name || ''}`.trim() || 'Guest';
+            const gala = query.get("SELECT * FROM gala_settings WHERE id = 'default'") || {};
+            const intent = String((req.body && req.body.intent) || '').trim();
+            const eventName = gala.title || 'Plexus Gala Evening';
+            const purpose = `Write a short, warm, personal message to ${name} about the Med&X ${eventName}. ${intent ? 'Focus on: ' + intent + '. ' : ''}One friendly paragraph, specific and human. American English. No semicolons. No placeholder brackets.`;
+            const context = { guest: name, institution: reg.institution || '', event: eventName, date: gala.date || '', venue: gala.venue || '' };
+            let draft = '', mock = true;
+            try { const r = await aiDraft({ purpose, context, maxTokens: 240 }); if (r && r.text && !r.mock && !/^\[Draft\]/.test(r.text)) { draft = r.text.trim(); mock = false; } } catch (e) { /* fallback */ }
+            if (!draft) {
+                const bits = [];
+                bits.push(`Dear ${name.split(' ')[0] || name}, it would be a genuine pleasure to welcome you to the ${eventName}.`);
+                if (reg.institution) bits.push(`We are delighted that ${reg.institution} will be represented in the room.`);
+                if (gala.date || gala.venue) bits.push(`The evening takes place${gala.date ? ' on ' + gala.date : ''}${gala.venue ? ' at ' + gala.venue : ''}, and we would be honored to have you with us.`);
+                bits.push('Please let us know if there is anything we can arrange to make your evening special.');
+                draft = bits.join(' ');
+            }
+            res.json({
+                success: true, is_member: !!member, user_id: member ? member.id : null,
+                channel: member ? 'portal' : 'email',
+                guest: { id: reg.id, name, email: reg.email, institution: reg.institution || '' },
+                subject: `A note about the ${eventName}`, draft, mock
+            });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ---- Guest message QUEUE: stage a message (single or group) into the approval outbox ----
+    // Member recipients deliver into the in-portal inbox (channel=portal); everyone else by email.
+    // Optional scheduled_for stages it to fire later once approved. Nothing sends until approved.
+    app.post('/api/admin/gala/guest-message/queue', auth, adminOnly, (req, res) => {
+        try {
+            const ids = Array.isArray(req.body && req.body.registration_ids) ? req.body.registration_ids : [];
+            const subject = String((req.body && req.body.subject) || '').trim() || 'A message from Med&X';
+            const bodyText = String((req.body && req.body.body) || '').trim();
+            if (!ids.length) return res.status(400).json({ error: 'No guests selected' });
+            if (!bodyText) return res.status(400).json({ error: 'Message body is required' });
+            const scheduledFor = (req.body && req.body.scheduled_for) ? String(req.body.scheduled_for) : null;
+            const gala = query.get("SELECT * FROM gala_settings WHERE id = 'default'") || {};
+            const batchId = 'gala-msg-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
+            let portal = 0, email = 0, skipped = 0;
+            for (const id of ids) {
+                const reg = query.get("SELECT * FROM gala_registrations WHERE id = ?", [id]);
+                if (!reg || !reg.email) { skipped++; continue; }
+                const member = query.get("SELECT id FROM users WHERE lower(email) = lower(?)", [reg.email]);
+                const name = `${reg.first_name || ''} ${reg.last_name || ''}`.trim() || 'Guest';
+                const personalized = bodyText.replace(/\{first_?name\}/gi, reg.first_name || name).replace(/\{name\}/gi, name);
+                const channel = member ? 'portal' : 'email';
+                const html = buildEmailTemplate(subject,
+                    `<p style="margin:0 0 14px;">Dear ${nagEscape(name)},</p><div style="white-space:pre-line;">${nagEscape(personalized)}</div><p style="margin:18px 0 0;">Warm regards,<br>The Med&amp;X Team</p>`,
+                    { accent: 'gold' });
+                const payload = { to: reg.email, subject, html, body_text: personalized, channel, user_id: member ? member.id : null, project: 'gala', guest_name: name };
+                db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, scheduled_for, created_by, created_at)
+                        VALUES (?, 'pending_approval', ?, 'gala-guest-msg', 'gala_guest_message', ?, ?, ?, ?, ?, datetime('now'))`,
+                    [uuidv4(), batchId, JSON.stringify(payload), reg.email, subject, scheduledFor, req.user?.email || 'admin']);
+                if (member) portal++; else email++;
+            }
+            saveDb();
+            logAudit(req, 'gala.guest_message_queue', `${portal + email} staged (portal ${portal}, email ${email})${scheduledFor ? ' scheduled ' + scheduledFor : ''}`);
+            res.json({ success: true, batch_id: batchId, staged: portal + email, portal, email, skipped, scheduled_for: scheduledFor, approval_required: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ---- Program: notify attendees by EMAIL with the premium pictured template (approval-gated) ----
+    // Senior guests read email, not apps, so the program always goes by email (with the real logo
+    // header + a gala photo). Optional scheduled_for stages it to fire later once approved.
+    app.post('/api/admin/gala/program/notify', auth, adminOnly, (req, res) => {
+        try {
+            const gala = query.get("SELECT * FROM gala_settings WHERE id = 'default'") || {};
+            let schedule = [];
+            try { schedule = JSON.parse(gala.schedule_json || '[]'); } catch (e) { schedule = []; }
+            if (!Array.isArray(schedule) || !schedule.length) return res.status(400).json({ error: 'Add at least one program item before notifying attendees.' });
+            const audience = String((req.body && req.body.audience) || 'confirmed');
+            const scheduledFor = (req.body && req.body.scheduled_for) ? String(req.body.scheduled_for) : null;
+            const regs = query.all("SELECT * FROM gala_registrations");
+            const recipients = regs.filter(r => {
+                if (!r.email) return false;
+                if (audience === 'all') return r.status !== 'rejected';
+                return r.payment_status === 'paid' || r.status === 'confirmed';
+            });
+            if (!recipients.length) return res.status(400).json({ error: 'No matching guests to notify yet.' });
+            const eventName = gala.title || 'Plexus Gala Evening';
+            const subject = `The evening's program — ${eventName}`;
+            const heroPhoto = 'https://cdn.jsdelivr.net/gh/alen-ops99/medx-portal@main/user-portal/frontend/assets/photos/plexus_25_gala.jpg';
+            const detailBits = [];
+            if (gala.date) detailBits.push(`<strong>Date</strong> ${nagEscape(gala.date)}${gala.time ? ' · ' + nagEscape(gala.time) : ''}`);
+            if (gala.venue) detailBits.push(`<strong>Venue</strong> ${nagEscape(gala.venue)}`);
+            if (gala.dress_code) detailBits.push(`<strong>Dress code</strong> ${nagEscape(gala.dress_code)}`);
+            const programRows = schedule.map(it => `
+                <tr>
+                    <td style="padding:12px 14px;border-bottom:1px solid #eee;white-space:nowrap;vertical-align:top;color:#9b1b22;font-weight:700;font-family:Georgia,serif;">${nagEscape(it.time || '')}</td>
+                    <td style="padding:12px 14px;border-bottom:1px solid #eee;vertical-align:top;">
+                        <div style="font-weight:600;color:#15110f;">${nagEscape(it.title || '')}</div>
+                        ${it.description ? `<div style="font-size:13px;color:#64748b;margin-top:3px;">${nagEscape(it.description)}</div>` : ''}
+                    </td>
+                </tr>`).join('');
+            const batchId = 'gala-program-' + Date.now().toString(36);
+            const bodyTop = `
+                <div style="text-align:center;margin:0 0 22px;"><img src="${heroPhoto}" alt="Plexus Gala Evening" width="536" style="display:block;margin:0 auto;width:100%;max-width:536px;height:auto;border-radius:12px;" /></div>
+                <h2 style="font-family:Georgia,serif;color:#15110f;font-size:22px;margin:0 0 6px;text-align:center;">${nagEscape(eventName)}</h2>
+                ${gala.tagline ? `<p style="text-align:center;color:#C9A962;font-size:13px;letter-spacing:1px;text-transform:uppercase;margin:0 0 18px;">${nagEscape(gala.tagline)}</p>` : ''}
+                ${detailBits.length ? `<div style="background:#faf5e9;border:1px solid #ecdcb8;border-radius:10px;padding:14px 18px;margin:0 0 22px;font-size:14px;color:#334155;line-height:1.9;">${detailBits.join('<br>')}</div>` : ''}
+                <h3 style="font-family:Georgia,serif;color:#15110f;font-size:17px;margin:0 0 10px;">Program of the evening</h3>
+                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 8px;">${programRows}</table>`;
+            for (const reg of recipients) {
+                const name = `${reg.first_name || ''} ${reg.last_name || ''}`.trim() || 'Guest';
+                const body = `<p style="margin:0 0 16px;">Dear ${nagEscape(name)},</p><p style="margin:0 0 18px;">We are delighted to share the program for the evening. We look forward to welcoming you.</p>${bodyTop}<p style="margin:20px 0 0;">Warm regards,<br>The Med&amp;X Team</p>`;
+                const html = buildEmailTemplate(subject, body, { accent: 'gold' });
+                const payload = { to: reg.email, subject, html, body_text: `The program for the ${eventName}.`, channel: 'email', project: 'gala', guest_name: name };
+                db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, scheduled_for, created_by, created_at)
+                        VALUES (?, 'pending_approval', ?, 'gala-program', 'gala_program', ?, ?, ?, ?, ?, datetime('now'))`,
+                    [uuidv4(), batchId, JSON.stringify(payload), reg.email, subject, scheduledFor, req.user?.email || 'admin']);
+            }
+            saveDb();
+            logAudit(req, 'gala.program_notify', `${recipients.length} program email(s) staged for approval${scheduledFor ? ' scheduled ' + scheduledFor : ''}`);
+            res.json({ success: true, batch_id: batchId, staged: recipients.length, audience, scheduled_for: scheduledFor, approval_required: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
     // --- EVENT CHECK-IN ENDPOINTS ---
 
     // ========== GALA INVITE LINKS (admin-generated shareable URLs) ==========
@@ -20187,6 +21744,214 @@ By applying to this program, I provide the following consents:
              FROM croatians_abroad_registrations WHERE ${col} = 1 AND source = 'plexus' ORDER BY created_at DESC`
         );
         res.json({ event, count: rows.length, emails: rows.map(r => r.email), registrants: rows });
+    });
+
+    // ========== EVENT-COMBO INVITE LINKS (new routes only — existing invite pages untouched) ==========
+    // Pick any combination of the four public events and get ONE new public page (/e/:token,
+    // served by THIS backend) that presents exactly those events. Registration flows through the
+    // EXISTING frozen entry points: conference/gala/bridges reuse the /plexus/:token chooser (a
+    // compatible registration_links row is created per combo, offering exactly those components)
+    // and Donor Night links to the existing /donor-night page. Already-sent invite links keep
+    // their routes, payloads, and behavior byte-for-byte.
+    const COMBO_EVENT_KEYS = ['conference', 'gala', 'bridges', 'donor'];
+
+    function comboPublicBase() {
+        return (process.env.RENDER_EXTERNAL_URL || process.env.ADMIN_PORTAL_URL || ('http://localhost:' + (process.env.PORT || 3002))).replace(/\/+$/, '');
+    }
+
+    // Live event facts (date/venue) pulled at render time so admin edits reach the page
+    // without redeploy. Falls back to the launch copy when a table is empty.
+    function comboEventCatalog() {
+        let gs = {}, donor = {}, bridges = {};
+        try { gs = query.get("SELECT date, venue FROM gala_settings WHERE id = 'default'") || {}; } catch (e) {}
+        try { donor = query.get("SELECT event_date, venue_name, event_time FROM bridges_events WHERE slug = 'donor-night'") || {}; } catch (e) {}
+        try { bridges = query.get("SELECT event_date, venue_name FROM bridges_events WHERE slug = 'building-bridges'") || {}; } catch (e) {}
+        const fmt = (iso) => { try { return iso ? new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : ''; } catch (e) { return iso || ''; } };
+        const tba = (v) => (v && !/to be announced/i.test(v)) ? v : '';
+        return {
+            conference: { key: 'conference', name: 'Plexus Conference', icon: 'fa-dna', date: 'December 4-5, 2026', venue: 'Zagreb, Croatia', chip: 'Complimentary', desc: 'Two days of panels, keynotes, and lectures across biomedicine with speakers from leading institutions worldwide.' },
+            gala: { key: 'gala', name: 'Gala Evening', icon: 'fa-champagne-glasses', date: fmt(gs.date) || 'December 5, 2026', venue: gs.venue || 'Hotel Esplanade Zagreb', chip: 'Ticketed', desc: 'A black-tie evening of keynotes, live performances, and bridge-building between Croatian and international biomedicine.' },
+            bridges: { key: 'bridges', name: 'Building Bridges', icon: 'fa-handshake-angle', date: fmt(tba(bridges.event_date)) || 'December 2026, date to be announced', venue: tba(bridges.venue_name) || 'Zagreb, Croatia', chip: 'Complimentary', desc: 'A daytime gathering connecting Croatian medicine worldwide, where conversations turn into collaborations.' },
+            donor: { key: 'donor', name: 'Donor Night', icon: 'fa-hand-holding-heart', date: fmt(donor.event_date) || 'December 2026', venue: donor.venue_name || 'Esplanade Zagreb', chip: 'By invitation', desc: 'An intimate evening for friends and supporters of Med&X, hosted around the mission and the people behind it.' }
+        };
+    }
+
+    app.post('/api/admin/plexus/combo-links', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const picked = Array.isArray(b.events) ? b.events : [];
+            const events = COMBO_EVENT_KEYS.filter((k) => picked.includes(k));
+            if (!events.length) return res.status(400).json({ error: 'Pick at least one event.' });
+            const crypto = require('crypto');
+            const id = crypto.randomUUID();
+            const token = crypto.randomBytes(9).toString('base64url');
+            const label = String(b.label || '').trim().slice(0, 120) || null;
+            const notes = String(b.notes || '').trim().slice(0, 500) || null;
+            const plexusParts = events.filter((k) => k !== 'donor');
+            let regToken = null;
+            if (plexusParts.length) {
+                // Reuse the EXISTING /plexus/:token chooser as the registration entry point by
+                // inserting a compatible registration_links row that offers exactly these
+                // components. The frozen public route, pricing, and payment flow are untouched.
+                // Same lazy CREATE + guarded ALTERs the existing generator uses, for fresh DBs.
+                db.run(`CREATE TABLE IF NOT EXISTS registration_links (
+                    id TEXT PRIMARY KEY,
+                    token TEXT UNIQUE NOT NULL,
+                    event_type TEXT NOT NULL,
+                    event_id TEXT,
+                    event_name TEXT,
+                    created_by TEXT,
+                    expires_at TEXT,
+                    max_uses INTEGER DEFAULT 0,
+                    uses INTEGER DEFAULT 0,
+                    is_active INTEGER DEFAULT 1,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )`);
+                try { db.run('ALTER TABLE registration_links ADD COLUMN package_items TEXT'); } catch (e) {}
+                try { db.run('ALTER TABLE registration_links ADD COLUMN component_keys TEXT'); } catch (e) {}
+                try { db.run("ALTER TABLE registration_links ADD COLUMN link_type TEXT DEFAULT 'generic'"); } catch (e) {}
+                try { db.run('ALTER TABLE registration_links ADD COLUMN price_override REAL'); } catch (e) {}
+                try { db.run('ALTER TABLE registration_links ADD COLUMN label TEXT'); } catch (e) {}
+                try { db.run('ALTER TABLE registration_links ADD COLUMN notes TEXT'); } catch (e) {}
+                regToken = crypto.randomBytes(16).toString('hex');
+                db.run(`INSERT INTO registration_links (id, token, event_type, event_id, event_name, created_by, expires_at, max_uses, package_items, component_keys, link_type, price_override, label, notes)
+                        VALUES (?, ?, 'plexus', NULL, ?, ?, NULL, 0, NULL, ?, 'generic', NULL, ?, ?)`,
+                    [crypto.randomUUID(), regToken, label ? `Combo: ${label}` : 'Combo invite link', (req.user && req.user.email) || 'admin', JSON.stringify(plexusParts), label, notes]);
+            }
+            db.run(`INSERT INTO combo_invite_links (id, token, label, events_json, reg_token, notes, created_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [id, token, label, JSON.stringify(events), regToken, notes, (req.user && req.user.email) || 'admin']);
+            saveDb();
+            logAudit(req, 'combo_link.create', `${events.join('+')}${label ? ' (' + label + ')' : ''} -> /e/${token}`);
+            const row = query.get('SELECT * FROM combo_invite_links WHERE id = ?', [id]);
+            row.url = comboPublicBase() + '/e/' + row.token;
+            res.json({ success: true, combo: row });
+        } catch (e) { console.error('[combo-links] create', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.get('/api/admin/plexus/combo-links', auth, adminOnly, (req, res) => {
+        try {
+            const rows = query.all('SELECT * FROM combo_invite_links ORDER BY created_at DESC');
+            rows.forEach((r) => { r.url = comboPublicBase() + '/e/' + r.token; });
+            res.json(rows);
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    app.delete('/api/admin/plexus/combo-links/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = query.get('SELECT * FROM combo_invite_links WHERE id = ?', [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Combo link not found' });
+            db.run('UPDATE combo_invite_links SET revoked = 1 WHERE id = ?', [req.params.id]);
+            if (row.reg_token) { try { db.run('UPDATE registration_links SET is_active = 0 WHERE token = ?', [row.reg_token]); } catch (e) {} }
+            saveDb();
+            logAudit(req, 'combo_link.revoke', `/e/${row.token}`);
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ---------- the public combo invite page ----------
+    function comboPageShell(inner) {
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>You are invited — Med&X</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#fbf9f6; color:#15110f; font-family:'Inter',-apple-system,sans-serif; min-height:100vh; display:flex; flex-direction:column; }
+    .wrap { width:100%; max-width:760px; margin:0 auto; padding:58px 22px 30px; flex:1; }
+    .eyebrow { font-size:11px; letter-spacing:3px; text-transform:uppercase; color:#9b1b22; font-weight:700; margin-bottom:16px; }
+    .for { display:inline-block; background:#f3ead6; color:#8a6d2f; font-size:12px; font-weight:600; letter-spacing:0.5px; padding:5px 14px; border-radius:999px; margin-bottom:18px; }
+    h1 { font-family:'Fraunces',Georgia,serif; font-size:clamp(34px,7vw,50px); font-weight:600; line-height:1.08; margin-bottom:14px; }
+    .lede { color:#5c5650; font-size:16.5px; line-height:1.65; margin-bottom:36px; max-width:56ch; }
+    .ev { display:flex; gap:18px; background:#ffffff; border:1px solid #ece7df; border-radius:16px; padding:22px 24px; margin-bottom:14px; box-shadow:0 8px 24px rgba(21,17,15,0.04); }
+    .ev .ic { flex:0 0 46px; width:46px; height:46px; border-radius:12px; background:#f7ebec; color:#9b1b22; display:flex; align-items:center; justify-content:center; font-size:18px; }
+    .ev h2 { font-family:'Fraunces',Georgia,serif; font-size:21px; font-weight:600; margin-bottom:3px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .chip { font-family:'Inter',sans-serif; font-size:10.5px; font-weight:700; letter-spacing:1px; text-transform:uppercase; padding:3px 9px; border-radius:999px; background:#f3efe9; color:#8a827a; }
+    .chip.gold { background:#f3ead6; color:#8a6d2f; }
+    .ev .meta { color:#9b1b22; font-size:13px; font-weight:600; margin-bottom:7px; }
+    .ev p { color:#5c5650; font-size:14.5px; line-height:1.6; }
+    .cta { margin-top:30px; display:flex; flex-direction:column; gap:12px; }
+    .btn { display:flex; align-items:center; justify-content:center; gap:10px; padding:16px 22px; border-radius:12px; font-size:15.5px; font-weight:600; text-decoration:none; text-align:center; }
+    .btn-primary { background:#9b1b22; color:#fff; box-shadow:0 10px 24px rgba(155,27,34,0.22); }
+    .btn-primary:hover { background:#7e151b; }
+    .btn-secondary { background:#ffffff; color:#15110f; border:1.5px solid #ddd5c9; }
+    .btn-secondary:hover { border-color:#9b1b22; color:#9b1b22; }
+    .cta-note { color:#8a827a; font-size:12.5px; text-align:center; line-height:1.55; }
+    footer { text-align:center; padding:26px 20px 36px; color:#8a827a; font-size:12.5px; }
+    footer a { color:#9b1b22; text-decoration:none; font-weight:600; }
+    @media (max-width:520px) { .ev { flex-direction:column; gap:12px; } }
+</style>
+</head>
+<body>
+<div class="wrap">${inner}</div>
+<footer>Med&amp;X &middot; Building Bridges in Biomedicine &middot; <a href="https://medx.hr">medx.hr</a></footer>
+</body>
+</html>`;
+    }
+
+    function comboNoticePage(heading, sub) {
+        return comboPageShell(`
+    <div class="eyebrow">Med&amp;X &middot; Plexus Week 2026</div>
+    <h1>${nagEscape(heading)}</h1>
+    <p class="lede">${nagEscape(sub)}</p>`);
+    }
+
+    function comboInvitePage(row, events) {
+        const catalog = comboEventCatalog();
+        const cards = events.map((k) => {
+            const ev = catalog[k];
+            return `
+    <div class="ev">
+        <div class="ic"><i class="fas ${ev.icon}"></i></div>
+        <div>
+            <h2>${nagEscape(ev.name)} <span class="chip${k === 'gala' || k === 'donor' ? ' gold' : ''}">${nagEscape(ev.chip)}</span></h2>
+            <div class="meta">${nagEscape(ev.date)} &middot; ${nagEscape(ev.venue)}</div>
+            <p>${nagEscape(ev.desc)}</p>
+        </div>
+    </div>`;
+        }).join('');
+        const plexusParts = events.filter((k) => k !== 'donor');
+        const ctas = [];
+        if (row.reg_token && plexusParts.length) {
+            const btnLabel = plexusParts.length === 1
+                ? `Register for the ${catalog[plexusParts[0]].name}`
+                : 'Register once for these events';
+            ctas.push(`<a class="btn btn-primary" href="${userPortalBase()}/plexus/${nagEscape(row.reg_token)}"><i class="fas fa-arrow-right"></i> ${nagEscape(btnLabel)}</a>`);
+        }
+        if (events.includes('donor')) {
+            ctas.push(`<a class="btn ${ctas.length ? 'btn-secondary' : 'btn-primary'}" href="${userPortalBase()}/donor-night"><i class="fas fa-hand-holding-heart"></i> Reserve your Donor Night seat</a>`);
+        }
+        const note = ctas.length === 2
+            ? '<p class="cta-note">Donor Night has its own short registration, so it takes one extra click.</p>'
+            : '';
+        const evCount = events.length;
+        const lede = evCount === 1
+            ? 'We would be delighted to welcome you to this special evening in Zagreb.'
+            : `We have put together ${evCount === 2 ? 'two' : evCount === 3 ? 'three' : 'four'} events for you this December in Zagreb. Have a look and reserve your place below.`;
+        return comboPageShell(`
+    <div class="eyebrow">Med&amp;X &middot; Plexus Week 2026</div>
+    ${row.label ? `<div class="for"><i class="fas fa-envelope-open-text" style="margin-right:7px;"></i>An invitation for ${nagEscape(row.label)}</div>` : ''}
+    <h1>You are invited</h1>
+    <p class="lede">${lede}</p>
+    ${cards}
+    <div class="cta">${ctas.join('')}${note}</div>`);
+    }
+
+    app.get('/e/:token', publicLimiter, (req, res) => {
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        try {
+            const row = query.get('SELECT * FROM combo_invite_links WHERE token = ?', [String(req.params.token || '').slice(0, 64)]);
+            if (!row || row.revoked) return res.status(404).send(comboNoticePage('This invitation link is not active', 'Please reach out to the Med&X team for a current invitation.'));
+            try { db.run('UPDATE combo_invite_links SET view_count = COALESCE(view_count, 0) + 1 WHERE id = ?', [row.id]); saveDb(); } catch (e) {}
+            let events = []; try { events = JSON.parse(row.events_json || '[]'); } catch (e) {}
+            events = COMBO_EVENT_KEYS.filter((k) => events.includes(k));
+            if (!events.length) return res.status(404).send(comboNoticePage('This invitation link is not active', 'Please reach out to the Med&X team for a current invitation.'));
+            return res.send(comboInvitePage(row, events));
+        } catch (e) { console.error('[combo page]', e.message); return res.status(500).send(comboNoticePage('Something went wrong', 'Please try again in a moment.')); }
     });
 
     // ========== UNIVERSAL EVENT CHECK-IN VERIFY (mirror of user-portal endpoint) ==========
@@ -20416,6 +22181,83 @@ By applying to this program, I provide the following consents:
                 ...welcomeInfo(caReg.email)
             }
         });
+    });
+
+    // ========== SCAN ENRICHMENT — read-only member/registration lookup for the scanner ==========
+    // Mirror of the user-portal route (same shared DB). Purely additive, read-only, adminOnly.
+    // The scanner calls this AFTER a successful /api/admin/checkin/verify to render an
+    // "Also registered for…" list + membership chip. It never touches the FROZEN verify
+    // validation or the QR payload — it only reads by the email/id the scanner already resolved.
+    app.get('/api/admin/checkin/enrich', auth, adminOnly, (req, res) => {
+        try {
+            const email = (req.query.email || '').toString().trim();
+            const userId = (req.query.userId || req.query.memberId || '').toString().trim();
+            if (!email && !userId) return res.status(400).json({ error: 'email or userId required' });
+
+            const user = userId
+                ? query.get('SELECT id, email, first_name, last_name, institution, country, tier, email_verified, created_at FROM users WHERE id = ?', [userId])
+                : query.get('SELECT id, email, first_name, last_name, institution, country, tier, email_verified, created_at FROM users WHERE LOWER(email) = LOWER(?)', [email]);
+            const lookupEmail = email || (user && user.email) || '';
+
+            const registrations = [];
+            // Conference registrations tied to the member account.
+            try {
+                if (user && user.id) {
+                    const regs = query.all(
+                        `SELECT c.name AS event, t.name AS ticket, r.payment_status, r.checked_in, c.start_date
+                           FROM registrations r
+                           JOIN conferences c ON r.conference_id = c.id
+                           JOIN ticket_types t ON r.ticket_type_id = t.id
+                          WHERE r.user_id = ? ORDER BY r.created_at DESC`, [user.id]);
+                    regs.forEach(r => registrations.push({
+                        kind: 'conference', event: r.event, ticket: r.ticket || '',
+                        status: r.payment_status || '', checked_in: !!r.checked_in, date: r.start_date || ''
+                    }));
+                }
+            } catch (e) {}
+            // Gala seats by email.
+            try {
+                if (lookupEmail) {
+                    const gala = query.all(
+                        `SELECT payment_status, checked_in, created_at FROM gala_registrations
+                          WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC`, [lookupEmail]);
+                    gala.forEach(g => registrations.push({
+                        kind: 'gala', event: 'Plexus Gala', ticket: '',
+                        status: g.payment_status || '', checked_in: !!g.checked_in, date: ''
+                    }));
+                }
+            } catch (e) {}
+            // Bridges / Donor Night seats by email.
+            try {
+                if (lookupEmail) {
+                    const bridges = query.all(
+                        `SELECT br.checked_in, br.status, be.name AS event
+                           FROM bridges_registrations br
+                           LEFT JOIN bridges_events be ON br.event_id = be.id
+                          WHERE LOWER(br.email) = LOWER(?) ORDER BY br.registered_at DESC`, [lookupEmail]);
+                    bridges.forEach(b => registrations.push({
+                        kind: 'bridges', event: b.event || 'Building Bridges', ticket: '',
+                        status: b.status || '', checked_in: !!b.checked_in, date: ''
+                    }));
+                }
+            } catch (e) {}
+
+            const membership = user ? {
+                is_member: true,
+                name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+                email: user.email || '',
+                institution: user.institution || '',
+                country: user.country || '',
+                tier: user.tier || 'member',
+                email_verified: !!user.email_verified,
+                member_since: user.created_at || ''
+            } : { is_member: false };
+
+            res.json({ found: !!user || registrations.length > 0, membership, registrations });
+        } catch (err) {
+            console.error('Scan enrich failed:', err);
+            res.status(500).json({ error: 'Could not load member details' });
+        }
     });
 
     // ========== TEST QR EMAIL — admin sends themselves a working test QR ==========
@@ -23207,6 +25049,17 @@ By applying to this program, I provide the following consents:
                 if (h && (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string' && h.content.trim()) msgs.push({ role:h.role, content: h.content.slice(0, 4000) });
             }
             msgs.push({ role:'user', content: String(message).slice(0, 2000) });
+
+            // Deterministic layer first. Precise DB actions (contact search, unpaid-reminder
+            // to the outbox) the LLM tools do not cover run in BOTH modes. Data/notice answers
+            // are used only when there is no key; with a key the richer live agent handles them.
+            const det = await assistDeterministicAnswer(String(message), req);
+            const precise = det && ASSIST_PRECISE_KINDS.includes(det.kind);
+            if (precise) return res.json({ answer: det.answer, pending: det.pending || [] });
+            if (!process.env.ANTHROPIC_API_KEY) {
+                if (det) return res.json({ answer: det.answer, pending: det.pending || [] });
+                return res.json({ answer: 'I can help with real data and tasks right now — for example: "how many paid gala guests", "how many unpaid registrants", "find the contact from Pliva", or "draft a reminder to unpaid registrants". Open-ended answers and event edits come online once an admin adds an ANTHROPIC_API_KEY (Render → medx-admin-portal → Environment).', pending: [] });
+            }
             res.json(await assistRunAgent(msgs));
         } catch(e) { console.error('[assistant] error', e.message); res.status(500).json({ error:'Assistant error' }); }
     });
@@ -23402,6 +25255,187 @@ By applying to this program, I provide the following consents:
         } catch (e) { console.error('[planner] approve', e.message); res.status(500).json({ error: e.message }); }
     });
 
+
+    // ============================ CONTENT STUDIO (creation) ============================
+    // The studio makes things to POST: branded graphics (PNG/PDF) and photo-slideshow videos (WebM).
+    // Rendering happens client-side on a canvas. The backend only: (1) drives a short conversational
+    // brief, (2) stores the finished file under /uploads/content-studio and logs it, and (3) pushes a
+    // piece into the SAME pr_content_calendar + Publer + pr_posts review flow the planner uses. Nothing
+    // is posted for real without the mock-safe Publer boundary. Reuses /api/admin/planner/photos +
+    // /api/admin/planner/facts for the library and live facts.
+
+    // Pick library photos most relevant to a project (falls back to the whole library).
+    function contentPickPhotos(req, projectKey, n) {
+        const lib = plannerPhotoLibrary(req);
+        if (!lib.length) return [];
+        const key = String(projectKey || '').toLowerCase();
+        const alias = { gala: ['gala'], plexus: ['plexus'], bridges: ['bridge', 'bb_', 'building'], accelerator: ['acc', 'accelerator'], forum: ['forum'], medx: [] };
+        const wants = alias[key] || [];
+        let matched = wants.length ? lib.filter(p => wants.some(w => (p.file || '').toLowerCase().includes(w))) : [];
+        // Always finish the list from the general library so we never return too few.
+        const rest = lib.filter(p => !matched.includes(p));
+        const ordered = matched.concat(rest);
+        return ordered.slice(0, Math.max(1, n || 6));
+    }
+
+    // Infer a structured content brief from the free-text conversation. Deterministic + robust.
+    function contentBuildBrief(answers, facts) {
+        const req0 = String(answers[0] || '');
+        const headlineAns = String(answers[1] || '').trim();
+        const shapeAns = String(answers[2] || '');
+        const all = answers.join('  \n  ').toLowerCase();
+
+        const kind = /\b(video|slideshow|reel|clip|montage|movie|footage|second|sec\b|film)\b/.test(all) ? 'slideshow' : 'graphic';
+        let template = 'announcement';
+        if (/\b(countdown|days? (to go|left|until|away)|early.?bird|deadline|closing|last chance|ends)\b/.test(all)) template = 'countdown';
+        else if (/\b(speaker|keynote|professor|prof\.?|dr\.?|talk by|presenting|lecture)\b/.test(all)) template = 'speaker';
+        else if (/\b(quote|said|words|testimonial|reflection)\b/.test(all)) template = 'quote';
+
+        let aspect = 'square';
+        if (/\b(story|stories|vertical|reel|9:16|9x16|tall|portrait)\b/.test(all)) aspect = 'story';
+        else if (/\b(wide|landscape|16:9|16x9|banner|horizontal|youtube|twitter|x post|linkedin banner)\b/.test(all)) aspect = 'landscape';
+
+        const projMap = [['gala', /\bgala\b/], ['plexus', /\bplexus\b/], ['bridges', /\b(building )?bridges?\b/], ['accelerator', /\baccelerat/], ['forum', /\bforum\b/], ['medx', /\bmed\s*&?\s*x\b/]];
+        let project = 'plexus';
+        for (const [k, re] of projMap) { if (re.test(all)) { project = k; break; } }
+
+        const projName = plannerProjectName(project);
+        const eyebrow = (project === 'medx') ? 'Med&X' : projName;
+
+        // Headline: their remembered line wins; else a sensible default from the request/topic.
+        let headline = headlineAns;
+        if (!headline || /^(idk|dunno|not sure|whatever|you (choose|pick|decide)|surprise me|no)$/i.test(headline)) {
+            if (template === 'countdown') headline = 'The countdown is on';
+            else if (template === 'speaker') headline = 'Meet our speaker';
+            else if (template === 'quote') headline = 'In their words';
+            else headline = (project === 'gala') ? 'An evening to remember' : `${projName} is coming`;
+        }
+
+        // Subline from real key dates when we have one for this project.
+        let subline = '';
+        const kd = (facts.keyDates || []).find(d => d.project_key === project);
+        if (kd) { try { subline = new Date(kd.date + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }); } catch (e) { subline = kd.date; } }
+        if (!subline) subline = (project === 'gala') ? 'Zagreb • Save the date' : 'Zagreb, Croatia';
+
+        const nPhotos = kind === 'slideshow' ? 6 : 1;
+        return { kind, template, aspect, project, projectName: projName, eyebrow, headline, subline, nPhotos, accent: (project === 'gala') ? 'gold' : 'crimson', music: false, source: req0.slice(0, 300) };
+    }
+
+    // THE conversation. POST {history:[{role,text}]}. Returns the next question, or once the request +
+    // two clarifiers are answered, the finished brief (with resolved library photos + an AI-drafted
+    // caption, deterministic clean fallback).
+    app.post('/api/admin/content/converse', assistantLimiter, auth, adminOnly, async (req, res) => {
+        try {
+            const history = Array.isArray(req.body?.history) ? req.body.history : [];
+            const facts = plannerLiveFacts();
+            const answers = history.filter(m => m && m.role === 'user' && String(m.text || '').trim() !== '').map(m => m.text);
+            const questions = [
+                'Tell me what you want to make. For example “a 30-second video from the gala photos” or “an Instagram post about Plexus early-bird tickets.”',
+                'Great. What is the one line you want people to remember? I will make it the headline.',
+                'Last thing. Which project is this for, and what shape — square for the feed, tall for a story, or wide? You can just say “Plexus, story.”'
+            ];
+            if (answers.length < questions.length) {
+                return res.json({ done: false, step: answers.length, total: questions.length, question: questions[answers.length] });
+            }
+            const brief = contentBuildBrief(answers, facts);
+            brief.photos = contentPickPhotos(req, brief.project, brief.nPhotos).map(p => ({ url: p.url, file: p.file, label: p.label }));
+            // Caption for the schedule leg — aiDraft with a clean, ready deterministic fallback.
+            let caption = '';
+            try {
+                const r = await aiDraft({
+                    purpose: `Write a short, warm Instagram caption for a ${brief.kind === 'slideshow' ? 'photo slideshow video' : 'graphic'} about ${brief.projectName}. One or two sentences, then 3 to 5 relevant hashtags on a new line. American English, no emojis.`,
+                    context: { headline: brief.headline, detail: brief.subline, project: brief.projectName, ask: brief.source },
+                    maxTokens: 220
+                });
+                caption = (r && r.text) ? r.text.trim() : '';
+            } catch (e) { caption = ''; }
+            if (!caption || /^\[Draft\]/i.test(caption)) {
+                const tag = { plexus: '#Plexus2026', gala: '#MedXGala', bridges: '#BuildingBridges', accelerator: '#MedXAccelerator', forum: '#BiomedicalForum', medx: '#MedX' }[brief.project] || '#MedX';
+                caption = `${brief.headline}. ${brief.subline}.\n${tag} #MedX #biomedicine #Zagreb`;
+            }
+            brief.caption = caption;
+            const summary = `Here is what I will make: a ${brief.aspect === 'story' ? 'vertical story' : brief.aspect === 'landscape' ? 'wide' : 'square'} ${brief.kind === 'slideshow' ? 'slideshow video' : brief.template + ' graphic'} for ${brief.projectName}, headline “${brief.headline}”. Opening the composer so you can see it and refine it.`;
+            logAudit(req, 'content.brief', `${brief.kind}/${brief.template} for ${brief.project}`);
+            res.json({ done: true, brief, summary });
+        } catch (e) { console.error('[content] converse', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Store a finished asset. Body is the RAW file bytes (application/octet-stream) so it bypasses the
+    // 100kb JSON limit; metadata rides in the query string. Writes to /uploads/content-studio and logs a
+    // content_studio_assets row. Returns an absolute URL usable for download, preview, and scheduling.
+    app.post('/api/admin/content/asset', auth, adminOnly, express.raw({ type: () => true, limit: '45mb' }), (req, res) => {
+        try {
+            const buf = Buffer.isBuffer(req.body) ? req.body : null;
+            if (!buf || !buf.length) return res.status(400).json({ error: 'No file bytes received.' });
+            const q = req.query || {};
+            const ext = String(q.ext || 'png').replace(/[^a-z0-9]/gi, '').slice(0, 5).toLowerCase() || 'png';
+            const mime = String(q.mime || (ext === 'webm' ? 'video/webm' : ext === 'pdf' ? 'application/pdf' : 'image/png')).slice(0, 60);
+            const id = uuidv4();
+            const fname = `${id}.${ext}`;
+            const dir = path.join(uploadsDir, 'content-studio');
+            try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); } catch (e) {}
+            fs.writeFileSync(path.join(dir, fname), buf);
+            const url = `${seatPublicBase(req)}/uploads/content-studio/${fname}`;
+            db.run(`INSERT INTO content_studio_assets (id, kind, template, aspect, project, title, caption, asset_url, mime, bytes, created_by, created_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?, datetime('now'))`,
+                [id, String(q.kind || 'graphic').slice(0, 24), String(q.template || '').slice(0, 24), String(q.aspect || '').slice(0, 16),
+                 String(q.project || '').slice(0, 24), String(q.title || '').slice(0, 200), String(q.caption || '').slice(0, 1000), url, mime, buf.length, req.user?.id || null]);
+            saveDb();
+            logAudit(req, 'content.asset', `${q.kind || 'graphic'} ${fname} (${buf.length} bytes)`);
+            res.json({ success: true, id, url, bytes: buf.length });
+        } catch (e) { console.error('[content] asset', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Recent creations for the studio gallery.
+    app.get('/api/admin/content/assets', auth, adminOnly, (req, res) => {
+        try {
+            const rows = query.all('SELECT id, kind, template, aspect, project, title, caption, asset_url, mime, bytes, calendar_id, created_at FROM content_studio_assets ORDER BY created_at DESC LIMIT 30');
+            res.json({ assets: rows });
+        } catch (e) { console.error('[content] assets', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Push a finished piece into the PR review flow: one pr_content_calendar row (approved), handed to
+    // Publer (mock-safe), then a pr_posts row so it shows in Social Posts like any other post. Same
+    // boundary the planner uses. Never posts for real without a Publer key.
+    app.post('/api/admin/content/schedule', auth, adminOnly, async (req, res) => {
+        try {
+            const b = req.body || {};
+            const asset_url = String(b.asset_url || '').trim();
+            if (!asset_url) return res.status(400).json({ error: 'Provide the finished asset before scheduling.' });
+            const project = String(b.project || 'medx').slice(0, 24);
+            const platform = String(b.platform || 'instagram').slice(0, 24);
+            const title = String(b.title || '').slice(0, 200) || null;
+            const caption = String(b.caption || '').slice(0, 2000) || null;
+            const date = String(b.scheduled_date || '').slice(0, 10) || plannerTodayISO();
+            const time = String(b.scheduled_time || '10:00').slice(0, 5);
+            const id = uuidv4();
+            db.run(`INSERT INTO pr_content_calendar (id, project, platform, scheduled_date, scheduled_time, title, content_text, image_url, status, created_by, approved_by, approved_at)
+                    VALUES (?,?,?,?,?,?,?,?, 'approved', ?, ?, datetime('now'))`,
+                [id, project, platform, date, time, title, caption, asset_url, req.user?.id || null, req.user?.id || null]);
+            const cal = query.get('SELECT * FROM pr_content_calendar WHERE id = ?', [id]);
+            let status = 'approved', mock = false, note = null, external = null;
+            try {
+                const result = await publishToPubler(cal);
+                status = result.mock ? 'published' : (result.ok ? 'scheduled' : 'approved');
+                mock = !!result.mock; note = result.note || null; external = result.external_post_id || null;
+                db.run(`UPDATE pr_content_calendar SET status = ?, external_post_id = ?, publish_note = ?,
+                        published_at = CASE WHEN ? = 'published' THEN datetime('now') ELSE published_at END WHERE id = ?`,
+                    [status, external, note, status, id]);
+                if (result.ok) {
+                    // Omit the optional status column: some existing shared DBs never received the
+                    // guarded pr_posts.status ALTER, so inserting it would silently fail and skip the row.
+                    db.run(`INSERT INTO pr_posts (id, project, platform, content_text, image_url, external_post_id, published_at, calendar_id)
+                            VALUES (?,?,?,?,?,?,?,?)`,
+                        [uuidv4(), cal.project, cal.platform, cal.content_text, cal.image_url, external, new Date().toISOString(), id]);
+                }
+            } catch (e) { /* leave as approved */ }
+            if (b.asset_id) { try { db.run('UPDATE content_studio_assets SET calendar_id = ? WHERE id = ?', [id, String(b.asset_id)]); } catch (e) {} }
+            saveDb();
+            logAudit(req, 'content.schedule', `${project}/${platform} ${date} ${time} -> ${status}`);
+            res.json({ success: true, calendar_id: id, status, mock, note });
+        } catch (e) { console.error('[content] schedule', e.message); res.status(500).json({ error: e.message }); }
+    });
+
     // ========== OUTBOX (batch approval + send drainer surface) ==========
     // The drainer (in the app.listen block below) sends scheduled_emails rows whose
     // status='scheduled' and scheduled_for is due, through the sendEmail() mock boundary.
@@ -23451,19 +25485,60 @@ By applying to this program, I provide the following consents:
 
     // THE one human click: approve a pending batch -> flips every pending row to 'scheduled' so the
     // drainer picks it up. Records who approved. scheduled_for defaults to now when unset.
+    // Optional body.scheduled_for schedules the WHOLE batch to fire later (a general capability,
+    // available to any notification staged in the outbox, not just gala) — it overrides any
+    // per-row scheduled_for so a single control on approve can push the batch to a future time.
     app.post('/api/admin/outbox/:batch/approve', auth, adminOnly, (req, res) => {
         try {
             const batch = req.params.batch;
             const info = query.get("SELECT COUNT(*) AS cnt FROM scheduled_emails WHERE batch_id = ? AND status = 'pending_approval'", [batch]);
             const cnt = info ? info.cnt : 0;
             if (!cnt) return res.status(404).json({ error: 'No emails awaiting approval for that batch.' });
+            const when = (req.body && req.body.scheduled_for) ? String(req.body.scheduled_for) : null;
+            const approver = req.user?.email || 'admin';
+            // Portal-channel rows (gala guest messages to members) deliver into the member's
+            // in-portal inbox via user_notifications and are marked 'sent' right here — so no email
+            // drainer ever picks them up. user_group='targeted' keeps them strictly 1:1. Only rows
+            // with channel='portal' + user_id are affected (nothing else sets that), so this stays
+            // a no-op for every other batch. Email rows flip to 'scheduled' for the drainer.
+            // Schedule-for-later applies to BOTH channels: a portal row is delivered here only when
+            // its effective time (the approve-time override, else the row's own scheduled_for) is
+            // already due. A future time keeps the row pending so the UPDATE below flips it to
+            // 'scheduled' and the drainer (which handles channel='portal' itself) inserts the portal
+            // notification when the time comes — the whole batch lands together.
+            let portalDelivered = 0;
+            try {
+                const pend = query.all("SELECT id, payload_json, scheduled_for FROM scheduled_emails WHERE batch_id = ? AND status='pending_approval'", [batch]);
+                for (const r of pend) {
+                    let p = {}; try { p = r.payload_json ? JSON.parse(r.payload_json) : {}; } catch (e) { p = {}; }
+                    if (p.channel === 'portal' && p.user_id) {
+                        const eff = when || r.scheduled_for || null;
+                        if (eff) {
+                            // The exact comparison the drainer uses, so "due" means the same thing
+                            // at approval time and in the drainer loop.
+                            let due = true;
+                            try { const chk = query.get("SELECT CASE WHEN ? <= datetime('now') THEN 1 ELSE 0 END AS due", [eff]); due = !!(chk && chk.due); } catch (e) { due = true; }
+                            if (!due) continue; // stays pending -> flips to 'scheduled' below; drainer delivers on time
+                        }
+                        try {
+                            db.run(
+                                `INSERT INTO user_notifications (id, user_id, user_group, category, project, title, message, link, icon, icon_class, created_by, created_at)
+                                 VALUES (?, ?, 'targeted', 'message', ?, ?, ?, ?, 'fa-glass-cheers', 'event', 'gala-command-center', datetime('now'))`,
+                                [uuidv4(), p.user_id, p.project || 'gala', p.subject || 'A message from Med&X', p.body_text || p.body || '', p.link || '/?app=1']
+                            );
+                            db.run("UPDATE scheduled_emails SET status='sent', sent_count=1, attempts=1, approved_by=?, sent_at=datetime('now'), last_error='portal message delivered' WHERE id=?", [approver, r.id]);
+                            portalDelivered++;
+                        } catch (e) { /* leave as pending -> flips to scheduled below (email fallback) */ }
+                    }
+                }
+            } catch (e) { /* best-effort portal delivery; email flip still runs */ }
             db.run(
-                "UPDATE scheduled_emails SET status='scheduled', approved_by=?, scheduled_for=COALESCE(scheduled_for, datetime('now')) WHERE batch_id = ? AND status='pending_approval'",
-                [req.user?.email || 'admin', batch]
+                "UPDATE scheduled_emails SET status='scheduled', approved_by=?, scheduled_for=COALESCE(?, scheduled_for, datetime('now')) WHERE batch_id = ? AND status='pending_approval'",
+                [approver, when, batch]
             );
             saveDb();
-            logAudit(req, 'outbox_approve', `batch ${batch} (${cnt} emails) approved for sending`);
-            res.json({ success: true, approved: cnt });
+            logAudit(req, 'outbox_approve', `batch ${batch} (${cnt} item${cnt === 1 ? '' : 's'}) approved${portalDelivered ? ', ' + portalDelivered + ' portal message(s) delivered' : ''}${when ? ' scheduled ' + when : ''}`);
+            res.json({ success: true, approved: cnt, portal_delivered: portalDelivered, scheduled_for: when });
         } catch (e) { console.error('[outbox] approve', e.message); res.status(500).json({ error: e.message }); }
     });
 
@@ -23479,6 +25554,195 @@ By applying to this program, I provide the following consents:
             logAudit(req, 'outbox_cancel', `batch ${batch} (${cnt} emails) cancelled`);
             res.json({ success: true, cancelled: cnt });
         } catch (e) { console.error('[outbox] cancel', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ========================================================================================
+    // OUTLOOK (Microsoft 365) INBOX — staff @medx.hr email, read + AI-reply, staged for approval
+    // ----------------------------------------------------------------------------------------
+    // KEY BOUNDARY: reading a real inbox needs three environment variables — MS_GRAPH_CLIENT_ID,
+    // MS_GRAPH_CLIENT_SECRET and MS_GRAPH_TENANT_ID — AND a one-time owner-side admin-consent inside
+    // Microsoft 365 (granting the app Mail.Read / Mail.Send on the shared mailbox). None of that is set
+    // yet. Until it is, in dev we serve a deterministic MOCK inbox so the whole read + AI-reply
+    // experience is fully testable with zero live calls. In production without keys the list is empty
+    // and the UI shows a "connects when Microsoft access is granted" notice.
+    //
+    // Nothing here ever sends. An AI reply is drafted through aiDraft() (clean deterministic fallback,
+    // never a raw '[Draft]') and STAGED into the ONE approval outbox (scheduled_emails pending_approval)
+    // exactly like every other outbound path. The owner approves the batch in the outbox and the
+    // existing drainer delivers it through the sendEmail() mock boundary — no second send path.
+    const OUTLOOK_ENV = ['MS_GRAPH_CLIENT_ID', 'MS_GRAPH_CLIENT_SECRET', 'MS_GRAPH_TENANT_ID'];
+    function outlookConfigured() { return OUTLOOK_ENV.every((k) => !!process.env[k]); }
+    function outlookMailbox() { return process.env.MS_GRAPH_MAILBOX || 'team@medx.hr'; }
+    function outlookDev() { return String(process.env.NODE_ENV || 'development') !== 'production'; }
+    // Serve the mock inbox only in dev and only while no real credentials exist.
+    function outlookMockActive() { return !outlookConfigured() && outlookDev(); }
+
+    // Deterministic sample threads (dev only). Sender addresses are obviously-external samples so a
+    // staged demo reply, even if approved, would never surprise a real contact.
+    function outlookMockThreads() {
+        return [
+            {
+                id: 'oth-sponsor', unread: true, folder: 'Inbox', category: 'sponsorship',
+                from: { name: 'Ivana Markovic', email: 'ivana.markovic@sponsor-example.com' },
+                subject: 'Plexus 2026 — Gold partnership follow-up',
+                received_at: '2026-07-04T08:12:00Z',
+                snippet: 'Thank you for the sponsorship deck. Our board reviewed the tiers and we are interested in the Gold partnership...',
+                messages: [{
+                    from: { name: 'Ivana Markovic', email: 'ivana.markovic@sponsor-example.com' },
+                    at: '2026-07-04T08:12:00Z',
+                    body: 'Dear Med&X team,\n\nThank you for sending through the sponsorship deck. Our board reviewed the partnership tiers and we are genuinely interested in the Gold package for Plexus 2026. Could you confirm what the Gold tier includes in terms of stage time and branding, and whether a logo on the gala evening materials is possible? We would also like to understand the payment schedule.\n\nWarm regards,\nIvana Markovic\nHead of Partnerships'
+                }]
+            },
+            {
+                id: 'oth-speaker', unread: true, folder: 'Inbox', category: 'speaker',
+                from: { name: 'Dr. Luka Novak', email: 'l.novak@university-example.edu' },
+                subject: 'Keynote availability — Plexus December',
+                received_at: '2026-07-03T16:40:00Z',
+                snippet: 'I would be honored to give a keynote. My topic would be translational neuroscience and sleep...',
+                messages: [{
+                    from: { name: 'Dr. Luka Novak', email: 'l.novak@university-example.edu' },
+                    at: '2026-07-03T16:40:00Z',
+                    body: 'Hello,\n\nThank you for the kind invitation. I would be honored to give a keynote at Plexus. My proposed topic would be translational neuroscience and sleep, roughly forty minutes with time for questions. Could you let me know the exact date and whether travel from Vienna can be arranged?\n\nBest,\nLuka Novak'
+                }]
+            },
+            {
+                id: 'oth-reg', unread: false, folder: 'Inbox', category: 'registration',
+                from: { name: 'Marta Kovacevic', email: 'marta.k@student-example.com' },
+                subject: 'Trouble with my registration confirmation',
+                received_at: '2026-07-03T09:05:00Z',
+                snippet: 'I registered last week but never received the confirmation email. Could you check my booking?',
+                messages: [{
+                    from: { name: 'Marta Kovacevic', email: 'marta.k@student-example.com' },
+                    at: '2026-07-03T09:05:00Z',
+                    body: 'Hi,\n\nI registered for the conference last week but I never received a confirmation email. I would like to make sure my place is secured. Could you please check my booking and resend the confirmation?\n\nThank you,\nMarta'
+                }]
+            },
+            {
+                id: 'oth-press', unread: false, folder: 'Inbox', category: 'press',
+                from: { name: 'Zagreb Health Weekly', email: 'desk@press-example.hr' },
+                subject: 'Press accreditation and interview request',
+                received_at: '2026-07-02T14:22:00Z',
+                snippet: 'We would like to cover Plexus and request an interview with the organizing committee...',
+                messages: [{
+                    from: { name: 'Tomislav Juric', email: 'desk@press-example.hr' },
+                    at: '2026-07-02T14:22:00Z',
+                    body: 'Dear organizers,\n\nWe would like to cover Plexus 2026 and request press accreditation for two journalists. We would also welcome a short interview with a member of the organizing committee ahead of the event. Could you share your press kit and a couple of possible time slots?\n\nKind regards,\nTomislav Juric\nZagreb Health Weekly'
+                }]
+            },
+            {
+                id: 'oth-venue', unread: false, folder: 'Inbox', category: 'general',
+                from: { name: 'Esplanade Events', email: 'events@venue-example.hr' },
+                subject: 'Gala evening — final headcount and menu',
+                received_at: '2026-07-01T11:48:00Z',
+                snippet: 'Please confirm the final headcount and any dietary requirements by mid-November...',
+                messages: [{
+                    from: { name: 'Petra Vidovic', email: 'events@venue-example.hr' },
+                    at: '2026-07-01T11:48:00Z',
+                    body: 'Good morning,\n\nAhead of the gala evening we will need the final headcount and any dietary requirements by mid-November so the kitchen can plan. Could you also confirm the preferred seating layout and whether you will need a lectern and microphone for the awards?\n\nThank you,\nPetra Vidovic\nEsplanade Events'
+                }]
+            }
+        ];
+    }
+    function outlookFindThread(id) { return outlookMockThreads().find((t) => t.id === id) || null; }
+    // Which mock threads already have a reply waiting in the approval outbox.
+    function outlookStagedThreadIds() {
+        const set = new Set();
+        try {
+            const rows = query.all("SELECT payload_json FROM scheduled_emails WHERE source_engine = 'outlook-reply' AND status = 'pending_approval'");
+            rows.forEach((r) => { try { const p = JSON.parse(r.payload_json || '{}'); if (p.thread_id) set.add(p.thread_id); } catch (e) {} });
+        } catch (e) {}
+        return set;
+    }
+
+    // Connection + boundary status for the Email (Outlook) tab.
+    app.get('/api/admin/outlook/status', auth, adminOnly, (req, res) => {
+        res.json({
+            configured: outlookConfigured(),
+            connected: outlookConfigured(),
+            dev: outlookDev(),
+            mock: outlookMockActive(),
+            mailbox: outlookMailbox(),
+            env_keys: OUTLOOK_ENV
+        });
+    });
+
+    // List inbox threads (mock in dev until Graph is wired; empty in prod without keys).
+    app.get('/api/admin/outlook/threads', auth, adminOnly, (req, res) => {
+        try {
+            const useMock = outlookMockActive();
+            const threads = useMock ? outlookMockThreads() : [];
+            const staged = outlookStagedThreadIds();
+            const list = threads.map((t) => ({
+                id: t.id, unread: t.unread, folder: t.folder, category: t.category,
+                from: t.from, subject: t.subject, received_at: t.received_at, snippet: t.snippet,
+                message_count: (t.messages || []).length, reply_staged: staged.has(t.id)
+            }));
+            res.json({
+                mock: useMock, configured: outlookConfigured(), dev: outlookDev(),
+                mailbox: outlookMailbox(), unread: list.filter((t) => t.unread).length, threads: list
+            });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Read one thread (full message bodies).
+    app.get('/api/admin/outlook/threads/:id', auth, adminOnly, (req, res) => {
+        if (!outlookMockActive()) return res.status(404).json({ error: 'No mailbox connected yet.' });
+        const t = outlookFindThread(req.params.id);
+        if (!t) return res.status(404).json({ error: 'Thread not found' });
+        const reply_staged = outlookStagedThreadIds().has(t.id);
+        res.json({ mock: true, mailbox: outlookMailbox(), thread: { ...t, reply_staged } });
+    });
+
+    // Draft an AI reply for a thread (aiDraft + clean deterministic fallback). Does NOT stage or send.
+    app.post('/api/admin/outlook/threads/:id/draft-reply', auth, adminOnly, async (req, res) => {
+        if (!outlookMockActive()) return res.status(404).json({ error: 'No mailbox connected yet.' });
+        const t = outlookFindThread(req.params.id);
+        if (!t) return res.status(404).json({ error: 'Thread not found' });
+        const last = (t.messages || [])[(t.messages || []).length - 1] || {};
+        const senderName = (t.from && t.from.name) || 'there';
+        const firstName = senderName.split(' ').filter((w) => !/^(dr\.?|prof\.?|mr\.?|mrs\.?|ms\.?)$/i.test(w))[0] || senderName;
+        const intent = String((req.body && req.body.intent) || '').trim();
+        const purpose = `Write a warm, professional reply from the Med&X team to an email from ${senderName}. ${intent ? 'Focus on: ' + intent + '. ' : ''}Two short paragraphs, specific to their message, ready to send. American English. No semicolons. No placeholder brackets. Sign off as "The Med&X Team".`;
+        const context = { sender: senderName, their_subject: t.subject, their_message: last.body || t.snippet, topic: t.category };
+        let draft = '', mock = true;
+        try { const r = await aiDraft({ purpose, context, maxTokens: 320 }); if (r && r.text && !r.mock && !/^\[Draft\]/.test(r.text)) { draft = r.text.trim(); mock = false; } } catch (e) { /* fallback */ }
+        if (!draft) {
+            const bits = [];
+            bits.push(`Dear ${firstName},`);
+            bits.push(`Thank you for your note about "${t.subject}". We appreciate you reaching out to Med&X and we are glad to help.`);
+            if (t.category === 'sponsorship') bits.push('We would be happy to walk you through what the Gold tier includes, from stage time to branding on the gala evening materials, and to share the payment schedule. Let us know a time that suits you and we will send a short agenda.');
+            else if (t.category === 'speaker') bits.push('We would be delighted to hold a keynote slot for you. Once you confirm the title we will send the exact date and sort out the travel arrangements from your side.');
+            else if (t.category === 'registration') bits.push('We can sort this out quickly. Could you confirm the email address you registered with so we can check your booking and resend your confirmation right away.');
+            else if (t.category === 'press') bits.push('We are glad to help with your coverage. We can arrange accreditation for your two journalists, share the press kit, and offer a couple of interview slots with the organizing committee.');
+            else bits.push('We will confirm the final headcount and dietary requirements in good time, and we will let you know the seating layout and the lectern and microphone needs for the awards.');
+            bits.push('Warm regards,\nThe Med&X Team');
+            draft = bits.join('\n\n');
+        }
+        const subject = /^re:/i.test(t.subject) ? t.subject : ('Re: ' + t.subject);
+        res.json({ success: true, subject, to: t.from, draft, mock });
+    });
+
+    // Stage a reply into the ONE approval outbox (pending_approval). Never sends.
+    app.post('/api/admin/outlook/threads/:id/queue-reply', auth, adminOnly, (req, res) => {
+        try {
+            if (!outlookMockActive()) return res.status(404).json({ error: 'No mailbox connected yet.' });
+            const t = outlookFindThread(req.params.id);
+            if (!t) return res.status(404).json({ error: 'Thread not found' });
+            const bodyText = String((req.body && req.body.body) || '').trim();
+            if (!bodyText) return res.status(400).json({ error: 'Reply body is required' });
+            const to = (t.from && t.from.email) || '';
+            if (!to) return res.status(400).json({ error: 'This thread has no reply address.' });
+            const subject = String((req.body && req.body.subject) || '').trim() || ('Re: ' + t.subject);
+            const html = buildEmailTemplate(subject, `<div style="white-space:pre-line;">${nagEscape(bodyText)}</div>`, { accent: 'crimson' });
+            const batchId = 'outlook-reply-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
+            const payload = { to, subject, html, body_text: bodyText, channel: 'email', source: 'outlook', thread_id: t.id, in_reply_to: t.subject, mailbox: outlookMailbox() };
+            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                    VALUES (?, 'pending_approval', ?, 'outlook-reply', 'outlook_reply', ?, ?, ?, ?, datetime('now'))`,
+                [uuidv4(), batchId, JSON.stringify(payload), to, subject, req.user?.email || 'admin']);
+            saveDb();
+            logAudit(req, 'outlook.reply_queue', `reply to ${to} re "${t.subject}" staged (batch ${batchId})`);
+            res.json({ success: true, batch_id: batchId, staged: 1, to, subject, approval_required: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
     // ========== POST-EVENT (Close-event round) — admin panel API ==========
@@ -23879,6 +26143,37 @@ app.get('*', (req, res) => {
         // scheduled_for is due, through the sendEmail() mock boundary (never a raw send). Each row
         // is retried once on failure, then marked 'failed' with the error noted. payload_json is
         // the source of truth for to/subject/body; flat columns are the fallback for older rows.
+        // ---- Seed the internal team-chat channels (idempotent, admin-only) ----
+        // All Team (everyone) + creatable sub-team channels PR and Finances. Owner can add more
+        // and manage membership from the Team Chat view. Runs every boot to self-heal.
+        try {
+            const _ensureTeamCh = (key, display, desc, sort) => {
+                let ch = query.get("SELECT * FROM chat_channels WHERE is_team_channel = 1 AND name = ?", [key]);
+                if (!ch) {
+                    const id = uuidv4();
+                    db.run("INSERT INTO chat_channels (id, name, display_name, description, is_team_channel, project, sort_order) VALUES (?, ?, ?, ?, 1, NULL, ?)",
+                        [id, key, display, desc, sort]);
+                    ch = query.get("SELECT * FROM chat_channels WHERE id = ?", [id]);
+                }
+                return ch;
+            };
+            const _allTeam = _ensureTeamCh('all-team', 'All Team', 'Everyone at Med&X — org-wide chat and announcements.', 0);
+            const _prCh = _ensureTeamCh('pr', 'PR', 'Public relations and media team.', 5);
+            const _finCh = _ensureTeamCh('finance-team', 'Finances', 'Budget, invoices and the finance team.', 6);
+            const _members = query.all("SELECT id, name FROM team_members");
+            const _enroll = (chId, memberId, role) => {
+                if (!chId || !memberId) return;
+                db.run("INSERT OR IGNORE INTO channel_members (id, channel_id, member_id, role) VALUES (?, ?, ?, ?)", [uuidv4(), chId, memberId, role || 'member']);
+            };
+            _members.forEach(m => _enroll(_allTeam.id, m.id, 'member'));
+            const _byName = (n) => _members.find(m => m.name === n);
+            const _owner = _byName('Alen Juginovic');
+            if (_owner) { _enroll(_prCh.id, _owner.id, 'owner'); _enroll(_finCh.id, _owner.id, 'owner'); }
+            const _petra = _byName('Petra Horvat'); if (_petra) _enroll(_prCh.id, _petra.id);
+            const _miro = _byName('Miro Vukovic'); if (_miro) _enroll(_finCh.id, _miro.id);
+            saveDb();
+        } catch (e) { console.error('[TeamChat] seed error', e.message); }
+
         async function drainScheduledEmails() {
             let due;
             try {
@@ -23888,8 +26183,8 @@ app.get('*', (req, res) => {
             } catch (e) { return; }
             if (!due || !due.length) return;
             let changed = false;
-            const trySend = async (to, subject, html) => {
-                try { return await sendEmail(to, subject, html); }
+            const trySend = async (to, subject, html, atts) => {
+                try { return await sendEmail(to, subject, html, atts); }
                 catch (e) { return { success: false, error: e.message }; }
             };
             for (const row of due) {
@@ -23898,13 +26193,43 @@ app.get('*', (req, res) => {
                 const to = payload.to || row.recipient_email;
                 const subject = payload.subject || row.subject || '(no subject)';
                 const html = payload.html || payload.body_html || payload.body || '';
+                // Portal-channel delivery (gala guest messages to members): deliver into the
+                // member's in-portal inbox via user_notifications instead of email. Same single
+                // outbox, same one approval gate — no second send path. The INSERT is inlined (not
+                // via createUserNotification) so it never depends on that helper being in scope.
+                // user_group='targeted' keeps it 1:1 (the user portal shows user_group='all' rows
+                // to everyone, so a personal message must NOT use 'all'). Falls through to email if
+                // user_id is missing.
+                if (payload.channel === 'portal' && payload.user_id) {
+                    try {
+                        db.run(
+                            `INSERT INTO user_notifications (id, user_id, user_group, category, project, title, message, link, icon, icon_class, created_by, created_at)
+                             VALUES (?, ?, 'targeted', 'message', ?, ?, ?, ?, 'fa-glass-cheers', 'event', 'gala-command-center', datetime('now'))`,
+                            [uuidv4(), payload.user_id, payload.project || 'gala', subject, payload.body_text || payload.body || '', payload.link || '/?app=1']
+                        );
+                        db.run("UPDATE scheduled_emails SET status='sent', sent_count=COALESCE(sent_count,0)+1, attempts=1, sent_at=datetime('now'), last_error='portal message delivered' WHERE id=?", [row.id]);
+                        changed = true;
+                    } catch (e) {
+                        db.run("UPDATE scheduled_emails SET status='failed', attempts=COALESCE(attempts,0)+1, last_error=?, sent_at=datetime('now') WHERE id=?", [String((e && e.message) || 'portal deliver failed').slice(0, 300), row.id]);
+                        changed = true;
+                    }
+                    continue;
+                }
                 if (!to) {
                     try { db.run("UPDATE scheduled_emails SET status='failed', attempts=COALESCE(attempts,0)+1, last_error='no recipient', sent_at=datetime('now') WHERE id=?", [row.id]); changed = true; } catch (e) {}
                     continue;
                 }
-                let result = await trySend(to, subject, html);
+                // Decode any base64 attachments carried in the payload (e.g. a meeting .ics)
+                // into the { filename, content: Buffer, type } shape sendEmail expects.
+                let _atts;
+                if (Array.isArray(payload.attachments)) {
+                    _atts = payload.attachments
+                        .map(a => ({ filename: a.filename || a.name || 'attachment', content: Buffer.from(String(a.content_b64 || a.content || ''), 'base64'), type: a.type || a.mime || 'application/octet-stream' }))
+                        .filter(a => a.filename && a.content && a.content.length);
+                }
+                let result = await trySend(to, subject, html, _atts);
                 let attempts = 1;
-                if (!(result && result.success !== false)) { result = await trySend(to, subject, html); attempts = 2; } // retry once
+                if (!(result && result.success !== false)) { result = await trySend(to, subject, html, _atts); attempts = 2; } // retry once
                 const ok = result && result.success !== false;
                 if (ok) {
                     try {

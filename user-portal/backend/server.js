@@ -216,6 +216,9 @@ async function sendEmail(to, subject, htmlContent, attachments, cc) {
 
     // No email provider configured
     console.log(`[Email Mock] To: ${to}, Subject: ${subject}`);
+    if (atts.length) {
+        console.log(`[Email Mock] Attachments: ${atts.map(a => `${a.filename} (${Buffer.from(a.content).length}b)`).join(', ')}`);
+    }
     return { success: true, mock: true };
 }
 
@@ -22841,8 +22844,8 @@ By applying to this program, I provide the following consents:
                 } catch (e) { return; }
                 if (!due || !due.length) return;
                 let changed = false;
-                const trySend = async (to, subject, html) => {
-                    try { return await sendEmail(to, subject, html); }
+                const trySend = async (to, subject, html, atts) => {
+                    try { return await sendEmail(to, subject, html, atts); }
                     catch (e) { return { success: false, error: e.message }; }
                 };
                 for (const row of due) {
@@ -22851,13 +22854,42 @@ By applying to this program, I provide the following consents:
                     const to = payload.to || row.recipient_email;
                     const subject = payload.subject || row.subject || '(no subject)';
                     const html = payload.html || payload.body_html || payload.body || '';
+                    // Portal-channel delivery (gala guest messages to members): deliver into the
+                    // member's in-portal inbox via user_notifications instead of email. Mirrors the
+                    // admin drainer's branch (drainScheduledEmails) column-for-column so a
+                    // schedule-for-later portal message drained HERE in dev lands in the inbox
+                    // rather than being sent as a mock email. user_group='targeted' keeps it 1:1.
+                    if (payload.channel === 'portal' && payload.user_id) {
+                        try {
+                            db.run(
+                                `INSERT INTO user_notifications (id, user_id, user_group, category, project, title, message, link, icon, icon_class, created_by, created_at)
+                                 VALUES (?, ?, 'targeted', 'message', ?, ?, ?, ?, 'fa-glass-cheers', 'event', 'gala-command-center', datetime('now'))`,
+                                [uuidv4(), payload.user_id, payload.project || 'gala', subject, payload.body_text || payload.body || '', payload.link || '/?app=1']
+                            );
+                            db.run("UPDATE scheduled_emails SET status='sent', sent_count=COALESCE(sent_count,0)+1, attempts=1, sent_at=datetime('now'), last_error='portal message delivered' WHERE id=?", [row.id]);
+                            changed = true;
+                        } catch (e) {
+                            db.run("UPDATE scheduled_emails SET status='failed', attempts=COALESCE(attempts,0)+1, last_error=?, sent_at=datetime('now') WHERE id=?", [String((e && e.message) || 'portal deliver failed').slice(0, 300), row.id]);
+                            changed = true;
+                        }
+                        continue;
+                    }
                     if (!to) {
                         try { db.run("UPDATE scheduled_emails SET status='failed', attempts=COALESCE(attempts,0)+1, last_error='no recipient', sent_at=datetime('now') WHERE id=?", [row.id]); changed = true; } catch (e) {}
                         continue;
                     }
-                    let result = await trySend(to, subject, html);
+                    // Decode any base64 attachments carried in the payload (e.g. a meeting .ics)
+                    // into the { filename, content: Buffer, type } shape sendEmail expects — mirror
+                    // of the admin drainer so a locally-drained meeting invite keeps its .ics.
+                    let _atts;
+                    if (Array.isArray(payload.attachments)) {
+                        _atts = payload.attachments
+                            .map(a => ({ filename: a.filename || a.name || 'attachment', content: Buffer.from(String(a.content_b64 || a.content || ''), 'base64'), type: a.type || a.mime || 'application/octet-stream' }))
+                            .filter(a => a.filename && a.content && a.content.length);
+                    }
+                    let result = await trySend(to, subject, html, _atts);
                     let attempts = 1;
-                    if (!(result && result.success !== false)) { result = await trySend(to, subject, html); attempts = 2; }
+                    if (!(result && result.success !== false)) { result = await trySend(to, subject, html, _atts); attempts = 2; }
                     const ok = result && result.success !== false;
                     if (ok) {
                         try {
