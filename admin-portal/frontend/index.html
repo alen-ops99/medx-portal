@@ -10502,6 +10502,17 @@ President, Med&amp;X</textarea>
                                 </div>
                             </div>
                             <div class="card-body">
+                                <!-- Internal: weekly team pulse -> staged to the approval outbox (admins only) -->
+                                <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:14px;padding:13px 16px;background:var(--bg-primary);border:1px solid var(--border);border-left:4px solid #c9a962;border-radius:10px;">
+                                    <div style="display:flex;align-items:center;gap:11px;min-width:230px;flex:1;">
+                                        <i class="fas fa-heart-pulse" style="color:#9b1b22;font-size:18px;"></i>
+                                        <div>
+                                            <div style="font-size:14px;font-weight:700;color:var(--text-primary);">Weekly team pulse</div>
+                                            <div style="font-size:12px;color:var(--text-muted);">A private Monday heartbeat for the admin team. New members, registrations, open items, deadlines. Staged for approval, never auto-sent.</div>
+                                        </div>
+                                    </div>
+                                    <button id="pulseSendNowBtn" class="btn btn-secondary" style="font-size:13px;white-space:nowrap;" onclick="WeeklyPulse.sendNow()"><i class="fas fa-paper-plane"></i> Send pulse now</button>
+                                </div>
                                 <!-- Audience at a glance: signup-page interests + the public signup link. -->
                                 <div id="nlAudienceStrip" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px;padding:11px 14px;background:var(--bg-primary);border:1px solid var(--border);border-radius:10px;">
                                     <span style="font-size:12px;font-weight:600;color:var(--text-secondary);"><i class="fas fa-heart" style="color:#9b1b22;"></i> Subscriber interests</span>
@@ -11644,6 +11655,22 @@ President, Med&amp;X</textarea>
 
                     <!-- Item 1/15: Ping the members interested in the Gala (reuses Message members). -->
                     <div id="galaPingInterested" style="display:flex;justify-content:flex-end;margin-bottom:20px;"></div>
+
+                    <!-- Event ops toolbar: caterer sheet, door list, program one-pager (read-only handoff) -->
+                    <div class="card" style="padding:15px 18px; margin-bottom:20px; border-left:5px solid #c9a962; background: var(--bg-secondary); display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+                        <div style="display:flex; align-items:center; gap:11px;">
+                            <i class="fas fa-clipboard-list" style="color:#c9a962; font-size:18px;"></i>
+                            <div>
+                                <div style="font-size:15px; font-weight:700; color:var(--text-primary);">Event ops</div>
+                                <div style="font-size:12px; color:var(--text-muted);">Handoff artifacts for the caterer and the door</div>
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-left:auto;">
+                            <button class="btn btn-secondary" onclick="GalaAdmin.downloadCatererSheet()" style="font-size:13px;" title="Confirmed guests with meal counts, allergies, and table — CSV for the caterer"><i class="fas fa-file-csv"></i> Download caterer sheet (CSV)</button>
+                            <button class="btn btn-secondary" onclick="GalaAdmin.printDoorList()" style="font-size:13px;" title="Alphabetized confirmed guests with a check-in column — print for the door"><i class="fas fa-clipboard-check"></i> Print door list</button>
+                            <button class="btn btn-secondary" onclick="GalaAdmin.printProgram()" style="font-size:13px;" title="The evening's schedule on one elegant page — print for tables or the door"><i class="fas fa-scroll"></i> Print program</button>
+                        </div>
+                    </div>
 
                     <!-- Gala Tabs -->
                     <div style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 12px; overflow-x: auto; white-space: nowrap;">
@@ -30778,7 +30805,7 @@ By applying to this program, I give the following consents:
                 'network-outreach': 'My Network outreach', 'assistant-reminder': 'Assistant reminder',
                 'gala-guest-msg': 'Gala guest message', 'gala-program': 'Gala program',
                 'confirm-seat': 'Seat confirmation', 'post-event': 'Post-event', 'newsletter': 'Newsletter',
-                'sponsor-lifecycle': 'Sponsor wrap', 'nag-digest': 'Team digest', 'outlook-reply': 'Inbox reply'
+                'sponsor-lifecycle': 'Sponsor wrap', 'nag-digest': 'Team digest', 'outlook-reply': 'Inbox reply', 'weekly-pulse': 'Weekly pulse'
             },
             label(s) { return this.LABELS[s] || String(s || 'batch').replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); },
             async api(ep, o = {}) {
@@ -30821,6 +30848,30 @@ By applying to this program, I give the following consents:
                 catch (e) { Toast.error(e.message || 'Discard failed'); }
             }
         };
+
+        // ===== WEEKLY TEAM PULSE ("Send pulse now") =====
+        // On-demand generation of the Monday admin heartbeat. Hits the same idempotency-checked path
+        // as the daily scheduler with a manual override, so a re-send never blocks. Stages a
+        // pending_approval batch in the approval outbox — it never sends on its own.
+        const WeeklyPulse = {
+            async sendNow() {
+                const btn = document.getElementById('pulseSendNowBtn');
+                const orig = btn ? btn.innerHTML : '';
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Composing\u2026'; }
+                try {
+                    const res = await fetch('/api/admin/pulse/run', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: '{}' });
+                    const d = await res.json().catch(() => ({}));
+                    if (!res.ok || !d.success || !d.created) throw new Error((d && d.error) || 'Could not generate the pulse');
+                    Toast.success(`Weekly pulse staged for ${d.recipients} admin${d.recipients === 1 ? '' : 's'}${d.resend ? ' (manual re-send)' : ''}. Review it in the approval outbox.`);
+                    try { if (window.PendingOutbox && document.getElementById('pendingOutboxList')) PendingOutbox.load(); } catch (e) {}
+                } catch (e) {
+                    Toast.error(e.message || 'Could not generate the pulse');
+                } finally {
+                    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+                }
+            }
+        };
+        window.WeeklyPulse = WeeklyPulse;
 
         // ===== BUILDING BRIDGES APP =====
         const BridgesApp = {
@@ -34588,6 +34639,247 @@ By applying to this program, I give the following consents:
                 document.body.appendChild(a); a.click(); a.remove();
                 Toast.success('Exported ' + a.download);
             },
+
+            // ============================================================
+            // EVENT OPS — caterer sheet (CSV), door list, program one-pager
+            // Read-only handoff artifacts over the already-loaded gala data.
+            // Populations mirror the dashboard exactly so counts always match.
+            // ============================================================
+            _opsConfirmed() {
+                // Same "confirmed" set as the Dinner headcount card and Meals tab.
+                return (this.registrations || []).filter(r => r.payment_status === 'paid' || r.status === 'confirmed');
+            },
+            _opsSortByName(list) {
+                return [...list].sort((a, b) => {
+                    const an = ((a.last_name || '') + ' ' + (a.first_name || '')).trim().toLowerCase();
+                    const bn = ((b.last_name || '') + ' ' + (b.first_name || '')).trim().toLowerCase();
+                    return an.localeCompare(bn) || String(a.email || '').localeCompare(String(b.email || ''));
+                });
+            },
+            _opsGuestName(r) {
+                return (String(r.first_name || '').trim() + ' ' + String(r.last_name || '').trim()).trim() || (r.email || 'Guest');
+            },
+            _opsDietaryNotes(r) {
+                return [
+                    r.dietary && r.dietary !== 'No special requirements' ? r.dietary : '',
+                    r.requests ? r.requests : ''
+                ].filter(Boolean).join(' — ');
+            },
+            _opsTicketType(r) {
+                return r.pricing === 'bundle' ? 'Conference + Gala bundle' : 'Gala only';
+            },
+            async _opsSeatingMap() {
+                // registration_id -> table label, when a seating plan exists. Read-only.
+                try {
+                    const res = await fetch('/api/admin/gala/seating', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    if (!res.ok) return {};
+                    const d = await res.json();
+                    const map = {};
+                    (d.tables || []).forEach(t => (t.guests || []).forEach(g => { if (g && g.registration_id) map[g.registration_id] = t.label; }));
+                    return map;
+                } catch (e) { return {}; }
+            },
+
+            // 1) Caterer sheet — clean CSV of confirmed guests with a summary block on top.
+            async downloadCatererSheet() {
+                if (!this.menuOptions || !this.menuOptions.length) await this.loadMenuOptions();
+                if (!this.registrations || !this.registrations.length) { try { await this.loadRegistrations(); } catch (e) {} }
+                const confirmed = this._opsSortByName(this._opsConfirmed());
+                if (!confirmed.length) { Toast.warning('No confirmed guests to export yet'); return; }
+                const opts = (this.menuOptions && this.menuOptions.length) ? this.menuOptions : this._defaultMenu();
+                const seatMap = await this._opsSeatingMap();
+                const hasTables = Object.keys(seatMap).length > 0;
+
+                // Meal + allergy counts use the SAME logic as the Meals tab so the summary matches.
+                const counts = {}; opts.forEach(o => counts[o.label] = 0);
+                let offMenu = 0, allergies = 0;
+                confirmed.forEach(r => {
+                    const m = this.classifyMeal(r);
+                    if (m.offMenu) offMenu++; else counts[m.label] = (counts[m.label] || 0) + 1;
+                    const extra = (String(r.dietary || '') + ' ' + String(r.requests || '')).toLowerCase();
+                    if (/allerg|gluten|coeliac|celiac|lactose|nut allergy|peanut|shellfish|dairy-free|dairy free|halal|kosher/.test(extra)) allergies++;
+                });
+
+                const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+                const today = new Date();
+                const ymd = today.toISOString().slice(0, 10);
+                const gTitle = (this.settings && this.settings.title) || 'Plexus Gala Evening 2026';
+                const rows = [];
+                // ---- Summary block ----
+                rows.push(['Med&X — ' + gTitle + ' — caterer sheet']);
+                rows.push(['Generated', today.toLocaleString('en-US')]);
+                rows.push(['Total confirmed guests', confirmed.length]);
+                rows.push([]);
+                rows.push(['Meal option', 'Count']);
+                opts.forEach(o => rows.push([o.label + (o.is_default == 1 ? ' (default)' : ''), counts[o.label] || 0]));
+                if (offMenu) rows.push(['Off-menu / needs follow-up', offMenu]);
+                rows.push(['Guests with allergies or dietary flags', allergies]);
+                rows.push([]);
+                // ---- Guest rows ----
+                const header = ['Name', 'Institution', 'Meal choice', 'Allergies / dietary notes'];
+                if (hasTables) header.push('Table');
+                rows.push(header);
+                confirmed.forEach(r => {
+                    const m = this.classifyMeal(r);
+                    const meal = m.offMenu ? (m.label + ' (off-menu — follow up)') : m.label;
+                    const row = [this._opsGuestName(r), r.institution || '', meal, this._opsDietaryNotes(r)];
+                    if (hasTables) row.push(seatMap[r.id] || '');
+                    rows.push(row);
+                });
+
+                // BOM so Excel reads UTF-8; CRLF line endings; every field quoted + escaped.
+                const csv = '﻿' + rows.map(r => r.map(q).join(',')).join('\r\n');
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'gala-caterer-' + ymd + '.csv';
+                document.body.appendChild(a); a.click(); a.remove();
+                setTimeout(() => { try { URL.revokeObjectURL(a.href); } catch (e) {} }, 1500);
+                Toast.success('Caterer sheet exported (' + confirmed.length + ' guests)');
+            },
+
+            // Shared print helper — open a fresh window, write the doc, trigger the print dialog.
+            _openPrint(html) {
+                const w = window.open('', '_blank');
+                if (!w) { Toast.error('Allow pop-ups to open the print view'); return; }
+                w.document.write(html);
+                w.document.close();
+                setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 450);
+            },
+            _opsFontHead() {
+                return '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+                    + '<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">';
+            },
+
+            // 2) Door list — alphabetized confirmed guests, check-in column, print-optimized.
+            _doorListHtml() {
+                const confirmed = this._opsSortByName(this._opsConfirmed());
+                const s = this.settings || {};
+                const gTitle = s.title || 'Plexus Gala Evening 2026';
+                const gDate = s.date || '';
+                const gVenue = s.venue || '';
+                const esc = (x) => this.esc(x);
+                const genAt = new Date().toLocaleString('en-US');
+                const rowsHtml = confirmed.map((r, i) => '<tr>'
+                    + '<td class="num">' + (i + 1) + '</td>'
+                    + '<td class="chk"><span class="box"></span></td>'
+                    + '<td class="nm">' + esc(this._opsGuestName(r)) + '</td>'
+                    + '<td class="inst">' + esc(r.institution || '') + '</td>'
+                    + '<td class="tkt">' + esc(this._opsTicketType(r)) + '</td>'
+                    + '</tr>').join('');
+                return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Gala door list</title>'
+                + this._opsFontHead()
+                + '<style>'
+                + ':root{--ink:#15110f;--crimson:#9b1b22;--gold:#c9a962;--line:#e5ded3;}'
+                + '*{box-sizing:border-box;}'
+                + '@page{size:A4;margin:14mm 12mm 16mm;}'
+                + '@page{@bottom-right{content:"Page " counter(page) " of " counter(pages);font-family:Inter,sans-serif;font-size:9pt;color:#8a7f70;}}'
+                + 'html,body{margin:0;padding:0;background:#fff;color:var(--ink);font-family:Inter,-apple-system,Segoe UI,Roboto,sans-serif;}'
+                + '.wrap{max-width:794px;margin:0 auto;padding:26px 28px;}'
+                + '.head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid var(--crimson);padding-bottom:12px;}'
+                + '.brand{font-family:Fraunces,Georgia,serif;}'
+                + '.brand .mx{font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:var(--crimson);font-weight:600;}'
+                + '.brand h1{font-size:27px;margin:3px 0 0;font-weight:700;letter-spacing:-.01em;}'
+                + '.meta{text-align:right;font-size:11.5px;color:#6b6258;line-height:1.55;}'
+                + '.subhead{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#6b6258;margin:12px 0 14px;}'
+                + '.subhead .tag{font-family:Fraunces,Georgia,serif;font-style:italic;color:var(--gold);}'
+                + 'table{width:100%;border-collapse:collapse;font-size:12.5px;}'
+                + 'thead th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#8a7f70;font-weight:700;border-bottom:1.5px solid var(--ink);padding:0 8px 7px;}'
+                + 'thead th.c{text-align:center;}'
+                + 'tbody td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle;}'
+                + 'tbody tr:nth-child(even){background:#faf7f2;}'
+                + 'td.num{width:30px;color:#a89b88;font-variant-numeric:tabular-nums;text-align:right;padding-right:10px;}'
+                + 'td.chk{width:38px;text-align:center;}'
+                + '.box{display:inline-block;width:15px;height:15px;border:1.5px solid #8a7f70;border-radius:3px;}'
+                + 'td.nm{font-weight:600;}'
+                + 'td.inst{color:#5c5348;}'
+                + 'td.tkt{white-space:nowrap;color:#5c5348;}'
+                + '.foot{margin-top:16px;padding-top:10px;border-top:1px solid var(--line);font-size:10px;color:#8a7f70;display:flex;justify-content:space-between;}'
+                + '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}thead{display:table-header-group;}tr{page-break-inside:avoid;}}'
+                + '</style></head><body><div class="wrap">'
+                + '<div class="head"><div class="brand"><div class="mx">Med&amp;X</div><h1>Gala door list</h1></div>'
+                + '<div class="meta">' + esc(gTitle) + (gDate ? '<br>' + esc(gDate) : '') + (gVenue ? '<br>' + esc(gVenue) : '') + '</div></div>'
+                + '<div class="subhead"><span>' + confirmed.length + ' confirmed guest' + (confirmed.length === 1 ? '' : 's') + ' &middot; listed alphabetically</span><span class="tag">Tick the box on arrival</span></div>'
+                + '<table><thead><tr><th class="c">#</th><th class="c">In</th><th>Name</th><th>Institution</th><th>Ticket</th></tr></thead>'
+                + '<tbody>' + (rowsHtml || '<tr><td colspan="5" style="padding:26px;text-align:center;color:#8a7f70;">No confirmed guests yet.</td></tr>') + '</tbody></table>'
+                + '<div class="foot"><span>Generated ' + esc(genAt) + ' &middot; Med&amp;X</span><span>Plexus Gala Evening 2026</span></div>'
+                + '</div></body></html>';
+            },
+            printDoorList() {
+                if (!this.registrations || !this.registrations.length) { Toast.warning('Guest list is still loading — try again in a moment'); this.loadRegistrations(); return; }
+                if (!this._opsConfirmed().length) { Toast.warning('No confirmed guests to print yet'); return; }
+                this._openPrint(this._doorListHtml());
+            },
+
+            // 3) Program one-pager — the evening's schedule typeset on one page.
+            _programHtml() {
+                const s = this.settings || {};
+                const sch = (s.schedule && s.schedule.length) ? s.schedule : [];
+                const gTitle = s.title || 'Plexus Gala Evening 2026';
+                const gTagline = s.tagline || '';
+                const gDate = s.date || '';
+                const gTime = s.time || '';
+                const gVenue = s.venue || '';
+                const gDress = s.dress_code || '';
+                const esc = (x) => this.esc(x);
+                const metaBits = [gDate, gTime, gVenue].filter(Boolean).map(esc).join(' &middot; ');
+                const items = sch.map(it => '<div class="ev">'
+                    + '<div class="tm">' + esc(it.time || '') + '</div>'
+                    + '<div class="rail"><span class="dot"></span></div>'
+                    + '<div class="bd"><div class="ttl">' + esc(it.title || '') + '</div>'
+                    + (it.description ? '<div class="ds">' + esc(it.description) + '</div>' : '')
+                    + '</div></div>').join('');
+                return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Gala program</title>'
+                + this._opsFontHead()
+                + '<style>'
+                + ':root{--ink:#15110f;--crimson:#9b1b22;--gold:#c9a962;--cream:#fbf9f6;--line:#e7ddcd;}'
+                + '*{box-sizing:border-box;}'
+                + '@page{size:A4;margin:0;}'
+                + 'html,body{margin:0;padding:0;background:#fff;color:var(--ink);font-family:Inter,-apple-system,Segoe UI,Roboto,sans-serif;}'
+                + '.sheet{max-width:794px;min-height:1123px;margin:0 auto;background:var(--cream);padding:52px 60px 44px;position:relative;}'
+                + '.sheet::before{content:"";position:absolute;inset:16px;border:1px solid rgba(201,169,98,.5);pointer-events:none;}'
+                + '.top{text-align:center;position:relative;}'
+                + '.eyebrow{font-size:12px;letter-spacing:.34em;text-transform:uppercase;color:var(--crimson);font-weight:600;}'
+                + '.rule{width:54px;height:2px;background:var(--gold);margin:14px auto 16px;}'
+                + 'h1{font-family:Fraunces,Georgia,serif;font-size:38px;font-weight:700;margin:0;letter-spacing:-.015em;line-height:1.08;}'
+                + '.tagline{font-family:Fraunces,Georgia,serif;font-style:italic;font-size:16px;color:#6b6258;margin-top:8px;}'
+                + '.evmeta{font-size:12.5px;color:#6b6258;letter-spacing:.02em;margin-top:12px;}'
+                + '.timeline{margin:34px auto 0;max-width:560px;}'
+                + '.ev{display:grid;grid-template-columns:78px 26px 1fr;align-items:start;}'
+                + '.ev .tm{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:15px;color:var(--crimson);padding-top:1px;text-align:right;padding-right:6px;font-variant-numeric:tabular-nums;}'
+                + '.ev .rail{position:relative;display:flex;justify-content:center;}'
+                + '.ev .rail::before{content:"";position:absolute;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--gold),rgba(201,169,98,.35));}'
+                + '.ev:first-child .rail::before{top:9px;}'
+                + '.ev:last-child .rail::before{bottom:auto;height:9px;}'
+                + '.ev .dot{position:relative;z-index:1;display:block;width:11px;height:11px;border-radius:50%;background:var(--cream);border:2.5px solid var(--crimson);margin-top:4px;}'
+                + '.ev .bd{padding:0 0 22px 12px;}'
+                + '.ev .ttl{font-family:Fraunces,Georgia,serif;font-size:17px;font-weight:600;line-height:1.25;}'
+                + '.ev .ds{font-size:13px;color:#5c5348;margin-top:3px;line-height:1.5;}'
+                + '.foot{text-align:center;margin-top:24px;}'
+                + '.foot .dress{font-size:12.5px;color:#6b6258;}'
+                + '.foot .dress b{color:var(--ink);font-weight:600;}'
+                + '.foot .sig{font-family:Fraunces,Georgia,serif;font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--crimson);margin-top:12px;}'
+                + '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.sheet{margin:0;}}'
+                + '</style></head><body><div class="sheet">'
+                + '<div class="top"><div class="eyebrow">Med&amp;X &middot; Plexus</div><div class="rule"></div>'
+                + '<h1>' + esc(gTitle) + '</h1>'
+                + (gTagline ? '<div class="tagline">' + esc(gTagline) + '</div>' : '')
+                + (metaBits ? '<div class="evmeta">' + metaBits + '</div>' : '')
+                + '</div>'
+                + '<div class="timeline">' + (items || '<div style="text-align:center;color:#8a7f70;padding:30px;">No program items yet.</div>') + '</div>'
+                + '<div class="foot">'
+                + (gDress ? '<div class="dress"><b>Dress code</b> &middot; ' + esc(gDress) + '</div>' : '')
+                + '<div class="sig">An evening to remember</div>'
+                + '</div>'
+                + '</div></body></html>';
+            },
+            async printProgram() {
+                if (!this.settings) { try { await this.loadSettings(); } catch (e) {} }
+                const sch = (this.settings && this.settings.schedule) || [];
+                if (!sch.length) { Toast.warning('No saved program yet — add items in the Program tab first'); return; }
+                this._openPrint(this._programHtml());
+            },
+
 
             // Rows that started a Gala checkout and never paid — the recovery worklist.
             // Test-looking rows are excluded so this matches the dashboard "awaiting" chip.

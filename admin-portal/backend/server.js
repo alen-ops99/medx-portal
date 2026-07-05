@@ -16560,6 +16560,206 @@ By applying to this program, I provide the following consents:
         } catch (e) { console.error('[digest] restyle', e.message); res.status(500).json({ error: e.message }); }
     });
 
+    // ============ WEEKLY TEAM PULSE (engine 3) — internal admin heartbeat ============
+    // Every Monday (Europe/Zagreb) a private "Med&X weekly pulse" is composed for the admin team and
+    // parked in the approval outbox (pending_approval) so a human approves the send. Idempotent per
+    // ISO week via a drip_log marker (user_id='system-pulse', kind='weekly_pulse:YYYY-Www'). The owner
+    // can also generate it on demand ("Send pulse now"), which re-sends under a distinct manual key
+    // when the week was already covered. NEVER auto-sends. Every number is a REAL query over existing
+    // tables — a metric with no data reads as 0, never invented.
+    const PULSE_AREA_LABELS = { gala: 'Gala', plexus: 'Plexus', members: 'Members', pr: 'PR & Media', finance: 'Finance', accelerator: 'Accelerator', forum: 'Biomedical Forum', bridges: 'Building Bridges', tech: 'Tech', general: 'General' };
+
+    // Current calendar date in Europe/Zagreb as 'YYYY-MM-DD' so "Monday" and the ISO week are measured
+    // in the team's own timezone, not UTC.
+    function pulseZagrebYMD() {
+        try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zagreb', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
+        catch (e) { return new Date().toISOString().slice(0, 10); }
+    }
+    // ISO-8601 week key 'YYYY-Www' for a 'YYYY-MM-DD' date (computed in UTC to avoid drift).
+    function pulseIsoWeekKey(ymd) {
+        const d = new Date(ymd + 'T00:00:00Z');
+        d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7) + 3); // shift to this week's Thursday
+        const isoYear = d.getUTCFullYear();
+        const firstThu = new Date(Date.UTC(isoYear, 0, 4));
+        firstThu.setUTCDate(firstThu.getUTCDate() - ((firstThu.getUTCDay() + 6) % 7) + 3);
+        const week = 1 + Math.round((d.getTime() - firstThu.getTime()) / (7 * 86400000));
+        return isoYear + '-W' + String(week).padStart(2, '0');
+    }
+    function pulseIsMonday(ymd) { try { return new Date(ymd + 'T00:00:00Z').getUTCDay() === 1; } catch (e) { return false; } }
+    // Monday (week start) of the ISO week that contains ymd, as 'YYYY-MM-DD'.
+    function pulseWeekMonday(ymd) {
+        const d = new Date(ymd + 'T00:00:00Z');
+        d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+        return d.toISOString().slice(0, 10);
+    }
+    function pulseMarkerDone(kind) {
+        try { return !!query.get("SELECT 1 AS x FROM drip_log WHERE user_id = 'system-pulse' AND kind = ?", [kind]); } catch (e) { return false; }
+    }
+
+    // Mirror of the Action Center client-side area mapping (App._nagArea) so "open items by area" in
+    // the email matches exactly what the owner sees in the dashboard.
+    function pulseNagArea(kind, payload) {
+        const p = payload || {}; const k = kind || '';
+        const proj = p.open_project || p.project || '';
+        const sec = p.open_section || '';
+        if (k.indexOf('gala') === 0) return 'gala';
+        if (k === 'reg_unpaid' || k === 'sponsor_deliverable' || k === 'sponsor_followup') return 'plexus';
+        if (k === 'message_unanswered') return 'members';
+        if (k === 'content_plan_missing' || k === 'content_week_review' || k === 'monthly_digest') return 'pr';
+        if (proj === 'plexus') return 'plexus';
+        if (proj === 'accelerator') return 'accelerator';
+        if (proj === 'forum') return 'forum';
+        if (proj === 'bridges') return 'bridges';
+        if (proj === 'gala') return 'gala';
+        if (sec === 'gala') return 'gala';
+        if (sec === 'plexus') return 'plexus';
+        if (sec === 'messages') return 'members';
+        if (sec === 'pr-media') return 'pr';
+        if (sec === 'finances') return 'finance';
+        if (sec === 'tech' || sec === 'health') return 'tech';
+        return 'general';
+    }
+    function pulseActionAreas() {
+        const counts = {};
+        try {
+            const rows = query.all("SELECT kind, action_payload_json FROM nag_items WHERE status IN ('open','actioned')");
+            for (const r of rows) {
+                let p = {}; try { p = r.action_payload_json ? JSON.parse(r.action_payload_json) : {}; } catch (e) { p = {}; }
+                const a = pulseNagArea(r.kind, p);
+                counts[a] = (counts[a] || 0) + 1;
+            }
+        } catch (e) {}
+        return Object.keys(counts).map((k) => ({ key: k, label: PULSE_AREA_LABELS[k] || k, count: counts[k] })).sort((a, b) => b.count - a.count);
+    }
+
+    // Assemble the pulse DATA MODEL — every field is a real count over existing tables. Registrations
+    // split by event: gala -> gala_registrations, plexus -> registrations, bridges/donor ->
+    // bridges_registrations disambiguated by the event slug ('donor-night' vs everything else).
+    function assemblePulseModel() {
+        const num = (sql, params) => { try { const r = query.get(sql, params || []); return (r && r.c != null) ? r.c : 0; } catch (e) { return 0; } };
+        const model = {};
+        model.newMembers = num("SELECT COUNT(*) AS c FROM users WHERE COALESCE(is_admin,0) = 0 AND created_at >= datetime('now','-7 days')");
+        model.reg = {
+            gala: num("SELECT COUNT(*) AS c FROM gala_registrations WHERE created_at >= datetime('now','-7 days')"),
+            plexus: num("SELECT COUNT(*) AS c FROM registrations WHERE created_at >= datetime('now','-7 days')"),
+            bridges: num("SELECT COUNT(*) AS c FROM bridges_registrations br LEFT JOIN bridges_events be ON br.event_id = be.id WHERE COALESCE(be.slug,'') <> 'donor-night' AND br.registered_at >= datetime('now','-7 days')"),
+            donor: num("SELECT COUNT(*) AS c FROM bridges_registrations br LEFT JOIN bridges_events be ON br.event_id = be.id WHERE be.slug = 'donor-night' AND br.registered_at >= datetime('now','-7 days')")
+        };
+        model.regTotal = model.reg.gala + model.reg.plexus + model.reg.bridges + model.reg.donor;
+        model.unansweredMessages = num("SELECT COUNT(*) AS c FROM direct_messages WHERE sender_type <> 'admin' AND (is_read = 0 OR is_read IS NULL)");
+        model.actionAreas = pulseActionAreas();
+        model.actionTotal = model.actionAreas.reduce((s, a) => s + a.count, 0);
+        model.deadlines = digestKnownDeadlines()
+            .map((d) => ({ ...d, daysLeft: digestDaysUntil(d.date) }))
+            .filter((d) => d.daysLeft >= 0 && d.daysLeft <= 14)
+            .sort((a, b) => a.daysLeft - b.daysLeft);
+        model.subsTotal = num("SELECT COUNT(*) AS c FROM pr_subscribers WHERE COALESCE(status,'active') = 'active'");
+        model.subsNew = num("SELECT COUNT(*) AS c FROM pr_subscribers WHERE COALESCE(status,'active') = 'active' AND subscribed_at >= datetime('now','-7 days')");
+        return model;
+    }
+
+    // ---- premium render helpers (inline-CSS, email-client-safe) ----
+    function pulseStatCard(value, label, color) {
+        return `<td width="33%" valign="top" style="padding:5px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e6eaf0;border-top:3px solid ${color};border-radius:10px;"><tr><td style="padding:15px 10px;text-align:center;">
+                <div style="font-family:Georgia,'Times New Roman',serif;font-size:30px;font-weight:700;color:#0f172a;line-height:1;">${value}</div>
+                <div style="color:#64748b;font-size:11.5px;margin-top:6px;font-family:Arial,Helvetica,sans-serif;letter-spacing:0.3px;">${nagEscape(label)}</div>
+            </td></tr></table></td>`;
+    }
+    function pulseListRow(label, right, accent) {
+        return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px;"><tr>
+            <td style="background:#f8fafc;border-left:3px solid ${accent.bar};border-radius:8px 0 0 8px;padding:11px 4px 11px 15px;font-family:Georgia,'Times New Roman',serif;font-size:15px;font-weight:600;color:#0f172a;">${nagEscape(label)}</td>
+            <td width="76" align="right" style="background:#f8fafc;border-radius:0 8px 8px 0;padding:11px 15px 11px 4px;color:${accent.bar};font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;white-space:nowrap;">${nagEscape(String(right))}</td>
+        </tr></table>`;
+    }
+    // Pure render: (model) -> full branded weekly-pulse email HTML.
+    function renderPulseHtml(model) {
+        model = model || {};
+        const accent = medxEmailAccent('crimson');
+        const gold = MEDX_EMAIL_ACCENTS.gold.bar, ink = MEDX_EMAIL_ACCENTS.ink.bar, crimson = MEDX_EMAIL_ACCENTS.crimson.bar;
+        const r = model.reg || {};
+        const parts = [];
+        parts.push(`<p style="margin:0 0 20px;color:#334155;font-size:15px;line-height:1.7;">Here is the team heartbeat for the week of <strong>${nagEscape(model.weekLabel || '')}</strong>. A quick read so everyone stays in step without opening the dashboard. Every number below is live from the portal.</p>`);
+        parts.push(`<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 6px;"><tr>
+            ${pulseStatCard(model.newMembers || 0, 'New members', crimson)}
+            ${pulseStatCard(model.regTotal || 0, 'New registrations', gold)}
+            ${pulseStatCard(model.unansweredMessages || 0, 'Unanswered messages', ink)}
+        </tr></table>`);
+        parts.push(`<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 6px;"><tr>
+            ${pulseStatCard(model.actionTotal || 0, 'Open action items', ink)}
+            ${pulseStatCard(model.subsTotal || 0, 'Newsletter subscribers', crimson)}
+            ${pulseStatCard('+' + (model.subsNew || 0), 'New subscribers', gold)}
+        </tr></table>`);
+        parts.push(digestSectionHead('This week', 'New registrations by event', accent));
+        parts.push(pulseListRow('Gala', r.gala || 0, accent));
+        parts.push(pulseListRow('Plexus Conference', r.plexus || 0, accent));
+        parts.push(pulseListRow('Building Bridges', r.bridges || 0, accent));
+        parts.push(pulseListRow('Donor Night', r.donor || 0, accent));
+        parts.push(digestSectionHead('Action Center', 'Open items by area', accent));
+        if (model.actionAreas && model.actionAreas.length) {
+            model.actionAreas.forEach((a) => parts.push(pulseListRow(a.label, a.count, accent)));
+        } else {
+            parts.push(`<p style="margin:0 0 6px;color:#64748b;font-size:14px;line-height:1.7;">All clear. No open items in the Action Center.</p>`);
+        }
+        parts.push(digestSectionHead('On the horizon', 'Deadlines within 14 days', accent));
+        if (model.deadlines && model.deadlines.length) {
+            model.deadlines.forEach((d) => parts.push(pulseListRow(capWord(d.urgent || d.key || ''), d.daysLeft === 0 ? 'Today' : (d.daysLeft + (d.daysLeft === 1 ? ' day' : ' days')), accent)));
+        } else {
+            parts.push(`<p style="margin:0 0 6px;color:#64748b;font-size:14px;line-height:1.7;">Nothing due in the next 14 days.</p>`);
+        }
+        parts.push(digestSectionHead('Newsletter', 'Subscriber growth', accent));
+        parts.push(`<p style="margin:0 0 6px;color:#334155;font-size:15px;line-height:1.7;"><strong>${model.subsTotal || 0}</strong> active subscriber${(model.subsTotal || 0) === 1 ? '' : 's'}, <strong>${model.subsNew || 0}</strong> new this week.</p>`);
+        parts.push(`<div style="margin:26px 0 4px;text-align:center;"><a href="${nagEscape(ADMIN_PORTAL_URL)}" style="display:inline-block;background:${crimson};color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 26px;border-radius:10px;font-family:Arial,Helvetica,sans-serif;">Open the admin dashboard &rarr;</a></div>`);
+        return buildEmailTemplate(model.subject || 'Med&X weekly pulse', parts.join(''), { accent: 'crimson' });
+    }
+
+    // Stage one pending_approval scheduled_emails row per admin recipient. The auto path is idempotent
+    // per ISO week. A manual "Send pulse now" always proceeds — it claims the week key the first time,
+    // then re-sends under a unique manual key if the week is already covered.
+    function generateWeeklyPulse(opts) {
+        opts = opts || {};
+        const ymd = opts.ymd || pulseZagrebYMD();
+        const weekKey = opts.weekKey || pulseIsoWeekKey(ymd);
+        const weekClaimed = pulseMarkerDone('weekly_pulse:' + weekKey);
+        if (!opts.manual && !opts.force && weekClaimed) return { created: false, reason: 'already-generated', week: weekKey };
+        const dripKey = (opts.manual && weekClaimed) ? ('weekly_pulse_manual:' + Date.now()) : ('weekly_pulse:' + weekKey);
+        const admins = query.all("SELECT DISTINCT LOWER(TRIM(email)) AS email FROM users WHERE is_admin = 1 AND email IS NOT NULL AND TRIM(email) <> ''");
+        if (!admins.length) return { created: false, reason: 'no-admins', week: weekKey };
+        const mondayYmd = pulseWeekMonday(ymd);
+        const weekLabel = new Date(mondayYmd + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+        const subject = `Med&X weekly pulse — week of ${weekLabel}`;
+        const model = assemblePulseModel();
+        model.weekKey = weekKey; model.weekLabel = weekLabel; model.subject = subject;
+        const html = renderPulseHtml(model);
+        const batchId = 'weeklypulse-' + require('crypto').randomUUID();
+        let recipients = 0;
+        for (const a of admins) {
+            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                    VALUES (?, 'pending_approval', ?, 'weekly-pulse', 'weekly_pulse', ?, ?, ?, 'pulse-engine', datetime('now'))`,
+                [require('crypto').randomUUID(), batchId, JSON.stringify({ to: a.email, subject, html }), a.email, subject]);
+            recipients++;
+        }
+        try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'system-pulse', NULL, ?)", [require('crypto').randomUUID(), dripKey]); } catch (e) {}
+        saveDb();
+        return { created: true, week: weekKey, batch_id: batchId, recipients, manual: !!opts.manual, resend: !!(opts.manual && weekClaimed), drip_key: dripKey };
+    }
+    function maybeGenerateWeeklyPulseDaily() {
+        try { const ymd = pulseZagrebYMD(); if (pulseIsMonday(ymd)) generateWeeklyPulse({ ymd }); }
+        catch (e) { console.warn('[Pulse] daily check skipped:', e.message); }
+    }
+
+    // Generate the weekly pulse on demand — powers "Send pulse now". Always manual: stages a fresh
+    // pending_approval batch to the admin team, claiming the ISO-week key the first time and re-sending
+    // under a distinct manual key afterwards. Never sends without an outbox approval.
+    app.post('/api/admin/pulse/run', auth, adminOnly, (req, res) => {
+        try {
+            const force = !!(req.body && req.body.force);
+            const r = generateWeeklyPulse({ manual: true, force });
+            if (r.created) logAudit(req, 'pulse.generate', `weekly pulse ${r.week} staged for ${r.recipients} admin(s), batch ${r.batch_id}${r.resend ? ' (manual re-send)' : ''}`);
+            res.json({ success: true, ...r });
+        } catch (e) { console.error('[pulse] run', e.message); res.status(500).json({ error: e.message }); }
+    });
+
     // ============ PR NEWSLETTER AREA: compose flow + audience staging + interests ============
     // The composer builds a branded draft with the upgraded template (real logo header,
     // highlights bar, curated sections, style controls) and the stage step resolves EVERY
@@ -26282,6 +26482,12 @@ app.get('*', (req, res) => {
         try { maybeGenerateMonthlyDigestDaily(); } catch (e) { /* skip */ }
         setInterval(() => { try { maybeGenerateMonthlyDigestDaily(); } catch (e) {} }, 24 * 60 * 60 * 1000);
         console.log('[Digest] Monthly auto-digest daily check active');
+
+        // WEEKLY TEAM PULSE (engine 3) — in-process daily check. On Monday (Europe/Zagreb), idempotent
+        // per ISO week via the drip_log marker, it stages a pending_approval "weekly pulse" for admins.
+        try { maybeGenerateWeeklyPulseDaily(); } catch (e) { /* skip */ }
+        setInterval(() => { try { maybeGenerateWeeklyPulseDaily(); } catch (e) {} }, 24 * 60 * 60 * 1000);
+        console.log('[Pulse] Weekly team pulse daily check active');
     });
 }
 
