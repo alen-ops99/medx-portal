@@ -1647,6 +1647,293 @@ function renderPublicEventPage(slug) {
 app.get('/building-bridges', (req, res) => res.send(renderPublicEventPage('building-bridges')));
 app.get('/donor-night', (req, res) => res.send(renderPublicEventPage('donor-night')));
 
+// ===================== LinkedIn badge + public membership verification =====================
+// A member can prove active Med&X membership with one stable, shareable link. The token is a
+// signed slug derived from the user id via HMAC(JWT_SECRET) — no schema change and it cannot be
+// forged. The public page shows ONLY: name, member-since year, membership class (hidden for
+// quiet / senior profiles), and the Med&X brand. Never email, never points, never the rewards
+// tier. If membership lapses or the account is anonymized/deleted, the page falls back to a
+// neutral "no active record" state — revocation-safe, because the user row is re-checked live on
+// every request. Registered BEFORE express.static so it beats the SPA (like the event pages).
+function verifyBadgeToken(userId) {
+    var uid = String(userId || '');
+    if (!uid) return '';
+    var sig = crypto.createHmac('sha256', JWT_SECRET).update('medx-verify-badge:' + uid).digest('hex').slice(0, 24);
+    return Buffer.from(uid, 'utf8').toString('base64url') + '.' + sig;
+}
+function resolveVerifyBadgeToken(token) {
+    if (!token || typeof token !== 'string') return null;
+    var parts = token.split('.');
+    if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+    var uid;
+    try { uid = Buffer.from(parts[0], 'base64url').toString('utf8'); } catch (e) { return null; }
+    if (!uid) return null;
+    var expect = crypto.createHmac('sha256', JWT_SECRET).update('medx-verify-badge:' + uid).digest('hex').slice(0, 24);
+    var a = Buffer.from(parts[1]); var b = Buffer.from(expect);
+    if (a.length !== b.length) return null;
+    try { if (!crypto.timingSafeEqual(a, b)) return null; } catch (e) { return null; }
+    return uid;
+}
+
+function renderVerifyPage(state) {
+    var ok = !!(state && state.ok);
+    var name = ok ? escapeHtml(state.name || '') : '';
+    var sinceYear = ok ? escapeHtml(String(state.sinceYear || '')) : '';
+    var typeCode = ok ? (state.typeCode || null) : null;
+    var photoUrl = (ok && state.photoUrl) ? String(state.photoUrl) : '';
+    // Bilingual dictionary — EN is the server-rendered default (works with JS off), HR is a live
+    // toggle. Formal Vi register, correct Croatian diacritics.
+    var VDICT = {
+        en: {
+            eyebrow: 'Membership verification',
+            okHeading: 'Verified Med&X member',
+            okStatement: 'This person is a member in good standing of Med&X.',
+            lMember: 'Member', lSince: 'Member since', lMembership: 'Membership',
+            neutralHeading: 'No active record',
+            neutralBody: "We can't confirm an active Med&X membership for this link. The membership may have lapsed, or the link may be incorrect.",
+            foot: 'This page confirms active Med&X membership only. It shows no private information.',
+            type_student: 'Student', type_physician: 'Physician', type_senior_forum: 'Senior Forum Member', type_alumni: 'Alumni', type_member: 'Member'
+        },
+        hr: {
+            eyebrow: 'Provjera članstva',
+            okHeading: 'Potvrđeni član Med&X-a',
+            okStatement: 'Ova je osoba član Med&X-a u dobrom statusu.',
+            lMember: 'Član', lSince: 'Član od', lMembership: 'Članstvo',
+            neutralHeading: 'Nema aktivne evidencije',
+            neutralBody: 'Ne možemo potvrditi aktivno članstvo u Med&X-u za ovu poveznicu. Članstvo je možda isteklo ili poveznica nije ispravna.',
+            foot: 'Ova stranica potvrđuje samo aktivno članstvo u Med&X-u. Ne prikazuje nikakve privatne podatke.',
+            type_student: 'Student', type_physician: 'Liječnik', type_senior_forum: 'Viši član Foruma', type_alumni: 'Alumni', type_member: 'Član'
+        }
+    };
+    var enT = VDICT.en;
+    var checkSvg = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+    var sealHtml;
+    if (ok && photoUrl) {
+        sealHtml = '<div class="seal photo"><img src="' + escapeHtml(photoUrl) + '" alt=""><span class="seal-check">' + checkSvg + '</span></div>';
+    } else if (ok) {
+        sealHtml = '<div class="seal ok">' + checkSvg + '</div>';
+    } else {
+        sealHtml = '<div class="seal neutral"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg></div>';
+    }
+    var fieldsHtml = '';
+    if (ok) {
+        fieldsHtml += '<div class="field"><div class="fl" data-vk="lMember">' + enT.lMember + '</div><div class="fv">' + name + '</div></div>';
+        if (sinceYear) fieldsHtml += '<div class="field"><div class="fl" data-vk="lSince">' + enT.lSince + '</div><div class="fv">' + sinceYear + '</div></div>';
+        if (typeCode) {
+            var tk = 'type_' + typeCode;
+            var tlabel = enT[tk] || enT.type_member;
+            fieldsHtml += '<div class="field"><div class="fl" data-vk="lMembership">' + enT.lMembership + '</div><div class="fv" data-vk="' + tk + '">' + escapeHtml(tlabel) + '</div></div>';
+        }
+    }
+    var bodyHtml = ok
+        ? (sealHtml
+            + '<h1 data-vk="okHeading">' + enT.okHeading + '</h1>'
+            + '<p class="statement" data-vk="okStatement">' + enT.okStatement + '</p>'
+            + '<div class="fields">' + fieldsHtml + '</div>')
+        : (sealHtml
+            + '<h1 data-vk="neutralHeading">' + enT.neutralHeading + '</h1>'
+            + '<p class="statement" data-vk="neutralBody">' + enT.neutralBody + '</p>');
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="noindex"><title>Membership verification · Med&amp;X</title>'
++ '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
++ '<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><style>'
++ '* { margin:0; padding:0; box-sizing:border-box; }'
++ 'body { min-height:100vh; background:linear-gradient(160deg,#0f172a,#1e293b); font-family:\'Inter\',-apple-system,BlinkMacSystemFont,system-ui,sans-serif; color:#e2e8f0; padding:44px 20px 40px; display:flex; flex-direction:column; }'
++ '.container { max-width:560px; margin:0 auto; width:100%; }'
++ '.lang { display:flex; justify-content:center; gap:6px; margin-bottom:22px; }'
++ '.lang button { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); color:#94a3b8; font-family:inherit; font-size:11px; font-weight:600; letter-spacing:1px; padding:6px 12px; border-radius:999px; cursor:pointer; transition:all 0.15s; }'
++ '.lang button.on { background:rgba(201,169,98,0.16); border-color:rgba(201,169,98,0.55); color:#e2e8f0; }'
++ '.logo { text-align:center; margin-bottom:26px; }'
++ '.logo img { height:34px; width:auto; display:inline-block; filter:brightness(0) invert(1); opacity:0.92; }'
++ '.card { position:relative; text-align:center; padding:48px 36px 40px; background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,98,0.22); border-radius:22px; }'
++ '.card::before, .card::after { content:\'\'; position:absolute; width:42px; height:42px; }'
++ '.card::before { top:0; left:0; border-top:1px solid rgba(201,169,98,0.6); border-left:1px solid rgba(201,169,98,0.6); border-top-left-radius:22px; }'
++ '.card::after { bottom:0; right:0; border-bottom:1px solid rgba(201,169,98,0.6); border-right:1px solid rgba(201,169,98,0.6); border-bottom-right-radius:22px; }'
++ '.eyebrow { font-size:11px; font-weight:600; letter-spacing:4px; text-transform:uppercase; color:#c9a962; margin-bottom:24px; }'
++ '.seal { width:88px; height:88px; margin:0 auto 24px; border-radius:50%; display:flex; align-items:center; justify-content:center; }'
++ '.seal.ok { background:linear-gradient(135deg,#c9a962,#b8965a); color:#0f172a; box-shadow:0 10px 30px rgba(201,169,98,0.3); }'
++ '.seal.neutral { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.14); color:#64748b; }'
++ '.seal.photo { position:relative; width:96px; height:96px; padding:0; background:none; }'
++ '.seal.photo img { width:96px; height:96px; border-radius:50%; object-fit:cover; border:2px solid rgba(201,169,98,0.6); }'
++ '.seal.photo .seal-check { position:absolute; right:-2px; bottom:-2px; width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,#c9a962,#b8965a); color:#0f172a; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,0.35); }'
++ '.seal.photo .seal-check svg { width:20px; height:20px; }'
++ 'h1 { font-family:\'Cormorant Garamond\',Georgia,serif; font-weight:600; font-size:clamp(28px,5vw,38px); line-height:1.15; color:#fff; margin-bottom:14px; }'
++ '.statement { max-width:420px; margin:0 auto; font-size:15px; line-height:1.7; color:#94a3b8; }'
++ '.fields { display:flex; flex-direction:column; gap:2px; max-width:340px; margin:30px auto 0; }'
++ '.field { display:flex; justify-content:space-between; align-items:baseline; gap:16px; padding:13px 4px; border-top:1px solid rgba(255,255,255,0.07); text-align:left; }'
++ '.field:last-child { border-bottom:1px solid rgba(255,255,255,0.07); }'
++ '.field .fl { font-size:11px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; color:#64748b; }'
++ '.field .fv { font-size:15px; font-weight:500; color:#e2e8f0; text-align:right; }'
++ '.foot { text-align:center; font-size:12px; color:#64748b; margin-top:26px; line-height:1.6; }'
++ '.foot a { color:#c9a962; text-decoration:none; }'
++ '@media (max-width:480px){ .card { padding:38px 22px 32px; } }'
++ '</style></head><body><div class="container">'
++ '<div class="lang"><button type="button" data-l="en" class="on" onclick="setLang(\'en\')">EN</button><button type="button" data-l="hr" onclick="setLang(\'hr\')">HR</button></div>'
++ '<div class="logo"><img src="' + MEDX_LOGO_URL + '" alt="Med&amp;X"></div>'
++ '<div class="card"><div class="eyebrow" data-vk="eyebrow">' + enT.eyebrow + '</div>' + bodyHtml + '</div>'
++ '<div class="foot"><span data-vk="foot">' + enT.foot + '</span> &middot; <a href="https://medx.hr">medx.hr</a></div>'
++ '</div><script>'
++ 'var VDICT = ' + JSON.stringify(VDICT) + ';'
++ 'function setLang(l){ if(!VDICT[l]) l="en"; document.documentElement.lang=l; var els=document.querySelectorAll("[data-vk]"); for(var i=0;i<els.length;i++){ var k=els[i].getAttribute("data-vk"); if(VDICT[l][k]!=null) els[i].textContent=VDICT[l][k]; } var b=document.querySelectorAll(".lang button"); for(var j=0;j<b.length;j++){ b[j].className=(b[j].getAttribute("data-l")===l?"on":""); } try{ document.title=(l==="hr"?"Provjera članstva":"Membership verification")+" · Med&X"; }catch(e){} }'
++ '</' + 'script></body></html>';
+}
+
+// ===================== POST-EVENT SURVEY — public landing / thank-you page =====================
+// Event labels + the per-event registration table (source of the attendee email). The signed token
+// already carries the event_key, so this map only resolves the friendly label and the reg lookup.
+const SURVEY_EVENT_LABELS = {
+    plexus: { en: 'the Plexus Conference 2026', hr: 'Konferenciju Plexus 2026.' },
+    gala:   { en: 'the Plexus Gala Evening 2026', hr: 'Plexus Gala večer 2026.' },
+};
+
+// A tiny, premium, bilingual thank-you page. Renders in the recipient's locale (carried on the link).
+// Shows the rating state, the recommend question, and an optional free-text note. No login, no tracking.
+function renderSurveyPage(state, locale) {
+    var hr = locale === 'hr';
+    var S = hr ? {
+        pageTitle: 'Vaša povratna informacija · Med&X', eyebrow: 'Povratna informacija',
+        heading: 'Hvala Vam', invalidHeading: 'Poveznica nije važeća',
+        invalidBody: 'Ova poveznica za anketu nedostaje ili nije ispravna.',
+        notFoundBody: 'Ne možemo pronaći ovu anketu. Možda je istekla.',
+        errorBody: 'Nešto je pošlo po zlu. Pokušajte ponovno za koji trenutak.',
+        ratingQ: 'Kako biste ocijenili ' + '{ev}' + '?',
+        ratedMsg: 'Ocijenili ste s <strong>{n}/5</strong>. Hvala Vam.',
+        starHint: '1 = slabo · 5 = izvrsno',
+        recQ: 'Biste li nas preporučili kolegi?', recYes: 'Da', recNo: 'Ne',
+        recordedYes: 'Preporučili biste nas. Hvala Vam.', recordedNo: 'Zabilježeno — hvala Vam na iskrenosti.',
+        improveQ: 'Ima li nešto što bismo trebali poboljšati?', improveOpt: '(neobavezno)',
+        placeholder: 'Vaša napomena…', submit: 'Pošaljite', commentedMsg: 'Hvala Vam na napomeni.',
+        doneNote: 'To je sve — hvala Vam što nam pomažete da budemo bolji.', foot: 'Med&X · Građenje mostova u biomedicini'
+    } : {
+        pageTitle: 'Your feedback · Med&X', eyebrow: 'Post-event feedback',
+        heading: 'Thank you', invalidHeading: 'Link not valid',
+        invalidBody: 'This survey link is missing or incorrect.',
+        notFoundBody: 'We could not find this survey. It may have expired.',
+        errorBody: 'Something went wrong. Please try again in a moment.',
+        ratingQ: 'How would you rate ' + '{ev}' + '?',
+        ratedMsg: 'You rated it <strong>{n}/5</strong>. Thank you.',
+        starHint: '1 = poor · 5 = excellent',
+        recQ: 'Would you recommend us to a colleague?', recYes: 'Yes', recNo: 'No',
+        recordedYes: 'You would recommend us. Thank you.', recordedNo: 'Noted — thank you for the candor.',
+        improveQ: 'Anything we should improve?', improveOpt: '(optional)',
+        placeholder: 'Your note…', submit: 'Send', commentedMsg: 'Thank you for the note.',
+        doneNote: 'That is everything — thank you for helping us improve.', foot: 'Med&X · Building Bridges in Biomedicine'
+    };
+    function esc(s) { return escapeHtml(String(s == null ? '' : s)); }
+    var lang = hr ? 'hr' : 'en';
+    var shell = function (inner) {
+        return '<!DOCTYPE html><html lang="' + lang + '"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="noindex"><title>' + esc(S.pageTitle) + '</title>'
+            + '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+            + '<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"><style>'
+            + '*{margin:0;padding:0;box-sizing:border-box;}'
+            + 'body{min-height:100vh;background:linear-gradient(160deg,#0f172a,#1e293b);font-family:\'Inter\',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;color:#e2e8f0;padding:44px 20px 40px;}'
+            + '.container{max-width:520px;margin:0 auto;width:100%;}'
+            + '.logo{text-align:center;margin-bottom:24px;}.logo img{height:32px;width:auto;filter:brightness(0) invert(1);opacity:0.92;}'
+            + '.card{position:relative;text-align:center;padding:44px 34px 38px;background:rgba(255,255,255,0.03);border:1px solid rgba(201,169,98,0.22);border-radius:22px;}'
+            + '.eyebrow{font-size:11px;font-weight:600;letter-spacing:4px;text-transform:uppercase;color:#c9a962;margin-bottom:18px;}'
+            + 'h1{font-family:\'Cormorant Garamond\',Georgia,serif;font-weight:600;font-size:clamp(26px,5vw,34px);color:#fff;margin-bottom:8px;}'
+            + '.q{font-size:15px;font-weight:600;color:#e2e8f0;margin:26px 0 12px;}'
+            + '.hint{font-size:12px;color:#94a3b8;margin-top:8px;}'
+            + '.stars{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;}'
+            + '.star{display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,169,98,0.3);color:#c9a962;font-size:26px;text-decoration:none;transition:all .12s;}'
+            + '.star:hover{background:rgba(201,169,98,0.16);}'
+            + '.star.on{background:linear-gradient(135deg,#c9a962,#b8965a);color:#0f172a;border-color:transparent;}'
+            + '.rec{display:flex;justify-content:center;gap:12px;}'
+            + '.rec a{display:inline-block;padding:12px 34px;border-radius:12px;font-weight:700;font-size:15px;text-decoration:none;}'
+            + '.rec .yes{background:#16a34a;color:#fff;}.rec .no{background:rgba(255,255,255,0.08);color:#e2e8f0;border:1px solid rgba(255,255,255,0.16);}'
+            + '.done{font-size:14px;color:#86efac;font-weight:600;margin:6px 0;}'
+            + 'textarea{width:100%;min-height:96px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);border-radius:12px;color:#e2e8f0;padding:12px 14px;font-family:inherit;font-size:14px;resize:vertical;}'
+            + 'textarea:focus{outline:none;border-color:rgba(201,169,98,0.55);}'
+            + '.sendbtn{margin-top:12px;background:#0f172a;color:#c9a962;border:1px solid rgba(201,169,98,0.5);font-family:inherit;font-weight:700;font-size:14px;padding:11px 30px;border-radius:12px;cursor:pointer;}'
+            + '.sendbtn:hover{background:#111c33;}'
+            + '.statement{max-width:400px;margin:8px auto 0;font-size:15px;line-height:1.7;color:#94a3b8;}'
+            + '.foot{text-align:center;font-size:12px;color:#64748b;margin-top:22px;}'
+            + '.divider{height:1px;background:rgba(255,255,255,0.08);margin:26px 0;}'
+            + '</style></head><body><div class="container">'
+            + '<div class="logo"><img src="' + MEDX_LOGO_URL + '" alt="Med&amp;X"></div>'
+            + '<div class="card"><div class="eyebrow">' + esc(S.eyebrow) + '</div>' + inner + '</div>'
+            + '<div class="foot">' + esc(S.foot) + '</div>'
+            + '</div></body></html>';
+    };
+    if (state && state.invalid) return shell('<h1>' + esc(S.invalidHeading) + '</h1><p class="statement">' + esc(S.invalidBody) + '</p>');
+    if (state && state.notfound) return shell('<h1>' + esc(S.invalidHeading) + '</h1><p class="statement">' + esc(S.notFoundBody) + '</p>');
+    if (state && state.error) return shell('<h1>' + esc(S.invalidHeading) + '</h1><p class="statement">' + esc(S.errorBody) + '</p>');
+
+    var evLabel = (SURVEY_EVENT_LABELS[state.eventKey] && SURVEY_EVENT_LABELS[state.eventKey][lang]) || (hr ? 'događaj' : 'the event');
+    var tokEnc = encodeURIComponent(state.token || '');
+    var inner = '<h1>' + esc(S.heading) + '</h1>';
+
+    // Rating block
+    inner += '<div class="q">' + esc(S.ratingQ.replace('{ev}', evLabel)) + '</div>';
+    if (state.rating != null) {
+        var starsOn = '';
+        for (var i = 1; i <= 5; i++) starsOn += '<span class="star' + (i <= state.rating ? ' on' : '') + '">' + (i <= state.rating ? '★' : '☆') + '</span>';
+        inner += '<div class="stars">' + starsOn + '</div><div class="done" style="margin-top:12px;">' + S.ratedMsg.replace('{n}', String(state.rating)) + '</div>';
+    } else {
+        var starsLink = '';
+        for (var j = 1; j <= 5; j++) starsLink += '<a class="star" href="/api/public/survey?t=' + tokEnc + '&l=' + lang + '&r=' + j + '">☆</a>';
+        inner += '<div class="stars">' + starsLink + '</div><div class="hint">' + esc(S.starHint) + '</div>';
+    }
+
+    inner += '<div class="divider"></div>';
+
+    // Recommend block
+    inner += '<div class="q">' + esc(S.recQ) + '</div>';
+    if (state.recommend != null) {
+        inner += '<div class="done">' + esc(state.recommend === 1 ? S.recordedYes : S.recordedNo) + '</div>';
+    } else {
+        inner += '<div class="rec"><a class="yes" href="/api/public/survey/recommend?t=' + tokEnc + '&l=' + lang + '&v=yes">' + esc(S.recYes) + '</a>'
+              + '<a class="no" href="/api/public/survey/recommend?t=' + tokEnc + '&l=' + lang + '&v=no">' + esc(S.recNo) + '</a></div>';
+    }
+
+    inner += '<div class="divider"></div>';
+
+    // Free-text block
+    inner += '<div class="q">' + esc(S.improveQ) + ' <span style="color:#64748b;font-weight:400;">' + esc(S.improveOpt) + '</span></div>';
+    if (state.commented) {
+        inner += '<div class="done">' + esc(S.commentedMsg) + '</div>';
+    } else {
+        inner += '<div id="cmtWrap"><textarea id="cmt" maxlength="1000" placeholder="' + esc(S.placeholder) + '"></textarea>'
+              + '<div><button type="button" class="sendbtn" id="cmtBtn">' + esc(S.submit) + '</button></div></div>'
+              + '<div id="cmtDone" class="done" style="display:none;">' + esc(S.commentedMsg) + '</div>';
+    }
+
+    inner += '<div class="divider"></div><p class="statement">' + esc(S.doneNote) + '</p>';
+
+    var script = '<script>(function(){var b=document.getElementById("cmtBtn");if(!b)return;b.addEventListener("click",function(){var t=document.getElementById("cmt");var v=(t&&t.value||"").trim();if(!v){t.focus();return;}b.disabled=true;fetch("/api/public/survey/comment",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({t:' + JSON.stringify(state.token || '') + ',text:v})}).then(function(){document.getElementById("cmtWrap").style.display="none";document.getElementById("cmtDone").style.display="block";}).catch(function(){b.disabled=false;});});})();</' + 'script>';
+
+    return shell(inner) .replace('</body>', script + '</body>');
+}
+
+app.get('/verify/:token', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    var neutral = function () { return res.status(200).send(renderVerifyPage({ ok: false })); };
+    try {
+        var uid = resolveVerifyBadgeToken(String(req.params.token || ''));
+        if (!uid) return neutral();
+        var user = query.get('SELECT id, email, first_name, last_name, is_admin, is_public_profile, photo_url, created_at, deleted_at FROM users WHERE id = ?', [uid]);
+        if (!user) return neutral();
+        if (user.deleted_at) return neutral(); // anonymized / erased account — revocation-safe
+        var meta = null;
+        try { meta = query.get('SELECT member_type, member_since, standing FROM member_meta WHERE user_id = ?', [uid]); } catch (e) { meta = null; }
+        var standing = (meta && meta.standing) ? String(meta.standing) : 'good_standing';
+        if (standing !== 'good_standing') return neutral(); // lapsed / under review
+        var name = ((user.first_name || '') + ' ' + (user.last_name || '')).trim();
+        if (!name || /^deleted user$/i.test(name)) return neutral();
+        var sinceRaw = (meta && meta.member_since) ? meta.member_since : user.created_at;
+        var sinceYear = sinceRaw ? String(sinceRaw).slice(0, 4) : '';
+        var quiet = false;
+        try { quiet = quietFlagFor(user); } catch (e) { quiet = false; }
+        var typeCode = null;
+        if (!quiet) {
+            var ALLOWED = { student: 1, physician: 1, senior_forum: 1, alumni: 1 };
+            typeCode = (meta && meta.member_type && ALLOWED[meta.member_type]) ? meta.member_type : 'member';
+        }
+        var photoUrl = (user.is_public_profile && user.photo_url) ? String(user.photo_url) : '';
+        return res.status(200).send(renderVerifyPage({ ok: true, name: name, sinceYear: sinceYear, typeCode: typeCode, photoUrl: photoUrl }));
+    } catch (e) { return neutral(); }
+});
+
+
 // ============================ ADD-TO-CALENDAR (.ics) ============================
 // Additive, read-only. Serves valid RFC 5545 calendar files for the public Plexus Week
 // events (Plexus Conference, Gala Evening, Building Bridges, Donor Night). Dates/venue are
@@ -7272,6 +7559,34 @@ async function initializeApp() {
     db.run(`CREATE INDEX IF NOT EXISTS idx_guest_passes_gemail ON guest_passes(guest_email)`);
     // ====================== END GUEST PASSES schema ======================
 
+    // ====================== POST-EVENT MICRO-SURVEY (shared) ======================
+    // After an event the admin stages a short micro-survey to the people who actually CHECKED IN.
+    // The invite emails go out through the ONE approval outbox + drip_log; the taps come back through
+    // the USER portal's public GET endpoints, so this response table is SHARED and created IDENTICALLY
+    // in both server.js files (guarded, additive, after the SCHEMA-MIRROR block). One row per
+    // (event_key, reg_id). Each tap link carries a random single-use token stored in event_survey_responses.token.
+    db.run(`CREATE TABLE IF NOT EXISTS event_survey_responses (
+        id TEXT PRIMARY KEY,
+        event_key TEXT NOT NULL,
+        reg_id TEXT NOT NULL,
+        email TEXT,
+        user_id TEXT,
+        locale TEXT DEFAULT 'en',
+        token TEXT,
+        rating INTEGER,
+        recommend INTEGER,
+        improve TEXT,
+        rated_at TEXT,
+        recommended_at TEXT,
+        commented_at TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(event_key, reg_id)
+    )`);
+    try { db.run("ALTER TABLE event_survey_responses ADD COLUMN token TEXT"); } catch (e) { /* column exists */ }
+    db.run(`CREATE INDEX IF NOT EXISTS idx_event_survey_event ON event_survey_responses(event_key)`);
+    db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_event_survey_token ON event_survey_responses(token)`);
+    // ====================== END POST-EVENT MICRO-SURVEY schema ======================
+
     // FORUM WING seed — user portal only (idempotent by slug). The two standing convenings and a
     // little Forum news, harvested from the approved wing design. Existence-guarded so a re-boot
     // never duplicates, and scoped to this portal so there is no double-seed race against admin.
@@ -8928,6 +9243,84 @@ async function submitReset(e){
         }
     });
 
+    // ================= POST-EVENT MICRO-SURVEY — public tap endpoints (no login) =================
+    // These land the taps from the survey invite the admin staged. The signed token carries the
+    // event + registration; the response row (shared table) enforces one answer per person. Every
+    // answer is single-write — a second tap of the same question shows the recorded state, never
+    // overwrites. The page is fully bilingual by the locale carried on the link.
+    // The tap link carries a random token stored on the SHARED response row (pre-created by the admin
+    // when the survey was staged). Resolve it straight from the row — works cross-portal regardless of
+    // each service's JWT secret, and the row itself enforces one answer per question.
+    function surveyRowByToken(tok) {
+        if (!tok) return null;
+        try { return query.get('SELECT * FROM event_survey_responses WHERE token = ?', [String(tok)]); } catch (e) { return null; }
+    }
+    function surveyStateFromRow(row, token) {
+        return { ok: true, token: token, eventKey: row.event_key, rating: row.rating, recommend: row.recommend, commented: !!row.commented_at };
+    }
+    function surveyLocale(req, row) {
+        const q = String(req.query.l || '').toLowerCase();
+        if (q === 'hr' || q === 'en') return q;
+        return (row && row.locale === 'hr') ? 'hr' : 'en';
+    }
+
+    app.get('/api/public/survey', publicLimiter, (req, res) => {
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.set('Cache-Control', 'no-store');
+        try {
+            const tok = String(req.query.t || '');
+            const row = surveyRowByToken(tok);
+            const locale = surveyLocale(req, row);
+            if (!row) return res.status(200).send(renderSurveyPage({ invalid: true }, locale));
+            // Record the star rating if provided and not already set (single-use).
+            const rq = req.query.r;
+            if (rq !== undefined && rq !== '' && row.rating == null) {
+                let rt = parseInt(rq, 10);
+                if (Number.isFinite(rt)) {
+                    rt = Math.max(1, Math.min(5, rt));
+                    db.run("UPDATE event_survey_responses SET rating = ?, rated_at = datetime('now'), locale = ? WHERE id = ? AND rating IS NULL", [rt, locale, row.id]);
+                    saveDb();
+                    row.rating = rt;
+                }
+            }
+            return res.status(200).send(renderSurveyPage(surveyStateFromRow(row, tok), locale));
+        } catch (e) { console.error('[public survey]', e.message); return res.status(200).send(renderSurveyPage({ error: true }, 'en')); }
+    });
+
+    app.get('/api/public/survey/recommend', publicLimiter, (req, res) => {
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.set('Cache-Control', 'no-store');
+        try {
+            const tok = String(req.query.t || '');
+            const row = surveyRowByToken(tok);
+            const locale = surveyLocale(req, row);
+            if (!row) return res.status(200).send(renderSurveyPage({ invalid: true }, locale));
+            const v = String(req.query.v || '').toLowerCase();
+            const rec = (v === 'yes' || v === '1') ? 1 : ((v === 'no' || v === '0') ? 0 : null);
+            if (rec !== null && row.recommend == null) {
+                db.run("UPDATE event_survey_responses SET recommend = ?, recommended_at = datetime('now'), locale = ? WHERE id = ? AND recommend IS NULL", [rec, locale, row.id]);
+                saveDb();
+                row.recommend = rec;
+            }
+            return res.status(200).send(renderSurveyPage(surveyStateFromRow(row, tok), locale));
+        } catch (e) { console.error('[public survey recommend]', e.message); return res.status(200).send(renderSurveyPage({ error: true }, 'en')); }
+    });
+
+    app.post('/api/public/survey/comment', publicLimiter, (req, res) => {
+        try {
+            const body = req.body || {};
+            const row = surveyRowByToken(String(body.t || ''));
+            if (!row) return res.status(404).json({ error: 'not_found' });
+            if (row.commented_at) return res.json({ success: true, already: true });
+            const clean = String(body.text || '').trim().slice(0, 1000);
+            if (clean) {
+                db.run("UPDATE event_survey_responses SET improve = ?, commented_at = datetime('now') WHERE id = ? AND commented_at IS NULL", [clean, row.id]);
+                saveDb();
+            }
+            return res.json({ success: true });
+        } catch (e) { console.error('[public survey comment]', e.message); return res.status(500).json({ error: 'server_error' }); }
+    });
+
     // ================= FIRST-PARTY ANALYTICS BEACON (no-auth, no cookies, no IPs, no PII) =================
     // The static site + member portal fire navigator.sendBeacon here once per pageview. We keep ONLY
     // aggregate counters — UPSERT one row per (day, path, referrer_domain, device), incrementing count —
@@ -9476,6 +9869,32 @@ async function submitReset(e){
             standing_label: MEMBER_STANDING_LABELS[m.standing] || 'Member in good standing'
         });
     });
+
+    // The member's own shareable membership credential — a stable verify URL plus the fields the
+    // client needs to build the LinkedIn "Add to profile" certification link. Available to EVERY
+    // member, including quiet / senior profiles (it is a professional credential, not gamification).
+    // The public /verify page decides what to reveal — this endpoint only hands the member their
+    // own link and their own already-known details, never points and never the rewards tier.
+    app.get('/api/member/verify-link', auth, (req, res) => {
+        try {
+            const user = query.get('SELECT id, email, first_name, last_name, institution, created_at FROM users WHERE id = ?', [req.user.id]);
+            if (!user) return res.status(404).json({ error: 'User not found' });
+            const m = getOrCreateMemberMeta(user);
+            const name = ((user.first_name || '') + ' ' + (user.last_name || '')).trim() || 'Med&X Member';
+            const sinceYear = (m && m.member_since) ? String(m.member_since).slice(0, 4)
+                : (user.created_at ? String(user.created_at).slice(0, 4) : String(new Date().getFullYear()));
+            const token = verifyBadgeToken(user.id);
+            res.json({
+                token: token,
+                path: '/verify/' + token,
+                name: name,
+                issue_year: sinceYear,
+                cert_name: 'Med&X Membership',
+                organization: 'Med&X'
+            });
+        } catch (e) { console.error('verify-link failed:', e); res.status(500).json({ error: 'Failed to build verify link' }); }
+    });
+
 
     // Member's gala seat/table — reads the admin seating plan (item 21). Display only.
     // Looks across BOTH gala sources: standalone gala_registrations (by email) and

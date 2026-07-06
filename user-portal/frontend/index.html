@@ -56954,6 +56954,12 @@ button,input,select,textarea{font-family:var(--sans);}
             'mmx.myNetworkH':     {en:'My Network', hr:'Moja mreža'},
             'mmx.myRecord':       {en:'My Record', hr:'Moja evidencija'},
             'mmx.shareRecord':    {en:'Share my Med&X record', hr:'Podijelite svoju Med&X evidenciju'},
+            'mmx.shareMembTitle': {en:'Share your membership', hr:'Podijelite svoje članstvo'},
+            'mmx.shareMembNote':  {en:'Prove your active Med&X membership with a public link, or add it to your LinkedIn profile as a credential.', hr:'Dokažite svoje aktivno članstvo u Med&X-u putem javne poveznice ili ga dodajte na svoj LinkedIn profil kao vjerodajnicu.'},
+            'mmx.shareCopyLink':  {en:'Copy verify link', hr:'Kopirajte poveznicu za provjeru'},
+            'mmx.shareLinkedIn':  {en:'Add to LinkedIn profile', hr:'Dodajte na LinkedIn profil'},
+            'mmx.shareCopied':    {en:'Verification link copied to clipboard', hr:'Poveznica za provjeru kopirana je u međuspremnik'},
+            'mmx.shareErr':       {en:'Could not prepare your verification link. Please try again in a moment.', hr:'Nije moguće pripremiti vašu poveznicu za provjeru. Pokušajte ponovno za trenutak.'},
             'mmx.loadingTickets': {en:'Loading your tickets…', hr:'Učitavanje vaših ulaznica…'},
 
             // --- MyMedX: recognition / standing / record (JS) ---
@@ -71084,12 +71090,31 @@ button,input,select,textarea{font-family:var(--sans);}
                     .mmx-inq-foot i{color:var(--gold,#c9a962);margin-top:2px;}
                     @media(max-width:860px){.mmx-hero{grid-template-columns:1fr;}.mmx-card-name{font-size:27px;}}
                     @media(max-width:480px){.mmx-card-body{flex-direction:column;}.mmx-card-right{flex-direction:row;width:auto;align-self:flex-start;gap:14px;}.mmx-purchase-side{align-items:flex-start;width:100%;}.mmx-purchase-actions{justify-content:flex-start;}}
+                    /* Share your membership (LinkedIn badge + public verify link) */
+                    .mmx-share{margin-top:16px;padding:16px 18px;background:var(--surface,#fff);border:1px solid var(--line,#e2dcd3);border-radius:14px;box-shadow:var(--shadow-sm,0 1px 2px rgba(21,17,15,.04));}
+                    .mmx-share-head{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:700;color:var(--ink,#15110f);}
+                    .mmx-share-head i{color:var(--gold,#c9a962);}
+                    .mmx-share-note{font-size:12.5px;color:var(--muted,#6b6258);line-height:1.55;margin:7px 0 13px;}
+                    .mmx-share-actions{display:flex;gap:9px;flex-wrap:wrap;}
+                    .mmx-share-btn{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--line-strong,var(--line,#d8d1c6));color:var(--ink,#15110f);border-radius:10px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s ease,border-color .15s ease,transform .15s ease;}
+                    .mmx-share-btn:hover{background:var(--paper-2,#f3efe9);transform:translateY(-1px);}
+                    .mmx-share-btn.linkedin{background:#0a66c2;border-color:#0a66c2;color:#fff;}
+                    .mmx-share-btn.linkedin:hover{background:#0958a8;border-color:#0958a8;}
+                    .mmx-share-btn i{font-size:13px;}
                     </style>
                     <div class="mmx-hero">
                         <div class="mmx-hero-cardcol">
                             <div id="mymedxCardVisual" class="mmx-card"><!-- MyMedXPortal.renderMembershipCardVisual() --></div>
                             <button class="mmx-card-dl" data-i18n="tk.dlMemberCard" onclick="MyMedXPortal.downloadMembershipCard()"><i class="fas fa-id-card"></i> Download membership card</button>
                             <div class="mmx-card-note"><i class="fas fa-qrcode"></i><span data-i18n="tk.qrNote">Your QR carries your key info for fast check-in at Med&amp;X events. Apple Wallet coming soon.</span></div>
+                            <div class="mmx-share">
+                                <div class="mmx-share-head"><i class="fas fa-share-nodes"></i><span data-i18n="mmx.shareMembTitle">Share your membership</span></div>
+                                <p class="mmx-share-note" data-i18n="mmx.shareMembNote">Prove your active Med&amp;X membership with a public link, or add it to your LinkedIn profile as a credential.</p>
+                                <div class="mmx-share-actions">
+                                    <button type="button" class="mmx-share-btn" onclick="MyMedXPortal.copyVerifyLink()"><i class="fas fa-link"></i> <span data-i18n="mmx.shareCopyLink">Copy verify link</span></button>
+                                    <button type="button" class="mmx-share-btn linkedin" onclick="MyMedXPortal.addToLinkedIn()"><i class="fab fa-linkedin"></i> <span data-i18n="mmx.shareLinkedIn">Add to LinkedIn profile</span></button>
+                                </div>
+                            </div>
                         </div>
                         <div class="mmx-hero-sidecol">
                             <div id="mymedxTierCard" class="mmx-recog"><!-- MyMedXPortal.renderRecognition() --></div>
@@ -79218,6 +79243,50 @@ You can use variables like {first_name} that will be personalized for each recip
                         document.body.removeChild(ta); done();
                     }
                 } catch (e) { done(); }
+            },
+
+            // ===== Share your membership: public verify link + LinkedIn credential =====
+            // Available to EVERY member, including quiet / senior profiles — a professional
+            // credential, not gamification. Link + LinkedIn params come from /api/member/verify-link.
+            _verifyLinkData: null,
+            _fetchVerifyLink() {
+                if (this._verifyLinkData) return Promise.resolve(this._verifyLinkData);
+                var self = this;
+                var tok = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
+                var base = (typeof API_BASE !== 'undefined' ? API_BASE : '');
+                return fetch(base + '/api/member/verify-link', { headers: tok ? { 'Authorization': 'Bearer ' + tok } : {} })
+                    .then(function(r){ return r.ok ? r.json() : null; })
+                    .then(function(d){ if (d && d.token) self._verifyLinkData = d; return self._verifyLinkData; })
+                    .catch(function(){ return null; });
+            },
+            _verifyUrl(d) { return window.location.origin + '/verify/' + d.token; },
+            _linkedInUrl(d) {
+                var p = new URLSearchParams();
+                p.set('startTask', 'CERTIFICATION_NAME');
+                p.set('name', d.cert_name || 'Med&X Membership');
+                p.set('organizationName', d.organization || 'Med&X');
+                if (d.issue_year) p.set('issueYear', d.issue_year);
+                p.set('certUrl', this._verifyUrl(d));
+                return 'https://www.linkedin.com/profile/add?' + p.toString();
+            },
+            copyVerifyLink() {
+                var self = this;
+                this._fetchVerifyLink().then(function(d){
+                    if (!d) { if (typeof Toast !== 'undefined' && Toast.error) Toast.error(t('mmx.shareErr')); return; }
+                    var url = self._verifyUrl(d);
+                    var done = function(){ if (typeof Toast !== 'undefined' && Toast.success) Toast.success(t('mmx.shareCopied')); };
+                    try {
+                        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done).catch(function(){ done(); });
+                        else { var ta = document.createElement('textarea'); ta.value = url; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) {} document.body.removeChild(ta); done(); }
+                    } catch (e) { done(); }
+                });
+            },
+            addToLinkedIn() {
+                var self = this;
+                this._fetchVerifyLink().then(function(d){
+                    if (!d) { if (typeof Toast !== 'undefined' && Toast.error) Toast.error(t('mmx.shareErr')); return; }
+                    window.open(self._linkedInUrl(d), '_blank', 'noopener');
+                });
             },
 
             renderPrograms() {

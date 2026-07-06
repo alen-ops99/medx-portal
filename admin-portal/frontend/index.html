@@ -7958,6 +7958,10 @@ President, Med&amp;X</textarea>
                             <div class="card-header"><span class="card-title">Recent Check-ins</span></div>
                             <div class="card-body" id="pxRecentCheckins"></div>
                         </div>
+                        <div class="card">
+                            <div class="card-header"><span class="card-title"><i class="fas fa-user-plus" style="margin-right:8px;color:#c9a962;"></i>Guest passes <span style="font-size:12px;color:var(--text-muted);font-weight:400;">· member-invited colleagues</span></span></div>
+                            <div class="card-body" id="pxGuestPasses"></div>
+                        </div>
                         <div class="card" id="sessionCheckinCard">
                             <div class="card-header">
                                 <span class="card-title"><i class="fas fa-calendar-check" style="margin-right: 8px; color: var(--accent-gold);"></i>Session Check-in</span>
@@ -7985,6 +7989,29 @@ President, Med&amp;X</textarea>
                                 </div>
                                 <div id="postEventBatches-plexus" style="margin-top:14px;"></div>
                                 <p style="font-size:11px;color:var(--text-muted);margin:14px 0 0;line-height:1.5;">Re-running the round never duplicates a certificate or an email — every attendee is handled exactly once. Certificates appear in each attendee's My Med&amp;X the moment the round runs.</p>
+                            </div>
+                        </div>
+                        <div class="card" id="surveyCard-plexus" style="margin-top:20px;">
+                            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                                <div>
+                                    <span class="card-title"><i class="fas fa-star" style="margin-right:6px;color:#C9A962;"></i> Attendee survey</span>
+                                    <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0;max-width:660px;">A short, one-tap survey for the people who actually checked in &mdash; an overall star rating, would-they-recommend, and one optional note. Invites are staged in the outbox for your approval. Nothing sends until you approve it.</p>
+                                </div>
+                                <button class="btn btn-secondary" style="font-size:12px;" onclick="SurveyAdmin.load('plexus')"><i class="fas fa-rotate"></i> Refresh</button>
+                            </div>
+                            <div class="card-body">
+                                <div id="surveyStats-plexus" style="display:grid;grid-template-columns:repeat(4,minmax(90px,1fr));gap:10px;margin-bottom:16px;"></div>
+                                <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                                    <button class="btn btn-primary" style="font-size:12px;" onclick="SurveyAdmin.send('plexus')"><i class="fas fa-paper-plane"></i> Send post-event survey</button>
+                                    <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;"><input type="checkbox" id="surveyAuto-plexus" onchange="SurveyAdmin.toggleAuto('plexus', this.checked)"> Auto-send the morning after the event</label>
+                                </div>
+                                <div id="surveyBatches-plexus" style="margin-top:14px;"></div>
+                                <div id="surveyResults-plexus" style="margin-top:14px;"></div>
+                                <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
+                                    <button class="btn btn-secondary" style="font-size:12px;" onclick="SurveyAdmin.aiSummary('plexus')"><i class="fas fa-wand-magic-sparkles"></i> AI summary</button>
+                                    <div id="surveyAI-plexus" style="margin-top:10px;"></div>
+                                </div>
+                                <p style="font-size:11px;color:var(--text-muted);margin:14px 0 0;line-height:1.5;">Only checked-in attendees receive a survey, and each person is surveyed once &mdash; re-sending never double-invites.</p>
                             </div>
                         </div>
                     </div>
@@ -9721,6 +9748,12 @@ President, Med&amp;X</textarea>
                             </div>
                             <div id="brCheckinResult" class="checkin-result"></div>
                         </div>
+                    </div>
+
+                    <!-- Guest passes (member-invited colleagues) -->
+                    <div class="card" style="margin-top: 20px;">
+                        <div class="card-header"><span class="card-title"><i class="fas fa-user-plus" style="margin-right: 8px; color:#c9a962;"></i>Guest passes <span style="font-size:12px;color:var(--text-muted);font-weight:400;">· member-invited colleagues</span></span></div>
+                        <div class="card-body" id="bbGuestPassesAdmin"></div>
                     </div>
 
                     <!-- Speakers Management -->
@@ -12268,6 +12301,29 @@ President, Med&amp;X</textarea>
                             </div>
                             <div id="postEventBatches-gala" style="margin-top:14px;"></div>
                             <p style="font-size:11px;color:var(--text-muted);margin:14px 0 0;line-height:1.5;">Re-running the round never duplicates a certificate or an email — every guest is handled exactly once.</p>
+                        </div>
+                    </div>
+                    <div class="card" id="surveyCard-gala" style="margin-top:20px;">
+                        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                            <div>
+                                <span class="card-title"><i class="fas fa-star" style="margin-right:6px;color:#C9A962;"></i> Attendee survey</span>
+                                <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0;max-width:660px;">A short, one-tap survey for the guests who actually checked in &mdash; an overall star rating, would-they-recommend, and one optional note. Invites are staged in the outbox for your approval. Nothing sends until you approve it.</p>
+                            </div>
+                            <button class="btn btn-secondary" style="font-size:12px;" onclick="SurveyAdmin.load('gala')"><i class="fas fa-rotate"></i> Refresh</button>
+                        </div>
+                        <div class="card-body">
+                            <div id="surveyStats-gala" style="display:grid;grid-template-columns:repeat(4,minmax(90px,1fr));gap:10px;margin-bottom:16px;"></div>
+                            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                                <button class="btn btn-primary" style="font-size:12px;" onclick="SurveyAdmin.send('gala')"><i class="fas fa-paper-plane"></i> Send post-event survey</button>
+                                <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;"><input type="checkbox" id="surveyAuto-gala" onchange="SurveyAdmin.toggleAuto('gala', this.checked)"> Auto-send the morning after the event</label>
+                            </div>
+                            <div id="surveyBatches-gala" style="margin-top:14px;"></div>
+                            <div id="surveyResults-gala" style="margin-top:14px;"></div>
+                            <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
+                                <button class="btn btn-secondary" style="font-size:12px;" onclick="SurveyAdmin.aiSummary('gala')"><i class="fas fa-wand-magic-sparkles"></i> AI summary</button>
+                                <div id="surveyAI-gala" style="margin-top:10px;"></div>
+                            </div>
+                            <p style="font-size:11px;color:var(--text-muted);margin:14px 0 0;line-height:1.5;">Only checked-in guests receive a survey, and each person is surveyed once &mdash; re-sending never double-invites.</p>
                         </div>
                     </div>
                 </div>
@@ -20547,7 +20603,7 @@ President, Med&amp;X</textarea>
                     case 'speakers': this.loadPlexusSpeakers(); break;
                     case 'sponsors': this.loadPlexusSponsors(); break;
                     case 'volunteers': this.loadPlexusVolunteers(); break;
-                    case 'checkin': this.loadPlexusCheckinStats(); break;
+                    case 'checkin': this.loadPlexusCheckinStats(); GuestPassAdmin.load('plexus', 'pxGuestPasses'); break;
                     case 'pending': this.loadPlexusPending(); break;
                     case 'waitlist': SeatConfirmAdmin.load(); WaitlistAdmin.load(); break;
                     case 'settings': PlexusSettingsAdmin.loadSettings(); break;
@@ -22686,6 +22742,7 @@ President, Med&amp;X</textarea>
                     this.loadSessionCheckins();
                     // Post-event round card (thank-you / missed / certificates / feedback)
                     if (typeof PostEventAdmin !== 'undefined') PostEventAdmin.load('plexus');
+                    if (typeof SurveyAdmin !== 'undefined') SurveyAdmin.load('plexus');
                 } catch (err) {
                     console.error('Failed to load check-in stats:', err);
                 }
@@ -32120,6 +32177,7 @@ By applying to this program, I give the following consents:
                 await this.loadEvents();
                 await this.loadSpeakers();
                 await this.loadProgram();
+                try { GuestPassAdmin.load('bridges', 'bbGuestPassesAdmin'); } catch (e) {}
             },
 
             async loadEvents() {
@@ -35450,6 +35508,7 @@ By applying to this program, I give the following consents:
             async init() {
                 if (typeof ProjectPing !== 'undefined') ProjectPing.render('galaPingInterested', 'gala', 'the Gala Evening');
                 if (typeof PostEventAdmin !== 'undefined') PostEventAdmin.load('gala');
+                if (typeof SurveyAdmin !== 'undefined') SurveyAdmin.load('gala');
                 if (this.initialized) {
                     this.loadRegistrations();
                     this.loadMenuOptions();
@@ -36939,6 +36998,66 @@ By applying to this program, I give the following consents:
         // =========================================
         // EVENT CHECK-IN SCANNER (per-event QR verification)
         // =========================================
+        // ===== GUEST PASSES (admin) — member-initiated colleague invites =====
+        // Read-only list of the passes members created for an event (Plexus conference / Building
+        // Bridges), with a live per-event count and a Revoke action. Revoke cancels the linked
+        // ticket so the FROZEN scanner rejects it cleanly at the door. Never forks the QR/scanner
+        // path — it only reads /api/admin/guest-passes and posts the revoke.
+        const GuestPassAdmin = {
+            statusBadge(st) {
+                const map = {
+                    invited:    ['#c9a962', 'rgba(201,169,98,0.14)', 'Invited'],
+                    accepted:   ['#22c55e', 'rgba(34,197,94,0.14)',  'Accepted'],
+                    checked_in: ['#22c55e', 'rgba(34,197,94,0.14)',  'Checked in'],
+                    revoked:    ['#ef4444', 'rgba(239,68,68,0.12)',   'Revoked']
+                };
+                const [col, bg, lab] = map[st] || ['#94a3b8', 'rgba(148,163,184,0.12)', st || 'Unknown'];
+                return `<span style="font-size:10.5px;font-weight:700;color:${col};background:${bg};border:1px solid ${col}55;border-radius:20px;padding:2px 9px;white-space:nowrap;">${lab}</span>`;
+            },
+            async load(eventKey, containerId) {
+                const el = document.getElementById(containerId);
+                if (!el) return;
+                el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;margin:0;">Loading guest passes…</p>';
+                try {
+                    const data = await App.api('/api/admin/guest-passes?event=' + encodeURIComponent(eventKey));
+                    this.render(eventKey, containerId, data);
+                } catch (e) {
+                    el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;margin:0;">Could not load guest passes.</p>';
+                }
+            },
+            render(eventKey, containerId, data) {
+                const el = document.getElementById(containerId);
+                if (!el) return;
+                const passes = (data && Array.isArray(data.passes)) ? data.passes : [];
+                const c = (data && data.counts && data.counts[eventKey]) || { total: 0, active: 0, checked_in: 0, revoked: 0 };
+                const rows = passes.map(p => `
+                    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--border);">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:13px;color:var(--text-primary);font-weight:600;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(p.guest_name || 'Guest')} <span style="color:var(--text-muted);font-weight:400;">· ${escapeHtml(p.guest_email || '')}</span></div>
+                            <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;"><i class="fas fa-user-friends" style="margin-right:5px;color:#c9a962;"></i>Guest of ${escapeHtml(p.member_name || '—')}${p.note ? ' · &ldquo;' + escapeHtml(p.note) + '&rdquo;' : ''}</div>
+                        </div>
+                        ${this.statusBadge(p.status)}
+                        ${p.status !== 'revoked' ? `<button class="btn btn-secondary" style="font-size:11.5px;padding:5px 12px;" onclick="GuestPassAdmin.revoke('${p.id}','${eventKey}','${containerId}')"><i class="fas fa-ban"></i> Revoke</button>` : ''}
+                    </div>`).join('');
+                el.innerHTML = `
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px;">
+                        <span style="font-size:12px;color:var(--text-secondary);">${c.total} pass${c.total === 1 ? '' : 'es'} · ${c.active} active · ${c.checked_in} checked in${c.revoked ? (' · ' + c.revoked + ' revoked') : ''}</span>
+                        <button class="btn btn-secondary" style="font-size:11.5px;padding:4px 10px;margin-left:auto;" onclick="GuestPassAdmin.load('${eventKey}','${containerId}')"><i class="fas fa-rotate"></i> Refresh</button>
+                    </div>
+                    ${passes.length ? rows : '<p style="color:var(--text-muted);font-size:13px;margin:10px 0 0;">No member-invited guests yet. Members can bring a colleague from their portal.</p>'}`;
+            },
+            async revoke(id, eventKey, containerId) {
+                if (!confirm('Revoke this guest pass? The colleague\'s ticket is cancelled and will no longer scan at the door.')) return;
+                try {
+                    await App.api('/api/admin/guest-passes/' + encodeURIComponent(id) + '/revoke', { method: 'POST' });
+                    Toast.success('Guest pass revoked');
+                    this.load(eventKey, containerId);
+                } catch (e) {
+                    Toast.error('Could not revoke the guest pass');
+                }
+            }
+        };
+
         const EventCheckin = {
             event: null, // 'gala' | 'conference' | 'bridges' | 'donor'
             stream: null,
@@ -37180,8 +37299,17 @@ By applying to this program, I give the following consents:
                             ${status ? `<span style="font-size:10px;color:var(--text-muted);text-transform:capitalize;">${escapeHtml(status)}</span>` : ''}
                         </div>`;
                     }).join('');
+                    // Member-initiated guest pass: surface "Guest of Dr. X" so the door knows who
+                    // brought this colleague. guest_of comes from the read-only enrich endpoint and
+                    // never affects the FROZEN verify decision above.
+                    const guestOf = d.guest_of ? `
+                            <div style="display:flex;align-items:center;gap:8px;background:rgba(201,169,98,0.12);border:1px solid rgba(201,169,98,0.5);border-radius:9px;padding:8px 11px;margin-bottom:8px;">
+                                <i class="fas fa-user-friends" style="color:#c9a962;"></i>
+                                <span style="font-size:12.5px;color:var(--text-primary);font-weight:600;">Guest of ${escapeHtml(d.guest_of)}</span>
+                            </div>` : '';
                     box.innerHTML = `
                         <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border-color,var(--border));border-radius:10px;padding:10px 12px;">
+                            ${guestOf}
                             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:${rows ? '8px' : '0'};">
                                 <span style="font-size:10px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:var(--text-muted);">Member standing</span>
                                 ${memberChip}
@@ -40728,6 +40856,120 @@ By applying to this program, I give the following consents:
                     Toast.success(`${issued} certificate${issued === 1 ? '' : 's'} issued · ${r.d.staged} email${r.d.staged === 1 ? '' : 's'} staged for approval`);
                     this.load(ek);
                 } else Toast.error((r.d && r.d.error) || 'Failed');
+            },
+            async approve(batch, ek) {
+                const r = await this.api(`/api/admin/outbox/${encodeURIComponent(batch)}/approve`, { method: 'POST' });
+                if (r.d && r.d.success) { Toast.success(`Approved — ${r.d.approved} email(s) sending`); this.load(ek); }
+                else Toast.error((r.d && r.d.error) || 'Failed');
+            },
+            async discard(batch, ek) {
+                if (!confirm('Discard this staged batch? No emails will be sent.')) return;
+                const r = await this.api(`/api/admin/outbox/${encodeURIComponent(batch)}/cancel`, { method: 'POST' });
+                if (r.d && r.d.success) { Toast.success('Discarded'); this.load(ek); }
+                else Toast.error((r.d && r.d.error) || 'Failed');
+            }
+        };
+
+        // Post-event MICRO-SURVEY admin (Plexus check-in tab + Gala section). "Send post-event survey"
+        // stages an approval-gated batch to CHECKED-IN attendees only; results + AI summary read the live
+        // aggregate. Batch approval reuses the SAME outbox endpoints the post-event round uses.
+        const SurveyAdmin = {
+            esc(s) { return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); },
+            async api(path, opts = {}) {
+                const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}`, ...(opts.headers || {}) } });
+                let d = null; try { d = await res.json(); } catch (e) {}
+                return { ok: res.ok, d };
+            },
+            async load(ek) {
+                ek = ek || 'plexus';
+                const host = document.getElementById('surveyStats-' + ek); if (!host) return;
+                const r = await this.api('/api/admin/event-survey/results?event_key=' + encodeURIComponent(ek));
+                const s = r.d || {};
+                const stat = (label, val, color) => `<div class="stat-item" style="background:var(--bg-primary);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center;">
+                    <div style="font-size:22px;font-weight:800;color:${color};">${val == null ? '—' : val}</div>
+                    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">${label}</div></div>`;
+                const rate = s.invited ? (s.response_rate + '%') : '—';
+                const avg = (s.avg_rating != null) ? (s.avg_rating + ' / 5') : '—';
+                const rec = (s.recommend_pct != null) ? (s.recommend_pct + '%') : '—';
+                host.innerHTML = stat('Response rate', rate, 'var(--text-primary)')
+                    + stat('Avg rating', avg, '#C9A962')
+                    + stat('Recommend', rec, '#16a34a')
+                    + stat('Responses', (s.responded || 0) + ' / ' + (s.invited || 0), 'var(--text-primary)');
+                const auto = document.getElementById('surveyAuto-' + ek); if (auto) auto.checked = !!s.auto_send;
+                this.renderBatch(ek, s);
+                this.renderResults(ek, s);
+            },
+            renderBatch(ek, s) {
+                const el = document.getElementById('surveyBatches-' + ek); if (!el) return;
+                const st = (s && s.batch) || {};
+                let right;
+                if (st.pending_batch_id) {
+                    right = `<span style="color:#f59e0b;font-weight:700;">${st.pending} awaiting approval</span>
+                        <button class="btn btn-primary" style="font-size:11px;padding:5px 12px;" onclick="SurveyAdmin.approve('${st.pending_batch_id}','${ek}')"><i class="fas fa-check"></i> Approve &amp; send</button>
+                        <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;" onclick="OutboxApproveUI.open('${st.pending_batch_id}', () => SurveyAdmin.load('${ek}'))" title="Approve now, send at a time you pick"><i class="fas fa-clock"></i> Later</button>
+                        <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;color:#dc2626;" onclick="SurveyAdmin.discard('${st.pending_batch_id}','${ek}')">Discard</button>`;
+                } else if (st.sent) {
+                    right = `<span style="color:#16a34a;font-weight:700;"><i class="fas fa-check-circle"></i> ${st.sent} sent</span>`;
+                } else if (st.scheduled) {
+                    right = `<span style="color:#0ea5e9;font-weight:700;">${st.scheduled} sending…</span>`;
+                } else if (st.failed) {
+                    right = `<span style="color:#dc2626;font-weight:700;">${st.failed} failed</span>`;
+                } else {
+                    right = `<span style="color:var(--text-muted);">not sent yet</span>`;
+                }
+                const bg = st.pending_batch_id ? 'rgba(245,158,11,0.08)' : 'var(--bg-primary)';
+                const bd = st.pending_batch_id ? 'rgba(245,158,11,0.35)' : 'var(--border)';
+                el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:${bg};border:1px solid ${bd};border-radius:10px;padding:10px 14px;">
+                    <div style="font-size:13px;font-weight:600;color:var(--text-primary);">Survey invites</div>
+                    <div style="display:flex;gap:6px;align-items:center;font-size:12px;">${right}</div></div>`;
+            },
+            renderResults(ek, s) {
+                const el = document.getElementById('surveyResults-' + ek); if (!el) return;
+                if (!s || !s.invited) { el.innerHTML = `<p style="font-size:12px;color:var(--text-muted);margin:0;">No survey sent yet. Send one to the people who checked in.</p>`; return; }
+                const dist = s.dist || [0,0,0,0,0];
+                const maxD = Math.max(1, ...dist);
+                const bars = [5,4,3,2,1].map(n => {
+                    const c = dist[n-1] || 0; const pct = Math.round((c / maxD) * 100);
+                    return `<div style="display:flex;align-items:center;gap:8px;margin:3px 0;font-size:12px;">
+                        <span style="width:34px;color:#C9A962;font-weight:700;">${n}★</span>
+                        <div style="flex:1;background:var(--bg-primary);border-radius:6px;overflow:hidden;height:14px;"><div style="width:${pct}%;height:100%;background:#C9A962;"></div></div>
+                        <span style="width:26px;text-align:right;color:var(--text-secondary);">${c}</span></div>`;
+                }).join('');
+                const recLine = (s.recommend_total ? `<div style="font-size:12px;color:var(--text-secondary);margin:10px 0 0;">Would recommend: <strong style="color:#16a34a;">${s.recommend_yes} yes</strong> · <strong style="color:#6b7280;">${s.recommend_no} no</strong>${s.recommend_pct != null ? ` (${s.recommend_pct}%)` : ''}</div>` : '');
+                const cmts = (s.comments || []);
+                const cmtHtml = cmts.length ? `<div style="margin-top:12px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);margin-bottom:6px;">What to improve (${cmts.length})</div>${cmts.map(c => `<div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:9px 12px;margin-bottom:6px;font-size:13px;color:var(--text-secondary);">${c.rating != null ? `<span style=\"color:#C9A962;font-weight:700;margin-right:6px;\">${c.rating}★</span>` : ''}${this.esc(c.text)}</div>`).join('')}</div>` : `<p style="font-size:12px;color:var(--text-muted);margin:10px 0 0;">No written notes yet.</p>`;
+                el.innerHTML = `<div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:14px;">
+                    <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:8px;">Rating distribution</div>
+                    ${bars}${recLine}${cmtHtml}</div>`;
+            },
+            async send(ek) {
+                if (!confirm('Send the post-event survey to everyone who checked in for this event?\n\nA short survey invite is staged in the outbox for your approval. Nothing sends until you approve the batch.')) return;
+                const r = await this.api('/api/admin/event-survey/send', { method: 'POST', body: JSON.stringify({ event_key: ek }) });
+                if (r.d && r.d.success) {
+                    if (r.d.count) Toast.success(`${r.d.count} survey invite${r.d.count === 1 ? '' : 's'} staged for approval`);
+                    else Toast.info(r.d.message || 'No new attendees to survey.');
+                    this.load(ek);
+                } else Toast.error((r.d && r.d.error) || 'Failed');
+            },
+            async toggleAuto(ek, on) {
+                const r = await this.api('/api/admin/event-survey/settings', { method: 'POST', body: JSON.stringify({ event_key: ek, auto_send: !!on }) });
+                if (r.d && r.d.success) Toast.success('Auto-send ' + (r.d.auto_send ? 'on' : 'off'));
+                else { Toast.error((r.d && r.d.error) || 'Failed'); const c = document.getElementById('surveyAuto-' + ek); if (c) c.checked = !on; }
+            },
+            async aiSummary(ek) {
+                const el = document.getElementById('surveyAI-' + ek); if (!el) return;
+                el.innerHTML = '<div style="font-size:12px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Composing…</div>';
+                const r = await this.api('/api/admin/event-survey/ai-summary?event_key=' + encodeURIComponent(ek));
+                const d = r.d || {};
+                if (!d.supported) { el.innerHTML = '<p style="font-size:12px;color:var(--text-muted);margin:0;">Not available.</p>'; return; }
+                const list = (title, items, color) => (items && items.length) ? `<div style="margin-top:8px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:${color};font-weight:700;margin-bottom:4px;">${title}</div><ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text-secondary);line-height:1.6;">${items.map(x => `<li>${this.esc(x)}</li>`).join('')}</ul></div>` : '';
+                const tag = d.ai_mock ? `<span style="font-size:10px;color:var(--text-muted);border:1px solid var(--border);border-radius:6px;padding:1px 7px;margin-left:8px;">composed from your data</span>` : `<span style="font-size:10px;color:#16a34a;border:1px solid #16a34a55;border-radius:6px;padding:1px 7px;margin-left:8px;">AI</span>`;
+                el.innerHTML = `<div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:14px;">
+                    <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:6px;">Summary${tag}</div>
+                    <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin:0;">${this.esc(d.ai_summary || '')}</p>
+                    ${list('Loved', d.loved, '#16a34a')}
+                    ${list('To fix', d.fix, '#dc2626')}
+                    ${list('Quotable for sponsors', d.quotable, '#C9A962')}</div>`;
             },
             async approve(batch, ek) {
                 const r = await this.api(`/api/admin/outbox/${encodeURIComponent(batch)}/approve`, { method: 'POST' });

@@ -2039,7 +2039,8 @@ function postEventCheckedIn(eventKey) {
     const cfg = postEventCfg(eventKey); if (!cfg) return [];
     try {
         return query.all(`SELECT id, first_name, last_name, email, user_id FROM ${cfg.table}
-            WHERE COALESCE(checked_in,0) = 1 AND email IS NOT NULL AND email != ''`);
+            WHERE COALESCE(checked_in,0) = 1 AND email IS NOT NULL AND email != ''
+              AND COALESCE(status,'') NOT IN ('cancelled','canceled','refunded','rejected')`);
     } catch (e) { return []; }
 }
 // Registered but never checked in — not cancelled/refunded/rejected, has an email.
@@ -2230,6 +2231,252 @@ function postEventSummary(eventKey) {
         batches,
         feedback: { invites, responses, avg_score: avg },
     };
+}
+
+// ===================== POST-EVENT MICRO-SURVEY (2-3 one-tap questions) =====================
+// A richer, effortless survey for the people who CHECKED IN: an overall 1-5 star rating, a
+// would-you-recommend yes/no, and one optional free-text "what should we improve". Every tap is a
+// public GET on the USER portal (no login) carrying a signed token; the landing page collects the
+// optional note. Sends go through the ONE approval outbox (source_engine='event-survey') and a
+// drip_log marker (survey:<event>:<reg_id>) makes staging idempotent and gives the response-rate
+// denominator. Reuses the same checked-in query the post-event round uses, so "checked in only" is
+// enforced in exactly one place. Distinct from the one-question NPS in event_feedback.
+const SURVEY_EVENTS = POST_EVENT_EVENTS; // { plexus, gala } — same two dashboards that own a Post-event card.
+function surveyCfg(eventKey) { return SURVEY_EVENTS[eventKey] || null; }
+
+// Recipient locale, best-effort: the member's saved language if we can find their account, else EN.
+// Every lookup is wrapped so a portal whose users table lacks a column still resolves to 'en'.
+function surveyRecipientLocale(r) {
+    const pick = (v) => (String(v || '').toLowerCase().startsWith('hr') ? 'hr' : (String(v || '').toLowerCase().startsWith('en') ? 'en' : null));
+    try { if (r && r.user_id) { const u = query.get('SELECT locale FROM users WHERE id = ?', [r.user_id]); const p = u && pick(u.locale); if (p) return p; } } catch (e) {}
+    try { if (r && r.email) { const u = query.get('SELECT locale FROM users WHERE LOWER(email) = LOWER(?)', [r.email]); const p = u && pick(u.locale); if (p) return p; } } catch (e) {}
+    return 'en';
+}
+function surveyFirstName(r) { return (((r && r.first_name) || '').trim().split(' ')[0]) || ''; }
+
+// Build ONE bilingual survey invite (formal Vi register in Croatian). Stars + recommend are tap
+// links that resolve on the user portal; the free-text lives on the landing page. The token is a
+// random per-attendee token stored in the SHARED response row, so the link works cross-portal
+// regardless of each service's JWT secret.
+function surveyEmail(eventKey, r, locale, base, token) {
+    const cfg = surveyCfg(eventKey);
+    const hr = locale === 'hr';
+    const label = seatEsc(hr ? (SURVEY_LABELS_HR[eventKey] || cfg.label) : cfg.label);
+    const first = seatEsc(surveyFirstName(r) || (hr ? 'kolega' : 'there'));
+    const enc = encodeURIComponent(token);
+    const rateLink = (n) => `${base}/api/public/survey?t=${enc}&l=${locale}&r=${n}`;
+    const recLink = (v) => `${base}/api/public/survey/recommend?t=${enc}&l=${locale}&v=${v}`;
+    const stars = [1, 2, 3, 4, 5].map((n) =>
+        `<a href="${rateLink(n)}" style="display:inline-block;width:46px;height:46px;line-height:46px;margin:3px;text-align:center;border-radius:10px;background:#0f172a;color:#C9A962;text-decoration:none;font-weight:700;font-size:22px;">&#9733;</a>`
+    ).join('');
+    const recBtn = (v, txt, bg) => `<a href="${recLink(v)}" style="display:inline-block;margin:4px 6px;padding:11px 26px;border-radius:10px;background:${bg};color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;">${txt}</a>`;
+    if (hr) {
+        return {
+            subject: `Kako Vam je bilo? Jedno pitanje o — ${cfg.label}`,
+            html: buildEmailTemplate('Kako Vam je bilo?', `
+                <p>Poštovani ${first},</p>
+                <p>Hvala Vam što ste bili s nama na događaju <strong>${label}</strong>. Vaše nam mišljenje pomaže da sljedeće izdanje bude još bolje. Odgovor je jedan dodir — bez prijave.</p>
+                <p style="margin-top:22px;font-weight:700;color:#0f172a;">Kako biste ukupno ocijenili događaj?</p>
+                <div style="text-align:center;margin:14px 0 6px;">${stars}</div>
+                <div style="text-align:center;color:#64748b;font-size:12px;">1 zvjezdica = slabo · 5 zvjezdica = izvrsno</div>
+                <p style="margin-top:26px;font-weight:700;color:#0f172a;">Biste li nas preporučili kolegi?</p>
+                <div style="text-align:center;margin:12px 0;">${recBtn('yes', 'Da', '#16a34a')}${recBtn('no', 'Ne', '#64748b')}</div>
+                <p style="color:#64748b;font-size:13px;margin-top:22px;">Nakon dodira možete ostaviti i kratku napomenu — posve neobavezno. Hvala Vam.</p>
+            `),
+        };
+    }
+    return {
+        subject: `How was it? One quick question about ${cfg.label}`,
+        html: buildEmailTemplate('How was it?', `
+            <p>Hi ${first},</p>
+            <p>Thank you for being with us at <strong>${label}</strong>. Your read on it helps us make the next edition better, and it really is one tap — no login.</p>
+            <p style="margin-top:22px;font-weight:700;color:#0f172a;">Overall, how would you rate the event?</p>
+            <div style="text-align:center;margin:14px 0 6px;">${stars}</div>
+            <div style="text-align:center;color:#64748b;font-size:12px;">1 star = poor · 5 stars = excellent</div>
+            <p style="margin-top:26px;font-weight:700;color:#0f172a;">Would you recommend it to a colleague?</p>
+            <div style="text-align:center;margin:12px 0;">${recBtn('yes', 'Yes', '#16a34a')}${recBtn('no', 'No', '#64748b')}</div>
+            <p style="color:#64748b;font-size:13px;margin-top:22px;">After your tap you can leave a short note too — entirely optional. Thank you.</p>
+        `),
+    };
+}
+
+// Croatian event labels for the survey (admin buildEmailTemplate shell stays English brand chrome,
+// but the meaningful copy the recipient reads is fully localized).
+const SURVEY_LABELS_HR = { plexus: 'Konferencija Plexus 2026.', gala: 'Plexus Gala večer 2026.' };
+
+// Stage ONE approval-gated survey batch to every checked-in attendee with an email. Idempotent: a
+// recipient is added only when its drip_log marker is newly inserted, so a re-run never double-sends.
+function surveyStageBatch(eventKey, req) {
+    const cfg = surveyCfg(eventKey); if (!cfg) return { batch_id: null, count: 0, error: 'unsupported' };
+    const recipients = postEventCheckedIn(eventKey); // reuse the single checked-in source of truth
+    if (!recipients.length) return { batch_id: null, count: 0 };
+    const base = userPortalBase(); // survey taps resolve on the USER portal's public endpoint
+    const batchId = `survey-${eventKey}-` + require('crypto').randomUUID();
+    let count = 0;
+    for (const r of recipients) {
+        if (!r.email) continue;
+        const dripKind = `survey:${eventKey}:${r.id}`;
+        db.run(`INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?,?,?,?)`,
+            [require('crypto').randomUUID(), 'event-survey', r.email, dripKind]);
+        if (db.getRowsModified() !== 1) continue; // already surveyed in a prior round
+        const locale = surveyRecipientLocale(r);
+        // Pre-create the SHARED response row carrying a random token (the tap link key). Idempotent on
+        // (event_key, reg_id) — a re-run reuses the existing row's token.
+        const tok = seatToken(24);
+        db.run(`INSERT OR IGNORE INTO event_survey_responses (id, event_key, reg_id, email, user_id, locale, token) VALUES (?,?,?,?,?,?,?)`,
+            [require('crypto').randomUUID(), eventKey, r.id, r.email, r.user_id || null, locale, tok]);
+        const rowTok = (query.get('SELECT token FROM event_survey_responses WHERE event_key = ? AND reg_id = ?', [eventKey, r.id]) || {}).token || tok;
+        const mail = surveyEmail(eventKey, r, locale, base, rowTok);
+        db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                VALUES (?, 'pending_approval', ?, 'event-survey', 'event_survey', ?, ?, ?, 'event-survey-engine', datetime('now'))`,
+            [require('crypto').randomUUID(), batchId,
+             JSON.stringify({ to: r.email, subject: mail.subject, html: mail.html }), r.email, mail.subject]);
+        count++;
+    }
+    if (count) saveDb();
+    return { batch_id: count ? batchId : null, count };
+}
+
+// Aggregate the responses for the admin results view. invited = surveys staged (drip markers);
+// responded = anyone who answered at least one question. Every number is live over real rows.
+function surveyResults(eventKey) {
+    const cfg = surveyCfg(eventKey); if (!cfg) return { event_key: eventKey, supported: false };
+    let invited = 0;
+    try { invited = query.get("SELECT COUNT(*) AS c FROM drip_log WHERE user_id = 'event-survey' AND kind LIKE ?", [`survey:${eventKey}:%`])?.c || 0; } catch (e) {}
+    let rows = [];
+    try { rows = query.all('SELECT * FROM event_survey_responses WHERE event_key = ? ORDER BY created_at DESC', [eventKey]); } catch (e) { rows = []; }
+    const rated = rows.filter((r) => r.rating != null);
+    const responded = rows.filter((r) => r.rating != null || r.recommend != null || (r.improve && String(r.improve).trim())).length;
+    const avg = rated.length ? Math.round((rated.reduce((s, r) => s + r.rating, 0) / rated.length) * 10) / 10 : null;
+    const dist = [1, 2, 3, 4, 5].map((n) => rated.filter((r) => r.rating === n).length);
+    const recYes = rows.filter((r) => r.recommend === 1).length;
+    const recNo = rows.filter((r) => r.recommend === 0).length;
+    const recTotal = recYes + recNo;
+    const recPct = recTotal ? Math.round((recYes / recTotal) * 100) : null;
+    const comments = rows.filter((r) => r.improve && String(r.improve).trim())
+        .map((r) => ({ text: String(r.improve).trim(), rating: r.rating, at: r.commented_at }));
+    // Outbox batch state (all survey batches for this event) for the approve UI.
+    const like = `survey-${eventKey}-%`;
+    const batch = { pending: 0, scheduled: 0, sent: 0, failed: 0, cancelled: 0, pending_batch_id: null };
+    try {
+        query.all("SELECT status, COUNT(*) AS n FROM scheduled_emails WHERE batch_id LIKE ? GROUP BY status", [like]).forEach((row) => {
+            if (row.status === 'pending_approval') batch.pending += row.n;
+            else if (batch[row.status] !== undefined) batch[row.status] += row.n;
+        });
+        const pend = query.get("SELECT batch_id FROM scheduled_emails WHERE batch_id LIKE ? AND status='pending_approval' ORDER BY created_at DESC LIMIT 1", [like]);
+        batch.pending_batch_id = pend ? pend.batch_id : null;
+    } catch (e) {}
+    return {
+        event_key: eventKey, supported: true, label: cfg.label,
+        invited, responded, response_rate: invited ? Math.round((responded / invited) * 100) : 0,
+        avg_rating: avg, rating_count: rated.length, dist,
+        recommend_yes: recYes, recommend_no: recNo, recommend_total: recTotal, recommend_pct: recPct,
+        comments, batch,
+    };
+}
+
+// Deterministic analysis composed straight from the real numbers — what people loved, what to fix,
+// and quotable lines for sponsors. This is the clean fallback the AI path falls back to (never a raw
+// '[Draft]'), and it is also embedded so the admin always sees grounded structure.
+function surveyFallbackAnalysis(R) {
+    const loved = [], fix = [], quotable = [];
+    if (R.avg_rating != null) {
+        if (R.avg_rating >= 4.3) loved.push(`Attendees rated ${R.label} an average of ${R.avg_rating} out of 5 — a strong, warm reception.`);
+        else if (R.avg_rating >= 3.5) loved.push(`The event landed well, averaging ${R.avg_rating} out of 5 across ${R.rating_count} rating${R.rating_count === 1 ? '' : 's'}.`);
+        else fix.push(`The average rating was ${R.avg_rating} out of 5 — there is clear room to raise the experience next time.`);
+    }
+    if (R.recommend_pct != null) {
+        if (R.recommend_pct >= 70) loved.push(`${R.recommend_pct}% of respondents would recommend it to a colleague.`);
+        else fix.push(`Only ${R.recommend_pct}% would recommend it to a colleague — worth understanding why.`);
+    }
+    const low = R.comments.filter((c) => c.rating != null && c.rating <= 3);
+    const high = R.comments.filter((c) => c.rating != null && c.rating >= 4);
+    low.slice(0, 3).forEach((c) => fix.push(c.text));
+    (high.length ? high : R.comments).slice(0, 3).forEach((c) => quotable.push(c.text));
+    if (!loved.length) loved.push('Not enough responses yet to call out a clear highlight.');
+    if (!fix.length) fix.push('No specific problems were flagged in the responses so far.');
+    let summary = `${R.responded} of ${R.invited} surveyed attendee${R.invited === 1 ? '' : 's'} responded (${R.response_rate}%).`;
+    if (R.avg_rating != null) summary += ` Overall rating ${R.avg_rating}/5 across ${R.rating_count} rating${R.rating_count === 1 ? '' : 's'}.`;
+    if (R.recommend_pct != null) summary += ` ${R.recommend_pct}% would recommend (${R.recommend_yes} yes, ${R.recommend_no} no).`;
+    if (R.comments.length) summary += ` ${R.comments.length} left a written note.`;
+    return { loved, fix, quotable, summary };
+}
+
+// AI summary with the deterministic fallback. aiDraft never throws; if it is in mock mode (no key)
+// or returns a '[Draft]' stub, we serve the grounded fallback composed from the real numbers.
+async function surveyAiSummary(eventKey) {
+    const R = surveyResults(eventKey);
+    if (!R.supported) return { supported: false };
+    const fallback = surveyFallbackAnalysis(R);
+    let aiText = fallback.summary;
+    let ai_mock = true;
+    if (R.responded > 0) {
+        try {
+            const r = await aiDraft({
+                purpose: 'In 3-4 sentences, summarize post-event attendee survey results for the Med&X team: what people loved, what to fix, and one quotable line suitable for a sponsor. Be specific and grounded in the numbers provided.',
+                context: {
+                    event: R.label, surveyed: R.invited, responded: R.responded, response_rate_percent: R.response_rate,
+                    average_rating_out_of_5: R.avg_rating, ratings_counted: R.rating_count,
+                    would_recommend_percent: R.recommend_pct, recommend_yes: R.recommend_yes, recommend_no: R.recommend_no,
+                    written_notes: R.comments.map((c) => c.text).slice(0, 40),
+                },
+                maxTokens: 400,
+            });
+            if (r && r.text && !r.mock && !/^\s*\[Draft\]/.test(r.text)) { aiText = r.text.trim(); ai_mock = false; }
+        } catch (e) { /* fall back to the grounded composition */ }
+    }
+    return { supported: true, ...R, ai_summary: aiText, ai_mock, loved: fallback.loved, fix: fallback.fix, quotable: fallback.quotable };
+}
+
+// Per-event auto-send toggle (admin-only table). Read/write helpers.
+function surveyGetAutoSend(eventKey) {
+    try { const r = query.get('SELECT auto_send FROM event_survey_settings WHERE event_key = ?', [eventKey]); return !!(r && r.auto_send); } catch (e) { return false; }
+}
+function surveySetAutoSend(eventKey, on) {
+    db.run(`INSERT INTO event_survey_settings (event_key, auto_send, updated_at) VALUES (?,?,datetime('now'))
+            ON CONFLICT(event_key) DO UPDATE SET auto_send = excluded.auto_send, updated_at = datetime('now')`,
+        [eventKey, on ? 1 : 0]);
+    saveDb();
+    return surveyGetAutoSend(eventKey);
+}
+
+// Optional next-morning auto-stage: for every event whose toggle is on, stage the survey batch ONCE
+// after the event has ended (still into the approval outbox — the owner approves before anything
+// sends). Guarded by a drip marker so it never re-stages. Conservative: if the event date cannot be
+// determined it does not fire, leaving the manual button as the primary path.
+function surveyEventEnded(eventKey) {
+    try {
+        const todayZ = new Date().toISOString().slice(0, 10);
+        if (eventKey === 'plexus') {
+            const conf = query.get("SELECT end_date, start_date FROM conferences WHERE COALESCE(is_active,0) = 1 ORDER BY start_date DESC LIMIT 1")
+                || query.get("SELECT end_date, start_date FROM conferences ORDER BY start_date DESC LIMIT 1");
+            const d = conf && (conf.end_date || conf.start_date);
+            return d ? (String(d).slice(0, 10) < todayZ) : false;
+        }
+        if (eventKey === 'gala') {
+            let d = null;
+            try { d = query.get("SELECT gala_date FROM plexus_page_settings WHERE id = 'default'")?.gala_date || null; } catch (e) {}
+            return d ? (String(d).slice(0, 10) < todayZ) : false;
+        }
+    } catch (e) {}
+    return false;
+}
+function surveyAutoStageDue() {
+    const out = [];
+    for (const ek of Object.keys(SURVEY_EVENTS)) {
+        try {
+            if (!surveyGetAutoSend(ek)) continue;
+            if (!surveyEventEnded(ek)) continue;
+            const marker = `survey-auto:${ek}`;
+            const already = query.get("SELECT 1 AS x FROM drip_log WHERE user_id = 'event-survey' AND kind = ?", [marker]);
+            if (already) continue;
+            const r = surveyStageBatch(ek, null);
+            db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'event-survey', NULL, ?)", [require('crypto').randomUUID(), marker]);
+            saveDb();
+            out.push({ event_key: ek, staged: r.count });
+        } catch (e) { /* one event failing never blocks the others */ }
+    }
+    return out;
 }
 
 async function initializeApp() {
@@ -3941,6 +4188,76 @@ async function initializeApp() {
     db.run(`CREATE INDEX IF NOT EXISTS idx_forum_magic_tokens_token ON forum_magic_tokens(token)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_forum_considerations_status ON forum_considerations(status)`);
     // ====================== END FORUM WING schema ======================
+
+    // ====================== GUEST PASSES — member-initiated colleague invites ======================
+    // Shared table (both portals touch it): the user portal creates + revokes a member's own passes
+    // and stages the guest email, while the admin portal lists passes in the event guest lists,
+    // enriches the scanner with "Guest of Dr. X", revokes, and counts them in dashboards + the weekly
+    // pulse. Lives OUTSIDE the SCHEMA-MIRROR block but is added IDENTICALLY to BOTH server.js files
+    // (like the Forum wing tables). Idempotent CREATE so whichever process boots first against the
+    // shared DB creates it once. A guest's QR ticket is a REAL row in the event's own registration
+    // table (registrations for the Plexus conference, bridges_registrations for Building Bridges) so
+    // the FROZEN scanner validates it unchanged — reg_table + reg_id below are that linkage. status is
+    // one of invited | accepted | checked_in | revoked.
+    db.run(`CREATE TABLE IF NOT EXISTS guest_passes (
+        id TEXT PRIMARY KEY,
+        event TEXT NOT NULL,
+        event_ref TEXT,
+        member_user_id TEXT NOT NULL,
+        member_name TEXT,
+        guest_name TEXT NOT NULL,
+        guest_email TEXT NOT NULL,
+        note TEXT,
+        status TEXT DEFAULT 'invited',
+        reg_table TEXT,
+        reg_id TEXT,
+        qr_code TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        accepted_at TEXT,
+        checked_in_at TEXT,
+        revoked_at TEXT
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_guest_passes_member ON guest_passes(member_user_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_guest_passes_event ON guest_passes(event, event_ref)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_guest_passes_reg ON guest_passes(reg_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_guest_passes_gemail ON guest_passes(guest_email)`);
+    // ====================== END GUEST PASSES schema ======================
+
+    // ====================== POST-EVENT MICRO-SURVEY (shared) ======================
+    // After an event the admin stages a short micro-survey to the people who actually CHECKED IN.
+    // The invite emails go out through the ONE approval outbox + drip_log; the taps come back through
+    // the USER portal's public GET endpoints, so this response table is SHARED and created IDENTICALLY
+    // in both server.js files (guarded, additive, after the SCHEMA-MIRROR block). One row per
+    // (event_key, reg_id). Each tap link carries a random single-use token stored in event_survey_responses.token.
+    db.run(`CREATE TABLE IF NOT EXISTS event_survey_responses (
+        id TEXT PRIMARY KEY,
+        event_key TEXT NOT NULL,
+        reg_id TEXT NOT NULL,
+        email TEXT,
+        user_id TEXT,
+        locale TEXT DEFAULT 'en',
+        token TEXT,
+        rating INTEGER,
+        recommend INTEGER,
+        improve TEXT,
+        rated_at TEXT,
+        recommended_at TEXT,
+        commented_at TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(event_key, reg_id)
+    )`);
+    try { db.run("ALTER TABLE event_survey_responses ADD COLUMN token TEXT"); } catch (e) { /* column exists */ }
+    db.run(`CREATE INDEX IF NOT EXISTS idx_event_survey_event ON event_survey_responses(event_key)`);
+    db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_event_survey_token ON event_survey_responses(token)`);
+    // ====================== END POST-EVENT MICRO-SURVEY schema ======================
+
+    // Admin-only: per-event auto-send toggle for the post-event survey. Lives ONLY in the admin
+    // portal (the user portal never reads it), so it is deliberately OUTSIDE any shared block.
+    db.run(`CREATE TABLE IF NOT EXISTS event_survey_settings (
+        event_key TEXT PRIMARY KEY,
+        auto_send INTEGER DEFAULT 0,
+        updated_at TEXT DEFAULT (datetime('now'))
+    )`);
 
     // ====================== ADMIN TEAM CHAT (cluster) schema ======================
     // Internal team chat lives ONLY in the admin portal, so all of this is deliberately
@@ -16962,6 +17279,10 @@ By applying to this program, I provide the following consents:
                 if (ev && ev.at) { const t = new Date(ev.at).getTime(); if (!isNaN(t) && t >= cutoff) model.forum.accepted += 1; }
             }
         } catch (e) { /* forum pipeline reads as 0 when unavailable */ }
+        // Member-initiated guest passes brought this week (colleague invites).
+        model.guestPasses = num("SELECT COUNT(*) AS c FROM guest_passes WHERE created_at >= datetime('now','-7 days') AND status <> 'revoked'");
+        // Post-event survey pulse — only events that actually have a survey out (invited > 0).
+        try { model.surveys = Object.keys(SURVEY_EVENTS).map((ek) => surveyResults(ek)).filter((s) => s && s.supported && s.invited > 0); } catch (e) { model.surveys = []; }
         return model;
     }
 
@@ -17002,6 +17323,7 @@ By applying to this program, I provide the following consents:
         parts.push(pulseListRow('Plexus Conference', r.plexus || 0, accent));
         parts.push(pulseListRow('Building Bridges', r.bridges || 0, accent));
         parts.push(pulseListRow('Donor Night', r.donor || 0, accent));
+        parts.push(pulseListRow('Guests invited by members', model.guestPasses || 0, accent));
         const fpl = model.forum || {};
         parts.push(digestSectionHead('Biomedical Forum', 'Member pipeline this week', accent));
         parts.push(pulseListRow('Invitations sent', fpl.invited || 0, accent));
@@ -17018,6 +17340,13 @@ By applying to this program, I provide the following consents:
             model.deadlines.forEach((d) => parts.push(pulseListRow(capWord(d.urgent || d.key || ''), d.daysLeft === 0 ? 'Today' : (d.daysLeft + (d.daysLeft === 1 ? ' day' : ' days')), accent)));
         } else {
             parts.push(`<p style="margin:0 0 6px;color:#64748b;font-size:14px;line-height:1.7;">Nothing due in the next 14 days.</p>`);
+        }
+        if (model.surveys && model.surveys.length) {
+            parts.push(digestSectionHead('Post-event surveys', 'Attendee feedback so far', accent));
+            model.surveys.forEach((s) => {
+                const right = `${s.responded}/${s.invited}` + (s.avg_rating != null ? ` · ${s.avg_rating}/5` : '') + (s.recommend_pct != null ? ` · ${s.recommend_pct}% rec` : '');
+                parts.push(pulseListRow(s.label, right, accent));
+            });
         }
         parts.push(digestSectionHead('Newsletter', 'Subscriber growth', accent));
         parts.push(`<p style="margin:0 0 6px;color:#334155;font-size:15px;line-height:1.7;"><strong>${model.subsTotal || 0}</strong> active subscriber${(model.subsTotal || 0) === 1 ? '' : 's'}, <strong>${model.subsNew || 0}</strong> new this week.</p>`);
@@ -22765,11 +23094,83 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
                 member_since: user.created_at || ''
             } : { is_member: false };
 
-            res.json({ found: !!user || registrations.length > 0, membership, registrations });
+            // Guest-pass label: if the scanned person is a colleague a member brought, surface
+            // "Guest of Dr. X" for the door. Read-only lookup by the guest email — never touches the
+            // FROZEN verify decision. Prefers a pass whose ticket is the one that just validated.
+            let guest_of = null;
+            try {
+                if (lookupEmail) {
+                    const gp = query.get(
+                        `SELECT member_name, status FROM guest_passes WHERE LOWER(guest_email) = LOWER(?) AND status != 'revoked' ORDER BY created_at DESC LIMIT 1`,
+                        [lookupEmail]
+                    );
+                    if (gp && gp.member_name) guest_of = gp.member_name;
+                }
+            } catch (e) {}
+
+            res.json({ found: !!user || registrations.length > 0 || !!guest_of, membership, registrations, guest_of });
         } catch (err) {
             console.error('Scan enrich failed:', err);
             res.status(500).json({ error: 'Could not load member details' });
         }
+    });
+
+    // ========== GUEST PASSES (admin) — event guest lists + counts + revoke ==========
+    // Member-initiated colleague invites. Read the passes with the linked ticket's checked-in flag
+    // derived on the fly (the FROZEN scanner never writes back to guest_passes). Optional ?event=
+    // (plexus|bridges) scopes to one event; ?counts=1 returns per-event totals for the dashboards.
+    app.get('/api/admin/guest-passes', auth, adminOnly, (req, res) => {
+        try {
+            const evKey = req.query.event ? String(req.query.event).toLowerCase() : null;
+            let rows;
+            if (evKey) rows = query.all('SELECT * FROM guest_passes WHERE event = ? ORDER BY created_at DESC', [evKey]);
+            else rows = query.all('SELECT * FROM guest_passes ORDER BY created_at DESC');
+            const passes = rows.map(p => {
+                let checkedIn = false, checkedInAt = null, cancelled = false;
+                try {
+                    if (p.reg_table === 'registrations' || p.reg_table === 'bridges_registrations') {
+                        const r = query.get(`SELECT checked_in, checked_in_at, status FROM ${p.reg_table} WHERE id = ?`, [p.reg_id]);
+                        if (r) { checkedIn = !!r.checked_in; checkedInAt = r.checked_in_at || null; cancelled = String(r.status || '') === 'cancelled'; }
+                    }
+                } catch (e) {}
+                const status = p.status === 'revoked' ? 'revoked' : (checkedIn ? 'checked_in' : p.status);
+                return {
+                    id: p.id, event: p.event, event_ref: p.event_ref,
+                    member_name: p.member_name || '', member_user_id: p.member_user_id,
+                    guest_name: p.guest_name, guest_email: p.guest_email, note: p.note || '',
+                    status, checked_in: checkedIn, checked_in_at: checkedInAt, reg_id: p.reg_id,
+                    created_at: p.created_at
+                };
+            });
+            const counts = {};
+            for (const p of passes) {
+                const k = p.event || 'other';
+                counts[k] = counts[k] || { total: 0, active: 0, checked_in: 0, revoked: 0 };
+                counts[k].total++;
+                if (p.status === 'revoked') counts[k].revoked++;
+                else if (p.status === 'checked_in') { counts[k].active++; counts[k].checked_in++; }
+                else counts[k].active++;
+            }
+            res.json({ passes, counts });
+        } catch (e) { console.error('admin guest-passes list', e.message); res.status(500).json({ error: 'Could not load guest passes.' }); }
+    });
+
+    // Admin revokes a pass: cancel the linked ticket (scanner then rejects it cleanly) + pull any
+    // not-yet-approved invite email from the outbox.
+    app.post('/api/admin/guest-passes/:id/revoke', auth, adminOnly, (req, res) => {
+        try {
+            const pass = query.get('SELECT * FROM guest_passes WHERE id = ?', [req.params.id]);
+            if (!pass) return res.status(404).json({ error: 'Guest pass not found.' });
+            if (pass.status === 'revoked') return res.json({ success: true, already: true });
+            db.run("UPDATE guest_passes SET status = 'revoked', revoked_at = datetime('now') WHERE id = ?", [pass.id]);
+            if ((pass.reg_table === 'registrations' || pass.reg_table === 'bridges_registrations') && pass.reg_id) {
+                try { db.run(`UPDATE ${pass.reg_table} SET status = 'cancelled' WHERE id = ?`, [pass.reg_id]); } catch (e) {}
+            }
+            try { db.run("UPDATE scheduled_emails SET status = 'cancelled' WHERE batch_id = ? AND status = 'pending_approval'", ['guest-pass-' + pass.id]); } catch (e) {}
+            saveDb();
+            try { logAudit(req, 'guest_pass_revoke', `revoked guest pass for ${pass.guest_email} (${pass.event})`); } catch (e) {}
+            res.json({ success: true });
+        } catch (e) { console.error('admin guest-pass revoke', e.message); res.status(500).json({ error: 'Could not revoke the guest pass.' }); }
     });
 
     // ========== TEST QR EMAIL — admin sends themselves a working test QR ==========
@@ -26329,6 +26730,54 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         } catch (e) { console.error('[post-event] run-round', e.message); res.status(500).json({ error: e.message }); }
     });
 
+    // ========== POST-EVENT MICRO-SURVEY — admin API ==========
+    // Stage the 2-3 question survey to CHECKED-IN attendees only (approval-gated). Reuses the same
+    // checked-in query as the post-event round. Idempotent per attendee via drip_log.
+    app.post('/api/admin/event-survey/send', auth, adminOnly, (req, res) => {
+        try {
+            const ek = String((req.body && req.body.event_key) || 'plexus');
+            if (!surveyCfg(ek)) return res.status(400).json({ error: 'This event does not support a post-event survey yet.' });
+            const r = surveyStageBatch(ek, req);
+            if (!r.batch_id) return res.json({ success: true, batch_id: null, count: 0, message: 'No new checked-in attendees to survey. Everyone eligible already has a survey.' });
+            logAudit(req, 'event_survey_send', `${ek}: ${r.count} survey invite(s) staged for approval (batch ${r.batch_id})`);
+            res.json({ success: true, batch_id: r.batch_id, count: r.count, results: surveyResults(ek) });
+        } catch (e) { console.error('[event-survey] send', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Live aggregates for the results view.
+    app.get('/api/admin/event-survey/results', auth, adminOnly, (req, res) => {
+        try {
+            const ek = String(req.query.event_key || 'plexus');
+            res.json({ ...surveyResults(ek), auto_send: surveyGetAutoSend(ek) });
+        } catch (e) { console.error('[event-survey] results', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // AI summary (deterministic fallback composed from the real numbers).
+    app.get('/api/admin/event-survey/ai-summary', auth, adminOnly, async (req, res) => {
+        try {
+            const ek = String(req.query.event_key || 'plexus');
+            res.json(await surveyAiSummary(ek));
+        } catch (e) { console.error('[event-survey] ai-summary', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Read/toggle the optional next-morning auto-send.
+    app.get('/api/admin/event-survey/settings', auth, adminOnly, (req, res) => {
+        try {
+            const ek = String(req.query.event_key || 'plexus');
+            res.json({ event_key: ek, auto_send: surveyGetAutoSend(ek) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-survey/settings', auth, adminOnly, (req, res) => {
+        try {
+            const ek = String((req.body && req.body.event_key) || 'plexus');
+            if (!surveyCfg(ek)) return res.status(400).json({ error: 'Unknown event.' });
+            const on = !!(req.body && req.body.auto_send);
+            const now = surveySetAutoSend(ek, on);
+            logAudit(req, 'event_survey_autosend', `${ek}: auto-send ${now ? 'ON' : 'OFF'}`);
+            res.json({ success: true, event_key: ek, auto_send: now });
+        } catch (e) { console.error('[event-survey] settings', e.message); res.status(500).json({ error: e.message }); }
+    });
+
     // ========== CONFIRM-YOUR-SEAT (#3) — admin panel API ==========
     // Counts + config for the confirm-seat card in the Plexus section.
     app.get('/api/admin/seat-confirmations/summary', auth, adminOnly, (req, res) => {
@@ -27770,6 +28219,12 @@ app.get('*', (req, res) => {
         // sweep expires stale 48h claims and rolls each seat to the next waiting person.
         try { runSeatConfirmAuto(); } catch (e) { console.warn('[SeatConfirm] boot skipped:', e.message); }
         setInterval(() => { try { runSeatConfirmAuto(); } catch (e) {} }, 24 * 60 * 60 * 1000);
+
+        // POST-EVENT SURVEY auto-send: for events whose toggle is ON, stage the survey the morning
+        // after the event ends (still approval-gated). No-op until the event date has passed, and a
+        // drip marker makes it fire at most once.
+        try { surveyAutoStageDue(); } catch (e) { console.warn('[EventSurvey] boot skipped:', e.message); }
+        setInterval(() => { try { surveyAutoStageDue(); } catch (e) {} }, 24 * 60 * 60 * 1000);
 
         // BIOMEDICAL FORUM INVITATION CAMPAIGN — daily invite + follow-up ticks. Both are no-ops
         // until the campaign is approved (dev seeds it as 'draft') and paused by the kill switch;
