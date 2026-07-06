@@ -9232,6 +9232,189 @@ async function submitReset(e){
         } catch (e) { console.error(e); res.status(500).json({ error: 'Failed to load record' }); }
     });
 
+    // ========== GLOBAL MEMBER SEARCH + PROFILE NUDGE (additive, read-mostly) ==========
+    // GET /api/member/search?q= — one spotlight query across events, members, talks, and the
+    // caller's own tickets/registrations. Read-only, auth required, no schema change. (The
+    // literal /api/search path is already taken by the adminOnly project-hub search above.)
+    // Privacy mirrors the existing directory endpoints exactly:
+    //   - Plexus attendees: only confirmed registrants with a public profile (or the caller
+    //     themselves) — the same rule as GET /api/plexus/attendees.
+    //   - Forum directory: returned ONLY when the caller is an approved Forum member or an
+    //     admin — the same gate as GET /api/forum/members. It stays members-only.
+    // Nothing rewards-related is ever emitted here, so quiet profiles get the same results.
+    app.get('/api/member/search', auth, (req, res) => {
+        const q = String(req.query.q || '').trim();
+        if (q.length < 2) return res.json({ events: [], members: [], talks: [], mine: [] });
+        const like = '%' + q + '%';
+        const qLower = q.toLowerCase();
+        const out = { events: [], members: [], talks: [], mine: [] };
+        // One failing group must never kill the whole search.
+        const grp = (fn) => { try { fn(); } catch (e) { /* group skipped */ } };
+
+        // --- Events: conferences (Plexus etc.) ---
+        grp(() => {
+            query.all(`SELECT id, name, slug, start_date, venue_name, venue_city FROM conferences
+                WHERE name LIKE ? OR venue_name LIKE ? OR venue_city LIKE ?
+                ORDER BY start_date DESC LIMIT 5`, [like, like, like])
+                .forEach(c => out.events.push({
+                    kind: 'conference', id: c.id, title: c.name,
+                    detail: [c.venue_city, c.start_date].filter(Boolean).join(' \u00b7 '),
+                    section: 'plexus'
+                }));
+        });
+        // --- Events: Building Bridges + Donor Night (published only, same as GET /api/bridges/events) ---
+        grp(() => {
+            query.all(`SELECT id, slug, name, city, venue_name, event_date FROM bridges_events
+                WHERE is_published = 1 AND (name LIKE ? OR city LIKE ? OR venue_name LIKE ?)
+                ORDER BY event_date ASC LIMIT 5`, [like, like, like])
+                .forEach(e => out.events.push({
+                    kind: 'bridges', id: e.id, title: e.name,
+                    detail: [e.city, e.event_date].filter(Boolean).join(' \u00b7 '),
+                    section: 'bridges'
+                }));
+        });
+        // --- Events: Forum convenings (published only, same visibility as GET /api/forum/events) ---
+        grp(() => {
+            query.all(`SELECT id, title, start_date, location_name FROM forum_events
+                WHERE (status = 'published' OR is_published = 1)
+                  AND (title LIKE ? OR description LIKE ? OR location_name LIKE ?)
+                ORDER BY start_date ASC LIMIT 5`, [like, like, like])
+                .forEach(e => out.events.push({
+                    kind: 'forum_event', id: e.id, title: e.title,
+                    detail: ['Forum convening', e.start_date].filter(Boolean).join(' \u00b7 '),
+                    section: /annual forum/i.test(e.title || '') ? 'af26' : 'forum'
+                }));
+        });
+
+        // --- Members: Plexus attendee directory (public profiles only, or self) ---
+        grp(() => {
+            const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+            if (conf) {
+                query.all(`SELECT DISTINCT u.id, u.first_name, u.last_name, u.institution
+                    FROM users u
+                    JOIN registrations r ON u.id = r.user_id
+                    LEFT JOIN user_profiles up ON u.id = up.user_id
+                    WHERE r.conference_id = ? AND r.status = 'confirmed' AND (up.is_profile_public = 1 OR u.id = ?)
+                      AND (u.first_name LIKE ? OR u.last_name LIKE ?
+                           OR (u.first_name || ' ' || u.last_name) LIKE ? OR u.institution LIKE ?)
+                    LIMIT 5`, [conf.id, req.user.id, like, like, like, like])
+                    .forEach(m => out.members.push({
+                        kind: 'attendee', id: m.id,
+                        title: [m.first_name, m.last_name].filter(Boolean).join(' '),
+                        detail: m.institution || 'Plexus attendee', section: 'network'
+                    }));
+            }
+        });
+        // --- Members: Forum directory — members-only, same gate as GET /api/forum/members ---
+        grp(() => {
+            const callerForum = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
+            if (callerForum || req.user.is_admin) {
+                query.all(`SELECT fm.id, fm.institution, fm.specialty, u.first_name, u.last_name
+                    FROM forum_members fm JOIN users u ON fm.user_id = u.id
+                    WHERE fm.membership_status = 'approved'
+                      AND (u.first_name LIKE ? OR u.last_name LIKE ?
+                           OR (u.first_name || ' ' || u.last_name) LIKE ?
+                           OR fm.institution LIKE ? OR fm.specialty LIKE ?)
+                    LIMIT 5`, [like, like, like, like, like])
+                    .forEach(m => out.members.push({
+                        kind: 'forum_member', id: m.id,
+                        title: [m.first_name, m.last_name].filter(Boolean).join(' '),
+                        detail: [m.specialty, m.institution].filter(Boolean).join(' \u00b7 ') || 'Forum member',
+                        section: 'forum'
+                    }));
+            }
+        });
+
+        // --- Talks (published only, same as GET /api/talks) ---
+        grp(() => {
+            query.all(`SELECT id, title, speaker, event_label, year FROM talks
+                WHERE published = 1 AND (title LIKE ? OR speaker LIKE ? OR event_label LIKE ?)
+                ORDER BY year DESC LIMIT 6`, [like, like, like])
+                .forEach(t => out.talks.push({
+                    kind: 'talk', id: t.id, title: t.title,
+                    detail: [t.speaker, t.event_label, t.year].filter(Boolean).join(' \u00b7 '),
+                    section: 'talks'
+                }));
+        });
+
+        // --- Mine: the caller's own tickets and registrations ---
+        grp(() => {
+            query.all(`SELECT r.id, r.invoice_number, c.name AS conference_name, c.start_date, t.name AS ticket_name
+                FROM registrations r
+                JOIN conferences c ON r.conference_id = c.id
+                JOIN ticket_types t ON r.ticket_type_id = t.id
+                WHERE r.user_id = ? AND (c.name LIKE ? OR t.name LIKE ? OR r.invoice_number LIKE ?)
+                ORDER BY r.created_at DESC LIMIT 5`, [req.user.id, like, like, like])
+                .forEach(r => out.mine.push({
+                    kind: 'ticket', id: r.id,
+                    title: (r.conference_name || 'Med&X event') + (r.ticket_name ? ' \u2014 ' + r.ticket_name : ''),
+                    detail: ['Your ticket', r.start_date].filter(Boolean).join(' \u00b7 '),
+                    section: 'mymedx'
+                }));
+        });
+        grp(() => {
+            const me = query.get('SELECT email FROM users WHERE id = ?', [req.user.id]);
+            if (!me || !me.email) return;
+            // Gala registration has no free-text name column — surface it when the query
+            // reads like a gala lookup (e.g. "gala", "evening", "seat").
+            if ('gala evening 2026 dinner seat'.includes(qLower)) {
+                query.all('SELECT id, status FROM gala_registrations WHERE LOWER(email) = LOWER(?) LIMIT 2', [me.email])
+                    .forEach(g => out.mine.push({
+                        kind: 'gala_registration', id: g.id,
+                        title: 'Gala Evening 2026 \u2014 your registration',
+                        detail: g.status ? ('Status: ' + g.status) : 'Your registration',
+                        section: 'gala'
+                    }));
+            }
+            query.all(`SELECT br.id, be.name, be.event_date FROM bridges_registrations br
+                JOIN bridges_events be ON br.event_id = be.id
+                WHERE LOWER(br.email) = LOWER(?) AND be.name LIKE ? LIMIT 3`, [me.email, like])
+                .forEach(b => out.mine.push({
+                    kind: 'bridges_registration', id: b.id,
+                    title: (b.name || 'Med&X event') + ' \u2014 your registration',
+                    detail: ['Your registration', b.event_date].filter(Boolean).join(' \u00b7 '),
+                    section: 'mymedx'
+                }));
+        });
+
+        res.json(out);
+    });
+
+    // GET /api/member/profile-nudge — should the home "complete your profile" card show?
+    // Server-authoritative persona check (the same quietFlagFor gate the rewards surfaces
+    // use): a quiet gala/forum-only profile NEVER gets the nudge. Dismissal persists in the
+    // existing dashboard_preferences table — no schema change.
+    app.get('/api/member/profile-nudge', auth, (req, res) => {
+        try {
+            const user = query.get('SELECT id, email, institution, photo_url, is_admin FROM users WHERE id = ?', [req.user.id]);
+            if (!user) return res.json({ show: false });
+            if (!user.is_admin && deriveAffiliationClass(user.id, user.email).quiet) return res.json({ show: false });
+            const missingPhoto = !(user.photo_url && String(user.photo_url).trim());
+            const missingInstitution = !(user.institution && String(user.institution).trim());
+            if (!missingPhoto && !missingInstitution) return res.json({ show: false });
+            const pref = query.get(`SELECT is_visible FROM dashboard_preferences
+                WHERE user_id = ? AND section = 'home' AND card_id = 'profile-nudge'`, [user.id]);
+            if (pref && Number(pref.is_visible) === 0) return res.json({ show: false });
+            res.json({ show: true, missing_photo: missingPhoto, missing_institution: missingInstitution });
+        } catch (e) { res.json({ show: false }); }
+    });
+
+    // POST /api/member/profile-nudge/dismiss — persist the dismissal (idempotent).
+    app.post('/api/member/profile-nudge/dismiss', auth, (req, res) => {
+        try {
+            const existing = query.get(`SELECT id FROM dashboard_preferences
+                WHERE user_id = ? AND section = 'home' AND card_id = 'profile-nudge'`, [req.user.id]);
+            if (existing) {
+                db.run('UPDATE dashboard_preferences SET is_visible = 0 WHERE id = ?', [existing.id]);
+            } else {
+                db.run(`INSERT INTO dashboard_preferences (id, user_id, section, card_id, is_visible)
+                    VALUES (?, ?, 'home', 'profile-nudge', 0)`, [uuidv4(), req.user.id]);
+            }
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: 'Could not save your preference.' }); }
+    });
+
     // ========== ABSTRACT ROUTES ==========
     app.post('/api/abstracts', auth, (req, res) => {
         const { conference_id, title, abstract_text, keywords, topic_category, presentation_type, authors } = req.body;

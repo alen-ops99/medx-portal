@@ -899,6 +899,15 @@
             padding: 12px 12px 6px;
         }
 
+        /* Communications group — nav items that carry a short "who this reaches" subtitle. */
+        .nav-item.has-sub { align-items: flex-start; padding-top: 8px; padding-bottom: 8px; }
+        .nav-item.has-sub > i { margin-top: 3px; }
+        .nav-item .nav-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+        .nav-item .nav-title { font-size: 14px; line-height: 1.2; }
+        .nav-item .nav-sub { font-size: 10.5px; line-height: 1.25; color: var(--text-muted); font-weight: 400; white-space: normal; }
+        .nav-item.has-sub.active .nav-sub { color: var(--text-secondary); }
+        .nav-item.has-sub > span[id] { margin-top: 2px; }
+
         .project-dot {
             width: 8px;
             height: 8px;
@@ -1861,6 +1870,21 @@
         .ac-btn-primary:hover { background: #a83b42; border-color: #a83b42; }
         .ac-btn-ghost { color: var(--text-muted); background: transparent; }
         .ac-empty { display: inline-flex; align-items: center; gap: 9px; color: var(--success); font-size: 13px; font-weight: 600; padding: 10px 2px; }
+
+        /* Action Center — per-item due date + assignee affordances (item 5). */
+        .ac-item-meta { margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .ac-item-meta .ac-actioned-tag { color: var(--success); font-weight: 600; font-size: 12px; }
+        .ac-due { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 20px; border: 1px solid var(--border); color: var(--text-muted); background: var(--bg-primary); white-space: nowrap; }
+        .ac-due i { font-size: 10px; }
+        .ac-due.is-overdue { color: #fff; background: var(--danger, #c14b52); border-color: var(--danger, #c14b52); }
+        .ac-due.is-today { color: #8a5a00; background: rgba(208,138,26,0.16); border-color: rgba(208,138,26,0.4); }
+        .ac-due.is-soon { color: var(--text-secondary); }
+        .ac-assign-wrap { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .ac-assignee { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 20px; background: var(--bg-tertiary); color: var(--text-secondary); white-space: nowrap; }
+        .ac-assignee.is-me { background: rgba(16,185,129,0.15); color: #0f9d6b; }
+        .ac-assignee i { font-size: 10px; }
+        .ac-assign-btn { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 20px; border: 1px dashed var(--border); background: transparent; color: var(--text-muted); cursor: pointer; white-space: nowrap; transition: border-color .12s, color .12s; }
+        .ac-assign-btn:hover { border-color: var(--accent-gold); color: var(--text-primary); }
 
         /* Action Center — calm grouped layout: a small spotlight of the most urgent items,
            then one collapsed row per area (Gala, Plexus, Members, PR, Finance, Tech, ...). */
@@ -6862,20 +6886,44 @@
                     <span id="navNagBadge" title="Action items needing you" style="background: var(--danger, #c14b52); color: #fff; padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: auto; display: none;">0</span>
                 </a>
 
-                <a class="nav-item" data-section="team-chat" onclick="App.showSection('team-chat', this)">
-                    <i class="fas fa-comments"></i>
-                    <span>Team Chat</span>
-                    <span id="navTcBadge" title="Unread team messages" style="background: var(--accent-primary, #9b1b22); color:#fff; padding:1px 7px; border-radius:10px; font-size:10px; font-weight:700; margin-left:auto; display:none;">0</span>
-                </a>
-
                 <a class="nav-item" data-section="conferences" onclick="App.showSection('conferences', this)">
                     <i class="fas fa-calendar-plus" style="color: #38bdf8;"></i>
                     <span>Conferences</span>
                 </a>
 
-                <a class="nav-item" data-section="email-blast" onclick="App.showSection('email-blast', this)">
+                <div class="nav-divider"></div>
+                <div class="nav-label">Communications</div>
+
+                <a class="nav-item has-sub" data-section="team-chat" onclick="App.showSection('team-chat', this)">
+                    <i class="fas fa-comments" style="color:#9b1b22;"></i>
+                    <span class="nav-text"><span class="nav-title">Team Chat</span><span class="nav-sub">Your Med&amp;X team, in real time</span></span>
+                    <span id="navTcBadge" title="Unread team messages" style="background: var(--accent-primary, #9b1b22); color:#fff; padding:1px 7px; border-radius:10px; font-size:10px; font-weight:700; margin-left:auto; display:none;">0</span>
+                </a>
+
+                <a class="nav-item has-sub" data-section="email-blast" onclick="App.showSection('email-blast', this)">
                     <i class="fas fa-envelope-open-text" style="color: #c9a962;"></i>
-                    <span>Email Registrants</span>
+                    <span class="nav-text"><span class="nav-title">Email Registrants</span><span class="nav-sub">Everyone registered for an event</span></span>
+                </a>
+
+                <a class="nav-item has-sub" data-section="announce" onclick="App.showSection('announce', this)">
+                    <i class="fas fa-bullhorn" style="color:#9b1b22;"></i>
+                    <span class="nav-text"><span class="nav-title">Message members</span><span class="nav-sub">Portal members, by group or tier</span></span>
+                </a>
+
+                <a class="nav-item has-sub" data-section="messages" onclick="App.showSection('messages', this)">
+                    <i class="fas fa-envelope" style="color:#c2484e;"></i>
+                    <span class="nav-text"><span class="nav-title">Messages</span><span class="nav-sub">One member at a time, plus your inbox</span></span>
+                </a>
+
+                <a class="nav-item has-sub" data-section="newsletter" onclick="App.showSection('newsletter', this)">
+                    <i class="fas fa-envelope-open-text" style="color:#10b981;"></i>
+                    <span class="nav-text"><span class="nav-title">Newsletter</span><span class="nav-sub">Everyone subscribed to updates</span></span>
+                </a>
+
+                <a class="nav-item has-sub" data-section="outbox" onclick="App.openOutbox(this)">
+                    <i class="fas fa-inbox" style="color:#f59e0b;"></i>
+                    <span class="nav-text"><span class="nav-title">Outbox</span><span class="nav-sub">Staged emails awaiting your approval</span></span>
+                    <span id="outboxNavCount" title="Batches awaiting approval" style="background:#f59e0b;color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;margin-left:auto;display:none;">0</span>
                 </a>
 
                 <div class="nav-divider"></div>
@@ -6904,13 +6952,6 @@
                     <span id="userNotifCount" style="background: #ef4444; color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
                 </a>
 
-                <!-- Item 12: Newsletter folded into PR & Media. Nav entry hidden; the section stays
-                     reachable by direct id (cmd palette, deep links) for back-compat (see MERGED_HIDDEN). -->
-                <a class="nav-item" data-section="newsletter" onclick="App.showSection('newsletter', this)" style="display:none;">
-                    <i class="fas fa-envelope-open-text" style="color: #10b981;"></i>
-                    <span>Newsletter</span>
-                </a>
-
                 <!-- Item 13: one unified "Content studio" replaces Portal Content + Website content +
                      Member Feed. The three old nav entries are folded in (hidden via MERGED_HIDDEN); their
                      sections stay reachable by direct id (cmd palette, deep links) for back-compat. -->
@@ -6935,22 +6976,9 @@
                     <span id="mfOppNav" style="background: #b45309; color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
                 </a>
 
-                <!-- IA: "Message members" (announce) + "Messages" now live UNDER Member Ops — the single
-                     member-experience umbrella. Their nav entries are hidden (folded into MERGED_HIDDEN); the
-                     sections stay reachable via the Member Ops sub-nav and by direct id (cmd palette, deep links). -->
-                <a class="nav-item" data-section="announce" onclick="App.showSection('announce', this)" style="display:none;">
-                    <i class="fas fa-bullhorn" style="color: #9b1b22;"></i>
-                    <span>Message members</span>
-                </a>
-
                 <a class="nav-item" data-section="member-ops" onclick="App.showSection('member-ops', this)">
                     <i class="fas fa-sliders-h" style="color: #c9a962;"></i>
                     <span>Member Ops</span>
-                </a>
-
-                <a class="nav-item" data-section="messages" onclick="App.showSection('messages', this)" style="display:none;">
-                    <i class="fas fa-envelope" style="color: #c2484e;"></i>
-                    <span>Messages</span>
                 </a>
 
                 <a class="nav-item" data-section="gala" onclick="App.showSection('gala', this)">
@@ -7345,7 +7373,7 @@
                             <p>December 4-5, 2026 in Zagreb</p>
                         </div>
                         <button class="btn btn-primary" onclick="App.generateRegistrationLink('plexus')" style="white-space:nowrap; background:linear-gradient(135deg,#9b1b22,#7e151b); border:none;">
-                            <i class="fas fa-link"></i> Direct Link
+                            <i class="fas fa-link"></i> Copy registration link
                         </button>
                     </div>
 
@@ -7369,7 +7397,7 @@
                     </div>
 
                     <!-- (Registration page text — intro + per-event title/status/date/description —
-                         is edited in the "Direct Link" Live Editor, top-right.) -->
+                         is edited in the "Copy registration link" Live Editor, top-right.) -->
 
                     <!-- Plexus Experience registrations (one-link multi-event sign-ups; source='plexus') -->
                     <div class="card" id="plexusRegsCard" style="margin-bottom:18px;">
@@ -8934,7 +8962,7 @@ President, Med&amp;X</textarea>
                             <p id="forumSubtitle">Senior leaders network</p>
                         </div>
                         <button class="btn btn-primary" onclick="App.generateRegistrationLink('forum','9799cb97-e3a7-493a-ac23-ee2910e8457b','Annual Biomedical Forum 2026')" style="white-space:nowrap; background:linear-gradient(135deg,#9b1b22,#7e151b); border:none;">
-                            <i class="fas fa-link"></i> Direct Link
+                            <i class="fas fa-link"></i> Copy registration link
                         </button>
                     </div>
 
@@ -9436,7 +9464,7 @@ President, Med&amp;X</textarea>
                         </div>
                         <div style="display:flex; gap:8px;">
                             <button class="btn btn-secondary" onclick="App.generateRegistrationLink('bridges')" style="white-space:nowrap;">
-                                <i class="fas fa-link"></i> Direct Link
+                                <i class="fas fa-link"></i> Copy registration link
                             </button>
                             <button class="btn btn-primary" onclick="BridgesApp.openEventModal()">
                                 <i class="fas fa-plus"></i> New Event
@@ -11618,7 +11646,7 @@ President, Med&amp;X</textarea>
                             <p style="color: var(--text-muted);">Manage invitations, settings, and registrations</p>
                         </div>
                         <button class="btn btn-primary" onclick="App.generateRegistrationLink('gala')" style="white-space:nowrap; background:linear-gradient(135deg,#9b1b22,#7e151b); border:none;">
-                            <i class="fas fa-link"></i> Direct Link
+                            <i class="fas fa-link"></i> Copy registration link
                         </button>
                     </div>
 
@@ -15214,6 +15242,9 @@ President, Med&amp;X</textarea>
 
                 // Update notification badge count in sidebar
                 UserNotifApp.updateNotificationBadge();
+
+                // Start the Outbox sidebar badge poller (pending-approval batch count).
+                if (typeof OutboxNav !== 'undefined') OutboxNav.start();
             },
 
             initDashboardCharts() {
@@ -15567,12 +15598,12 @@ President, Med&amp;X</textarea>
                 // Filter static nav items (Finances, PR & Media). Core member-ops tools
                 // (Announce, Member Ops) are always visible — they are not part of the
                 // per-user onboarding toggle, so never hide them for already-onboarded users.
-                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'merch-studio'];
+                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter'];
                 // Item 11/13: 'user-notifications' merged into "Message members" (announce); Portal Content,
                 // Website content and Member Feed merged into "Content studio". IA restructure: 'announce'
                 // (Message members) and 'messages' now live UNDER Member Ops, so their top-level nav entries
                 // are hidden too. Every section is still reachable by direct id + the Member Ops sub-nav.
-                const MERGED_HIDDEN = ['user-notifications', 'newsletter', 'portal-content', 'website-content', 'member-feed', 'announce', 'messages'];
+                const MERGED_HIDDEN = ['user-notifications', 'portal-content', 'website-content', 'member-feed'];
                 document.querySelectorAll('#sidebarNav [data-section]').forEach(el => {
                     if (MERGED_HIDDEN.includes(el.dataset.section)) { el.style.display = 'none'; return; }
                     el.style.display = (OPS_ALWAYS_VISIBLE.includes(el.dataset.section) || this.userSections.includes(el.dataset.section)) ? '' : 'none';
@@ -15918,15 +15949,71 @@ President, Med&amp;X</textarea>
 
             _nagUrgent(item) { return this._nagUrgency(item) >= 85 && item.status !== 'actioned'; },
 
+            // Parse an item's due date (from its payload) into a label, signed day delta, and state.
+            _nagDueInfo(item) {
+                const raw = item.action_payload && item.action_payload.due_date;
+                if (!raw) return null;
+                const m = String(raw).match(/(\d{4})-(\d{2})-(\d{2})/);
+                const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(raw);
+                if (isNaN(d.getTime())) return { label: String(raw), days: null, state: 'none', text: '' };
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+                const dd = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+                const days = Math.round((dd - today) / 86400000);
+                const opts = { month: 'short', day: 'numeric' };
+                if (dd.getFullYear() !== today.getFullYear()) opts.year = 'numeric';
+                const label = dd.toLocaleDateString('en-US', opts);
+                if (days < 0) return { label, days, state: 'overdue', text: `${-days} day${days === -1 ? '' : 's'} overdue` };
+                if (days === 0) return { label, days, state: 'today', text: 'Due today' };
+                return { label, days, state: 'soon', text: `Due in ${days} day${days === 1 ? '' : 's'}` };
+            },
+
+            // Higher = more pressing. Dated items sort by overdue-ness; undated fall back to urgency.
+            _nagOverdueRank(item) {
+                const info = this._nagDueInfo(item);
+                if (info && info.state === 'overdue') return 1000000 + (-info.days);
+                if (info && info.state === 'today') return 900000;
+                if (info && info.state === 'soon') return 900000 - info.days;
+                return this._nagUrgency(item);
+            },
+
+            // The assignee chip + "Assign to me" toggle. A manual claim (claimed_by) wins over the
+            // scan's suggested owner (payload.who). Clicking claims to the current admin, or releases.
+            _nagAssignee(item) {
+                const me = (App.user && App.user.email) || '';
+                const claimedBy = item.claimed_by || '';
+                const claimedName = item.claimed_by_name || claimedBy;
+                const p = item.action_payload || {};
+                const scanWho = (p.who && p.who !== 'Med&X' && p.who !== 'Unassigned' && p.assignee_user_id) ? p.who : '';
+                const mine = claimedBy && claimedBy === me;
+                let chip = '';
+                if (claimedBy) {
+                    chip = `<span class="ac-assignee${mine ? ' is-me' : ''}"><i class="fas fa-user-check"></i> ${mine ? 'You' : escapeHtml(claimedName)}</span>`;
+                } else if (scanWho) {
+                    chip = `<span class="ac-assignee" title="Suggested owner"><i class="fas fa-user"></i> ${escapeHtml(scanWho)}</span>`;
+                }
+                const btn = mine
+                    ? `<button class="ac-assign-btn" onclick="App.nagClaim('${item.id}')" title="Release this task"><i class="fas fa-xmark"></i> Release</button>`
+                    : `<button class="ac-assign-btn" onclick="App.nagClaim('${item.id}')" title="Assign this to me"><i class="fas fa-hand-pointer"></i> Assign to me</button>`;
+                return `<span class="ac-assign-wrap">${chip}${btn}</span>`;
+            },
+
             // One actionable row (shared by the spotlight and the per-area groups).
             _nagRow(item) {
-                const who = (item.action_payload && item.action_payload.who) || 'Med&X';
                 const actioned = item.status === 'actioned';
+                const due = this._nagDueInfo(item);
+                const dueLabel = due ? (due.state === 'none' ? due.label : `${due.label} \u00b7 ${due.text}`) : '';
+                const dueChip = due
+                    ? `<span class="ac-due is-${due.state}" title="Due ${escapeHtml(due.label)}"><i class="fas fa-calendar-day"></i> ${escapeHtml(dueLabel)}</span>`
+                    : '';
                 return `
                     <div class="ac-item k-${item.kind}${actioned ? ' is-actioned' : ''}">
                         <div class="ac-item-main">
                             <div class="ac-item-title">${escapeHtml(item.title)}</div>
-                            <div class="ac-item-who"><i class="fas fa-user"></i> ${escapeHtml(who)}${actioned ? ' <span class="ac-actioned-tag">· done, awaiting approval</span>' : ''}</div>
+                            <div class="ac-item-meta">
+                                ${dueChip}
+                                ${this._nagAssignee(item)}
+                                ${actioned ? '<span class="ac-actioned-tag">done, awaiting approval</span>' : ''}
+                            </div>
                         </div>
                         <div class="ac-item-actions">
                             ${this._nagPrimaryButton(item)}
@@ -15960,7 +16047,8 @@ President, Med&amp;X</textarea>
                 // A short list is already calm — show it flat, no grouping needed.
                 const FLAT_MAX = 5;
                 if (items.length <= FLAT_MAX) {
-                    body.innerHTML = head + `<div class="ac-list">${items.map(it => this._nagRow(it)).join('')}</div>`;
+                    const flat = items.slice().sort((a, b) => this._nagOverdueRank(b) - this._nagOverdueRank(a));
+                    body.innerHTML = head + `<div class="ac-list">${flat.map(it => this._nagRow(it)).join('')}</div>`;
                     return;
                 }
 
@@ -15968,7 +16056,7 @@ President, Med&amp;X</textarea>
                 // variety, topped up to at least three). These are pulled out so they are not
                 // repeated in the groups below — every item stays reachable, nothing is dropped.
                 const annotated = items.map((it, idx) => ({ it, idx, area: this._nagArea(it), urg: this._nagUrgency(it) }));
-                const byUrg = annotated.slice().sort((a, b) => (b.urg - a.urg) || (a.idx - b.idx));
+                const byUrg = annotated.slice().sort((a, b) => (this._nagOverdueRank(b.it) - this._nagOverdueRank(a.it)) || (a.idx - b.idx));
                 const SPOT_MAX = 5, PER_AREA = 2, SPOT_MIN = 3;
                 const spot = [];
                 const perArea = {};
@@ -15990,6 +16078,8 @@ President, Med&amp;X</textarea>
                 // Bucket the remaining items by area, in the defined area order.
                 const buckets = {};
                 rest.forEach(r => { (buckets[r.area] = buckets[r.area] || []).push(r.it); });
+                // Sort within each area by actual overdue-ness (most overdue first).
+                Object.keys(buckets).forEach(k => buckets[k].sort((a, b) => this._nagOverdueRank(b) - this._nagOverdueRank(a)));
 
                 const spotHtml = `
                     <div class="ac-sublabel"><i class="fas fa-star" style="color: var(--accent-gold);"></i> Start here — most urgent</div>
@@ -16088,6 +16178,19 @@ President, Med&amp;X</textarea>
             async nagDismiss(id) {
                 try { await this.api(`/api/admin/nag/items/${id}/dismiss`, { method: 'POST', body: JSON.stringify({}) }); Toast.info('Dismissed.'); this.loadActionCenter(); }
                 catch (e) { Toast.error(e.message || 'Failed to dismiss item.'); }
+            },
+
+            async nagClaim(id) {
+                try {
+                    const r = await this.api(`/api/admin/nag/items/${id}/claim`, { method: 'POST', body: JSON.stringify({}) });
+                    const it = (this._nagItems || []).find(i => i.id === id);
+                    if (it) {
+                        if (r.claimed) { it.claimed_by = r.claimed_by; it.claimed_by_name = r.claimed_by_name; }
+                        else { it.claimed_by = null; it.claimed_by_name = null; }
+                    }
+                    Toast.success(r.claimed ? 'Assigned to you' : 'Released');
+                    this.renderActionCenter(this._nagItems);
+                } catch (e) { Toast.error(e.message || 'Could not update the assignee.'); }
             },
 
             nagOpenDigest(id) {
@@ -18923,47 +19026,75 @@ President, Med&amp;X</textarea>
 
             // ===== SEARCH =====
             searchTimeout: null,
+            _searchNavMatches: [],
+            runSearchNav(i) {
+                const item = this._searchNavMatches[i];
+                this.closeSearchResults();
+                if (item && typeof item.action === 'function') item.action();
+            },
             async handleSearch(query) {
                 clearTimeout(this.searchTimeout);
                 const results = document.getElementById('searchResults');
+                const q = (query || '').trim();
 
-                if (!query || query.length < 2) {
+                if (!q || q.length < 2) {
                     results.classList.remove('active');
                     return;
                 }
 
-                this.searchTimeout = setTimeout(async () => {
-                    try {
-                        const data = await this.api(`/api/search?q=${encodeURIComponent(query)}`);
+                // Wire the sidebar search to the SAME index the Cmd+K palette uses, so it finds
+                // sections and tabs (e.g. "gala") and not just tasks and files.
+                const navMatches = (typeof CmdPalette !== 'undefined') ? CmdPalette._staticMatches(q.toLowerCase()).slice(0, 8) : [];
+                this._searchNavMatches = navMatches;
+                const navHtml = navMatches.map((it, i) => `
+                    <div class="search-result-item" onclick="App.runSearchNav(${i})">
+                        <div class="search-result-type">${this.escapeHtml(it.group)}</div>
+                        <div class="search-result-title">${this.escapeHtml(it.title)}</div>
+                    </div>
+                `);
 
-                        if (data.tasks.length === 0 && data.files.length === 0) {
-                            results.innerHTML = '<div class="search-result-item"><div class="search-result-title" style="color: var(--text-muted)">No results found</div></div>';
-                        } else {
-                            results.innerHTML = [
-                                ...data.tasks.map(t => `
-                                    <div class="search-result-item" onclick="App.showProject('${t.project}'); App.closeSearchResults();">
-                                        <div class="search-result-type">Task</div>
-                                        <div class="search-result-title">${this.escapeHtml(t.title)}</div>
-                                    </div>
-                                `),
-                                ...data.files.map(f => `
-                                    <div class="search-result-item" onclick="App.showProject('${f.project}'); App.closeSearchResults();">
-                                        <div class="search-result-type">File</div>
-                                        <div class="search-result-title">${this.escapeHtml(f.original_name)}</div>
-                                    </div>
-                                `)
-                            ].join('');
-                        }
-                        results.classList.add('active');
+                this.searchTimeout = setTimeout(async () => {
+                    let taskHtml = [], fileHtml = [];
+                    try {
+                        const data = await this.api(`/api/search?q=${encodeURIComponent(q)}`);
+                        taskHtml = (data.tasks || []).map(t => `
+                            <div class="search-result-item" onclick="App.showProject('${t.project}'); App.closeSearchResults();">
+                                <div class="search-result-type">Task</div>
+                                <div class="search-result-title">${this.escapeHtml(t.title)}</div>
+                            </div>
+                        `);
+                        fileHtml = (data.files || []).map(f => `
+                            <div class="search-result-item" onclick="App.showProject('${f.project}'); App.closeSearchResults();">
+                                <div class="search-result-type">File</div>
+                                <div class="search-result-title">${this.escapeHtml(f.original_name)}</div>
+                            </div>
+                        `);
                     } catch (err) {
                         console.error('Search failed:', err);
                     }
-                }, 300);
+                    const all = [...navHtml, ...taskHtml, ...fileHtml];
+                    results.innerHTML = all.length
+                        ? all.join('')
+                        : '<div class="search-result-item"><div class="search-result-title" style="color: var(--text-muted)">No results found</div></div>';
+                    results.classList.add('active');
+                }, 250);
             },
 
             closeSearchResults() {
                 document.getElementById('searchResults').classList.remove('active');
                 document.getElementById('globalSearch').value = '';
+            },
+
+            // Outbox sidebar entry -> the existing approval-outbox view (top of Email Registrants).
+            openOutbox(navItem) {
+                this.showSection('email-blast', navItem || document.querySelector('.nav-item[data-section=outbox]'));
+                setTimeout(() => {
+                    try {
+                        if (typeof PendingOutbox !== 'undefined') PendingOutbox.load();
+                        const card = document.getElementById('pendingOutboxCard');
+                        if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    } catch (e) {}
+                }, 200);
             },
 
             // ===== QUICK ACTIONS =====
@@ -22917,7 +23048,7 @@ President, Med&amp;X</textarea>
                                     <label style="display:block;font-size:12px;font-weight:600;color:var(--accent-gold);margin-bottom:6px;">✓ Registration Link Generated</label>
                                     <div style="display:flex;gap:8px;">
                                         <input type="text" id="genLinkUrl" readonly style="flex:1;padding:10px;border:1px solid var(--accent-gold);border-radius:8px;background:var(--bg-primary);color:var(--accent-gold);font-size:12px;font-family:monospace;min-width:0;">
-                                        <button onclick="navigator.clipboard.writeText(document.getElementById('genLinkUrl').value);Toast.success('Link copied!')" class="btn btn-primary" style="padding:10px 16px;flex-shrink:0;"><i class="fas fa-copy"></i> Copy</button>
+                                        <button onclick="navigator.clipboard.writeText(document.getElementById('genLinkUrl').value);Toast.success('Registration link copied to clipboard')" class="btn btn-primary" style="padding:10px 16px;flex-shrink:0;"><i class="fas fa-copy"></i> Copy</button>
                                     </div>
                                     <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">Share this link via email. Recipients register without a portal account.</p>
                                 </div>
@@ -31022,6 +31153,7 @@ By applying to this program, I give the following consents:
                 try {
                     const r = await this.api('/api/admin/outbox?status=pending_approval');
                     const batches = r.batches || [];
+                    try { if (window.OutboxNav) OutboxNav.setBadge(batches.length); } catch (e) {}
                     if (!batches.length) { if (card) card.style.display = 'none'; return; }
                     if (card) card.style.display = 'block';
                     host.innerHTML = batches.map(b => {
@@ -31050,6 +31182,31 @@ By applying to this program, I give the following consents:
                 catch (e) { Toast.error(e.message || 'Discard failed'); }
             }
         };
+
+        // ===== OUTBOX SIDEBAR BADGE — live count of batches awaiting approval =====
+        // Polls the existing outbox endpoint so staged email batches surface in the sidebar
+        // instead of hiding behind Cmd+K. The Outbox nav entry opens the same approval view.
+        const OutboxNav = {
+            timer: null,
+            setBadge(n) {
+                const badge = document.getElementById('outboxNavCount');
+                if (!badge) return;
+                if (n > 0) { badge.textContent = n > 99 ? '99+' : n; badge.style.display = 'inline-block'; }
+                else badge.style.display = 'none';
+            },
+            async refresh() {
+                if (!document.getElementById('outboxNavCount')) return;
+                try {
+                    const r = await fetch('/api/admin/outbox?status=pending_approval', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    if (!r.ok) return;
+                    const d = await r.json();
+                    this.setBadge((d.batches || []).length);
+                } catch (e) { /* badge is best-effort */ }
+            },
+            start() { this.stop(); this.refresh(); this.timer = setInterval(() => this.refresh(), 45000); },
+            stop() { if (this.timer) { clearInterval(this.timer); this.timer = null; } }
+        };
+        window.OutboxNav = OutboxNav;
 
         // ===== WEEKLY TEAM PULSE ("Send pulse now") =====
         // On-demand generation of the Monday admin heartbeat. Hits the same idempotency-checked path
@@ -40803,6 +40960,12 @@ By applying to this program, I give the following consents:
                 { title: 'Direct notification', sub: 'Precise send — group, tier, banner, push', icon: 'fa-paper-plane', color: '#b06a1f', group: 'Sections', action: () => App.showSection('user-notifications') },
                 { title: 'Portal Content', sub: 'CMS for user portal', icon: 'fa-th-large', color: 'var(--accent-gold)', group: 'Sections', action: () => App.showSection('portal-content') },
                 { title: 'Messages', sub: 'Direct messaging with users', icon: 'fa-envelope', color: '#c2484e', group: 'Sections', action: () => App.showSection('messages') },
+                { title: 'Gala Evening', sub: 'Guests, meals, program, seating', icon: 'fa-champagne-glasses', color: '#C9A962', group: 'Sections', action: () => App.showSection('gala', document.querySelector('.nav-item[data-section=gala]')) },
+                { title: 'Croatians Abroad', sub: 'Diaspora program', icon: 'fa-globe', color: '#ef4444', group: 'Sections', action: () => App.showSection('croatians-abroad', document.querySelector('.nav-item[data-section=croatians-abroad]')) },
+                { title: 'Conferences', sub: 'Create and manage conferences', icon: 'fa-calendar-plus', color: '#38bdf8', group: 'Sections', action: () => App.showSection('conferences', document.querySelector('.nav-item[data-section=conferences]')) },
+                { title: 'Email Registrants', sub: 'Bulk email and approval outbox', icon: 'fa-envelope-open-text', color: '#c9a962', group: 'Sections', action: () => App.showSection('email-blast', document.querySelector('.nav-item[data-section=email-blast]')) },
+                { title: 'Team Chat', sub: 'Internal team messaging', icon: 'fa-comments', color: '#9b1b22', group: 'Sections', action: () => App.showSection('team-chat', document.querySelector('.nav-item[data-section=team-chat]')) },
+                { title: 'Member Ops', sub: 'Member experience umbrella', icon: 'fa-sliders-h', color: '#c9a962', group: 'Sections', action: () => App.showSection('member-ops', document.querySelector('.nav-item[data-section=member-ops]')) },
                 { title: 'Settings', sub: 'Profile, security, sections', icon: 'fa-cog', color: 'var(--text-muted)', group: 'Sections', action: () => App.openSettings() },
 
                 // Projects
@@ -40845,6 +41008,13 @@ By applying to this program, I give the following consents:
                 { title: 'Forum Members', sub: 'Biomedical Forum', icon: 'fa-users', color: 'var(--forum)', group: 'Forum Tabs', action: () => { App.showProject('forum'); App.showForumTab('members'); } },
                 { title: 'Forum Feed', sub: 'Biomedical Forum', icon: 'fa-comments', color: 'var(--forum)', group: 'Forum Tabs', action: () => { App.showProject('forum'); App.showForumTab('feed'); } },
                 { title: 'Forum Gallery', sub: 'Biomedical Forum', icon: 'fa-images', color: 'var(--forum)', group: 'Forum Tabs', action: () => { App.showProject('forum'); App.showForumTab('gallery'); } },
+
+                // Gala Tabs
+                { title: 'Gala Guests', sub: 'Gala Evening', icon: 'fa-users', color: '#C9A962', group: 'Gala Tabs', action: () => { App.showSection('gala', document.querySelector('.nav-item[data-section=gala]')); setTimeout(() => GalaAdmin.showTab('registrations'), 200); } },
+                { title: 'Gala Meals', sub: 'Gala Evening', icon: 'fa-utensils', color: '#C9A962', group: 'Gala Tabs', action: () => { App.showSection('gala', document.querySelector('.nav-item[data-section=gala]')); setTimeout(() => GalaAdmin.showTab('meals'), 200); } },
+                { title: 'Gala Program', sub: 'Gala Evening', icon: 'fa-list-ol', color: '#C9A962', group: 'Gala Tabs', action: () => { App.showSection('gala', document.querySelector('.nav-item[data-section=gala]')); setTimeout(() => GalaAdmin.showTab('program'), 200); } },
+                { title: 'Gala Seating', sub: 'Gala Evening', icon: 'fa-chair', color: '#C9A962', group: 'Gala Tabs', action: () => { App.showSection('gala', document.querySelector('.nav-item[data-section=gala]')); setTimeout(() => GalaAdmin.showTab('seating'), 200); } },
+                { title: 'Gala Settings', sub: 'Gala Evening', icon: 'fa-cog', color: '#C9A962', group: 'Gala Tabs', action: () => { App.showSection('gala', document.querySelector('.nav-item[data-section=gala]')); setTimeout(() => GalaAdmin.showTab('settings'), 200); } },
 
                 // Quick Actions
                 { title: 'Send Notification', sub: 'Quick send to users', icon: 'fa-bell', color: '#b06a1f', group: 'Actions', action: () => App.showSection('user-notifications') },

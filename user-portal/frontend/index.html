@@ -17138,6 +17138,9 @@
         .feed-chip.news { color:#6b5b4a; background:rgba(20,15,12,.06); border-color:rgba(20,15,12,.12); }
         .feed-empty, .opp-empty, .talk-empty { text-align:center; padding:44px 20px; color:var(--up-text-muted,var(--muted)); }
         .feed-empty i, .opp-empty i, .talk-empty i { font-size:30px; opacity:.4; display:block; margin-bottom:12px; }
+        .feed-empty-calm { padding:26px 20px 14px; }
+        .feed-empty-calm i { color:var(--up-gold,var(--gold)); opacity:.55; font-size:26px; }
+        .feed-empty-calm p { color:var(--up-text,var(--ink)); font-weight:600; margin:0; }
         .feed-summary { background:linear-gradient(180deg,rgba(201,169,98,.10),rgba(201,169,98,.04)); border:1px solid rgba(201,169,98,.30); border-radius:14px; padding:13px 15px; margin:0 0 12px; }
         .feed-summary-eyebrow { display:flex; align-items:center; gap:7px; font-family:var(--sans,'Inter',sans-serif); font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#a07c1f; margin-bottom:6px; }
         .feed-summary-eyebrow i { font-size:11px; }
@@ -56750,7 +56753,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     </p>
                 </div>
                 <div class="footer-column">
-                    <h4>Programs</h4>
+                    <h4>Projects</h4>
                     <a href="#" onclick="UserPortal.showFeatureInfo('plexus'); return false;">Plexus Conference</a>
                     <a href="#" onclick="UserPortal.showFeatureInfo('accelerator'); return false;">Med&X Accelerator</a>
                     <a href="#" onclick="UserPortal.showFeatureInfo('forum'); return false;">Biomedical Forum</a>
@@ -57023,6 +57026,9 @@ button,input,select,textarea{font-family:var(--sans);}
                 <button class="up-float-btn" onclick="UserPortal.showSection('dashboard')" aria-label="Dashboard">
                     <i class="fas fa-home"></i>
                 </button>
+                <button class="up-float-btn" onclick="GlobalSearch.open()" aria-label="Search">
+                    <i class="fas fa-search"></i>
+                </button>
                 <button class="up-float-btn" onclick="UserPortal.toggleProjectsMenu()" aria-label="Programs menu">
                     <i class="fas fa-th-large"></i>
                 </button>
@@ -57066,8 +57072,8 @@ button,input,select,textarea{font-family:var(--sans);}
             <button class="up-tab active" data-tab="home" onclick="UserPortal.showSection('dashboard');" aria-label="Home">
                 <i class="fas fa-home"></i><span>Home</span>
             </button>
-            <button class="up-tab" data-tab="programs" onclick="UserPortal.toggleProjectsMenu();" aria-label="Programs">
-                <i class="fas fa-th-large"></i><span>Programs</span>
+            <button class="up-tab" data-tab="programs" onclick="UserPortal.toggleProjectsMenu();" aria-label="Projects">
+                <i class="fas fa-th-large"></i><span>Projects</span>
             </button>
             <button class="up-tab" data-tab="network" onclick="UserPortal.showSection('network');" aria-label="Network">
                 <i class="fas fa-users"></i><span>Network</span>
@@ -57236,7 +57242,7 @@ button,input,select,textarea{font-family:var(--sans);}
                 </div>
                 <div class="up-project-item" onclick="UserPortal.showSection('af26'); UserPortal.closeProjectsMenu();">
                     <div class="up-project-icon"><i class="fas fa-star"></i><span class="up-project-badge" id="badgeAF26">1</span></div>
-                    <span>AF 2026</span>
+                    <span>Annual Forum 2026</span>
                 </div>
                 <div class="up-project-item" onclick="UserPortal.showSection('network'); UserPortal.closeProjectsMenu();">
                     <div class="up-project-icon" style="background: rgba(47, 107, 58, 0.15); color: #2f6b3a;"><i class="fas fa-network-wired"></i></div>
@@ -57248,7 +57254,7 @@ button,input,select,textarea{font-family:var(--sans);}
                 </div>
                 <div class="up-project-item" onclick="UserPortal.showSection('talks'); UserPortal.closeProjectsMenu();">
                     <div class="up-project-icon" style="background: rgba(47, 107, 58, 0.15); color: #2f6b3a;"><i class="fas fa-play-circle"></i></div>
-                    <span>Talks</span>
+                    <span>Talk Library</span>
                 </div>
                 <div class="up-project-item" id="upProjectsSpeakerItem" style="display: none;" onclick="UserPortal.showSection('speaker'); UserPortal.closeProjectsMenu();">
                     <div class="up-project-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981;"><i class="fas fa-microphone-alt"></i></div>
@@ -57584,9 +57590,6 @@ button,input,select,textarea{font-family:var(--sans);}
                         <div class="wt-card-icon pink">
                             <i class="fas fa-heart"></i>
                         </div>
-                        <div style="text-align:center;margin-bottom:16px;padding:12px 20px;background:linear-gradient(135deg,rgba(201,169,98,0.1),rgba(201,169,98,0.05));border:1px solid rgba(201,169,98,0.2);border-radius:12px;">
-                            <span style="font-size:13px;font-weight:600;color:var(--up-gold,var(--gold));letter-spacing:0.5px;">Building Bridges in Biomedicine</span>
-                        </div>
                         <h2>What are your interests?</h2>
                         <p>Select all that apply. We'll tailor your feed and recommendations.</p>
                         <div class="wt-interests-grid" style="justify-content:flex-start;">
@@ -57849,7 +57852,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         <div class="customizer-widget selected" data-widget="programs" onclick="DashboardCustomizer.toggleWidget(this)">
                             <div class="customizer-widget-toggle"><i class="fas fa-check"></i></div>
                             <div class="customizer-widget-icon programs"><i class="fas fa-layer-group"></i></div>
-                            <div class="customizer-widget-name">Programs</div>
+                            <div class="customizer-widget-name">Projects</div>
                             <div class="customizer-widget-desc">Quick access to Plexus, Accelerator & Forum</div>
                         </div>
 
@@ -57951,7 +57954,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                         <span>Forum</span>
                                     </div>
                                 </div>
-                                <div class="card-picker-name">Programs</div>
+                                <div class="card-picker-name">Projects</div>
                                 <div class="card-picker-desc">Quick access to Plexus, Accelerator & Biomedical Forum</div>
                             </div>
                             <!-- What's Next Widget -->
@@ -58321,6 +58324,9 @@ button,input,select,textarea{font-family:var(--sans);}
             <a class="up-tb-item" href="https://medx-website-preview.netlify.app" target="_blank" rel="noopener" aria-label="Med&amp;X website (opens in a new tab)">Website <i class="fas fa-external-link-alt up-tb-ext" aria-hidden="true"></i></a>
           </nav>
           <div class="up-tb-spacer"></div>
+          <button class="up-tb-icon" id="upTbSearch" aria-label="Search (Ctrl+K)" title="Search &#8984;K" onclick="GlobalSearch.open()">
+            <i class="fas fa-search"></i>
+          </button>
           <button class="up-tb-icon" id="upTbBell" aria-label="Notifications" onclick="if(typeof NotificationSystem!=='undefined'&amp;&amp;NotificationSystem.toggle){NotificationSystem.toggle();}else{UserPortal.toggleNotifications();}">
             <i class="fas fa-bell"></i><span class="up-tb-dot" id="upTbBellDot" style="display:none;"></span>
           </button>
@@ -58355,6 +58361,184 @@ button,input,select,textarea{font-family:var(--sans);}
             </div>
           </div>
         </header>
+
+        <!-- ===== GLOBAL SEARCH (spotlight) — Cmd/Ctrl+K or the search icon ===== -->
+        <style id="upGlobalSearchStyles">
+          .up-gs-overlay{position:fixed;inset:0;z-index:3200;display:none;background:rgba(21,17,15,.38);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);}
+          .up-gs-overlay.open{display:block;}
+          .up-gs-panel{position:absolute;left:50%;top:11vh;transform:translateX(-50%);width:min(640px,calc(100vw - 28px));background:var(--paper,#fbf9f6);border:1px solid var(--line,#e2dcd3);border-radius:18px;box-shadow:0 24px 80px rgba(21,17,15,.30);overflow:hidden;}
+          .up-gs-inputrow{display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line,#e2dcd3);}
+          .up-gs-inputrow > i{color:var(--muted,#8a847b);font-size:15px;}
+          .up-gs-input{flex:1;border:none;outline:none;background:transparent;font-family:var(--sans,'Inter',sans-serif);font-size:16px;color:var(--ink,#15110f);}
+          .up-gs-input::placeholder{color:var(--muted,#8a847b);}
+          .up-gs-esc{font-size:10px;font-weight:600;letter-spacing:.06em;color:var(--muted,#8a847b);border:1px solid var(--line,#e2dcd3);border-radius:6px;padding:3px 7px;text-transform:uppercase;flex-shrink:0;}
+          .up-gs-results{max-height:min(54vh,470px);overflow-y:auto;padding:6px 8px 10px;}
+          .up-gs-group{padding:12px 10px 4px;font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted,#8a847b);}
+          .up-gs-item{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:11px;cursor:pointer;}
+          .up-gs-item.active{background:rgba(155,27,34,.07);}
+          .up-gs-item.active .up-gs-ttl{color:var(--crimson,#9b1b22);}
+          .up-gs-ico{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex:0 0 30px;background:var(--paper-2,#f3efe9);border:1px solid var(--line,#e2dcd3);color:var(--ink-soft,#6e6e73);font-size:12px;}
+          .up-gs-item.active .up-gs-ico{border-color:rgba(201,169,98,.6);color:#a8842f;}
+          .up-gs-ttl{font-size:14px;font-weight:600;color:var(--ink,#15110f);line-height:1.25;}
+          .up-gs-sub{font-size:12px;color:var(--muted,#8a847b);line-height:1.3;margin-top:1px;}
+          .up-gs-empty{padding:26px 14px;text-align:center;color:var(--muted,#8a847b);font-size:13.5px;}
+          .up-gs-hint{padding:22px 14px;text-align:center;color:var(--muted,#8a847b);font-size:13px;}
+          .up-gs-foot{display:flex;gap:16px;justify-content:flex-end;padding:9px 16px;border-top:1px solid var(--line,#e2dcd3);font-size:11px;color:var(--muted,#8a847b);background:var(--paper-2,#f3efe9);}
+          .up-gs-foot kbd{font-family:inherit;border:1px solid var(--line,#e2dcd3);border-radius:5px;padding:1px 5px;background:var(--paper,#fbf9f6);font-size:10px;}
+          @media(max-width:600px){ .up-gs-panel{top:6vh;} .up-gs-foot{display:none;} }
+        </style>
+        <div id="upSearchOverlay" class="up-gs-overlay" role="dialog" aria-modal="true" aria-label="Search Med&amp;X">
+          <div class="up-gs-panel">
+            <div class="up-gs-inputrow">
+              <i class="fas fa-search" aria-hidden="true"></i>
+              <input id="upSearchInput" class="up-gs-input" type="text" placeholder="Search pages, events, people, talks&hellip;" autocomplete="off" spellcheck="false" aria-label="Search Med&amp;X" role="combobox" aria-expanded="true" aria-controls="upSearchResults" />
+              <span class="up-gs-esc">esc</span>
+            </div>
+            <div id="upSearchResults" class="up-gs-results" role="listbox" aria-label="Search results"></div>
+            <div class="up-gs-foot"><span><kbd>&#8593;</kbd> <kbd>&#8595;</kbd> navigate</span><span><kbd>&#8629;</kbd> open</span><span><kbd>esc</kbd> close</span></div>
+          </div>
+        </div>
+        <script>
+        // GLOBAL SEARCH — spotlight over pages, events, members, talks, and the member's own
+        // items. Pages are indexed client-side (minus rewards for quiet profiles); everything
+        // else comes from the additive read-only GET /api/member/search endpoint, which mirrors
+        // the existing directory privacy rules (Forum directory stays members-only).
+        (function(){
+          function esc(v){ return (v==null?'':String(v)).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+          function token(){ return (typeof UserPortal!=='undefined'&&UserPortal.token)||localStorage.getItem('medx_user_token'); }
+          function apiBase(){ return (typeof API_BASE!=='undefined')?API_BASE:''; }
+          var PAGES=[
+            {title:'Home', section:'dashboard', icon:'fa-home', kw:'home dashboard start overview'},
+            {title:'Plexus Conference', section:'plexus', icon:'fa-users', kw:'plexus conference 2026 zagreb registration tickets abstracts'},
+            {title:'Gala Evening 2026', section:'gala', icon:'fa-glass-cheers', kw:'gala evening dinner black tie seat'},
+            {title:'Accelerator Program', section:'accelerator', icon:'fa-rocket', kw:'accelerator program application research'},
+            {title:'Biomedical Forum', section:'forum', icon:'fa-landmark', kw:'biomedical forum members community'},
+            {title:'Annual Forum 2026', section:'af26', icon:'fa-calendar-star', kw:'annual forum af26 convening'},
+            {title:'Building Bridges', section:'bridges', icon:'fa-handshake', kw:'building bridges event zagreb'},
+            {title:'Talk Library', section:'talks', icon:'fa-video', kw:'talk library talks videos lectures recordings'},
+            {title:'My Network', section:'network', icon:'fa-network-wired', kw:'network connections people attendees directory members'},
+            {title:'My Med&X', section:'mymedx', icon:'fa-id-badge', kw:'my medx tickets qr code registrations certificates record'},
+            {title:'Settings', section:'settings', icon:'fa-cog', kw:'settings profile account password photo email preferences'},
+            {title:'Rewards', section:'rewards', icon:'fa-gift', kw:'rewards points redeem', playful:true}
+          ];
+          var GROUPS=[['pages','Pages'],['events','Events'],['members','Members'],['talks','Talks'],['mine','Your items']];
+          var ICONS={conference:'fa-users',bridges:'fa-handshake',forum_event:'fa-landmark',attendee:'fa-user',forum_member:'fa-user',talk:'fa-video',ticket:'fa-ticket-alt',gala_registration:'fa-glass-cheers',bridges_registration:'fa-ticket-alt'};
+          var GS={
+            _open:false,_timer:null,_seq:0,_flat:[],_active:-1,_lastQ:'',
+            open:function(){
+              if(!token()) return; // members only — the portal search means nothing logged out
+              var ov=document.getElementById('upSearchOverlay'); if(!ov) return;
+              ov.classList.add('open'); this._open=true; this._active=-1; this._flat=[];
+              var inp=document.getElementById('upSearchInput');
+              if(inp){ inp.value=''; setTimeout(function(){ inp.focus(); },30); }
+              this._lastQ='';
+              this._renderHint();
+            },
+            close:function(){
+              var ov=document.getElementById('upSearchOverlay'); if(ov) ov.classList.remove('open');
+              this._open=false; clearTimeout(this._timer);
+            },
+            toggle:function(){ if(this._open) this.close(); else this.open(); },
+            _renderHint:function(){
+              var box=document.getElementById('upSearchResults'); if(!box) return;
+              box.innerHTML='<div class="up-gs-hint">Try &ldquo;plexus&rdquo;, &ldquo;gala&rdquo;, a colleague&rsquo;s name, or a talk title.</div>';
+            },
+            _pagesFor:function(q){
+              var quiet = !!(window.MedXQuiet && MedXQuiet.isQuiet());
+              var ql=q.toLowerCase();
+              return PAGES.filter(function(p){
+                if(p.playful && quiet) return false; // quiet profiles never see rewards entries
+                return p.title.toLowerCase().indexOf(ql)>-1 || p.kw.indexOf(ql)>-1;
+              }).slice(0,5).map(function(p){ return {kind:'page', title:p.title, detail:'Go to '+p.title, section:p.section, icon:p.icon}; });
+            },
+            onInput:function(q){
+              var self=this;
+              clearTimeout(this._timer);
+              q=String(q||'').trim();
+              this._lastQ=q;
+              if(q.length<2){ this._renderHint(); this._flat=[]; this._active=-1; return; }
+              this._timer=setTimeout(function(){ self._run(q); },180);
+            },
+            _run:function(q){
+              var self=this, seq=++this._seq;
+              var groups={pages:this._pagesFor(q),events:[],members:[],talks:[],mine:[]};
+              this._render(groups,true);
+              fetch(apiBase()+'/api/member/search?q='+encodeURIComponent(q),{headers:{'Authorization':'Bearer '+token()}})
+                .then(function(r){ return r.ok?r.json():null; })
+                .then(function(d){
+                  if(seq!==self._seq||!self._open) return; // a newer query superseded this one
+                  if(d){ groups.events=d.events||[]; groups.members=d.members||[]; groups.talks=d.talks||[]; groups.mine=d.mine||[]; }
+                  self._render(groups,false);
+                })
+                .catch(function(){ if(seq===self._seq&&self._open) self._render(groups,false); });
+            },
+            _render:function(groups,loading){
+              var box=document.getElementById('upSearchResults'); if(!box) return;
+              var html='', flat=[], idx=0;
+              GROUPS.forEach(function(g){
+                var items=groups[g[0]]||[];
+                if(!items.length) return;
+                html+='<div class="up-gs-group">'+g[1]+'</div>';
+                items.forEach(function(it){
+                  flat.push(it);
+                  var icon=it.icon||ICONS[it.kind]||'fa-arrow-right';
+                  html+='<div class="up-gs-item" role="option" data-idx="'+idx+'" onmousemove="GlobalSearch._hover('+idx+')" onclick="GlobalSearch._go('+idx+')">'
+                      +'<span class="up-gs-ico"><i class="fas '+icon+'"></i></span>'
+                      +'<span style="min-width:0;"><div class="up-gs-ttl">'+esc(it.title)+'</div>'
+                      +(it.detail?('<div class="up-gs-sub">'+esc(it.detail)+'</div>'):'')+'</span></div>';
+                  idx++;
+                });
+              });
+              if(!html) html='<div class="up-gs-empty">'+(loading?'Searching&hellip;':'Nothing found for &ldquo;'+esc(this._lastQ)+'&rdquo;.')+'</div>';
+              box.innerHTML=html;
+              this._flat=flat;
+              if(this._active>=flat.length) this._active=flat.length?0:-1;
+              if(this._active<0&&flat.length) this._active=0;
+              this._paintActive();
+            },
+            _paintActive:function(){
+              var box=document.getElementById('upSearchResults'); if(!box) return;
+              var self=this;
+              box.querySelectorAll('.up-gs-item').forEach(function(el){
+                var on=Number(el.getAttribute('data-idx'))===self._active;
+                el.classList.toggle('active',on);
+                if(on&&el.scrollIntoView) el.scrollIntoView({block:'nearest'});
+              });
+            },
+            _hover:function(i){ if(this._active!==i){ this._active=i; this._paintActive(); } },
+            _move:function(d){
+              if(!this._flat.length) return;
+              this._active=(this._active+d+this._flat.length)%this._flat.length;
+              this._paintActive();
+            },
+            _go:function(i){
+              var it=this._flat[i]; if(!it) return;
+              this.close();
+              try{ if(it.section&&typeof UserPortal!=='undefined') UserPortal.showSection(it.section); }catch(e){}
+            },
+            onKey:function(e){
+              if(e.key==='ArrowDown'){ e.preventDefault(); this._move(1); }
+              else if(e.key==='ArrowUp'){ e.preventDefault(); this._move(-1); }
+              else if(e.key==='Enter'){ e.preventDefault(); if(this._active>-1) this._go(this._active); }
+              else if(e.key==='Escape'){ e.preventDefault(); this.close(); }
+            }
+          };
+          window.GlobalSearch=GS;
+          document.addEventListener('keydown',function(e){
+            if((e.metaKey||e.ctrlKey)&&(e.key==='k'||e.key==='K')){ e.preventDefault(); e.stopImmediatePropagation(); GS.toggle(); return; }
+            if(GS._open&&e.key==='Escape'){ e.preventDefault(); GS.close(); }
+          });
+          document.addEventListener('DOMContentLoaded',function(){
+            var ov=document.getElementById('upSearchOverlay');
+            if(ov) ov.addEventListener('mousedown',function(e){ if(e.target===ov) GS.close(); });
+            var inp=document.getElementById('upSearchInput');
+            if(inp){
+              inp.addEventListener('input',function(){ GS.onInput(inp.value); });
+              inp.addEventListener('keydown',function(e){ GS.onKey(e); });
+            }
+          });
+        })();
+        </script>
 
         <main class="up-main">
             <!-- Soft-gate email confirmation banner (shown until email_verified) -->
@@ -58433,6 +58617,10 @@ button,input,select,textarea{font-family:var(--sans);}
                                     </div>
                                 </div>
                             </div>
+                            <!-- Global search (spotlight) trigger -->
+                            <button class="hub-header-btn" onclick="GlobalSearch.open()" title="Search" aria-label="Search">
+                                <i class="fas fa-search"></i>
+                            </button>
                             <!-- Standalone Notification Bell -->
                             <button class="hub-header-btn" onclick="NotificationSystem.toggle()" title="Notifications" style="position:relative;">
                                 <i class="fas fa-bell"></i>
@@ -58573,6 +58761,67 @@ button,input,select,textarea{font-family:var(--sans);}
                     })();
                     </script>
 
+                    <!-- PROFILE-COMPLETENESS NUDGE — normal members only. Double persona gate
+                         (S1 pattern): the medx-playful class hides it under body.medx-quiet, and the
+                         server endpoint returns show:false for any quiet profile. Home only — it never
+                         renders inside the Forum wing. -->
+                    <style>
+                    .up-nudge-card{display:flex;align-items:center;gap:14px;background:var(--paper,#fbf9f6);border:1px solid var(--line,#e2dcd3);border-left:3px solid var(--gold,#c9a962);border-radius:14px;padding:14px 16px;margin:0 0 18px;box-shadow:0 1px 2px rgba(21,17,15,.05);}
+                    .up-nudge-ico{width:36px;height:36px;border-radius:10px;background:rgba(201,169,98,.14);border:1px solid rgba(201,169,98,.4);color:#a8842f;display:flex;align-items:center;justify-content:center;font-size:14px;flex:0 0 36px;}
+                    .up-nudge-text{flex:1;min-width:180px;font-size:14px;color:var(--ink,#15110f);line-height:1.45;}
+                    .up-nudge-btn{display:inline-flex;align-items:center;gap:7px;background:var(--crimson,#9b1b22);color:#fff;border:none;border-radius:10px;padding:9px 15px;font-size:13px;font-weight:600;font-family:var(--sans,'Inter',sans-serif);cursor:pointer;white-space:nowrap;}
+                    .up-nudge-btn:hover{filter:brightness(1.08);}
+                    .up-nudge-x{background:none;border:none;color:var(--muted,#8a847b);font-size:19px;line-height:1;cursor:pointer;padding:4px 6px;border-radius:8px;flex-shrink:0;}
+                    .up-nudge-x:hover{color:var(--ink,#15110f);background:var(--paper-2,#f3efe9);}
+                    @media(max-width:600px){ .up-nudge-card{flex-wrap:wrap;} .up-nudge-btn{width:100%;justify-content:center;} }
+                    </style>
+                    <section id="upProfileNudge" class="medx-playful" style="display:none;"></section>
+                    <script>
+                    (function(){
+                      var LS_KEY='medx_profile_nudge_dismissed';
+                      function token(){ return (typeof UserPortal!=='undefined'&&UserPortal.token)||localStorage.getItem('medx_user_token'); }
+                      function apiBase(){ return (typeof API_BASE!=='undefined')?API_BASE:''; }
+                      var N={
+                        render:function(){
+                          var host=document.getElementById('upProfileNudge'); if(!host) return;
+                          var tk=token(); if(!tk){ host.style.display='none'; return; }
+                          if(localStorage.getItem(LS_KEY)==='1'){ host.style.display='none'; return; }
+                          // Client persona gate — the server re-checks with the same quiet derivation.
+                          if(window.MedXQuiet&&MedXQuiet.isQuiet()){ host.style.display='none'; return; }
+                          fetch(apiBase()+'/api/member/profile-nudge',{headers:{'Authorization':'Bearer '+tk}})
+                            .then(function(r){ return r.ok?r.json():{show:false}; })
+                            .then(function(d){
+                              if(!d||!d.show){ host.style.display='none'; return; }
+                              if(window.MedXQuiet&&MedXQuiet.isQuiet()){ host.style.display='none'; return; }
+                              host.innerHTML='<div class="up-nudge-card" role="status">'
+                                +'<div class="up-nudge-ico"><i class="fas fa-user-circle"></i></div>'
+                                +'<div class="up-nudge-text">Complete your profile so colleagues can find you.</div>'
+                                +'<button class="up-nudge-btn" onclick="MedXProfileNudge.addPhoto()"><i class="fas fa-camera"></i> Add a photo</button>'
+                                +'<button class="up-nudge-x" aria-label="Dismiss" title="Dismiss" onclick="MedXProfileNudge.dismiss()">&times;</button>'
+                                +'</div>';
+                              host.style.display='';
+                            })
+                            .catch(function(){ host.style.display='none'; });
+                        },
+                        dismiss:function(){
+                          try{ localStorage.setItem(LS_KEY,'1'); }catch(e){}
+                          var host=document.getElementById('upProfileNudge');
+                          if(host){ host.style.display='none'; host.innerHTML=''; }
+                          var tk=token(); if(!tk) return;
+                          fetch(apiBase()+'/api/member/profile-nudge/dismiss',{method:'POST',headers:{'Authorization':'Bearer '+tk}}).catch(function(){});
+                        },
+                        addPhoto:function(){
+                          try{ UserPortal.showSection('settings'); }catch(e){}
+                          setTimeout(function(){ try{ if(window.SettingsPortal&&SettingsPortal.uploadPhoto) SettingsPortal.uploadPhoto(); }catch(e){} },350);
+                        }
+                      };
+                      window.MedXProfileNudge=N;
+                      function maybe(){ var h=(location.hash||'').replace('#',''); if(!h||h==='dashboard'){ setTimeout(function(){ N.render(); },80); } }
+                      if(document.readyState!=='loading') setTimeout(maybe,0); else document.addEventListener('DOMContentLoaded',function(){ setTimeout(maybe,0); });
+                      window.addEventListener('hashchange',maybe);
+                    })();
+                    </script>
+
                     <!-- PROJECT HUB — live status from /api/project-status (admin-owned), get-notified bells persist to notify_topics -->
                     <style>
                     .mx-project-hub{margin:2px 0 26px;}
@@ -58618,7 +58867,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         <div class="mx-chapter-band">
                             <span class="mx-chapter-num">01</span>
                             <div class="mx-chapter-text">
-                                <h2>Your programs</h2>
+                                <h2>Your projects</h2>
                                 <p>Apply, register, and follow every Med&amp;X project from here.</p>
                             </div>
                         </div>
@@ -59036,7 +59285,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     <!-- Simplified Bento Grid -->
                     <section class="hub-bento hub-bento-clean" id="dashboardBento">
 
-                        <!-- Programs live in the "Your programs" hub above. This band is now the community entry point. -->
+                        <!-- Projects live in the "Your projects" hub above. This band is now the community entry point. -->
                         <style>
                         .mx-network-head{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:2px;}
                         .mx-network-head h3{font-family:var(--serif,'Fraunces',Georgia,serif);font-size:19px;font-weight:600;color:var(--ink,#15110f);letter-spacing:-.01em;margin:0 0 3px;}
@@ -59189,7 +59438,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         </div>
 
                         <!-- PROFILE COMPLETENESS WIDGET -->
-                        <div class="dashboard-widget profile-completeness-card removable-card" id="profileCompletenessWidget" data-widget="profilecompleteness">
+                        <div class="dashboard-widget profile-completeness-card removable-card medx-playful" id="profileCompletenessWidget" data-widget="profilecompleteness">
                             <button class="card-remove-btn" onclick="CardManager.removeCard('profileCompletenessWidget')" title="Hide this card">
                                 <i class="fas fa-times"></i>
                             </button>
@@ -59210,7 +59459,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         </div>
 
                         <!-- QUICK POLL WIDGET -->
-                        <div class="dashboard-widget poll-widget removable-card" id="pollWidget" data-widget="poll">
+                        <div class="dashboard-widget poll-widget removable-card medx-playful" id="pollWidget" data-widget="poll">
                             <button class="card-remove-btn" onclick="CardManager.removeCard('pollWidget')" title="Hide this card">
                                 <i class="fas fa-times"></i>
                             </button>
@@ -66812,7 +67061,7 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                             <div class="discovery-filter">
                                 <select id="filterProject" onchange="NetworkingPortal.filterMembers()">
-                                    <option value="">All Programs</option>
+                                    <option value="">All Projects</option>
                                     <option value="plexus">Plexus</option>
                                     <option value="gala">Gala Evening</option>
                                     <option value="accelerator">Accelerator</option>
@@ -67325,7 +67574,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         </div>
 
                         <div class="profile-section" id="profileProjectsSection" style="display:none;">
-                            <h4 class="profile-section-title">Med&amp;X Programs</h4>
+                            <h4 class="profile-section-title">Med&amp;X Projects</h4>
                             <div class="profile-tags" id="profileProjects"></div>
                         </div>
 
@@ -69092,7 +69341,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     </div>
 
                     <!-- Programs Grid -->
-                    <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0 0 12px; padding-left: 4px;">My Programs</h3>
+                    <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0 0 12px; padding-left: 4px;">My projects</h3>
                     <div id="mymedxPrograms" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-bottom: 24px;">
                         <!-- Populated by MyMedXPortal.renderPrograms() -->
                     </div>
@@ -71637,7 +71886,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         <button class="plexus-tab forum-tab" onclick="App.showForumTab('invitations')"><i class="fas fa-envelope-open-text"></i> Invitations</button>
                         <button class="plexus-tab forum-tab" onclick="App.showForumTab('templates')"><i class="fas fa-file-alt"></i> Templates</button>
                         <button class="plexus-tab forum-tab" onclick="App.showForumTab('applications')"><i class="fas fa-user-plus"></i> Applications</button>
-                        <button class="plexus-tab forum-tab" onclick="App.showForumTab('af26')" style="background: var(--forum); color: var(--bg-primary);"><i class="fas fa-star"></i> AF 2026</button>
+                        <button class="plexus-tab forum-tab" onclick="App.showForumTab('af26')" style="background: var(--forum); color: var(--bg-primary);"><i class="fas fa-star"></i> Annual Forum 2026</button>
                     </div>
 
                     <!-- Dashboard Tab -->
@@ -76891,6 +77140,10 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (hd) hd.innerHTML = fmt + '<span>pts</span>';
                 const mc = document.getElementById('memberCardPoints');
                 if (mc) mc.textContent = fmt;
+                // Dashboard snapshot "Points balance" tile — same ledger total as the account
+                // chip so the two can never diverge (fixes chip 410 vs tile 0).
+                const ds = document.getElementById('dsPoints');
+                if (ds) ds.textContent = fmt;
             },
 
             // ===== Legacy-compat stubs (NO client minting) =====
@@ -78607,6 +78860,15 @@ You can use variables like {first_name} that will be personalized for each recip
                         this._pendingVerificationEmail = data.email || email;
                         const resendEl = document.getElementById('resendVerificationSection');
                         if (resendEl) resendEl.style.display = 'block';
+                    } else if (res.status === 429) {
+                        // Server rate-limit (HTTP 429): show ONLY the server message.
+                        // Never append the client attempts counter here or the copy
+                        // self-contradicts (e.g. "try again in 15 minutes (4 attempts remaining)").
+                        const errEl429 = document.getElementById('userLoginError');
+                        errEl429.textContent = data.error || 'Too many attempts. Please try again later.';
+                        errEl429.classList.add('show');
+                        const resendEl429 = document.getElementById('resendVerificationSection');
+                        if (resendEl429) resendEl429.style.display = 'none';
                     } else {
                         const attempts = parseInt(sessionStorage.getItem('medx_login_attempts') || '0') + 1;
                         sessionStorage.setItem('medx_login_attempts', String(attempts));
@@ -78829,7 +79091,14 @@ You can use variables like {first_name} that will be personalized for each recip
                         // unverified. Store the session, then show the "Check your email" confirm step.
                         // The user is never locked out — the verify banner nudges them from inside.
                         if (data.token) { this.token = data.token; localStorage.setItem('medx_user_token', data.token); }
-                        if (data.user) { this.user = data.user; localStorage.setItem('medx_user_data', JSON.stringify(data.user)); }
+                        if (data.user) {
+                            // Server omits country in the register response — carry the fresh
+                            // signup values so onboarding can prefill (and skip) Step 1.
+                            if (!data.user.country && country) data.user.country = country;
+                            if (!data.user.institution && institution) data.user.institution = institution;
+                            this.user = data.user;
+                            localStorage.setItem('medx_user_data', JSON.stringify(data.user));
+                        }
                         this._pendingVerificationEmail = email;
                         sessionStorage.removeItem('medx_verify_dismissed');
                         const ce = document.getElementById('regConfirmEmail');
@@ -78980,6 +79249,12 @@ You can use variables like {first_name} that will be personalized for each recip
                 Dashboard.init();
                 FeaturedCarousel.init();
 
+                // Profile-completeness nudge on the post-login home. Login initializes the
+                // dashboard directly instead of routing through showSection('dashboard'), so the
+                // nudge must render here too. The object self-gates on quiet profiles, the
+                // dismissal flag, and photo/institution completeness.
+                if (typeof MedXProfileNudge !== 'undefined') MedXProfileNudge.render();
+
                 // Load user data
                 this.loadUserData();
 
@@ -79101,6 +79376,9 @@ You can use variables like {first_name} that will be personalized for each recip
                         if (typeof QuizSystem !== 'undefined' && MedXQuiet.allowPlayful()) QuizSystem.init();
                         if (typeof HubEvents !== 'undefined') HubEvents.render();
                         if (typeof MemberFeed !== 'undefined') MemberFeed.load();
+                        // Profile-completeness nudge (normal members only; the object self-gates on
+                        // quiet profiles, the dismissal flag, and photo/institution completeness).
+                        if (typeof MedXProfileNudge !== 'undefined') MedXProfileNudge.render();
                     }
                     if (sectionId === 'talks' && typeof TalkLibrary !== 'undefined') TalkLibrary.init();
                     if (sectionId === 'plexus') PlexusPortal.init();
@@ -119594,17 +119872,36 @@ By applying to this program, I give the following consents:
                     this.showStep(0);
                     this.createSplashParticles();
 
-                    // Pre-fill user data if available
+                    // Pre-fill from the fresh signup data so we never re-ask what the
+                    // member just typed. Falls back to splitting a combined display name.
+                    this._profilePrefilled = false;
                     if (UserPortal.user) {
-                        const nameParts = (UserPortal.user.name || '').split(' ');
+                        const u = UserPortal.user;
+                        const nameParts = (u.name || '').split(' ').filter(Boolean);
+                        const firstName = u.first_name || nameParts[0] || '';
+                        const lastName = u.last_name || (nameParts.length > 1 ? nameParts.slice(1).join(' ') : '');
+                        const affiliation = u.institution || u.affiliation || '';
+                        const country = u.country || '';
+                        const email = u.email || '';
+                        // Mirror into the tour model so a skipped Step 1 still saves these.
+                        this.profile.firstName = firstName;
+                        this.profile.lastName = lastName;
+                        this.profile.email = email;
+                        this.profile.affiliation = affiliation;
+                        this.profile.country = country;
                         const welcomeNameEl = document.getElementById('welcomeUserName');
-                        if (welcomeNameEl) welcomeNameEl.textContent = nameParts[0] ? `, ${nameParts[0]}` : '';
+                        if (welcomeNameEl) welcomeNameEl.textContent = firstName ? `, ${firstName}` : '';
                         const firstNameEl = document.getElementById('wtFirstName');
-                        if (firstNameEl) firstNameEl.value = nameParts[0] || '';
+                        if (firstNameEl) firstNameEl.value = firstName;
                         const lastNameEl = document.getElementById('wtLastName');
-                        if (lastNameEl) lastNameEl.value = nameParts.slice(1).join(' ') || '';
+                        if (lastNameEl) lastNameEl.value = lastName;
                         const emailEl = document.getElementById('wtEmail');
-                        if (emailEl) emailEl.value = UserPortal.user.email || '';
+                        if (emailEl) emailEl.value = email;
+                        const affEl = document.getElementById('wtAffiliation');
+                        if (affEl) affEl.value = affiliation;
+                        const countryEl = document.getElementById('wtCountry');
+                        if (countryEl && country) countryEl.value = country;
+                        this._profilePrefilled = true;
                     }
                 }
             },
@@ -119667,6 +119964,12 @@ By applying to this program, I give the following consents:
                 }
             },
 
+            // True when signup already captured every required Step 1 field.
+            isProfileComplete() {
+                const p = this.profile;
+                return !!(p.firstName && p.lastName && p.email && p.country);
+            },
+
             nextStep() {
                 // Save form data from current step
                 if (this.currentStep === 1) {
@@ -119678,6 +119981,10 @@ By applying to this program, I give the following consents:
                 }
 
                 this.currentStep++;
+                // Skip Step 1 (profile) entirely when the fresh signup already knows everything.
+                if (this.currentStep === 1 && this._profilePrefilled && this.isProfileComplete()) {
+                    this.currentStep = 2;
+                }
                 if (this.currentStep <= 6) {
                     this.showStep(this.currentStep);
                 }
@@ -119686,6 +119993,10 @@ By applying to this program, I give the following consents:
             prevStep() {
                 if (this.currentStep > 0) {
                     this.currentStep--;
+                    // Mirror the skip when stepping back so Step 1 stays hidden.
+                    if (this.currentStep === 1 && this._profilePrefilled && this.isProfileComplete()) {
+                        this.currentStep = 0;
+                    }
                     this.showStep(this.currentStep);
                 }
             },
@@ -120630,9 +120941,19 @@ By applying to this program, I give the following consents:
                 news:        { label: 'News',        icon: 'fa-newspaper' }
             },
 
+            // Evergreen fallback shown when the live feed is unreachable — calm, on-brand,
+            // and always something real (the next dates on the calendar).
+            EVERGREEN: [
+                { title: 'Plexus Conference 2026', date: 'Dec 4-5, 2026', body: 'Zagreb - free entry. Pre-registration is open.', link: 'plexus', chip: 'news' },
+                { title: 'Plexus Gala Evening', date: 'Dec 5, 2026', body: 'Hotel Esplanade, Zagreb. Reserve your seat.', link: 'gala', chip: 'spotlight' },
+                { title: 'Building Bridges - Boston', date: 'September 2026', body: 'Networking dinner at Harvard Medical School.', link: 'bridges', chip: 'opportunity' }
+            ],
+
             async load() {
                 const container = document.getElementById('newsCompactList');
-                if (container && !this._loaded) {
+                // Only show the spinner on the very first attempt — never clobber a calm
+                // fallback (or a silent background retry) with a spinner flash.
+                if (container && !this._loaded && !this._fallbackShown) {
                     container.innerHTML = '<div class="feed-empty"><i class="fas fa-spinner fa-spin"></i><p>Loading the latest from Med&amp;X…</p></div>';
                 }
                 try {
@@ -120650,13 +120971,49 @@ By applying to this program, I give the following consents:
                         this.summary = '';
                     }
                     this._loaded = true;
+                    this._fallbackShown = false;
+                    if (this._retryTimer) { clearTimeout(this._retryTimer); this._retryTimer = null; }
                     this.renderCompact();
                 } catch (e) {
                     console.error('[MemberFeed] load failed:', e);
                     if (container && !this.items.length) {
-                        container.innerHTML = '<div class="feed-empty"><i class="fas fa-triangle-exclamation"></i><p>We could not load the feed right now. Please try again shortly.</p></div>';
+                        // No warning triangle as the first thing a member sees. Show a calm
+                        // empty state plus evergreen upcoming dates, and retry quietly.
+                        container.innerHTML = this.errorFallbackHtml();
+                        this._fallbackShown = true;
+                        this.scheduleSilentRetry();
                     }
                 }
+            },
+
+            evergreenCardHtml(ev) {
+                const safeLink = String(ev.link || '').replace(/'/g, "\\'");
+                const m = this.typeMeta(ev.chip);
+                const t = this.TYPE_META[ev.chip] ? ev.chip : 'news';
+                return `<div class="feed-card" onclick="MemberFeed.open('${safeLink}')">
+                    <div class="feed-card-top"><span class="feed-chip ${t}"><i class="fas ${m.icon}"></i>${m.label}</span><span class="feed-card-date">${escapeHtml(ev.date)}</span></div>
+                    <h5 class="feed-card-title">${escapeHtml(ev.title)}</h5>
+                    <p class="feed-card-body">${escapeHtml(ev.body)}</p>
+                </div>`;
+            },
+
+            errorFallbackHtml() {
+                const cards = this.EVERGREEN.map(ev => this.evergreenCardHtml(ev)).join('');
+                return '<div class="feed-empty feed-empty-calm"><i class="fas fa-paper-plane"></i><p>Fresh updates are on their way</p></div>'
+                    + '<div class="feed-list">' + cards + '</div>';
+            },
+
+            scheduleSilentRetry() {
+                if (this._retryTimer) return;
+                this._retryCount = this._retryCount || 0;
+                if (this._retryCount >= 5) return; // stop after a few quiet attempts
+                const delays = [8000, 20000, 45000];
+                const delay = delays[Math.min(this._retryCount, delays.length - 1)];
+                this._retryTimer = setTimeout(() => {
+                    this._retryTimer = null;
+                    this._retryCount++;
+                    this.load(); // quiet — the calm fallback stays until real items arrive
+                }, delay);
             },
 
             fmtDate(s) {

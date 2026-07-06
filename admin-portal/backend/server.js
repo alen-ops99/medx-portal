@@ -3666,6 +3666,13 @@ async function initializeApp() {
     // pr_posts drifted between portals (admin CREATE has status, user CREATE lacked it) — heal existing DBs.
     try { db.exec("ALTER TABLE pr_posts ADD COLUMN status TEXT DEFAULT 'published'"); } catch (e) { /* column exists */ }
 
+    // ADMIN-ONLY: Action Center manual claim ("Assign to me"). Additive columns kept OUTSIDE the
+    // SCHEMA-MIRROR block so a human-set owner survives the daily rescan (which refreshes the
+    // scan-derived `assignee` column but never touches these). claimed_by = the admin's email.
+    try { db.run("ALTER TABLE nag_items ADD COLUMN claimed_by TEXT"); } catch (e) { /* column exists */ }
+    try { db.run("ALTER TABLE nag_items ADD COLUMN claimed_by_name TEXT"); } catch (e) { /* column exists */ }
+    try { db.run("ALTER TABLE nag_items ADD COLUMN claimed_at TEXT"); } catch (e) { /* column exists */ }
+
     // ====================== THE BIOMEDICAL FORUM — WING schema ======================
     // The Forum wing (/forum) is a dignified, invitation-only experience convened under Med&X.
     // These tables live OUTSIDE the SCHEMA-MIRROR block, but are added IDENTICALLY to BOTH portal
@@ -26366,6 +26373,30 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             logAudit(req, 'nag.dismiss', req.params.id);
             res.json({ success: true });
         } catch (e) { console.error('[nag] dismiss', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Action Center — "Assign to me": claim an item so the team can see who owns it. Toggles — a
+    // second click by the same admin releases it. Stored in the additive claimed_* columns (see the
+    // guarded ALTER after SCHEMA-MIRROR:END) so the daily rescan never clears a human-set owner.
+    app.post('/api/admin/nag/items/:id/claim', auth, adminOnly, (req, res) => {
+        try {
+            const item = query.get("SELECT id, claimed_by FROM nag_items WHERE id = ?", [req.params.id]);
+            if (!item) return res.status(404).json({ error: 'Item not found' });
+            const me = req.user && req.user.email;
+            if (!me) return res.status(400).json({ error: 'No signed-in admin to assign.' });
+            if (item.claimed_by && item.claimed_by === me) {
+                db.run("UPDATE nag_items SET claimed_by=NULL, claimed_by_name=NULL, claimed_at=NULL WHERE id = ?", [req.params.id]);
+                saveDb();
+                logAudit(req, 'nag.unclaim', req.params.id);
+                return res.json({ success: true, claimed: false });
+            }
+            const u = query.get("SELECT first_name, last_name FROM users WHERE email = ?", [me]) || {};
+            const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || me;
+            db.run("UPDATE nag_items SET claimed_by=?, claimed_by_name=?, claimed_at=datetime('now') WHERE id = ?", [me, name, req.params.id]);
+            saveDb();
+            logAudit(req, 'nag.claim', `${req.params.id} -> ${name}`);
+            res.json({ success: true, claimed: true, claimed_by: me, claimed_by_name: name });
+        } catch (e) { console.error('[nag] claim', e.message); res.status(500).json({ error: e.message }); }
     });
 
     // Queue the daily team digest on demand (idempotent per day). Approved in one click in the outbox.
