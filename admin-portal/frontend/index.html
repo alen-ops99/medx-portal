@@ -7192,6 +7192,25 @@
                         </div>
                     </div>
 
+                    <!-- ===== CONTENT TO FILL — placeholders still owed across the site + portal ===== -->
+                    <div class="card" id="dashContentChecklist" style="margin-bottom: 28px;">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <span class="card-title">
+                                Content to fill
+                                <span id="contentChecklistBadge" style="display:none; margin-left:8px; background:#c14b52; color:#fff; border-radius:11px; font-size:11px; font-weight:700; padding:1px 8px; vertical-align:middle;">0</span>
+                                <span style="font-weight:400; color:var(--text-muted); font-size:12px;">&mdash; placeholders still owed across the website and portal</span>
+                            </span>
+                            <button class="btn btn-secondary" onclick="ContentChecklist.load()" style="font-size: 11px; padding: 5px 12px;" title="Refresh">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div id="contentChecklistBody" style="min-height: 80px;">
+                                <div style="color:var(--text-muted); font-size:13px; padding:8px 2px;">Loading content checklist&hellip;</div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Pinned Items (from any project) -->
                     <div id="pinnedItemsSection" style="display: none; margin-bottom: 24px;">
                         <div class="section-header" style="margin-bottom: 12px;">
@@ -15979,6 +15998,8 @@ President, Med&amp;X</textarea>
                 // The Action Center (NAG->DO worklist) loads independently of the stats fetch so a
                 // stats hiccup never hides the actionable items.
                 this.loadActionCenter();
+                // The Content-to-fill card loads independently too (owner-owned placeholder tracker).
+                ContentChecklist.load();
                 try {
                     const stats = await this.api('/api/dashboard/portal-stats');
                     this.portalStats = stats;
@@ -23817,6 +23838,7 @@ President, Med&amp;X</textarea>
                             <div id="globalQRReader" style="position:relative; overflow:hidden; border-radius:12px; background:#000; min-height:280px;">
                                 <video id="globalQRVideo" playsinline webkit-playsinline autoplay muted style="width:100%; height:280px; border-radius:12px; display:block; object-fit:cover; z-index:1;"></video>
                                 <canvas id="globalQROverlay" style="display:none;"></canvas>
+                                <button id="globalQRTorch" type="button" onclick="App.toggleGlobalTorch()" aria-label="Toggle flashlight" aria-pressed="false" title="Flashlight" style="display:none; position:absolute; top:10px; right:10px; z-index:3; width:44px; height:44px; border-radius:50%; border:1px solid rgba(255,255,255,0.35); background:rgba(0,0,0,0.55); color:#fff; font-size:16px; cursor:pointer; align-items:center; justify-content:center;"><i class="fas fa-bolt"></i></button>
                                 <div id="globalQRStatus" style="text-align:center; padding:8px 12px; color:#fff; font-size:13px; position:absolute; bottom:8px; left:8px; right:8px; background:rgba(0,0,0,0.7); border-radius:8px; z-index:2;">Starting camera...</div>
                             </div>
                             <div class="manual-entry">
@@ -23891,6 +23913,11 @@ President, Med&amp;X</textarea>
 
                 navigator.mediaDevices.getUserMedia(constraints).then(stream => {
                     this._globalStream = stream;
+                    // Capture-layer niceties: continuous autofocus + torch availability for the dim ballroom.
+                    QRCapture.applyContinuousFocus(stream);
+                    this._globalTorchOn = false;
+                    this._updateGlobalTorchButton();
+                    setTimeout(() => this._updateGlobalTorchButton(), 600);
                     video.srcObject = stream;
                     video.setAttribute('playsinline', '');
                     video.setAttribute('webkit-playsinline', '');
@@ -23937,89 +23964,123 @@ President, Med&amp;X</textarea>
                 const ctx = canvas.getContext('2d', { willReadFrequently: true });
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-                if (typeof jsQR !== 'undefined') {
-                    try {
-                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+                // CAPTURE LAYER: BarcodeDetector-first (hardware decode) with the vendored
+                // jsQR path as fallback. The decoded string is handed to the EXISTING,
+                // FROZEN validation branches below completely unchanged.
+                QRCapture.decode(canvas, ctx).then(decoded => {
+                    let keepScanning = true;
+                    if (decoded) keepScanning = this._onGlobalDecoded(decoded);
+                    if (keepScanning && this._globalStream) requestAnimationFrame(() => this._scanGlobalFrame());
+                }).catch(() => {
+                    if (this._globalStream) requestAnimationFrame(() => this._scanGlobalFrame());
+                });
+            },
 
-                        if (code && code.data) {
-                            const now = Date.now();
-                            if (this._globalLastScan !== code.data || now - (this._globalLastScanTime || 0) > 3000) {
-                                this._globalLastScan = code.data;
-                                this._globalLastScanTime = now;
+            // FROZEN check-in validation dispatch for one decoded QR string. Moved verbatim
+            // out of the old scan loop when the capture layer went async — ONLY the decode
+            // SOURCE changed; every branch here (member ticket, profile lookup, plain
+            // check-in) behaves byte-for-byte as before. Returns true to keep scanning,
+            // false when a match has stopped the camera.
+            _onGlobalDecoded(rawDataStr) {
+                const now = Date.now();
+                if (!(this._globalLastScan !== rawDataStr || now - (this._globalLastScanTime || 0) > 3000)) return true;
+                this._globalLastScan = rawDataStr;
+                this._globalLastScanTime = now;
 
-                                if (navigator.vibrate) navigator.vibrate(200);
+                if (navigator.vibrate) navigator.vibrate(200);
 
-                                const input = document.getElementById('globalCheckinInput');
-                                if (input) input.value = code.data;
-                                const statusEl = document.getElementById('globalQRStatus');
-                                if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:#22c55e;"></i> Detected! Processing...';
+                const input = document.getElementById('globalCheckinInput');
+                if (input) input.value = rawDataStr;
+                const statusEl = document.getElementById('globalQRStatus');
+                if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:#22c55e;"></i> Detected! Processing...';
 
-                                // Extract userId from QR data (try multiple formats)
-                                let userId = null;
-                                const rawData = code.data.trim();
+                // Extract userId from QR data (try multiple formats)
+                let userId = null;
+                const rawData = rawDataStr.trim();
 
-                                // Format 1: JSON — try every possible identifier
-                                let memberEmail = null;
-                                let memberId = null;
-                                let fullQrData = null;
-                                try {
-                                    const parsed = JSON.parse(rawData);
-                                    fullQrData = parsed;
-                                    // A MEDX_MEMBER ticket → run the payment-gated EVENT check-in (PAID
-                                    // card), not a member-profile lookup. Handles dense (old) + slim QRs.
-                                    if (parsed.type === 'MEDX_MEMBER' && (parsed.regId || parsed.caRegId)) {
-                                        if (this._globalStream) { this._globalStream.getTracks().forEach(t => t.stop()); this._globalStream = null; }
-                                        this._globalTicketCheckin(parsed);
-                                        return;
-                                    }
-                                    if (parsed.userId && parsed.userId !== '') userId = parsed.userId;
-                                    else if (parsed.id && parsed.id !== '') userId = parsed.id;
-                                    if (parsed.email && parsed.email !== '') memberEmail = parsed.email;
-                                    if (parsed.memberId) memberId = parsed.memberId;
-                                } catch(e) {}
+                // Format 1: JSON — try every possible identifier
+                let memberEmail = null;
+                let memberId = null;
+                let fullQrData = null;
+                try {
+                    const parsed = JSON.parse(rawData);
+                    fullQrData = parsed;
+                    // A MEDX_MEMBER ticket -> run the payment-gated EVENT check-in (PAID
+                    // card), not a member-profile lookup. Handles dense (old) + slim QRs.
+                    if (parsed.type === 'MEDX_MEMBER' && (parsed.regId || parsed.caRegId)) {
+                        if (this._globalStream) { this._globalStream.getTracks().forEach(t => t.stop()); this._globalStream = null; }
+                        this._globalTorchOn = false;
+                        this._updateGlobalTorchButton();
+                        this._globalTicketCheckin(parsed);
+                        return false;
+                    }
+                    if (parsed.userId && parsed.userId !== '') userId = parsed.userId;
+                    else if (parsed.id && parsed.id !== '') userId = parsed.id;
+                    if (parsed.email && parsed.email !== '') memberEmail = parsed.email;
+                    if (parsed.memberId) memberId = parsed.memberId;
+                } catch(e) {}
 
-                                // Format 2: Plain UUID
-                                if (!userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawData)) {
-                                    userId = rawData;
-                                }
-
-                                // Format 3: URL containing userId or register token
-                                if (!userId && rawData.includes('userId')) {
-                                    try { userId = JSON.parse(rawData).userId; } catch(e) {}
-                                }
-
-                                // Use email or memberId as fallback
-                                const lookupId = userId || memberEmail || memberId;
-
-                                if (lookupId) {
-                                    // Stop camera and show profile
-                                    if (this._globalStream) {
-                                        this._globalStream.getTracks().forEach(t => t.stop());
-                                        this._globalStream = null;
-                                    }
-                                    const statusEl2 = document.getElementById('globalQRStatus');
-                                    if (statusEl2) statusEl2.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:#c9a962;"></i> Loading profile...';
-
-                                    showUserProfileFromQR(fullQrData || { userId: userId || memberId, email: memberEmail }).then(ok => {
-                                        if (!ok) {
-                                            if (statusEl2) statusEl2.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#ef4444;"></i> Profile not found';
-                                        }
-                                    }).catch(err => {
-                                        console.error('Profile popup failed:', err);
-                                        if (statusEl2) statusEl2.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#ef4444;"></i> Error: ' + (err.message || 'Failed');
-                                    });
-                                    return; // Stop scanning
-                                }
-
-                                // If not a member QR, try normal check-in
-                                this.globalCheckin(rawData);
-                            }
-                        }
-                    } catch(e) {}
+                // Format 2: Plain UUID
+                if (!userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawData)) {
+                    userId = rawData;
                 }
 
-                requestAnimationFrame(() => this._scanGlobalFrame());
+                // Format 3: URL containing userId or register token
+                if (!userId && rawData.includes('userId')) {
+                    try { userId = JSON.parse(rawData).userId; } catch(e) {}
+                }
+
+                // Use email or memberId as fallback
+                const lookupId = userId || memberEmail || memberId;
+
+                if (lookupId) {
+                    // Stop camera and show profile
+                    if (this._globalStream) {
+                        this._globalStream.getTracks().forEach(t => t.stop());
+                        this._globalStream = null;
+                    }
+                    this._globalTorchOn = false;
+                    this._updateGlobalTorchButton();
+                    const statusEl2 = document.getElementById('globalQRStatus');
+                    if (statusEl2) statusEl2.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:#c9a962;"></i> Loading profile...';
+
+                    showUserProfileFromQR(fullQrData || { userId: userId || memberId, email: memberEmail }).then(ok => {
+                        if (!ok) {
+                            if (statusEl2) statusEl2.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#ef4444;"></i> Profile not found';
+                        }
+                    }).catch(err => {
+                        console.error('Profile popup failed:', err);
+                        if (statusEl2) statusEl2.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#ef4444;"></i> Error: ' + (err.message || 'Failed');
+                    });
+                    return false; // Stop scanning
+                }
+
+                // If not a member QR, try normal check-in
+                this.globalCheckin(rawData);
+                return true;
+            },
+
+            // Flashlight (torch) for the dim Dec 5 ballroom — shown only when the camera
+            // exposes a torch capability; toggles via the MediaStreamTrack torch constraint.
+            _updateGlobalTorchButton() {
+                const btn = document.getElementById('globalQRTorch');
+                if (!btn) return;
+                const has = QRCapture.hasTorch(this._globalStream);
+                btn.style.display = has ? 'flex' : 'none';
+                if (!has) this._globalTorchOn = false;
+                const on = !!this._globalTorchOn;
+                btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                // Force over the theme's !important button gradient so the on/off states read clearly.
+                btn.style.setProperty('background', on ? 'rgba(201,169,98,0.95)' : 'rgba(0,0,0,0.55)', 'important');
+                btn.style.setProperty('color', on ? '#17120f' : '#fff', 'important');
+                btn.style.setProperty('box-shadow', on ? '0 0 0 3px rgba(201,169,98,0.35)' : 'none', 'important');
+            },
+
+            async toggleGlobalTorch() {
+                if (!this._globalStream) return;
+                const next = !this._globalTorchOn;
+                const ok = await QRCapture.setTorch(this._globalStream, next);
+                if (ok) { this._globalTorchOn = next; this._updateGlobalTorchButton(); }
             },
 
             // A scanned event ticket → payment-gated check-in via the unified verifier, rendering the
@@ -24108,6 +24169,7 @@ President, Med&amp;X</textarea>
                 }
                 const modal = document.getElementById('globalQRModal');
                 if (modal) modal.remove();
+                this._globalTorchOn = false;
                 this._globalLastScan = null;
             },
 
@@ -24138,6 +24200,7 @@ President, Med&amp;X</textarea>
                         this._globalStream.getTracks().forEach(t => t.stop());
                         this._globalStream = null;
                     }
+                    this._globalTorchOn = false;
                     if (this._globalScanner) {
                         this._globalScanner.clear().catch(() => {});
                         this._globalScanner = null;
@@ -37068,12 +37131,105 @@ By applying to this program, I give the following consents:
             }
         };
 
+        // ============================================================
+        // QRCapture — the scanner CAPTURE LAYER (decode + torch only).
+        // BarcodeDetector-first (hardware-accelerated, near-instant) with the vendored
+        // jsQR path as an unchanged fallback for Safari / older browsers. This layer only
+        // turns a camera frame into a decoded string; that string is handed to the
+        // existing, FROZEN check-in validation flow (verify endpoint + QR payload format)
+        // completely untouched.
+        // ============================================================
+        const QRCapture = {
+            _detector: undefined, // undefined = not probed, null = unsupported, else a BarcodeDetector
+
+            // Lazily feature-detect a QR-capable BarcodeDetector; cached after the first probe.
+            async _getDetector() {
+                if (this._detector !== undefined) return this._detector;
+                try {
+                    if (typeof window !== 'undefined' && 'BarcodeDetector' in window &&
+                        typeof window.BarcodeDetector.getSupportedFormats === 'function') {
+                        const formats = await window.BarcodeDetector.getSupportedFormats();
+                        if (Array.isArray(formats) && formats.includes('qr_code')) {
+                            this._detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+                            return this._detector;
+                        }
+                    }
+                } catch (e) { /* fall through to the jsQR fallback */ }
+                this._detector = null;
+                return null;
+            },
+
+            // Whether the hardware decoder is available (diagnostics / tests).
+            async isHardwareAvailable() { return (await this._getDetector()) !== null; },
+
+            // Decode one already-drawn frame. `canvas` holds the frame; `ctx` is its 2d
+            // context (used only by the jsQR fallback). Returns the raw decoded string or
+            // null. Pass { forceJsqr:true } to bypass BarcodeDetector (the guaranteed Safari
+            // path, and used by the decode-parity test).
+            async decode(canvas, ctx, opts) {
+                const forceJsqr = !!(opts && opts.forceJsqr);
+                if (!forceJsqr) {
+                    const detector = await this._getDetector();
+                    if (detector) {
+                        try {
+                            const codes = await detector.detect(canvas);
+                            if (codes && codes.length && codes[0].rawValue) return codes[0].rawValue;
+                            return null; // hardware ran cleanly, nothing in this frame
+                        } catch (e) { /* hardware hiccup -> fall back to jsQR for this frame */ }
+                    }
+                }
+                if (typeof jsQR !== 'undefined') {
+                    try {
+                        const c = ctx || canvas.getContext('2d', { willReadFrequently: true });
+                        const img = c.getImageData(0, 0, canvas.width, canvas.height);
+                        const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+                        return (code && code.data) ? code.data : null;
+                    } catch (e) { /* unreadable frame */ }
+                }
+                return null;
+            },
+
+            // ---- Torch / focus helpers (operate on a live MediaStream) ----
+            _videoTrack(stream) {
+                try { return (stream && stream.getVideoTracks && stream.getVideoTracks()[0]) || null; }
+                catch (e) { return null; }
+            },
+            hasTorch(stream) {
+                try {
+                    const track = this._videoTrack(stream);
+                    if (!track || !track.getCapabilities) return false;
+                    const caps = track.getCapabilities();
+                    return !!(caps && caps.torch);
+                } catch (e) { return false; }
+            },
+            async setTorch(stream, on) {
+                const track = this._videoTrack(stream);
+                if (!track || !track.applyConstraints) return false;
+                try { await track.applyConstraints({ advanced: [{ torch: !!on }] }); return true; }
+                catch (e) { return false; }
+            },
+            // Request continuous autofocus where the camera supports it (steadier QR reads
+            // at varying distance). Best-effort, never throws.
+            async applyContinuousFocus(stream) {
+                try {
+                    const track = this._videoTrack(stream);
+                    if (!track || !track.getCapabilities || !track.applyConstraints) return;
+                    const caps = track.getCapabilities();
+                    if (caps && Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
+                        await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+                    }
+                } catch (e) { /* best effort */ }
+            }
+        };
+        if (typeof window !== 'undefined') window.QRCapture = QRCapture;
+
         const EventCheckin = {
             event: null, // 'gala' | 'conference' | 'bridges' | 'donor'
             stream: null,
             lastScan: null,
             lastScanTime: 0,
             markMode: true, // if true, auto-mark checked in on valid scan
+            torchOn: false, // flashlight state for the dim-ballroom torch toggle
 
             open() {
                 this.event = null;
@@ -37091,6 +37247,7 @@ By applying to this program, I give the following consents:
                     this.stream.getTracks().forEach(t => t.stop());
                     this.stream = null;
                 }
+                this.torchOn = false;
             },
 
             renderModal() {
@@ -37135,6 +37292,7 @@ By applying to this program, I give the following consents:
                             <div style="position:relative;background:#000;border-radius:12px;overflow:hidden;aspect-ratio:1;margin-bottom:12px;">
                                 <video id="eventCheckinVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;"></video>
                                 <div style="position:absolute;inset:25%;border:3px solid ${eventColor[sel]};border-radius:12px;pointer-events:none;"></div>
+                                <button type="button" id="eventCheckinTorch" onclick="EventCheckin.toggleTorch()" aria-label="Toggle flashlight" aria-pressed="false" title="Flashlight" style="display:none;position:absolute;top:10px;right:10px;z-index:3;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,0.35);background:rgba(0,0,0,0.55);color:#fff;font-size:16px;cursor:pointer;align-items:center;justify-content:center;"><i class="fas fa-bolt"></i></button>
                             </div>
                             <div style="display:flex;gap:8px;margin-bottom:10px;">
                                 <input id="eventCheckinManual" type="text" placeholder="Or paste regId / email" style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:13px;font-family:monospace;">
@@ -37164,6 +37322,9 @@ By applying to this program, I give the following consents:
                         video.srcObject = this.stream;
                         await video.play();
                     }
+                    QRCapture.applyContinuousFocus(this.stream);
+                    this.torchOn = false;
+                    this.updateTorchButton();
                     this.scanFrame();
                 } catch (err) {
                     Toast.error('Camera access denied — use manual entry below');
@@ -37181,22 +37342,45 @@ By applying to this program, I give the following consents:
                 canvas.height = video.videoHeight || 480;
                 const ctx = canvas.getContext('2d', { willReadFrequently: true });
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                if (typeof jsQR !== 'undefined') {
-                    try {
-                        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                        const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
-                        if (code && code.data) {
-                            const now = Date.now();
-                            if (this.lastScan !== code.data || now - this.lastScanTime > 3000) {
-                                this.lastScan = code.data;
-                                this.lastScanTime = now;
-                                if (navigator.vibrate) navigator.vibrate(180);
-                                this.verifyCode(code.data);
-                            }
+                // CAPTURE LAYER: BarcodeDetector-first, vendored jsQR fallback. The decoded
+                // string flows into the EXISTING, FROZEN verifyCode() path unchanged.
+                QRCapture.decode(canvas, ctx).then(decoded => {
+                    if (decoded) {
+                        const now = Date.now();
+                        if (this.lastScan !== decoded || now - this.lastScanTime > 3000) {
+                            this.lastScan = decoded;
+                            this.lastScanTime = now;
+                            if (navigator.vibrate) navigator.vibrate(180);
+                            this.verifyCode(decoded);
                         }
-                    } catch(e) {}
-                }
-                if (this.stream) setTimeout(() => this.scanFrame(), 250);
+                    }
+                    if (this.stream) setTimeout(() => this.scanFrame(), 250);
+                }).catch(() => {
+                    if (this.stream) setTimeout(() => this.scanFrame(), 250);
+                });
+            },
+
+            // Flashlight (torch) for the dim ballroom — visible only when the camera
+            // exposes a torch capability.
+            updateTorchButton() {
+                const btn = document.getElementById('eventCheckinTorch');
+                if (!btn) return;
+                const has = QRCapture.hasTorch(this.stream);
+                btn.style.display = has ? 'flex' : 'none';
+                if (!has) this.torchOn = false;
+                const on = !!this.torchOn;
+                btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                // Force over the theme's !important button gradient so the on/off states read clearly.
+                btn.style.setProperty('background', on ? 'rgba(201,169,98,0.95)' : 'rgba(0,0,0,0.55)', 'important');
+                btn.style.setProperty('color', on ? '#17120f' : '#fff', 'important');
+                btn.style.setProperty('box-shadow', on ? '0 0 0 3px rgba(201,169,98,0.35)' : 'none', 'important');
+            },
+
+            async toggleTorch() {
+                if (!this.stream) return;
+                const next = !this.torchOn;
+                const ok = await QRCapture.setTorch(this.stream, next);
+                if (ok) { this.torchOn = next; this.updateTorchButton(); }
             },
 
             verifyManual() {
@@ -37438,6 +37622,188 @@ By applying to this program, I give the following consents:
         // array so projects can be added or removed later, and each card is individually
         // show/hide-able and persisted via the shared widget_ localStorage pattern.
         // =========================================
+        // =========================================
+        // CONTENT COMPLETION CHECKLIST (admin home card)
+        // ONE tracked list of the placeholder content the owner still owes across the website +
+        // portal, so the platform visibly finishes itself. Admin surface, EN only. Talks to
+        // /api/admin/content-checklist (list / add / update). Open count badges the card header and
+        // is also carried into the weekly pulse email server-side.
+        // =========================================
+        const ContentChecklist = {
+            items: [],
+            addOpen: false,
+            editingNotes: null,
+
+            areaMeta(a) {
+                return ({
+                    'website': { label: 'Website', color: '#c14b52' },
+                    'member-portal': { label: 'Member portal', color: '#c9a962' },
+                    'admin': { label: 'Admin', color: '#6b7280' }
+                })[a] || { label: a || 'Website', color: '#6b7280' };
+            },
+
+            counts() {
+                const open = this.items.filter(i => i.status !== 'done').length;
+                return { open, done: this.items.length - open, total: this.items.length };
+            },
+
+            updateBadge() {
+                const b = document.getElementById('contentChecklistBadge');
+                if (!b) return;
+                const open = this.counts().open;
+                if (open > 0) { b.textContent = open; b.style.display = 'inline-block'; }
+                else b.style.display = 'none';
+            },
+
+            async load() {
+                const body = document.getElementById('contentChecklistBody');
+                if (!body) return;
+                try {
+                    const data = await App.api('/api/admin/content-checklist');
+                    this.items = data.items || [];
+                    this.addOpen = false;
+                    this.editingNotes = null;
+                    this.render();
+                } catch (e) {
+                    console.error('Content checklist load failed:', e);
+                    body.innerHTML = '<div style="color:var(--text-muted); font-size:13px; padding:2px;">Content checklist unavailable right now.</div>';
+                }
+            },
+
+            render() {
+                const body = document.getElementById('contentChecklistBody');
+                if (!body) return;
+                const esc = (v) => (typeof escapeHtml === 'function' ? escapeHtml(v) : (v == null ? '' : String(v)));
+                const c = this.counts();
+                const openItems = this.items.filter(i => i.status !== 'done');
+                const doneItems = this.items.filter(i => i.status === 'done');
+
+                const summary = c.open > 0
+                    ? `<strong style="color:var(--text-primary);">${c.open}</strong> item${c.open === 1 ? '' : 's'} still to fill${c.done ? ` &middot; <span style="color:var(--text-muted);">${c.done} done</span>` : ''}`
+                    : (c.total ? 'All tracked content is in.' : 'No items yet.');
+
+                const itemRow = (it) => {
+                    const m = this.areaMeta(it.area);
+                    const editing = this.editingNotes === it.id;
+                    const notesBlock = editing
+                        ? `<div style="margin-top:8px;">
+                                <textarea id="ccNotes_${it.id}" rows="2" style="width:100%; box-sizing:border-box; background:var(--bg-tertiary); border:1px solid var(--border); color:var(--text-primary); border-radius:8px; padding:8px 10px; font-size:12.5px; font-family:inherit; resize:vertical;" placeholder="Notes">${esc(it.notes || '')}</textarea>
+                                <div style="margin-top:6px; display:flex; gap:6px;">
+                                    <button class="btn btn-secondary" style="font-size:11px; padding:4px 10px;" onclick="ContentChecklist.saveNotes('${it.id}')"><i class="fas fa-check"></i> Save</button>
+                                    <button class="btn btn-secondary" style="font-size:11px; padding:4px 10px;" onclick="ContentChecklist.cancelNotes()">Cancel</button>
+                                </div>
+                            </div>`
+                        : (it.notes ? `<div style="margin-top:4px; color:var(--text-muted); font-size:12.5px; line-height:1.5;">${esc(it.notes)}</div>` : '');
+                    return `<div style="display:flex; gap:12px; align-items:flex-start; padding:12px 2px; border-top:1px solid var(--border);">
+                        <button title="Mark as done" onclick="ContentChecklist.toggle('${it.id}', true)" style="flex-shrink:0; margin-top:1px; width:22px; height:22px; border-radius:50%; border:2px solid var(--border); background:transparent; cursor:pointer;"></button>
+                        <div style="min-width:0; flex:1;">
+                            <div style="font-size:13.5px; font-weight:600; color:var(--text-primary); line-height:1.4;">${esc(it.title)}</div>
+                            <div style="margin-top:5px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                <span style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:${m.color}; background:${m.color}22; border-radius:6px; padding:2px 7px;">${esc(m.label)}</span>
+                                ${it.location_hint ? `<span style="font-size:12px; color:var(--text-muted);">${esc(it.location_hint)}</span>` : ''}
+                            </div>
+                            ${notesBlock}
+                        </div>
+                        ${editing ? '' : `<button class="btn btn-secondary" style="flex-shrink:0; font-size:11px; padding:4px 10px;" onclick="ContentChecklist.editNotes('${it.id}')"><i class="fas fa-pen"></i> Notes</button>`}
+                    </div>`;
+                };
+
+                const doneRow = (it) => {
+                    const m = this.areaMeta(it.area);
+                    return `<div style="display:flex; gap:12px; align-items:flex-start; padding:10px 2px; border-top:1px solid var(--border);">
+                        <button title="Reopen" onclick="ContentChecklist.toggle('${it.id}', false)" style="flex-shrink:0; margin-top:1px; width:22px; height:22px; border-radius:50%; border:2px solid #16a34a; background:#16a34a; color:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;"><i class="fas fa-check" style="font-size:11px;"></i></button>
+                        <div style="min-width:0; flex:1;">
+                            <div style="font-size:13px; font-weight:600; color:var(--text-muted); text-decoration:line-through; line-height:1.4;">${esc(it.title)}</div>
+                            <div style="margin-top:3px; font-size:11px; color:var(--text-muted);">${esc(m.label)}${it.done_by ? ' &middot; ' + esc(it.done_by) : ''}</div>
+                        </div>
+                    </div>`;
+                };
+
+                const addForm = this.addOpen
+                    ? `<div style="margin-top:12px; padding:14px; background:var(--bg-tertiary); border:1px solid var(--border); border-radius:10px;">
+                            <input id="ccAddTitle" type="text" placeholder="What content is still owed?" style="width:100%; box-sizing:border-box; background:var(--bg-secondary); border:1px solid var(--border); color:var(--text-primary); border-radius:8px; padding:9px 11px; font-size:13px; font-family:inherit;">
+                            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                                <select id="ccAddArea" style="background:var(--bg-secondary); border:1px solid var(--border); color:var(--text-primary); border-radius:8px; padding:9px 11px; font-size:13px; font-family:inherit;">
+                                    <option value="website">Website</option>
+                                    <option value="member-portal">Member portal</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                                <input id="ccAddHint" type="text" placeholder="Where (file / page / section)" style="flex:1; min-width:180px; box-sizing:border-box; background:var(--bg-secondary); border:1px solid var(--border); color:var(--text-primary); border-radius:8px; padding:9px 11px; font-size:13px; font-family:inherit;">
+                            </div>
+                            <textarea id="ccAddNotes" rows="2" placeholder="Notes (optional)" style="width:100%; box-sizing:border-box; margin-top:8px; background:var(--bg-secondary); border:1px solid var(--border); color:var(--text-primary); border-radius:8px; padding:9px 11px; font-size:13px; font-family:inherit; resize:vertical;"></textarea>
+                            <div style="margin-top:10px; display:flex; gap:8px;">
+                                <button class="btn btn-primary" style="font-size:12px; padding:7px 14px;" onclick="ContentChecklist.submitAdd()"><i class="fas fa-plus"></i> Add item</button>
+                                <button class="btn btn-secondary" style="font-size:12px; padding:7px 14px;" onclick="ContentChecklist.toggleAdd(false)">Cancel</button>
+                            </div>
+                        </div>`
+                    : `<button class="btn btn-secondary" style="margin-top:12px; font-size:12px; padding:7px 14px;" onclick="ContentChecklist.toggleAdd(true)"><i class="fas fa-plus"></i> Add item</button>`;
+
+                let html = `<div style="font-size:13px; color:var(--text-secondary); margin-bottom:2px;">${summary}</div>`;
+                if (openItems.length) html += `<div>${openItems.map(itemRow).join('')}</div>`;
+                else if (c.total) html += `<div style="padding:14px 2px; color:var(--text-muted); font-size:13px;"><i class="fas fa-circle-check" style="color:#16a34a; margin-right:6px;"></i>Every tracked placeholder has been replaced.</div>`;
+                html += addForm;
+                if (doneItems.length) {
+                    html += `<details style="margin-top:14px;">
+                        <summary style="cursor:pointer; font-size:12px; font-weight:600; color:var(--text-muted); padding:6px 0;">Done (${doneItems.length})</summary>
+                        <div>${doneItems.map(doneRow).join('')}</div>
+                    </details>`;
+                }
+                body.innerHTML = html;
+                this.updateBadge();
+            },
+
+            toggleAdd(open) {
+                this.addOpen = !!open;
+                this.render();
+                if (open) { const el = document.getElementById('ccAddTitle'); if (el) el.focus(); }
+            },
+
+            async submitAdd() {
+                const title = (document.getElementById('ccAddTitle')?.value || '').trim();
+                if (!title) { Toast.error('Add a short title first.'); return; }
+                const area = document.getElementById('ccAddArea')?.value || 'website';
+                const location_hint = (document.getElementById('ccAddHint')?.value || '').trim();
+                const notes = (document.getElementById('ccAddNotes')?.value || '').trim();
+                try {
+                    const r = await App.api('/api/admin/content-checklist', { method: 'POST', body: JSON.stringify({ title, area, location_hint, notes }) });
+                    if (r && r.item) this.items.unshift(r.item);
+                    this.addOpen = false;
+                    this.render();
+                    Toast.success('Added to the content checklist.');
+                } catch (e) { Toast.error(e.message || 'Could not add the item.'); }
+            },
+
+            async toggle(id, done) {
+                try {
+                    const r = await App.api('/api/admin/content-checklist/' + id, { method: 'POST', body: JSON.stringify({ status: done ? 'done' : 'open' }) });
+                    const idx = this.items.findIndex(i => i.id === id);
+                    if (idx >= 0 && r && r.item) this.items[idx] = r.item;
+                    if (this.editingNotes === id) this.editingNotes = null;
+                    this.render();
+                } catch (e) { Toast.error(e.message || 'Could not update the item.'); }
+            },
+
+            editNotes(id) {
+                this.editingNotes = id;
+                this.render();
+                const el = document.getElementById('ccNotes_' + id);
+                if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+            },
+            cancelNotes() { this.editingNotes = null; this.render(); },
+
+            async saveNotes(id) {
+                const notes = (document.getElementById('ccNotes_' + id)?.value || '').trim();
+                try {
+                    const r = await App.api('/api/admin/content-checklist/' + id, { method: 'POST', body: JSON.stringify({ notes }) });
+                    const idx = this.items.findIndex(i => i.id === id);
+                    if (idx >= 0 && r && r.item) this.items[idx] = r.item;
+                    this.editingNotes = null;
+                    this.render();
+                    Toast.success('Notes saved.');
+                } catch (e) { Toast.error(e.message || 'Could not save notes.'); }
+            }
+        };
+
         const LiveOverview = {
             initialized: false,
             refreshTimer: null,

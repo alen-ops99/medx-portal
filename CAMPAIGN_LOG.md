@@ -213,3 +213,90 @@ The A2 log recorded the resolver keyed on `submission_source='accelerator_applic
 - Portal reveal: NeuroSpark (letter sent) flips to Accepted with the warm EN + HR copy; RetinaAtlas (waitlisted) and GutGuard (declined) stay masked at "Under review" until their letters send.
 - Funnel API == SQL (drafts 0 / submitted 3 / assigned 3 / fully scored 3 / decided 3 = 1+1+1 / letters sent 1). Pulse email section shows live numbers (submitted 3 / awaiting 0 / decided 3). Handbook section 12 renders desktop + mobile, TOC updated.
 - Cleanup: manual pulse test batch removed. e2e.* review activity (3 decided applications, scores, 1 sent decision letter) left in place as live demo evidence (A2 precedent). No tester junk. FROZEN Stripe/checkout/calculateTotal/registrations/QR untouched. node --check both OK, check-schema-sync.sh exit 0. No git commits.
+
+
+## 2026-07-06 — Admin scanner CAPTURE LAYER upgrade (BarcodeDetector + torch + continuous focus)
+
+Scope: `admin-portal/frontend/index.html` ONLY. No server.js, no schema, no user-portal edits. FROZEN validation flow (`/api/admin/checkin/verify`, QR payload format, QR generation) untouched — only the camera/decode capture layer changed.
+
+What changed
+- New shared `QRCapture` capture-layer helper (window.QRCapture) used by BOTH admin scanners (the global Quick Check-in FAB scanner and the EventCheckin modal):
+  - `decode(canvas, ctx, opts)` — BarcodeDetector-first (feature-detected `window.BarcodeDetector` + `getSupportedFormats()` includes `qr_code`, cached), near-instant hardware decode; falls back to the vendored jsQR path UNCHANGED on Safari/older or on a per-frame hardware hiccup. `{forceJsqr:true}` bypasses BarcodeDetector (guaranteed Safari path + test hook). Returns the raw decoded string, which feeds the existing frozen validation branches verbatim.
+  - Torch: `hasTorch()/setTorch()` via `MediaStreamTrack.getCapabilities().torch` + `applyConstraints({advanced:[{torch}]})`; `applyContinuousFocus()` requests `focusMode:'continuous'` where supported.
+- Both scan loops (`App._scanGlobalFrame`, `EventCheckin.scanFrame`) rewritten to be async around `QRCapture.decode`; the global decode-handling branching was extracted verbatim into `App._onGlobalDecoded` (member ticket / profile lookup / plain check-in) with byte-identical behavior — only the decode SOURCE changed.
+- Flashlight button added to both scanner UIs (`#globalQRTorch`, `#eventCheckinTorch`): hidden when the camera exposes no torch capability; visible OFF (dark) vs ON (gold, aria-pressed, glow) forced with inline `!important` to beat the theme's maroon button gradient. Admin surface = EN only (no i18n needed).
+- Camera start now applies continuous autofocus where available.
+- Offline guest-list cache + enrich call behavior left exactly as-is.
+
+Verification (headless harness /tmp/medx-pw)
+- Unit-drove the decode dispatch on a known QR image: forced-jsQR, REAL platform BarcodeDetector (available in harness Chromium), and a mocked BarcodeDetector branch all returned the IDENTICAL payload string; forced-jsQR still bypasses BarcodeDetector while one is present.
+- Validation-call parity: feeding each path's payload into the frozen `verifyCode` produced a byte-identical POST to `/api/admin/checkin/verify` (same URL + body).
+- Torch button states rendered desktop 1440x900 + mobile 390x844: hidden (no capability) / OFF (dark) / ON (gold) on both scanners.
+- Existing offline harness (scanner_offline.js) still caches the roster (47), queues offline, matches the cached guest, and flushes on reconnect — unchanged.
+- Zero app-origin console/page errors (one environmental `fonts.gstatic.com` woff2 failure from the no-network sandbox only).
+- `node --check` on the full App/QRCapture/EventCheckin script block: OK. `scripts/check-schema-sync.sh`: exit 0.
+- DB cleanup: reset the one `petra.uitest@example.com` check-in flag flipped by the offline reconnect-flush test back to checked_in=0. No other test rows created (e2e.* accelerator rows untouched).
+
+## 2026-07-06 — Push-notification CLIENT loop + app-icon badge (user-portal)
+
+Wired the missing web-push CLIENT side (server side — VAPID, /api/push/vapid-key, /api/push/subscribe, /api/push/unsubscribe, push_subscriptions, push_outbox drainer, SW push handler — already existed and was dormant because the frontend had ZERO pushManager.subscribe calls). No server.js changes, no schema changes.
+
+Files touched (user-portal ONLY):
+- user-portal/frontend/index.html — new `MedXPush` module + wiring (12 python-heredoc unique-string edits, each count==1).
+- user-portal/frontend/sw.js — CACHE_NAME v7→v8, JSON push payload parse, focus-existing-tab notificationclick, and a `pushsubscriptionchange` re-subscribe handler.
+
+What `MedXPush` does:
+- VAPID key: reuses the existing `GET /api/push/vapid-key` (no new endpoint added).
+- subscribe(): permission prompt ONLY on explicit user action -> pushManager.subscribe(userVisibleOnly, applicationServerKey) -> POST /api/push/subscribe with the member token. Sets `medx_push_enabled`.
+- unsubscribe(): sub.unsubscribe() + DELETE /api/push/unsubscribe (by endpoint).
+- Permission denied -> respectful copy, no re-prompt, no nagging.
+- Expired/changed subs -> SW `pushsubscriptionchange` re-subscribes and postMessages the page to persist with auth; page also runs `ensureSubscribed()` on load (covers the app-closed case).
+- App badge: navigator.setAppBadge/clearAppBadge mirrored to the unread count inside NotificationSystem.render() (set on change, cleared at 0 and on logout). Guarded for unsupported browsers.
+
+Enable moments (never on first paint):
+- The old first-paint 5s auto-banner was removed (checkPermissionPrompt now only reconciles the toggle).
+- A tasteful bilingual banner is offered ONCE right after onboarding completes (WelcomeTour.complete -> MedXPush.offerAfterOnboarding).
+- A proper toggle in Settings > Notifications ("Notifications on this device") subscribes/unsubscribes and reflects live state (on / off / blocked / unsupported / iOS-install).
+- Bilingual EN+HR via MedXI18n.extend (push.* + set.push*), formal Vi, correct diacritics, live re-render on medx:localechange. No semicolons in user copy. Word "honest" not used.
+
+iOS PWA reality (documented per requirement): iOS/iPadOS Safari only delivers Web Push from a PWA that has been Added to the Home Screen and opened FROM the Home Screen, and only on an explicit user gesture. `iosNeedsInstall()` = isIOS && !isStandalone. When true, the code shows guidance copy ("add Med&X to your Home Screen first, then open it from there") instead of a broken permission prompt — in the Settings toggle, in the onboarding banner, and in requestPermission. Once installed + opened standalone, the normal explicit-tap subscribe path runs.
+
+Quiet-profile rule: push is a neutral utility, NOT a points/gamification surface, so it is correctly ungated. Quiet (gala/forum-only) members never run the onboarding tour, so they never see the post-onboarding banner, but they can enable push from Settings > Notifications. No quiet gating added or needed.
+
+Verification (headless Chromium, /tmp/medx-pw harness, desktop 1440x900 + mobile 390x844):
+- Client subscribe path proven END TO END against the live server: MedXPush.subscribe() -> real POST /api/push/subscribe -> real row in push_subscriptions (user_id = tester). Headless Chromium disables the Notifications API and cannot reach FCM, so only the browser push primitive (pushManager.subscribe) + Notification.permission were shimmed; the VAPID fetch, the authed POST, the DB write, localStorage flag were all real.
+- Unsubscribe path: real DELETE /api/push/unsubscribe.
+- App badge: NotificationSystem.render() at unread=4 -> setAppBadge(4); at unread=0 -> clearAppBadge (BADGE_CALLS ["set:4","clear"]).
+- SERVER send attempt proven: seeded a real crypto subscription pointing at a local HTTPS mock, enqueued a push_outbox row; the live server's 45s drainPushOutbox delivered a real aes128gcm-encrypted POST (TTL 2419200, 199-byte body), marked the outbox row sent_count=1, and logged `[Push] Broadcast "E2E push send test" to 1 device(s)` with no server error. (Real device delivery via FCM cannot be proven headless/offline.)
+- Bilingual: HR live re-render verified (card "Push obavijesti", row "Obavijesti na ovom uređaju", banner "Ostanite u tijeku" / "Uključi" / "Ne sada").
+- Zero app-origin console/page errors from the feature (the only console line is a pre-existing anonymous-load `401 GET /api/project-status`, present on baseline before this change; PAGE_ERRORS []).
+- node --check sw.js: OK. server.js untouched (node --check OK). scripts/check-schema-sync.sh: exit 0.
+- DB cleanup: all E2E push_subscriptions + push_outbox test rows deleted (0 remain). Accelerator e2e.* rows untouched. Screenshots read then deleted.
+
+OWNER / prod env vars needed on Render (user-portal service) to make push LIVE:
+- VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY (generate once with `node -e "console.log(require('web-push').generateVAPIDKeys())"`; keep the private key secret), VAPID_SUBJECT (e.g. mailto:accelerator@medx.hr). Without these the server logs "[Push] VAPID keys not set" and everything degrades gracefully (client shows nothing broken; getVapidKey returns '' and the toggle simply can't enable). NOTE: the local dev shared .env already carries dev VAPID keys — prod MUST use its own dedicated keys, and the SAME public key must be what /api/push/vapid-key serves on prod. Admin portal needs NO VAPID (it only enqueues to push_outbox; the user portal drains + sends).
+
+
+## 2026-07-06 — Content completion checklist (ADMIN portal)
+
+Scope: `admin-portal/backend/server.js` + `admin-portal/frontend/index.html` ONLY. No user-portal edits, no schema-mirror edits. FROZEN Stripe/checkout/calculateTotal/registrations/QR generation + scanner validation untouched.
+
+One tracked list of the placeholder content the owner still owes across the website + portal, so the platform visibly finishes itself as real material arrives.
+
+### Backend (admin server.js)
+- New admin-owned table `content_checklist` (id, title, area, location_hint, status open|done, notes, created_at, updated_at, done_at, done_by) + status index. Guarded `CREATE TABLE IF NOT EXISTS` placed AFTER the `SCHEMA-MIRROR:END` marker (owned solely by the admin server — the user portal never reads or writes it), so the mirror block stays byte-identical.
+- Seed ONCE with an INSERT-if-empty guard (owner edits + check-offs survive reboots) — the 10 known owed items: gala performer/musician names, Plexus venue + hotel name, OIB on the impressum, sponsor-page testimonials, plexus.html organizing committee (the 5 invented example physicians), partner wall names, real gala photos where stock remains, real speaker quotes, Netlify form notification emails, donation trust block details. Each carries an area (website / member-portal / admin) + a location_hint (file / page / section).
+- Endpoints (auth + adminOnly): `GET /api/admin/content-checklist` (items + live counts open/done/total), `POST /api/admin/content-checklist` (add item, title required, area validated), `POST /api/admin/content-checklist/:id` (check-off/reopen — stamps/clears done_at + done_by, plus notes/title/area/location_hint edits). Every write logs audit + saveDb.
+- Weekly pulse: additive `model.contentChecklistOpen` (live count) + one new "Content to fill" section with a single `pulseListRow` "Items still to replace" -> open count, following the existing pulse-line pattern.
+
+### Frontend (admin index.html)
+- New "Content to fill" `.card` in the admin home (dashboard), after Site analytics — open-count badge in the header, per-item check-off circle, area chip + location_hint + notes, an inline "Add item" form (title / area select / location hint / notes), inline notes editor per item, and a collapsible "Done (N)" section with reopen. Admin surface, EN only.
+- New `ContentChecklist` JS module (list/add/toggle/edit-notes, live badge). Loaded from `loadPortalStats()` alongside the Action Center, and refreshable from the card header.
+
+### Verified E2E (real servers :3001/:3002, shared DB, headless harness desktop 1440x900 + mobile 390x844)
+- Seed present exactly once = 10 items; after a DOUBLE restart of both servers the count stayed 10 and no re-seed fired (INSERT-if-empty guard holds).
+- API: add -> new row; check-off stamps status=done + done_by + done_at; reopen clears them; notes edit persists; counts recompute (open 10 / done 1 / total 11 mid-test).
+- Weekly pulse (manual force) render carries the "Content to fill" section and "Items still to replace" -> 10 (the live open count). Manual pulse test batch + its drip_log marker deleted; 6 pre-existing cancelled pulse rows left untouched.
+- UI (desktop + mobile): card renders clean, badge shows 10, check-off flips badge 10->9 and reopen 9->10 live, add form + inline notes editor + Done collapse all render. Zero console/page errors on every run.
+- DB cleanup: removed the added E2E item, restored the one edited seed note, removed all content_checklist audit rows created by testing. Final state 10 open / 0 done. e2e.* accelerator rows untouched.
+- `node --check` admin + user server.js: OK. `scripts/check-schema-sync.sh`: exit 0 (435 lines, byte-identical). No git add/commit.

@@ -10188,6 +10188,59 @@ async function submitReset(e){
         } catch (e) { res.status(500).json({ error: 'Could not save your preference.' }); }
     });
 
+    // ===== Founder welcome (WARMTH PACK) — a one-time note from the founder =====
+    // Shown once, right after a member finishes onboarding. Seen-state persists in the existing
+    // dashboard_preferences table (section='home', card_id='founder-welcome'), so the note never
+    // returns on any device. No schema change and no frozen-flow touch — same pattern as the
+    // profile-nudge dismissal above.
+    app.get('/api/member/founder-welcome', auth, (req, res) => {
+        try {
+            const pref = query.get(`SELECT is_visible FROM dashboard_preferences
+                WHERE user_id = ? AND section = 'home' AND card_id = 'founder-welcome'`, [req.user.id]);
+            const seen = pref && Number(pref.is_visible) === 0;
+            res.json({ show: !seen });
+        } catch (e) { res.json({ show: false }); }
+    });
+    app.post('/api/member/founder-welcome/seen', auth, (req, res) => {
+        try {
+            const existing = query.get(`SELECT id FROM dashboard_preferences
+                WHERE user_id = ? AND section = 'home' AND card_id = 'founder-welcome'`, [req.user.id]);
+            if (existing) {
+                db.run('UPDATE dashboard_preferences SET is_visible = 0 WHERE id = ?', [existing.id]);
+            } else {
+                db.run(`INSERT INTO dashboard_preferences (id, user_id, section, card_id, is_visible)
+                    VALUES (?, ?, 'home', 'founder-welcome', 0)`, [uuidv4(), req.user.id]);
+            }
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: 'Could not save your preference.' }); }
+    });
+
+    // ===== Giving / supporter recognition (WARMTH PACK) — read-only over real giving signals =====
+    // A member is a "supporter" when they have a real giving purchase on record: a Plexus Donor
+    // Night seat (bridges_registrations, matched by email) that is paid or carries an amount. This
+    // NEVER touches Stripe or any frozen flow — it only READS the registration record. Fail-closed
+    // to is_supporter=false on any gap or error so nothing is ever implied without a real signal.
+    app.get('/api/member/giving', auth, (req, res) => {
+        try {
+            const me = query.get('SELECT email FROM users WHERE id = ?', [req.user.id]);
+            const email = me && me.email ? String(me.email).trim().toLowerCase() : '';
+            if (!email) return res.json({ is_supporter: false, count: 0, total: 0, first_year: '' });
+            const donorEvt = query.get("SELECT id FROM bridges_events WHERE slug = 'donor-night'")
+                          || query.get("SELECT id FROM bridges_events WHERE name = 'Plexus Donor Night'");
+            if (!donorEvt) return res.json({ is_supporter: false, count: 0, total: 0, first_year: '' });
+            const rows = query.all(`SELECT amount_paid, payment_status, status, registered_at
+                FROM bridges_registrations
+                WHERE event_id = ? AND lower(email) = ? AND COALESCE(status,'') <> 'cancelled'`, [donorEvt.id, email]);
+            const giving = rows.filter(r => r.payment_status === 'paid' || (r.amount_paid != null && Number(r.amount_paid) > 0));
+            const count = giving.length;
+            const total = giving.reduce((s, r) => s + (Number(r.amount_paid) || 0), 0);
+            let firstYear = '';
+            giving.forEach(r => { const y = String(r.registered_at || '').slice(0, 4); if (y && (!firstYear || y < firstYear)) firstYear = y; });
+            res.json({ is_supporter: count > 0, count, total, first_year: firstYear });
+        } catch (e) { res.json({ is_supporter: false, count: 0, total: 0, first_year: '' }); }
+    });
+
     // ===== i18n locale (cluster HR1) — additive, frozen-safe =====
     // GET /api/me/locale — the signed-in member's saved portal language ('en'|'hr'|null).
     // Lets a fresh device adopt the profile's locale before the first toggle.

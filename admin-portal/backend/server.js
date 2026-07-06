@@ -4415,6 +4415,56 @@ async function initializeApp() {
         updated_at TEXT DEFAULT (datetime('now'))
     )`);
 
+    // ====================== CONTENT COMPLETION CHECKLIST (ADMIN-ONLY) ======================
+    // ONE tracked list of the placeholder content still owed across the website + portal, so the
+    // platform visibly finishes itself as real material arrives. Admin-owned: created ONLY here (the
+    // user portal never reads or writes it) and deliberately OUTSIDE the SCHEMA-MIRROR block. status
+    // walks open -> done; done_at / done_by stamp the check-off. area is one of website /
+    // member-portal / admin and location_hint points at the file/page/section that carries the
+    // placeholder.
+    db.run(`CREATE TABLE IF NOT EXISTS content_checklist (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        area TEXT DEFAULT 'website',
+        location_hint TEXT,
+        status TEXT DEFAULT 'open',
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        done_at TEXT,
+        done_by TEXT
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_content_checklist_status ON content_checklist(status)`);
+    // Seed the known owed items ONCE (INSERT-if-empty guard so the owner's later edits and check-offs
+    // are never clobbered by a reboot). Each row names the area + the file/page/section that holds
+    // the placeholder. No semicolons in the human copy by house rule.
+    try {
+        const _ccSeeded = query.get("SELECT COUNT(*) AS c FROM content_checklist");
+        if (!_ccSeeded || !_ccSeeded.c) {
+            // [title, area, location_hint, notes]
+            const ccSeeds = [
+                ['Gala performers and musicians — real names', 'website', 'gala pages (gala-plexus-dec2026) — performers / entertainment section', 'Replace the placeholder performer and musician names with the confirmed gala lineup.'],
+                ['Plexus venue and partner hotel name', 'website', 'plexus.html — venue and accommodation section', 'Publish the real conference venue and the partner hotel name once confirmed.'],
+                ['OIB on the website impressum', 'website', 'impressum / legal footer', 'Add the real OIB (organization tax number) to the impressum.'],
+                ['Sponsor page real testimonials', 'website', 'sponsors page — testimonials block', 'Swap the placeholder testimonials for real sponsor and partner quotes.'],
+                ['Plexus organizing committee real names', 'website', 'plexus.html — organizing committee (currently 5 invented example physicians)', 'Replace the 5 example physicians with the real organizing committee members.'],
+                ['Partner wall real names', 'website', 'partners / partner wall section', 'Replace the placeholder partner names with the confirmed partners.'],
+                ['Real gala photos where stock remains', 'website', 'gala pages — hero and gallery images', 'Replace the remaining stock photography with real event photos.'],
+                ['Real speaker quotes', 'website', 'speakers section', 'Add confirmed speaker quotes in place of the placeholders.'],
+                ['Netlify form notification emails', 'admin', 'Netlify — form notifications (owner setting)', 'Set the recipient emails for the website contact and signup form notifications.'],
+                ['Donation trust block details', 'member-portal', 'donation / donor page — trust and transparency block', 'Fill the donation trust block with the real bank, registration and transparency details.']
+            ];
+            ccSeeds.forEach((s2) => {
+                db.run(`INSERT INTO content_checklist (id, title, area, location_hint, status, notes, created_at, updated_at)
+                        VALUES (?,?,?,?,'open',?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
+                    [require('crypto').randomUUID(), s2[0], s2[1], s2[2], s2[3]]);
+            });
+            saveDb();
+            console.log('[content-checklist] seeded ' + ccSeeds.length + ' owed content items');
+        }
+    } catch (e) { console.error('[content-checklist] seed', e.message); }
+    // ====================== END CONTENT COMPLETION CHECKLIST schema ======================
+
     // ====================== ADMIN TEAM CHAT (cluster) schema ======================
     // Internal team chat lives ONLY in the admin portal, so all of this is deliberately
     // OUTSIDE the SCHEMA-MIRROR block. It reuses the existing chat_channels / chat_messages /
@@ -18596,6 +18646,8 @@ By applying to this program, I provide the following consents:
         };
         // Member-initiated guest passes brought this week (colleague invites).
         model.guestPasses = num("SELECT COUNT(*) AS c FROM guest_passes WHERE created_at >= datetime('now','-7 days') AND status <> 'revoked'");
+        // Content completion checklist — placeholders still owed across the site + portal (open items).
+        model.contentChecklistOpen = num("SELECT COUNT(*) AS c FROM content_checklist WHERE status = 'open'");
         // Post-event survey pulse — only events that actually have a survey out (invited > 0).
         try { model.surveys = Object.keys(SURVEY_EVENTS).map((ek) => surveyResults(ek)).filter((s) => s && s.supported && s.invited > 0); } catch (e) { model.surveys = []; }
         return model;
@@ -18668,6 +18720,8 @@ By applying to this program, I provide the following consents:
                 parts.push(pulseListRow(s.label, right, accent));
             });
         }
+        parts.push(digestSectionHead('Content to fill', 'Placeholders still owed across the site and portal', accent));
+        parts.push(pulseListRow('Items still to replace', model.contentChecklistOpen || 0, accent));
         parts.push(digestSectionHead('Newsletter', 'Subscriber growth', accent));
         parts.push(`<p style="margin:0 0 6px;color:#334155;font-size:15px;line-height:1.7;"><strong>${model.subsTotal || 0}</strong> active subscriber${(model.subsTotal || 0) === 1 ? '' : 's'}, <strong>${model.subsNew || 0}</strong> new this week.</p>`);
         parts.push(`<div style="margin:26px 0 4px;text-align:center;"><a href="${nagEscape(ADMIN_PORTAL_URL)}" style="display:inline-block;background:${crimson};color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 26px;border-radius:10px;font-family:Arial,Helvetica,sans-serif;">Open the admin dashboard &rarr;</a></div>`);
@@ -28560,6 +28614,87 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             if (d.recipients > 0) logAudit(req, 'nag.digest', `${d.recipients} recipient(s)${d.reused ? ' (reused today\'s batch)' : ''}`);
             res.json({ success: true, ...d });
         } catch (e) { console.error('[nag] digest', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ============ CONTENT COMPLETION CHECKLIST (ADMIN-ONLY) ============
+    // ONE tracked list of the placeholder content the owner still owes across the website + portal.
+    // Admin-only surface. GET lists items + live counts; POST adds an item; POST /:id updates
+    // status (check-off / reopen), notes or title. Reads live from content_checklist (seeded once,
+    // owner edits survive reboots).
+    const CC_AREAS = ['website', 'member-portal', 'admin'];
+    app.get('/api/admin/content-checklist', auth, adminOnly, (req, res) => {
+        try {
+            const items = query.all("SELECT * FROM content_checklist ORDER BY (status='done'), COALESCE(done_at, updated_at) DESC, created_at ASC");
+            const counts = {
+                open: query.get("SELECT COUNT(*) AS c FROM content_checklist WHERE status = 'open'")?.c || 0,
+                done: query.get("SELECT COUNT(*) AS c FROM content_checklist WHERE status = 'done'")?.c || 0,
+                total: query.get("SELECT COUNT(*) AS c FROM content_checklist")?.c || 0
+            };
+            res.json({ items, counts });
+        } catch (e) { console.error('[content-checklist] list', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Add a new owed item. title required; area defaults to website; location_hint + notes optional.
+    app.post('/api/admin/content-checklist', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const title = String(b.title || '').trim();
+            if (!title) return res.status(400).json({ error: 'A short title is required.' });
+            let area = String(b.area || 'website').trim();
+            if (!CC_AREAS.includes(area)) area = 'website';
+            const location_hint = b.location_hint != null ? String(b.location_hint).trim() : null;
+            const notes = b.notes != null ? String(b.notes).trim() : null;
+            const id = require('crypto').randomUUID();
+            db.run(`INSERT INTO content_checklist (id, title, area, location_hint, status, notes, created_at, updated_at)
+                    VALUES (?,?,?,?,'open',?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
+                [id, title, area, location_hint, notes]);
+            saveDb();
+            logAudit(req, 'content_checklist.add', `${area} — ${title}`);
+            const item = query.get("SELECT * FROM content_checklist WHERE id = ?", [id]);
+            res.json({ success: true, item });
+        } catch (e) { console.error('[content-checklist] add', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Update an item: status (open/done check-off), notes, title, area, location_hint. Only the
+    // fields present in the body are touched. Checking off stamps done_at + done_by; reopening clears them.
+    app.post('/api/admin/content-checklist/:id', auth, adminOnly, (req, res) => {
+        try {
+            const item = query.get("SELECT * FROM content_checklist WHERE id = ?", [req.params.id]);
+            if (!item) return res.status(404).json({ error: 'Item not found' });
+            const b = req.body || {};
+            const sets = [], vals = [];
+            if (b.status !== undefined) {
+                const st = (b.status === 'done') ? 'done' : 'open';
+                sets.push('status = ?'); vals.push(st);
+                if (st === 'done') {
+                    sets.push('done_at = CURRENT_TIMESTAMP');
+                    sets.push('done_by = ?'); vals.push(req.user?.email || 'admin');
+                } else {
+                    sets.push('done_at = NULL');
+                    sets.push('done_by = NULL');
+                }
+            }
+            if (b.notes !== undefined) { sets.push('notes = ?'); vals.push(b.notes != null ? String(b.notes).trim() : null); }
+            if (b.title !== undefined) {
+                const t = String(b.title || '').trim();
+                if (!t) return res.status(400).json({ error: 'Title cannot be empty.' });
+                sets.push('title = ?'); vals.push(t);
+            }
+            if (b.location_hint !== undefined) { sets.push('location_hint = ?'); vals.push(b.location_hint != null ? String(b.location_hint).trim() : null); }
+            if (b.area !== undefined) {
+                let area = String(b.area || 'website').trim();
+                if (!CC_AREAS.includes(area)) area = 'website';
+                sets.push('area = ?'); vals.push(area);
+            }
+            if (!sets.length) return res.status(400).json({ error: 'Nothing to update.' });
+            sets.push('updated_at = CURRENT_TIMESTAMP');
+            vals.push(req.params.id);
+            db.run(`UPDATE content_checklist SET ${sets.join(', ')} WHERE id = ?`, vals);
+            saveDb();
+            logAudit(req, 'content_checklist.update', `${req.params.id}${b.status !== undefined ? ' -> ' + (b.status === 'done' ? 'done' : 'open') : ''}`);
+            const updated = query.get("SELECT * FROM content_checklist WHERE id = ?", [req.params.id]);
+            res.json({ success: true, item: updated });
+        } catch (e) { console.error('[content-checklist] update', e.message); res.status(500).json({ error: e.message }); }
     });
 
     // ============ THE BIOMEDICAL FORUM — considerations (approve / decline) ============
