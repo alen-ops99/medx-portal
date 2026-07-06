@@ -90666,6 +90666,9 @@ You can use variables like {first_name} that will be personalized for each recip
                     'axi.submittedBody': { en: 'Thank you. Your application has been received and a confirmation is on its way to your inbox.', hr: 'Hvala Vam. Vaša je prijava zaprimljena, a potvrda je na putu u Vašu e-poštu.' },
                     'axi.underReviewBody': { en: 'Our team reviews every submission after the intake window closes. We will let you know as soon as there is a decision.', hr: 'Naš tim pregledava svaku prijavu nakon zatvaranja razdoblja prijava. Javit ćemo Vam se čim odluka bude poznata.' },
                     'axi.decisionBody': { en: 'A decision has been published for your application.', hr: 'Za Vašu je prijavu objavljena odluka.' },
+                    'axi.acceptedBody': { en: 'Congratulations. You have a place in the Med&X Accelerator 2026 cohort. Our team has sent you an email with the next steps, so please check your inbox.', hr: 'Čestitamo. Osigurali ste mjesto u generaciji Med&X Acceleratora 2026. Naš Vam je tim poslao e-poštu sa sljedećim koracima, pa Vas molimo da provjerite svoju e-poštu.' },
+                    'axi.waitlistedBody': { en: 'Thank you. Your application impressed our reviewers and is on the waiting list for the 2026 cohort. If a place opens we will contact you by email straight away, so there is nothing you need to do right now.', hr: 'Hvala Vam. Vaša je prijava ostavila dojam na naše recenzente i nalazi se na listi čekanja za generaciju 2026. Ako se mjesto oslobodi, odmah ćemo Vas kontaktirati e-poštom, pa trenutačno ne morate ništa poduzimati.' },
+                    'axi.declinedBody': { en: 'Thank you for applying to the Med&X Accelerator. We are not able to offer you a place in the 2026 cohort this year, and we would warmly encourage you to apply again in a future cycle. Our team has written to you with a few words.', hr: 'Hvala Vam što ste se prijavili na Med&X Accelerator. Ove Vam godine nismo u mogućnosti ponuditi mjesto u generaciji 2026 i toplo Vas potičemo da se prijavite ponovno u nekom od budućih ciklusa. Naš Vam se tim javio s nekoliko riječi.' },
                     'axi.withdrawnBody': { en: 'Your application has been withdrawn.', hr: 'Vaša je prijava povučena.' },
                     'axi.submittedOn': { en: 'Submitted', hr: 'Poslano' },
                     'axi.withdraw': { en: 'Withdraw application', hr: 'Povuci prijavu' },
@@ -91217,7 +91220,9 @@ You can use variables like {first_name} that will be personalized for each recip
                 const name = this.esc(p.project_name || t('axi.yourApp'));
                 let bodyKey = 'axi.underReviewBody';
                 if (sub.status === 'withdrawn') bodyKey = 'axi.withdrawnBody';
-                else if (['accepted', 'waitlisted', 'declined'].includes(sub.status)) bodyKey = 'axi.decisionBody';
+                else if (sub.status === 'accepted') bodyKey = 'axi.acceptedBody';
+                else if (sub.status === 'waitlisted') bodyKey = 'axi.waitlistedBody';
+                else if (sub.status === 'declined') bodyKey = 'axi.declinedBody';
                 else if (sub.status === 'submitted') bodyKey = 'axi.submittedBody';
                 const when = sub.submitted_at ? new Date(sub.submitted_at).toLocaleDateString(MedXI18n.dateLocale ? MedXI18n.dateLocale() : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
                 const canWithdraw = ['submitted', 'under_review'].includes(sub.status);

@@ -180,3 +180,36 @@ Generic helpers: submission resolver (`accelerator_applications` → normalized,
 - Invite queues to outbox once, idempotent on repeat; HR labels + criteria render on the external page.
 
 Notes: demo review activity (assignments + 2 scorecards + 1 queued outbox invite to a demo reviewer) left in place to show the engine live. `node --check` clean, schema-sync clean, no git commits.
+
+---
+
+## Med&X Accelerator — A3: Decisions, AI decision letters, funnel, pulse + applicant surface — 2026-07-06
+
+Cluster A3 closes the Accelerator loop into ONE coherent flow: apply (Nov 2026) -> assign -> score -> decide -> letter. Admin work is in `admin-portal`; the applicant reveal is a small `user-portal` change; both stay outside the SCHEMA-MIRROR block (A3 adds NO new tables, so `check-schema-sync.sh` stays green at 435 lines).
+
+### STEP 0 — integration check (the A1<->A2 seam)
+The A2 log recorded the resolver keyed on `submission_source='accelerator_applications'` (the LEGACY research-placement table), while A1 writes intake to `submission_pipeline` (track 'accelerator'). On inspection A2 had already generalized the resolver (`reviewListFromSource`/`reviewResolveFromSource` dispatch on the cycle's `source` column, with a `submission_pipeline` branch that normalizes payload_json, and a blind sanitizer that strips applicant + team-member names, institution and rewrites document filenames) and shipped a boot migration that repoints the `accelerator-2026` rubric `source` to `submission_pipeline`. The one gap was operational: the running admin process predated that migration so the live rubric still read `accelerator_applications`. Restarting applied the migration (verified `source=submission_pipeline`), and the resolver now reads the intake store. Seeded 3 realistic SUBMITTED applications in `submission_pipeline` (e2e.applicant.{a3,b3,c3}, projects NeuroSpark / GutGuard / RetinaAtlas) as evidence and to exercise the whole chain end to end. No resolver code change was needed beyond confirming and reusing it.
+
+### Backend (admin server.js, all after SCHEMA-MIRROR:END)
+- Decisions board data: `GET /api/admin/review/decisions` — every reviewable submission ranked by the mean weighted_total across SUBMITTED scorecards, with per-reviewer score chips, score spread (max-min), scoring-completeness (submitted >= active assignments), current decision + decision_at, and letter state.
+- Decision action: `POST /api/admin/review/decisions/:id` writes `submission_pipeline.status` ('accepted'|'waitlisted'|'declined') + decision_at, or reverts to 'under_review'. Guard: incomplete scoring returns 409 needs_confirm unless `confirm_incomplete`. Lock: once the letter is approved (scheduled) or sent the decision is frozen (423). Revert cancels a still-pending letter and clears its drip marker so nothing stale is left.
+- AI decision letters: `.../letter/preview` builds a warm bilingual EN+HR letter as editable plain text (next steps for accepts, the waiting-list process, a gracious close for declines) via a deterministic high-quality template, enriched by `aiDraft` only when a real ANTHROPIC key is present (mock never used as the body). `.../letter/queue` stages ONE pending_approval row in the shared outbox (source_engine 'accelerator-decision', template 'acc_decision', batch `acc-decision-<id>`), idempotent via drip_log 'acc_decision:<id>'. `.../letter/requeue` clears the marker + cancels a still-pending row (blocked once approved/sent). `.../letters/batch` queues every decided submission that lacks a letter. private_comments NEVER enter a letter (only feedback_to_applicant is offered, as an optional insert). Nothing auto-sends — the owner approves the batch in the existing outbox.
+- Funnel: `GET /api/admin/review/funnel` — drafts -> submitted -> assigned -> fully scored -> decided (accepted/waitlisted/declined) -> letters sent, all live counts.
+- Weekly pulse: added a live "Med&X Accelerator" section (submitted this week / awaiting review / decided this week) to `assemblePulseModel` + `renderPulseHtml`, additive next to the Forum block.
+
+### Backend (user server.js) — reveal rule
+`GET /api/accelerator/intake/mine` now masks a recorded decision to 'under_review' UNTIL its decision letter reaches status 'sent' in the shared outbox (joined server-side, not client-guessed) so the applicant never sees the outcome in the portal before the email reaches them.
+
+### Frontend
+- Admin ReviewEngine: new "Decisions" sub-tab in the Review tab — ranked cards (rank, applicant, mean, spread, completeness, per-reviewer chips), Accept/Waitlist/Decline with active + locked states, per-row letter status + Draft/View + Revert, "Draft letters for all decided", and an editable bilingual letter compose modal (subject + body, "Add reviewer notes" optional insert, Queue in outbox, discard-and-edit when queued, read-only when locked/sent).
+- Admin: accelerator funnel strip at the top of the Accelerator section (forum-funnel styling), rendered on section show and refreshed after decisions/letters.
+- User: AcceleratorIntake status card gains warm, distinct bilingual copy for accepted/waitlisted/declined (formal Vi, correct diacritics) via three new MedXI18n keys.
+- Handbook: new numbered section 12 "Run the Med&X Accelerator" + TOC entry (section-11 precedent, no renumbering) — the yearly cycle in plain language (window, approve rubric by editing, invite reviewers, auto-assign, monitor, decide, approve letters), no semicolons.
+
+### Verified E2E (real servers :3001/:3002, headless harness desktop 1440 + mobile 390, DB assertions)
+- Seed -> assign 2 reviewers -> score both -> ranked NeuroSpark 4.5 > RetinaAtlas 4.125 > GutGuard 3.0; the top mean HAND-VERIFIED against the DB ((5.0+4.0)/2 = 4.5, spread 1.0).
+- Incomplete-scoring guard returns 409 needs_confirm; decide with confirm proceeds.
+- Decide all three; queue NeuroSpark letter once (2nd call queued:false via drip_log); approve the batch in the outbox; the drainer flips it to 'sent'; after approval the decision is locked (423 on change).
+- Portal reveal: NeuroSpark (letter sent) flips to Accepted with the warm EN + HR copy; RetinaAtlas (waitlisted) and GutGuard (declined) stay masked at "Under review" until their letters send.
+- Funnel API == SQL (drafts 0 / submitted 3 / assigned 3 / fully scored 3 / decided 3 = 1+1+1 / letters sent 1). Pulse email section shows live numbers (submitted 3 / awaiting 0 / decided 3). Handbook section 12 renders desktop + mobile, TOC updated.
+- Cleanup: manual pulse test batch removed. e2e.* review activity (3 decided applications, scores, 1 sent decision letter) left in place as live demo evidence (A2 precedent). No tester junk. FROZEN Stripe/checkout/calculateTotal/registrations/QR untouched. node --check both OK, check-schema-sync.sh exit 0. No git commits.

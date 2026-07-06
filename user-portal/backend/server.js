@@ -13017,12 +13017,26 @@ By applying to this program, I provide the following consents:
              ORDER BY datetime(updated_at) DESC`,
             [INTAKE_TRACK, INTAKE_CYCLE, req.user.id]
         );
-        res.json({ submissions: rows.map(r => ({
-            id: r.id, cycle: r.cycle, status: r.status,
-            submitted_at: r.submitted_at, decision_at: r.decision_at,
-            created_at: r.created_at, updated_at: r.updated_at,
-            payload: intakeSafeJson(r.payload_json) || {}
-        })) });
+        // Reveal rule: a recorded decision (accepted/waitlisted/declined) is shown to the
+        // applicant ONLY after its decision letter has reached status 'sent' in the shared
+        // outbox — the letter must arrive first or at the same time, never portal-before-email.
+        // Until then the card stays at under review. Implemented server-side, not client-guessed.
+        const decisionStatuses = ['accepted', 'waitlisted', 'declined'];
+        const decisionLetterSent = (subId) => {
+            try { return !!query.get("SELECT 1 AS x FROM scheduled_emails WHERE source_engine = 'accelerator-decision' AND batch_id = ? AND status = 'sent' LIMIT 1", ['acc-decision-' + subId]); }
+            catch (e) { return false; }
+        };
+        res.json({ submissions: rows.map(r => {
+            let status = r.status;
+            let decisionAt = r.decision_at;
+            if (decisionStatuses.includes(status) && !decisionLetterSent(r.id)) { status = 'under_review'; decisionAt = null; }
+            return {
+                id: r.id, cycle: r.cycle, status,
+                submitted_at: r.submitted_at, decision_at: decisionAt,
+                created_at: r.created_at, updated_at: r.updated_at,
+                payload: intakeSafeJson(r.payload_json) || {}
+            };
+        }) });
     });
 
     // Save or update a draft (autosave). Body { id?, payload }. Only editable while the window is open

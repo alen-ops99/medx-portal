@@ -8200,6 +8200,9 @@ President, Med&amp;X</textarea>
                         </div>
                     </div>
 
+                    <!-- A3: live accelerator pipeline funnel (drafts -> submitted -> assigned -> fully scored -> decided -> letters sent) -->
+                    <div id="accFunnelStrip" style="margin:0 0 18px;"></div>
+
                     <!-- Accelerator Tabs -->
                     <!-- Item 1: applications-first — the review pipeline (applications → evaluation →
                          ranking → interviewers) leads, then the setup tabs (form/dates/institutions),
@@ -41994,6 +41997,7 @@ By applying to this program, I give the following consents:
             originalShowProject.call(this, project, el);
             if (project === 'accelerator') {
                 AcceleratorApp.init();
+                if (window.ReviewEngine) ReviewEngine.renderFunnel();
             }
         };
 
@@ -42957,7 +42961,7 @@ By applying to this program, I give the following consents:
          to /api/admin/review/* and renders into #reviewEngineRoot inside the Accelerator section. -->
     <script>
     const ReviewEngine = {
-        view: 'rubric', config: null, reviewers: null, submissions: null, mine: null, progress: null, _card: null,
+        view: 'rubric', config: null, reviewers: null, submissions: null, mine: null, progress: null, decisions: null, _card: null, _letter: null,
         token() { return localStorage.getItem('medx_token') || localStorage.getItem('token') || 'auto-login'; },
         async api(path, method, body) {
             const o = { method: method || 'GET', headers: { 'Authorization': 'Bearer ' + this.token() } };
@@ -42980,7 +42984,7 @@ By applying to this program, I give the following consents:
         shell(inner) {
             const c = this.config; const rub = c.rubric;
             const statusColor = rub.status === 'active' ? '#22c55e' : '#f59e0b';
-            const tabs = [['rubric', 'Rubric'], ['reviewers', 'Reviewers'], ['assignments', 'Assignments'], ['mine', 'My reviews'], ['progress', 'Progress']];
+            const tabs = [['rubric', 'Rubric'], ['reviewers', 'Reviewers'], ['assignments', 'Assignments'], ['mine', 'My reviews'], ['progress', 'Progress'], ['decisions', 'Decisions']];
             let nav = tabs.map(t => '<button onclick="ReviewEngine.go(\'' + t[0] + '\')" style="background:' + (this.view === t[0] ? 'var(--accent-primary)' : 'transparent') + ';color:' + (this.view === t[0] ? '#0f172a' : 'var(--text-secondary)') + ';border:1px solid var(--border);padding:8px 16px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">' + t[1] + '</button>').join('');
             return '<div class="card" style="margin-bottom:16px;">'
                 + '<div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">'
@@ -43004,6 +43008,7 @@ By applying to this program, I give the following consents:
                 else if (v === 'assignments') { this.submissions = await this.api('/api/admin/review/submissions'); if (!this.reviewers) this.reviewers = await this.api('/api/admin/review/reviewers'); this.remount(this.assignmentsHtml()); }
                 else if (v === 'mine') { this.mine = await this.api('/api/admin/review/my/assignments'); this.remount(this.mineHtml()); }
                 else if (v === 'progress') { this.progress = await this.api('/api/admin/review/progress'); this.remount(this.progressHtml()); }
+                else if (v === 'decisions') { this.decisions = await this.api('/api/admin/review/decisions'); this.remount(this.decisionsHtml()); }
             } catch (e) { this.remount('<div style="color:#ef4444">' + this.esc(e.message) + '</div>'); }
         },
 
@@ -43297,7 +43302,164 @@ By applying to this program, I give the following consents:
                 + '</div>'
                 + '<div style="font-weight:600;margin-bottom:8px;">Reviewer progress</div>'
                 + '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="color:var(--text-secondary);text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;"><th style="padding:6px 10px;">Reviewer</th><th style="padding:6px 10px;text-align:center;">Assigned</th><th style="padding:6px 10px;text-align:center;">Submitted</th><th style="padding:6px 10px;text-align:center;">Pending</th><th style="padding:6px 10px;text-align:center;">Recused</th></tr></thead><tbody>' + rows + '</tbody></table>';
-        }
+        },
+
+        // ---------- ACCELERATOR FUNNEL STRIP (top of the Accelerator section) ----------
+        async renderFunnel() {
+            const host = document.getElementById('accFunnelStrip'); if (!host) return;
+            let f = null;
+            try { f = await this.api('/api/admin/review/funnel'); } catch (e) { host.innerHTML = ''; return; }
+            const stages = [
+                { label: 'Drafts', val: f.drafts, col: '#94a3b8' },
+                { label: 'Submitted', val: f.submitted, col: '#355070' },
+                { label: 'Assigned', val: f.assigned, col: '#6366f1' },
+                { label: 'Fully scored', val: f.fully_scored, col: '#7c3aed' },
+                { label: 'Decided', val: f.decided, col: '#b7902f' },
+                { label: 'Letters sent', val: f.letters_sent, col: '#15803d' }
+            ];
+            let strip = '<div style="display:flex;align-items:stretch;overflow-x:auto;padding:2px 2px 6px;-webkit-overflow-scrolling:touch;">';
+            stages.forEach((st, i) => {
+                strip += '<div style="flex:0 0 auto;min-width:88px;text-align:center;padding:8px 6px;">'
+                    + '<div style="font-size:26px;font-weight:800;color:' + st.col + ';line-height:1;">' + (st.val || 0) + '</div>'
+                    + '<div style="font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-top:6px;">' + st.label + '</div></div>';
+                if (i < stages.length - 1) strip += '<div style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;min-width:34px;"><i class="fas fa-arrow-right-long" style="color:var(--text-muted);opacity:.4;"></i></div>';
+            });
+            strip += '</div>';
+            const split = '<div style="margin-top:2px;font-size:12px;color:var(--text-secondary);">Decided breakdown: <b style="color:#15803d;">' + (f.accepted || 0) + ' accepted</b> · <b style="color:#b7902f;">' + (f.waitlisted || 0) + ' waitlisted</b> · <b style="color:#94a3b8;">' + (f.declined || 0) + ' declined</b></div>';
+            host.innerHTML = '<div class="card" style="margin-bottom:0;"><div class="card-body" style="padding:14px 18px;">'
+                + '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);margin-bottom:6px;font-weight:700;">Accelerator pipeline</div>'
+                + strip + split + '</div></div>';
+        },
+
+        // ---------- DECISIONS BOARD ----------
+        decisionsHtml() {
+            const d = this.decisions; const c = d.counts || {};
+            const anyDecided = (c.decided || 0) > 0;
+            const head = '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px;">'
+                + '<div style="font-size:13px;color:var(--text-secondary);max-width:560px;">Submissions are ranked by the mean weighted score across submitted reviews. Record a decision, then draft the applicant\'s letter. A decision can be changed until its letter is approved or sent.<div style="margin-top:6px;">' + d.submissions.length + ' submissions · ' + (c.decided || 0) + ' decided (' + (c.accepted || 0) + ' accepted · ' + (c.waitlisted || 0) + ' waitlisted · ' + (c.declined || 0) + ' declined) · ' + (c.letters_sent || 0) + ' letters sent</div></div>'
+                + '<button class="btn btn-secondary"' + (anyDecided ? '' : ' disabled') + ' onclick="ReviewEngine.batchLetters()"><i class="fas fa-layer-group"></i> Draft letters for all decided</button>'
+                + '</div>';
+            if (!d.submissions.length) return head + '<div style="padding:24px;color:var(--text-secondary);text-align:center;">No submissions in this cycle yet.</div>';
+            return head + d.submissions.map((s, i) => this.decisionRow(s, i)).join('');
+        },
+        decisionRow(s, i) {
+            const meanTxt = s.mean != null ? s.mean : '—';
+            const complete = s.scoring_complete;
+            const compColor = complete ? '#22c55e' : '#f59e0b';
+            const compTxt = s.scored + '/' + s.assigned + ' reviews' + (complete ? '' : ' · incomplete');
+            const spreadTxt = s.spread != null && s.scored > 1 ? ' · spread ' + s.spread : '';
+            const chips = (s.reviewers || []).map(r => {
+                const done = r.score_status === 'submitted';
+                const col = done ? '#22c55e' : '#94a3b8';
+                const val = r.weighted_total != null ? r.weighted_total : '–';
+                return '<span style="display:inline-flex;align-items:center;gap:5px;border:1px solid ' + col + '55;background:' + col + '18;color:var(--text-primary);border-radius:999px;padding:3px 9px;font-size:11.5px;margin:0 5px 5px 0;">' + this.esc(r.reviewer_name || '?') + (r.reviewer_kind === 'external' ? ' ·ext' : '') + ' · <b>' + val + '</b></span>';
+            }).join('') || '<span style="color:var(--text-secondary);font-size:12px;">No submitted scores yet</span>';
+            const decBtn = (val, label, color, icon) => {
+                const active = s.decision === val;
+                const bg = active ? color : 'transparent';
+                const fg = active ? '#0f172a' : 'var(--text-secondary)';
+                return '<button ' + (s.locked ? 'disabled ' : '') + 'onclick="ReviewEngine.decide(\'' + s.id + '\',\'' + val + '\')" style="background:' + bg + ';color:' + fg + ';border:1px solid ' + color + '88;padding:7px 13px;border-radius:8px;font-weight:600;font-size:12.5px;cursor:' + (s.locked ? 'not-allowed' : 'pointer') + ';opacity:' + (s.locked && !active ? '.45' : '1') + ';"><i class="fas ' + icon + '"></i> ' + label + '</button>';
+            };
+            const buttons = '<div style="display:flex;gap:7px;flex-wrap:wrap;">' + decBtn('accepted', 'Accept', '#22c55e', 'fa-circle-check') + decBtn('waitlisted', 'Waitlist', '#f59e0b', 'fa-list-ul') + decBtn('declined', 'Decline', '#94a3b8', 'fa-circle-minus') + '</div>';
+            const lsMap = { none: 'Letter not drafted', queued: 'Letter in outbox (awaiting approval)', approved: 'Letter approved — sending', sent: 'Letter sent' };
+            let letterArea = '';
+            if (s.decision) {
+                const lockBadge = s.locked ? '<span style="font-size:11px;font-weight:700;color:#6366f1;border:1px solid #6366f155;border-radius:999px;padding:2px 9px;"><i class="fas fa-lock"></i> Locked</span>' : '';
+                const lsColor = s.letter_state === 'sent' ? '#15803d' : (s.letter_state === 'none' ? 'var(--text-secondary)' : '#b7902f');
+                letterArea = '<div style="margin-top:11px;padding-top:11px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">'
+                    + '<span style="font-size:12.5px;color:' + lsColor + ';font-weight:600;">' + (lsMap[s.letter_state] || s.letter_state) + ' ' + lockBadge + '</span>'
+                    + '<div style="display:flex;gap:7px;flex-wrap:wrap;">'
+                    + (s.locked && s.letter_state === 'sent' ? '' : '<button class="btn btn-primary" style="padding:6px 12px;font-size:12.5px;" onclick="ReviewEngine.composeLetter(\'' + s.id + '\')"><i class="fas fa-pen-nib"></i> ' + (s.letter_state === 'none' ? 'Draft letter' : 'View letter') + '</button>')
+                    + (s.decision && !s.locked ? '<button class="btn btn-secondary" style="padding:6px 12px;font-size:12.5px;" onclick="ReviewEngine.decide(\'' + s.id + '\',\'under_review\')"><i class="fas fa-rotate-left"></i> Revert</button>' : '')
+                    + '</div></div>';
+            }
+            return '<div class="card" style="margin-bottom:12px;"><div class="card-body" style="padding:15px 17px;">'
+                + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">'
+                + '<div style="display:flex;gap:14px;align-items:flex-start;">'
+                + '<div style="font-family:Georgia,serif;font-size:22px;font-weight:800;color:var(--text-secondary);min-width:28px;">' + (i + 1) + '</div>'
+                + '<div><div style="font-weight:700;font-size:15px;">' + this.esc(s.applicant_name) + '</div>'
+                + '<div style="font-size:12px;color:var(--text-secondary);">' + this.esc(s.label) + (s.institution ? ' · ' + this.esc(s.institution) : '') + '</div>'
+                + '<div style="margin-top:8px;">' + chips + '</div></div>'
+                + '</div>'
+                + '<div style="text-align:right;min-width:120px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);">Mean score</div>'
+                + '<div style="font-size:26px;font-weight:800;color:var(--accent-primary);line-height:1.1;">' + meanTxt + '</div>'
+                + '<div style="font-size:11.5px;font-weight:600;color:' + compColor + ';">' + compTxt + spreadTxt + '</div></div>'
+                + '</div>'
+                + '<div style="margin-top:12px;">' + buttons + '</div>'
+                + letterArea
+                + '</div></div>';
+        },
+        async decide(id, decision) {
+            const doPost = async (confirmIncomplete) => {
+                const o = { method: 'POST', headers: { Authorization: 'Bearer ' + this.token(), 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, confirm_incomplete: !!confirmIncomplete }) };
+                const resp = await fetch('/api/admin/review/decisions/' + id, o);
+                const data = await resp.json().catch(() => ({}));
+                return { resp, data };
+            };
+            try {
+                let { resp, data } = await doPost(false);
+                if (resp.status === 409 && data.needs_confirm) {
+                    if (!confirm('Scoring is not complete for this submission (' + data.scored + ' of ' + data.assigned + ' reviews in). Record the decision anyway?')) return;
+                    ({ resp, data } = await doPost(true));
+                }
+                if (!resp.ok) { this.toast(data.error || 'Could not save the decision', 'error'); await this.go('decisions'); return; }
+                this.toast(decision === 'under_review' ? 'Decision reverted to under review' : 'Decision recorded', 'success');
+                await this.go('decisions'); this.renderFunnel();
+            } catch (e) { this.toast(e.message, 'error'); }
+        },
+        async batchLetters() {
+            if (!confirm('Draft decision letters for every decided applicant that does not have one yet? Each letter waits in the outbox for your approval before anything is sent.')) return;
+            try { const r = await this.api('/api/admin/review/decisions/letters/batch', 'POST', {}); this.toast('Queued ' + r.queued + ' letter' + (r.queued === 1 ? '' : 's') + ' in the outbox' + (r.skipped ? ' (' + r.skipped + ' already queued)' : '') + (r.no_email ? ' · ' + r.no_email + ' without an email' : ''), 'success'); await this.go('decisions'); this.renderFunnel(); }
+            catch (e) { this.toast(e.message, 'error'); }
+        },
+        async composeLetter(id) {
+            try { this._letter = await this.api('/api/admin/review/decisions/' + id + '/letter/preview', 'POST', {}); this._letter._id = id; this.renderLetterModal(); }
+            catch (e) { this.toast(e.message, 'error'); }
+        },
+        renderLetterModal() {
+            const L = this._letter;
+            let ov = document.getElementById('reLetterOverlay');
+            if (!ov) { ov = document.createElement('div'); ov.id = 'reLetterOverlay'; document.body.appendChild(ov); }
+            ov.onclick = (e) => { if (e.target === ov) ReviewEngine.closeLetter(); };
+            ov.style.cssText = 'position:fixed;inset:0;background:rgba(2,6,23,.7);z-index:9999;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:30px 16px;';
+            const locked = L.locked;
+            const editable = !locked && L.letter_state === 'none';
+            const ro = editable ? '' : ' readonly';
+            const decLabel = { accepted: 'Accept', waitlisted: 'Waitlist', declined: 'Decline' }[L.decision] || L.decision;
+            const decColor = { accepted: '#22c55e', waitlisted: '#f59e0b', declined: '#94a3b8' }[L.decision] || '#94a3b8';
+            const stateMap = { none: 'Not queued', queued: 'Queued in the outbox (awaiting approval)', approved: 'Approved — sending shortly', sent: 'Sent' };
+            const noteBtn = (L.reviewer_note && editable) ? '<button class="btn btn-secondary" style="padding:6px 12px;font-size:12.5px;" onclick="ReviewEngine.insertReviewerNote()"><i class="fas fa-quote-right"></i> Add reviewer notes</button>' : '';
+            let actions;
+            if (locked) actions = '<span style="color:#6366f1;font-weight:600;">This letter is ' + (L.letter_state === 'sent' ? 'sent' : 'approved') + ' and can no longer be edited.</span>';
+            else if (L.letter_state === 'queued') actions = '<button class="btn btn-secondary" onclick="ReviewEngine.requeueLetter()"><i class="fas fa-rotate-left"></i> Discard queued draft and edit</button><span style="color:var(--text-secondary);font-size:12.5px;align-self:center;">Waiting in the outbox for approval.</span>';
+            else actions = noteBtn + '<button class="btn btn-primary" onclick="ReviewEngine.queueLetter()"><i class="fas fa-paper-plane"></i> Queue in outbox</button>';
+            ov.innerHTML = '<div class="card" style="max-width:760px;width:100%;">'
+                + '<div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">'
+                + '<div style="font-weight:700;">Decision letter <span style="font-size:11px;font-weight:700;color:#0f172a;background:' + decColor + ';padding:2px 9px;border-radius:999px;margin-left:6px;">' + decLabel + '</span></div>'
+                + '<button class="btn btn-secondary" style="padding:6px 10px;" onclick="ReviewEngine.closeLetter()"><i class="fas fa-times"></i></button></div>'
+                + '<div class="card-body" style="padding:18px;">'
+                + '<div style="font-size:12.5px;color:var(--text-secondary);margin-bottom:12px;">To <b>' + this.esc(L.applicant_name || '') + '</b>' + (L.applicant_email ? ' &lt;' + this.esc(L.applicant_email) + '&gt;' : '') + ' · ' + (stateMap[L.letter_state] || L.letter_state) + '</div>'
+                + '<div style="margin-bottom:12px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);margin-bottom:4px;">Subject</div><input id="reLetterSubject" class="form-input" value="' + this.esc(L.subject) + '"' + ro + ' style="width:100%;"></div>'
+                + '<div><div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);margin-bottom:4px;">Letter (English then Croatian — edit freely)</div><textarea id="reLetterBody" class="form-input"' + ro + ' style="width:100%;min-height:320px;font-family:inherit;line-height:1.6;">' + this.esc(L.body) + '</textarea></div>'
+                + '<div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">' + actions + '</div>'
+                + '</div></div>';
+        },
+        insertReviewerNote() {
+            const ta = document.getElementById('reLetterBody'); if (!ta || !this._letter || !this._letter.reviewer_note) return;
+            ta.value = ta.value.replace(/\s*$/, '') + '\n\n' + this._letter.reviewer_note;
+        },
+        async queueLetter() {
+            const subject = (document.getElementById('reLetterSubject') || {}).value || '';
+            const body = (document.getElementById('reLetterBody') || {}).value || '';
+            try { const r = await this.api('/api/admin/review/decisions/' + this._letter._id + '/letter/queue', 'POST', { subject, body }); this.toast(r.queued ? 'Letter queued in the outbox for approval' : 'A letter is already queued for this applicant', r.queued ? 'success' : 'info'); this.closeLetter(); await this.go('decisions'); this.renderFunnel(); }
+            catch (e) { this.toast(e.message, 'error'); }
+        },
+        async requeueLetter() {
+            try { await this.api('/api/admin/review/decisions/' + this._letter._id + '/letter/requeue', 'POST', {}); this.toast('Queued draft discarded — you can edit and re-queue', 'success'); await this.composeLetter(this._letter._id); this.go('decisions'); }
+            catch (e) { this.toast(e.message, 'error'); }
+        },
+        closeLetter() { const ov = document.getElementById('reLetterOverlay'); if (ov) ov.remove(); }
+
     };
     window.ReviewEngine = ReviewEngine;
     </script>

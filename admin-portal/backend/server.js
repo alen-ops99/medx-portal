@@ -12227,6 +12227,382 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
+    // ============================================================================
+    // A3 — DECISIONS BOARD + AI DECISION LETTERS (admin, submission_pipeline cycle)
+    // ----------------------------------------------------------------------------
+    // Closes the loop apply -> assign -> score -> decide -> letter. Ranks each
+    // submission by the mean weighted_total across SUBMITTED scorecards, lets the
+    // committee record Accept / Waitlist / Decline onto submission_pipeline.status
+    // (+ decision_at), and drafts a warm bilingual EN+HR letter via the aiDraft
+    // boundary (deterministic high-quality template fallback with no key). Every
+    // letter is staged pending_approval in the ONE outbox (source_engine
+    // 'accelerator-decision', template 'acc_decision', batch acc-decision-<id>),
+    // idempotent per submission via drip_log 'acc_decision:<id>'. private_comments
+    // never enter a letter. A decision is revertible to under_review UNTIL its
+    // letter is approved (scheduled) or sent — then it is locked. The applicant
+    // portal only reveals the decision AFTER the letter row reaches status 'sent'.
+    // ============================================================================
+    const ACC_DECISION_STATUSES = ['accepted', 'waitlisted', 'declined'];
+    const accDecisionBatchId = (submissionId) => 'acc-decision-' + submissionId;
+    const accDecisionDripKind = (submissionId) => 'acc_decision:' + submissionId;
+
+    // Letter lifecycle for one submission, read from the shared outbox. Returns
+    // { state: none|queued|approved|sent, locked }. locked once approved or sent.
+    function reviewLetterState(submissionId) {
+        try {
+            const rows = query.all(
+                "SELECT status FROM scheduled_emails WHERE source_engine = 'accelerator-decision' AND batch_id = ?",
+                [accDecisionBatchId(submissionId)]
+            );
+            const has = (s) => rows.some((r) => r.status === s);
+            if (has('sent')) return { state: 'sent', locked: true };
+            if (has('scheduled')) return { state: 'approved', locked: true };
+            if (has('pending_approval')) return { state: 'queued', locked: false };
+            return { state: 'none', locked: false };
+        } catch (e) { return { state: 'none', locked: false }; }
+    }
+
+    // The default bilingual (EN + HR, formal Vi) letter body as editable plain
+    // text. Warm and specific per decision, with next steps for accepts, the
+    // process for waitlist, and a gracious close for declines. No semicolons.
+    function buildDecisionLetterText(decision, ctx) {
+        const name = (ctx && ctx.name) ? String(ctx.name).trim() : '';
+        const project = (ctx && ctx.project) ? String(ctx.project).trim() : '';
+        const enName = name || 'Applicant';
+        const hrName = name || 'pristupniče';
+        const enProj = project ? (' with ' + project) : '';
+        const hrProj = project ? (' s projektom ' + project) : '';
+        const sep = '————————————————————';
+        let subject, en, hr;
+        if (decision === 'accepted') {
+            subject = 'Med&X Accelerator — welcome to the 2026 cohort / dobrodošli u generaciju 2026.';
+            en = [
+                'Dear ' + enName + ',',
+                'Thank you for applying to the Med&X Accelerator' + enProj + '. We are delighted to offer you a place in the 2026 cohort.',
+                'Your application stood out for its clarity and its potential to help Croatian biomedicine, and our reviewers were excited to read it.',
+                'Here is what happens next. Our team will email you within a few days with your onboarding details, the schedule for the opening week, and a short form to confirm your place. Please keep an eye on this inbox.',
+                'If you have any questions in the meantime, simply reply to this message and we will be glad to help.',
+                'Warm regards,',
+                'The Med&X Accelerator team'
+            ].join('\n\n');
+            hr = [
+                'Poštovani/a ' + hrName + ',',
+                'Hvala Vam što ste se prijavili na Med&X Accelerator' + hrProj + '. S velikim zadovoljstvom nudimo Vam mjesto u generaciji 2026.',
+                'Vaša se prijava istaknula jasnoćom i potencijalom za doprinos hrvatskoj biomedicini, a naši su je recenzenti čitali s velikim zanimanjem.',
+                'Evo što slijedi. Naš će Vam tim u sljedećih nekoliko dana poslati e-poštu s pojedinostima o uključivanju, rasporedom uvodnog tjedna i kratkim obrascem za potvrdu mjesta. Molimo Vas da pratite ovu e-poštu.',
+                'Ako u međuvremenu imate pitanja, jednostavno odgovorite na ovu poruku i rado ćemo Vam pomoći.',
+                'Srdačan pozdrav,',
+                'Tim Med&X Acceleratora'
+            ].join('\n\n');
+        } else if (decision === 'waitlisted') {
+            subject = 'Med&X Accelerator — an update on your application / novosti o Vašoj prijavi';
+            en = [
+                'Dear ' + enName + ',',
+                'Thank you for applying to the Med&X Accelerator' + enProj + '. After a careful review, we have placed your application on our waiting list for the 2026 cohort.',
+                'This means your application impressed our reviewers and remains under active consideration. We hold a small number of places for the waiting list and offer them as spots become available, in order of ranking.',
+                'Here is what happens next. There is nothing you need to do right now. If a place opens, we will contact you by email straight away. We expect to have a clearer picture within a few weeks of the cohort being confirmed.',
+                'Thank you for your patience and for the work you put into your application. If you have any questions, simply reply to this message.',
+                'Warm regards,',
+                'The Med&X Accelerator team'
+            ].join('\n\n');
+            hr = [
+                'Poštovani/a ' + hrName + ',',
+                'Hvala Vam što ste se prijavili na Med&X Accelerator' + hrProj + '. Nakon pažljive procjene uvrstili smo Vašu prijavu na listu čekanja za generaciju 2026.',
+                'To znači da je Vaša prijava ostavila dojam na naše recenzente i da je i dalje u aktivnom razmatranju. Zadržavamo manji broj mjesta za listu čekanja i nudimo ih kako se mjesta oslobađaju, prema redoslijedu rangiranja.',
+                'Evo što slijedi. Trenutačno ne morate ništa poduzimati. Ako se mjesto oslobodi, odmah ćemo Vas kontaktirati e-poštom. Očekujemo jasniju sliku u roku od nekoliko tjedana nakon potvrde generacije.',
+                'Hvala Vam na strpljenju i na trudu koji ste uložili u prijavu. Ako imate pitanja, jednostavno odgovorite na ovu poruku.',
+                'Srdačan pozdrav,',
+                'Tim Med&X Acceleratora'
+            ].join('\n\n');
+        } else {
+            subject = 'Med&X Accelerator — an update on your application / novosti o Vašoj prijavi';
+            en = [
+                'Dear ' + enName + ',',
+                'Thank you for applying to the Med&X Accelerator' + enProj + ', and for sharing your work with us.',
+                'After a careful review, we are not able to offer you a place in the 2026 cohort. This year we received many strong applications for a small number of places, and these decisions are always difficult.',
+                'Please know that this outcome is not a judgement on the value of your idea. We would warmly encourage you to apply again in a future cycle, and to stay part of the Med&X community in the meantime.',
+                'We wish you every success' + (project ? (' with ' + project) : '') + '. If you would find it helpful, simply reply to this message and we will do our best to point you toward other opportunities.',
+                'Warm regards,',
+                'The Med&X Accelerator team'
+            ].join('\n\n');
+            hr = [
+                'Poštovani/a ' + hrName + ',',
+                'Hvala Vam što ste se prijavili na Med&X Accelerator' + hrProj + ' i što ste s nama podijelili svoj rad.',
+                'Nakon pažljive procjene nismo u mogućnosti ponuditi Vam mjesto u generaciji 2026. Ove smo godine primili velik broj snažnih prijava za mali broj mjesta, a takve su odluke uvijek teške.',
+                'Molimo Vas da ovaj ishod ne shvatite kao ocjenu vrijednosti Vaše ideje. Toplo Vas potičemo da se prijavite ponovno u nekom od budućih ciklusa i da u međuvremenu ostanete dio zajednice Med&X.',
+                'Želimo Vam mnogo uspjeha' + (project ? (' s projektom ' + project) : '') + '. Ako smatrate da bi Vam bilo od pomoći, jednostavno odgovorite na ovu poruku i potrudit ćemo se uputiti Vas prema drugim prilikama.',
+                'Srdačan pozdrav,',
+                'Tim Med&X Acceleratora'
+            ].join('\n\n');
+        }
+        const body = en + '\n\n' + sep + '\n\n' + hr;
+        return { subject, body };
+    }
+
+    // Optional reviewer-note block (feedback_to_applicant only — private_comments
+    // are NEVER included). Returns bilingual plain text, or '' when no feedback.
+    function decisionReviewerNoteText(submissionId, cycleKey) {
+        try {
+            const rows = query.all(
+                "SELECT feedback_to_applicant FROM review_scores WHERE cycle_key = ? AND submission_id = ? AND status = 'submitted'",
+                [cycleKey, submissionId]
+            );
+            const notes = rows.map((r) => String(r.feedback_to_applicant || '').trim()).filter((s) => s.length);
+            if (!notes.length) return '';
+            const joined = notes.join('\n\n');
+            return 'A note from our reviewers\n\n' + joined + '\n\nOsvrt naših recenzenata\n\n' + joined;
+        } catch (e) { return ''; }
+    }
+
+    // Try aiDraft to personalize the opening (real key only). On mock/failure the
+    // deterministic template already carries a warm, specific letter, so nothing
+    // is lost. Never throws.
+    async function decisionAiEnrich(decision, ctx) {
+        try {
+            const r = await aiDraft({
+                purpose: 'Write one warm, specific sentence to open a Med&X Accelerator ' + decision + ' letter to an applicant. American English. No semicolons. No greeting or sign-off, just the sentence.',
+                context: { applicant: ctx.name || '', project: ctx.project || '', decision },
+                maxTokens: 120
+            });
+            if (r && !r.mock && r.text && String(r.text).trim()) return String(r.text).trim();
+        } catch (e) {}
+        return '';
+    }
+
+    // Plain text -> branded bilingual HTML letter. Paragraphs split on blank
+    // lines. A separator line ("——") becomes a divider. Escaped throughout.
+    function decisionLetterHtml(subject, body) {
+        const blocks = String(body || '').split(/\n{2,}/).map((b) => b.trim()).filter((b) => b.length);
+        const parts = blocks.map((b) => {
+            if (/^[—–\-]{3,}$/.test(b)) return '<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;">';
+            return '<p style="margin:0 0 14px;color:#334155;font-size:15px;line-height:1.7;">' + _revEsc(b).replace(/\n/g, '<br>') + '</p>';
+        });
+        return buildEmailTemplate('Med&X Accelerator', parts.join(''), { accent: 'gold' });
+    }
+
+    // Resolve applicant identity for a submission (unblinded — the letter goes TO
+    // the applicant). Returns { name, email, project } or null.
+    function decisionApplicant(submissionId) {
+        const row = query.get('SELECT * FROM submission_pipeline WHERE id = ?', [submissionId]);
+        if (!row) return null;
+        const p = _revParsePayload(row.payload_json);
+        const u = row.user_id ? query.get('SELECT first_name, last_name, email FROM users WHERE id = ?', [row.user_id]) : null;
+        const name = u ? ([u.first_name, u.last_name].filter(Boolean).join(' ') || '') : '';
+        return { name, email: u ? u.email : null, project: p.project_name || '', status: row.status };
+    }
+
+    // ---- Decisions board data ----
+    app.get('/api/admin/review/decisions', auth, adminOnly, (req, res) => {
+        const rubric = reviewGetRubric(req.query.cycle);
+        if (!rubric) return res.status(404).json({ error: 'No review cycle configured.' });
+        const cycle = rubric.cycle_key;
+        const required = rubric.reviewers_per_submission || 3;
+        const subs = reviewListSubmissions(rubric).map((s) => {
+            const assigns = query.all("SELECT * FROM review_assignments WHERE cycle_key = ? AND submission_id = ? AND status != 'recused' ORDER BY assigned_at", [cycle, s.id]);
+            const chips = assigns.map((a) => {
+                const sc = query.get('SELECT status, weighted_total FROM review_scores WHERE assignment_id = ?', [a.id]);
+                return {
+                    reviewer_name: a.reviewer_name, reviewer_kind: a.reviewer_kind,
+                    score_status: sc ? sc.status : null,
+                    weighted_total: (sc && sc.status === 'submitted') ? sc.weighted_total : null
+                };
+            });
+            const scored = chips.filter((c) => c.score_status === 'submitted' && c.weighted_total != null);
+            const totals = scored.map((c) => c.weighted_total);
+            const mean = totals.length ? Math.round((totals.reduce((x, v) => x + v, 0) / totals.length) * 1000) / 1000 : null;
+            const spread = totals.length > 1 ? Math.round((Math.max(...totals) - Math.min(...totals)) * 1000) / 1000 : (totals.length === 1 ? 0 : null);
+            const scoringComplete = assigns.length > 0 && scored.length >= assigns.length;
+            const letter = reviewLetterState(s.id);
+            const decision = ACC_DECISION_STATUSES.includes(s.status) ? s.status : null;
+            const row2 = query.get('SELECT decision_at FROM submission_pipeline WHERE id = ?', [s.id]);
+            return {
+                id: s.id, label: s.label, applicant_name: s.applicant_name, institution: s.institution,
+                assigned: assigns.length, scored: scored.length, required,
+                mean, spread, scoring_complete: scoringComplete,
+                reviewers: chips,
+                decision, decision_at: row2 ? row2.decision_at : null,
+                letter_state: letter.state, locked: letter.locked
+            };
+        });
+        // Rank: decided-and-scored first by mean desc, then scored-undecided by mean desc, then the rest.
+        subs.sort((a, b) => {
+            const am = a.mean == null ? -1 : a.mean, bm = b.mean == null ? -1 : b.mean;
+            if (bm !== am) return bm - am;
+            return String(a.applicant_name).localeCompare(String(b.applicant_name));
+        });
+        const counts = {
+            total: subs.length,
+            decided: subs.filter((s) => s.decision).length,
+            accepted: subs.filter((s) => s.decision === 'accepted').length,
+            waitlisted: subs.filter((s) => s.decision === 'waitlisted').length,
+            declined: subs.filter((s) => s.decision === 'declined').length,
+            letters_sent: subs.filter((s) => s.letter_state === 'sent').length
+        };
+        res.json({ cycle, reviewers_per_submission: required, submissions: subs, counts });
+    });
+
+    // ---- Record / revert a decision ----
+    app.post('/api/admin/review/decisions/:submissionId', auth, adminOnly, (req, res) => {
+        const rubric = reviewGetRubric(req.body && req.body.cycle_key);
+        if (!rubric) return res.status(404).json({ error: 'No review cycle configured.' });
+        const cycle = rubric.cycle_key;
+        const id = String(req.params.submissionId);
+        const row = query.get('SELECT * FROM submission_pipeline WHERE id = ?', [id]);
+        if (!row) return res.status(404).json({ error: 'Submission not found.' });
+        const decision = String((req.body && req.body.decision) || '');
+        const isRevert = decision === 'under_review';
+        if (!isRevert && !ACC_DECISION_STATUSES.includes(decision)) {
+            return res.status(400).json({ error: 'decision must be accepted, waitlisted, declined, or under_review.' });
+        }
+        const letter = reviewLetterState(id);
+        if (letter.locked) {
+            return res.status(423).json({ error: 'This decision is locked because its letter has been approved or sent. It can no longer be changed.', locked: true, letter_state: letter.state });
+        }
+        // Scoring-completeness guard on a forward decision (not on revert).
+        if (!isRevert) {
+            const assigns = query.all("SELECT id FROM review_assignments WHERE cycle_key = ? AND submission_id = ? AND status != 'recused'", [cycle, id]);
+            const scored = query.get("SELECT COUNT(*) AS c FROM review_scores WHERE cycle_key = ? AND submission_id = ? AND status = 'submitted'", [cycle, id]);
+            const complete = assigns.length > 0 && (scored ? scored.c : 0) >= assigns.length;
+            if (!complete && !(req.body && req.body.confirm_incomplete)) {
+                return res.status(409).json({
+                    error: 'Scoring is not complete for this submission.',
+                    needs_confirm: true,
+                    scored: scored ? scored.c : 0, assigned: assigns.length
+                });
+            }
+        }
+        if (isRevert) {
+            // Reverting clears a queued (not yet approved) letter so nothing stale is left in the outbox.
+            try { db.run("UPDATE scheduled_emails SET status = 'cancelled' WHERE source_engine = 'accelerator-decision' AND batch_id = ? AND status = 'pending_approval'", [accDecisionBatchId(id)]); } catch (e) {}
+            try { db.run("DELETE FROM drip_log WHERE user_id = 'accelerator-decision' AND kind = ?", [accDecisionDripKind(id)]); } catch (e) {}
+            db.run("UPDATE submission_pipeline SET status = 'under_review', decision_at = NULL, updated_at = ? WHERE id = ?", [new Date().toISOString(), id]);
+            saveDb();
+            logAudit(req, 'review_decision_revert', `${id} -> under_review`);
+            return res.json({ success: true, decision: 'under_review' });
+        }
+        const now = new Date().toISOString();
+        db.run('UPDATE submission_pipeline SET status = ?, decision_at = ?, updated_at = ? WHERE id = ?', [decision, now, now, id]);
+        saveDb();
+        logAudit(req, 'review_decision', `${id} -> ${decision}`);
+        res.json({ success: true, decision, decision_at: now });
+    });
+
+    // ---- Letter preview (editable draft, does NOT queue) ----
+    app.post('/api/admin/review/decisions/:submissionId/letter/preview', auth, adminOnly, async (req, res) => {
+        const rubric = reviewGetRubric(req.body && req.body.cycle_key);
+        if (!rubric) return res.status(404).json({ error: 'No review cycle configured.' });
+        const id = String(req.params.submissionId);
+        const applicant = decisionApplicant(id);
+        if (!applicant) return res.status(404).json({ error: 'Submission not found.' });
+        const decision = ACC_DECISION_STATUSES.includes(applicant.status) ? applicant.status : null;
+        if (!decision) return res.status(409).json({ error: 'Record a decision before drafting the letter.' });
+        const draft = buildDecisionLetterText(decision, { name: applicant.name, project: applicant.project });
+        // aiDraft enrichment (real key only) — swap the opening context sentence.
+        const extra = await decisionAiEnrich(decision, { name: applicant.name, project: applicant.project });
+        if (extra) {
+            const blocks = draft.body.split('\n\n');
+            if (blocks.length > 2) blocks.splice(2, 0, extra);
+            draft.body = blocks.join('\n\n');
+        }
+        const reviewerNote = decisionReviewerNoteText(id, rubric.cycle_key);
+        const letter = reviewLetterState(id);
+        res.json({
+            submission_id: id, decision,
+            applicant_name: applicant.name, applicant_email: applicant.email, project: applicant.project,
+            subject: draft.subject, body: draft.body,
+            reviewer_note: reviewerNote,
+            letter_state: letter.state, locked: letter.locked,
+            already_queued: letter.state !== 'none'
+        });
+    });
+
+    // ---- Queue the letter into the ONE approval outbox (idempotent) ----
+    function queueDecisionLetter(submissionId, subject, body, actor) {
+        const applicant = decisionApplicant(submissionId);
+        if (!applicant) return { ok: false, error: 'Submission not found.' };
+        if (!ACC_DECISION_STATUSES.includes(applicant.status)) return { ok: false, error: 'No decision recorded.' };
+        if (!applicant.email) return { ok: false, error: 'This applicant has no email on file.' };
+        const marker = accDecisionDripKind(submissionId);
+        const dup = query.get("SELECT 1 AS x FROM drip_log WHERE user_id = 'accelerator-decision' AND kind = ?", [marker]);
+        if (dup) return { ok: true, queued: false, reason: 'already-queued' };
+        const draft = buildDecisionLetterText(applicant.status, { name: applicant.name, project: applicant.project });
+        const finalSubject = (subject && String(subject).trim()) ? String(subject).trim() : draft.subject;
+        const finalBody = (body && String(body).trim()) ? String(body) : draft.body;
+        const html = decisionLetterHtml(finalSubject, finalBody);
+        const batch = accDecisionBatchId(submissionId);
+        const payload = JSON.stringify({ to: applicant.email, subject: finalSubject, html });
+        db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                VALUES (?, 'pending_approval', ?, 'accelerator-decision', 'acc_decision', ?, ?, ?, ?, datetime('now'))`,
+            [uuidv4(), batch, payload, applicant.email, finalSubject, actor || 'admin']);
+        db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'accelerator-decision', ?, ?)", [uuidv4(), applicant.email, marker]);
+        return { ok: true, queued: true, batch_id: batch };
+    }
+
+    app.post('/api/admin/review/decisions/:submissionId/letter/queue', auth, adminOnly, (req, res) => {
+        const id = String(req.params.submissionId);
+        const out = queueDecisionLetter(id, req.body && req.body.subject, req.body && req.body.body, req.user?.email);
+        if (!out.ok) return res.status(400).json({ error: out.error });
+        saveDb();
+        if (out.queued) logAudit(req, 'review_decision_letter_queue', `${id} queued to outbox`);
+        res.json({ success: true, queued: !!out.queued, batch_id: out.batch_id || accDecisionBatchId(id), message: out.queued ? 'Letter queued in the outbox for approval.' : 'A letter is already queued for this applicant. Use requeue to replace it.' });
+    });
+
+    // ---- Requeue: clear the marker + cancel a still-pending letter so a fresh
+    //      draft can be queued. Blocked once the letter is approved or sent. ----
+    app.post('/api/admin/review/decisions/:submissionId/letter/requeue', auth, adminOnly, (req, res) => {
+        const id = String(req.params.submissionId);
+        const letter = reviewLetterState(id);
+        if (letter.locked) return res.status(423).json({ error: 'This letter has been approved or sent and can no longer be requeued.', locked: true });
+        try { db.run("UPDATE scheduled_emails SET status = 'cancelled' WHERE source_engine = 'accelerator-decision' AND batch_id = ? AND status = 'pending_approval'", [accDecisionBatchId(id)]); } catch (e) {}
+        try { db.run("DELETE FROM drip_log WHERE user_id = 'accelerator-decision' AND kind = ?", [accDecisionDripKind(id)]); } catch (e) {}
+        saveDb();
+        logAudit(req, 'review_decision_letter_requeue', `${id} marker cleared`);
+        res.json({ success: true });
+    });
+
+    // ---- Batch: queue letters for every decided submission that has none yet ----
+    app.post('/api/admin/review/decisions/letters/batch', auth, adminOnly, (req, res) => {
+        const rubric = reviewGetRubric(req.body && req.body.cycle_key);
+        if (!rubric) return res.status(404).json({ error: 'No review cycle configured.' });
+        const subs = reviewListSubmissions(rubric).filter((s) => ACC_DECISION_STATUSES.includes(s.status));
+        let queued = 0, skipped = 0, noEmail = 0;
+        for (const s of subs) {
+            const out = queueDecisionLetter(s.id, null, null, req.user?.email);
+            if (!out.ok) { noEmail++; continue; }
+            if (out.queued) queued++; else skipped++;
+        }
+        saveDb();
+        logAudit(req, 'review_decision_letters_batch', `${queued} queued, ${skipped} already queued, ${noEmail} without email`);
+        res.json({ success: true, queued, skipped, no_email: noEmail, total: subs.length });
+    });
+
+    // ---- Accelerator funnel counts (drafts -> submitted -> assigned -> fully
+    //      scored -> decided -> letters sent) for the admin section strip ----
+    app.get('/api/admin/review/funnel', auth, adminOnly, (req, res) => {
+        const rubric = reviewGetRubric(req.query.cycle);
+        const cycle = rubric ? rubric.cycle_key : REVIEW_DEFAULT_CYCLE;
+        const track = (rubric && rubric.domain) || 'accelerator';
+        const cyc = (rubric && rubric.cycle_key === 'accelerator-2026') ? '2026' : null;
+        const num = (sql, params) => { try { const r = query.get(sql, params || []); return (r && r.c != null) ? r.c : 0; } catch (e) { return 0; } };
+        const drafts = num("SELECT COUNT(*) AS c FROM submission_pipeline WHERE track = ? AND status = 'draft'", [track]);
+        const subs = reviewListSubmissions(rubric || { source: 'submission_pipeline', domain: track });
+        const submitted = subs.length;
+        let assigned = 0, fullyScored = 0;
+        subs.forEach((s) => {
+            const need = num("SELECT COUNT(*) AS c FROM review_assignments WHERE cycle_key = ? AND submission_id = ? AND status != 'recused'", [cycle, s.id]);
+            if (need > 0) assigned++;
+            const done = num("SELECT COUNT(*) AS c FROM review_scores sc JOIN review_assignments ra ON sc.assignment_id = ra.id WHERE ra.cycle_key = ? AND ra.submission_id = ? AND sc.status = 'submitted'", [cycle, s.id]);
+            if (need > 0 && done >= need) fullyScored++;
+        });
+        const accepted = subs.filter((s) => s.status === 'accepted').length;
+        const waitlisted = subs.filter((s) => s.status === 'waitlisted').length;
+        const declined = subs.filter((s) => s.status === 'declined').length;
+        const decided = accepted + waitlisted + declined;
+        const lettersSent = num("SELECT COUNT(DISTINCT batch_id) AS c FROM scheduled_emails WHERE source_engine = 'accelerator-decision' AND status = 'sent'");
+        res.json({ cycle, drafts, submitted, assigned, fully_scored: fullyScored, decided, accepted, waitlisted, declined, letters_sent: lettersSent });
+    });
+
+
     // ========== ACCELERATOR INTERVIEWERS ==========
 
     // Get interviewers for a year
@@ -18212,6 +18588,12 @@ By applying to this program, I provide the following consents:
                 if (ev && ev.at) { const t = new Date(ev.at).getTime(); if (!isNaN(t) && t >= cutoff) model.forum.accepted += 1; }
             }
         } catch (e) { /* forum pipeline reads as 0 when unavailable */ }
+        // Med&X Accelerator pipeline movement this week (submission_pipeline). Every number is live.
+        model.accelerator = {
+            submitted: num("SELECT COUNT(*) AS c FROM submission_pipeline WHERE track = 'accelerator' AND status NOT IN ('draft') AND submitted_at >= datetime('now','-7 days')"),
+            awaiting: num("SELECT COUNT(*) AS c FROM submission_pipeline WHERE track = 'accelerator' AND status IN ('submitted','under_review')"),
+            decided: num("SELECT COUNT(*) AS c FROM submission_pipeline WHERE track = 'accelerator' AND status IN ('accepted','waitlisted','declined') AND decision_at >= datetime('now','-7 days')")
+        };
         // Member-initiated guest passes brought this week (colleague invites).
         model.guestPasses = num("SELECT COUNT(*) AS c FROM guest_passes WHERE created_at >= datetime('now','-7 days') AND status <> 'revoked'");
         // Post-event survey pulse — only events that actually have a survey out (invited > 0).
@@ -18262,6 +18644,11 @@ By applying to this program, I provide the following consents:
         parts.push(pulseListRow('Invitations sent', fpl.invited || 0, accent));
         parts.push(pulseListRow('Replies received', fpl.replied || 0, accent));
         parts.push(pulseListRow('New members accepted', fpl.accepted || 0, accent));
+        const apl = model.accelerator || {};
+        parts.push(digestSectionHead('Med&X Accelerator', 'Applications this week', accent));
+        parts.push(pulseListRow('Submitted this week', apl.submitted || 0, accent));
+        parts.push(pulseListRow('Awaiting review', apl.awaiting || 0, accent));
+        parts.push(pulseListRow('Decided this week', apl.decided || 0, accent));
         parts.push(digestSectionHead('Action Center', 'Open items by area', accent));
         if (model.actionAreas && model.actionAreas.length) {
             model.actionAreas.forEach((a) => parts.push(pulseListRow(a.label, a.count, accent)));
