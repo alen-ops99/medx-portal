@@ -19,6 +19,7 @@
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&display=swap" rel="stylesheet">
     <style id="medx-admin-brand">
       /* Brand match with the website + user portal (presentation-only) */
       h1,h2,h3,.welcome-title,.section-title,.card-title,.modal-title{font-family:'Fraunces',Georgia,serif !important;letter-spacing:-.01em;}
@@ -9303,6 +9304,26 @@ President, Med&amp;X</textarea>
 
                     <!-- Members Tab (Admin) — merged with Directory -->
                     <div class="plexus-content forum-content active" id="forum-members">
+                        <!-- Forum considerations (approve / decline) -->
+                        <div class="card" id="forumConsiderationsCard" style="margin-bottom: 16px; border-left: 3px solid #20463a;">
+                            <div class="card-header" style="justify-content: space-between; align-items: center;">
+                                <span class="card-title"><i class="fas fa-dna" style="color:#20463a; margin-right:8px;"></i> Forum considerations <span id="fcPendingBadge" style="display:none; background:#20463a; color:#f4efe4; border-radius:12px; padding:1px 9px; font-size:12px; margin-left:6px;"></span></span>
+                                <button class="btn btn-secondary" onclick="App.loadForumConsiderations()"><i class="fas fa-rotate"></i> Refresh</button>
+                            </div>
+                            <div id="forumConsiderationsBody" style="padding: 4px 2px;">
+                                <div style="color: var(--muted); font-size: 13px; padding: 14px;">Loading…</div>
+                            </div>
+                        </div>
+                        <!-- Convening reservations (wing convenings — reserved counts + segment ticks) -->
+                        <div class="card" id="forumConveningsCard" style="margin-bottom: 16px; border-left: 3px solid #c9a962;">
+                            <div class="card-header" style="justify-content: space-between; align-items: center;">
+                                <span class="card-title"><i class="fas fa-calendar-check" style="color:#20463a; margin-right:8px;"></i> Convening reservations <span id="fcvTotalBadge" style="display:none; background:#20463a; color:#f4efe4; border-radius:12px; padding:1px 9px; font-size:12px; margin-left:6px;"></span></span>
+                                <button class="btn btn-secondary" onclick="App.loadForumConvenings()"><i class="fas fa-rotate"></i> Refresh</button>
+                            </div>
+                            <div id="forumConveningsBody" style="padding: 4px 2px;">
+                                <div style="color: var(--muted); font-size: 13px; padding: 14px;">Loading…</div>
+                            </div>
+                        </div>
                         <!-- Summary Stats -->
                         <div class="plexus-stats-grid" style="margin-bottom: 16px;">
                             <div class="stat-item"><div class="stat-value" id="fmMembStatTotal">0</div><div class="stat-label">Total Members</div></div>
@@ -15099,8 +15120,8 @@ President, Med&amp;X</textarea>
                 if (this.user && this.user.is_admin) { const af = document.getElementById('assistantFab'); if (af) af.style.display = 'flex'; }
 
                 // Online/offline listeners for check-in queue
-                window.addEventListener('online', () => this.flushCheckinQueue());
-                window.addEventListener('offline', () => this.updateFabBadge());
+                window.addEventListener('online', () => { this.flushCheckinQueue(); this.cacheRoster(); this.updateOfflineIndicator(); });
+                window.addEventListener('offline', () => { this.updateFabBadge(); this.updateOfflineIndicator(); });
                 // Resume any queue left from a previous session, and show the banner.
                 this.updateOfflineBanner();
                 if (navigator.onLine) setTimeout(() => this.flushCheckinQueue(), 1500);
@@ -15866,6 +15887,7 @@ President, Med&amp;X</textarea>
                 const sec = p.open_section || '';
                 if (k.indexOf('gala') === 0) return 'gala';
                 if (k === 'reg_unpaid' || k === 'sponsor_deliverable' || k === 'sponsor_followup') return 'plexus';
+                if (k === 'forum_consideration') return 'forum';
                 if (k === 'message_unanswered') return 'members';
                 if (k === 'content_plan_missing' || k === 'content_week_review' || k === 'monthly_digest') return 'pr';
                 if (proj === 'plexus') return 'plexus';
@@ -16081,6 +16103,7 @@ President, Med&amp;X</textarea>
                 const pl = (item && item.action_payload) || {};
                 if (pl.open_planner) { this.showSection('pr-media'); setTimeout(() => { try { Planner.open(); } catch (e) {} }, 200); return; }
                 if (pl.open_project) { this.showProject(pl.open_project); return; }
+                if (pl.open_forum_considerations) { this.showProject('forum'); this.showForumTab('members'); setTimeout(() => { try { this.loadForumConsiderations(); const el=document.getElementById('forumConsiderationsCard'); if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); } catch(e){} }, 350); return; }
                 this.showSection(pl.open_section || 'dashboard');
             },
 
@@ -23430,7 +23453,7 @@ President, Med&amp;X</textarea>
                 overlay.innerHTML = `
                     <div class="qr-modal">
                         <button class="qr-modal-close" onclick="App.closeGlobalQRScanner()"><i class="fas fa-times"></i></button>
-                        <h3><i class="fas fa-qrcode"></i> Quick Check-in</h3>
+                        <h3><i class="fas fa-qrcode"></i> Quick Check-in <span id="qrOfflineIndicator" style="display:none;align-items:center;gap:5px;font-size:11px;font-weight:800;letter-spacing:0.5px;color:#fff;padding:3px 9px;border-radius:7px;vertical-align:middle;"></span></h3>
 
                         <div class="qr-stats-bar" id="qrStatsBar">
                             <div class="qr-stats-overall">
@@ -23522,6 +23545,9 @@ President, Med&amp;X</textarea>
                 this.loadGlobalCheckinStats();
                 this.loadGlobalRecentCheckins();
                 this.updateOfflineBanner();
+                // Cache the confirmed guest list for offline redundancy, and reflect online/offline state.
+                this.cacheRoster();
+                this.updateOfflineIndicator();
 
                 // Start camera scanner
                 this._globalActiveTab = 'scan';
@@ -24105,7 +24131,13 @@ President, Med&amp;X</textarea>
                     }
                 } catch (err) {
                     console.error('Check-in API error:', err);
-                    if (resultDiv) {
+                    const offline = !navigator.onLine || /Failed to fetch|NetworkError|Load failed|ERR_|network/i.test((err && err.message) || '');
+                    if (offline) {
+                        // Frontend resilience: identify the guest from the cached roster and queue the
+                        // check-in locally. The server-side validation logic is never bypassed — the
+                        // queued scan replays through the same /api/checkin endpoint on reconnect.
+                        this.renderOfflineCheckin(code);
+                    } else if (resultDiv) {
                         resultDiv.className = 'checkin-result error';
                         resultDiv.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Check-in failed. Please try again.';
                     }
@@ -24214,6 +24246,100 @@ President, Med&amp;X</textarea>
                 } else if (badge) {
                     badge.remove();
                 }
+            },
+
+            // --- OFFLINE GUEST-LIST CACHE (door scanner resilience) ---
+            // Caches the confirmed guest roster in localStorage so the door can still identify a
+            // guest and queue a check-in when the venue network drops. Purely a frontend layer
+            // around the existing /api/checkin calls — no server validation logic is touched.
+            _roster: null,
+            getRoster() {
+                if (this._roster && this._roster.guests) return this._roster;
+                try { this._roster = JSON.parse(localStorage.getItem('checkinRoster') || 'null'); } catch (e) { this._roster = null; }
+                return this._roster;
+            },
+            _saveRoster() { try { if (this._roster) localStorage.setItem('checkinRoster', JSON.stringify(this._roster)); } catch (e) {} },
+            async cacheRoster() {
+                try {
+                    const data = await this.api('/api/checkin/roster');
+                    if (data && Array.isArray(data.guests)) {
+                        this._roster = { generated_at: data.generated_at || new Date().toISOString(), guests: data.guests };
+                        try { localStorage.setItem('checkinRoster', JSON.stringify(this._roster)); } catch (e) {}
+                        this.updateOfflineIndicator();
+                    }
+                } catch (e) { /* keep any previously cached roster; best-effort refresh */ }
+            },
+            lookupRosterByCode(code) {
+                const roster = this.getRoster();
+                if (!roster || !roster.guests || !roster.guests.length) return null;
+                let ev = '', id = '', email = '';
+                try {
+                    const p = JSON.parse(code);
+                    ev = String(p.event || p.type || p.evt || p.e || '');
+                    id = String(p.id || p.reg_id || p.registration_id || p.regId || p.caRegId || '');
+                    email = String(p.email || '');
+                } catch (e) {
+                    const raw = String(code || '').trim();
+                    if (raw.indexOf('@') > 0) email = raw; else id = raw;
+                }
+                const idS = id.trim(), emailS = email.trim().toLowerCase();
+                const evBucket = ev.trim().toLowerCase().split('-')[0];
+                if (idS && evBucket) {
+                    const m = roster.guests.find(g => String(g.id) === idS && (g.event || '').toLowerCase().indexOf(evBucket) === 0);
+                    if (m) return m;
+                }
+                if (emailS) { const m = roster.guests.find(g => (g.email || '').toLowerCase() === emailS); if (m) return m; }
+                if (idS) { const m = roster.guests.find(g => String(g.id) === idS); if (m) return m; }
+                return null;
+            },
+            updateOfflineIndicator() {
+                const el = document.getElementById('qrOfflineIndicator');
+                if (!el) return;
+                const roster = this.getRoster();
+                const n = roster && roster.guests ? roster.guests.length : 0;
+                if (!navigator.onLine) {
+                    el.style.display = 'inline-flex';
+                    el.style.background = '#b45309'; el.style.color = '#fff';
+                    el.innerHTML = '<i class="fas fa-wifi-slash"></i> OFFLINE' + (n ? ' · ' + n + ' cached' : '');
+                } else if (n) {
+                    el.style.display = 'inline-flex';
+                    el.style.background = 'rgba(34,197,94,0.16)'; el.style.color = '#3ddc84';
+                    el.innerHTML = '<i class="fas fa-database"></i> ' + n + ' cached';
+                } else {
+                    el.style.display = 'none';
+                }
+            },
+            renderOfflineCheckin(code) {
+                const resultDiv = document.getElementById('globalCheckinResult');
+                const input = document.getElementById('globalCheckinInput');
+                // Queue for automatic sync — replays through the SAME /api/checkin endpoint on reconnect.
+                this.queueCheckin(code);
+                const guest = this.lookupRosterByCode(code);
+                const offBadge = '<span style="display:inline-block;background:#b45309;color:#fff;font-size:10px;font-weight:800;letter-spacing:0.6px;padding:2px 8px;border-radius:6px;vertical-align:middle;margin-left:6px;">OFFLINE</span>';
+                if (resultDiv) {
+                    resultDiv.className = 'checkin-result already';
+                    if (guest) {
+                        const detail = [guest.institution, guest.ticket, guest.email].filter(Boolean).slice(0, 2).map(x => this.escapeHtml(x)).join(' &bull; ');
+                        const badge = guest.event ? '<span class="event-badge ' + this.escapeHtml(guest.event) + '">' + this.escapeHtml(guest.event) + '</span>' : '';
+                        const already = guest.checked_in ? ' <span style="color:#b45309;font-size:12px;font-weight:600;">(already checked in)</span>' : '';
+                        resultDiv.innerHTML =
+                            '<i class="fas fa-cloud-arrow-up"></i> Queued offline' + offBadge +
+                            '<div class="checkin-attendee-info">' +
+                                '<div class="name">' + this.escapeHtml(guest.name || 'Guest') + ' ' + badge + already + '</div>' +
+                                '<div class="detail">' + detail + '</div>' +
+                            '</div>' +
+                            '<div style="margin-top:8px;font-size:12px;color:var(--text-muted,#c9c2ba);">Matched against the cached guest list. This check-in syncs automatically when you reconnect.</div>';
+                        guest.checked_in = 1; this._saveRoster();
+                    } else {
+                        resultDiv.innerHTML =
+                            '<i class="fas fa-cloud-arrow-up"></i> Queued offline' + offBadge +
+                            '<div style="margin-top:6px;font-size:13px;">Not found in the cached guest list, but the check-in is queued and will be verified and synced when you reconnect.</div>';
+                    }
+                }
+                if (input) input.value = '';
+                this.updateOfflineBanner();
+                this.updateFabBadge();
+                this.updateOfflineIndicator();
             },
 
             // --- SPEAKER DOCUMENT TRACKING ---
@@ -25591,6 +25717,8 @@ President, Med&amp;X</textarea>
                 try {
                     const members = await this.api('/api/admin/forum/members');
                     this.forumMembers = members;
+                    this.loadForumConsiderations();
+                    this.loadForumConvenings();
                     this.populateMemberFilterDropdowns(members);
                     this.updateMemberStats(members);
                     this.fmMembGroupBy = 'none';
@@ -25601,6 +25729,80 @@ President, Med&amp;X</textarea>
                 } catch (err) {
                     console.error('Failed to load members:', err);
                 }
+            },
+
+            // ===== Biomedical Forum — considerations (approve / decline) =====
+            async loadForumConsiderations() {
+                try {
+                    const data = await this.api('/api/admin/forum/considerations?status=pending');
+                    const body = document.getElementById('forumConsiderationsBody'); if (!body) return;
+                    const items = (data && data.considerations) || [];
+                    const badge = document.getElementById('fcPendingBadge');
+                    if (badge) { if (items.length) { badge.style.display = 'inline-block'; badge.textContent = items.length; } else { badge.style.display = 'none'; } }
+                    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+                    if (!items.length) { body.innerHTML = '<div style="color: var(--muted); font-size: 13px; padding: 14px;">No applications awaiting a decision. Public &ldquo;Request consideration&rdquo; submissions appear here.</div>'; return; }
+                    body.innerHTML = items.map(c => `<div class="fc-row" data-fc="${c.id}" style="display:flex; gap:14px; justify-content:space-between; align-items:flex-start; padding:14px; border-bottom:1px solid var(--border);">
+                        <div style="min-width:0;">
+                            <div style="font-weight:600;">${esc(c.name || c.email)}</div>
+                            <div style="font-size:13px; color:var(--muted);">${esc([c.field, c.institution].filter(Boolean).join(' \u00b7 '))}</div>
+                            <div style="font-size:12px; color:var(--muted); margin-top:2px;">${esc(c.email)}${c.on_behalf_of ? ' \u00b7 nominated by ' + esc(c.on_behalf_of) : ''}</div>
+                            ${c.note ? `<div style="font-size:13px; color:var(--text); margin-top:8px; max-width:60ch; line-height:1.5;">${esc(c.note)}</div>` : ''}
+                        </div>
+                        <div style="display:flex; gap:8px; flex-shrink:0;">
+                            <button class="btn btn-primary" style="background:#20463a; border:none;" onclick="App.approveConsideration('${c.id}', this)"><i class="fas fa-check"></i> Approve &amp; invite</button>
+                            <button class="btn btn-secondary" onclick="App.declineConsideration('${c.id}', this)">Decline</button>
+                        </div>
+                    </div>`).join('');
+                } catch (e) { console.error('considerations load', e); }
+            },
+            async approveConsideration(id, btn) {
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Inviting…'; }
+                try {
+                    const r = await this.api('/api/admin/forum/considerations/' + id + '/approve', { method: 'POST', body: JSON.stringify({}) });
+                    if (r && r.invite_link) { Toast.success('Approved. Personal invitation link (dev) copied to the console.'); console.log('[Forum] Invitation link:', r.invite_link); }
+                    else { Toast.success('Approved — the personal invitation has been sent.'); }
+                    this.loadForumConsiderations();
+                    try { this.loadForumMembers(); } catch (e) {}
+                    try { this.loadActionCenter(); } catch (e) {}
+                } catch (e) { Toast.error((e && e.message) || 'Could not approve.'); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Approve & invite'; } }
+            },
+            async declineConsideration(id, btn) {
+                if (!confirm('Send a courteous decline for this application?')) return;
+                if (btn) { btn.disabled = true; }
+                try {
+                    await this.api('/api/admin/forum/considerations/' + id + '/decline', { method: 'POST', body: JSON.stringify({}) });
+                    Toast.success('A courteous regret has been sent.');
+                    this.loadForumConsiderations();
+                    try { this.loadActionCenter(); } catch (e) {}
+                } catch (e) { Toast.error((e && e.message) || 'Could not decline.'); if (btn) { btn.disabled = false; } }
+            },
+
+            // ===== Biomedical Forum — convening reservations (reserved counts + segment ticks) =====
+            async loadForumConvenings() {
+                try {
+                    const data = await this.api('/api/admin/forum/convenings');
+                    const body = document.getElementById('forumConveningsBody'); if (!body) return;
+                    const items = (data && data.convenings) || [];
+                    const badge = document.getElementById('fcvTotalBadge');
+                    const total = (data && data.total_reservations) || 0;
+                    if (badge) { if (total) { badge.style.display = 'inline-block'; badge.textContent = total; } else { badge.style.display = 'none'; } }
+                    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+                    if (!items.length) { body.innerHTML = '<div style="color: var(--muted); font-size: 13px; padding: 14px;">No convenings yet.</div>'; return; }
+                    body.innerHTML = items.map(c => {
+                        const segs = (c.segments || []).map(s => `<div style="display:flex; justify-content:space-between; gap:12px; font-size:13px; color:var(--text); padding:3px 0;">
+                            <span>${esc([s.time_label, s.label].filter(Boolean).join(' \u2014 '))}</span>
+                            <span style="font-weight:600; color:#20463a;">${s.count}</span>
+                        </div>`).join('');
+                        return `<div style="padding:14px; border-bottom:1px solid var(--border);">
+                            <div style="display:flex; justify-content:space-between; align-items:baseline; gap:12px;">
+                                <div style="font-weight:600;">${esc(c.title)}</div>
+                                <div style="font-size:13px; color:var(--muted);"><strong style="color:#20463a;">${c.reserved_count}</strong> reserved</div>
+                            </div>
+                            <div style="font-size:12px; color:var(--muted); margin-top:2px;">${esc([c.when_label, c.venue].filter(Boolean).join(' \u00b7 '))}</div>
+                            ${segs ? `<div style="margin-top:10px; border-top:1px dashed var(--border); padding-top:8px;"><div style="font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:4px;">Segments ticked</div>${segs}</div>` : ''}
+                        </div>`;
+                    }).join('');
+                } catch (e) { console.error('convenings load', e); }
             },
 
             populateMemberFilterDropdowns(members) {
@@ -37908,7 +38110,7 @@ By applying to this program, I give the following consents:
                         <button class="cs-surface" onclick="ContentCreator.start('graphic')">
                             <div class="cs-surface-ic" style="background:rgba(201,169,98,.20);color:#9a7b2f;"><i class="fas fa-image"></i></div>
                             <h3>Graphic &amp; PDF</h3>
-                            <p>Branded post graphics — announcement, countdown, speaker card, quote — over a real photo in the Med&X look. Export a PNG or a simple PDF.</p>
+                            <p>Branded post graphics — announcement, countdown, speaker card, quote, program card — styled as siblings of the Plexus event invitations (gold frame, serif display, editorial rules). Every element stays editable. Export a PNG or a simple PDF.</p>
                             <span class="cs-go">Design a graphic <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
                         </button>
                     </div>
@@ -38248,7 +38450,10 @@ By applying to this program, I give the following consents:
                     await Promise.all([
                         document.fonts.load('700 64px Fraunces'), document.fonts.load('600 64px Fraunces'),
                         document.fonts.load('italic 700 64px Fraunces'), document.fonts.load('600 32px Inter'),
-                        document.fonts.load('700 32px Inter'), document.fonts.ready
+                        document.fonts.load('700 32px Inter'),
+                        document.fonts.load('600 64px "Cormorant Garamond"'), document.fonts.load('700 64px "Cormorant Garamond"'),
+                        document.fonts.load('italic 500 64px "Cormorant Garamond"'), document.fonts.load('italic 600 64px "Cormorant Garamond"'),
+                        document.fonts.ready
                     ]);
                 } catch (e) {}
                 this._fontsReady = true;
@@ -38366,8 +38571,9 @@ By applying to this program, I give the following consents:
                 const b = this.brief;
                 const seg = (opts, cur, fn, goldOn) => `<div class="cc-seg ${goldOn ? 'gold' : ''}">${opts.map(o => `<button class="${o.v === cur ? 'on' : ''}" onclick="ContentCreator.${fn}('${o.v}')">${o.l}</button>`).join('')}</div>`;
                 const isSlide = this.kind === 'slideshow';
-                const tmplField = isSlide ? '' : `<div class="cc-field"><label>Template</label>${seg([{ v: 'announcement', l: 'Announce' }, { v: 'countdown', l: 'Countdown' }, { v: 'speaker', l: 'Speaker' }, { v: 'quote', l: 'Quote' }], this.template, 'setTemplate')}</div>`;
+                const tmplField = isSlide ? '' : `<div class="cc-field"><label>Template</label>${seg([{ v: 'announcement', l: 'Announce' }, { v: 'countdown', l: 'Countdown' }, { v: 'speaker', l: 'Speaker' }, { v: 'quote', l: 'Quote' }, { v: 'program', l: 'Program' }], this.template, 'setTemplate')}</div>`;
                 const daysField = (!isSlide && this.template === 'countdown') ? `<div class="cc-field"><label>Days to go (optional)</label><input type="text" id="ccDays" value="${escapeHtml(this.days)}" placeholder="e.g. 12" oninput="ContentCreator.setDays(this.value)"></div>` : '';
+                const programFields = (!isSlide && this.template === 'program') ? `<div class="cc-field"><label>Status pill (optional)</label><input type="text" id="ccStatus" value="${escapeHtml(b.status || '')}" placeholder="e.g. By invitation" oninput="ContentCreator.setText('status', this.value)"></div><div class="cc-field"><label>Details (one per line)</label><textarea id="ccDetails" rows="4" placeholder="Saturday 5 December 2026&#10;Esplanade Hotel, Zagreb&#10;19:30, black tie" oninput="ContentCreator.setText('details', this.value)">${escapeHtml(b.details || '')}</textarea></div>` : '';
                 const durField = isSlide ? `<div class="cc-field"><label>Seconds per photo</label>${seg([{ v: '1.8', l: 'Fast' }, { v: '2.6', l: 'Medium' }, { v: '3.6', l: 'Slow' }], String(this.secPer), 'setSecPer')}<div class="cc-note">About ${this.videoDuration().toFixed(0)}s total from ${this.selected.length} photo${this.selected.length === 1 ? '' : 's'}.</div></div>` : '';
                 const musicField = isSlide ? `<div class="cc-field"><label>Music</label>
                         <div class="cc-seg"><button class="${b.music ? '' : 'on'}" onclick="ContentCreator.setMusic(false)">No sound</button><button class="${b.music ? 'on' : ''}" onclick="ContentCreator.setMusic(true)">Add my track</button></div>
@@ -38385,6 +38591,7 @@ By applying to this program, I give the following consents:
                     <div class="cc-field"><label>Headline</label><textarea id="ccHeadline" rows="2" oninput="ContentCreator.setText('headline', this.value)">${escapeHtml(b.headline || '')}</textarea></div>
                     <div class="cc-field"><label>Subline</label><input type="text" id="ccSubline" value="${escapeHtml(b.subline || '')}" oninput="ContentCreator.setText('subline', this.value)"></div>
                     ${daysField}
+                    ${programFields}
                     <div class="cc-field"><label>Accent</label>${seg([{ v: 'crimson', l: 'Crimson' }, { v: 'gold', l: 'Gold' }, { v: 'ink', l: 'Ink' }], b.accent, 'setAccent', b.accent === 'gold')}</div>
                     ${durField}
                     ${musicField}
@@ -38453,6 +38660,7 @@ By applying to this program, I give the following consents:
                 else if (/\b(countdown|days)\b/.test(c)) { this.template = 'countdown'; this.brief.template = 'countdown'; msg = 'Countdown template.'; this.renderControls(); }
                 else if (/\b(speaker|keynote)\b/.test(c)) { this.template = 'speaker'; this.brief.template = 'speaker'; msg = 'Speaker template.'; this.renderControls(); }
                 else if (/\bquote\b/.test(c)) { this.template = 'quote'; this.brief.template = 'quote'; msg = 'Quote template.'; this.renderControls(); }
+                else if (/\b(program|schedule|agenda|event card|programme)\b/.test(c)) { this.template = 'program'; this.brief.template = 'program'; msg = 'Program card template.'; this.renderControls(); }
                 else { this.brief.headline = cmd; msg = 'Set that as the headline.'; }
                 const note = document.getElementById('ccRefineNote'); if (note) note.textContent = msg;
                 await this.preview();
@@ -38516,65 +38724,211 @@ By applying to this program, I give the following consents:
                 ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
             },
 
+            // ---------- invitation palette + motifs (siblings of the Plexus / Med&X event invitations) ----------
+            INV: { gold: '#D4A84B', goldLight: '#e8c97a', burgundy: '#A31D3A', burgundyDark: '#8a1830', navy: '#0f1c2e', cream: '#FAF8F5', ink: '#1a1a1a', line: '#e6e1d9', status: '#fdf6e3', statusLine: '#ede2c4', statusInk: '#7a5a12' },
+            // accent selector -> the invitation's secondary accent (rules, tags, labels). Gold stays the fixed signature.
+            accentInk(name) { return ({ crimson: this.INV.burgundy, gold: this.INV.gold, ink: this.INV.navy })[name] || this.INV.burgundy; },
+            SERIF: "'Cormorant Garamond', 'Fraunces', Georgia, serif",
+
+            // the invitation's signature gold L-bracket frame + hairline inset
+            drawFrame(ctx, W, H, color, opacity) {
+                const S = Math.min(W, H);
+                const pad = Math.round(S * 0.045);
+                const L = Math.round(S * 0.062);
+                const t = Math.max(1.5, S * 0.0022);
+                ctx.save();
+                ctx.strokeStyle = color; ctx.lineWidth = t; ctx.lineCap = 'butt';
+                ctx.globalAlpha = (opacity == null ? 0.85 : opacity) * 0.34;
+                ctx.strokeRect(pad + 0.5, pad + 0.5, W - pad * 2 - 1, H - pad * 2 - 1);
+                ctx.globalAlpha = (opacity == null ? 0.85 : opacity);
+                ctx.lineWidth = t * 1.4;
+                const corner = (x, y, dx, dy) => { ctx.beginPath(); ctx.moveTo(x, y + dy * L); ctx.lineTo(x, y); ctx.lineTo(x + dx * L, y); ctx.stroke(); };
+                corner(pad, pad, 1, 1); corner(W - pad, pad, -1, 1); corner(pad, H - pad, 1, -1); corner(W - pad, H - pad, -1, -1);
+                ctx.restore();
+            },
+            // thin centered gold divider (the invitation's .gold-divider)
+            drawDivider(ctx, cx, y, w, color) {
+                ctx.save(); ctx.globalAlpha = 0.6; ctx.fillStyle = color;
+                const h = Math.max(1, Math.round(w * 0.012));
+                ctx.fillRect(Math.round(cx - w / 2), Math.round(y), Math.round(w), h);
+                ctx.restore();
+            },
+            // logo, optionally tinted white (the invitation's brightness(0) invert(1) cover mark)
+            async drawLogoCenter(ctx, cx, topY, targetH, white) {
+                const logo = await this.loadImg(this.LOGO_URL);
+                if (!logo) return topY + targetH;
+                const ar = logo.width / logo.height;
+                const w = targetH * ar;
+                let src = logo;
+                if (white) {
+                    const off = document.createElement('canvas'); off.width = logo.width; off.height = logo.height;
+                    const o = off.getContext('2d'); o.drawImage(logo, 0, 0);
+                    o.globalCompositeOperation = 'source-in'; o.fillStyle = '#fbf9f6'; o.fillRect(0, 0, off.width, off.height);
+                    src = off;
+                }
+                ctx.drawImage(src, Math.round(cx - w / 2), Math.round(topY), Math.round(w), Math.round(targetH));
+                return topY + targetH;
+            },
+            // tracked uppercase Inter label (eyebrows, tags, roles)
+            _label(ctx, text, cx, y, color, size, spacing, align) {
+                if (!text) return;
+                ctx.save();
+                ctx.fillStyle = color; ctx.textBaseline = 'top'; ctx.textAlign = align || 'center';
+                ctx.font = `600 ${size}px Inter, sans-serif`;
+                const sp = Math.round(spacing == null ? size * 0.22 : spacing);
+                if ('letterSpacing' in ctx) ctx.letterSpacing = sp + 'px';
+                ctx.fillText(String(text).toUpperCase(), cx, y);
+                if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+                ctx.restore();
+            },
+            _wrap(ctx, text, font, maxW) { ctx.font = font; return this.wrapLines(ctx, text, maxW); },
+
             async renderGraphic(ctx, W, H) {
-                const b = this.brief, accent = this.ACCENTS[b.accent] || this.ACCENTS.crimson;
+                await this.ensureFonts();
+                if (this.template === 'program') return this.renderProgramCard(ctx, W, H);
+                return this.renderCinematic(ctx, W, H);
+            },
+
+            // cinematic cover shared by announcement / countdown / speaker / quote
+            async renderCinematic(ctx, W, H) {
+                const b = this.brief, tmpl = this.template, S = Math.min(W, H);
+                const acc = this.accentInk(b.accent);
+                const GOLD = this.INV.gold, GOLDL = this.INV.goldLight, CREAM = this.INV.cream;
                 const bg = this.selected[0] ? await this.loadImg(this.selected[0]) : null;
-                ctx.fillStyle = '#1b1512'; ctx.fillRect(0, 0, W, H);
-                this.drawCover(ctx, bg, 0, 0, W, H, 1.02);
-                const tmpl = this.template;
-                this.scrim(ctx, W, H, tmpl === 'speaker' ? 'band' : (tmpl === 'quote' ? 'full' : 'default'));
-                await this.drawLogoChip(ctx, W, H);
+                ctx.fillStyle = this.INV.navy; ctx.fillRect(0, 0, W, H);
+                this.drawCover(ctx, bg, 0, 0, W, H, 1.04, 0.5, tmpl === 'speaker' ? 0.3 : 0.44);
+                // amber-dark cinematic gradient, matching the invitation cover
+                const g = ctx.createLinearGradient(0, 0, 0, H);
+                if (tmpl === 'quote') { g.addColorStop(0, 'rgba(12,9,6,0.74)'); g.addColorStop(0.5, 'rgba(14,10,6,0.6)'); g.addColorStop(1, 'rgba(10,7,4,0.82)'); }
+                else if (tmpl === 'speaker') { g.addColorStop(0, 'rgba(14,11,7,0.4)'); g.addColorStop(0.42, 'rgba(14,11,7,0.2)'); g.addColorStop(0.72, 'rgba(12,9,6,0.72)'); g.addColorStop(1, 'rgba(9,6,3,0.92)'); }
+                else { g.addColorStop(0, 'rgba(16,11,4,0.7)'); g.addColorStop(0.32, 'rgba(18,13,5,0.42)'); g.addColorStop(0.62, 'rgba(18,13,5,0.42)'); g.addColorStop(1, 'rgba(11,7,2,0.76)'); }
+                ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+                this.drawFrame(ctx, W, H, GOLD, 0.85);
+                const cx = W / 2;
+                await this.drawLogoCenter(ctx, cx, H * 0.082, S * 0.055, true);
+                if (tmpl === 'countdown') this._layoutCountdown(ctx, W, H, S, acc, GOLD, GOLDL, CREAM);
+                else if (tmpl === 'speaker') this._layoutSpeaker(ctx, W, H, S, acc, GOLD, GOLDL, CREAM);
+                else if (tmpl === 'quote') this._layoutQuote(ctx, W, H, S, acc, GOLD, GOLDL, CREAM);
+                else this._layoutAnnounce(ctx, W, H, S, acc, GOLD, GOLDL, CREAM);
+            },
+
+            _layoutAnnounce(ctx, W, H, S, acc, GOLD, GOLDL, CREAM) {
+                const b = this.brief, cx = W / 2, maxW = W * 0.82;
+                const headSize = S * 0.076, headFont = `600 ${headSize}px ${this.SERIF}`, lineH = headSize * 1.05;
+                const hlines = this._wrap(ctx, b.headline || '', headFont, maxW);
+                const subFont = `italic 500 ${S * 0.042}px ${this.SERIF}`;
+                const slines = b.subline ? this._wrap(ctx, b.subline, subFont, maxW) : [];
+                const eyeH = b.eyebrow ? S * 0.055 : 0;
+                const total = eyeH + S * 0.05 + (hlines.length * lineH + S * 0.02) + S * 0.05 + (slines.length * S * 0.052);
+                let y = H * 0.53 - total / 2;
+                if (b.eyebrow) { this._label(ctx, b.eyebrow, cx, y, GOLDL, S * 0.026, S * 0.0075); y += eyeH; }
+                this.drawDivider(ctx, cx, y + S * 0.008, S * 0.08, GOLD); y += S * 0.05;
+                ctx.font = headFont; ctx.fillStyle = CREAM; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+                for (const ln of hlines) { ctx.fillText(ln, cx, y); y += lineH; }
+                y += S * 0.02;
+                this.drawDivider(ctx, cx, y, S * 0.08, GOLD); y += S * 0.045;
+                if (slines.length) { ctx.font = subFont; ctx.fillStyle = CREAM; ctx.globalAlpha = 0.94; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; for (const ln of slines) { ctx.fillText(ln, cx, y); y += S * 0.052; } ctx.globalAlpha = 1; }
                 ctx.textAlign = 'left';
-                const mx = W * 0.075, maxW = W - mx * 2;
-                // eyebrow
-                const eyeSize = W * 0.032;
-                ctx.font = `700 ${eyeSize}px Inter, sans-serif`;
-                ctx.fillStyle = b.accent === 'gold' ? '#e7c874' : (accent === '#15110f' ? '#f3efe9' : '#e8b7ba');
-                const eyebrow = (b.eyebrow || '').toUpperCase();
-                if (tmpl === 'quote') {
-                    // big quote mark
-                    ctx.textBaseline = 'alphabetic';
-                    ctx.fillStyle = b.accent === 'gold' ? '#c9a962' : '#c9a962';
-                    ctx.font = `700 ${W * 0.24}px Fraunces, Georgia, serif`;
-                    ctx.fillText('“', mx - W * 0.01, H * 0.42);
+            },
+
+            _layoutCountdown(ctx, W, H, S, acc, GOLD, GOLDL, CREAM) {
+                const b = this.brief, cx = W / 2, maxW = W * 0.82;
+                const num = (String(this.days || b.days || '').replace(/[^0-9]/g, '')) || '';
+                const numSize = S * 0.3, numFont = `600 ${numSize}px ${this.SERIF}`;
+                const headSize = S * 0.05, headFont = `600 ${headSize}px ${this.SERIF}`, lineH = headSize * 1.06;
+                const hlines = this._wrap(ctx, b.headline || '', headFont, maxW);
+                const eyeH = b.eyebrow ? S * 0.055 : 0;
+                const numBlock = num ? numSize * 0.82 + S * 0.05 : 0;
+                const total = eyeH + S * 0.05 + numBlock + (hlines.length * lineH) + (b.subline ? S * 0.06 : 0);
+                let y = H * 0.53 - total / 2;
+                if (b.eyebrow) { this._label(ctx, b.eyebrow, cx, y, GOLDL, S * 0.026, S * 0.0075); y += eyeH; }
+                this.drawDivider(ctx, cx, y + S * 0.008, S * 0.08, GOLD); y += S * 0.05;
+                if (num) {
+                    ctx.font = numFont; ctx.fillStyle = GOLD; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+                    ctx.fillText(num, cx, y - numSize * 0.08);
+                    this._label(ctx, 'Days to go', cx, y + numSize * 0.78, CREAM, S * 0.03, S * 0.012);
+                    y += numSize * 0.82 + S * 0.05;
                 }
-                let cursorY;
-                if (tmpl === 'speaker') cursorY = H * 0.60; else if (tmpl === 'quote') cursorY = H * 0.50; else cursorY = H * 0.545;
-                if (eyebrow) { ctx.save(); if (tmpl !== 'quote') { ctx.textBaseline = 'alphabetic'; ctx.fillStyle = b.accent === 'gold' ? '#e7c874' : '#efe0d0'; ctx.font = `700 ${eyeSize}px Inter, sans-serif`; ctx.fillText(this.letterspace(eyebrow, 2), mx, cursorY); cursorY += W * 0.02; } ctx.restore(); }
-                // headline
-                const headSize = tmpl === 'quote' ? W * 0.066 : (this.aspect === 'landscape' ? W * 0.058 : W * 0.078);
-                ctx.font = `${tmpl === 'quote' ? 'italic ' : ''}700 ${headSize}px Fraunces, Georgia, serif`;
-                ctx.fillStyle = '#fbf9f6'; ctx.textBaseline = 'top';
-                const headText = tmpl === 'countdown' && this.days ? (b.headline || '') : (b.headline || '');
-                const lines = this.wrapLines(ctx, headText, maxW);
-                const lineH = headSize * 1.12;
-                cursorY += W * 0.028;
-                // countdown big number
-                if (tmpl === 'countdown' && String(this.days).trim()) {
-                    const numSize = this.aspect === 'landscape' ? H * 0.30 : W * 0.30;
-                    ctx.font = `700 ${numSize}px Fraunces, Georgia, serif`;
-                    ctx.fillStyle = b.accent === 'gold' ? '#c9a962' : '#fbf9f6';
-                    const num = String(this.days).replace(/[^0-9]/g, '') || this.days;
-                    ctx.fillText(num, mx, cursorY);
-                    const numW = ctx.measureText(num).width;
-                    ctx.font = `700 ${W * 0.05}px Inter, sans-serif`;
-                    ctx.fillStyle = b.accent === 'gold' ? '#e7c874' : '#e8b7ba';
-                    ctx.fillText('DAYS', mx + numW + W * 0.02, cursorY + numSize * 0.42);
-                    cursorY += numSize * 1.02;
-                    ctx.font = `700 ${headSize}px Fraunces, Georgia, serif`; ctx.fillStyle = '#fbf9f6';
+                ctx.font = headFont; ctx.fillStyle = CREAM; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+                for (const ln of hlines) { ctx.fillText(ln, cx, y); y += lineH; }
+                if (b.subline) { y += S * 0.012; ctx.font = `italic 500 ${S * 0.038}px ${this.SERIF}`; ctx.fillStyle = CREAM; ctx.globalAlpha = 0.9; ctx.fillText(b.subline, cx, y); ctx.globalAlpha = 1; }
+                ctx.textAlign = 'left';
+            },
+
+            _layoutSpeaker(ctx, W, H, S, acc, GOLD, GOLDL, CREAM) {
+                const b = this.brief, cx = W / 2, maxW = W * 0.84;
+                const nameSize = S * 0.078, nameFont = `italic 600 ${nameSize}px ${this.SERIF}`, lineH = nameSize * 1.02;
+                const nlines = this._wrap(ctx, b.headline || '', nameFont, maxW);
+                const subFont = `600 ${S * 0.03}px Inter, sans-serif`;
+                const slines = b.subline ? this._wrap(ctx, b.subline, subFont, maxW) : [];
+                const roleH = b.eyebrow ? S * 0.05 : 0;
+                const total = roleH + (nlines.length * lineH) + S * 0.05 + (slines.length * S * 0.044);
+                let y = H * 0.9 - total;
+                if (b.eyebrow) { this._label(ctx, b.eyebrow, cx, y, GOLD, S * 0.028, S * 0.01); y += roleH; }
+                ctx.font = nameFont; ctx.fillStyle = CREAM; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+                for (const ln of nlines) { ctx.fillText(ln, cx, y); y += lineH; }
+                y += S * 0.014;
+                this.drawDivider(ctx, cx, y, S * 0.08, GOLD); y += S * 0.032;
+                if (slines.length) { ctx.textAlign = 'center'; ctx.textBaseline = 'top'; for (const ln of slines) { this._label(ctx, ln, cx, y, GOLDL, S * 0.025, S * 0.004); y += S * 0.044; } }
+                ctx.textAlign = 'left';
+            },
+
+            _layoutQuote(ctx, W, H, S, acc, GOLD, GOLDL, CREAM) {
+                const b = this.brief, cx = W / 2, maxW = W * 0.8;
+                const qSize = S * 0.062, qFont = `italic 500 ${qSize}px ${this.SERIF}`, lineH = qSize * 1.16;
+                const qlines = this._wrap(ctx, b.headline || '', qFont, maxW);
+                const attrH = b.subline ? S * 0.05 : 0;
+                const markH = S * 0.13;
+                const total = markH + (qlines.length * lineH) + S * 0.05 + attrH;
+                let y = H * 0.52 - total / 2;
+                ctx.font = `600 ${S * 0.2}px ${this.SERIF}`; ctx.fillStyle = GOLD; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+                ctx.fillText('“', cx, y - S * 0.02); y += markH;
+                ctx.font = qFont; ctx.fillStyle = CREAM; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+                for (const ln of qlines) { ctx.fillText(ln, cx, y); y += lineH; }
+                y += S * 0.016; this.drawDivider(ctx, cx, y, S * 0.07, GOLD); y += S * 0.032;
+                if (b.subline) this._label(ctx, b.subline, cx, y, GOLDL, S * 0.026, S * 0.006);
+                ctx.textAlign = 'left';
+            },
+
+            // cream editorial program card (the invitation's page-2 event card)
+            async renderProgramCard(ctx, W, H) {
+                const b = this.brief, S = Math.min(W, H), acc = this.accentInk(b.accent);
+                const GOLD = this.INV.gold, INK = this.INV.ink;
+                ctx.fillStyle = this.INV.cream; ctx.fillRect(0, 0, W, H);
+                const bg = this.selected[0] ? await this.loadImg(this.selected[0]) : null;
+                const photoH = bg ? Math.round(H * 0.4) : 0;
+                if (bg) { this.drawCover(ctx, bg, 0, 0, W, photoH, 1.02, 0.5, 0.42); const gg = ctx.createLinearGradient(0, photoH - S * 0.14, 0, photoH); gg.addColorStop(0, 'rgba(250,248,245,0)'); gg.addColorStop(1, 'rgba(250,248,245,1)'); ctx.fillStyle = gg; ctx.fillRect(0, photoH - S * 0.14, W, S * 0.14); }
+                this.drawFrame(ctx, W, H, GOLD, 0.7);
+                const mx = W * 0.088, maxW = W - mx * 2;
+                let y = (photoH ? photoH + S * 0.03 : H * 0.14);
+                ctx.textAlign = 'left';
+                if (b.eyebrow) { this._label(ctx, b.eyebrow, mx, y, acc, S * 0.026, S * 0.006, 'left'); y += S * 0.05; }
+                const titleSize = S * 0.062, titleFont = `600 ${titleSize}px ${this.SERIF}`, lineH = titleSize * 1.04;
+                ctx.font = titleFont; ctx.fillStyle = INK; ctx.textBaseline = 'top';
+                for (const ln of this._wrap(ctx, b.headline || '', titleFont, maxW)) { ctx.fillText(ln, mx, y); y += lineH; }
+                y += S * 0.014;
+                ctx.save(); ctx.globalAlpha = 0.7; ctx.fillStyle = GOLD; ctx.fillRect(Math.round(mx), Math.round(y), Math.round(S * 0.1), Math.max(1, Math.round(S * 0.0022))); ctx.restore();
+                y += S * 0.04;
+                // status pill (optional)
+                if (b.status) {
+                    ctx.font = `700 ${S * 0.024}px Inter, sans-serif`;
+                    const label = String(b.status).toUpperCase();
+                    if ('letterSpacing' in ctx) ctx.letterSpacing = Math.round(S * 0.004) + 'px';
+                    const tw = ctx.measureText(label).width; const px = S * 0.02, ph = S * 0.05;
+                    ctx.fillStyle = this.INV.status; this.roundRect(ctx, mx, y, tw + px * 2, ph, ph * 0.34); ctx.fill();
+                    ctx.strokeStyle = this.INV.statusLine; ctx.lineWidth = Math.max(1, S * 0.0015); this.roundRect(ctx, mx, y, tw + px * 2, ph, ph * 0.34); ctx.stroke();
+                    ctx.fillStyle = this.INV.statusInk; ctx.textBaseline = 'middle'; ctx.fillText(label, mx + px, y + ph / 2 + S * 0.002);
+                    if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+                    y += ph + S * 0.03;
                 }
-                for (const ln of lines) { ctx.fillText(ln, mx, cursorY); cursorY += lineH; }
-                // accent rule
-                cursorY += W * 0.012;
-                ctx.fillStyle = accent === '#15110f' ? '#c9a962' : accent;
-                ctx.fillRect(mx, cursorY, W * 0.14, Math.max(4, W * 0.008)); cursorY += W * 0.045;
-                // subline / attribution
-                if (b.subline) {
-                    ctx.font = `${tmpl === 'quote' ? '700' : '600'} ${W * 0.036}px Inter, sans-serif`;
-                    ctx.fillStyle = '#f0ece6'; ctx.textBaseline = 'top';
-                    const sub = tmpl === 'quote' ? '— ' + b.subline : b.subline;
-                    for (const ln of this.wrapLines(ctx, sub, maxW)) { ctx.fillText(ln, mx, cursorY); cursorY += W * 0.046; }
-                }
+                // details, one line each (subline used as fallback)
+                const detailText = (b.details && b.details.trim()) ? b.details : (b.subline || '');
+                const details = detailText.split(/\n/).map(s => s.trim()).filter(Boolean);
+                ctx.font = `400 ${S * 0.03}px Inter, sans-serif`; ctx.fillStyle = '#4a453e'; ctx.textBaseline = 'top';
+                for (const d of details) { for (const ln of this._wrap(ctx, d, `400 ${S * 0.03}px Inter, sans-serif`, maxW)) { ctx.fillText(ln, mx, y); y += S * 0.045; } y += S * 0.008; }
+                // natural logo, bottom-left
+                await this.drawLogoCenter(ctx, mx + (S * 0.055 * (750 / 165)) / 2, H - S * 0.045 - S * 0.045, S * 0.045, false);
+                ctx.textAlign = 'left';
             },
             letterspace(s, px) { return String(s).split('').join(' '); },
 

@@ -1248,6 +1248,20 @@ function nagCollectDesired() {
         }
     } catch (e) { /* skip */ }
 
+    // Biomedical Forum — considerations awaiting a decision. Each pending application becomes an
+    // Action Center item (area: Biomedical Forum) that opens the Member Ops considerations panel.
+    try {
+        const rows = query.all("SELECT id, name, email FROM forum_considerations WHERE status = 'pending'");
+        for (const r of rows) {
+            push({
+                kind: 'forum_consideration', subject_id: r.id,
+                title: `Forum consideration awaiting review: ${r.name || r.email}`, assignee: null,
+                action_kind: 'open_link',
+                action_payload: { who: r.name || r.email, consideration_id: r.id, open_section: 'members', open_forum_considerations: true }
+            });
+        }
+    } catch (e) { /* table may not exist on an older schema */ }
+
     return desired;
 }
 
@@ -3651,6 +3665,90 @@ async function initializeApp() {
     )`);
     // pr_posts drifted between portals (admin CREATE has status, user CREATE lacked it) — heal existing DBs.
     try { db.exec("ALTER TABLE pr_posts ADD COLUMN status TEXT DEFAULT 'published'"); } catch (e) { /* column exists */ }
+
+    // ====================== THE BIOMEDICAL FORUM — WING schema ======================
+    // The Forum wing (/forum) is a dignified, invitation-only experience convened under Med&X.
+    // These tables live OUTSIDE the SCHEMA-MIRROR block, but are added IDENTICALLY to BOTH portal
+    // server.js files because both portals touch them: the user portal writes considerations,
+    // magic-link tokens, convenings and reservations, while the admin portal reads considerations,
+    // approves/declines them, issues invitation tokens, and reads reservation + segment counts.
+    // Every statement is idempotent (CREATE TABLE IF NOT EXISTS) so whichever process boots first
+    // against the shared DB creates them once. Only the user portal seeds the standing convenings.
+    db.run(`CREATE TABLE IF NOT EXISTS forum_considerations (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        email TEXT,
+        institution TEXT,
+        field TEXT,
+        note TEXT,
+        on_behalf_of TEXT,
+        source TEXT DEFAULT 'website',
+        status TEXT DEFAULT 'pending',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        decided_at TEXT,
+        decided_by TEXT,
+        decision_note TEXT
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS forum_magic_tokens (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        token TEXT NOT NULL UNIQUE,
+        user_id TEXT,
+        purpose TEXT DEFAULT 'access',
+        expires_at TEXT NOT NULL,
+        used_at TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS forum_convenings (
+        id TEXT PRIMARY KEY,
+        slug TEXT UNIQUE,
+        title TEXT NOT NULL,
+        tag TEXT,
+        when_label TEXT,
+        date TEXT,
+        venue TEXT,
+        dress TEXT,
+        attendance TEXT,
+        summary TEXT,
+        is_paid INTEGER DEFAULT 0,
+        price REAL DEFAULT 0,
+        external_flow TEXT,
+        status TEXT DEFAULT 'published',
+        sort INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS forum_convening_segments (
+        id TEXT PRIMARY KEY,
+        convening_id TEXT NOT NULL,
+        label TEXT NOT NULL,
+        time_label TEXT,
+        sort INTEGER DEFAULT 0
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS forum_reservations (
+        id TEXT PRIMARY KEY,
+        convening_id TEXT NOT NULL,
+        user_id TEXT,
+        email TEXT,
+        name TEXT,
+        institution TEXT,
+        segments_json TEXT,
+        qr_code TEXT,
+        status TEXT DEFAULT 'confirmed',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS forum_news (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        body TEXT,
+        date TEXT,
+        sort INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'published',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_forum_reservations_conv ON forum_reservations(convening_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_forum_magic_tokens_token ON forum_magic_tokens(token)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_forum_considerations_status ON forum_considerations(status)`);
+    // ====================== END FORUM WING schema ======================
 
     // ====================== ADMIN TEAM CHAT (cluster) schema ======================
     // Internal team chat lives ONLY in the admin portal, so all of this is deliberately
@@ -22787,6 +22885,58 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         }
     });
 
+    // ADDITIVE (read-only): full confirmed-guest roster for the door scanner's OFFLINE cache.
+    // The scanner stores this in localStorage so that, if the venue network drops mid-event, the
+    // operator can still identify a guest by their QR/id and queue the check-in for later sync.
+    // This endpoint NEVER checks anyone in and does not touch the frozen QR/validation logic.
+    app.get('/api/checkin/roster', auth, staffOrAdmin, (req, res) => {
+        try {
+            const rows = query.all(`
+                SELECT CAST(r.id AS TEXT) as id, r.first_name, r.last_name, r.email, r.institution, r.checked_in, 'plexus' as event, t.name as ticket_name, NULL as segments_json
+                FROM registrations r LEFT JOIN ticket_types t ON r.ticket_type_id = t.id
+                UNION ALL
+                SELECT CAST(id AS TEXT) as id, first_name, last_name, email, institution, checked_in, 'gala' as event, NULL as ticket_name, NULL as segments_json FROM gala_registrations
+                UNION ALL
+                SELECT CAST(id AS TEXT) as id, first_name, last_name, email, institution, checked_in, 'forum' as event, NULL as ticket_name, NULL as segments_json FROM forum_members
+                UNION ALL
+                SELECT CAST(id AS TEXT) as id, first_name, last_name, email, institution, checked_in, 'bridges' as event, NULL as ticket_name, NULL as segments_json FROM bridges_registrations
+                UNION ALL
+                SELECT CAST(id AS TEXT) as id, first_name, last_name, email, institution,
+                       (CASE WHEN conference_checked_in = 1 OR bridges_checked_in = 1 THEN 1 ELSE 0 END) as checked_in,
+                       'croatians-abroad' as event, NULL as ticket_name, NULL as segments_json FROM croatians_abroad_registrations
+                UNION ALL
+                SELECT CAST(fr.id AS TEXT) as id, fr.name as first_name, '' as last_name, fr.email, fr.institution,
+                       0 as checked_in, 'forum-convening' as event, fc.title as ticket_name, fr.segments_json as segments_json
+                FROM forum_reservations fr LEFT JOIN forum_convenings fc ON fr.convening_id = fc.id
+                WHERE fr.status = 'confirmed'
+                LIMIT 20000
+            `);
+            res.json({
+                generated_at: new Date().toISOString(),
+                count: rows.length,
+                guests: rows.map(r => {
+                    // Forum convening reservations store their chosen segments as a JSON id-array;
+                    // surface them so the offline door list can show what a guest signed up for.
+                    let segments = [];
+                    if (r.segments_json) { try { const p = JSON.parse(r.segments_json); if (Array.isArray(p)) segments = p; } catch (e) {} }
+                    return {
+                        id: r.id,
+                        event: r.event,
+                        name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+                        email: r.email || '',
+                        institution: r.institution || '',
+                        ticket: r.ticket_name || '',
+                        checked_in: r.checked_in ? 1 : 0,
+                        segments
+                    };
+                })
+            });
+        } catch (err) {
+            console.error('Roster error:', err);
+            res.status(500).json({ error: 'Roster failed' });
+        }
+    });
+
     // (The second /api/checkin/undo route that used to live here was removed — it was
     //  shadowed by the unified handler above, which now covers all event types incl. gala.)
 
@@ -26225,6 +26375,133 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             if (d.recipients > 0) logAudit(req, 'nag.digest', `${d.recipients} recipient(s)${d.reused ? ' (reused today\'s batch)' : ''}`);
             res.json({ success: true, ...d });
         } catch (e) { console.error('[nag] digest', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ============ THE BIOMEDICAL FORUM — considerations (approve / decline) ============
+    // Applications from the public "Request consideration" affordance land in forum_considerations.
+    // The Action Center surfaces the pending count (area: Biomedical Forum); this dedicated Member Ops
+    // panel does the actual approve/decline. APPROVE ensures a passwordless account + an approved
+    // forum_members row, issues a 14-day personal invitation link, and sends the premium president's-
+    // voice invitation. DECLINE sends a courteous regret. Additive — no existing forum handling touched.
+    app.get('/api/admin/forum/considerations', auth, adminOnly, (req, res) => {
+        try {
+            const status = String(req.query.status || 'pending');
+            let rows;
+            if (status === 'all') rows = query.all("SELECT * FROM forum_considerations ORDER BY (status='pending') DESC, created_at DESC");
+            else rows = query.all("SELECT * FROM forum_considerations WHERE status = ? ORDER BY created_at DESC", [status]);
+            const counts = {
+                pending: (query.get("SELECT COUNT(*) AS c FROM forum_considerations WHERE status='pending'") || {}).c || 0,
+                approved: (query.get("SELECT COUNT(*) AS c FROM forum_considerations WHERE status='approved'") || {}).c || 0,
+                declined: (query.get("SELECT COUNT(*) AS c FROM forum_considerations WHERE status='declined'") || {}).c || 0
+            };
+            res.json({ considerations: rows, counts });
+        } catch (e) { console.error('[forum-admin] list', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.post('/api/admin/forum/considerations/:id/approve', auth, adminOnly, async (req, res) => {
+        try {
+            const c = query.get("SELECT * FROM forum_considerations WHERE id = ?", [req.params.id]);
+            if (!c) return res.status(404).json({ error: 'Consideration not found' });
+            if (!c.email) return res.status(400).json({ error: 'This application has no email address.' });
+            const rid = () => require('crypto').randomUUID();
+            // Ensure a passwordless portal account (the member uses magic links, never a password).
+            let user = query.get("SELECT id, email, first_name, last_name FROM users WHERE LOWER(email) = LOWER(?)", [c.email]);
+            if (!user) {
+                const uid = rid();
+                const nm = String(c.name || '').trim(); const ps = nm.split(/\s+/);
+                const fn = nm ? (ps.slice(0, -1).join(' ') || ps[0]) : ''; const ln = (nm && ps.length > 1) ? ps[ps.length - 1] : '';
+                db.run("INSERT INTO users (id, email, password_hash, first_name, last_name, institution, email_verified) VALUES (?,?,?,?,?,?,1)",
+                    [uid, c.email, '!magic-link-no-password!', fn, ln, c.institution || null]);
+                user = { id: uid, email: c.email, first_name: fn, last_name: ln };
+            }
+            // Ensure an approved forum_members row. The display name goes in first_name so the
+            // directory renders the full titled name (e.g. "prof. dr. sc. …"), with field as specialty.
+            const mem = query.get("SELECT * FROM forum_members WHERE user_id = ? OR LOWER(email) = LOWER(?) LIMIT 1", [user.id, c.email]);
+            if (mem) {
+                db.run("UPDATE forum_members SET user_id = ?, membership_status = 'approved', approved_by = ?, approved_at = datetime('now') WHERE id = ?", [user.id, req.user?.email || 'admin', mem.id]);
+            } else {
+                db.run("INSERT INTO forum_members (id, user_id, email, membership_status, first_name, institution, specialty, approved_by, approved_at, created_at) VALUES (?,?,?,'approved',?,?,?,?,datetime('now'),datetime('now'))",
+                    [rid(), user.id, c.email, c.name || null, c.institution || null, c.field || null, req.user?.email || 'admin']);
+            }
+            // Issue a 14-day personal invitation link (first entry mints a 7-day session; thereafter a
+            // fresh short-lived link is requested each visit).
+            const token = require('crypto').randomBytes(24).toString('hex');
+            const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+            db.run("INSERT INTO forum_magic_tokens (id, email, token, user_id, purpose, expires_at) VALUES (?,?,?,?,'invite',?)", [rid(), c.email, token, user.id, expiresAt]);
+            db.run("UPDATE forum_considerations SET status = 'approved', decided_at = datetime('now'), decided_by = ? WHERE id = ?", [req.user?.email || 'admin', c.id]);
+            // Resolve the matching Action Center item so it clears on the next scan.
+            try { db.run("UPDATE nag_items SET status = 'done', resolved_at = datetime('now') WHERE kind = 'forum_consideration' AND subject_id = ? AND status IN ('open','actioned')", [c.id]); } catch (e) {}
+            saveDb();
+            const enterUrl = `${userPortalBase()}/forum/enter?token=${token}`;
+            const salut = String(c.name || '').trim() ? nagEscape(c.name) : 'colleague';
+            const html = buildEmailTemplate('An invitation to the Biomedical Forum', `
+                <p>Dear ${salut},</p>
+                <p>It is my privilege, on behalf of Med&amp;X, to invite you to join the <strong>Biomedical Forum</strong> — a standing circle of senior leaders in Croatian and international biomedicine, convened for peer exchange, the mentorship of those who follow, and the standing of our field.</p>
+                <p>Your personal link is below. There is no password to set and none to keep. Following it admits you to the circle at once, where you will find the private directory of members, the year's convenings, and your own standing.</p>
+                <div style="text-align:center;margin:30px 0;"><a href="${enterUrl}" style="display:inline-block;background:#20463a;color:#f4efe4;text-decoration:none;padding:15px 34px;border-radius:2px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:14px;">Enter the Forum</a></div>
+                <p style="color:#6a625a;font-size:13px;">Should the button not open, the link is here. Your office may follow it on your behalf.</p>
+                <p style="word-break:break-all;color:#6a625a;font-size:13px;">${enterUrl}</p>
+                <p style="margin-top:26px;">With warm regard,</p>
+                <p style="margin:0;"><strong>prof. dr. sc. Alen Juginović, dr. med.</strong><br><span style="color:#6a625a;">President &middot; Med&amp;X</span></p>
+            `);
+            const mailReady = !!(process.env.RESEND_API_KEY || process.env.BREVO_API_KEY || process.env.SENDGRID_API_KEY);
+            try { await sendEmail(c.email, 'An invitation to the Biomedical Forum', html); } catch (e) { console.error('[forum-admin] approve email:', e.message); }
+            logAudit(req, 'forum.approve', `${c.name || c.email}`);
+            res.json({ success: true, emailDelivery: mailReady ? 'sent' : 'dev', invite_link: mailReady ? undefined : enterUrl });
+        } catch (e) { console.error('[forum-admin] approve', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.post('/api/admin/forum/considerations/:id/decline', auth, adminOnly, async (req, res) => {
+        try {
+            const c = query.get("SELECT * FROM forum_considerations WHERE id = ?", [req.params.id]);
+            if (!c) return res.status(404).json({ error: 'Consideration not found' });
+            const note = String(req.body.note || '').slice(0, 500);
+            db.run("UPDATE forum_considerations SET status = 'declined', decided_at = datetime('now'), decided_by = ?, decision_note = ? WHERE id = ?", [req.user?.email || 'admin', note || null, c.id]);
+            try { db.run("UPDATE nag_items SET status = 'done', resolved_at = datetime('now') WHERE kind = 'forum_consideration' AND subject_id = ? AND status IN ('open','actioned')", [c.id]); } catch (e) {}
+            saveDb();
+            if (c.email) {
+                const salut = String(c.name || '').trim() ? nagEscape(c.name) : 'colleague';
+                const html = buildEmailTemplate('A note from the Biomedical Forum', `
+                    <p>Dear ${salut},</p>
+                    <p>Thank you for your interest in the Biomedical Forum, and for the note made on your behalf. The circle is kept deliberately small, and we are not able to extend an invitation at this time.</p>
+                    <p>We hold your name with respect, and hope our paths will cross at a future Med&amp;X convening.</p>
+                    <p style="margin-top:24px;">With warm regard,</p>
+                    <p style="margin:0;"><strong>The Office of the Forum</strong><br><span style="color:#6a625a;">an initiative of Med&amp;X</span></p>
+                `);
+                try { await sendEmail(c.email, 'A note from the Biomedical Forum', html); } catch (e) { console.error('[forum-admin] decline email:', e.message); }
+            }
+            logAudit(req, 'forum.decline', `${c.name || c.email}`);
+            res.json({ success: true });
+        } catch (e) { console.error('[forum-admin] decline', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ============ THE BIOMEDICAL FORUM — convening reservations (read-only) ============
+    // The visible-in-admin half of the wing's one-click segment reservation flow. These are the
+    // Forum's OWN convenings (forum_convenings / forum_reservations), distinct from forum_events and
+    // the gala/bridges registrations. Returns each convening's confirmed reserved count plus a tally
+    // of how many members ticked each segment. Additive and read-only — nothing here writes.
+    app.get('/api/admin/forum/convenings', auth, adminOnly, (req, res) => {
+        try {
+            const convs = query.all("SELECT id, slug, title, when_label, date, venue, status FROM forum_convenings ORDER BY sort ASC, date ASC");
+            const out = convs.map(c => {
+                const segs = query.all("SELECT id, label, time_label FROM forum_convening_segments WHERE convening_id = ? ORDER BY sort ASC", [c.id]);
+                const rows = query.all("SELECT segments_json FROM forum_reservations WHERE convening_id = ? AND status = 'confirmed'", [c.id]);
+                const tally = {};
+                segs.forEach(s => { tally[s.id] = 0; });
+                rows.forEach(r => {
+                    let ids = [];
+                    if (r.segments_json) { try { ids = JSON.parse(r.segments_json) || []; } catch (e) { ids = []; } }
+                    if (Array.isArray(ids)) ids.forEach(id => { if (tally[id] != null) tally[id] += 1; });
+                });
+                return {
+                    id: c.id, slug: c.slug, title: c.title, when_label: c.when_label, date: c.date,
+                    venue: c.venue, status: c.status, reserved_count: rows.length,
+                    segments: segs.map(s => ({ id: s.id, label: s.label, time_label: s.time_label, count: tally[s.id] || 0 }))
+                };
+            });
+            const total = out.reduce((a, c) => a + c.reserved_count, 0);
+            res.json({ convenings: out, total_reservations: total });
+        } catch (e) { console.error('[forum-admin] convenings', e.message); res.status(500).json({ error: e.message }); }
     });
 
     // Forum Gala Settings (admin-editable pricing)

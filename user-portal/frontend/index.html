@@ -23126,6 +23126,7 @@
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            text-decoration: none;
         }
 
         .gala-btn-primary {
@@ -57353,7 +57354,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     <span class="profile-interest">Clinical Trials</span>
                 </div>
             </div>
-            <div class="profile-panel-section">
+            <div class="profile-panel-section medx-playful">
                 <h4>Achievements</h4>
                 <div class="profile-achievements" id="profilePanelAchievements">
                     <div class="profile-achievement">
@@ -58343,7 +58344,7 @@ button,input,select,textarea{font-family:var(--sans);}
               </div>
               <div class="up-tb-menu-list">
                 <button class="up-tb-menu-item" role="menuitem" onclick="UserPortal.showSection('mymedx');UserPortal.closeAccountMenu();"><i class="fas fa-id-badge"></i> My Med&amp;X</button>
-                <button class="up-tb-menu-item" role="menuitem" onclick="UserPortal.showSection('rewards');UserPortal.closeAccountMenu();"><i class="fas fa-gift"></i> Rewards <span id="upAcctRewardsChip" style="margin-left:auto;font-size:12px;font-weight:600;color:var(--crimson);background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:2px 9px;">0</span></button>
+                <button class="up-tb-menu-item medx-playful" role="menuitem" onclick="UserPortal.showSection('rewards');UserPortal.closeAccountMenu();"><i class="fas fa-gift"></i> Rewards <span id="upAcctRewardsChip" style="margin-left:auto;font-size:12px;font-weight:600;color:var(--crimson);background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:2px 9px;">0</span></button>
                 <button class="up-tb-menu-item" role="menuitem" onclick="UserPortal.showSection('settings');UserPortal.closeAccountMenu();"><i class="fas fa-user-edit"></i> Edit profile</button>
                 <button class="up-tb-menu-item" role="menuitem" onclick="UserPortal.showSection('settings');UserPortal.closeAccountMenu();"><i class="fas fa-cog"></i> Settings</button>
                 <button class="up-tb-menu-item" role="menuitem" onclick="UserPortal.closeAccountMenu();if(typeof NotificationSystem!=='undefined'&amp;&amp;NotificationSystem.toggle){NotificationSystem.toggle();}else{UserPortal.toggleNotifications();}"><i class="fas fa-bell"></i> Notifications</button>
@@ -58868,7 +58869,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     @media(max-width:760px){.dash-snapshot{grid-template-columns:repeat(2,1fr);}}
                     </style>
                     <div class="dash-snapshot" id="dashSnapshot" aria-label="Your membership at a glance">
-                        <div class="dash-snap-tile">
+                        <div class="dash-snap-tile medx-playful">
                             <div class="dash-snap-top"><div class="dash-snap-ico"><i class="fas fa-star"></i></div><span class="dash-snap-num" id="dsPoints">0</span></div>
                             <div class="dash-snap-label">Points balance</div>
                             <div class="dash-snap-sub">Earned at Med&amp;X events</div>
@@ -62736,6 +62737,9 @@ button,input,select,textarea{font-family:var(--sans);}
                                 <button class="gala-btn gala-btn-secondary" onclick="GalaPortal.showTab('schedule')">
                                     View the Evening Program
                                 </button>
+                                <a class="gala-btn gala-btn-secondary" href="/calendar/gala.ics" download>
+                                    <i class="fas fa-calendar-plus"></i> Add to Calendar
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -64435,6 +64439,34 @@ button,input,select,textarea{font-family:var(--sans);}
                         <h1>Biomedical Forum</h1>
                         <p>An exclusive network of senior leaders in medicine, science, and industry dedicated to advancing Croatian biomedicine</p>
                     </div>
+
+                    <!-- The Biomedical Forum — dedicated wing entrance (quiet entry for forum members; Request consideration for others) -->
+                    <div id="forumWingEntrance" style="background: linear-gradient(135deg,#20463a,#173328); border: 1px solid rgba(156,127,69,.35); border-radius: 16px; padding: 26px 28px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 18px; align-items: center; justify-content: space-between;">
+                        <div style="min-width: 240px;">
+                            <div style="font-size: 11px; font-weight: 700; letter-spacing: .24em; text-transform: uppercase; color: #d8c79b; margin-bottom: 8px;">An initiative of Med&amp;X</div>
+                            <div style="font-family: Georgia,'Times New Roman',serif; font-size: 22px; color: #f6f1e6; line-height: 1.15;">The Biomedical Forum</div>
+                            <div id="fweSub" style="font-size: 14px; color: rgba(246,241,230,.82); margin-top: 8px; max-width: 52ch; line-height: 1.5;">A standing circle of senior biomedical leaders, convened under Med&amp;X. Entry is by personal link, with no password to keep.</div>
+                        </div>
+                        <a id="fweCta" href="/forum" style="display: inline-flex; align-items: center; gap: 10px; background: #f4efe4; color: #173328; text-decoration: none; padding: 14px 26px; border-radius: 8px; font-size: 14px; font-weight: 700; letter-spacing: .02em; white-space: nowrap;">Request consideration &rarr;</a>
+                    </div>
+                    <script>
+                    (function(){
+                      function setForumEntrance(){
+                        try{
+                          var tok=localStorage.getItem('medx_user_token'); if(!tok) return;
+                          fetch('/api/forum/wing/me',{headers:{'Authorization':'Bearer '+tok}}).then(function(r){return r.json();}).then(function(d){
+                            if(d&&d.member){
+                              var cta=document.getElementById('fweCta'); if(cta) cta.textContent='Enter the Forum \u2192';
+                              var sub=document.getElementById('fweSub'); if(sub) sub.textContent="You are within the circle. Enter the private directory, the year's convenings, and your standing.";
+                            }
+                          }).catch(function(){});
+                        }catch(e){}
+                      }
+                      // Defect 2: expose so the CTA can be re-resolved after in-session login and when the Forum section opens.
+                      window.mxRefreshForumEntrance = setForumEntrance;
+                      if(document.readyState!=='loading') setForumEntrance(); else document.addEventListener('DOMContentLoaded', setForumEntrance);
+                    })();
+                    </script>
 
                     <!-- Non-member view (invite code required) -->
                     <div id="fmInviteRequired" style="display: block;">
@@ -67853,6 +67885,26 @@ button,input,select,textarea{font-family:var(--sans);}
 
             <!-- Rewards Section -->
             <!-- ===== Med&X Rewards (premium members-club ledger) ===== -->
+            <style id="medx-quiet-styles">
+                /* One switch hides all youth-coded UI for quiet (gala/forum-only) members. */
+                body.medx-quiet .hub-status-bar,
+                body.medx-quiet #quizWidget,
+                body.medx-quiet .quiz-widget,
+                body.medx-quiet .achievements-showcase,
+                body.medx-quiet .achievements-section,
+                body.medx-quiet #achievementsGrid,
+                body.medx-quiet .mmx-hero-sidecol,
+                body.medx-quiet #up-section-rewards,
+                body.medx-quiet #welcomeTourOverlay,
+                body.medx-quiet .medx-playful,
+                body.medx-quiet [data-widget="rewards"],
+                body.medx-quiet [data-widget="quiz"] { display: none !important; }
+                /* With the tier/points column gone, the membership card takes the full width. */
+                body.medx-quiet .mmx-hero { grid-template-columns: 1fr !important; }
+                /* With the Points-balance tile removed, close the snapshot grid gap. */
+                body.medx-quiet .dash-snapshot { grid-template-columns: repeat(3,1fr) !important; }
+                @media(max-width:760px){ body.medx-quiet .dash-snapshot { grid-template-columns: repeat(2,1fr) !important; } }
+            </style>
             <style id="rw2-styles">
                 #up-section-rewards .rw2-wrap{max-width:760px;margin:0 auto;padding:20px 16px 64px;}
                 .rw2-hero{text-align:center;padding:34px 24px 30px;background:var(--surface);border:1px solid var(--line);border-radius:20px;margin:8px 0 20px;position:relative;overflow:hidden;}
@@ -77902,6 +77954,54 @@ You can use variables like {first_name} that will be personalized for each recip
         }
 
         // =========================================
+        // QUIET PROFILE GATE — one code path for every youth-coded surface
+        // =========================================
+        // A "quiet" member (a gala guest and/or Forum member with no general-membership signal)
+        // is a high-status person who must never see points, badges, tours, rewards, or gamified
+        // copy. The server derives the flag (on /api/auth/me and the login response); the whole
+        // front end asks MedXQuiet.allowPlayful() through this single object. FAIL-CLOSED toward
+        // the normal member view: only an explicit server quiet===true hides anything, so a
+        // missing or late flag never strips a real member's rewards.
+        const MedXQuiet = {
+            _quiet: null, // null = not resolved yet
+            set(user) {
+                try { if (user && typeof user.quiet === 'boolean') this._quiet = user.quiet; } catch (e) {}
+                this.apply();
+                return this._quiet === true;
+            },
+            isQuiet() { return this._quiet === true; },
+            allowPlayful() { return this._quiet !== true; },
+            apply() {
+                try { if (document.body) document.body.classList.toggle('medx-quiet', this._quiet === true); } catch (e) {}
+                // For a quiet member the welcome tour must never auto-open — mark it seen up front.
+                if (this._quiet === true) { try { localStorage.setItem('medx_onboarding_completed', 'true'); } catch (e) {} }
+            },
+            refresh() {
+                var t = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
+                if (!t) { this.apply(); return Promise.resolve(this._quiet === true); }
+                var base = (typeof API_BASE !== 'undefined' ? API_BASE : '');
+                var self = this;
+                return fetch(base + '/api/auth/me', { headers: { 'Authorization': 'Bearer ' + t } })
+                    .then(function(r){ return r.ok ? r.json() : null; })
+                    .then(function(d){
+                        if (d && typeof d.quiet === 'boolean') {
+                            self._quiet = d.quiet;
+                            // keep the persisted user object in sync so a reload has the flag synchronously
+                            try {
+                                var u = JSON.parse(localStorage.getItem('medx_user_data') || 'null') || {};
+                                u.quiet = d.quiet; localStorage.setItem('medx_user_data', JSON.stringify(u));
+                                if (typeof UserPortal !== 'undefined' && UserPortal.user) UserPortal.user.quiet = d.quiet;
+                            } catch (e) {}
+                        }
+                        self.apply();
+                        return self._quiet === true;
+                    })
+                    .catch(function(){ self.apply(); return self._quiet === true; });
+            }
+        };
+        window.MedXQuiet = MedXQuiet;
+
+        // =========================================
         // USER PORTAL - Member-facing portal
         // =========================================
         const UserPortal = {
@@ -78794,6 +78894,9 @@ You can use variables like {first_name} that will be personalized for each recip
 
             // Show User Portal (with optional welcome animation)
             showUserPortal(showWelcome = false, isNewUser = false) {
+                // Resolve the quiet-profile flag before any youth-coded surface can render.
+                // Synchronous from the persisted user object, then confirmed against the server.
+                try { MedXQuiet.set(this.user); MedXQuiet.refresh(); } catch (e) {}
                 // Fetch real user ID from backend if missing
                 if (!this.user?.id || this.user.id.startsWith('demo_') || this.user.id === '') {
                     this.api('/api/auth/me').then(data => {
@@ -78823,7 +78926,7 @@ You can use variables like {first_name} that will be personalized for each recip
 
                 // Check if new user needs welcome tour
                 const hasSeenOnboarding = localStorage.getItem('medx_onboarding_completed');
-                const needsWelcomeTour = isNewUser || !hasSeenOnboarding;
+                const needsWelcomeTour = (isNewUser || !hasSeenOnboarding) && MedXQuiet.allowPlayful();
 
                 // For new users: go straight to welcome tour (skip old animation)
                 if (needsWelcomeTour) {
@@ -78937,6 +79040,8 @@ You can use variables like {first_name} that will be personalized for each recip
 
             // Show section in user portal
             showSection(sectionId, addToHistory = true) {
+                // Quiet members never reach the rewards surface, even via a deep link.
+                if (sectionId === 'rewards' && typeof MedXQuiet !== 'undefined' && !MedXQuiet.allowPlayful()) sectionId = 'dashboard';
                 // Add to history for back navigation
                 if (addToHistory && this.currentSection !== sectionId) {
                     this.navigationHistory.push(this.currentSection);
@@ -78993,7 +79098,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 try {
                     if (sectionId === 'dashboard') {
                         Dashboard.init();
-                        if (typeof QuizSystem !== 'undefined') QuizSystem.init();
+                        if (typeof QuizSystem !== 'undefined' && MedXQuiet.allowPlayful()) QuizSystem.init();
                         if (typeof HubEvents !== 'undefined') HubEvents.render();
                         if (typeof MemberFeed !== 'undefined') MemberFeed.load();
                     }
@@ -84132,8 +84237,7 @@ You can use variables like {first_name} that will be personalized for each recip
                     }
                 } catch (err) {
                     console.error('Stripe redirect error:', err);
-                    Toast.error('Failed to start card payment. Please try again or use bank transfer.');
-                    // Restore form
+                    // Restore form so the member can retry or switch to bank transfer
                     const formEl = document.getElementById('pxBillingFormSection');
                     const choiceEl = document.getElementById('pxPaymentMethodChoice');
                     const processingEl = document.getElementById('pxStripeProcessing');
@@ -84146,6 +84250,15 @@ You can use variables like {first_name} that will be personalized for each recip
                         btn.disabled = false;
                     }
                     this._submittingRegistration = false;
+                    // Elegant recovery panel instead of a dead error toast
+                    MedXCheckoutFallback.show({
+                        eventLabel: 'the Plexus Conference',
+                        supportEmail: 'laura.rodman@medx.hr',
+                        regId: registrationId,
+                        altUrl: '/plexus',
+                        altLabel: 'Open the public registration page',
+                        retry: () => this.redirectToStripeCheckout(registrationId)
+                    });
                 }
             },
 
@@ -86344,10 +86457,13 @@ You can use variables like {first_name} that will be personalized for each recip
                         window.location.href = res.url;
                     } else if (res.error) {
                         Toast.error(res.error);
+                    } else {
+                        // No checkout URL returned — treat as an initiation failure
+                        MedXCheckoutFallback.show({ eventLabel: 'the Gala Evening', supportEmail: 'gala@medx.hr', regId: this.myRegistration.id, retry: () => this.startPayment() });
                     }
                 } catch (err) {
                     console.error('Gala payment error:', err);
-                    Toast.error('Payment service unavailable. Please try again later.');
+                    MedXCheckoutFallback.show({ eventLabel: 'the Gala Evening', supportEmail: 'gala@medx.hr', regId: this.myRegistration.id, retry: () => this.startPayment() });
                 }
             },
 
@@ -117878,6 +117994,69 @@ By applying to this program, I give the following consents:
         };
 
         // =========================================
+        // CHECKOUT FALLBACK PANEL
+        // Frontend-only safety net. If a payment initiation call cannot open Stripe checkout
+        // (a connection blip or a non-200), the user sees an elegant recovery panel — a retry,
+        // an alternate route, and a direct way to reach us — instead of a dead error. This wraps
+        // the existing payment calls and never touches the payment code paths themselves.
+        // =========================================
+        const MedXCheckoutFallback = {
+            show(opts = {}) {
+                const {
+                    eventLabel = 'your reservation',
+                    supportEmail = 'laura.rodman@medx.hr',
+                    altUrl = '',
+                    altLabel = '',
+                    retry = null,
+                    regId = ''
+                } = opts;
+                this.close();
+                const subject = encodeURIComponent('Plexus 2026 payment — ' + eventLabel + (regId ? (' (ref ' + regId + ')') : ''));
+                const mail = 'mailto:' + supportEmail + '?subject=' + subject;
+                const overlay = document.createElement('div');
+                overlay.id = 'mxCheckoutFallback';
+                overlay.setAttribute('role', 'dialog');
+                overlay.setAttribute('aria-modal', 'true');
+                overlay.setAttribute('aria-label', 'Complete your payment');
+                overlay.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,17,15,0.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);';
+                const btnPrimary = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px 20px;border:none;border-radius:11px;background:var(--up-crimson,#9b1b22);color:#fff;font-size:14.5px;font-weight:600;font-family:inherit;cursor:pointer;text-decoration:none;transition:all .2s;';
+                const btnGhost = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px 20px;border:1px solid rgba(201,169,98,0.5);border-radius:11px;background:transparent;color:var(--up-text,#15110f);font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;text-decoration:none;transition:all .2s;';
+                overlay.innerHTML =
+                    '<div style="position:relative;max-width:460px;width:100%;background:var(--up-bg,#fbf9f6);color:var(--up-text,#15110f);border:1px solid rgba(201,169,98,0.35);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,0.35);padding:34px 30px;font-family:\'Inter\',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;text-align:center;">' +
+                        '<button id="mxcfClose" aria-label="Close" style="position:absolute;top:14px;right:16px;background:none;border:none;font-size:22px;line-height:1;color:var(--up-text-muted,#8a8178);cursor:pointer;padding:4px;">&times;</button>' +
+                        '<div style="width:56px;height:56px;border-radius:50%;background:rgba(201,169,98,0.14);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;">' +
+                            '<i class="fas fa-shield-halved" style="font-size:22px;color:var(--up-gold,#c9a962);"></i>' +
+                        '</div>' +
+                        '<h3 style="font-family:\'Fraunces\',Georgia,serif;font-size:22px;font-weight:600;margin:0 0 10px;line-height:1.25;">We could not open secure checkout</h3>' +
+                        '<p style="font-size:14.5px;line-height:1.65;color:var(--up-text-muted,#5c554e);margin:0 0 22px;">Your place is held. This is usually a brief connection issue. You can try again now, or reach us and we will send you a secure payment link for ' + escapeHtml(eventLabel) + '.</p>' +
+                        '<div style="display:flex;flex-direction:column;gap:10px;">' +
+                            (typeof retry === 'function' ? ('<button id="mxcfRetry" style="' + btnPrimary + '"><i class="fas fa-rotate-right"></i> Try again</button>') : '') +
+                            (altUrl ? ('<a href="' + safeUrl(altUrl) + '" style="' + btnGhost + '">' + escapeHtml(altLabel || 'Open the registration page') + '</a>') : '') +
+                        '</div>' +
+                        '<div style="margin-top:18px;font-size:13px;color:var(--up-text-muted,#5c554e);">Or contact us at <a href="' + mail + '" style="color:var(--up-gold,#c9a962);font-weight:600;text-decoration:none;">' + escapeHtml(supportEmail) + '</a></div>' +
+                    '</div>';
+                document.body.appendChild(overlay);
+                const close = () => this.close();
+                overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+                const cbtn = overlay.querySelector('#mxcfClose'); if (cbtn) cbtn.addEventListener('click', close);
+                const rbtn = overlay.querySelector('#mxcfRetry');
+                if (rbtn && typeof retry === 'function') {
+                    rbtn.addEventListener('click', () => { close(); try { retry(); } catch (e) { console.error('checkout retry failed', e); } });
+                }
+                if (this._escHandler) document.removeEventListener('keydown', this._escHandler);
+                this._escHandler = (e) => { if (e.key === 'Escape') close(); };
+                document.addEventListener('keydown', this._escHandler);
+                const focusBtn = overlay.querySelector('#mxcfRetry, #mxcfClose'); if (focusBtn) focusBtn.focus();
+            },
+            close() {
+                const el = document.getElementById('mxCheckoutFallback');
+                if (el) el.remove();
+                if (this._escHandler) { document.removeEventListener('keydown', this._escHandler); this._escHandler = null; }
+            }
+        };
+        window.MedXCheckoutFallback = MedXCheckoutFallback;
+
+        // =========================================
         // PHASE 4: KEYBOARD NAVIGATION
         // =========================================
         const KeyboardNav = {
@@ -118242,6 +118421,8 @@ By applying to this program, I give the following consents:
                 console.error('A11y announce error:', e);
             }
             try { UserPortal._pvBeacon('/portal/' + section); } catch (e) {}
+            // Defect 2: refresh the Forum wing CTA when the Biomedical Forum section is opened in-session.
+            try { if (section === 'forum' && window.mxRefreshForumEntrance) window.mxRefreshForumEntrance(); } catch (e) {}
         };
 
 
@@ -119400,6 +119581,12 @@ By applying to this program, I give the following consents:
             },
 
             show() {
+                // Quiet members are high-status guests — the setup tour never runs for them.
+                if (typeof MedXQuiet !== 'undefined' && !MedXQuiet.allowPlayful()) {
+                    try { localStorage.setItem('medx_onboarding_completed', 'true'); } catch (e) {}
+                    this.hide();
+                    return;
+                }
                 const overlay = document.getElementById('welcomeTourOverlay');
                 if (overlay) {
                     overlay.classList.add('active');
@@ -124235,15 +124422,17 @@ By applying to this program, I give the following consents:
         const _originalShowUserPortalPhase1 = UserPortal.showUserPortal;
         UserPortal.showUserPortal = function() {
             _originalShowUserPortalPhase1.call(this);
+            // Defect 2: after a successful in-session login the Forum wing CTA must reflect membership.
+            try { if (window.mxRefreshForumEntrance) window.mxRefreshForumEntrance(); } catch (e) {}
 
             // Initialize Phase 1 features
             setTimeout(() => {
                 ForYouFeed.init();
-                Achievements.init();
+                if (MedXQuiet.allowPlayful()) Achievements.init();
                 DashboardCustomizer.init();
-                try { Onboarding.init(); } catch(e) { /* Onboarding may not be available */ }
+                if (MedXQuiet.allowPlayful()) { try { Onboarding.init(); } catch(e) { /* Onboarding may not be available */ } }
                 // Initialize new widgets
-                QuizSystem.init();
+                if (MedXQuiet.allowPlayful()) QuizSystem.init();
                 ProfileCard.init();
                 CountdownWidget.init();
                 NewsWidget.init();

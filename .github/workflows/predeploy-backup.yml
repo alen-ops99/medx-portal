@@ -1,0 +1,75 @@
+name: Pre-deploy Turso backup
+
+# A point-in-time snapshot of the production Turso DB taken on EVERY push to main —
+# i.e. immediately before Render auto-deploys that commit. The ~3,000 paid records have
+# exactly one live copy, so a bad migration or deploy could be unrecoverable without this.
+# This runs alongside the nightly backup (turso-backup.yml) and reuses the SAME auth secret;
+# the only differences are the trigger (push to main) and the pre-deploy-<sha> tag.
+#
+# RESTORE (any pre-deploy dump):
+#   1) Download the "pre-deploy-<sha>" artifact from the Actions run, then: gunzip medx-turso-predeploy-*.sql.gz
+#   2) turso db create medx-restore
+#   3) turso db shell medx-restore < medx-turso-predeploy-*.sql
+#
+# REQUIRED SECRET: TURSO_AUTH_TOKEN — the SAME Turso PLATFORM token the nightly backup uses.
+#   If the nightly backup already runs, nothing new is needed here. Otherwise create it with:
+#     turso auth login
+#     turso auth token | gh secret set TURSO_AUTH_TOKEN --repo alen-ops99/medx-portal
+# OPTIONAL VARIABLE: TURSO_DB_NAME (defaults to medx-portal, the current db).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never cancel a backup that is mid-dump if another push lands — each snapshot must complete.
+concurrency:
+  group: predeploy-backup-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # The turso CLI reads a platform token from TURSO_API_TOKEN for non-interactive auth.
+      TURSO_API_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      TURSO_DB_NAME: ${{ vars.TURSO_DB_NAME || 'medx-portal' }}
+    steps:
+      - name: Guard — secret present
+        run: |
+          if [ -z "${TURSO_API_TOKEN}" ]; then
+            echo "::error::TURSO_AUTH_TOKEN secret is not set. It is the same secret the nightly turso-backup.yml uses. Create it with: turso auth login && turso auth token | gh secret set TURSO_AUTH_TOKEN --repo alen-ops99/medx-portal"
+            exit 1
+          fi
+
+      - name: Install Turso CLI
+        run: |
+          curl -sSfL https://get.tur.so/install.sh | bash
+          echo "$HOME/.turso" >> "$GITHUB_PATH"
+
+      - name: Logical dump (pre-deploy snapshot)
+        run: |
+          set -euo pipefail
+          sha="${GITHUB_SHA::12}"
+          ts="$(date -u +%Y%m%d-%H%M%SZ)"
+          out="medx-turso-predeploy-${sha}-${ts}.sql"
+          echo "Dumping ${TURSO_DB_NAME} (pre-deploy ${sha}) -> ${out}"
+          turso db shell "${TURSO_DB_NAME}" ".dump" > "${out}"
+          bytes="$(wc -c < "${out}")"
+          echo "Dump size: ${bytes} bytes"
+          # A tiny dump means auth or db-name failed — fail loudly rather than archive an empty "backup".
+          if [ "${bytes}" -lt 1000 ]; then
+            echo "::error::Dump is only ${bytes} bytes — likely an auth or db-name failure."
+            head -c 500 "${out}" || true
+            exit 1
+          fi
+          gzip -9 "${out}"
+          echo "ARTIFACT=${out}.gz" >> "$GITHUB_ENV"
+
+      - name: Upload pre-deploy dump artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-deploy-${{ github.sha }}
+          path: ${{ env.ARTIFACT }}
+          retention-days: 30
+          if-no-files-found: error

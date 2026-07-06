@@ -1104,6 +1104,12 @@ const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><me
     .hero h1 { font-size:clamp(26px,4vw,38px); }
     .lede { font-size:14px; color:#94a3b8; margin-bottom:8px; line-height:1.55; }
     .section-label { font-size:11px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#c9a962; margin:22px 0 12px; }
+    .plex-cal-row { margin-top:16px; padding-top:16px; border-top:1px solid rgba(201,169,98,0.18); display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+    .plex-cal-label { font-size:11px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#94a3b8; }
+    .plex-cal-links { display:flex; flex-wrap:wrap; gap:8px; }
+    .plex-cal-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border:1px solid rgba(201,169,98,0.4); border-radius:999px; background:rgba(201,169,98,0.08); color:#e8e2d4; font-size:12.5px; font-weight:600; text-decoration:none; transition:all 0.2s; }
+    .plex-cal-btn:hover { background:rgba(201,169,98,0.18); transform:translateY(-1px); }
+    .plex-cal-btn i { color:#c9a962; font-size:12px; }
     .event-option { background:rgba(255,255,255,0.04); border:1.5px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px; margin-bottom:10px; display:flex; gap:14px; cursor:pointer; transition:all 0.2s; position:relative; overflow:hidden; }
     .event-option::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:transparent; transition:background 0.2s; }
     .event-option:hover { border-color:rgba(201,169,98,0.3); background:rgba(255,255,255,0.06); transform:translateY(-1px); }
@@ -1281,6 +1287,13 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             offered.includes('bridges') ? cardBridges : '',
             offered.includes('gala') ? cardGala : ''
         ].join('');
+        // Add-to-calendar (.ics) links — only for the events actually offered on this page.
+        const calItem = (href, label) => `<a href="${href}" download class="plex-cal-btn"><i class="fas fa-calendar-plus"></i> ${label}</a>`;
+        const calLinks = [
+            offered.includes('conference') ? calItem('/calendar/plexus.ics', 'Conference') : '',
+            offered.includes('gala') ? calItem('/calendar/gala.ics', 'Gala Evening') : '',
+            offered.includes('bridges') ? calItem('/calendar/building-bridges.ics', 'Bridges') : ''
+        ].join('');
 
         // Gala keynote highlight — shown when the Gala is offered (pulled from gala_settings).
         const kName = galaSettings.keynote_name || '';
@@ -1295,6 +1308,14 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             </div>
         </div>` : '';
 
+        // One-click prefill from the Forum wing (/plexus?fn=..&ln=..&email=..&inst=..&src=forum).
+        // These are REFLECTED query values echoed into value="" attributes — escape rigorously (XSS).
+        const pfPrefill = (k) => escapeHtml((req.query[k] == null ? '' : String(req.query[k])).slice(0, 200));
+        const prefFirst = pfPrefill('fn');
+        const prefLast  = pfPrefill('ln');
+        const prefEmail = pfPrefill('email');
+        const prefInst  = pfPrefill('inst');
+
         const inner = `<div id="plexMain">
             <div class="hero">
                 <span class="badge">Plexus 2026 &middot; Zagreb${linkLabel ? ' &middot; ' + escapeHtml(linkLabel) : ''}</span>
@@ -1307,18 +1328,19 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                     ${cards}
                     ${keynoteCard}
                     <div class="total-display" id="plexTotal"><span class="label">Total</span><span class="amount" id="plexTotalAmt">&euro;0</span></div>
+                    ${calLinks ? `<div class="plex-cal-row"><span class="plex-cal-label">Add to your calendar</span><div class="plex-cal-links">${calLinks}</div></div>` : ''}
                 </div>
                 <div class="card form-col">
                     <form id="plexForm" onsubmit="return plexSubmit(event)">
                         <div class="section-label" style="margin-top:0;">Your details</div>
                         <div class="form-grid">
                             <div class="form-row">
-                                <div><label>First name *</label><input id="pf_first" required maxlength="100"></div>
-                                <div><label>Last name *</label><input id="pf_last" required maxlength="100"></div>
+                                <div><label>First name *</label><input id="pf_first" required maxlength="100" value="${prefFirst}"></div>
+                                <div><label>Last name *</label><input id="pf_last" required maxlength="100" value="${prefLast}"></div>
                             </div>
-                            <div><label>Email *</label><input id="pf_email" type="email" required maxlength="160"></div>
+                            <div><label>Email *</label><input id="pf_email" type="email" required maxlength="160" value="${prefEmail}"></div>
                             <div class="form-row">
-                                <div><label>Institution / Company${reqStar('institution')}</label><input id="pf_inst" maxlength="160"${reqAttr('institution')}></div>
+                                <div><label>Institution / Company${reqStar('institution')}</label><input id="pf_inst" maxlength="160"${reqAttr('institution')} value="${prefInst}"></div>
                                 <div><label>Country${reqStar('country')}</label><input id="pf_country" maxlength="80"${reqAttr('country')}></div>
                             </div>
                             <div><label>Dietary requirements (for the Gala)</label><input id="pf_diet" maxlength="200" placeholder="e.g. vegetarian"></div>
@@ -1340,6 +1362,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                         <div class="total-display show" style="margin-top:14px;"><span class="label">To pay now</span><span class="amount" id="plexPayAmt">&euro;0</span></div>
                         <button type="submit" class="submit-btn" id="plexBtn">Complete registration</button>
                         <div class="msg" id="plexMsg"></div>
+                        <div id="plexFallback" style="display:none;"></div>
                     </form>
                 </div>
             </div>
@@ -1411,11 +1434,34 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             try {
                 var r = await fetch('/api/croatians-abroad/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
                 var d = await r.json();
-                if(!r.ok){ plexErr(d.error || 'Registration failed. Please try again.'); btn.disabled=false; plexRecompute(); return false; }
+                if(!r.ok){
+                    if(r.status >= 500){ plexPayFallback(); } else { plexErr(d.error || 'Registration failed. Please try again.'); }
+                    btn.disabled=false; plexRecompute(); return false;
+                }
                 if(d.checkout_url){ window.location = d.checkout_url; return false; }
                 document.getElementById('plexMain').innerHTML = '<div class="card" style="text-align:center;max-width:640px;margin:0 auto;padding:36px 28px;"><div style="font-size:46px;color:#22c55e;margin-bottom:10px;"><i class="fas fa-circle-check"></i></div><h1>You are registered</h1><p class="lede" style="margin-top:10px;">Thank you, ' + plexEsc(body.first_name) + '. A confirmation email with your check-in QR code is on its way to ' + plexEsc(body.email) + '. We look forward to welcoming you to Plexus 2026 in Zagreb.</p></div>';
-            } catch(e){ plexErr('Network error. Please try again.'); btn.disabled=false; plexRecompute(); }
+            } catch(e){ plexPayFallback(); btn.disabled=false; plexRecompute(); }
             return false;
+        }
+        function plexPayFallback(){
+            var box = document.getElementById('plexFallback');
+            if(!box) return;
+            var m = document.getElementById('plexMsg'); if(m) m.style.display='none';
+            box.style.display='block';
+            box.innerHTML =
+                '<div style="margin-top:14px;padding:20px 18px;border:1px solid rgba(201,169,98,0.4);border-radius:14px;background:rgba(201,169,98,0.06);text-align:left;">'
+                + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><i class="fas fa-shield-halved" style="color:#c9a962;"></i><strong style="color:#e8e2d4;font-size:14px;">We could not open secure checkout</strong></div>'
+                + '<p style="font-size:13px;color:#94a3b8;line-height:1.6;margin:0 0 14px;">Your details are safe and nothing has been charged. This is usually a brief connection issue. Try again, or reach us and we will send you a secure payment link.</p>'
+                + '<div style="display:flex;flex-wrap:wrap;gap:8px;">'
+                + '<button type="button" onclick="plexRetry()" style="display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border:none;border-radius:9px;background:linear-gradient(135deg,#c9a962,#b8965a);color:#0f172a;font-weight:700;cursor:pointer;font-size:13px;"><i class="fas fa-rotate-right"></i> Try again</button>'
+                + '<a href="mailto:laura.rodman@medx.hr?subject=Plexus%202026%20registration%20%E2%80%94%20payment%20help" style="display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border:1px solid rgba(201,169,98,0.5);border-radius:9px;color:#e8e2d4;font-weight:600;text-decoration:none;font-size:13px;"><i class="fas fa-envelope"></i> laura.rodman@medx.hr</a>'
+                + '</div></div>';
+        }
+        function plexRetry(){
+            var box = document.getElementById('plexFallback'); if(box){ box.style.display='none'; box.innerHTML=''; }
+            var form = document.getElementById('plexForm');
+            if(form && typeof form.requestSubmit === 'function'){ form.requestSubmit(); }
+            else { plexSubmit(new Event('submit')); }
         }
         </script>`;
 
@@ -1478,6 +1524,10 @@ function renderPublicEventPage(slug) {
     .facts { display:flex; flex-wrap:wrap; justify-content:center; gap:6px 12px; font-size:13.5px; font-weight:500; color:#e2e8f0; letter-spacing:0.3px; }
     .facts .dot { color:${cfg.accent}; }
     .note { margin-top:14px; font-family:'Cormorant Garamond',Georgia,serif; font-style:italic; font-size:16.5px; color:#c9a962; }
+    .cal-add { margin-top:22px; }
+    .cal-add-btn { display:inline-flex; align-items:center; gap:8px; padding:11px 20px; border:1px solid ${cfg.accent}; border-radius:999px; background:${cfg.accent}14; color:#e2e8f0; font-size:13px; font-weight:600; letter-spacing:0.3px; text-decoration:none; transition:all 0.2s; }
+    .cal-add-btn:hover { background:${cfg.accent}26; transform:translateY(-1px); }
+    .cal-add-btn svg { color:${cfg.accent}; }
     .form-wrap { max-width:520px; margin:0 auto; }
     .card { background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,98,0.22); border-radius:20px; padding:38px 36px; }
     .section-label { font-size:11px; font-weight:600; letter-spacing:2.5px; text-transform:uppercase; color:${cfg.accent}; margin-bottom:22px; text-align:center; }
@@ -1515,6 +1565,7 @@ function renderPublicEventPage(slug) {
         <p class="framing">${cfg.framing}</p>
         <div class="facts">${factLine}</div>
         ${cfg.note ? `<div class="note">${cfg.note}</div>` : ''}
+        <div class="cal-add"><a href="/calendar/${slug}.ics" download class="cal-add-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> Add to calendar</a></div>
     </div>
     <div class="form-wrap">
         <div class="card" id="peCard">
@@ -1573,6 +1624,203 @@ function renderPublicEventPage(slug) {
 
 app.get('/building-bridges', (req, res) => res.send(renderPublicEventPage('building-bridges')));
 app.get('/donor-night', (req, res) => res.send(renderPublicEventPage('donor-night')));
+
+// ============================ ADD-TO-CALENDAR (.ics) ============================
+// Additive, read-only. Serves valid RFC 5545 calendar files for the public Plexus Week
+// events (Plexus Conference, Gala Evening, Building Bridges, Donor Night). Dates/venue are
+// pulled live from settings where available, with safe fallbacks. Every timed event carries a
+// full Europe/Zagreb VTIMEZONE so calendar apps place it at the correct local time.
+const ZAGREB_VTIMEZONE = [
+    'BEGIN:VTIMEZONE',
+    'TZID:Europe/Zagreb',
+    'BEGIN:DAYLIGHT',
+    'TZOFFSETFROM:+0100',
+    'TZOFFSETTO:+0200',
+    'TZNAME:CEST',
+    'DTSTART:19700329T020000',
+    'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU',
+    'END:DAYLIGHT',
+    'BEGIN:STANDARD',
+    'TZOFFSETFROM:+0200',
+    'TZOFFSETTO:+0100',
+    'TZNAME:CET',
+    'DTSTART:19701025T030000',
+    'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU',
+    'END:STANDARD',
+    'END:VTIMEZONE'
+];
+function icsEscapeText(v) {
+    return String(v == null ? '' : v)
+        .replace(/\\/g, '\\\\')
+        .replace(/;/g, '\\;')
+        .replace(/,/g, '\\,')
+        .replace(/\r?\n/g, '\\n');
+}
+// Fold content lines to <=75 octets (RFC 5545 3.1), continuation lines start with one space.
+function icsFold(line) {
+    const buf = Buffer.from(line, 'utf8');
+    if (buf.length <= 75) return line;
+    let out = '', cur = 0, run = Buffer.alloc(0);
+    const chars = Array.from(line);
+    let seg = '';
+    for (const ch of chars) {
+        const chLen = Buffer.byteLength(ch, 'utf8');
+        // 74 leaves room; continuation adds a leading space (1 octet) on wrapped lines
+        const limit = out === '' ? 75 : 74;
+        if (Buffer.byteLength(seg, 'utf8') + chLen > limit) {
+            out += (out === '' ? '' : '\r\n ') + seg;
+            seg = ch;
+        } else {
+            seg += ch;
+        }
+    }
+    out += (out === '' ? '' : '\r\n ') + seg;
+    return out;
+}
+function icsStampUTC(d) {
+    const p = (n) => String(n).padStart(2, '0');
+    return d.getUTCFullYear() + p(d.getUTCMonth() + 1) + p(d.getUTCDate()) + 'T' +
+        p(d.getUTCHours()) + p(d.getUTCMinutes()) + p(d.getUTCSeconds()) + 'Z';
+}
+// Pull the first clock time out of a value that may be free text ('Arrival from 7:00 PM ...',
+// '18:00', '19:30'). Returns 'HHMM' in 24h, or the fallback when nothing parses.
+function icsParseClock(timeStr, fallback) {
+    const m = String(timeStr == null ? '' : timeStr).match(/(\d{1,2})(?::(\d{2}))?\s*([ap]\.?m\.?)?/i);
+    if (!m) return fallback;
+    let h = parseInt(m[1], 10);
+    const min = m[2] ? parseInt(m[2], 10) : 0;
+    const ap = (m[3] || '').toLowerCase();
+    if (ap.startsWith('p') && h < 12) h += 12;
+    if (ap.startsWith('a') && h === 12) h = 0;
+    if (isNaN(h) || h > 23 || min > 59) return fallback;
+    return String(h).padStart(2, '0') + String(min).padStart(2, '0');
+}
+// 'YYYY-MM-DD' + time (clean or free text) -> local floating stamp 'YYYYMMDDTHHMMSS'
+// (paired with TZID=Europe/Zagreb).
+function icsLocalDT(dateStr, timeStr, fallbackClock) {
+    const d = String(dateStr || '').replace(/[^0-9]/g, '').slice(0, 8);
+    const t = icsParseClock(timeStr, fallbackClock || '0900');
+    return d + 'T' + t + '00';
+}
+function buildVEVENT(ev) {
+    const lines = ['BEGIN:VEVENT', 'UID:' + ev.uid, 'DTSTAMP:' + ev.stamp];
+    lines.push('DTSTART;TZID=Europe/Zagreb:' + ev.start);
+    lines.push('DTEND;TZID=Europe/Zagreb:' + ev.end);
+    lines.push('SUMMARY:' + icsEscapeText(ev.summary));
+    if (ev.location) lines.push('LOCATION:' + icsEscapeText(ev.location));
+    if (ev.description) lines.push('DESCRIPTION:' + icsEscapeText(ev.description));
+    if (ev.url) lines.push('URL:' + icsEscapeText(ev.url));
+    lines.push('STATUS:CONFIRMED');
+    lines.push('TRANSP:OPAQUE');
+    lines.push('END:VEVENT');
+    return lines;
+}
+function buildICS(vevents) {
+    let lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Med&X//Plexus Week 2026//EN',
+        'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+    lines = lines.concat(ZAGREB_VTIMEZONE);
+    for (const ev of vevents) lines = lines.concat(ev);
+    lines.push('END:VCALENDAR');
+    return lines.map(icsFold).join('\r\n') + '\r\n';
+}
+function calendarEventsFor(slug) {
+    const stamp = icsStampUTC(new Date());
+    const baseUrl = (process.env.PUBLIC_BASE_URL || 'https://portal.medx.hr').replace(/\/+$/, '');
+    if (slug === 'plexus') {
+        let ps = {};
+        try { ps = query.get("SELECT * FROM plexus_settings WHERE id = 'default'") || {}; } catch (e) {}
+        const start = ps.conference_start_date || '2026-12-04';
+        const end = ps.conference_end_date || '2026-12-05';
+        const venue = [ps.venue_name, ps.venue_city || 'Zagreb'].filter(Boolean).join(', ') || 'Zagreb';
+        const name = ps.conference_name || 'Plexus Conference 2026';
+        // Two timed day-blocks (09:00-18:00) so calendars show the two conference days accurately.
+        const days = [];
+        const s = new Date(start + 'T00:00:00Z'), e = new Date(end + 'T00:00:00Z');
+        for (let d = new Date(s); d <= e; d.setUTCDate(d.getUTCDate() + 1)) {
+            const iso = d.toISOString().slice(0, 10);
+            days.push(iso);
+            if (days.length > 6) break;
+        }
+        return days.map((iso, i) => buildVEVENT({
+            uid: 'plexus-2026-day' + (i + 1) + '@medx.hr',
+            stamp,
+            start: icsLocalDT(iso, '09:00', '0900'),
+            end: icsLocalDT(iso, '18:00', '1800'),
+            summary: days.length > 1 ? (name + ' — Day ' + (i + 1)) : name,
+            location: venue,
+            description: 'Plexus 2026, the annual convening of Croatian biomedicine. Program and full schedule at ' + baseUrl + '/plexus',
+            url: baseUrl + '/plexus'
+        }));
+    }
+    if (slug === 'gala') {
+        let g = {};
+        try { g = query.get("SELECT * FROM gala_settings WHERE id = 'default'") || {}; } catch (e) {}
+        const date = g.date || '2026-12-05';
+        const startT = g.time || '18:00';
+        const venue = g.venue || 'Hotel Esplanade Zagreb';
+        const title = g.title || 'Plexus Gala Evening 2026';
+        return [buildVEVENT({
+            uid: 'plexus-gala-2026@medx.hr',
+            stamp,
+            start: icsLocalDT(date, startT, '1800'),
+            end: icsLocalDT(date, '23:00', '2300'),
+            summary: title,
+            location: venue,
+            description: 'The Plexus Gala Evening. Black-tie dinner, keynote and awards. Details and reservations at ' + baseUrl + '/plexus',
+            url: baseUrl + '/plexus'
+        })];
+    }
+    if (slug === 'building-bridges' || slug === 'donor-night') {
+        let b = {};
+        try { b = query.get('SELECT * FROM bridges_events WHERE slug = ?', [slug]) || {}; } catch (e) {}
+        if (slug === 'building-bridges') {
+            const date = b.event_date || '2026-12-04'; // window is 4-5 Dec 2026; exact day confirmed with the invitation
+            const provisional = !b.event_date;
+            const venue = (b.venue_name && b.venue_name !== 'To be announced') ? b.venue_name : 'Zagreb — venue to be announced';
+            return [buildVEVENT({
+                uid: 'plexus-building-bridges-2026@medx.hr',
+                stamp,
+                start: icsLocalDT(date, b.event_time || '09:00', '0900'),
+                end: icsLocalDT(date, b.end_time || '12:30', '1230'),
+                summary: 'Building Bridges in Biomedicine Croatia',
+                location: venue,
+                description: (provisional ? 'Provisional listing — the confirmed date, time and venue follow with your invitation. ' : '') +
+                    'Part of Plexus Week 2026, Zagreb. ' + baseUrl + '/building-bridges',
+                url: baseUrl + '/building-bridges'
+            })];
+        }
+        const date = b.event_date || '2026-12-04';
+        const venue = b.venue_address || b.venue_name || 'Esplanade Zagreb, private salon';
+        return [buildVEVENT({
+            uid: 'plexus-donor-night-2026@medx.hr',
+            stamp,
+            start: icsLocalDT(date, b.event_time || '19:30', '1930'),
+            end: icsLocalDT(date, b.end_time || '22:30', '2230'),
+            summary: 'Plexus Donor Night',
+            location: venue,
+            description: 'An invitation-only supper advancing the Plexus Fellowship and the Accelerator. Part of Plexus Week 2026, Zagreb. ' + baseUrl + '/donor-night',
+            url: baseUrl + '/donor-night'
+        })];
+    }
+    return null;
+}
+app.get('/calendar/:file', (req, res) => {
+    try {
+        const slug = String(req.params.file || '').replace(/\.ics$/i, '').toLowerCase();
+        const vevents = calendarEventsFor(slug);
+        if (!vevents || !vevents.length) return res.status(404).send('Calendar not found');
+        const ics = buildICS(vevents);
+        res.set('Content-Type', 'text/calendar; charset=utf-8');
+        res.set('Content-Disposition', 'attachment; filename="medx-' + slug + '.ics"');
+        res.set('Cache-Control', 'public, max-age=3600');
+        return res.send(ics);
+    } catch (e) {
+        console.error('[calendar] error:', e.message);
+        return res.status(500).send('Calendar temporarily unavailable');
+    }
+});
+// ========================== end ADD-TO-CALENDAR (.ics) ==========================
+
 
 app.get('/invite/:data', async (req, res) => {
     try {
@@ -2483,6 +2731,320 @@ app.get('/qr/:id.png', async (req, res) => {
     }
 });
 
+// ========== THE BIOMEDICAL FORUM — WING (own shell at /forum) ==========
+// A dedicated, dignified experience convened under Med&X. Served as a self-contained page (its own
+// racing-green + brass + cream shell) BEFORE express.static so /forum resolves to the wing, not the
+// SPA. Anyone may open /forum: the wing's own JS gates to the access screen for non-members. The
+// word "portal" never appears in the wing. Events are "convenings".
+app.get('/forum', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/forum-wing.html'));
+});
+
+// Magic-link consumer. A short-lived signed link admits a member with no password. We verify the
+// one-time token, mark it used, ensure the member's account exists, mint the existing JWT, and hand
+// the member into the wing via the same ?mxt= mechanism the wider Med&X apps use. Additive — no
+// existing auth flow is touched.
+app.get('/forum/enter', (req, res) => {
+    const notice = (title, body) => res.status(200).send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>The Biomedical Forum</title><link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;1,400&family=Inter:wght@400;600&display=swap" rel="stylesheet"><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fbf9f6;color:#15110f;font-family:'Inter',system-ui,sans-serif;padding:24px}.c{max-width:460px;text-align:center}h1{font-family:'Fraunces',Georgia,serif;font-weight:400;font-size:2rem;color:#20463a;margin:0 0 14px}p{color:#3a352f;line-height:1.6;margin:0 0 24px}a{display:inline-block;background:#20463a;color:#fff;padding:14px 28px;border-radius:2px;text-decoration:none;font-size:14px;font-weight:600;letter-spacing:.1em;text-transform:uppercase}</style></head><body><div class="c"><h1>${title}</h1><p>${body}</p><a href="/forum">Return to the Forum &rarr;</a></div></body></html>`);
+    try {
+        const token = String(req.query.token || '');
+        if (!token) return notice('A link is needed', 'This entrance expects a personal link. Please request one from the Forum.');
+        const row = query.get("SELECT * FROM forum_magic_tokens WHERE token = ?", [token]);
+        if (!row) return notice('This link is not recognized', 'It may have already been used. Requesting a fresh link takes only a moment.');
+        if (row.used_at) return notice('This link has been used', 'Each personal link admits you once. A fresh link can be requested at any time.');
+        if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return notice('This link has lapsed', 'For your security, each link is short-lived. A fresh one can be requested at any time.');
+        db.run("UPDATE forum_magic_tokens SET used_at = datetime('now') WHERE id = ?", [row.id]);
+        const user = forumEnsureUserForEmail(row.email, null, row.user_id);
+        if (!user) return notice('We could not admit you', 'Please write to the Office of the Forum at president@medx.hr and we will see to it personally.');
+        const jwtToken = jwt.sign({ id: user.id, email: user.email, is_admin: 0 }, JWT_SECRET, { expiresIn: '7d' });
+        return res.redirect('/forum?mxt=' + encodeURIComponent(jwtToken));
+    } catch (e) {
+        console.error('[forum-wing] enter:', e && e.message);
+        return notice('Something interrupted your entrance', 'Please try your link again, or write to president@medx.hr.');
+    }
+});
+
+// ========== THE BIOMEDICAL FORUM — WING API (additive, read-mostly) ==========
+// A module-level limiter for the public wing entrances (link requests + considerations). The
+// route-registration function's own authLimiter is not in scope here, so the wing defines its own.
+const forumWingLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many requests. Please try again in a little while.' } });
+// Helpers are top-level function declarations (hoisted) so the /forum/enter page route above can
+// also use them. All member-facing routes require a valid session; the directory is NEVER public.
+function forumInitials(name) {
+    if (!name) return '·';
+    const drop = new Set(['prof','dr','sc','med','mr','mrs','ms','phd','md','dipl','ing','univ','spec']);
+    let parts = String(name).replace(/,.*$/, '').trim().split(/\s+/).filter(w => !drop.has(w.replace(/\./g, '').toLowerCase()));
+    if (!parts.length) parts = String(name).trim().split(/\s+/);
+    const a = (parts[0] || '')[0] || '', b = (parts[parts.length - 1] || '')[0] || '';
+    return (a + b).toUpperCase() || '·';
+}
+function forumMemberRowFor(userId, email) {
+    let row = null;
+    if (userId) row = query.get("SELECT * FROM forum_members WHERE user_id = ? LIMIT 1", [userId]);
+    if (!row && email) row = query.get("SELECT * FROM forum_members WHERE LOWER(email) = LOWER(?) LIMIT 1", [email]);
+    return row || null;
+}
+function forumIsMember(row) {
+    return !!(row && ['approved', 'active'].includes(String(row.membership_status || '').toLowerCase()));
+}
+// Ensure a portal account exists for a Forum email (passwordless — the member uses magic links).
+// Links/creates an APPROVED forum_members row. Returns the user row, or null on failure. Sync so the
+// /forum/enter route can call it without becoming async.
+function forumEnsureUserForEmail(email, name, preferUserId) {
+    try {
+        if (!email) return null;
+        let user = null;
+        if (preferUserId) user = query.get("SELECT id, email, first_name, last_name, institution FROM users WHERE id = ?", [preferUserId]);
+        if (!user) user = query.get("SELECT id, email, first_name, last_name, institution FROM users WHERE LOWER(email) = LOWER(?)", [email]);
+        const existingMember = forumMemberRowFor(user && user.id, email);
+        if (!user) {
+            const id = uuidv4();
+            let fn = '', ln = '';
+            const nm = (name || (existingMember && [existingMember.first_name, existingMember.last_name].filter(Boolean).join(' ')) || '').trim();
+            if (nm) { const ps = nm.split(/\s+/); fn = ps.slice(0, -1).join(' ') || ps[0]; ln = ps.length > 1 ? ps[ps.length - 1] : ''; }
+            const inst = (existingMember && existingMember.institution) || null;
+            // Passwordless: an unusable placeholder hash. bcrypt.compare returns false for it, so
+            // password login can never succeed for a magic-link-only account (magic link is the door).
+            db.run(`INSERT INTO users (id, email, password_hash, first_name, last_name, institution, email_verified, verification_token)
+                    VALUES (?, ?, ?, ?, ?, ?, 1, NULL)`, [id, email, '!magic-link-no-password!', fn, ln, inst]);
+            user = { id, email, first_name: fn, last_name: ln, institution: inst };
+        }
+        // Ensure an approved forum_members row linked to this user.
+        if (existingMember) {
+            if (!existingMember.user_id) db.run("UPDATE forum_members SET user_id = ? WHERE id = ?", [user.id, existingMember.id]);
+            if (!['approved', 'active'].includes(String(existingMember.membership_status || '').toLowerCase())) {
+                db.run("UPDATE forum_members SET membership_status = 'approved' WHERE id = ?", [existingMember.id]);
+            }
+        } else {
+            db.run(`INSERT INTO forum_members (id, user_id, email, membership_status, first_name, last_name, institution, created_at, approved_at)
+                    VALUES (?, ?, ?, 'approved', ?, ?, ?, datetime('now'), datetime('now'))`,
+                [uuidv4(), user.id, email, user.first_name || null, user.last_name || null, user.institution || null]);
+        }
+        saveDb();
+        return user;
+    } catch (e) { console.error('[forum-wing] ensureUser:', e && e.message); return null; }
+}
+function forumProfileFor(user, memberRow) {
+    const m = memberRow || {};
+    const name = ([m.first_name, m.last_name].filter(Boolean).join(' ').trim())
+        || ([user && user.first_name, user && user.last_name].filter(Boolean).join(' ').trim())
+        || (user && user.email) || 'A member of the Forum';
+    const since = (m.approved_at || m.created_at || '');
+    const year = since ? String(since).slice(0, 4) : '';
+    return {
+        name,
+        first_name: m.first_name || (user && user.first_name) || '',
+        last_name: m.last_name || (user && user.last_name) || '',
+        email: (user && user.email) || m.email || '',
+        field: m.specialty || '',
+        institution: m.institution || (user && user.institution) || '',
+        position: m.position || '',
+        city: m.location_city || '',
+        country: m.location_country || '',
+        contribution: m.research_interests || m.bio || '',
+        photo_url: m.photo_url || '',
+        initials: forumInitials(name),
+        member_since: year || null
+    };
+}
+function forumWingMemberGate(req, res, next) {
+    const row = forumMemberRowFor(req.user && req.user.id, req.user && req.user.email);
+    if (!forumIsMember(row)) return res.status(403).json({ error: 'The Forum directory is private to its members.' });
+    req.forumMember = row;
+    next();
+}
+
+// GET /api/forum/wing/me — soft auth: 200 always, with { authenticated, member, profile, news }.
+app.get('/api/forum/wing/me', (req, res) => {
+    try {
+        const token = (req.headers.authorization || '').replace('Bearer ', '');
+        let user = null;
+        if (token && token !== 'auto-login') {
+            try { const d = jwt.verify(token, JWT_SECRET); if (d && d.id) user = query.get("SELECT id, email, first_name, last_name, institution, is_admin FROM users WHERE id = ?", [d.id]); } catch (e) { /* anon */ }
+        }
+        if (!user) return res.json({ authenticated: false, member: false });
+        const row = forumMemberRowFor(user.id, user.email);
+        const member = forumIsMember(row);
+        const out = { authenticated: true, member, profile: member ? forumProfileFor(user, row) : { name: [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email, email: user.email } };
+        if (member) {
+            out.news = query.all("SELECT title, body, date FROM forum_news WHERE status = 'published' ORDER BY sort ASC, date DESC LIMIT 6");
+        }
+        res.json(out);
+    } catch (e) { console.error('[forum-wing] me:', e && e.message); res.status(500).json({ error: 'Could not load the Forum.' }); }
+});
+
+// POST /api/forum/wing/request-link — magic-link access. Neutral response (no membership enumeration);
+// a real member with no configured mail provider gets the link surfaced for dev, like verification.
+app.post('/api/forum/wing/request-link', forumWingLimiter, async (req, res) => {
+    try {
+        const email = String(req.body.email || '').trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'A valid email address is needed.' });
+        const row = forumMemberRowFor(null, email) || (function () {
+            const u = query.get("SELECT id, email FROM users WHERE LOWER(email) = LOWER(?)", [email]);
+            return u ? forumMemberRowFor(u.id, email) : null;
+        })();
+        const neutral = { success: true, message: 'If that address is held by the Forum, a personal link is on its way.' };
+        if (!forumIsMember(row)) return res.json(neutral);
+        const token = crypto.randomBytes(24).toString('hex');
+        const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+        db.run("INSERT INTO forum_magic_tokens (id, email, token, user_id, purpose, expires_at) VALUES (?,?,?,?,?,?)",
+            [uuidv4(), email, token, row.user_id || null, 'access', expiresAt]);
+        saveDb();
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        const enterUrl = `${baseUrl}/forum/enter?token=${token}`;
+        const first = (row.first_name || '').trim();
+        const html = buildEmailTemplate('Your personal link to the Forum', `
+            <p>${first ? 'Dear ' + escapeHtml(first) + ',' : 'Dear colleague,'}</p>
+            <p>Your personal link to the Biomedical Forum is ready. Following it admits you at once, with no password to keep.</p>
+            <div style="text-align:center;margin:32px 0;"><a href="${enterUrl}" style="display:inline-block;background:#20463a;color:#f4efe4;text-decoration:none;padding:15px 34px;border-radius:2px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:14px;">Enter the Forum</a></div>
+            <p style="color:#6a625a;font-size:13px;">If the button does not open, the link is below. It is personal to you and lapses in a short while.</p>
+            <p style="word-break:break-all;color:#6a625a;font-size:13px;">${enterUrl}</p>
+            <p style="color:#6a625a;font-size:13px;margin-top:22px;">Held with discretion — the Office of the Forum, an initiative of Med&amp;X.</p>
+        `);
+        try { await sendEmail(email, 'Your personal link to the Biomedical Forum', html); } catch (e) { console.error('[forum-wing] link email:', e && e.message); }
+        const mailReady = !!(process.env.RESEND_API_KEY || process.env.BREVO_API_KEY || process.env.SENDGRID_API_KEY);
+        const out = { success: true, message: 'A personal link is on its way to ' + email + '.' };
+        if (!mailReady) out.devLink = enterUrl;
+        res.json(out);
+    } catch (e) { console.error('[forum-wing] request-link:', e && e.message); res.status(500).json({ error: 'That could not be completed just now.' }); }
+});
+
+// POST /api/public/forum-consideration — public application (also the endpoint the website posts to).
+app.post('/api/public/forum-consideration', forumWingLimiter, (req, res) => {
+    try {
+        const b = req.body || {};
+        const clean = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
+        // Tolerant of the marketing form's field names as well as the wing's own.
+        const name = clean(b.name || b.full_name || b.fullName, 160), email = clean(b.email, 160);
+        const institution = clean(b.institution || b.organisation || b.organization, 200);
+        const field = clean(b.field || b.specialty || b.speciality, 160);
+        const note = clean(b.note || b.message || b.reason, 2000);
+        const on_behalf_of = clean(b.on_behalf_of || b.nominator || b.proposed_by || b.proposedBy, 160);
+        const source = clean(b.source, 40) || 'website';
+        if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'A name and a valid email address are needed.' });
+        db.run(`INSERT INTO forum_considerations (id, name, email, institution, field, note, on_behalf_of, source, status)
+                VALUES (?,?,?,?,?,?,?,?, 'pending')`, [uuidv4(), name, email, institution || null, field || null, note || null, on_behalf_of || null, source]);
+        saveDb();
+        res.json({ success: true, message: 'Your note has reached the Office of the Forum.' });
+    } catch (e) { console.error('[forum-wing] consideration:', e && e.message); res.status(500).json({ error: 'That could not be submitted just now.' }); }
+});
+
+// GET /api/forum/wing/directory — PRIVATE, members only. Search-first over approved members.
+app.get('/api/forum/wing/directory', auth, forumWingMemberGate, (req, res) => {
+    try {
+        const q = String(req.query.q || '').trim().toLowerCase();
+        const field = String(req.query.field || '').trim();
+        const inst = String(req.query.institution || '').trim();
+        const limit = Math.min(60, Math.max(6, parseInt(req.query.limit, 10) || 12));
+        const rows = query.all("SELECT first_name, last_name, specialty, position, institution, research_interests, bio, photo_url, location_city, location_country, is_mentor, approved_at, created_at FROM forum_members WHERE LOWER(COALESCE(membership_status,'')) IN ('approved','active')");
+        const norm = (r) => {
+            const name = [r.first_name, r.last_name].filter(Boolean).join(' ').trim();
+            return {
+                name,
+                initials: forumInitials(name),
+                role: r.specialty || '',
+                affiliation: [r.position, r.institution].filter(Boolean).join(' · '),
+                institution: r.institution || '',
+                field: r.specialty || '',
+                contribution: r.research_interests || r.bio || '',
+                photo_url: r.photo_url || '',
+                city: r.location_city || '', country: r.location_country || '',
+                is_mentor: !!r.is_mentor
+            };
+        };
+        let members = rows.map(norm).filter(m => m.name);
+        // facets from the full set (for filter chips)
+        const fields = Array.from(new Set(members.map(m => m.field).filter(Boolean))).sort();
+        const institutions = Array.from(new Set(members.map(m => m.institution).filter(Boolean))).sort();
+        if (field) members = members.filter(m => m.field === field);
+        if (inst) members = members.filter(m => m.institution === inst);
+        if (q) members = members.filter(m => (m.name + ' ' + m.affiliation + ' ' + m.field + ' ' + m.contribution).toLowerCase().includes(q));
+        members.sort((a, b) => a.name.localeCompare(b.name));
+        const total = members.length;
+        const page = members.slice(0, limit);
+        res.json({ members: page, total, fields, institutions, featured_note: (!q && !field && !inst) });
+    } catch (e) { console.error('[forum-wing] directory:', e && e.message); res.status(500).json({ error: 'The directory could not be loaded.' }); }
+});
+
+// GET /api/forum/wing/convenings — the Forum's own convenings + segments + this member's reservations.
+app.get('/api/forum/wing/convenings', auth, forumWingMemberGate, (req, res) => {
+    try {
+        const uid = req.user.id;
+        const convs = query.all("SELECT * FROM forum_convenings WHERE status = 'published' ORDER BY sort ASC, date ASC");
+        const out = convs.map(c => {
+            const segs = query.all("SELECT id, label, time_label FROM forum_convening_segments WHERE convening_id = ? ORDER BY sort ASC", [c.id]);
+            const mine = query.get("SELECT id, segments_json FROM forum_reservations WHERE convening_id = ? AND user_id = ? AND status = 'confirmed' LIMIT 1", [c.id, uid]);
+            let mySegs = [];
+            if (mine && mine.segments_json) { try { mySegs = JSON.parse(mine.segments_json); } catch (e) { mySegs = []; } }
+            return {
+                id: c.id, slug: c.slug, title: c.title, tag: c.tag, when_label: c.when_label, venue: c.venue, dress: c.dress,
+                attendance: c.attendance, summary: c.summary, is_paid: !!c.is_paid, external_flow: c.external_flow,
+                segments: segs, reserved: !!mine, my_segments: mySegs
+            };
+        });
+        res.json({ convenings: out });
+    } catch (e) { console.error('[forum-wing] convenings:', e && e.message); res.status(500).json({ error: 'The programs could not be loaded.' }); }
+});
+
+// POST /api/forum/wing/convenings/:id/reserve — one-click reservation with segment ticks, QR, and an
+// idempotent confirmation email. Never double-books (unique per member+convening).
+app.post('/api/forum/wing/convenings/:id/reserve', auth, forumWingMemberGate, async (req, res) => {
+    try {
+        const conv = query.get("SELECT * FROM forum_convenings WHERE id = ? AND status = 'published'", [req.params.id]);
+        if (!conv) return res.status(404).json({ error: 'That convening could not be found.' });
+        const member = req.forumMember || {};
+        const profile = forumProfileFor(req.user, member);
+        const allSegs = query.all("SELECT id, label, time_label FROM forum_convening_segments WHERE convening_id = ? ORDER BY sort ASC", [conv.id]);
+        let chosenIds = Array.isArray(req.body.segments) ? req.body.segments.filter(s => typeof s === 'string') : [];
+        const validIds = new Set(allSegs.map(s => s.id));
+        chosenIds = chosenIds.filter(id => validIds.has(id));
+        if (allSegs.length && !chosenIds.length) chosenIds = allSegs.map(s => s.id); // default to the whole evening
+        const chosenLabels = allSegs.filter(s => chosenIds.includes(s.id)).map(s => [s.time_label, s.label].filter(Boolean).join(' — '));
+
+        // Idempotent: a member holds at most one reservation per convening.
+        let reservation = query.get("SELECT * FROM forum_reservations WHERE convening_id = ? AND user_id = ? AND status = 'confirmed' LIMIT 1", [conv.id, req.user.id]);
+        let created = false;
+        if (reservation) {
+            db.run("UPDATE forum_reservations SET segments_json = ? WHERE id = ?", [JSON.stringify(chosenIds), reservation.id]);
+        } else {
+            const id = uuidv4();
+            const qrCode = 'FORUM-' + id.substring(0, 8).toUpperCase();
+            db.run(`INSERT INTO forum_reservations (id, convening_id, user_id, email, name, institution, segments_json, qr_code, status)
+                    VALUES (?,?,?,?,?,?,?,?, 'confirmed')`,
+                [id, conv.id, req.user.id, profile.email || null, profile.name || null, profile.institution || null, JSON.stringify(chosenIds), qrCode]);
+            reservation = { id, qr_code: qrCode };
+            created = true;
+        }
+        saveDb();
+
+        // Confirmation email with QR — idempotent per reservation via drip_log.
+        if (created && profile.email) {
+            const kind = 'forum_reservation:' + reservation.id;
+            if (!query.get("SELECT 1 AS x FROM drip_log WHERE kind = ?", [kind])) {
+                db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?,?,?,?)", [uuidv4(), req.user.id, profile.email, kind]);
+                saveDb();
+                (async () => {
+                    let atts = [];
+                    try { const png = await QRCode.toBuffer(JSON.stringify({ r: reservation.id, k: 'forum' }), { errorCorrectionLevel: 'L', width: 560, margin: 2, color: { dark: '#000000', light: '#ffffff' } }); atts = [{ filename: 'forum-credential.png', content: png }]; } catch (e) { /* email still sends without the attachment */ }
+                    const segRows = chosenLabels.length ? `<ul style="margin:10px 0 18px;padding-left:18px;color:#3a352f;">${chosenLabels.map(l => `<li style="margin-bottom:5px;">${escapeHtml(l)}</li>`).join('')}</ul>` : '';
+                    const html = buildEmailTemplate('Your place is reserved', `
+                        <p>${profile.name ? 'Dear ' + escapeHtml(profile.name.replace(/,.*/, '')) + ',' : 'Dear colleague,'}</p>
+                        <p>Your place at <strong>${escapeHtml(conv.title)}</strong> is reserved.</p>
+                        <p style="color:#475569;font-size:14px;">${escapeHtml(conv.when_label || '')}${conv.venue ? '<br>' + escapeHtml(conv.venue) : ''}${conv.dress ? '<br>' + escapeHtml(conv.dress) : ''}</p>
+                        ${segRows ? '<p style="font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#6f5a31;">You will attend</p>' + segRows : ''}
+                        <p>Your entry credential is attached as a discreet code — a quiet backup for the door, read in a moment on arrival. There is nothing to print and nothing to remember.</p>
+                        <p style="color:#475569;font-size:14px;">Reference <strong>${escapeHtml(reservation.qr_code || '')}</strong></p>
+                        <p style="color:#6a625a;font-size:13px;margin-top:22px;">Held with discretion — the Office of the Forum, an initiative of Med&amp;X.</p>
+                    `);
+                    try { await sendEmail(profile.email, 'Your place is reserved — ' + conv.title, html, atts); } catch (e) { console.error('[forum-wing] reserve email:', e && e.message); }
+                })();
+            }
+        }
+        res.json({ success: true, qr_code: reservation.qr_code, reference: reservation.qr_code, segments: chosenLabels });
+    } catch (e) { console.error('[forum-wing] reserve:', e && e.message); res.status(500).json({ error: 'That could not be completed just now.' }); }
+});
+// ========== END FORUM WING API ==========
+
 app.use(express.static(path.join(__dirname, '../frontend')));
 // User-uploaded files: force download + nosniff so a stored .svg/.html/.xml can't execute
 // inline as same-origin script (multer trusts the client MIME, so the content is untrusted).
@@ -2853,6 +3415,42 @@ function rewardsSummaryFor(userId, email) {
         ledger,
         redemptions
     };
+}
+
+// ===== Affiliation class — the server-authoritative "quiet profile" =====
+// A member whose ONLY Med&X affiliation is the Plexus Gala dinner and/or Biomedical Forum
+// membership is "quiet": a high-status guest (an institute director, a CEO, a senior physician)
+// who must never be shown youth-coded UI — points, badges, tours, rewards, gamified copy. ANY
+// general-membership signal (a Plexus conference registration, an accelerator application, or a
+// Building Bridges / Donor Night registration) means they are a regular member and keep the full
+// experience. Fail-closed toward the normal member view: quiet is only ever TRUE when we
+// affirmatively see a gala/forum affiliation AND see none of the general-member signals. Every
+// uncertain case (no detectable senior-only affiliation, admins, or a query error) resolves to
+// quiet=false, so existing members never lose anything.
+function deriveAffiliationClass(userId, email) {
+    const em = email ? String(email).trim().toLowerCase() : '';
+    const signals = { gala: false, forum: false, plexus: false, accelerator: false, bridges: false };
+    try {
+        // Senior-only affiliations (the quiet-preserving set)
+        if (userId) signals.gala = !!query.get('SELECT 1 FROM gala_registrations WHERE user_id = ? LIMIT 1', [userId]);
+        if (!signals.gala && em) signals.gala = !!query.get('SELECT 1 FROM gala_registrations WHERE lower(email) = ? LIMIT 1', [em]);
+        if (userId) signals.forum = !!query.get("SELECT 1 FROM forum_members WHERE user_id = ? AND COALESCE(membership_status,'') <> 'rejected' LIMIT 1", [userId]);
+        // General-member signals — any one keeps the playful UI
+        if (userId) signals.plexus = !!query.get('SELECT 1 FROM registrations WHERE user_id = ? LIMIT 1', [userId]);
+        if (userId) signals.accelerator = !!query.get('SELECT 1 FROM accelerator_applications WHERE user_id = ? LIMIT 1', [userId]);
+        if (!signals.accelerator && em) signals.accelerator = !!query.get('SELECT 1 FROM accelerator_applications WHERE lower(email) = ? LIMIT 1', [em]);
+        if (em) signals.bridges = !!query.get('SELECT 1 FROM bridges_registrations WHERE lower(email) = ? LIMIT 1', [em]);
+    } catch (e) {
+        return { quiet: false, signals };
+    }
+    const seniorOnly = signals.gala || signals.forum;
+    const general = signals.plexus || signals.accelerator || signals.bridges;
+    return { quiet: !!(seniorOnly && !general), signals };
+}
+// Resolve the quiet flag for a user row, forcing playful for admins (they QA the full UI).
+function quietFlagFor(user) {
+    if (!user || user.is_admin) return false;
+    try { return deriveAffiliationClass(user.id, user.email).quiet; } catch (e) { return false; }
 }
 
 // ===== Custom questions =====
@@ -6521,6 +7119,124 @@ async function initializeApp() {
     // pr_posts drifted between portals (admin CREATE has status, user CREATE lacked it) — heal existing DBs.
     try { db.exec("ALTER TABLE pr_posts ADD COLUMN status TEXT DEFAULT 'published'"); } catch (e) { /* column exists */ }
 
+    // ====================== THE BIOMEDICAL FORUM — WING schema ======================
+    // The Forum wing (/forum) is a dignified, invitation-only experience convened under Med&X.
+    // These tables live OUTSIDE the SCHEMA-MIRROR block, but are added IDENTICALLY to BOTH portal
+    // server.js files because both portals touch them: the user portal writes considerations,
+    // magic-link tokens, convenings and reservations, while the admin portal reads considerations,
+    // approves/declines them, issues invitation tokens, and reads reservation + segment counts.
+    // Every statement is idempotent (CREATE TABLE IF NOT EXISTS) so whichever process boots first
+    // against the shared DB creates them once. Only the user portal seeds the standing convenings.
+    db.run(`CREATE TABLE IF NOT EXISTS forum_considerations (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        email TEXT,
+        institution TEXT,
+        field TEXT,
+        note TEXT,
+        on_behalf_of TEXT,
+        source TEXT DEFAULT 'website',
+        status TEXT DEFAULT 'pending',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        decided_at TEXT,
+        decided_by TEXT,
+        decision_note TEXT
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS forum_magic_tokens (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        token TEXT NOT NULL UNIQUE,
+        user_id TEXT,
+        purpose TEXT DEFAULT 'access',
+        expires_at TEXT NOT NULL,
+        used_at TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS forum_convenings (
+        id TEXT PRIMARY KEY,
+        slug TEXT UNIQUE,
+        title TEXT NOT NULL,
+        tag TEXT,
+        when_label TEXT,
+        date TEXT,
+        venue TEXT,
+        dress TEXT,
+        attendance TEXT,
+        summary TEXT,
+        is_paid INTEGER DEFAULT 0,
+        price REAL DEFAULT 0,
+        external_flow TEXT,
+        status TEXT DEFAULT 'published',
+        sort INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS forum_convening_segments (
+        id TEXT PRIMARY KEY,
+        convening_id TEXT NOT NULL,
+        label TEXT NOT NULL,
+        time_label TEXT,
+        sort INTEGER DEFAULT 0
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS forum_reservations (
+        id TEXT PRIMARY KEY,
+        convening_id TEXT NOT NULL,
+        user_id TEXT,
+        email TEXT,
+        name TEXT,
+        institution TEXT,
+        segments_json TEXT,
+        qr_code TEXT,
+        status TEXT DEFAULT 'confirmed',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS forum_news (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        body TEXT,
+        date TEXT,
+        sort INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'published',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_forum_reservations_conv ON forum_reservations(convening_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_forum_magic_tokens_token ON forum_magic_tokens(token)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_forum_considerations_status ON forum_considerations(status)`);
+    // ====================== END FORUM WING schema ======================
+
+    // FORUM WING seed — user portal only (idempotent by slug). The two standing convenings and a
+    // little Forum news, harvested from the approved wing design. Existence-guarded so a re-boot
+    // never duplicates, and scoped to this portal so there is no double-seed race against admin.
+    (function seedForumWing(){
+        try {
+            const seedConv = (c, segs) => {
+                if (query.get("SELECT id FROM forum_convenings WHERE slug = ?", [c.slug])) return;
+                const cid = uuidv4();
+                db.run(`INSERT INTO forum_convenings (id, slug, title, tag, when_label, date, venue, dress, attendance, summary, is_paid, price, external_flow, status, sort)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                    [cid, c.slug, c.title, c.tag, c.when_label, c.date, c.venue, c.dress, c.attendance, c.summary, c.is_paid||0, c.price||0, c.external_flow||null, 'published', c.sort||0]);
+                (segs||[]).forEach((s, i) => db.run(`INSERT INTO forum_convening_segments (id, convening_id, label, time_label, sort) VALUES (?,?,?,?,?)`,
+                    [uuidv4(), cid, s.label, s.time_label, i]));
+            };
+            seedConv({ slug:'autumn-symposium-2026', title:'The Autumn Symposium', tag:'The Autumn Symposium', when_label:'Friday, 17 October 2026', date:'2026-10-17', venue:'Novinarski dom · Zagreb', dress:'Business', attendance:'By invitation · members', summary:'Three short addresses from members, followed by a discussion held under a rule of discretion and a private dinner.', is_paid:0, price:0, external_flow:null, sort:1 }, [
+                { label:'Symposium and closed discussion', time_label:'15:00 – 18:30' },
+                { label:'Private dinner', time_label:'19:00' }
+            ]);
+            seedConv({ slug:'gala-evening-2026', title:'The Gala Evening', tag:'The Gala Evening', when_label:'Saturday, 5 December 2026', date:'2026-12-05', venue:'Hotel Esplanade · Zagreb', dress:'Black tie', attendance:'Members and their guests', summary:'The evening that closes the Med&X year, with addresses over dinner and the welcome of those newly invited to the circle.', is_paid:0, price:0, external_flow:null, sort:2 }, [
+                { label:'Reception in the salon', time_label:'19:30' },
+                { label:'Dinner in the domed ballroom', time_label:'20:15' },
+                { label:'Addresses over dinner', time_label:'21:15' }
+            ]);
+            if (!query.get("SELECT id FROM forum_news LIMIT 1")) {
+                const news = [
+                    { title:'The circle welcomes its autumn convening', body:'The Autumn Symposium returns to the Novinarski dom in Zagreb, with three addresses from members and a discussion held under a rule of discretion.', date:'2026-09-01', sort:1 },
+                    { title:'A note on the close of the year', body:'The Gala Evening at the Hotel Esplanade will again close the Med&X year, and welcome those newly invited to the Forum.', date:'2026-10-15', sort:2 }
+                ];
+                news.forEach(n => db.run(`INSERT INTO forum_news (id, title, body, date, sort, status) VALUES (?,?,?,?,?, 'published')`, [uuidv4(), n.title, n.body, n.date, n.sort]));
+            }
+            saveDb();
+        } catch (e) { console.error('[forum-wing] seed:', e && e.message); }
+    })();
+
     // Talk library: on-demand duration label + sample flag (additive, guarded — deliberately
     // OUTSIDE the mirror block so they never disturb the byte-identical CREATE TABLE region).
     // Sample rows carry a real public YouTube URL for layout realism and are badged in the UI
@@ -7247,7 +7963,7 @@ async function initializeApp() {
                 return res.status(403).json({ error: 'Email not verified', needsVerification: true, email: user.email });
             }
             const token = jwt.sign({ id: user.id, email: user.email, is_admin: user.is_admin }, JWT_SECRET, { expiresIn: '7d' });
-            res.json({ success: true, token, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name, institution: user.institution, is_admin: user.is_admin }});
+            res.json({ success: true, token, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name, institution: user.institution, is_admin: user.is_admin, quiet: quietFlagFor(user) }});
         } catch (e) { console.error(e); res.status(500).json({ error: 'Login failed' }); }
     });
 
@@ -7501,11 +8217,20 @@ async function initializeApp() {
         if (!user || !user.email) return;
         const first = (user.first_name || 'there');
         const base = PORTAL_BASE_URL();
+        // Quiet members (gala/forum-only) get a peer-register welcome with no rewards mention and no
+        // "young students" framing — same as every other youth-coded surface, one derivation.
+        const quiet = quietFlagFor(user);
         if (claimDrip(user.id, user.email, 'welcome')) {
+            const communityLine = quiet
+                ? `<p>Welcome to Med&amp;X. You now have a place among the physicians, scientists, and researchers in our community.</p>`
+                : `<p>Welcome to Med&amp;X. You are now part of a growing community of young physicians, scientists, and students building bridges across biomedicine.</p>`;
+            const portalLine = quiet
+                ? `<p>Your member portal is where it all lives — your event tickets and QR codes, the member directory, and program updates.</p>`
+                : `<p>Your member portal is where it all lives — your Plexus conference pass, event tickets and QR codes, networking, and rewards.</p>`;
             const html = buildEmailTemplate('Welcome to Med&X', `
                 <p>Hi ${first},</p>
-                <p>Welcome to Med&amp;X. You are now part of a growing community of young physicians, scientists, and students building bridges across biomedicine.</p>
-                <p>Your member portal is where it all lives — your Plexus conference pass, event tickets and QR codes, networking, and rewards.</p>
+                ${communityLine}
+                ${portalLine}
                 <div style="text-align:center;margin:32px 0;">
                     <a href="${base}/" style="display:inline-block;background:#C9A962;color:#0f172a;text-decoration:none;padding:14px 36px;border-radius:8px;font-weight:600;font-size:16px;">Open your member portal</a>
                 </div>
@@ -7954,10 +8679,13 @@ async function submitReset(e){
                 id: req.user.id, email: req.user.email || null,
                 first_name: null, last_name: null, phone: null,
                 institution: null, country: null, bio: null, photo_url: null,
-                is_admin: req.user.is_admin || 0, is_public_profile: 0
+                is_admin: req.user.is_admin || 0, is_public_profile: 0,
+                quiet: false
             });
         }
-        res.json(user);
+        // Additive: the server-derived affiliation class. The member portal reads this to decide
+        // whether to show any youth-coded UI (points/badges/tour/rewards). Never falls back to true.
+        res.json({ ...user, quiet: quietFlagFor(user) });
     });
 
     app.put('/api/auth/profile', auth, (req, res) => {
@@ -15541,7 +16269,7 @@ By applying to this program, I provide the following consents:
             // Create token for continuing registration
             const token = jwt.sign({ id: user.id, email: user.email, is_admin: user.is_admin }, JWT_SECRET, { expiresIn: '24h' });
 
-            res.json({ success: true, user_id: user.id, token, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name } });
+            res.json({ success: true, user_id: user.id, token, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name, quiet: quietFlagFor(user) } });
         } catch (err) {
             console.error('Plexus register/start error:', err.message);
             res.status(500).json({ error: 'Registration failed' });
