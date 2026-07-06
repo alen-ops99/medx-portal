@@ -4084,6 +4084,11 @@
             display: block;
         }
 
+        /* Forum funnel dashboard — stack the preview + activity columns on narrow screens */
+        @media (max-width: 720px) {
+            .forum-funnel-cols { grid-template-columns: 1fr !important; gap: 16px !important; }
+        }
+
         /* ===== ACCELERATOR KEY DATES TIMELINE ===== */
         .akd-timeline {
             display: flex;
@@ -8971,6 +8976,7 @@ President, Med&amp;X</textarea>
                     <div class="plexus-tabs forum-tabs">
                         <button class="plexus-tab forum-tab active" onclick="App.showForumTab('members')"><i class="fas fa-user-cog"></i> Members</button>
                         <button class="plexus-tab forum-tab" onclick="App.showForumTab('applications')"><i class="fas fa-user-plus"></i> Applications</button>
+                        <button class="plexus-tab forum-tab" onclick="App.showForumTab('candidates')"><i class="fas fa-user-check"></i> Candidate pipeline <span id="candTabBadge" style="display:none; background:var(--forum); color:#fff; border-radius:12px; padding:0 8px; font-size:11px; margin-left:2px;"></span></button>
                         <button class="plexus-tab forum-tab" onclick="App.showForumTab('events')"><i class="fas fa-calendar-alt"></i> Events</button>
                         <button class="plexus-tab forum-tab" onclick="App.showForumTab('checkin')"><i class="fas fa-qrcode"></i> Check-in</button>
                         <button class="plexus-tab forum-tab" onclick="App.showForumTab('feed')"><i class="fas fa-stream"></i> Feed</button>
@@ -9328,6 +9334,127 @@ President, Med&amp;X</textarea>
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Candidate pipeline styles -->
+                    <style>
+                        .btn-sm { padding:5px 10px; font-size:12px; border-radius:7px; line-height:1.2; }
+                        .cand-row:focus { border-color:var(--forum) !important; box-shadow:0 0 0 2px rgba(63,93,82,.25); }
+                        .cand-row:hover { border-color:var(--border-light); background:var(--bg-tertiary); }
+                    </style>
+
+                    <!-- Candidate pipeline Tab (member acquisition) -->
+                    <div class="plexus-content forum-content" id="forum-candidates">
+                        <!-- Funnel dashboard — how the forum is growing at a glance + what needs a human -->
+                        <div class="card" id="forumFunnelCard" style="border-left:3px solid var(--forum); margin-bottom:14px;">
+                            <div class="card-header" style="justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                                <span class="card-title"><i class="fas fa-chart-line" style="color:var(--forum); margin-right:8px;"></i> Forum growth <span style="font-weight:400; color:var(--text-muted); font-size:13px;">&mdash; how the circle is growing at a glance</span></span>
+                                <span id="forumFunnelNeedsHuman"></span>
+                            </div>
+                            <div id="forumFunnelBody" style="padding:16px;"><div style="color:var(--text-muted);">Loading&hellip;</div></div>
+                        </div>
+                        <!-- Invitation campaign engine -->
+                        <div class="card" id="forumCampaignCard" style="border-left:3px solid #c9a962; margin-bottom:14px;">
+                            <div class="card-header" style="justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                                <span class="card-title"><i class="fas fa-envelope-open-text" style="color:#c9a962; margin-right:8px;"></i> Invitation campaign <span id="fcampStatusPill" style="margin-left:4px;"></span></span>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                    <button class="btn btn-secondary" onclick="App.forumCampaignEdit()"><i class="fas fa-sliders"></i> Template &amp; settings</button>
+                                    <button class="btn btn-secondary" onclick="App.openOutbox()"><i class="fas fa-inbox"></i> Outbox</button>
+                                </div>
+                            </div>
+                            <div id="forumCampaignBody" style="padding:14px 16px;"><div style="color:var(--text-muted);">Loading&hellip;</div></div>
+                        </div>
+                        <div class="card" style="border-left:3px solid var(--forum); margin-bottom:14px;">
+                            <div class="card-header" style="justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                                <span class="card-title"><i class="fas fa-user-check" style="color:var(--forum); margin-right:8px;"></i> Candidate pipeline <span style="font-weight:400; color:var(--text-muted); font-size:13px;">&mdash; the worldwide list of Croatians in biomedicine</span></span>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                    <button class="btn btn-secondary" onclick="App.candBulkChecks(this)"><i class="fas fa-wand-magic-sparkles"></i> Run checks on next 20</button>
+                                    <button class="btn btn-primary" style="background:var(--forum); border:none;" onclick="App.openCandImport()"><i class="fas fa-file-import"></i> Import list</button>
+                                </div>
+                            </div>
+                            <div style="padding:12px 16px;">
+                                <div id="candFilters" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;"></div>
+                                <input type="text" id="candSearch" class="search-input" placeholder="Search name, email, institution, field&hellip;" style="width:min(340px,100%); margin-bottom:14px;" onkeyup="App.renderCandidates()" maxlength="100">
+                                <div id="candList"><div style="color:var(--text-muted); padding:20px;">Loading&hellip;</div></div>
+                            </div>
+                        </div>
+                        <p style="font-size:12px; color:var(--text-muted); margin:0 4px;"><i class="fas fa-circle-info" style="margin-right:6px;"></i>Verified candidates flow into the invitation queue. Accepting one hands off to the same personal magic-link invitation the Forum considerations use. Keyboard in the queue: <strong>V</strong> verified, <strong>R</strong> rejected, <strong>G</strong> Google, <strong>Enter</strong> open.</p>
+                    </div>
+
+                    <!-- Candidate import modal -->
+                    <div class="modal-overlay" id="candImportModal" onclick="if(event.target===this) App.closeModal('candImportModal')">
+                        <div class="modal" style="max-width:760px; max-height:90vh; overflow-y:auto;">
+                            <div class="modal-header">
+                                <h3><i class="fas fa-file-import" style="color:var(--forum); margin-right:8px;"></i> Import candidate list</h3>
+                                <button class="modal-close" onclick="App.closeModal('candImportModal')">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">Upload a CSV or Excel (.xlsx) list. Columns match automatically &mdash; adjust the mapping, then import. People already known (members, forum members, considerations, or candidates) are shown and never re-imported. Croatian characters (č ć đ š ž) are preserved.</p>
+                                <div class="form-group">
+                                    <label>List file</label>
+                                    <input type="file" id="candImportFile" accept=".csv,.tsv,.txt,.xlsx,.xls" style="color:var(--text-primary);" onchange="App.candPreviewImport()">
+                                </div>
+                                <div id="candImportPreview"></div>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn btn-secondary" onclick="App.closeModal('candImportModal')">Cancel</button>
+                                <button class="btn btn-primary" id="candImportCommitBtn" style="background:var(--forum); border:none;" onclick="App.candCommitImport(this)" disabled><i class="fas fa-check"></i> Import candidates</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Invitation campaign settings modal -->
+                    <div class="modal-overlay" id="forumCampaignModal" onclick="if(event.target===this) App.closeModal('forumCampaignModal')">
+                        <div class="modal" style="max-width:720px; max-height:90vh; overflow-y:auto;">
+                            <div class="modal-header">
+                                <h3><i class="fas fa-sliders" style="color:#c9a962; margin-right:8px;"></i> Invitation template &amp; settings</h3>
+                                <button class="modal-close" onclick="App.closeModal('forumCampaignModal')">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">These are the invitations that go out in the president&rsquo;s voice. The &ldquo;why they belong&rdquo; sentence is written for each candidate on the day, from their field and institution &mdash; the default below is only the fallback. Save your changes, then approve the campaign once to start the daily scheduler.</p>
+                                <div class="form-group"><label>Campaign name</label><input type="text" id="fcampName" class="search-input" style="width:100%;" maxlength="200"></div>
+                                <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                                    <div class="form-group" style="flex:1; min-width:140px;"><label>Invitations per day</label><input type="number" id="fcampRate" class="search-input" style="width:100%;" min="1" max="200"></div>
+                                    <div class="form-group" style="flex:2; min-width:200px;"><label>Replies go to (reply-to)</label><input type="email" id="fcampReplyTo" class="search-input" style="width:100%;" maxlength="160"></div>
+                                </div>
+                                <div class="form-group"><label>Invitation subject</label><input type="text" id="fcampSubject" class="search-input" style="width:100%;" maxlength="200"></div>
+                                <div class="form-group"><label>Opening (the president&rsquo;s message)</label><textarea id="fcampIntro" rows="4" class="search-input" style="width:100%;" maxlength="4000"></textarea></div>
+                                <div class="form-group"><label>&ldquo;Why they belong&rdquo; fallback sentence</label><textarea id="fcampBelonging" rows="2" class="search-input" style="width:100%;" maxlength="600"></textarea></div>
+                                <hr style="border:none; border-top:1px solid var(--border); margin:14px 0;">
+                                <div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); margin-bottom:8px; font-weight:700;">Gentle follow-up (10 days after, if no reply)</div>
+                                <div class="form-group"><label>Follow-up subject</label><input type="text" id="fcampFuSubject" class="search-input" style="width:100%;" maxlength="200"></div>
+                                <div class="form-group"><label>Follow-up message</label><textarea id="fcampFuBody" rows="3" class="search-input" style="width:100%;" maxlength="4000"></textarea></div>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn btn-secondary" onclick="App.closeModal('forumCampaignModal')">Cancel</button>
+                                <button class="btn btn-primary" style="background:var(--forum); border:none;" onclick="App.forumCampaignSave(this)"><i class="fas fa-floppy-disk"></i> Save settings</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Log a reply modal -->
+                    <div class="modal-overlay" id="candReplyModal" onclick="if(event.target===this) App.closeModal('candReplyModal')">
+                        <div class="modal" style="max-width:600px;">
+                            <div class="modal-header">
+                                <h3><i class="fas fa-reply" style="color:var(--forum); margin-right:8px;"></i> Log a reply</h3>
+                                <button class="modal-close" onclick="App.closeModal('candReplyModal')">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <p style="font-size:13px; color:var(--text-muted); margin-bottom:10px;">Paste the email the candidate sent back. We read it, decide whether it is a simple question or needs your personal touch, and either draft a reply for your approval or bring it to you and Laura.</p>
+                                <div id="candReplyWho" style="font-weight:600; color:var(--text-primary); margin-bottom:8px;"></div>
+                                <textarea id="candReplyText" rows="7" class="search-input" style="width:100%;" placeholder="Paste the reply text here&hellip;" maxlength="6000"></textarea>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn btn-secondary" onclick="App.closeModal('candReplyModal')">Cancel</button>
+                                <button class="btn btn-primary" style="background:var(--forum); border:none;" onclick="App.candSubmitReply(this)"><i class="fas fa-paper-plane"></i> Log reply</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Candidate detail drawer -->
+                    <div id="candDrawerOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:1200;" onclick="if(event.target===this) App.closeCandDrawer()"></div>
+                    <div id="candDrawer" role="dialog" aria-label="Candidate detail" style="position:fixed; top:0; right:0; height:100vh; width:min(480px,100%); background:var(--bg-secondary); border-left:1px solid var(--border); box-shadow:-8px 0 32px rgba(0,0,0,.18); z-index:1201; transform:translateX(102%); transition:transform .25s ease; overflow-y:auto;">
+                        <div id="candDrawerBody"></div>
                     </div>
 
                     <!-- Members Tab (Admin) — merged with Directory -->
@@ -14940,6 +15067,7 @@ President, Med&amp;X</textarea>
                     }
 
                     await this.showApp();
+                    try { const _p = new URLSearchParams(window.location.search); const _fc = _p.get('forumCandidate'); if (_fc) { this.forumOpenCandidateDeepLink(_fc); history.replaceState({}, '', window.location.pathname); } } catch (e) {}
                 } else {
                     document.getElementById('loginPage').style.display = 'flex';
                 }
@@ -16205,6 +16333,7 @@ President, Med&amp;X</textarea>
                 const item = (this._nagItems || []).find(i => i.id === id);
                 const pl = (item && item.action_payload) || {};
                 if (pl.open_planner) { this.showSection('pr-media'); setTimeout(() => { try { Planner.open(); } catch (e) {} }, 200); return; }
+                if (pl.open_candidate) { this.forumOpenCandidateDeepLink(pl.open_candidate); return; }
                 if (pl.open_project) { this.showProject(pl.open_project); return; }
                 if (pl.open_forum_considerations) { this.showProject('forum'); this.showForumTab('members'); setTimeout(() => { try { this.loadForumConsiderations(); const el=document.getElementById('forumConsiderationsCard'); if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); } catch(e){} }, 350); return; }
                 this.showSection(pl.open_section || 'dashboard');
@@ -24615,6 +24744,7 @@ President, Med&amp;X</textarea>
                     case 'gallery': this.loadForumGallery(); break;
                     case 'members': this.loadForumMembers(); break;
                     case 'applications': this.loadForumApplications(); break;
+                    case 'candidates': this.loadForumCandidates(); break;
                     case 'pricing': this.loadForumGalaPricing(); break;
                     case 'checkin': break; // Check-in tab needs no data pre-load
                 }
@@ -25934,6 +26064,741 @@ President, Med&amp;X</textarea>
                         </div>`;
                     }).join('');
                 } catch (e) { console.error('convenings load', e); }
+            },
+
+            // ===== Biomedical Forum — Candidate pipeline (member acquisition) =====
+            candAll: [],
+            candCounts: {},
+            candStatusFilter: 'queue',
+            candImport: null,
+            _candDrawerId: null,
+            _candStatusMeta: {
+                imported:    { label: 'Imported',    color: '#6b6258', bg: 'rgba(107,98,88,.12)' },
+                verifying:   { label: 'Verifying',   color: '#b45309', bg: 'rgba(180,83,9,.12)' },
+                verified:    { label: 'Verified',    color: '#15803d', bg: 'rgba(21,128,61,.12)' },
+                rejected:    { label: 'Rejected',    color: '#dc2626', bg: 'rgba(220,38,38,.10)' },
+                queued:      { label: 'Queued',      color: '#3f5d52', bg: 'rgba(63,93,82,.14)' },
+                invited:     { label: 'Invited',     color: '#355070', bg: 'rgba(53,80,112,.14)' },
+                followed_up: { label: 'Followed up', color: '#355070', bg: 'rgba(53,80,112,.10)' },
+                replied:     { label: 'Replied',     color: '#7c3aed', bg: 'rgba(124,58,237,.12)' },
+                accepted:    { label: 'Accepted',    color: '#15803d', bg: 'rgba(21,128,61,.16)' },
+                declined:    { label: 'Declined',    color: '#6b6258', bg: 'rgba(107,98,88,.12)' },
+                escalated:   { label: 'Escalated',   color: '#9b1b22', bg: 'rgba(155,27,34,.12)' }
+            },
+            candStatusPill(status) {
+                const m = this._candStatusMeta[status] || { label: status, color: 'var(--text-muted)', bg: 'var(--bg-tertiary)' };
+                return `<span style="display:inline-block; padding:2px 10px; border-radius:999px; font-size:11px; font-weight:600; color:${m.color}; background:${m.bg};">${this.escapeHtml(m.label)}</span>`;
+            },
+            candConfBadge(dossier) {
+                if (!dossier || !dossier.confidence) return '';
+                const c = dossier.confidence;
+                const col = c === 'high' ? '#15803d' : c === 'medium' ? '#b45309' : '#dc2626';
+                const src = dossier.source === 'ai' ? 'AI' : 'auto';
+                return `<span title="Verification confidence (${this.escapeHtml(src)})" style="display:inline-flex; align-items:center; gap:4px; font-size:11px; color:${col}; font-weight:600;"><i class="fas fa-shield-halved"></i>${this.escapeHtml(c)}</span>`;
+            },
+            candGoogleUrl(c) {
+                return 'https://www.google.com/search?q=' + encodeURIComponent([c.name, c.institution].filter(Boolean).join(' '));
+            },
+            async loadForumCandidates() {
+                try {
+                    const data = await this.api('/api/admin/forum/candidates?status=all');
+                    this.candAll = (data && data.candidates) || [];
+                    this.candCounts = (data && data.counts) || {};
+                    this._candUpdateTabBadge();
+                    this.renderCandFilters();
+                    this.renderCandidates();
+                    this.loadForumCampaign();
+                } catch (e) {
+                    const el = document.getElementById('candList');
+                    if (el) el.innerHTML = `<div style="color:var(--danger); padding:20px;">Could not load candidates. ${this.escapeHtml(e.message || '')}</div>`;
+                }
+            },
+            _candUpdateTabBadge() {
+                const badge = document.getElementById('candTabBadge');
+                if (!badge) return;
+                const q = this.candCounts.queue || 0;
+                if (q) { badge.style.display = 'inline-block'; badge.textContent = q; } else { badge.style.display = 'none'; }
+            },
+            renderCandFilters() {
+                const el = document.getElementById('candFilters'); if (!el) return;
+                const c = this.candCounts;
+                const chips = [
+                    ['queue', 'Needs review', c.queue || 0],
+                    ['all', 'All', c.all || 0],
+                    ['verified', 'Verified', c.verified || 0],
+                    ['queued', 'Queued', c.queued || 0],
+                    ['invited', 'Invited', c.invited || 0],
+                    ['followed_up', 'Followed up', c.followed_up || 0],
+                    ['replied', 'Replied', c.replied || 0],
+                    ['accepted', 'Accepted', c.accepted || 0],
+                    ['declined', 'Declined', c.declined || 0],
+                    ['rejected', 'Rejected', c.rejected || 0],
+                    ['escalated', 'Escalated', c.escalated || 0]
+                ];
+                el.innerHTML = chips.map(([key, label, n]) => {
+                    const active = this.candStatusFilter === key;
+                    return `<button onclick="App.candSetFilter('${key}')" style="cursor:pointer; border:1px solid ${active ? 'var(--forum)' : 'var(--border)'}; background:${active ? 'var(--forum)' : 'var(--bg-secondary)'}; color:${active ? '#fff' : 'var(--text-secondary)'}; border-radius:999px; padding:5px 12px; font-size:12px; font-weight:600;">${this.escapeHtml(label)}${n ? ` <span style="opacity:.85;">${n}</span>` : ''}</button>`;
+                }).join('');
+            },
+            candSetFilter(key) { this.candStatusFilter = key; this.renderCandFilters(); this.renderCandidates(); },
+            candVisibleRows() {
+                const q = (document.getElementById('candSearch') && document.getElementById('candSearch').value || '').trim().toLowerCase();
+                let rows = this.candAll.slice();
+                if (this.candStatusFilter === 'queue') rows = rows.filter(r => r.status === 'imported' || r.status === 'verifying');
+                else if (this.candStatusFilter !== 'all') rows = rows.filter(r => r.status === this.candStatusFilter);
+                if (q) rows = rows.filter(r => [r.name, r.email, r.institution, r.country, r.field, r.source].some(v => String(v || '').toLowerCase().includes(q)));
+                return rows;
+            },
+            renderCandidates() {
+                this.renderForumFunnel();
+                const el = document.getElementById('candList'); if (!el) return;
+                const rows = this.candVisibleRows();
+                if (!rows.length) { el.innerHTML = `<div style="color:var(--text-muted); padding:24px; text-align:center;"><i class="fas fa-inbox" style="font-size:22px; opacity:.4; display:block; margin-bottom:8px;"></i>No candidates in this view.</div>`; return; }
+                el.innerHTML = rows.map(c => this.candRowHtml(c)).join('');
+            },
+            candRowHtml(c) {
+                const esc = (v) => this.escapeHtml(v == null ? '' : String(v));
+                const sub = [c.field, c.institution, c.country].filter(Boolean).map(esc).join(' &middot; ');
+                const inQueue = c.status === 'imported' || c.status === 'verifying';
+                const hasDossier = !!c.dossier;
+                let actions = '';
+                if (inQueue) {
+                    if (!hasDossier) actions += `<button class="btn btn-sm btn-secondary" title="Run checks" onclick="event.stopPropagation(); App.candRunChecks('${c.id}', this)"><i class="fas fa-wand-magic-sparkles"></i></button>`;
+                    actions += `<button class="btn btn-sm" style="background:#15803d; color:#fff; border:none;" title="Verified (V)" onclick="event.stopPropagation(); App.candVerify('${c.id}', this)"><i class="fas fa-check"></i> Verified</button>`;
+                    actions += `<button class="btn btn-sm btn-secondary" title="Rejected (R)" onclick="event.stopPropagation(); App.candReject('${c.id}', this)"><i class="fas fa-xmark"></i> Rejected</button>`;
+                }
+                actions += `<a class="btn btn-sm btn-secondary" title="Google this person (G)" href="${this.candGoogleUrl(c)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><i class="fab fa-google"></i></a>`;
+                return `<div class="cand-row" data-cand="${c.id}" tabindex="0" onclick="App.openCandDrawer('${c.id}')" onkeydown="App.candRowKey(event, '${c.id}')" style="display:flex; gap:12px; justify-content:space-between; align-items:center; padding:11px 12px; border:1px solid var(--border); border-radius:10px; margin-bottom:8px; background:var(--bg-secondary); cursor:pointer; outline:none;">
+                    <div style="min-width:0; flex:1;">
+                        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                            <span style="font-weight:600; color:var(--text-primary);">${esc(c.name || c.email || '(unnamed)')}</span>
+                            ${this.candStatusPill(c.status)}
+                            ${this.candConfBadge(c.dossier)}
+                        </div>
+                        <div style="font-size:12.5px; color:var(--text-muted); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${sub || esc(c.email)}</div>
+                    </div>
+                    <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">${actions}</div>
+                </div>`;
+            },
+            candRowKey(ev, id) {
+                const k = (ev.key || '').toLowerCase();
+                if (k === 'v') { ev.preventDefault(); this.candVerify(id); }
+                else if (k === 'r') { ev.preventDefault(); this.candReject(id); }
+                else if (k === 'g') { ev.preventDefault(); window.open(this.candGoogleUrl(this.candAll.find(c => c.id === id) || {}), '_blank'); }
+                else if (k === 'enter') { ev.preventDefault(); this.openCandDrawer(id); }
+                else if (ev.key === 'ArrowDown') { ev.preventDefault(); const n = ev.target.nextElementSibling; if (n && n.classList.contains('cand-row')) n.focus(); }
+                else if (ev.key === 'ArrowUp') { ev.preventDefault(); const pr = ev.target.previousElementSibling; if (pr && pr.classList.contains('cand-row')) pr.focus(); }
+            },
+            _candReplaceLocal(cand) {
+                if (!cand) return;
+                const i = this.candAll.findIndex(c => c.id === cand.id);
+                if (i >= 0) this.candAll[i] = cand;
+            },
+            _candRefreshCounts() {
+                const counts = {}; ['imported', 'verifying', 'verified', 'rejected', 'queued', 'invited', 'followed_up', 'replied', 'accepted', 'declined', 'escalated'].forEach(s => counts[s] = 0);
+                this.candAll.forEach(c => { counts[c.status] = (counts[c.status] || 0) + 1; });
+                counts.all = this.candAll.length; counts.queue = (counts.imported || 0) + (counts.verifying || 0);
+                this.candCounts = counts;
+                this._candUpdateTabBadge();
+            },
+            async candVerify(id, btn) {
+                if (btn) btn.disabled = true;
+                try {
+                    const r = await this.api('/api/admin/forum/candidates/' + id + '/verify', { method: 'POST', body: JSON.stringify({}) });
+                    this._candReplaceLocal(r.candidate); this._candRefreshCounts(); Toast.success('Marked verified.');
+                    this.renderCandFilters(); this.renderCandidates();
+                    if (this._candDrawerId === id) this.renderCandDrawer(r.candidate);
+                } catch (e) { Toast.error(e.message || 'Could not verify.'); if (btn) btn.disabled = false; }
+            },
+            async candReject(id, btn) {
+                if (btn) btn.disabled = true;
+                try {
+                    const r = await this.api('/api/admin/forum/candidates/' + id + '/reject', { method: 'POST', body: JSON.stringify({}) });
+                    this._candReplaceLocal(r.candidate); this._candRefreshCounts(); Toast.success('Marked rejected.');
+                    this.renderCandFilters(); this.renderCandidates();
+                    if (this._candDrawerId === id) this.renderCandDrawer(r.candidate);
+                } catch (e) { Toast.error(e.message || 'Could not reject.'); if (btn) btn.disabled = false; }
+            },
+            async candRunChecks(id, btn) {
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+                try {
+                    const r = await this.api('/api/admin/forum/candidates/' + id + '/dossier', { method: 'POST', body: JSON.stringify({}) });
+                    this._candReplaceLocal(r.candidate); this._candRefreshCounts(); Toast.success('Checks complete — confirm by eye.');
+                    this.renderCandFilters(); this.renderCandidates();
+                    if (this._candDrawerId === id) this.renderCandDrawer(r.candidate);
+                } catch (e) { Toast.error(e.message || 'Could not run checks.'); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i>'; } }
+            },
+            async candBulkChecks(btn) {
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running&hellip;'; }
+                try {
+                    const r = await this.api('/api/admin/forum/candidates/dossier/bulk', { method: 'POST', body: JSON.stringify({ limit: 20 }) });
+                    Toast.success(`Ran checks on ${r.processed} candidate${r.processed === 1 ? '' : 's'}.` + (r.remaining ? ` ${r.remaining} still awaiting checks.` : ''));
+                    await this.loadForumCandidates();
+                } catch (e) { Toast.error(e.message || 'Bulk checks failed.'); }
+                finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Run checks on next 20'; } }
+            },
+            openCandDrawer(id) {
+                const c = this.candAll.find(x => x.id === id);
+                if (!c) return;
+                this._candDrawerId = id;
+                this.renderCandDrawer(c);
+                const o = document.getElementById('candDrawerOverlay'); if (o) o.style.display = 'block';
+                const d = document.getElementById('candDrawer'); if (d) d.style.transform = 'translateX(0)';
+                this.api('/api/admin/forum/candidates/' + id).then(r => {
+                    if (r && r.candidate && this._candDrawerId === id) { this._candReplaceLocal(r.candidate); this.renderCandDrawer(r.candidate); }
+                }).catch(() => {});
+                this.candReplies = this.candReplies || {};
+                this.api('/api/admin/forum/candidates/' + id + '/replies').then(r => {
+                    if (r && this._candDrawerId === id) { this.candReplies[id] = r.replies || []; const cc = this.candAll.find(x => x.id === id); if (cc) this.renderCandDrawer(cc); }
+                }).catch(() => {});
+            },
+            closeCandDrawer() {
+                this._candDrawerId = null;
+                const o = document.getElementById('candDrawerOverlay'); if (o) o.style.display = 'none';
+                const d = document.getElementById('candDrawer'); if (d) d.style.transform = 'translateX(102%)';
+            },
+            renderCandDrawer(c) {
+                const el = document.getElementById('candDrawerBody'); if (!el) return;
+                const esc = (v) => this.escapeHtml(v == null ? '' : String(v));
+                const field = (label, fid, val) => `<div style="margin-bottom:10px;"><label style="display:block; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); margin-bottom:3px;">${label}</label><input id="${fid}" value="${esc(val)}" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:var(--input-bg); color:var(--text-primary); font-size:13px;"></div>`;
+                const d = c.dossier;
+                let dossierHtml = '';
+                if (d) {
+                    const confCol = d.confidence === 'high' ? '#15803d' : d.confidence === 'medium' ? '#b45309' : '#dc2626';
+                    const checks = (d.checklist || []).map(ck => {
+                        const icon = ck.ok === true ? '<i class="fas fa-circle-check" style="color:#15803d;"></i>' : ck.ok === false ? '<i class="fas fa-circle-xmark" style="color:#dc2626;"></i>' : '<i class="fas fa-circle-question" style="color:#b45309;"></i>';
+                        return `<div style="display:flex; gap:8px; padding:5px 0; font-size:12.5px; color:var(--text-secondary);">${icon}<div><strong>${esc(ck.label)}:</strong> ${esc(ck.note)}</div></div>`;
+                    }).join('');
+                    const dbl = (d.double_check || []).map(x => `<li style="margin-bottom:3px;">${esc(x)}</li>`).join('');
+                    dossierHtml = `<div style="background:var(--bg-tertiary); border-radius:10px; padding:12px 14px; margin:6px 0 14px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:8px;">
+                            <span style="font-weight:700; font-size:13px; color:var(--text-primary);"><i class="fas fa-shield-halved" style="color:var(--forum); margin-right:6px;"></i>Verification dossier</span>
+                            <span style="font-size:11px; font-weight:700; color:${confCol}; text-transform:uppercase; text-align:right;">${esc(d.confidence)} &middot; ${esc(d.source === 'ai' ? 'AI' : 'automatic checks')}</span>
+                        </div>
+                        <div style="font-size:12.5px; color:var(--text-secondary); line-height:1.5; margin-bottom:10px;">${esc(d.rationale)}</div>
+                        ${checks}
+                        ${dbl ? `<div style="margin-top:10px; border-top:1px dashed var(--border); padding-top:8px;"><div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); margin-bottom:4px;">Double-check by eye</div><ul style="margin:0; padding-left:18px; font-size:12.5px; color:var(--text-secondary);">${dbl}</ul></div>` : ''}
+                    </div>`;
+                } else {
+                    dossierHtml = `<div style="background:var(--bg-tertiary); border-radius:10px; padding:14px; margin:6px 0 14px; text-align:center;"><div style="font-size:12.5px; color:var(--text-muted); margin-bottom:8px;">No dossier yet.</div><button class="btn btn-secondary btn-sm" onclick="App.candRunChecks('${c.id}', this)"><i class="fas fa-wand-magic-sparkles"></i> Run checks</button></div>`;
+                }
+                const hist = (c.history || []).slice().reverse().map(h => {
+                    const m = this._candStatusMeta[h.status] || { label: h.status, color: 'var(--text-muted)' };
+                    const when = h.at ? new Date(h.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+                    return `<div style="display:flex; gap:10px; padding:6px 0; border-bottom:1px solid var(--border);">
+                        <div style="width:9px; height:9px; border-radius:50%; background:${m.color}; margin-top:5px; flex-shrink:0;"></div>
+                        <div style="flex:1;"><div style="font-size:12.5px; font-weight:600; color:var(--text-primary);">${esc(m.label)} <span style="font-weight:400; color:var(--text-muted); font-size:11px;">${esc(when)}</span></div>${h.note ? `<div style="font-size:12px; color:var(--text-muted);">${esc(h.note)}</div>` : ''}</div>
+                    </div>`;
+                }).join('');
+                const inQueue = c.status === 'imported' || c.status === 'verifying';
+                el.innerHTML = `
+                    <div style="position:sticky; top:0; background:var(--bg-secondary); border-bottom:1px solid var(--border); padding:16px 18px; display:flex; justify-content:space-between; align-items:flex-start; z-index:1;">
+                        <div style="min-width:0;">
+                            <div style="font-weight:700; font-size:16px; color:var(--text-primary);">${esc(c.name || c.email || '(unnamed)')}</div>
+                            <div style="margin-top:5px;">${this.candStatusPill(c.status)}</div>
+                        </div>
+                        <button onclick="App.closeCandDrawer()" style="background:none; border:none; font-size:22px; color:var(--text-muted); cursor:pointer; line-height:1;">&times;</button>
+                    </div>
+                    <div style="padding:16px 18px;">
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
+                            ${inQueue ? `<button class="btn btn-sm" style="background:#15803d; color:#fff; border:none;" onclick="App.candVerify('${c.id}', this)"><i class="fas fa-check"></i> Verified</button><button class="btn btn-sm btn-secondary" onclick="App.candReject('${c.id}', this)"><i class="fas fa-xmark"></i> Rejected</button>` : ''}
+                            <a class="btn btn-sm btn-secondary" href="${this.candGoogleUrl(c)}" target="_blank" rel="noopener"><i class="fab fa-google"></i> Google</a>
+                            <button class="btn btn-sm btn-secondary" onclick="App.candEscalate('${c.id}', this)"><i class="fas fa-triangle-exclamation"></i> Escalate</button>
+                        </div>
+                        ${dossierHtml}
+                        ${this._candCorrespondenceHtml(c)}
+                        <div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); margin-bottom:8px; font-weight:700;">Details</div>
+                        ${field('Name', 'candEditName', c.name)}
+                        ${field('Email', 'candEditEmail', c.email)}
+                        ${field('Institution', 'candEditInstitution', c.institution)}
+                        ${field('Country', 'candEditCountry', c.country)}
+                        ${field('Field / specialty', 'candEditField', c.field)}
+                        ${field('Source note', 'candEditSource', c.source)}
+                        <div style="margin-bottom:10px;"><label style="display:block; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); margin-bottom:3px;">Notes</label><textarea id="candEditNotes" rows="3" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:var(--input-bg); color:var(--text-primary); font-size:13px;">${esc(c.notes)}</textarea></div>
+                        <button class="btn btn-primary" style="background:var(--forum); border:none; width:100%;" onclick="App.candSaveDrawer('${c.id}', this)"><i class="fas fa-floppy-disk"></i> Save changes</button>
+                        <div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); margin:20px 0 8px; font-weight:700;">Status timeline</div>
+                        <div>${hist || '<div style="font-size:12.5px; color:var(--text-muted);">No history yet.</div>'}</div>
+                        <button class="btn btn-sm btn-secondary" style="margin-top:16px; color:var(--danger);" onclick="App.candDelete('${c.id}', this)"><i class="fas fa-trash"></i> Remove from pipeline</button>
+                    </div>`;
+            },
+            async candSaveDrawer(id, btn) {
+                const gv = (fid) => { const el = document.getElementById(fid); return el ? el.value : ''; };
+                const body = {
+                    name: gv('candEditName'), email: gv('candEditEmail'), institution: gv('candEditInstitution'),
+                    country: gv('candEditCountry'), field: gv('candEditField'), source: gv('candEditSource'), notes: gv('candEditNotes')
+                };
+                if (btn) btn.disabled = true;
+                try {
+                    const r = await this.api('/api/admin/forum/candidates/' + id, { method: 'PUT', body: JSON.stringify(body) });
+                    this._candReplaceLocal(r.candidate); Toast.success('Saved.');
+                    this.renderCandidates();
+                    if (this._candDrawerId === id) this.renderCandDrawer(r.candidate);
+                } catch (e) { Toast.error(e.message || 'Could not save.'); }
+                finally { if (btn) btn.disabled = false; }
+            },
+            async candEscalate(id, btn) {
+                const note = prompt('Add a short note for the president and Laura (optional):', '');
+                if (note === null) return;
+                if (btn) btn.disabled = true;
+                try {
+                    const r = await this.api('/api/admin/forum/candidates/' + id + '/escalate', { method: 'POST', body: JSON.stringify({ note }) });
+                    this._candReplaceLocal(r.candidate); this._candRefreshCounts();
+                    Toast.success(r.already ? 'Already escalated — kept the existing outbox notice.' : `Escalated — ${r.staged} notice(s) staged in the approval outbox.`);
+                    this.renderCandFilters(); this.renderCandidates();
+                    if (this._candDrawerId === id) this.renderCandDrawer(r.candidate);
+                } catch (e) { Toast.error(e.message || 'Could not escalate.'); }
+                finally { if (btn) btn.disabled = false; }
+            },
+            async candDelete(id, btn) {
+                if (!confirm('Remove this candidate from the pipeline? This cannot be undone.')) return;
+                if (btn) btn.disabled = true;
+                try {
+                    await this.api('/api/admin/forum/candidates/' + id, { method: 'DELETE' });
+                    this.candAll = this.candAll.filter(c => c.id !== id);
+                    this._candRefreshCounts(); this.renderCandFilters(); this.renderCandidates();
+                    this.closeCandDrawer(); Toast.success('Removed.');
+                } catch (e) { Toast.error(e.message || 'Could not remove.'); if (btn) btn.disabled = false; }
+            },
+            openCandImport() {
+                this.candImport = null;
+                const f = document.getElementById('candImportFile'); if (f) f.value = '';
+                const p = document.getElementById('candImportPreview'); if (p) p.innerHTML = '';
+                const b = document.getElementById('candImportCommitBtn'); if (b) b.disabled = true;
+                this.openModal('candImportModal');
+            },
+            async candPreviewImport() {
+                const input = document.getElementById('candImportFile');
+                const prev = document.getElementById('candImportPreview');
+                const commitBtn = document.getElementById('candImportCommitBtn');
+                if (!input || !input.files || !input.files[0]) return;
+                prev.innerHTML = '<div style="color:var(--text-muted); padding:12px;"><i class="fas fa-spinner fa-spin"></i> Reading file&hellip;</div>';
+                try {
+                    const fd = new FormData(); fd.append('file', input.files[0]);
+                    const res = await fetch('/api/admin/forum/candidates/import', { method: 'POST', headers: { 'Authorization': 'Bearer ' + this.token }, body: fd });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'Could not read the file.');
+                    this.candImport = data;
+                    this.renderCandImportPreview();
+                    if (commitBtn) commitBtn.disabled = !(data.total > 0);
+                } catch (e) {
+                    prev.innerHTML = `<div style="color:var(--danger); padding:12px;">${this.escapeHtml(e.message || 'Could not read the file.')}</div>`;
+                    if (commitBtn) commitBtn.disabled = true;
+                }
+            },
+            renderCandImportPreview() {
+                const prev = document.getElementById('candImportPreview'); const data = this.candImport; if (!prev || !data) return;
+                const esc = (v) => this.escapeHtml(v == null ? '' : String(v));
+                const targets = [['name', 'Name'], ['email', 'Email'], ['institution', 'Institution'], ['country', 'Country'], ['field', 'Field / specialty'], ['source', 'Source note']];
+                const opts = (sel) => '<option value="">— none —</option>' + data.columns.map(col => `<option value="${esc(col)}"${sel === col ? ' selected' : ''}>${esc(col)}</option>`).join('');
+                const mapRows = targets.map(([key, label]) => `<div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+                    <label style="width:120px; font-size:12px; color:var(--text-secondary); flex-shrink:0;">${label}</label>
+                    <select id="candMap_${key}" onchange="App.renderCandImportSample()" style="flex:1; padding:6px 8px; border:1px solid var(--border); border-radius:6px; background:var(--input-bg); color:var(--text-primary); font-size:13px;">${opts(data.suggested_mapping[key] || '')}</select>
+                </div>`).join('');
+                prev.innerHTML = `
+                    <div style="background:var(--bg-tertiary); border-radius:10px; padding:12px 14px; margin-top:8px;">
+                        <div style="font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); margin-bottom:8px;">Column mapping <span style="font-weight:400; text-transform:none; letter-spacing:0;">&middot; ${data.total} row${data.total === 1 ? '' : 's'} in ${esc(data.filename || 'file')}</span></div>
+                        ${mapRows}
+                    </div>
+                    <div id="candImportSample" style="margin-top:12px; overflow-x:auto;"></div>`;
+                this.renderCandImportSample();
+            },
+            renderCandImportSample() {
+                const wrap = document.getElementById('candImportSample'); const data = this.candImport; if (!wrap || !data) return;
+                const esc = (v) => this.escapeHtml(v == null ? '' : String(v));
+                const targets = [['name', 'Name'], ['email', 'Email'], ['institution', 'Institution'], ['country', 'Country'], ['field', 'Field / specialty'], ['source', 'Source note']];
+                const map = {}; targets.forEach(([k]) => { const s = document.getElementById('candMap_' + k); map[k] = s ? s.value : (data.suggested_mapping[k] || ''); });
+                const sample = (data.sample || []).slice(0, 5);
+                const sampleRows = sample.map(r => `<tr>${targets.map(([k]) => `<td style="padding:5px 8px; border-bottom:1px solid var(--border); font-size:12px; color:var(--text-secondary); white-space:nowrap; max-width:170px; overflow:hidden; text-overflow:ellipsis;">${esc(map[k] ? r[map[k]] : '')}</td>`).join('')}</tr>`).join('');
+                wrap.innerHTML = `<div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); margin-bottom:6px;">Preview (first 5 rows, mapped)</div>
+                    <table style="width:100%; border-collapse:collapse;"><thead><tr>${targets.map(([, l]) => `<th style="text-align:left; padding:5px 8px; border-bottom:2px solid var(--border); font-size:11px; color:var(--text-muted);">${l}</th>`).join('')}</tr></thead><tbody>${sampleRows}</tbody></table>`;
+            },
+            async candCommitImport(btn) {
+                const data = this.candImport; if (!data) return;
+                const mapping = {};
+                ['name', 'email', 'institution', 'country', 'field', 'source'].forEach(k => { const s = document.getElementById('candMap_' + k); if (s && s.value) mapping[k] = s.value; });
+                if (!mapping.name && !mapping.email) { Toast.error('Map at least a Name or Email column.'); return; }
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing&hellip;'; }
+                try {
+                    const r = await this.api('/api/admin/forum/candidates/import/commit', { method: 'POST', body: JSON.stringify({ mapping, rows: data.rows, filename: data.filename }) });
+                    this.renderCandImportResult(r);
+                    await this.loadForumCandidates();
+                } catch (e) { Toast.error(e.message || 'Import failed.'); }
+                finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Import candidates'; } }
+            },
+            renderCandImportResult(r) {
+                const prev = document.getElementById('candImportPreview'); if (!prev) return;
+                const esc = (v) => this.escapeHtml(v == null ? '' : String(v));
+                const dupRows = (r.duplicates || []).map(d => `<div style="font-size:12.5px; color:var(--text-secondary); padding:3px 0;"><i class="fas fa-user-check" style="color:var(--warning); margin-right:6px;"></i>${esc(d.who)} <span style="color:var(--text-muted);">— already known in ${esc(d.where)} (${esc(d.status)})</span></div>`).join('');
+                const skipRows = (r.skipped || []).map(s => `<div style="font-size:12.5px; color:var(--text-muted); padding:3px 0;"><i class="fas fa-ban" style="margin-right:6px;"></i>${esc(s.who)} — ${esc(s.reason)}</div>`).join('');
+                prev.innerHTML = `
+                    <div style="text-align:center; padding:12px 0 6px;">
+                        <div style="font-size:34px; font-weight:800; color:#15803d;">${r.added}</div>
+                        <div style="font-size:13px; color:var(--text-muted);">new candidate${r.added === 1 ? '' : 's'} imported of ${r.total} row${r.total === 1 ? '' : 's'}</div>
+                    </div>
+                    <div style="display:flex; gap:14px; justify-content:center; margin-bottom:10px;">
+                        <span style="font-size:12px; color:var(--warning);"><strong>${(r.duplicates || []).length}</strong> already known</span>
+                        <span style="font-size:12px; color:var(--text-muted);"><strong>${(r.skipped || []).length}</strong> skipped</span>
+                    </div>
+                    ${dupRows ? `<div style="background:var(--bg-tertiary); border-radius:10px; padding:10px 14px; margin-bottom:8px;"><div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); margin-bottom:4px;">Already known (not re-imported)</div>${dupRows}</div>` : ''}
+                    ${skipRows ? `<div style="background:var(--bg-tertiary); border-radius:10px; padding:10px 14px;">${skipRows}</div>` : ''}
+                    <div style="text-align:center; margin-top:12px;"><button class="btn btn-secondary btn-sm" onclick="App.closeModal('candImportModal')">Done</button></div>`;
+                const commitBtn = document.getElementById('candImportCommitBtn'); if (commitBtn) commitBtn.disabled = true;
+            },
+
+            // ===== Biomedical Forum — Invitation campaign engine (member acquisition) =====
+            forumCampaign: null,
+            forumCampaignStats: {},
+            candReplies: {},
+            _candReplyId: null,
+            _fcampStatusPill(status) {
+                const m = { draft: { l: 'Draft', c: '#6b6258', b: 'rgba(107,98,88,.12)' }, approved: { l: 'Running', c: '#15803d', b: 'rgba(21,128,61,.14)' }, paused: { l: 'Paused', c: '#b45309', b: 'rgba(180,83,9,.14)' } }[status] || { l: status || '—', c: 'var(--text-muted)', b: 'var(--bg-tertiary)' };
+                return `<span style="display:inline-block; padding:2px 10px; border-radius:999px; font-size:11px; font-weight:700; color:${m.c}; background:${m.b};">${m.l}</span>`;
+            },
+            async loadForumCampaign() {
+                try {
+                    const d = await this.api('/api/admin/forum/campaign');
+                    this.forumCampaign = d.campaign; this.forumCampaignStats = d.stats || {};
+                    this.renderForumCampaign();
+                } catch (e) {
+                    const el = document.getElementById('forumCampaignBody');
+                    if (el) el.innerHTML = `<div style="color:var(--danger);">Could not load the campaign. ${this.escapeHtml(e.message || '')}</div>`;
+                }
+            },
+            // Relative "x ago" for a history/DB timestamp (ISO with Z, or 'YYYY-MM-DD HH:MM:SS' UTC).
+            _forumFunnelAgo(iso) {
+                if (!iso) return '';
+                const raw = String(iso);
+                const norm = raw.includes('T') ? raw : (raw.replace(' ', 'T') + 'Z');
+                const t = new Date(norm); if (isNaN(t.getTime())) return '';
+                const sec = Math.floor((Date.now() - t.getTime()) / 1000);
+                if (sec < 60) return 'just now';
+                if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
+                if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
+                const d = Math.floor(sec / 86400);
+                if (d < 30) return d + 'd ago';
+                return t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+            },
+            // The funnel dashboard: imported -> verified -> invited -> replied -> accepted with
+            // conversion percentages, campaign state + kill switch, tomorrow's batch preview, a recent
+            // activity feed, and an escalations strip. Everything is computed from candAll + the campaign
+            // already in memory, so it is a pure re-render with no extra network calls.
+            renderForumFunnel() {
+                const body = document.getElementById('forumFunnelBody'); if (!body) return;
+                const esc = (v) => this.escapeHtml(v == null ? '' : String(v));
+                const cands = this.candAll || [];
+                const camp = this.forumCampaign || null;
+                const meta = this._candStatusMeta;
+                const has = (c, st) => Array.isArray(c.history) && c.history.some(h => h && h.status === st);
+                const reachedVerified = (c) => !!c.verified_at || has(c, 'verified') || ['verified', 'queued', 'invited', 'followed_up', 'replied', 'accepted'].includes(c.status);
+                const reachedInvited = (c) => !!c.invited_at || has(c, 'invited');
+                const reachedReplied = (c) => !!c.replied_at || has(c, 'replied');
+                const reachedAccepted = (c) => c.status === 'accepted' || has(c, 'accepted');
+                const n = {
+                    imported: cands.length,
+                    verified: cands.filter(reachedVerified).length,
+                    invited: cands.filter(reachedInvited).length,
+                    replied: cands.filter(reachedReplied).length,
+                    accepted: cands.filter(reachedAccepted).length
+                };
+                const stages = [
+                    { label: 'Imported', val: n.imported, col: '#6b6258' },
+                    { label: 'Verified', val: n.verified, col: 'var(--forum)' },
+                    { label: 'Invited', val: n.invited, col: '#355070' },
+                    { label: 'Replied', val: n.replied, col: '#7c3aed' },
+                    { label: 'Accepted', val: n.accepted, col: '#15803d' }
+                ];
+                const pct = (a, b) => b > 0 ? Math.round(a / b * 100) + '%' : '&mdash;';
+                let funnel = '<div style="display:flex; align-items:stretch; overflow-x:auto; padding:2px 2px 6px; -webkit-overflow-scrolling:touch;">';
+                stages.forEach((st, i) => {
+                    funnel += `<div style="flex:0 0 auto; min-width:86px; text-align:center; padding:8px 6px;">
+                        <div style="font-size:26px; font-weight:800; color:${st.col}; line-height:1;">${st.val}</div>
+                        <div style="font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; margin-top:6px;">${st.label}</div>
+                    </div>`;
+                    if (i < stages.length - 1) {
+                        funnel += `<div style="flex:0 0 auto; display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:50px;">
+                            <i class="fas fa-arrow-right-long" style="color:var(--text-muted); opacity:.4;"></i>
+                            <span style="font-size:11px; font-weight:700; margin-top:4px; color:var(--text-secondary);">${pct(stages[i + 1].val, st.val)}</span>
+                        </div>`;
+                    }
+                });
+                funnel += '</div>';
+
+                // Campaign state + kill switch
+                const status = (camp && camp.status) || 'draft';
+                const rate = (camp && camp.daily_rate) || 10;
+                const sInfo = ({
+                    draft: { label: 'Not started', col: '#6b6258', ic: 'fa-circle-dot' },
+                    approved: { label: 'Running', col: '#15803d', ic: 'fa-circle-play' },
+                    paused: { label: 'Paused', col: '#b45309', ic: 'fa-circle-pause' }
+                })[status] || { label: status, col: '#6b6258', ic: 'fa-circle' };
+                let ctrl;
+                if (status === 'approved') ctrl = `<button class="btn btn-sm btn-secondary" style="color:#b45309;" onclick="App.forumCampaignPause(this)"><i class="fas fa-pause"></i> Pause</button>`;
+                else if (status === 'paused') ctrl = `<button class="btn btn-sm btn-primary" style="background:var(--forum); border:none;" onclick="App.forumCampaignResume(this)"><i class="fas fa-play"></i> Resume</button>`;
+                else ctrl = `<button class="btn btn-sm btn-primary" style="background:var(--forum); border:none;" onclick="App.forumCampaignApprove(this)"><i class="fas fa-circle-check"></i> Approve &amp; start</button>`;
+                const ctrlStrip = `<div style="display:flex; flex-wrap:wrap; align-items:center; gap:10px; justify-content:space-between; background:var(--bg-tertiary); border-radius:10px; padding:10px 14px; margin-top:8px;">
+                    <div style="font-size:13px; color:var(--text-secondary);"><i class="fas ${sInfo.ic}" style="color:${sInfo.col}; margin-right:7px;"></i>Campaign <strong style="color:${sInfo.col};">${sInfo.label}</strong> &middot; <strong>${rate}</strong> invitation${rate == 1 ? '' : 's'} a day</div>
+                    <div>${ctrl}</div>
+                </div>`;
+
+                // Tomorrow's batch preview (mirrors the campaign tick's pool + order)
+                const pool = cands.filter(c => ['verified', 'queued'].includes(c.status) && !c.invited_at && c.email && String(c.email).trim())
+                    .sort((a, b) => {
+                        const aq = a.status === 'queued' ? 0 : 1, bq = b.status === 'queued' ? 0 : 1;
+                        if (aq !== bq) return aq - bq;
+                        return String(a.verified_at || a.created_at || '').localeCompare(String(b.verified_at || b.created_at || ''));
+                    });
+                const nextBatch = pool.slice(0, rate);
+                let preview;
+                if (!pool.length) {
+                    preview = `<div style="font-size:13px; color:var(--text-muted);">No one is queued yet &mdash; verify more candidates to fill the next batch.</div>`;
+                } else {
+                    const chips = nextBatch.map(c => `<span style="display:inline-block; background:var(--bg-secondary); border:1px solid var(--border); border-radius:999px; padding:4px 11px; font-size:12px; color:var(--text-secondary); margin:0 6px 6px 0;">${esc(c.name || c.email)}</span>`).join('');
+                    const moreN = pool.length - nextBatch.length;
+                    const more = moreN > 0 ? `<span style="font-size:12px; color:var(--text-muted);">+${moreN} more waiting</span>` : '';
+                    const lead = status === 'approved'
+                        ? `The next ${nextBatch.length === 1 ? 'invitation goes' : nextBatch.length + ' invitations go'} to:`
+                        : `Ready to invite once the campaign starts:`;
+                    preview = `<div style="font-size:12.5px; color:var(--text-secondary); margin-bottom:8px;">${lead}</div><div>${chips}${more}</div>`;
+                }
+                const previewBlock = `<div style="margin-top:16px;">
+                    <div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); font-weight:700; margin-bottom:8px;"><i class="fas fa-user-clock" style="margin-right:6px; color:var(--forum);"></i>Going out next</div>
+                    ${preview}
+                </div>`;
+
+                // Recent activity feed (flatten candidate histories)
+                const events = [];
+                cands.forEach(c => (c.history || []).forEach(h => { if (h && h.at) events.push({ name: c.name || c.email || 'Candidate', status: h.status, note: h.note, at: h.at }); }));
+                events.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+                const recent = events.slice(0, 6);
+                let feed;
+                if (!recent.length) {
+                    feed = `<div style="font-size:13px; color:var(--text-muted);">No pipeline activity yet.</div>`;
+                } else {
+                    feed = recent.map(ev => {
+                        const m = meta[ev.status] || { label: ev.status, color: 'var(--text-muted)' };
+                        return `<div style="display:flex; gap:10px; align-items:baseline; padding:5px 0; border-bottom:1px solid var(--border);">
+                            <span style="flex:0 0 auto; width:8px; height:8px; border-radius:50%; background:${m.color}; margin-top:5px;"></span>
+                            <div style="flex:1; min-width:0; font-size:13px; color:var(--text-secondary);"><strong style="color:var(--text-primary);">${esc(ev.name)}</strong> &middot; ${esc(m.label.toLowerCase())}</div>
+                            <span style="flex:0 0 auto; font-size:11.5px; color:var(--text-muted);">${esc(this._forumFunnelAgo(ev.at))}</span>
+                        </div>`;
+                    }).join('');
+                }
+                const feedBlock = `<div style="margin-top:16px;">
+                    <div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); font-weight:700; margin-bottom:6px;"><i class="fas fa-clock-rotate-left" style="margin-right:6px; color:var(--forum);"></i>Recent activity</div>
+                    ${feed}
+                </div>`;
+
+                // Escalations strip — what needs the president's eye
+                const escal = cands.filter(c => c.status === 'escalated');
+                const nh = document.getElementById('forumFunnelNeedsHuman');
+                if (nh) {
+                    nh.innerHTML = escal.length
+                        ? `<span style="display:inline-flex; align-items:center; gap:6px; background:rgba(155,27,34,.10); color:#9b1b22; border-radius:999px; padding:4px 12px; font-size:12px; font-weight:700;"><i class="fas fa-hand"></i>${escal.length} need${escal.length == 1 ? 's' : ''} you</span>`
+                        : `<span style="display:inline-flex; align-items:center; gap:6px; background:rgba(21,128,61,.10); color:#15803d; border-radius:999px; padding:4px 12px; font-size:12px; font-weight:700;"><i class="fas fa-circle-check"></i>All clear</span>`;
+                }
+                let escalBlock;
+                if (!escal.length) {
+                    escalBlock = `<div style="margin-top:16px; background:rgba(21,128,61,.06); border:1px solid rgba(21,128,61,.18); border-radius:10px; padding:12px 14px; font-size:13px; color:#2f4a3a;"><i class="fas fa-circle-check" style="color:#15803d; margin-right:7px;"></i>Nothing needs a human right now. The pipeline is running on its own.</div>`;
+                } else {
+                    const rows = escal.map(c => {
+                        const sub = [c.field, c.institution, c.country].filter(Boolean).map(esc).join(' &middot; ');
+                        return `<div style="display:flex; gap:10px; align-items:center; justify-content:space-between; padding:9px 12px; border:1px solid rgba(155,27,34,.18); border-radius:9px; margin-bottom:7px; background:var(--bg-secondary);">
+                            <div style="min-width:0;"><div style="font-weight:600; color:var(--text-primary);">${esc(c.name || c.email || '(unnamed)')}</div><div style="font-size:12px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${sub || esc(c.email)}</div></div>
+                            <button class="btn btn-sm btn-secondary" style="flex:0 0 auto;" onclick="App.openCandDrawer('${c.id}')"><i class="fas fa-arrow-right"></i> Open</button>
+                        </div>`;
+                    }).join('');
+                    escalBlock = `<div style="margin-top:16px;">
+                        <div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#9b1b22; font-weight:700; margin-bottom:8px;"><i class="fas fa-hand" style="margin-right:6px;"></i>Needs the president's eye</div>
+                        ${rows}
+                    </div>`;
+                }
+
+                body.innerHTML = funnel + ctrlStrip + `<div style="display:grid; grid-template-columns:1fr 1fr; gap:22px; margin-top:4px;" class="forum-funnel-cols">${previewBlock}${feedBlock}</div>` + escalBlock;
+            },
+            renderForumCampaign() {
+                const el = document.getElementById('forumCampaignBody'); if (!el) return;
+                const c = this.forumCampaign; const s = this.forumCampaignStats || {};
+                const pill = document.getElementById('fcampStatusPill'); if (pill) pill.innerHTML = this._fcampStatusPill(c && c.status);
+                if (!c) { el.innerHTML = '<div style="color:var(--text-muted);">Campaign not configured yet.</div>'; return; }
+                const status = c.status || 'draft';
+                const stat = (label, val, col) => `<div style="text-align:center; padding:8px 6px;"><div style="font-size:22px; font-weight:800; color:${col || 'var(--text-primary)'};">${val || 0}</div><div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em;">${label}</div></div>`;
+                let controls = '';
+                if (status === 'draft') {
+                    controls = `<button class="btn btn-primary" style="background:var(--forum); border:none;" onclick="App.forumCampaignApprove(this)"><i class="fas fa-circle-check"></i> Approve template &amp; start</button>`;
+                } else if (status === 'approved') {
+                    controls = `<button class="btn btn-primary" style="background:var(--forum); border:none;" onclick="App.forumCampaignTick(this)"><i class="fas fa-paper-plane"></i> Run today's invitations</button>
+                        <button class="btn btn-secondary" onclick="App.forumCampaignFollowup(this)"><i class="fas fa-clock-rotate-left"></i> Run follow-ups</button>
+                        <button class="btn btn-secondary" style="color:#b45309;" onclick="App.forumCampaignPause(this)"><i class="fas fa-pause"></i> Pause</button>`;
+                } else if (status === 'paused') {
+                    controls = `<button class="btn btn-primary" style="background:var(--forum); border:none;" onclick="App.forumCampaignResume(this)"><i class="fas fa-play"></i> Resume campaign</button>`;
+                }
+                const rate = c.daily_rate || 10;
+                const rateLine = `<strong>${rate}</strong> invitation${rate == 1 ? '' : 's'} a day &middot; replies to <strong>${this.escapeHtml(c.reply_to || 'president@medx.hr')}</strong>`;
+                const lastTick = c.last_tick_at ? ('Last batch ' + new Date(c.last_tick_at.replace(' ', 'T') + 'Z').toLocaleString('en-GB')) : 'No batch sent yet';
+                const note = status === 'draft'
+                    ? 'Approve the template once. After that the daily scheduler quietly queues that day\'s batch of verified candidates into the outbox, and you can pause any time.'
+                    : status === 'paused'
+                        ? 'The campaign is paused. No invitations will go out until you resume.'
+                        : 'Running. The daily scheduler queues up to ' + rate + ' invitations a day and one gentle follow-up after 10 days of silence. Every batch waits in the outbox for audit.';
+                el.innerHTML = `
+                    <div style="display:flex; flex-wrap:wrap; gap:14px; justify-content:space-between; align-items:flex-start;">
+                        <div style="flex:1; min-width:220px;">
+                            <div style="font-weight:700; color:var(--text-primary);">${this.escapeHtml(c.name || 'Invitation campaign')}</div>
+                            <div style="font-size:13px; color:var(--text-secondary); margin-top:4px;">${rateLine}</div>
+                            <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">${this.escapeHtml(lastTick)}</div>
+                        </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">${controls}</div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(72px,1fr)); gap:4px; margin-top:14px; background:var(--bg-tertiary); border-radius:10px; padding:6px;">
+                        ${stat('Ready', s.pool_ready, 'var(--forum)')}
+                        ${stat('Invited', s.invited_total, '#355070')}
+                        ${stat('Today', s.invited_today, '#355070')}
+                        ${stat('Followed up', s.followed_up, '#355070')}
+                        ${stat('Replied', s.replied, '#7c3aed')}
+                        ${stat('Escalated', s.escalated, '#9b1b22')}
+                        ${stat('Accepted', s.accepted, '#15803d')}
+                        ${stat('Declined', s.declined, '#6b6258')}
+                    </div>
+                    <p style="font-size:12px; color:var(--text-muted); margin:12px 4px 0;"><i class="fas fa-circle-info" style="margin-right:6px;"></i>${this.escapeHtml(note)}</p>
+                `;
+                this.renderForumFunnel();
+            },
+            forumCampaignEdit() {
+                const c = this.forumCampaign || {};
+                const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = (v == null ? '' : v); };
+                set('fcampName', c.name); set('fcampRate', c.daily_rate || 10); set('fcampReplyTo', c.reply_to || 'president@medx.hr');
+                set('fcampSubject', c.subject); set('fcampIntro', c.intro_html); set('fcampBelonging', c.belonging_default);
+                set('fcampFuSubject', c.followup_subject); set('fcampFuBody', c.followup_html);
+                this.openModal('forumCampaignModal');
+            },
+            async forumCampaignSave(btn) {
+                const gv = (id) => { const e = document.getElementById(id); return e ? e.value : undefined; };
+                const body = { name: gv('fcampName'), daily_rate: gv('fcampRate'), reply_to: gv('fcampReplyTo'), subject: gv('fcampSubject'), intro_html: gv('fcampIntro'), belonging_default: gv('fcampBelonging'), followup_subject: gv('fcampFuSubject'), followup_html: gv('fcampFuBody') };
+                if (btn) btn.disabled = true;
+                try {
+                    const d = await this.api('/api/admin/forum/campaign', { method: 'PUT', body: JSON.stringify(body) });
+                    this.forumCampaign = d.campaign; this.forumCampaignStats = d.stats || this.forumCampaignStats;
+                    this.renderForumCampaign(); this.closeModal('forumCampaignModal'); Toast.success('Settings saved.');
+                } catch (e) { Toast.error(e.message || 'Could not save.'); } finally { if (btn) btn.disabled = false; }
+            },
+            async _forumCampaignAction(path, btn) {
+                if (btn) btn.disabled = true;
+                const d = await this.api('/api/admin/forum/campaign/' + path, { method: 'POST', body: JSON.stringify({}) });
+                if (d.campaign) this.forumCampaign = d.campaign; if (d.stats) this.forumCampaignStats = d.stats;
+                this.renderForumCampaign();
+                return d;
+            },
+            async forumCampaignApprove(btn) { try { await this._forumCampaignAction('approve', btn); Toast.success('Campaign approved — the daily scheduler is live.'); } catch (e) { Toast.error(e.message || 'Could not approve.'); if (btn) btn.disabled = false; } },
+            async forumCampaignPause(btn) { try { await this._forumCampaignAction('pause', btn); Toast.success('Campaign paused.'); } catch (e) { Toast.error(e.message || 'Could not pause.'); if (btn) btn.disabled = false; } },
+            async forumCampaignResume(btn) { try { await this._forumCampaignAction('resume', btn); Toast.success('Campaign resumed.'); } catch (e) { Toast.error(e.message || 'Could not resume.'); if (btn) btn.disabled = false; } },
+            async forumCampaignTick(btn) {
+                if (btn) btn.disabled = true;
+                try {
+                    const d = await this.api('/api/admin/forum/campaign/tick', { method: 'POST', body: JSON.stringify({}) });
+                    if (d.stats) this.forumCampaignStats = d.stats;
+                    const r = d.result || {};
+                    if (r.ran) Toast.success(`Today's batch queued — ${r.invited} invitation${r.invited == 1 ? '' : 's'} sent to the outbox.`);
+                    else if (r.reason === 'already_ran_today') Toast.info("Today's batch has already gone out. Nothing more to send today.");
+                    else if (r.reason === 'not_approved') Toast.info('Approve the campaign first.');
+                    else Toast.info('Nothing to send right now.');
+                    await this.loadForumCandidates();
+                } catch (e) { Toast.error(e.message || 'Could not run the batch.'); } finally { if (btn) btn.disabled = false; }
+            },
+            async forumCampaignFollowup(btn) {
+                if (btn) btn.disabled = true;
+                try {
+                    const d = await this.api('/api/admin/forum/campaign/followup-tick', { method: 'POST', body: JSON.stringify({}) });
+                    if (d.stats) this.forumCampaignStats = d.stats;
+                    const r = d.result || {};
+                    if (r.ran) Toast.success(`Follow-ups queued — ${r.followed} gentle note${r.followed == 1 ? '' : 's'} sent to the outbox.`);
+                    else if (r.reason === 'already_ran_today') Toast.info('Follow-ups have already run today.');
+                    else Toast.info('No follow-ups are due right now.');
+                    await this.loadForumCandidates();
+                } catch (e) { Toast.error(e.message || 'Could not run follow-ups.'); } finally { if (btn) btn.disabled = false; }
+            },
+            _candCorrespondenceHtml(c) {
+                const esc = (v) => this.escapeHtml(v == null ? '' : String(v));
+                const rows = (this.candReplies && this.candReplies[c.id]) || [];
+                const canReply = ['invited', 'followed_up', 'replied', 'escalated'].includes(c.status);
+                const admissible = ['verified', 'queued', 'invited', 'followed_up', 'replied', 'escalated'].includes(c.status);
+                let actions = '';
+                if (canReply) actions += `<button class="btn btn-sm btn-secondary" onclick="App.candLogReply('${c.id}')"><i class="fas fa-reply"></i> Log reply</button>`;
+                if (admissible) actions += `<button class="btn btn-sm" style="background:#15803d; color:#fff; border:none;" onclick="App.candAccept('${c.id}', this)"><i class="fas fa-user-check"></i> Accept</button><button class="btn btn-sm btn-secondary" onclick="App.candDecline('${c.id}', this)"><i class="fas fa-user-xmark"></i> Decline</button>`;
+                if (!actions && !rows.length) return '';
+                const thread = rows.map(rw => {
+                    const inbound = rw.direction === 'inbound';
+                    const isDraft = rw.direction === 'outbound_draft';
+                    const label = inbound ? 'They wrote' : (isDraft ? 'Draft reply (in outbox)' : 'We wrote');
+                    const cls = rw.classification ? ` &middot; ${esc(rw.classification)}` : '';
+                    const col = inbound ? 'var(--forum)' : (isDraft ? '#c9a962' : '#355070');
+                    const when = rw.created_at ? new Date(rw.created_at.replace(' ', 'T') + 'Z').toLocaleString('en-GB') : '';
+                    return `<div style="border-left:3px solid ${col}; background:var(--bg-tertiary); border-radius:6px; padding:8px 10px; margin-bottom:6px;">
+                        <div style="font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-muted); margin-bottom:3px;">${esc(label)}${cls} <span style="text-transform:none; letter-spacing:0;">${esc(when)}</span></div>
+                        <div style="font-size:12.5px; color:var(--text-secondary); white-space:pre-wrap;">${esc(rw.body)}</div>
+                    </div>`;
+                }).join('');
+                return `<div style="margin:6px 0 14px;">
+                    <div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); margin-bottom:8px; font-weight:700;">Correspondence</div>
+                    ${thread || '<div style="font-size:12.5px; color:var(--text-muted); margin-bottom:8px;">No replies logged yet.</div>'}
+                    ${actions ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">${actions}</div>` : ''}
+                </div>`;
+            },
+            candLogReply(id) {
+                const c = this.candAll.find(x => x.id === id); if (!c) return;
+                this._candReplyId = id;
+                const who = document.getElementById('candReplyWho'); if (who) who.textContent = c.name || c.email || 'Candidate';
+                const t = document.getElementById('candReplyText'); if (t) t.value = '';
+                this.openModal('candReplyModal');
+            },
+            async candSubmitReply(btn) {
+                const id = this._candReplyId; if (!id) return;
+                const t = document.getElementById('candReplyText'); const body = t ? t.value.trim() : '';
+                if (!body) { Toast.error('Paste the reply text first.'); return; }
+                if (btn) btn.disabled = true;
+                try {
+                    const r = await this.api('/api/admin/forum/candidates/' + id + '/reply', { method: 'POST', body: JSON.stringify({ body }) });
+                    this._candReplaceLocal(r.candidate); this._candRefreshCounts(); this.renderCandFilters(); this.renderCandidates();
+                    this.closeModal('candReplyModal');
+                    if (r.classification === 'simple') Toast.success('Simple question — a president-voice reply is waiting in the outbox for your approval.');
+                    else Toast.success('This one needs your touch — escalated to you and Laura, and it is in the Action Center.');
+                    this.loadForumCampaign();
+                    if (this._candDrawerId === id) { delete this.candReplies[id]; this.openCandDrawer(id); }
+                } catch (e) { Toast.error(e.message || 'Could not log the reply.'); } finally { if (btn) btn.disabled = false; }
+            },
+            async candAccept(id, btn) {
+                const c = this.candAll.find(x => x.id === id) || {};
+                if (!confirm('Accept ' + (c.name || c.email || 'this candidate') + ' into the Forum? This sends the personal magic-link invitation.')) return;
+                if (btn) btn.disabled = true;
+                try {
+                    const r = await this.api('/api/admin/forum/candidates/' + id + '/accept', { method: 'POST', body: JSON.stringify({}) });
+                    this._candReplaceLocal(r.candidate); this._candRefreshCounts(); this.renderCandFilters(); this.renderCandidates();
+                    Toast.success('Accepted — the magic-link invitation is on its way.' + (r.invite_link ? ' (dev link in console)' : ''));
+                    if (r.invite_link) console.log('[forum accept] dev invite link:', r.invite_link);
+                    this.loadForumCampaign();
+                    if (this._candDrawerId === id) this.renderCandDrawer(r.candidate);
+                } catch (e) { Toast.error(e.message || 'Could not accept.'); if (btn) btn.disabled = false; }
+            },
+            async candDecline(id, btn) {
+                const c = this.candAll.find(x => x.id === id) || {};
+                if (!confirm('Decline ' + (c.name || c.email || 'this candidate') + '?')) return;
+                const sendRegret = confirm('Stage a courteous regret note in the outbox?\n\nOK = yes, stage a regret note.\nCancel = decline quietly, no email.');
+                if (btn) btn.disabled = true;
+                try {
+                    const r = await this.api('/api/admin/forum/candidates/' + id + '/decline', { method: 'POST', body: JSON.stringify({ send_regret: sendRegret }) });
+                    this._candReplaceLocal(r.candidate); this._candRefreshCounts(); this.renderCandFilters(); this.renderCandidates();
+                    Toast.success('Declined.' + (r.regret_staged ? ' A regret note is waiting in the outbox.' : ''));
+                    this.loadForumCampaign();
+                    if (this._candDrawerId === id) this.renderCandDrawer(r.candidate);
+                } catch (e) { Toast.error(e.message || 'Could not decline.'); if (btn) btn.disabled = false; }
+            },
+            forumOpenCandidateDeepLink(id) {
+                try { this.showProject('forum'); this.showForumTab('candidates'); } catch (e) {}
+                const tryOpen = (n) => {
+                    if (this.candAll && this.candAll.find(x => x.id === id)) { this.openCandDrawer(id); return; }
+                    if (n <= 0) return;
+                    setTimeout(() => tryOpen(n - 1), 300);
+                };
+                setTimeout(() => tryOpen(8), 300);
             },
 
             populateMemberFilterDropdowns(members) {
@@ -41313,7 +42178,7 @@ By applying to this program, I give the following consents:
         const _origShowForumTab = App.showForumTab;
         App.showForumTab = function(tab) {
             _origShowForumTab.call(this, tab);
-            const tabNames = { dashboard: 'Dashboard', feed: 'Feed', events: 'Events', groups: 'Groups', resources: 'Resources', gallery: 'Gallery', members: 'Members', applications: 'Applications', checkin: 'Check-in' };
+            const tabNames = { dashboard: 'Dashboard', feed: 'Feed', events: 'Events', groups: 'Groups', resources: 'Resources', gallery: 'Gallery', members: 'Members', applications: 'Applications', candidates: 'Candidate pipeline', checkin: 'Check-in' };
             Breadcrumbs.update('forum', tabNames[tab] || tab);
         };
 

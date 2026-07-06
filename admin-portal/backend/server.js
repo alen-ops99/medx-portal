@@ -61,9 +61,12 @@ function generateXlsxBuffer(headers, rows, sheetName = 'Sheet1') {
 
 // Email configuration — supports Resend API (recommended for cloud hosting) or SMTP fallback
 // attachments: optional array of { filename, content: Buffer, type? } — converted per provider below
-async function sendEmail(to, subject, htmlContent, attachments) {
+async function sendEmail(to, subject, htmlContent, attachments, replyTo) {
     const fromAddress = process.env.EMAIL_FROM || 'Med&X <onboarding@resend.dev>';
     const atts = Array.isArray(attachments) ? attachments.filter(a => a && a.filename && a.content) : [];
+    // Optional Reply-To (additive, backward-compatible — every existing caller passes <= 4 args).
+    // Lets a campaign route replies back to the president's mailbox without a second send path.
+    const replyToAddr = (typeof replyTo === 'string' && replyTo.trim()) ? replyTo.trim() : null;
 
     // Option -1: Brevo (Sendinblue) — HTTP API, works on Render, single-sender (no DNS)
     if (process.env.BREVO_API_KEY) {
@@ -84,6 +87,7 @@ async function sendEmail(to, subject, htmlContent, attachments) {
                     name: a.filename
                 }));
             }
+            if (replyToAddr) bvBody.replyTo = { email: replyToAddr };
             const response = await fetch('https://api.brevo.com/v3/smtp/email', {
                 method: 'POST',
                 headers: {
@@ -128,6 +132,7 @@ async function sendEmail(to, subject, htmlContent, attachments) {
                     disposition: 'attachment'
                 }));
             }
+            if (replyToAddr) sgBody.reply_to = { email: replyToAddr };
             const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
                 method: 'POST',
                 headers: {
@@ -153,6 +158,7 @@ async function sendEmail(to, subject, htmlContent, attachments) {
     if (process.env.RESEND_API_KEY) {
         try {
             const resendBody = { from: fromAddress, to, subject, html: htmlContent };
+            if (replyToAddr) resendBody.reply_to = replyToAddr;
             if (atts.length) {
                 resendBody.attachments = atts.map(a => ({
                     filename: a.filename,
@@ -193,6 +199,7 @@ async function sendEmail(to, subject, htmlContent, attachments) {
                 auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
             });
             const mailOpts = { from: fromAddress, to, subject, html: htmlContent };
+            if (replyToAddr) mailOpts.replyTo = replyToAddr;
             if (atts.length) {
                 mailOpts.attachments = atts.map(a => ({ filename: a.filename, content: a.content }));
             }
@@ -1258,6 +1265,22 @@ function nagCollectDesired() {
                 title: `Forum consideration awaiting review: ${r.name || r.email}`, assignee: null,
                 action_kind: 'open_link',
                 action_payload: { who: r.name || r.email, consideration_id: r.id, open_section: 'members', open_forum_considerations: true }
+            });
+        }
+    } catch (e) { /* table may not exist on an older schema */ }
+
+    // Biomedical Forum — candidates escalated for the president's eye (a complex reply to an
+    // invitation, or a manual escalation). Each becomes an Action Center item (area: Biomedical
+    // Forum) that opens the candidate in the pipeline drawer. Auto-resolves when the candidate
+    // leaves the 'escalated' status (accepted, declined, verified again, etc.).
+    try {
+        const rows = query.all("SELECT id, name, email FROM forum_candidates WHERE status = 'escalated'");
+        for (const r of rows) {
+            push({
+                kind: 'forum_candidate_escalated', subject_id: r.id,
+                title: `Forum candidate needs your eye: ${r.name || r.email}`, assignee: null,
+                action_kind: 'open_link',
+                action_payload: { who: r.name || r.email, open_candidate: r.id, project: 'forum' }
             });
         }
     } catch (e) { /* table may not exist on an older schema */ }
@@ -3672,6 +3695,168 @@ async function initializeApp() {
     try { db.run("ALTER TABLE nag_items ADD COLUMN claimed_by TEXT"); } catch (e) { /* column exists */ }
     try { db.run("ALTER TABLE nag_items ADD COLUMN claimed_by_name TEXT"); } catch (e) { /* column exists */ }
     try { db.run("ALTER TABLE nag_items ADD COLUMN claimed_at TEXT"); } catch (e) { /* column exists */ }
+
+    // ============ BIOMEDICAL FORUM — CANDIDATE PIPELINE (ADMIN-ONLY) ============
+    // The member-acquisition machine. The owner's worldwide list of Croatians in biomedicine is
+    // imported here, each candidate gets an AI dossier (aiDraft, deterministic fallback), verified
+    // names flow into the invite -> reply -> accept flow, and accepting one hands off to the same
+    // magic-link invitation the forum considerations approve path issues. This table lives OUTSIDE
+    // the SCHEMA-MIRROR block by design — candidates are admin-only and the user portal never reads
+    // or writes them. status walks: imported -> verifying -> verified/rejected -> queued -> invited
+    // -> followed_up -> replied -> accepted/declined, with escalated for anything needing the
+    // president's eye. history_json is a compact status timeline; dossier_json is the AI/automatic
+    // verification dossier.
+    db.run(`CREATE TABLE IF NOT EXISTS forum_candidates (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        email TEXT,
+        institution TEXT,
+        country TEXT,
+        field TEXT,
+        source TEXT DEFAULT 'import',
+        status TEXT DEFAULT 'imported',
+        dossier_json TEXT,
+        history_json TEXT,
+        invited_at TEXT,
+        replied_at TEXT,
+        verified_at TEXT,
+        notes TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_forum_candidates_email ON forum_candidates(email)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_forum_candidates_status ON forum_candidates(status)`);
+    // Seed 12 realistic demo candidates ONCE (clearly fake .example emails, Croatian names and
+    // institutions among international ones) so every pipeline state renders. Idempotent: only when
+    // the table is empty. Diacritics (č ć đ š ž) are stored verbatim to prove they survive.
+    try {
+        const _fcSeeded = query.get("SELECT COUNT(*) AS c FROM forum_candidates");
+        if (!_fcSeeded || !_fcSeeded.c) {
+            const _now = Date.now();
+            const _ago = (d) => new Date(_now - d * 86400000).toISOString();
+            const _dos = (confidence, source, rationale, checklist, double_check) =>
+                JSON.stringify({ confidence, source, rationale, checklist, double_check, generated_at: _ago(1) });
+            const _ck = (label, note, ok) => ({ label, note, ok });
+            // [name, email, institution, country, field, source, status, dossier_json, history_json, invited_at, replied_at, verified_at]
+            const seeds = [
+                ['prof. dr. sc. Ivana Kovačević, dr. med.', 'ivana.kovacevic@example.org', 'Klinički bolnički centar Zagreb', 'Croatia', 'Cardiology', 'Owner list — Croatia core', 'imported', null,
+                    JSON.stringify([{ status: 'imported', at: _ago(2), note: 'Imported from Owner list — Croatia core' }]), null, null, null],
+                ['dr. sc. Marko Šimić', 'marko.simic@example.org', 'Sveučilište u Splitu, Medicinski fakultet', 'Croatia', 'Molecular biology', 'Owner list — academia', 'imported', null,
+                    JSON.stringify([{ status: 'imported', at: _ago(2), note: 'Imported from Owner list — academia' }]), null, null, null],
+                ['Ana Marić, MD PhD', 'ana.maric@example.net', 'Karolinska Institutet', 'Sweden', 'Immunology', 'Diaspora list', 'verifying',
+                    _dos('medium', 'automatic', 'Name is characteristically Croatian and the field is squarely biomedical. Working abroad (Sweden), so Croatian origin should be confirmed by eye.',
+                        [_ck('Croatian signal', 'Surname Marić fits the -ić pattern.', true), _ck('Institution', 'Karolinska Institutet — major medical university.', true), _ck('Field match', 'Immunology is core biomedicine.', true)],
+                        ['Confirm Croatian origin (born in Croatia or Croatian heritage).', 'Verify current appointment at Karolinska.']),
+                    JSON.stringify([{ status: 'imported', at: _ago(3), note: 'Imported from Diaspora list' }, { status: 'verifying', at: _ago(1), note: 'Automatic checks run — confirm by eye' }]), null, null, null],
+                ['prof. dr. sc. Šimun Đurđević', 'simun.durdevic@example.org', 'Institut Ruđer Bošković', 'Croatia', 'Biochemistry', 'Owner list — institutes', 'verified',
+                    _dos('high', 'automatic', 'Croatian name with diacritics, working at a leading Croatian research institute, in a biomedical field. Strong match on all three axes.',
+                        [_ck('Croatian signal', 'Name carries Croatian diacritics (Š, đ).', true), _ck('Institution', 'Institut Ruđer Bošković — flagship Croatian institute.', true), _ck('Field match', 'Biochemistry is core biomedical science.', true)],
+                        ['None — clear match.']),
+                    JSON.stringify([{ status: 'imported', at: _ago(6), note: 'Imported from Owner list — institutes' }, { status: 'verifying', at: _ago(4), note: 'Automatic checks run' }, { status: 'verified', at: _ago(3), note: 'Confirmed by admin' }]), null, null, _ago(3)],
+                ['John Whitfield', 'john.whitfield@example.com', 'University of Manchester', 'United Kingdom', 'Economics', 'Owner list — needs check', 'rejected',
+                    _dos('low', 'automatic', 'No Croatian name markers, institution and country are not Croatian, and the field (Economics) is outside biomedicine. Does not fit the circle.',
+                        [_ck('Croatian signal', 'No Croatian name markers found.', false), _ck('Institution', 'University of Manchester — not Croatian.', false), _ck('Field match', 'Economics is outside biomedicine.', false)],
+                        ['Confirm this is not a mis-mapped row before discarding.']),
+                    JSON.stringify([{ status: 'imported', at: _ago(6), note: 'Imported from Owner list — needs check' }, { status: 'verifying', at: _ago(4), note: 'Automatic checks run' }, { status: 'rejected', at: _ago(3), note: 'Out of scope — not Croatian, not biomedical' }]), null, null, null],
+                ['dr. Petra Novak', 'petra.novak@example.org', 'Mediteran Pharma d.o.o.', 'Croatia', 'Pharmaceutical R&D', 'Owner list — industry', 'queued',
+                    _dos('high', 'automatic', 'Croatian name, Croatian pharmaceutical company, biomedical field. Queued for invitation.',
+                        [_ck('Croatian signal', 'Given and family names are common in Croatia.', true), _ck('Institution', 'Croatian pharma company (d.o.o.).', true), _ck('Field match', 'Pharmaceutical R&D fits pharma.', true)],
+                        ['None.']),
+                    JSON.stringify([{ status: 'imported', at: _ago(7), note: 'Imported from Owner list — industry' }, { status: 'verified', at: _ago(5), note: 'Confirmed by admin' }, { status: 'queued', at: _ago(4), note: 'Queued for invitation' }]), null, null, _ago(5)],
+                ['prof. dr. sc. Luka Horvat, dr. med.', 'luka.horvat@example.org', 'Harvard Medical School', 'United States', 'Neuroscience', 'Diaspora — USA', 'invited',
+                    _dos('high', 'automatic', 'Croatian name (Horvat is the most common Croatian surname), biomedical field, working abroad. Invitation sent.',
+                        [_ck('Croatian signal', 'Horvat — the most common Croatian surname.', true), _ck('Institution', 'Harvard Medical School.', true), _ck('Field match', 'Neuroscience is core biomedicine.', true)],
+                        ['Confirm Croatian origin.']),
+                    JSON.stringify([{ status: 'imported', at: _ago(9), note: 'Imported from Diaspora — USA' }, { status: 'verified', at: _ago(7), note: 'Confirmed' }, { status: 'queued', at: _ago(6), note: 'Queued' }, { status: 'invited', at: _ago(5), note: 'Personal invitation sent' }]), _ago(5), null, _ago(7)],
+                ['Marija Babić, PharmD', 'marija.babic@example.net', 'University of Vienna', 'Austria', 'Pharmacology', 'Diaspora — EU', 'followed_up',
+                    _dos('high', 'automatic', 'Croatian name, biomedical field, working in the EU. First invitation had no reply, a gentle follow-up was sent.',
+                        [_ck('Croatian signal', 'Surname Babić fits the -ić pattern.', true), _ck('Institution', 'University of Vienna.', true), _ck('Field match', 'Pharmacology fits.', true)],
+                        ['Confirm best contact email.']),
+                    JSON.stringify([{ status: 'imported', at: _ago(16), note: 'Imported from Diaspora — EU' }, { status: 'verified', at: _ago(14), note: 'Confirmed' }, { status: 'invited', at: _ago(12), note: 'Invitation sent' }, { status: 'followed_up', at: _ago(3), note: 'Gentle follow-up sent' }]), _ago(12), null, _ago(14)],
+                ['dr. sc. Tomislav Jurić', 'tomislav.juric@example.org', 'KBC Rijeka', 'Croatia', 'Oncology', 'Owner list — Croatia core', 'replied',
+                    _dos('high', 'automatic', 'Croatian name, Croatian clinical center, biomedical field. Replied to the invitation and is considering.',
+                        [_ck('Croatian signal', 'Croatian given and family names.', true), _ck('Institution', 'KBC Rijeka — Croatian clinical hospital center.', true), _ck('Field match', 'Oncology is core medicine.', true)],
+                        ['None.']),
+                    JSON.stringify([{ status: 'imported', at: _ago(9), note: 'Imported' }, { status: 'verified', at: _ago(7), note: 'Confirmed' }, { status: 'invited', at: _ago(5), note: 'Invitation sent' }, { status: 'replied', at: _ago(1), note: 'Replied — asking about convenings' }]), _ago(5), _ago(1), _ago(7)],
+                ['prof. Diana Kraljić, MD', 'diana.kraljic@example.net', 'Charité — Universitätsmedizin Berlin', 'Germany', 'Public health / epidemiology', 'Diaspora — EU', 'accepted',
+                    _dos('high', 'automatic', 'Croatian name, biomedical/public-health field, working abroad. Accepted the invitation — hand off to the magic-link admission.',
+                        [_ck('Croatian signal', 'Surname Kraljić fits the -ić pattern.', true), _ck('Institution', 'Charité Berlin.', true), _ck('Field match', 'Public health and epidemiology fit.', true)],
+                        ['None.']),
+                    JSON.stringify([{ status: 'imported', at: _ago(20), note: 'Imported' }, { status: 'verified', at: _ago(16), note: 'Confirmed' }, { status: 'invited', at: _ago(14), note: 'Invitation sent' }, { status: 'replied', at: _ago(6), note: 'Replied — interested' }, { status: 'accepted', at: _ago(5), note: 'Accepted — invitation admitted to the Forum' }]), _ago(14), _ago(6), _ago(16)],
+                ['Nikola Perić, MSc', 'nikola.peric@example.com', 'ETH Zürich', 'Switzerland', 'Bioengineering', 'Diaspora — EU', 'declined',
+                    _dos('medium', 'automatic', 'Croatian name and a biomedical-adjacent field (bioengineering). Declined the invitation for now.',
+                        [_ck('Croatian signal', 'Surname Perić fits the -ić pattern.', true), _ck('Institution', 'ETH Zürich.', true), _ck('Field match', 'Bioengineering is biomedical-adjacent.', null)],
+                        ['Keep on the list for a future convening.']),
+                    JSON.stringify([{ status: 'imported', at: _ago(22), note: 'Imported' }, { status: 'verified', at: _ago(18), note: 'Confirmed' }, { status: 'invited', at: _ago(15), note: 'Invitation sent' }, { status: 'declined', at: _ago(2), note: 'Politely declined for now' }]), _ago(15), null, _ago(18)],
+                ['dr. sc. Vesna Matić', 'vesna.matic@example.org', 'Nastavni zavod za javno zdravstvo „Dr. Andrija Štampar”', 'Croatia', 'Public health', 'Owner list — flagged', 'escalated',
+                    _dos('medium', 'automatic', 'Croatian name and a Croatian public-health institute, but the exact role is ambiguous in the source row. Flagged for the president to weigh.',
+                        [_ck('Croatian signal', 'Croatian name and institution.', true), _ck('Institution', 'Andrija Štampar Institute of Public Health.', true), _ck('Field match', 'Public health is in scope.', true)],
+                        ['Confirm seniority and current role before inviting.']),
+                    JSON.stringify([{ status: 'imported', at: _ago(8), note: 'Imported from Owner list — flagged' }, { status: 'verifying', at: _ago(5), note: 'Automatic checks run' }, { status: 'escalated', at: _ago(2), note: 'Escalated to the president — ambiguous seniority' }]), null, null, null]
+            ];
+            seeds.forEach((s) => {
+                db.run(`INSERT INTO forum_candidates (id, name, email, institution, country, field, source, status, dossier_json, history_json, invited_at, replied_at, verified_at, notes, created_by, created_at, updated_at)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,NULL,'seed',?,?)`,
+                    [require('crypto').randomUUID(), s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[10], s[11], _ago(6), _ago(1)]);
+            });
+            saveDb();
+            console.log('[forum-candidates] seeded ' + seeds.length + ' demo candidates');
+        }
+    } catch (e) { console.error('[forum-candidates] seed', e.message); }
+
+    // ============ THE BIOMEDICAL FORUM — INVITATION CAMPAIGN engine ============
+    // Admin-only (OUTSIDE the SCHEMA-MIRROR block — the user portal never reads or writes these).
+    // One singleton config row ('default') drives the daily invitation scheduler over VERIFIED
+    // candidates. The template + settings are approved ONCE (status='draft' -> 'approved'); after
+    // that the daily tick queues an auto-approved outbox batch, with a kill switch (status='paused').
+    // forum_candidate_replies is the correspondence thread for each candidate so a logged reply — and,
+    // later, an auto-ingested Outlook/Graph reply — can be classified and answered through the ONE
+    // approval outbox. Nothing here sends directly: invites/follow-ups/drafts all land in scheduled_emails.
+    db.run(`CREATE TABLE IF NOT EXISTS forum_campaign (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        daily_rate INTEGER DEFAULT 10,
+        reply_to TEXT,
+        subject TEXT,
+        intro_html TEXT,
+        belonging_default TEXT,
+        followup_subject TEXT,
+        followup_html TEXT,
+        status TEXT DEFAULT 'draft',
+        approved_by TEXT,
+        approved_at TEXT,
+        last_tick_at TEXT,
+        last_followup_at TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS forum_candidate_replies (
+        id TEXT PRIMARY KEY,
+        candidate_id TEXT,
+        direction TEXT DEFAULT 'inbound',
+        body TEXT,
+        classification TEXT,
+        source TEXT DEFAULT 'manual',
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_forum_candidate_replies_cand ON forum_candidate_replies(candidate_id)`);
+    // Seed the singleton campaign config ONCE (status='draft' — nothing sends until an admin approves).
+    try {
+        const _fcamp = query.get("SELECT id FROM forum_campaign WHERE id = 'default'");
+        if (!_fcamp) {
+            const introDefault = 'It is my privilege, on behalf of Med&X, to write to you personally about the Biomedical Forum — a standing circle of senior leaders in Croatian and international biomedicine, convened for peer exchange, the mentorship of those who follow, and the standing of our field.';
+            const belongDefault = 'Your standing in biomedicine is precisely what this circle is convened to bring together.';
+            const followupDefault = 'A short while ago I wrote to you about the Biomedical Forum. I know how full a senior calendar is, so this is only a gentle note in case my first message was lost among many. The invitation stands, and it would be a privilege to welcome you.';
+            db.run(`INSERT INTO forum_campaign (id, name, daily_rate, reply_to, subject, intro_html, belonging_default, followup_subject, followup_html, status, created_by)
+                    VALUES ('default', ?, 10, 'president@medx.hr', ?, ?, ?, ?, ?, 'draft', 'seed')`,
+                ['Biomedical Forum — founding invitations', 'An invitation to the Biomedical Forum', introDefault, belongDefault, 'A gentle note on your Biomedical Forum invitation', followupDefault]);
+            saveDb();
+            console.log('[forum-campaign] seeded default campaign config (draft)');
+        }
+    } catch (e) { console.error('[forum-campaign] seed', e.message); }
 
     // ====================== THE BIOMEDICAL FORUM — WING schema ======================
     // The Forum wing (/forum) is a dignified, invitation-only experience convened under Med&X.
@@ -16760,6 +16945,23 @@ By applying to this program, I provide the following consents:
             .sort((a, b) => a.daysLeft - b.daysLeft);
         model.subsTotal = num("SELECT COUNT(*) AS c FROM pr_subscribers WHERE COALESCE(status,'active') = 'active'");
         model.subsNew = num("SELECT COUNT(*) AS c FROM pr_subscribers WHERE COALESCE(status,'active') = 'active' AND subscribed_at >= datetime('now','-7 days')");
+        // Biomedical Forum member-acquisition pipeline — this week's movement. invited_at / replied_at
+        // are real columns; "accepted" has no timestamp column, so it is read from the accepted event in
+        // each accepted candidate's history_json. Every number is live — an empty table reads as 0.
+        model.forum = {
+            invited: num("SELECT COUNT(*) AS c FROM forum_candidates WHERE invited_at >= datetime('now','-7 days')"),
+            replied: num("SELECT COUNT(*) AS c FROM forum_candidates WHERE replied_at >= datetime('now','-7 days')"),
+            accepted: 0
+        };
+        try {
+            const cutoff = Date.now() - 7 * 86400000;
+            const acc = query.all("SELECT history_json FROM forum_candidates WHERE status = 'accepted'");
+            for (const rowc of acc) {
+                let hist = []; try { hist = JSON.parse(rowc.history_json || '[]') || []; } catch (e) { hist = []; }
+                const ev = hist.filter((h) => h && h.status === 'accepted').pop();
+                if (ev && ev.at) { const t = new Date(ev.at).getTime(); if (!isNaN(t) && t >= cutoff) model.forum.accepted += 1; }
+            }
+        } catch (e) { /* forum pipeline reads as 0 when unavailable */ }
         return model;
     }
 
@@ -16800,6 +17002,11 @@ By applying to this program, I provide the following consents:
         parts.push(pulseListRow('Plexus Conference', r.plexus || 0, accent));
         parts.push(pulseListRow('Building Bridges', r.bridges || 0, accent));
         parts.push(pulseListRow('Donor Night', r.donor || 0, accent));
+        const fpl = model.forum || {};
+        parts.push(digestSectionHead('Biomedical Forum', 'Member pipeline this week', accent));
+        parts.push(pulseListRow('Invitations sent', fpl.invited || 0, accent));
+        parts.push(pulseListRow('Replies received', fpl.replied || 0, accent));
+        parts.push(pulseListRow('New members accepted', fpl.accepted || 0, accent));
         parts.push(digestSectionHead('Action Center', 'Open items by area', accent));
         if (model.actionAreas && model.actionAreas.length) {
             model.actionAreas.forEach((a) => parts.push(pulseListRow(a.label, a.count, accent)));
@@ -26409,6 +26616,48 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     });
 
     // ============ THE BIOMEDICAL FORUM — considerations (approve / decline) ============
+    // Shared admission: ensure a passwordless portal account + an approved forum_members row, mint a
+    // 14-day personal invitation link, and send the premium president's-voice invitation. Used by BOTH
+    // the Forum considerations approve path AND the candidate-pipeline "Accept" action so there is ONE
+    // magic-link invitation, never a duplicate. Returns { user, token, enterUrl, mailReady }.
+    async function forumAdmitAndInvite({ email, name, institution, field, actor }) {
+        const rid = () => require('crypto').randomUUID();
+        let user = query.get("SELECT id, email, first_name, last_name FROM users WHERE LOWER(email) = LOWER(?)", [email]);
+        if (!user) {
+            const uid = rid();
+            const nm = String(name || '').trim(); const ps = nm.split(/\s+/);
+            const fn = nm ? (ps.slice(0, -1).join(' ') || ps[0]) : ''; const ln = (nm && ps.length > 1) ? ps[ps.length - 1] : '';
+            db.run("INSERT INTO users (id, email, password_hash, first_name, last_name, institution, email_verified) VALUES (?,?,?,?,?,?,1)",
+                [uid, email, '!magic-link-no-password!', fn, ln, institution || null]);
+            user = { id: uid, email, first_name: fn, last_name: ln };
+        }
+        const mem = query.get("SELECT * FROM forum_members WHERE user_id = ? OR LOWER(email) = LOWER(?) LIMIT 1", [user.id, email]);
+        if (mem) {
+            db.run("UPDATE forum_members SET user_id = ?, membership_status = 'approved', approved_by = ?, approved_at = datetime('now') WHERE id = ?", [user.id, actor || 'admin', mem.id]);
+        } else {
+            db.run("INSERT INTO forum_members (id, user_id, email, membership_status, first_name, institution, specialty, approved_by, approved_at, created_at) VALUES (?,?,?,'approved',?,?,?,?,datetime('now'),datetime('now'))",
+                [rid(), user.id, email, name || null, institution || null, field || null, actor || 'admin']);
+        }
+        const token = require('crypto').randomBytes(24).toString('hex');
+        const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+        db.run("INSERT INTO forum_magic_tokens (id, email, token, user_id, purpose, expires_at) VALUES (?,?,?,?,'invite',?)", [rid(), email, token, user.id, expiresAt]);
+        const enterUrl = `${userPortalBase()}/forum/enter?token=${token}`;
+        const salut = String(name || '').trim() ? nagEscape(name) : 'colleague';
+        const html = buildEmailTemplate('An invitation to the Biomedical Forum', `
+            <p>Dear ${salut},</p>
+            <p>It is my privilege, on behalf of Med&amp;X, to invite you to join the <strong>Biomedical Forum</strong> — a standing circle of senior leaders in Croatian and international biomedicine, convened for peer exchange, the mentorship of those who follow, and the standing of our field.</p>
+            <p>Your personal link is below. There is no password to set and none to keep. Following it admits you to the circle at once, where you will find the private directory of members, the year's convenings, and your own standing.</p>
+            <div style="text-align:center;margin:30px 0;"><a href="${enterUrl}" style="display:inline-block;background:#20463a;color:#f4efe4;text-decoration:none;padding:15px 34px;border-radius:2px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:14px;">Enter the Forum</a></div>
+            <p style="color:#6a625a;font-size:13px;">Should the button not open, the link is here. Your office may follow it on your behalf.</p>
+            <p style="word-break:break-all;color:#6a625a;font-size:13px;">${enterUrl}</p>
+            <p style="margin-top:26px;">With warm regard,</p>
+            <p style="margin:0;"><strong>prof. dr. sc. Alen Juginović, dr. med.</strong><br><span style="color:#6a625a;">President &middot; Med&amp;X</span></p>
+        `);
+        const mailReady = !!(process.env.RESEND_API_KEY || process.env.BREVO_API_KEY || process.env.SENDGRID_API_KEY);
+        try { await sendEmail(email, 'An invitation to the Biomedical Forum', html); } catch (e) { console.error('[forum-admit] invite email:', e.message); }
+        return { user, token, enterUrl, mailReady };
+    }
+
     // Applications from the public "Request consideration" affordance land in forum_considerations.
     // The Action Center surfaces the pending count (area: Biomedical Forum); this dedicated Member Ops
     // panel does the actual approve/decline. APPROVE ensures a passwordless account + an approved
@@ -26434,51 +26683,14 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             const c = query.get("SELECT * FROM forum_considerations WHERE id = ?", [req.params.id]);
             if (!c) return res.status(404).json({ error: 'Consideration not found' });
             if (!c.email) return res.status(400).json({ error: 'This application has no email address.' });
-            const rid = () => require('crypto').randomUUID();
-            // Ensure a passwordless portal account (the member uses magic links, never a password).
-            let user = query.get("SELECT id, email, first_name, last_name FROM users WHERE LOWER(email) = LOWER(?)", [c.email]);
-            if (!user) {
-                const uid = rid();
-                const nm = String(c.name || '').trim(); const ps = nm.split(/\s+/);
-                const fn = nm ? (ps.slice(0, -1).join(' ') || ps[0]) : ''; const ln = (nm && ps.length > 1) ? ps[ps.length - 1] : '';
-                db.run("INSERT INTO users (id, email, password_hash, first_name, last_name, institution, email_verified) VALUES (?,?,?,?,?,?,1)",
-                    [uid, c.email, '!magic-link-no-password!', fn, ln, c.institution || null]);
-                user = { id: uid, email: c.email, first_name: fn, last_name: ln };
-            }
-            // Ensure an approved forum_members row. The display name goes in first_name so the
-            // directory renders the full titled name (e.g. "prof. dr. sc. …"), with field as specialty.
-            const mem = query.get("SELECT * FROM forum_members WHERE user_id = ? OR LOWER(email) = LOWER(?) LIMIT 1", [user.id, c.email]);
-            if (mem) {
-                db.run("UPDATE forum_members SET user_id = ?, membership_status = 'approved', approved_by = ?, approved_at = datetime('now') WHERE id = ?", [user.id, req.user?.email || 'admin', mem.id]);
-            } else {
-                db.run("INSERT INTO forum_members (id, user_id, email, membership_status, first_name, institution, specialty, approved_by, approved_at, created_at) VALUES (?,?,?,'approved',?,?,?,?,datetime('now'),datetime('now'))",
-                    [rid(), user.id, c.email, c.name || null, c.institution || null, c.field || null, req.user?.email || 'admin']);
-            }
-            // Issue a 14-day personal invitation link (first entry mints a 7-day session; thereafter a
-            // fresh short-lived link is requested each visit).
-            const token = require('crypto').randomBytes(24).toString('hex');
-            const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
-            db.run("INSERT INTO forum_magic_tokens (id, email, token, user_id, purpose, expires_at) VALUES (?,?,?,?,'invite',?)", [rid(), c.email, token, user.id, expiresAt]);
+            // ONE magic-link invitation (shared with the candidate-pipeline Accept action).
+            const admit = await forumAdmitAndInvite({ email: c.email, name: c.name, institution: c.institution, field: c.field, actor: req.user?.email || 'admin' });
             db.run("UPDATE forum_considerations SET status = 'approved', decided_at = datetime('now'), decided_by = ? WHERE id = ?", [req.user?.email || 'admin', c.id]);
             // Resolve the matching Action Center item so it clears on the next scan.
             try { db.run("UPDATE nag_items SET status = 'done', resolved_at = datetime('now') WHERE kind = 'forum_consideration' AND subject_id = ? AND status IN ('open','actioned')", [c.id]); } catch (e) {}
             saveDb();
-            const enterUrl = `${userPortalBase()}/forum/enter?token=${token}`;
-            const salut = String(c.name || '').trim() ? nagEscape(c.name) : 'colleague';
-            const html = buildEmailTemplate('An invitation to the Biomedical Forum', `
-                <p>Dear ${salut},</p>
-                <p>It is my privilege, on behalf of Med&amp;X, to invite you to join the <strong>Biomedical Forum</strong> — a standing circle of senior leaders in Croatian and international biomedicine, convened for peer exchange, the mentorship of those who follow, and the standing of our field.</p>
-                <p>Your personal link is below. There is no password to set and none to keep. Following it admits you to the circle at once, where you will find the private directory of members, the year's convenings, and your own standing.</p>
-                <div style="text-align:center;margin:30px 0;"><a href="${enterUrl}" style="display:inline-block;background:#20463a;color:#f4efe4;text-decoration:none;padding:15px 34px;border-radius:2px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:14px;">Enter the Forum</a></div>
-                <p style="color:#6a625a;font-size:13px;">Should the button not open, the link is here. Your office may follow it on your behalf.</p>
-                <p style="word-break:break-all;color:#6a625a;font-size:13px;">${enterUrl}</p>
-                <p style="margin-top:26px;">With warm regard,</p>
-                <p style="margin:0;"><strong>prof. dr. sc. Alen Juginović, dr. med.</strong><br><span style="color:#6a625a;">President &middot; Med&amp;X</span></p>
-            `);
-            const mailReady = !!(process.env.RESEND_API_KEY || process.env.BREVO_API_KEY || process.env.SENDGRID_API_KEY);
-            try { await sendEmail(c.email, 'An invitation to the Biomedical Forum', html); } catch (e) { console.error('[forum-admin] approve email:', e.message); }
             logAudit(req, 'forum.approve', `${c.name || c.email}`);
-            res.json({ success: true, emailDelivery: mailReady ? 'sent' : 'dev', invite_link: mailReady ? undefined : enterUrl });
+            res.json({ success: true, emailDelivery: admit.mailReady ? 'sent' : 'dev', invite_link: admit.mailReady ? undefined : admit.enterUrl });
         } catch (e) { console.error('[forum-admin] approve', e.message); res.status(500).json({ error: e.message }); }
     });
 
@@ -26504,6 +26716,794 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             logAudit(req, 'forum.decline', `${c.name || c.email}`);
             res.json({ success: true });
         } catch (e) { console.error('[forum-admin] decline', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ============ THE BIOMEDICAL FORUM — CANDIDATE PIPELINE (member acquisition) ============
+    // Import the owner's worldwide list of Croatians in biomedicine (CSV first-class + XLSX),
+    // verify each with an AI dossier (aiDraft, deterministic fallback), and move verified names
+    // toward the invite -> reply -> accept flow. Everything is admin-only. Reuses the My Network
+    // import helpers (contactFileToAoa / aoaToTable / normHeader). No email sends directly — the
+    // escalation path stages pending_approval rows in the ONE approval outbox with drip_log
+    // idempotency, and accepting a candidate hands off to the same magic-link invitation the forum
+    // considerations approve path issues.
+    const candidateImportUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+    function candParse(s) { try { return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+    const CANDIDATE_STATUSES = ['imported', 'verifying', 'verified', 'rejected', 'queued', 'invited', 'followed_up', 'replied', 'accepted', 'declined', 'escalated'];
+
+    // Canonical candidate fields -> normalized header synonyms (English + Croatian).
+    const CANDIDATE_FIELD_SYNONYMS = {
+        name:        ['name', 'fullname', 'contact', 'contactname', 'person', 'ime', 'imeiprezime', 'imeprezime', 'naziv'],
+        email:       ['email', 'emailaddress', 'mail', 'emailid', 'eadresa', 'eposta', 'epota'],
+        institution: ['institution', 'organization', 'organisation', 'company', 'org', 'employer', 'affiliation', 'institute', 'ustanova', 'institucija', 'sveuciliste', 'fakultet', 'university'],
+        country:     ['country', 'nation', 'drzava', 'zemlja'],
+        field:       ['field', 'specialty', 'speciality', 'area', 'discipline', 'expertise', 'struka', 'podrucje', 'specijalnost', 'department', 'odjel', 'subject'],
+        source:      ['source', 'sourcenote', 'note', 'notes', 'list', 'izvor', 'napomena', 'komentar', 'remark', 'remarks']
+    };
+    const CANDIDATE_FIRST_SYN = ['firstname', 'first', 'givenname', 'fname', 'forename'];
+    const CANDIDATE_LAST_SYN = ['lastname', 'last', 'surname', 'familyname', 'lname', 'prezime'];
+    function suggestCandidateMapping(columns) {
+        const map = {}; const used = new Set();
+        for (const [field, syns] of Object.entries(CANDIDATE_FIELD_SYNONYMS)) {
+            for (const col of columns) {
+                if (used.has(col)) continue;
+                if (syns.includes(normHeader(col))) { map[field] = col; used.add(col); break; }
+            }
+        }
+        return map;
+    }
+
+    // --- Verification dossier -----------------------------------------------------
+    const CROATIA_AFFILIATION_HINTS = ['zagreb', 'split', 'rijeka', 'osijek', 'zadar', 'dubrovnik', 'pula', 'varazdin', 'croatia', 'hrvatska', 'kbc', 'klinic', 'klinič', 'sveuciliste', 'sveučiliš', 'ruder', 'ruđer', 'boskovic', 'bošković', 'medils', 'stampar', 'štampar', 'javno zdravstvo'];
+    const BIOMED_FIELD_HINTS = ['medic', 'biomed', 'pharma', 'pharmac', 'farmac', 'oncolog', 'onkolog', 'cardiolog', 'kardiolog', 'neuro', 'immunolog', 'imunolog', 'genet', 'public health', 'epidemiolog', 'molecular', 'molekul', 'biolog', 'clinical', 'klinic', 'surgery', 'kirurg', 'nursing', 'sestrin', 'dental', 'stomatolog', 'radiolog', 'patholog', 'patolog', 'microbiolog', 'mikrobiolog', 'virolog', 'pediatr', 'pedijat', 'psychiatr', 'psihijat', 'biochem', 'biokem', 'physiolog', 'fiziolog', 'health', 'zdravstv', 'bioengineer', 'bioinzenj', 'biotech', 'biotehn', 'life science'];
+    const CROATIAN_FIRST_NAMES = ['ivan', 'ivo', 'marko', 'luka', 'ana', 'marija', 'ivana', 'josip', 'petar', 'nikola', 'tomislav', 'matej', 'filip', 'domagoj', 'mateo', 'antun', 'stjepan', 'vlatka', 'dijana', 'diana', 'dragan', 'miroslav', 'simun', 'simun', 'duro', 'zeljko', 'vesna', 'petra', 'martina', 'tea', 'nina', 'karlo', 'dario', 'goran', 'hrvoje', 'kresimir', 'mislav', 'vedran', 'zoran', 'darko', 'boris', 'sanja', 'maja', 'iva'];
+    function candCroatianNameSignal(name) {
+        const raw = String(name || ''); const n = raw.toLowerCase();
+        const diac = /[čćđšž]/i.test(raw);
+        const surnamePat = /(ić|ič|ović|ević|čić|ski)\b/i.test(n);
+        const firstHit = CROATIAN_FIRST_NAMES.some(f => new RegExp('\\b' + f + '\\b', 'i').test(n));
+        const notes = [];
+        if (diac) notes.push('Name carries Croatian diacritics (č/ć/đ/š/ž).');
+        if (surnamePat) notes.push('Surname fits a characteristically Croatian pattern (-ić/-ović/-ević).');
+        if (firstHit) notes.push('Given name is common in Croatia.');
+        const ok = (diac || surnamePat || firstHit) ? true : null;
+        if (!notes.length) notes.push('No obvious Croatian name markers — confirm origin by eye.');
+        return { ok, note: notes.join(' ') };
+    }
+    function candCroatiaAffiliation(cand) {
+        const hay = [cand.institution, cand.country].filter(Boolean).join(' ').toLowerCase();
+        return /\bcroatia\b|hrvatska/.test(hay) || CROATIA_AFFILIATION_HINTS.some(h => hay.includes(h));
+    }
+    function candFieldMatch(cand) {
+        const hay = (String(cand.field || '') + ' ' + String(cand.institution || '')).toLowerCase();
+        return BIOMED_FIELD_HINTS.some(h => hay.includes(h));
+    }
+    function candInstitutionType(cand) {
+        const i = String(cand.institution || '').toLowerCase();
+        if (!i) return 'unknown type';
+        if (/hospital|klinic|klinič|kbc|bolnic|bolnič|medical center|clinic/.test(i)) return 'clinical center';
+        if (/univ|sveuciliste|sveučiliš|fakultet|faculty|college|institut|zavod|karolinska|charit|harvard|\beth\b/.test(i)) return 'university or institute';
+        if (/pharma|farmac|d\.o\.o|gmbh|inc\b|ltd|d\.d|biotech/.test(i)) return 'company';
+        return 'other organization';
+    }
+    function candDeterministicDossier(cand) {
+        const nameSig = candCroatianNameSignal(cand.name);
+        const inCroatia = candCroatiaAffiliation(cand);
+        const fieldOk = candFieldMatch(cand);
+        const instType = candInstitutionType(cand);
+        const croatianOverall = nameSig.ok === true || inCroatia;
+        let confidence = 'low';
+        if (nameSig.ok === true && inCroatia && fieldOk) confidence = 'high';
+        else if (croatianOverall && fieldOk) confidence = 'medium';
+        const checklist = [
+            { label: 'Croatian signal', note: nameSig.note + (inCroatia ? ' Institution or country places them in Croatia.' : ''), ok: croatianOverall ? true : null },
+            { label: 'Institution', note: cand.institution ? (cand.institution + ' — looks like a ' + instType + '.') : 'No institution given.', ok: cand.institution ? true : null },
+            { label: 'Field match', note: cand.field ? (cand.field + (fieldOk ? ' is within biomedicine.' : ' — confirm this sits within biomedicine.')) : 'No field given.', ok: fieldOk ? true : (cand.field ? false : null) }
+        ];
+        const double_check = [];
+        if (nameSig.ok !== true && !inCroatia) double_check.push('Confirm Croatian origin (by birth or heritage) — no strong signal found.');
+        else if (!inCroatia && nameSig.ok === true) double_check.push('Works abroad — confirm Croatian origin.');
+        if (!fieldOk) double_check.push('Confirm the field sits within medicine, biomedical science, pharma, or public health.');
+        if (!cand.email) double_check.push('No email on file — add a contact address before inviting.');
+        if (!double_check.length) double_check.push('None — the automatic checks are consistent. Confirm by eye.');
+        const originPhrase = croatianOverall ? ('Appears Croatian by ' + (nameSig.ok === true && inCroatia ? 'name and affiliation' : nameSig.ok === true ? 'name' : 'affiliation')) : 'No clear Croatian signal';
+        const rationale = `${originPhrase}. ${fieldOk ? 'Field sits within biomedicine' : 'Field is not clearly biomedical'}. These are automatic checks — confirm by eye.`;
+        return { confidence, source: 'automatic', rationale, checklist, double_check, generated_at: new Date().toISOString() };
+    }
+    async function buildCandidateDossier(cand) {
+        const base = candDeterministicDossier(cand);
+        try {
+            const r = await aiDraft({
+                purpose: 'Assess whether this person is a Croatian (by origin or working in Croatia) who is active in biomedicine — medicine, biomedical science, pharma, or public health — anywhere in the world. Reply in 2 to 4 sentences: state your confidence (high, medium, or low), the reasoning, and what a human should double-check. No preamble.',
+                context: { name: cand.name || '', email: cand.email || '', institution: cand.institution || '', country: cand.country || '', field: cand.field || '' },
+                maxTokens: 320
+            });
+            if (r && r.text && !r.mock && !/^\[Draft\]/.test(r.text)) {
+                base.source = 'ai';
+                base.rationale = r.text.trim();
+                const m = /\b(high|medium|low)\b/i.exec(r.text);
+                if (m) base.confidence = m[1].toLowerCase();
+            }
+        } catch (e) { /* keep the deterministic dossier */ }
+        return base;
+    }
+
+    function candAppendStatus(id, status, note, extraSets) {
+        const cand = query.get("SELECT * FROM forum_candidates WHERE id = ?", [id]);
+        if (!cand) return null;
+        let hist = candParse(cand.history_json); if (!Array.isArray(hist)) hist = [];
+        hist.push({ status, at: new Date().toISOString(), note: note || null });
+        const sets = ['status = ?', 'history_json = ?', "updated_at = datetime('now')"];
+        const vals = [status, JSON.stringify(hist)];
+        if (extraSets) for (const [k, v] of Object.entries(extraSets)) { sets.push(k + ' = ' + (v === 'NOW' ? "datetime('now')" : '?')); if (v !== 'NOW') vals.push(v); }
+        vals.push(id);
+        db.run(`UPDATE forum_candidates SET ${sets.join(', ')} WHERE id = ?`, vals);
+        saveDb();
+        return query.get("SELECT * FROM forum_candidates WHERE id = ?", [id]);
+    }
+    const candShape = (r) => ({ ...r, dossier: candParse(r.dossier_json), history: candParse(r.history_json) || [] });
+
+    // STEP 1 — preview: parse the uploaded CSV/XLSX, synthesize a Name column from first/last if
+    // needed, and return columns + rows + a suggested mapping. Path ends in /import (upload-exempt).
+    app.post('/api/admin/forum/candidates/import', auth, adminOnly, candidateImportUpload.single('file'), (req, res) => {
+        try {
+            if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+            let aoa;
+            try { aoa = contactFileToAoa(req.file); }
+            catch (e) { return res.status(400).json({ error: 'Could not read that file. Please upload a CSV or XLSX with a header row.' }); }
+            let { columns, rows } = aoaToTable(aoa);
+            if (!columns.length) return res.status(400).json({ error: 'The file appears to be empty.' });
+            const hasNameCol = columns.some(c => CANDIDATE_FIELD_SYNONYMS.name.includes(normHeader(c)));
+            if (!hasNameCol) {
+                const firstCol = columns.find(c => CANDIDATE_FIRST_SYN.includes(normHeader(c)));
+                const lastCol = columns.find(c => CANDIDATE_LAST_SYN.includes(normHeader(c)));
+                if (firstCol || lastCol) {
+                    columns = ['Name', ...columns];
+                    rows = rows.map(r => Object.assign({ Name: [firstCol ? r[firstCol] : '', lastCol ? r[lastCol] : ''].filter(Boolean).join(' ').trim() }, r));
+                }
+            }
+            const suggested_mapping = suggestCandidateMapping(columns);
+            res.json({ columns, rows, total: rows.length, sample: rows.slice(0, 8), suggested_mapping, fields: Object.keys(CANDIDATE_FIELD_SYNONYMS), filename: req.file.originalname });
+        } catch (e) { console.error('[candidates.import.preview]', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // STEP 2 — commit: apply the mapping, dedupe against members, forum members, considerations, and
+    // already-imported candidates. Duplicates are reported with their current status, never re-imported.
+    app.post('/api/admin/forum/candidates/import/commit', auth, adminOnly, (req, res) => {
+        try {
+            const mapping = (req.body && req.body.mapping) || {};
+            const rows = Array.isArray(req.body && req.body.rows) ? req.body.rows : [];
+            const filename = String((req.body && req.body.filename) || '').slice(0, 180);
+            if (!rows.length) return res.status(400).json({ error: 'No rows to import' });
+            const val = (row, field) => (mapping[field] && row[mapping[field]] != null) ? String(row[mapping[field]]).trim() : '';
+            const nowIso = () => new Date().toISOString();
+            const seenEmails = new Set(); const seenNames = new Set();
+            let added = 0; const duplicates = []; const skipped = [];
+            for (const row of rows) {
+                const name = val(row, 'name');
+                const email = val(row, 'email');
+                const emailKey = email.toLowerCase();
+                const institution = val(row, 'institution');
+                const country = val(row, 'country');
+                const field = val(row, 'field');
+                const source = val(row, 'source') || (filename ? ('Imported from ' + filename) : 'import');
+                const display = name || email || '(unnamed)';
+                if (!name && !email) { skipped.push({ who: '(empty row)', reason: 'no name or email' }); continue; }
+                if (emailKey && seenEmails.has(emailKey)) { duplicates.push({ who: display, email, where: 'this file', status: 'duplicate row' }); continue; }
+                const nameKey = (name + '|' + institution).toLowerCase();
+                if (!emailKey && seenNames.has(nameKey)) { duplicates.push({ who: display, email: '', where: 'this file', status: 'duplicate row' }); continue; }
+                if (emailKey) seenEmails.add(emailKey); else seenNames.add(nameKey);
+                let known = null;
+                if (emailKey) {
+                    if (query.get("SELECT id FROM users WHERE LOWER(email) = ? LIMIT 1", [emailKey])) known = { where: 'member (portal account)', status: 'active member' };
+                    if (!known) { const fm = query.get("SELECT membership_status FROM forum_members WHERE LOWER(email) = ? LIMIT 1", [emailKey]); if (fm) known = { where: 'forum member', status: fm.membership_status || 'member' }; }
+                    if (!known) { const fcn = query.get("SELECT status FROM forum_considerations WHERE LOWER(email) = ? LIMIT 1", [emailKey]); if (fcn) known = { where: 'forum consideration', status: fcn.status || 'pending' }; }
+                    if (!known) { const cc = query.get("SELECT status FROM forum_candidates WHERE LOWER(email) = ? LIMIT 1", [emailKey]); if (cc) known = { where: 'candidate pipeline', status: cc.status || 'imported' }; }
+                } else {
+                    const cc = query.get("SELECT status FROM forum_candidates WHERE LOWER(name) = ? AND LOWER(IFNULL(institution,'')) = ? LIMIT 1", [name.toLowerCase(), institution.toLowerCase()]);
+                    if (cc) known = { where: 'candidate pipeline', status: cc.status || 'imported' };
+                }
+                if (known) { duplicates.push({ who: display, email, where: known.where, status: known.status }); continue; }
+                const id = require('crypto').randomUUID();
+                const hist = JSON.stringify([{ status: 'imported', at: nowIso(), note: source }]);
+                db.run(`INSERT INTO forum_candidates (id, name, email, institution, country, field, source, status, history_json, created_by, created_at, updated_at)
+                        VALUES (?,?,?,?,?,?,?, 'imported', ?, ?, datetime('now'), datetime('now'))`,
+                    [id, name, email, institution, country, field, source, hist, req.user?.email || 'admin']);
+                added++;
+            }
+            saveDb();
+            logAudit(req, 'forum.candidates.import', `${added} added, ${duplicates.length} already known, ${skipped.length} skipped (${filename || 'file'})`);
+            res.json({ success: true, added, duplicates, skipped, total: rows.length });
+        } catch (e) { console.error('[candidates.import.commit]', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // List + per-status counts. status=queue is the verification queue (imported + verifying).
+    app.get('/api/admin/forum/candidates', auth, adminOnly, (req, res) => {
+        try {
+            const status = String(req.query.status || 'all');
+            const q = String(req.query.q || '').trim().toLowerCase();
+            let rows = query.all("SELECT * FROM forum_candidates ORDER BY (status='escalated') DESC, created_at DESC, name ASC");
+            if (status === 'queue') rows = rows.filter(r => r.status === 'imported' || r.status === 'verifying');
+            else if (status !== 'all') rows = rows.filter(r => r.status === status);
+            if (q) rows = rows.filter(r => [r.name, r.email, r.institution, r.country, r.field, r.source].some(v => String(v || '').toLowerCase().includes(q)));
+            const counts = {}; CANDIDATE_STATUSES.forEach(s => counts[s] = 0);
+            query.all("SELECT status, COUNT(*) AS c FROM forum_candidates GROUP BY status").forEach(r => { counts[r.status] = r.c; });
+            counts.all = query.get("SELECT COUNT(*) AS c FROM forum_candidates")?.c || 0;
+            counts.queue = (counts.imported || 0) + (counts.verifying || 0);
+            res.json({ candidates: rows.map(candShape), counts });
+        } catch (e) { console.error('[candidates.list]', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.get('/api/admin/forum/candidates/:id', auth, adminOnly, (req, res) => {
+        try {
+            const r = query.get("SELECT * FROM forum_candidates WHERE id = ?", [req.params.id]);
+            if (!r) return res.status(404).json({ error: 'Candidate not found' });
+            res.json({ candidate: candShape(r) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    app.put('/api/admin/forum/candidates/:id', auth, adminOnly, (req, res) => {
+        try {
+            const r = query.get("SELECT * FROM forum_candidates WHERE id = ?", [req.params.id]);
+            if (!r) return res.status(404).json({ error: 'Candidate not found' });
+            const b = req.body || {};
+            const sets = []; const vals = [];
+            ['name', 'email', 'institution', 'country', 'field', 'source', 'notes'].forEach(f => {
+                if (b[f] !== undefined) { sets.push(f + ' = ?'); vals.push(String(b[f] == null ? '' : b[f]).slice(0, 400)); }
+            });
+            if (!sets.length) return res.json({ success: true, candidate: candShape(r) });
+            vals.push(req.params.id);
+            db.run(`UPDATE forum_candidates SET ${sets.join(', ')}, updated_at = datetime('now') WHERE id = ?`, vals);
+            saveDb();
+            logAudit(req, 'forum.candidates.edit', r.name || r.email || req.params.id);
+            res.json({ success: true, candidate: candShape(query.get("SELECT * FROM forum_candidates WHERE id = ?", [req.params.id])) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    app.post('/api/admin/forum/candidates/:id/verify', auth, adminOnly, (req, res) => {
+        try {
+            const nu = candAppendStatus(req.params.id, 'verified', (req.body && req.body.note) || ('Confirmed by ' + (req.user?.email || 'admin')), { verified_at: 'NOW' });
+            if (!nu) return res.status(404).json({ error: 'Candidate not found' });
+            logAudit(req, 'forum.candidates.verify', nu.name || nu.email);
+            res.json({ success: true, candidate: candShape(nu) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/forum/candidates/:id/reject', auth, adminOnly, (req, res) => {
+        try {
+            const nu = candAppendStatus(req.params.id, 'rejected', (req.body && req.body.note) || ('Rejected by ' + (req.user?.email || 'admin')));
+            if (!nu) return res.status(404).json({ error: 'Candidate not found' });
+            logAudit(req, 'forum.candidates.reject', nu.name || nu.email);
+            res.json({ success: true, candidate: candShape(nu) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Run the verification checks (AI dossier + deterministic fallback) on ONE candidate.
+    app.post('/api/admin/forum/candidates/:id/dossier', auth, adminOnly, async (req, res) => {
+        try {
+            const cand = query.get("SELECT * FROM forum_candidates WHERE id = ?", [req.params.id]);
+            if (!cand) return res.status(404).json({ error: 'Candidate not found' });
+            const dossier = await buildCandidateDossier(cand);
+            const advance = cand.status === 'imported';
+            let hist = candParse(cand.history_json); if (!Array.isArray(hist)) hist = [];
+            if (advance) hist.push({ status: 'verifying', at: new Date().toISOString(), note: 'Automatic checks run — confirm by eye' });
+            db.run("UPDATE forum_candidates SET dossier_json = ?, history_json = ?, status = ?, updated_at = datetime('now') WHERE id = ?",
+                [JSON.stringify(dossier), JSON.stringify(hist), advance ? 'verifying' : cand.status, cand.id]);
+            saveDb();
+            logAudit(req, 'forum.candidates.dossier', cand.name || cand.email);
+            res.json({ success: true, candidate: candShape(query.get("SELECT * FROM forum_candidates WHERE id = ?", [cand.id])) });
+        } catch (e) { console.error('[candidates.dossier]', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Bulk: run checks on the next N (default 20) candidates still in 'imported'.
+    app.post('/api/admin/forum/candidates/dossier/bulk', auth, adminOnly, async (req, res) => {
+        try {
+            const limit = Math.max(1, Math.min(Number(req.body && req.body.limit) || 20, 50));
+            const rows = query.all("SELECT * FROM forum_candidates WHERE status = 'imported' ORDER BY created_at ASC LIMIT ?", [limit]);
+            let processed = 0;
+            for (const cand of rows) {
+                const dossier = await buildCandidateDossier(cand);
+                let hist = candParse(cand.history_json); if (!Array.isArray(hist)) hist = [];
+                hist.push({ status: 'verifying', at: new Date().toISOString(), note: 'Automatic checks run — confirm by eye' });
+                db.run("UPDATE forum_candidates SET dossier_json = ?, history_json = ?, status = 'verifying', updated_at = datetime('now') WHERE id = ?",
+                    [JSON.stringify(dossier), JSON.stringify(hist), cand.id]);
+                processed++;
+            }
+            saveDb();
+            logAudit(req, 'forum.candidates.dossier.bulk', `${processed} dossiers generated`);
+            res.json({ success: true, processed, remaining: (query.get("SELECT COUNT(*) AS c FROM forum_candidates WHERE status = 'imported'")?.c || 0) });
+        } catch (e) { console.error('[candidates.dossier.bulk]', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Escalate to the president + Laura through the ONE approval outbox (idempotent via drip_log).
+    function candidateEscalationRecipients() {
+        const admins = query.all("SELECT DISTINCT LOWER(TRIM(email)) AS email FROM users WHERE is_admin = 1 AND email IS NOT NULL AND TRIM(email) <> ''").map(r => r.email);
+        const set = new Set(admins);
+        const laura = query.get("SELECT LOWER(TRIM(email)) AS email FROM users WHERE LOWER(first_name) = 'laura' OR LOWER(email) LIKE 'laura%' LIMIT 1");
+        set.add(laura && laura.email ? laura.email : 'laura.rodman@medx.hr');
+        if (!admins.length) set.add('juginovic.alen@gmail.com');
+        return [...set].filter(Boolean);
+    }
+    app.post('/api/admin/forum/candidates/:id/escalate', auth, adminOnly, (req, res) => {
+        try {
+            const cand = query.get("SELECT * FROM forum_candidates WHERE id = ?", [req.params.id]);
+            if (!cand) return res.status(404).json({ error: 'Candidate not found' });
+            const note = String((req.body && req.body.note) || '').slice(0, 500);
+            const nu = candAppendStatus(cand.id, 'escalated', note || 'Escalated for the president to weigh');
+            const dripKey = 'cand_escalate:' + cand.id;
+            const already = query.get("SELECT 1 AS x FROM drip_log WHERE user_id = 'forum-candidates' AND kind = ?", [dripKey]);
+            let staged = 0;
+            if (!already) {
+                const batchId = 'candescalate-' + require('crypto').randomUUID();
+                const subject = `Forum candidate needs your eye — ${cand.name || cand.email || 'candidate'}`;
+                const html = buildEmailTemplate('A Forum candidate for your review', `
+                    <p>A candidate in the acquisition pipeline has been escalated for your decision.</p>
+                    <p><strong>${nagEscape(cand.name || cand.email || 'Candidate')}</strong><br>
+                    <span style="color:#6a625a;">${nagEscape([cand.field, cand.institution, cand.country].filter(Boolean).join(' · '))}</span><br>
+                    <span style="color:#6a625a;">${nagEscape(cand.email || '')}</span></p>
+                    ${note ? `<p style="margin-top:12px;">${nagEscape(note)}</p>` : ''}
+                    <p style="margin-top:18px;color:#6a625a;font-size:13px;">Open the Candidate pipeline in the Forum area to verify, invite, or decline.</p>
+                `);
+                for (const email of candidateEscalationRecipients()) {
+                    db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                            VALUES (?, 'pending_approval', ?, 'forum-candidate-escalation', 'candidate_escalation', ?, ?, ?, ?, datetime('now'))`,
+                        [require('crypto').randomUUID(), batchId, JSON.stringify({ to: email, subject, html }), email, subject, req.user?.email || 'admin']);
+                    staged++;
+                }
+                try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'forum-candidates', NULL, ?)", [require('crypto').randomUUID(), dripKey]); } catch (e) {}
+                saveDb();
+            }
+            logAudit(req, 'forum.candidates.escalate', `${cand.name || cand.email} -> ${staged} recipient(s) staged`);
+            res.json({ success: true, staged, already: !!already, candidate: candShape(nu) });
+        } catch (e) { console.error('[candidates.escalate]', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.delete('/api/admin/forum/candidates/:id', auth, adminOnly, (req, res) => {
+        try {
+            const cand = query.get("SELECT name, email FROM forum_candidates WHERE id = ?", [req.params.id]);
+            if (!cand) return res.status(404).json({ error: 'Candidate not found' });
+            db.run("DELETE FROM forum_candidates WHERE id = ?", [req.params.id]);
+            saveDb();
+            logAudit(req, 'forum.candidates.delete', cand.name || cand.email || req.params.id);
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ============ THE BIOMEDICAL FORUM — INVITATION CAMPAIGN (engine + endpoints) ============
+    // The campaign turns VERIFIED candidates into a steady, dignified invite -> follow-up -> reply
+    // machine. The premium template + settings are approved ONCE; after that a daily tick queues an
+    // auto-approved outbox batch (drip_log key forum_invite:<id> so no one is ever invited twice),
+    // with a kill switch (pause). Every send goes through scheduled_emails + the drainer + sendEmail()
+    // — never a second path. In dev the campaign starts 'draft', so nothing fires until an admin approves.
+    function forumSiteUrl() { return (process.env.FORUM_SITE_URL || 'https://medx.hr/biomedical-forum.html').replace(/\/+$/, ''); }
+    function forumConsiderationUrl() { return userPortalBase() + '/forum'; }
+    function forumAdminBase() { return (process.env.RENDER_EXTERNAL_URL || process.env.ADMIN_PORTAL_URL || ('http://localhost:' + (process.env.PORT || 3002))).replace(/\/+$/, ''); }
+    function forumIsCroatian(cand) {
+        const c = String((cand && cand.country) || '').toLowerCase().trim();
+        return c.includes('croatia') || c.includes('hrvatska') || c === 'hr';
+    }
+    const FORUM_BTN_GREEN = 'display:inline-block;background:#20463a;color:#f4efe4;text-decoration:none;padding:13px 30px;border-radius:2px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:13px;';
+    const FORUM_BTN_OUTLINE = 'display:inline-block;background:#ffffff;color:#20463a;border:1px solid #20463a;text-decoration:none;padding:12px 28px;border-radius:2px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:13px;';
+    function forumTextToHtml(text) {
+        return String(text || '').trim().split(/\n{2,}/).map(p => `<p>${nagEscape(p).replace(/\n/g, '<br>')}</p>`).join('');
+    }
+    function forumPresidentSignatureHtml(hr) {
+        return hr
+            ? '<p style="margin-top:22px;">S poštovanjem,</p><p style="margin:0;"><strong>prof. dr. sc. Alen Juginović, dr. med.</strong><br><span style="color:#6a625a;">Predsjednik &middot; Med&amp;X</span></p>'
+            : '<p style="margin-top:22px;">With warm regard,</p><p style="margin:0;"><strong>prof. dr. sc. Alen Juginović, dr. med.</strong><br><span style="color:#6a625a;">President &middot; Med&amp;X</span></p>';
+    }
+    // Per-candidate "why they belong" sentence — aiDraft with a clean deterministic fallback.
+    function forumBelongingFallback(cand) {
+        const field = String((cand && cand.field) || '').trim();
+        const inst = String((cand && cand.institution) || '').trim();
+        if (field && inst) return `Your work in ${field} at ${inst} is exactly the standing this circle is convened to bring together.`;
+        if (field) return `Your work in ${field} is exactly the standing this circle is convened to bring together.`;
+        if (inst) return `Your standing at ${inst} is precisely what this circle is convened to bring together.`;
+        return 'Your standing in biomedicine is precisely what this circle is convened to bring together.';
+    }
+    async function forumBelongingSentence(cand, campaign) {
+        const fallback = forumBelongingFallback(cand) || (campaign && campaign.belonging_default) || 'Your standing in biomedicine is precisely what this circle is convened to bring together.';
+        try {
+            const r = await aiDraft({
+                purpose: 'Write ONE warm, specific sentence (maximum 30 words) for a formal invitation to a senior biomedical professional, naming why they belong in a circle of Croatian biomedical leaders. Refer to their field and institution where given. Dignified, no flattery, no emojis, no semicolons. Return only the sentence.',
+                context: { name: (cand && cand.name) || '', field: (cand && cand.field) || '', institution: (cand && cand.institution) || '', country: (cand && cand.country) || '' },
+                maxTokens: 90
+            });
+            if (r && r.text && !r.mock && !/^\[Draft\]/.test(r.text)) return r.text.trim().replace(/\s+/g, ' ');
+        } catch (e) { /* keep the deterministic fallback */ }
+        return fallback;
+    }
+    function forumBuildInviteEmail(cand, campaign, belonging) {
+        const hr = forumIsCroatian(cand);
+        const nm = String((cand && cand.name) || '').trim();
+        const salut = nm ? nagEscape(nm) : (hr ? 'poštovani kolega' : 'esteemed colleague');
+        const site = forumSiteUrl(); const consider = forumConsiderationUrl();
+        const intro = String((campaign && campaign.intro_html) || '').trim();
+        const belongLine = String(belonging || (campaign && campaign.belonging_default) || '').trim();
+        const subject = String((campaign && campaign.subject) || '').trim() || (hr ? 'Poziv u Biomedicinski forum' : 'An invitation to the Biomedical Forum');
+        let body;
+        if (hr) {
+            const introHtml = intro ? nagEscape(intro) : 'Čast mi je, u ime Med&amp;X-a, obratiti Vam se osobno u vezi s Biomedicinskim forumom — stalnim krugom vodećih ljudi hrvatske i međunarodne biomedicine, okupljenih radi razmjene iskustava, mentorstva onih koji dolaze i ugleda naše struke.';
+            body = `
+                <p>Poštovani/poštovana ${salut},</p>
+                <p>${introHtml}</p>
+                ${belongLine ? `<p>${nagEscape(belongLine)}</p>` : ''}
+                <p>Više o Forumu možete pročitati na našim stranicama, a ako Vam se učini bliskim, ondje se možete i formalno prijaviti na razmatranje.</p>
+                <div style="text-align:center;margin:28px 0;"><a href="${site}" style="${FORUM_BTN_GREEN}">Upoznajte Forum</a>&nbsp;<a href="${consider}" style="${FORUM_BTN_OUTLINE}">Zatražite razmatranje</a></div>
+                ${forumPresidentSignatureHtml(true)}
+            `;
+        } else {
+            const introHtml = intro ? nagEscape(intro) : 'It is my privilege, on behalf of Med&amp;X, to write to you personally about the Biomedical Forum — a standing circle of senior leaders in Croatian and international biomedicine, convened for peer exchange, the mentorship of those who follow, and the standing of our field.';
+            body = `
+                <p>Dear ${salut},</p>
+                <p>${introHtml}</p>
+                ${belongLine ? `<p>${nagEscape(belongLine)}</p>` : ''}
+                <p>You are welcome to read more about the Forum on our pages, and, should it feel close to your own work, to request consideration there.</p>
+                <div style="text-align:center;margin:28px 0;"><a href="${site}" style="${FORUM_BTN_GREEN}">Discover the Forum</a>&nbsp;<a href="${consider}" style="${FORUM_BTN_OUTLINE}">Request consideration</a></div>
+                ${forumPresidentSignatureHtml(false)}
+            `;
+        }
+        return { subject, html: buildEmailTemplate(hr ? 'Poziv u Biomedicinski forum' : 'An invitation to the Biomedical Forum', body) };
+    }
+    function forumBuildFollowupEmail(cand, campaign) {
+        const hr = forumIsCroatian(cand);
+        const nm = String((cand && cand.name) || '').trim();
+        const salut = nm ? nagEscape(nm) : (hr ? 'poštovani kolega' : 'esteemed colleague');
+        const site = forumSiteUrl();
+        const fu = String((campaign && campaign.followup_html) || '').trim();
+        const subject = String((campaign && campaign.followup_subject) || '').trim() || (hr ? 'Kratka napomena o pozivu u Biomedicinski forum' : 'A gentle note on your Biomedical Forum invitation');
+        let body;
+        if (hr) {
+            const fuHtml = fu ? nagEscape(fu) : 'Nedavno sam Vam pisao o Biomedicinskom forumu. Znam koliko je ispunjen kalendar iskusnog stručnjaka, pa je ovo tek kratka napomena, za slučaj da se moja prva poruka izgubila među mnogima. Poziv i dalje stoji.';
+            body = `<p>Poštovani/poštovana ${salut},</p><p>${fuHtml}</p><div style="text-align:center;margin:26px 0;"><a href="${site}" style="${FORUM_BTN_GREEN}">Upoznajte Forum</a></div>${forumPresidentSignatureHtml(true)}`;
+        } else {
+            const fuHtml = fu ? nagEscape(fu) : 'A short while ago I wrote to you about the Biomedical Forum. I know how full a senior calendar is, so this is only a gentle note in case my first message was lost among many. The invitation stands.';
+            body = `<p>Dear ${salut},</p><p>${fuHtml}</p><div style="text-align:center;margin:26px 0;"><a href="${site}" style="${FORUM_BTN_GREEN}">Discover the Forum</a></div>${forumPresidentSignatureHtml(false)}`;
+        }
+        return { subject, html: buildEmailTemplate(hr ? 'Kratka napomena — Biomedicinski forum' : 'A gentle note — the Biomedical Forum', body) };
+    }
+    function forumCampaignGet() { try { return query.get("SELECT * FROM forum_campaign WHERE id = 'default'") || null; } catch (e) { return null; } }
+    function forumCampaignStats() {
+        const n = (sql) => { try { const r = query.get(sql); return (r && r.c) || 0; } catch (e) { return 0; } };
+        return {
+            pool_ready: n("SELECT COUNT(*) AS c FROM forum_candidates WHERE status IN ('verified','queued') AND invited_at IS NULL AND email IS NOT NULL AND TRIM(email) <> ''"),
+            verified: n("SELECT COUNT(*) AS c FROM forum_candidates WHERE status='verified'"),
+            queued: n("SELECT COUNT(*) AS c FROM forum_candidates WHERE status='queued'"),
+            invited: n("SELECT COUNT(*) AS c FROM forum_candidates WHERE status='invited'"),
+            invited_total: n("SELECT COUNT(*) AS c FROM forum_candidates WHERE invited_at IS NOT NULL"),
+            invited_today: n("SELECT COUNT(*) AS c FROM forum_candidates WHERE date(invited_at) = date('now')"),
+            followed_up: n("SELECT COUNT(*) AS c FROM forum_candidates WHERE status='followed_up'"),
+            replied: n("SELECT COUNT(*) AS c FROM forum_candidates WHERE status='replied'"),
+            escalated: n("SELECT COUNT(*) AS c FROM forum_candidates WHERE status='escalated'"),
+            accepted: n("SELECT COUNT(*) AS c FROM forum_candidates WHERE status='accepted'"),
+            declined: n("SELECT COUNT(*) AS c FROM forum_candidates WHERE status='declined'"),
+            followup_ready: n("SELECT COUNT(*) AS c FROM forum_candidates WHERE status='invited' AND invited_at IS NOT NULL AND invited_at <= datetime('now','-10 days') AND replied_at IS NULL")
+        };
+    }
+
+    // ---- Reply classification + president-voice simple draft (aiDraft with deterministic fallbacks) ----
+    function forumReplyClassifyFallback(body) {
+        const t = ' ' + String(body || '').toLowerCase().replace(/\s+/g, ' ') + ' ';
+        const simpleSignals = [
+            'when', 'what date', 'which date', ' dates', 'date of', 'date is', 'time of year',
+            'where', 'location', 'venue', 'address', 'held in', 'take place', 'takes place',
+            'cost', 'price', 'fee', 'how much', 'free of charge', 'is it free', 'any charge',
+            'what is the forum', 'what is the biomedical forum', 'tell me more', 'more about the forum',
+            'how does the forum', 'what does the forum', 'what exactly is',
+            'kada', 'koji datum', 'gdje', 'lokacij', 'mjesto', 'cijena', 'trošak', 'kotizacij', 'besplat', 'što je forum', 'više o forumu'
+        ];
+        return simpleSignals.some(s => t.includes(s)) ? 'simple' : 'complex';
+    }
+    async function forumClassifyReply(body) {
+        const fb = forumReplyClassifyFallback(body);
+        try {
+            const r = await aiDraft({
+                purpose: 'Classify a reply to a Forum invitation as exactly one word: "simple" or "complex". simple = the reply only asks about dates, location, cost, or what the Forum is. complex = anything else (conditions, negotiation, personal circumstances, a decline with questions, sensitive or delicate matters). Answer with only the single word simple or complex.',
+                context: { reply: String(body || '').slice(0, 1200) },
+                maxTokens: 8
+            });
+            if (r && r.text && !r.mock && !/^\[Draft\]/.test(r.text)) {
+                const m = /\b(simple|complex)\b/i.exec(r.text);
+                if (m) return m[1].toLowerCase();
+            }
+        } catch (e) { /* keep heuristic */ }
+        return fb;
+    }
+    function forumSimpleReplyFallback(cand) {
+        const hr = forumIsCroatian(cand);
+        const nm = String((cand && cand.name) || '').trim();
+        const salut = nm ? nm : (hr ? 'poštovani kolega' : 'esteemed colleague');
+        if (hr) {
+            return `Poštovani/poštovana ${salut},\n\nHvala Vam na odgovoru, i rado ću pojasniti. Biomedicinski forum stalni je krug vodećih ljudi hrvatske i međunarodne biomedicine, okupljenih pod okriljem Med&X-a. Članstvo ne nosi kotizaciju, a druženja se održavaju u Zagrebu. Sve pojedinosti i obrazac za prijavu na razmatranje nalaze se na stranicama Foruma.\n\nBilo bi mi zadovoljstvo ugostiti Vas.`;
+        }
+        return `Dear ${salut},\n\nThank you for writing back, and with pleasure. The Biomedical Forum is a standing circle of senior leaders in Croatian and international biomedicine, convened under Med&X. Membership carries no fee, and the convenings are held in Zagreb. You will find every detail, and the request-consideration form, on the Forum pages.\n\nIt would be a privilege to welcome you.`;
+    }
+    async function forumDraftSimpleReply(cand, replyBody, campaign) {
+        const fallback = forumSimpleReplyFallback(cand);
+        try {
+            const r = await aiDraft({
+                purpose: 'Write a warm, concise reply in the voice of prof. dr. sc. Alen Juginović, President of Med&X, to a senior colleague who replied to a Biomedical Forum invitation with a logistics question (dates, location, cost, or what the Forum is). Answer plainly and warmly and invite them to consider joining. Use Croatian formal register if their reply is in Croatian, otherwise English. Facts you may rely on: the Forum is a standing invitation-only circle of senior Croatian and international biomedical leaders convened by Med&X, membership carries no fee, and the convenings are held in Zagreb. Do NOT invent specific dates. Start with a salutation. Do NOT add a closing signature — it will be appended. No emojis. No semicolons.',
+                context: { candidate_name: (cand && cand.name) || '', candidate_field: (cand && cand.field) || '', their_reply: String(replyBody || '').slice(0, 1500) },
+                maxTokens: 420
+            });
+            if (r && r.text && !r.mock && !/^\[Draft\]/.test(r.text)) return r.text.trim();
+        } catch (e) { /* keep fallback */ }
+        return fallback;
+    }
+
+    // ================================ REPLY INGESTION ================================
+    // The ONE entry point for an inbound reply to a Forum invitation. The manual "Log reply" action
+    // calls it with source='manual'. GRAPH HOOK: when the Outlook/Graph mailbox is connected, its
+    // webhook/poller resolves the sender address to a candidate and calls this SAME function (see
+    // POST /api/admin/forum/replies/ingest) with source='graph' + a stable message_id for idempotency.
+    // There is no second path. Classifies simple vs complex, drafts a president-voice reply into the
+    // outbox for simple, escalates to the president + Laura (+ Action Center) for complex.
+    async function ingestForumCandidateReply(opts) {
+        opts = opts || {};
+        const source = opts.source || 'manual';
+        const text = String(opts.body || '').trim();
+        let cand = null;
+        if (opts.candidateId) cand = query.get("SELECT * FROM forum_candidates WHERE id = ?", [opts.candidateId]);
+        if (!cand && opts.email) cand = query.get("SELECT * FROM forum_candidates WHERE LOWER(email) = LOWER(?) ORDER BY (status='invited') DESC, (status='followed_up') DESC, updated_at DESC LIMIT 1", [String(opts.email).trim()]);
+        if (!cand) return { ok: false, reason: 'no_candidate' };
+        if (!text) return { ok: false, reason: 'empty_body' };
+        // Optional message-level idempotency (a Graph message id keeps re-delivery from double-logging).
+        if (opts.messageId) {
+            const dk = 'forum_reply_msg:' + opts.messageId;
+            if (query.get("SELECT 1 AS x FROM drip_log WHERE user_id='forum-campaign' AND kind=?", [dk])) {
+                return { ok: true, duplicate: true, candidate: candShape(cand) };
+            }
+            try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'forum-campaign', ?, ?)", [require('crypto').randomUUID(), cand.email || null, dk]); } catch (e) {}
+        }
+        const replyId = require('crypto').randomUUID();
+        db.run("INSERT INTO forum_candidate_replies (id, candidate_id, direction, body, classification, source, created_by) VALUES (?,?, 'inbound', ?, NULL, ?, ?)",
+            [replyId, cand.id, text.slice(0, 4000), source, opts.actor || 'admin']);
+        const classification = await forumClassifyReply(text);
+        db.run("UPDATE forum_candidate_replies SET classification = ? WHERE id = ?", [classification, replyId]);
+        const campaign = forumCampaignGet();
+        let staged = 0; let escalated = false; let draftId = null;
+        if (classification === 'simple') {
+            const draft = await forumDraftSimpleReply(cand, text, campaign);
+            draftId = require('crypto').randomUUID();
+            db.run("INSERT INTO forum_candidate_replies (id, candidate_id, direction, body, classification, source, created_by) VALUES (?,?, 'outbound_draft', ?, 'simple', 'ai', ?)",
+                [draftId, cand.id, draft.slice(0, 4000), opts.actor || 'system']);
+            const hr = forumIsCroatian(cand);
+            const subject = 'Re: ' + ((campaign && campaign.subject) || 'An invitation to the Biomedical Forum');
+            const html = buildEmailTemplate(hr ? 'Iz Biomedicinskog foruma' : 'A note from the Biomedical Forum', forumTextToHtml(draft) + forumPresidentSignatureHtml(hr));
+            const batchId = 'forumreply-' + cand.id.slice(0, 8) + '-' + require('crypto').randomUUID().slice(0, 8);
+            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                    VALUES (?, 'pending_approval', ?, 'forum-campaign-reply', 'forum_reply', ?, ?, ?, ?, datetime('now'))`,
+                [require('crypto').randomUUID(), batchId, JSON.stringify({ to: cand.email, subject, html, reply_to: (campaign && campaign.reply_to) || 'president@medx.hr' }), cand.email, subject, opts.actor || 'system']);
+            staged = 1;
+            candAppendStatus(cand.id, 'replied', 'Reply received (simple) — a president-voice draft is waiting in the outbox', { replied_at: 'NOW' });
+        } else {
+            candAppendStatus(cand.id, 'escalated', 'Reply received (complex) — escalated to the president and Laura', { replied_at: 'NOW' });
+            escalated = true;
+            const dripKey = 'forum_reply_escalate:' + replyId;
+            if (!query.get("SELECT 1 AS x FROM drip_log WHERE user_id='forum-campaign' AND kind=?", [dripKey])) {
+                const batchId = 'forumreplyesc-' + require('crypto').randomUUID();
+                const deepLink = `${forumAdminBase()}/?forumCandidate=${cand.id}`;
+                const subject = `A Forum reply needs your eye — ${cand.name || cand.email || 'candidate'}`;
+                const html = buildEmailTemplate('A Forum reply for your decision', `
+                    <p>A candidate replied to their Biomedical Forum invitation, and the reply needs a personal answer rather than a standard one.</p>
+                    <p><strong>${nagEscape(cand.name || cand.email || 'Candidate')}</strong><br>
+                    <span style="color:#6a625a;">${nagEscape([cand.field, cand.institution, cand.country].filter(Boolean).join(' · '))}</span><br>
+                    <span style="color:#6a625a;">${nagEscape(cand.email || '')}</span></p>
+                    <div style="background:#f4efe4;border-left:3px solid #20463a;padding:12px 14px;margin:14px 0;color:#4a453e;font-size:14px;white-space:pre-wrap;">${nagEscape(text.slice(0, 2000))}</div>
+                    <div style="text-align:center;margin:22px 0;"><a href="${deepLink}" style="${FORUM_BTN_GREEN}">Open the candidate</a></div>
+                    <p style="color:#6a625a;font-size:13px;">Or open the Candidate pipeline in the Biomedical Forum area and find ${nagEscape(cand.name || cand.email || 'this candidate')}.</p>
+                `);
+                for (const rcpt of candidateEscalationRecipients()) {
+                    db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                            VALUES (?, 'pending_approval', ?, 'forum-reply-escalation', 'forum_reply_escalation', ?, ?, ?, ?, datetime('now'))`,
+                        [require('crypto').randomUUID(), batchId, JSON.stringify({ to: rcpt, subject, html }), rcpt, subject, opts.actor || 'system']);
+                    staged++;
+                }
+                try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'forum-campaign', NULL, ?)", [require('crypto').randomUUID(), dripKey]); } catch (e) {}
+            }
+            try { runNagScan(); } catch (e) { /* Action Center will pick it up on the next scan */ }
+        }
+        saveDb();
+        return { ok: true, classification, escalated, staged, draft_id: draftId, candidate: candShape(query.get("SELECT * FROM forum_candidates WHERE id = ?", [cand.id])) };
+    }
+
+    // ---- Daily tick: queue up to daily_rate invitations to VERIFIED (or queued) candidates ----
+    async function runForumCampaignTick(opts) {
+        opts = opts || {};
+        const actor = opts.actor || 'scheduler';
+        const camp = forumCampaignGet();
+        if (!camp) return { ran: false, reason: 'no_campaign', invited: 0 };
+        if (camp.status !== 'approved') return { ran: false, reason: 'not_approved', status: camp.status, invited: 0 };
+        const today = new Date().toISOString().slice(0, 10);
+        const dayKey = 'forum_campaign_tick:' + today;
+        // Day guard: only ONE batch per calendar day. A second same-day tick is a no-op (idempotent).
+        if (!opts.force && query.get("SELECT 1 AS x FROM drip_log WHERE user_id='forum-campaign' AND kind=?", [dayKey])) {
+            return { ran: false, reason: 'already_ran_today', invited: 0 };
+        }
+        const rate = Math.max(1, Math.min(Number(camp.daily_rate) || 10, 200));
+        const pool = query.all("SELECT * FROM forum_candidates WHERE status IN ('verified','queued') AND invited_at IS NULL AND email IS NOT NULL AND TRIM(email) <> '' ORDER BY (status='queued') DESC, COALESCE(verified_at, created_at) ASC");
+        const batchId = 'forumcampaign-' + today + '-' + require('crypto').randomUUID().slice(0, 8);
+        let invited = 0; const names = [];
+        for (const cand of pool) {
+            if (invited >= rate) break;
+            const inviteKey = 'forum_invite:' + cand.id;
+            // drip_log guard: never invite the same candidate twice, even across days or a forced re-run.
+            if (query.get("SELECT 1 AS x FROM drip_log WHERE user_id='forum-campaign' AND kind=?", [inviteKey])) continue;
+            const belonging = await forumBelongingSentence(cand, camp);
+            const mail = forumBuildInviteEmail(cand, camp, belonging);
+            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, approved_by, created_by, created_at)
+                    VALUES (?, 'scheduled', ?, 'forum-campaign', 'forum_invite', ?, ?, ?, 'forum-campaign (auto)', ?, datetime('now'))`,
+                [require('crypto').randomUUID(), batchId, JSON.stringify({ to: cand.email, subject: mail.subject, html: mail.html, reply_to: camp.reply_to || 'president@medx.hr' }), cand.email, mail.subject, actor]);
+            candAppendStatus(cand.id, 'invited', "Selected for today's batch and invited by the campaign", { invited_at: 'NOW' });
+            try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'forum-campaign', ?, ?)", [require('crypto').randomUUID(), cand.email || null, inviteKey]); } catch (e) {}
+            invited++; names.push(cand.name || cand.email);
+        }
+        try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'forum-campaign', NULL, ?)", [require('crypto').randomUUID(), dayKey]); } catch (e) {}
+        db.run("UPDATE forum_campaign SET last_tick_at = datetime('now'), updated_at = datetime('now') WHERE id='default'");
+        saveDb();
+        return { ran: true, invited, batch_id: invited ? batchId : null, names, pool: pool.length, rate };
+    }
+    // ---- Daily follow-up tick: one gentle nudge 10 days after invite when there is still no reply ----
+    async function runForumFollowupTick(opts) {
+        opts = opts || {};
+        const actor = opts.actor || 'scheduler';
+        const camp = forumCampaignGet();
+        if (!camp) return { ran: false, reason: 'no_campaign', followed: 0 };
+        if (camp.status !== 'approved') return { ran: false, reason: 'not_approved', status: camp.status, followed: 0 };
+        const today = new Date().toISOString().slice(0, 10);
+        const dayKey = 'forum_followup_tick:' + today;
+        if (!opts.force && query.get("SELECT 1 AS x FROM drip_log WHERE user_id='forum-campaign' AND kind=?", [dayKey])) {
+            return { ran: false, reason: 'already_ran_today', followed: 0 };
+        }
+        const pool = query.all("SELECT * FROM forum_candidates WHERE status='invited' AND invited_at IS NOT NULL AND invited_at <= datetime('now','-10 days') AND replied_at IS NULL AND email IS NOT NULL AND TRIM(email) <> '' ORDER BY invited_at ASC");
+        const batchId = 'forumfollowup-' + today + '-' + require('crypto').randomUUID().slice(0, 8);
+        let followed = 0; const names = [];
+        for (const cand of pool) {
+            const key = 'forum_invite_followup:' + cand.id;
+            if (query.get("SELECT 1 AS x FROM drip_log WHERE user_id='forum-campaign' AND kind=?", [key])) continue;
+            const mail = forumBuildFollowupEmail(cand, camp);
+            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, approved_by, created_by, created_at)
+                    VALUES (?, 'scheduled', ?, 'forum-campaign-followup', 'forum_followup', ?, ?, ?, 'forum-campaign (auto)', ?, datetime('now'))`,
+                [require('crypto').randomUUID(), batchId, JSON.stringify({ to: cand.email, subject: mail.subject, html: mail.html, reply_to: camp.reply_to || 'president@medx.hr' }), cand.email, mail.subject, actor]);
+            candAppendStatus(cand.id, 'followed_up', 'Gentle follow-up queued by the campaign (no reply after 10 days)');
+            try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'forum-campaign', ?, ?)", [require('crypto').randomUUID(), cand.email || null, key]); } catch (e) {}
+            followed++; names.push(cand.name || cand.email);
+        }
+        try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'forum-campaign', NULL, ?)", [require('crypto').randomUUID(), dayKey]); } catch (e) {}
+        db.run("UPDATE forum_campaign SET last_followup_at = datetime('now'), updated_at = datetime('now') WHERE id='default'");
+        saveDb();
+        return { ran: true, followed, batch_id: followed ? batchId : null, names, pool: pool.length };
+    }
+
+    // ---- Campaign endpoints ----
+    app.get('/api/admin/forum/campaign', auth, adminOnly, (req, res) => {
+        try { res.json({ campaign: forumCampaignGet(), stats: forumCampaignStats() }); }
+        catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.put('/api/admin/forum/campaign', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const sets = []; const vals = [];
+            const strFields = { name: 200, reply_to: 160, subject: 200, intro_html: 4000, belonging_default: 600, followup_subject: 200, followup_html: 4000 };
+            for (const [f, max] of Object.entries(strFields)) {
+                if (b[f] !== undefined) { sets.push(f + ' = ?'); vals.push(String(b[f] == null ? '' : b[f]).slice(0, max)); }
+            }
+            if (b.daily_rate !== undefined) { sets.push('daily_rate = ?'); vals.push(Math.max(1, Math.min(parseInt(b.daily_rate, 10) || 10, 200))); }
+            if (!sets.length) return res.json({ success: true, campaign: forumCampaignGet(), stats: forumCampaignStats() });
+            db.run(`UPDATE forum_campaign SET ${sets.join(', ')}, updated_at = datetime('now') WHERE id='default'`, vals);
+            saveDb();
+            logAudit(req, 'forum.campaign.save', sets.map(s => s.split(' ')[0]).join(', '));
+            res.json({ success: true, campaign: forumCampaignGet(), stats: forumCampaignStats() });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/forum/campaign/approve', auth, adminOnly, (req, res) => {
+        try {
+            db.run("UPDATE forum_campaign SET status='approved', approved_by=?, approved_at=datetime('now'), updated_at=datetime('now') WHERE id='default'", [req.user?.email || 'admin']);
+            saveDb();
+            logAudit(req, 'forum.campaign.approve', 'campaign template + settings approved');
+            res.json({ success: true, campaign: forumCampaignGet(), stats: forumCampaignStats() });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/forum/campaign/pause', auth, adminOnly, (req, res) => {
+        try {
+            db.run("UPDATE forum_campaign SET status='paused', updated_at=datetime('now') WHERE id='default'");
+            saveDb();
+            logAudit(req, 'forum.campaign.pause', 'campaign paused (kill switch)');
+            res.json({ success: true, campaign: forumCampaignGet(), stats: forumCampaignStats() });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/forum/campaign/resume', auth, adminOnly, (req, res) => {
+        try {
+            const camp = forumCampaignGet();
+            const nextStatus = (camp && camp.approved_at) ? 'approved' : 'draft';
+            db.run("UPDATE forum_campaign SET status=?, updated_at=datetime('now') WHERE id='default'", [nextStatus]);
+            saveDb();
+            logAudit(req, 'forum.campaign.resume', 'campaign resumed');
+            res.json({ success: true, campaign: forumCampaignGet(), stats: forumCampaignStats() });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/forum/campaign/tick', auth, adminOnly, async (req, res) => {
+        try {
+            const r = await runForumCampaignTick({ actor: req.user?.email || 'admin', force: !!(req.body && req.body.force) });
+            logAudit(req, 'forum.campaign.tick', r.ran ? `${r.invited} invited` : ('skipped: ' + (r.reason || 'n/a')));
+            res.json({ success: true, result: r, stats: forumCampaignStats() });
+        } catch (e) { console.error('[forum-campaign] tick', e.message); res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/forum/campaign/followup-tick', auth, adminOnly, async (req, res) => {
+        try {
+            const r = await runForumFollowupTick({ actor: req.user?.email || 'admin', force: !!(req.body && req.body.force) });
+            logAudit(req, 'forum.campaign.followup', r.ran ? `${r.followed} followed up` : ('skipped: ' + (r.reason || 'n/a')));
+            res.json({ success: true, result: r, stats: forumCampaignStats() });
+        } catch (e) { console.error('[forum-campaign] followup', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ---- Reply endpoints (manual + the Graph ingestion target) ----
+    app.post('/api/admin/forum/candidates/:id/reply', auth, adminOnly, async (req, res) => {
+        try {
+            const body = String((req.body && req.body.body) || '').trim();
+            if (!body) return res.status(400).json({ error: 'Paste the reply text first.' });
+            const r = await ingestForumCandidateReply({ candidateId: req.params.id, body, source: 'manual', actor: req.user?.email || 'admin' });
+            if (!r.ok) return res.status(r.reason === 'no_candidate' ? 404 : 400).json({ error: r.reason === 'no_candidate' ? 'Candidate not found' : 'Could not log the reply.' });
+            logAudit(req, 'forum.candidates.reply', `${(r.candidate && (r.candidate.name || r.candidate.email)) || req.params.id} -> ${r.classification}`);
+            res.json({ success: true, ...r });
+        } catch (e) { console.error('[forum-campaign] reply', e.message); res.status(500).json({ error: e.message }); }
+    });
+    app.get('/api/admin/forum/candidates/:id/replies', auth, adminOnly, (req, res) => {
+        try { res.json({ replies: query.all("SELECT * FROM forum_candidate_replies WHERE candidate_id = ? ORDER BY created_at ASC", [req.params.id]) }); }
+        catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    // GRAPH HOOK target — the Outlook/Graph connector POSTs { email, body, message_id } here and it
+    // funnels straight into ingestForumCandidateReply (source='graph'). Dormant until the connector exists.
+    app.post('/api/admin/forum/replies/ingest', auth, adminOnly, async (req, res) => {
+        try {
+            const b = req.body || {};
+            const r = await ingestForumCandidateReply({ candidateId: b.candidate_id || null, email: b.email || b.from || null, body: b.body || b.text || '', source: b.source || 'graph', messageId: b.message_id || b.messageId || null, actor: 'graph-connector' });
+            res.json({ success: !!r.ok, ...r });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ---- Accept / Decline ----
+    // ACCEPT hands off to the SAME magic-link admission the Forum considerations approve path uses.
+    app.post('/api/admin/forum/candidates/:id/accept', auth, adminOnly, async (req, res) => {
+        try {
+            const cand = query.get("SELECT * FROM forum_candidates WHERE id = ?", [req.params.id]);
+            if (!cand) return res.status(404).json({ error: 'Candidate not found' });
+            if (!cand.email) return res.status(400).json({ error: 'This candidate has no email address — add one before accepting.' });
+            const admit = await forumAdmitAndInvite({ email: cand.email, name: cand.name, institution: cand.institution, field: cand.field, actor: req.user?.email || 'admin' });
+            const nu = candAppendStatus(cand.id, 'accepted', 'Accepted — admitted to the Forum with a personal magic-link invitation');
+            try { db.run("UPDATE nag_items SET status='done', resolved_at=datetime('now') WHERE kind='forum_candidate_escalated' AND subject_id=? AND status IN ('open','actioned')", [cand.id]); } catch (e) {}
+            saveDb();
+            logAudit(req, 'forum.candidates.accept', cand.name || cand.email);
+            res.json({ success: true, candidate: candShape(nu), emailDelivery: admit.mailReady ? 'sent' : 'dev', invite_link: admit.mailReady ? undefined : admit.enterUrl });
+        } catch (e) { console.error('[forum-campaign] accept', e.message); res.status(500).json({ error: e.message }); }
+    });
+    // DECLINE marks the candidate declined; optionally stages a courteous regret in the approval outbox.
+    app.post('/api/admin/forum/candidates/:id/decline', auth, adminOnly, (req, res) => {
+        try {
+            const cand = query.get("SELECT * FROM forum_candidates WHERE id = ?", [req.params.id]);
+            if (!cand) return res.status(404).json({ error: 'Candidate not found' });
+            const sendRegret = !!(req.body && req.body.send_regret);
+            const note = String((req.body && req.body.note) || '').slice(0, 500);
+            const nu = candAppendStatus(cand.id, 'declined', note || 'Declined');
+            try { db.run("UPDATE nag_items SET status='done', resolved_at=datetime('now') WHERE kind='forum_candidate_escalated' AND subject_id=? AND status IN ('open','actioned')", [cand.id]); } catch (e) {}
+            let staged = 0;
+            if (sendRegret && cand.email) {
+                const hr = forumIsCroatian(cand);
+                const nm = String(cand.name || '').trim();
+                const salut = nm ? nagEscape(nm) : (hr ? 'poštovani kolega' : 'esteemed colleague');
+                const subject = hr ? 'Zahvala iz Biomedicinskog foruma' : 'A note from the Biomedical Forum';
+                const body = hr
+                    ? `<p>Poštovani/poštovana ${salut},</p><p>Hvala Vam na vremenu i pažnji. Krug Foruma namjerno držimo malim, i zasad Vam ne možemo uputiti poziv. Vaše ime pamtimo s poštovanjem i nadamo se da će se naši putovi ukrstiti na nekom budućem druženju Med&amp;X-a.</p><p style="margin-top:22px;">S poštovanjem,</p><p style="margin:0;"><strong>Ured Foruma</strong><br><span style="color:#6a625a;">inicijativa Med&amp;X-a</span></p>`
+                    : `<p>Dear ${salut},</p><p>Thank you for your time and consideration. The circle of the Forum is kept deliberately small, and we are not able to extend an invitation at this time. We hold your name with respect and hope our paths will cross at a future Med&amp;X convening.</p><p style="margin-top:22px;">With warm regard,</p><p style="margin:0;"><strong>The Office of the Forum</strong><br><span style="color:#6a625a;">an initiative of Med&amp;X</span></p>`;
+                const html = buildEmailTemplate(subject, body);
+                const batchId = 'forumdecline-' + cand.id.slice(0, 8) + '-' + require('crypto').randomUUID().slice(0, 8);
+                db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                        VALUES (?, 'pending_approval', ?, 'forum-campaign-decline', 'forum_regret', ?, ?, ?, ?, datetime('now'))`,
+                    [require('crypto').randomUUID(), batchId, JSON.stringify({ to: cand.email, subject, html, reply_to: (forumCampaignGet() || {}).reply_to || 'president@medx.hr' }), cand.email, subject, req.user?.email || 'admin']);
+                staged = 1;
+            }
+            saveDb();
+            logAudit(req, 'forum.candidates.decline', cand.name || cand.email);
+            res.json({ success: true, candidate: candShape(nu), regret_staged: staged });
+        } catch (e) { console.error('[forum-campaign] decline', e.message); res.status(500).json({ error: e.message }); }
     });
 
     // ============ THE BIOMEDICAL FORUM — convening reservations (read-only) ============
@@ -26691,8 +27691,8 @@ app.get('*', (req, res) => {
             } catch (e) { return; }
             if (!due || !due.length) return;
             let changed = false;
-            const trySend = async (to, subject, html, atts) => {
-                try { return await sendEmail(to, subject, html, atts); }
+            const trySend = async (to, subject, html, atts, replyTo) => {
+                try { return await sendEmail(to, subject, html, atts, replyTo); }
                 catch (e) { return { success: false, error: e.message }; }
             };
             for (const row of due) {
@@ -26735,9 +27735,10 @@ app.get('*', (req, res) => {
                         .map(a => ({ filename: a.filename || a.name || 'attachment', content: Buffer.from(String(a.content_b64 || a.content || ''), 'base64'), type: a.type || a.mime || 'application/octet-stream' }))
                         .filter(a => a.filename && a.content && a.content.length);
                 }
-                let result = await trySend(to, subject, html, _atts);
+                const _replyTo = payload.reply_to || null;
+                let result = await trySend(to, subject, html, _atts, _replyTo);
                 let attempts = 1;
-                if (!(result && result.success !== false)) { result = await trySend(to, subject, html, _atts); attempts = 2; } // retry once
+                if (!(result && result.success !== false)) { result = await trySend(to, subject, html, _atts, _replyTo); attempts = 2; } // retry once
                 const ok = result && result.success !== false;
                 if (ok) {
                     try {
@@ -26769,6 +27770,17 @@ app.get('*', (req, res) => {
         // sweep expires stale 48h claims and rolls each seat to the next waiting person.
         try { runSeatConfirmAuto(); } catch (e) { console.warn('[SeatConfirm] boot skipped:', e.message); }
         setInterval(() => { try { runSeatConfirmAuto(); } catch (e) {} }, 24 * 60 * 60 * 1000);
+
+        // BIOMEDICAL FORUM INVITATION CAMPAIGN — daily invite + follow-up ticks. Both are no-ops
+        // until the campaign is approved (dev seeds it as 'draft') and paused by the kill switch;
+        // each is idempotent per day and per candidate via drip_log, so a restart never double-sends.
+        try { runForumCampaignTick({ actor: 'scheduler' }).catch(() => {}); } catch (e) {}
+        try { runForumFollowupTick({ actor: 'scheduler' }).catch(() => {}); } catch (e) {}
+        setInterval(() => {
+            runForumCampaignTick({ actor: 'scheduler' }).catch(() => {});
+            runForumFollowupTick({ actor: 'scheduler' }).catch(() => {});
+        }, 24 * 60 * 60 * 1000);
+        console.log('[ForumCampaign] Daily invite + follow-up ticks active (24h)');
         try { sweepExpiredOffers(); } catch (e) {}
         setInterval(() => { try { sweepExpiredOffers(); } catch (e) {} }, 15 * 60 * 1000);
         console.log('[SeatConfirm] Auto scheduler (daily) + waitlist-offer sweep (15m) active');
