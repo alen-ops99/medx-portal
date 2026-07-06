@@ -7118,6 +7118,9 @@ async function initializeApp() {
     // ====================== SCHEMA-MIRROR:END ======================
     // pr_posts drifted between portals (admin CREATE has status, user CREATE lacked it) — heal existing DBs.
     try { db.exec("ALTER TABLE pr_posts ADD COLUMN status TEXT DEFAULT 'published'"); } catch (e) { /* column exists */ }
+    // i18n (cluster HR1): the member's preferred portal locale ('en'|'hr'). Additive,
+    // user-portal only, guarded — kept OUTSIDE the SCHEMA-MIRROR block so both portals boot clean.
+    try { db.run("ALTER TABLE users ADD COLUMN locale TEXT"); } catch (e) { /* column may already exist */ }
 
     // ====================== THE BIOMEDICAL FORUM — WING schema ======================
     // The Forum wing (/forum) is a dignified, invitation-only experience convened under Med&X.
@@ -9413,6 +9416,28 @@ async function submitReset(e){
             saveDb();
             res.json({ success: true });
         } catch (e) { res.status(500).json({ error: 'Could not save your preference.' }); }
+    });
+
+    // ===== i18n locale (cluster HR1) — additive, frozen-safe =====
+    // GET /api/me/locale — the signed-in member's saved portal language ('en'|'hr'|null).
+    // Lets a fresh device adopt the profile's locale before the first toggle.
+    app.get('/api/me/locale', auth, (req, res) => {
+        try {
+            const row = query.get('SELECT locale FROM users WHERE id = ?', [req.user.id]);
+            res.json({ locale: (row && row.locale) ? row.locale : null });
+        } catch (e) { res.json({ locale: null }); }
+    });
+
+    // PATCH /api/me — persist the member's portal language. Only the locale field is
+    // accepted here (additive, does not touch any frozen profile/registration flow).
+    app.patch('/api/me', auth, (req, res) => {
+        try {
+            const locale = (req.body && req.body.locale);
+            if (locale !== 'en' && locale !== 'hr') return res.status(400).json({ error: 'Unsupported locale' });
+            db.run('UPDATE users SET locale = ? WHERE id = ?', [locale, req.user.id]);
+            saveDb();
+            res.json({ ok: true, locale });
+        } catch (e) { res.status(500).json({ error: 'Could not save locale' }); }
     });
 
     // ========== ABSTRACT ROUTES ==========
