@@ -4105,6 +4105,162 @@ async function initializeApp() {
         }
     } catch (e) { console.error('[forum-campaign] seed', e.message); }
 
+    // ============ ACCELERATOR / ABSTRACT SUBMISSION-AND-SCORING PIPELINE (SHARED) ============
+    // Generic intake + review pipeline. The applicant surface (user portal) writes drafts and
+    // submissions here; the review surface (admin portal) reads them, assigns reviewers, and records
+    // decisions. Internals are deliberately generic — a `track` discriminator ('accelerator' now,
+    // 'abstract' later) lets the SAME pipeline serve conference-abstract review, with only the
+    // front-end copy staying accelerator-specific. These tables live OUTSIDE the SCHEMA-MIRROR block
+    // but are declared IDENTICALLY in BOTH portal server.js files (both touch the shared Turso DB in
+    // prod). Every statement is idempotent so whichever portal boots first creates them once.
+    //
+    // NOTE: the legacy `accelerator_applications` table is a DIFFERENT (research-placement) model and
+    // is left untouched — this is the clean go-forward intake and never collides with it.
+    db.run(`CREATE TABLE IF NOT EXISTS submission_pipeline (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        track TEXT NOT NULL DEFAULT 'accelerator',
+        cycle TEXT,
+        payload_json TEXT,
+        status TEXT NOT NULL DEFAULT 'draft',
+        submitted_at TEXT,
+        decision_at TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    // Admin-configurable intake window per (track, cycle). opens_at / closes_at are ISO datetimes;
+    // a NULL opens_at means "not yet scheduled" (renders the coming-soon state), and a NULL closes_at
+    // means open-ended. The user portal reads this to gate the coming-soon state vs the live form.
+    db.run(`CREATE TABLE IF NOT EXISTS intake_windows (
+        id TEXT PRIMARY KEY,
+        track TEXT NOT NULL DEFAULT 'accelerator',
+        cycle TEXT NOT NULL,
+        opens_at TEXT,
+        closes_at TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(track, cycle)
+    )`);
+    // Seed the 2026 accelerator window: opens 1 November 2026; the close date is set by the admin
+    // later. Idempotent — UNIQUE(track,cycle) makes a re-seed a no-op and never clobbers admin edits.
+    try {
+        db.run(`INSERT OR IGNORE INTO intake_windows (id, track, cycle, opens_at, closes_at, updated_at)
+                VALUES ('iw_accelerator_2026', 'accelerator', '2026', '2026-11-01T00:00:00.000Z', NULL, CURRENT_TIMESTAMP)`);
+    } catch (e) { /* seed is best-effort */ }
+
+    // ============ SUBMISSIONS REVIEW ENGINE (admin-only) ============
+    // A generic peer/committee review engine. The internals are deliberately domain-neutral so the
+    // SAME engine can score conference abstracts later — the Accelerator is only the first surface.
+    // A review "cycle" (cycle_key) carries its own admin-editable rubric AND its own blind toggle.
+    // review_assignments link a reviewer (an admin user OR an invited external reviewer) to a
+    // submission; review_scores hold one weighted scorecard per assignment. These tables are
+    // ADMIN-ONLY: they live in THIS server.js alone, OUTSIDE the SCHEMA-MIRROR block — the user
+    // portal never reads or writes them (so nothing to mirror, and check-schema-sync stays green).
+    // Every statement is idempotent. review_reviewers holds the invited EXTERNAL reviewer accounts;
+    // they are kept OUT of the members `users` table by design so they never surface in the member
+    // portal, digests or rosters (a limited, magic-link-only account — the scanner-staff spirit).
+    //
+    // review_rubrics: one row per cycle. `criteria` is a JSON array of
+    //   { key, name, name_hr, description, description_hr, weight }
+    // scored on a shared scale_min..scale_max (default 1..5). blind_review is the per-cycle toggle.
+    db.run(`CREATE TABLE IF NOT EXISTS review_rubrics (
+        id TEXT PRIMARY KEY,
+        cycle_key TEXT UNIQUE NOT NULL,
+        domain TEXT NOT NULL DEFAULT 'accelerator',
+        source TEXT NOT NULL DEFAULT 'submission_pipeline',
+        name TEXT NOT NULL,
+        criteria TEXT NOT NULL DEFAULT '[]',
+        scale_min INTEGER DEFAULT 1,
+        scale_max INTEGER DEFAULT 5,
+        reviewers_per_submission INTEGER DEFAULT 3,
+        blind_review INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'draft',
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    // review_reviewers: invited EXTERNAL reviewer accounts. One stable access_token per reviewer
+    // across all their assignments (the magic-link key). Never a member — isolated from `users`.
+    db.run(`CREATE TABLE IF NOT EXISTS review_reviewers (
+        id TEXT PRIMARY KEY,
+        cycle_key TEXT NOT NULL,
+        name TEXT,
+        email TEXT NOT NULL,
+        institution TEXT,
+        access_token TEXT UNIQUE,
+        is_active INTEGER DEFAULT 1,
+        invited_at TEXT,
+        last_seen_at TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_review_reviewers_token ON review_reviewers(access_token)`);
+    // review_assignments: reviewer_kind = 'admin' (reviewer_ref -> users.id) | 'external'
+    // (reviewer_ref -> review_reviewers.id). submission_source + submission_id point at the reviewed
+    // record (submission_pipeline now; an abstracts table later). A one-click recusal sets
+    // status='recused' with an optional reason. The UNIQUE key stops a reviewer being double-assigned.
+    db.run(`CREATE TABLE IF NOT EXISTS review_assignments (
+        id TEXT PRIMARY KEY,
+        cycle_key TEXT NOT NULL,
+        submission_source TEXT NOT NULL DEFAULT 'submission_pipeline',
+        submission_id TEXT NOT NULL,
+        reviewer_kind TEXT NOT NULL DEFAULT 'admin',
+        reviewer_ref TEXT NOT NULL,
+        reviewer_email TEXT,
+        reviewer_name TEXT,
+        status TEXT DEFAULT 'assigned',
+        recused_at TEXT,
+        recuse_reason TEXT,
+        assigned_by TEXT,
+        assigned_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(cycle_key, submission_id, reviewer_kind, reviewer_ref)
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_review_assignments_sub ON review_assignments(cycle_key, submission_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_review_assignments_reviewer ON review_assignments(reviewer_kind, reviewer_ref)`);
+    // review_scores: one scorecard per assignment. `scores` is a JSON map { criterionKey: n }. The
+    // weighted_total is recomputed on every save from the rubric weights (verifiable by hand). The
+    // feedback_to_applicant field is the ONLY reviewer text ever surfaced to a candidate later;
+    // private_comments stay committee-only.
+    db.run(`CREATE TABLE IF NOT EXISTS review_scores (
+        id TEXT PRIMARY KEY,
+        assignment_id TEXT UNIQUE NOT NULL,
+        cycle_key TEXT NOT NULL,
+        submission_id TEXT NOT NULL,
+        reviewer_kind TEXT NOT NULL,
+        reviewer_ref TEXT NOT NULL,
+        scores TEXT NOT NULL DEFAULT '{}',
+        weighted_total REAL,
+        private_comments TEXT,
+        feedback_to_applicant TEXT,
+        status TEXT DEFAULT 'draft',
+        submitted_at TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    // Seed the accelerator-2026 cycle rubric as a DRAFT the owner approves by editing. Weights sum to
+    // 100. Idempotent via UNIQUE(cycle_key) — a re-seed never clobbers the owner's edits.
+    try {
+        const _rr = query.get("SELECT id FROM review_rubrics WHERE cycle_key = 'accelerator-2026'");
+        if (!_rr) {
+            const seedCriteria = [
+                { key: 'merit', name: 'Scientific and innovation merit', name_hr: 'Znanstvena i inovacijska vrijednost', description: 'Originality, scientific rigour and innovative potential of the proposed work.', description_hr: 'Izvornost, znanstvena strogost i inovacijski potencijal predloženog rada.', weight: 25 },
+                { key: 'feasibility', name: 'Feasibility and plan', name_hr: 'Izvedivost i plan', description: 'Clarity and realism of the plan, timeline and available resources.', description_hr: 'Jasnoća i realnost plana, vremenskog okvira i dostupnih resursa.', weight: 20 },
+                { key: 'team', name: 'Team strength', name_hr: 'Snaga tima', description: 'Track record, skills and readiness of the applicant and mentors.', description_hr: 'Postignuća, vještine i spremnost pristupnika i mentora.', weight: 20 },
+                { key: 'impact', name: 'Impact for Croatian biomedicine', name_hr: 'Učinak za hrvatsku biomedicinu', description: 'Expected benefit for Croatian biomedical research and its community.', description_hr: 'Očekivana korist za hrvatsko biomedicinsko istraživanje i njegovu zajednicu.', weight: 25 },
+                { key: 'clarity', name: 'Clarity of application', name_hr: 'Jasnoća prijave', description: 'How clearly and completely the application is written and presented.', description_hr: 'Koliko je prijava jasno i potpuno napisana i predstavljena.', weight: 10 }
+            ];
+            db.run(`INSERT INTO review_rubrics (id, cycle_key, domain, source, name, criteria, scale_min, scale_max, reviewers_per_submission, blind_review, status, created_by)
+                    VALUES (?, 'accelerator-2026', 'accelerator', 'submission_pipeline', ?, ?, 1, 5, 3, 0, 'draft', 'seed')`,
+                [require('crypto').randomUUID(), 'Med&X Accelerator 2026 — review rubric', JSON.stringify(seedCriteria)]);
+            saveDb();
+            console.log('[review-engine] seeded accelerator-2026 rubric (draft)');
+        }
+        // Migration: an earlier build pointed this cycle at the legacy `accelerator_applications`
+        // research-placement table, which the applicant side does NOT write Accelerator intake to.
+        // Point it at the shared `submission_pipeline` store so the apply and review halves join.
+        // `source` is not owner-editable in the UI, so this only corrects the stale default.
+        try { db.run("UPDATE review_rubrics SET source = 'submission_pipeline' WHERE domain = 'accelerator' AND source = 'accelerator_applications'"); } catch (e) {}
+    } catch (e) { console.error('[review-engine] seed', e.message); }
+
     // ====================== THE BIOMEDICAL FORUM — WING schema ======================
     // The Forum wing (/forum) is a dignified, invitation-only experience convened under Med&X.
     // These tables live OUTSIDE the SCHEMA-MIRROR block, but are added IDENTICALLY to BOTH portal
@@ -11294,6 +11450,783 @@ By applying to this program, I provide the following consents:
             [objectiveScore, interviewScore, totalScore, applicationId]);
     }
 
+    // ===================================================================================
+    // SUBMISSIONS REVIEW ENGINE (generic internals, Accelerator surface). See the schema block
+    // near intake_windows. Everything here is domain-neutral: a review "cycle" carries its own
+    // rubric + blind toggle; assignments link a reviewer (admin user OR invited external) to a
+    // submission; scorecards hold one weighted total per assignment. The ONLY domain-specific seam
+    // is the submission resolver: it DISPATCHES on the cycle's `source` column. Each source is one
+    // small branch in reviewListFromSource + reviewResolveFromSource that normalizes that store into
+    // the shared shape { label, identity_fields, content_fields, documents }. Accelerator intake is
+    // `submission_pipeline` (the store the applicant side writes); a legacy `accelerator_applications`
+    // branch is kept for older records; a conference-abstracts table plugs in by adding one branch and
+    // pointing a cycle's source at it — no other code changes. Admin config/assignment is adminOnly;
+    // scoring is done by the assigned reviewer (an admin via JWT, or an external via the token routes).
+    // ===================================================================================
+    const REVIEW_DEFAULT_CYCLE = 'accelerator-2026';
+    const _revEsc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    // Croatian labels for the reviewer-facing submission fields (the admin modal uses the English label).
+    const _REV_LABEL_HR = {
+        'Name': 'Ime i prezime', 'Email': 'E-pošta', 'Current institution': 'Ustanova', 'Position': 'Pozicija',
+        'Country of residence': 'Država boravišta', 'Degree program': 'Studijski program', 'Year of study': 'Godina studija',
+        'Research interests': 'Istraživački interesi', 'Motivation statement': 'Motivacijsko pismo',
+        'Previous research experience': 'Prethodno istraživačko iskustvo', 'Publications': 'Publikacije',
+        'Awards and honours': 'Nagrade i priznanja', 'Languages': 'Jezici', 'Additional information': 'Dodatne informacije'
+    };
+    const _revField = (label2, v) => ({ label: label2, label_hr: _REV_LABEL_HR[label2] || label2, value: String(v) });
+
+    function reviewGetRubric(cycleKey) {
+        const key = cycleKey || REVIEW_DEFAULT_CYCLE;
+        return query.get('SELECT * FROM review_rubrics WHERE cycle_key = ?', [key])
+            || query.get('SELECT * FROM review_rubrics WHERE cycle_key = ?', [REVIEW_DEFAULT_CYCLE]);
+    }
+    function reviewCriteria(rubric) {
+        try { const a = JSON.parse((rubric && rubric.criteria) || '[]'); return Array.isArray(a) ? a : []; }
+        catch (e) { return []; }
+    }
+    function reviewWeightSum(criteria) {
+        return (criteria || []).reduce((s, c) => s + (Number(c.weight) || 0), 0);
+    }
+    // Weighted total on the rubric scale: sum(score*weight) / sum(weight of the SCORED criteria).
+    // A partial card yields a running total; null when nothing is scored yet. Rounded to 3 dp.
+    function reviewWeightedTotal(criteria, scores) {
+        let wsum = 0, acc = 0;
+        for (const c of (criteria || [])) {
+            const v = scores ? scores[c.key] : undefined;
+            if (v === undefined || v === null || v === '' || isNaN(Number(v))) continue;
+            const w = Number(c.weight) || 0;
+            wsum += w; acc += Number(v) * w;
+        }
+        if (wsum <= 0) return null;
+        return Math.round((acc / wsum) * 1000) / 1000;
+    }
+    function reviewSubmissionLabel(r) {
+        return r.application_number || r.candidate_id || ('APP-' + String(r.id || '').slice(0, 8).toUpperCase());
+    }
+    function reviewBlindFilename(label, docType, original, i) {
+        const ext = (original && original.includes('.')) ? original.slice(original.lastIndexOf('.')).toLowerCase() : '';
+        const typ = (docType || ('doc' + (i + 1))).toString().replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || ('doc' + (i + 1));
+        return 'Submission-' + label + '--' + typ + ext;
+    }
+    // Safe parse for a submission_pipeline payload_json blob.
+    function _revParsePayload(json) {
+        try { const o = json ? JSON.parse(json) : {}; return (o && typeof o === 'object') ? o : {}; }
+        catch (e) { return {}; }
+    }
+    // Blind-mode free-text scrubber. Structured identity fields are dropped elsewhere; this removes
+    // any applicant/team name, institution or email a writer may have typed INTO a free-text field
+    // (a motivation statement that reads "I, Ana Kovac from Rijeka..."). Terms are matched whole-word,
+    // case-insensitively, longest-first, and replaced with a neutral placeholder. Short/common tokens
+    // are skipped so ordinary prose is not mangled.
+    const _REV_SCRUB_STOP = new Set(['university','universities','institute','institut','hospital','clinic','faculty','fakultet','school','college','centre','center','centar','department','odjel','medical','medicine','general','national','opca','opća','klinicki','klinički','bolnica','sveuciliste','sveučilište','the','and','for','of','de','la','st','dr']);
+    function _revScrubTerms(text, terms) {
+        if (text == null) return text;
+        let out = String(text);
+        const seen = new Set();
+        const list = [];
+        for (const raw of (terms || [])) {
+            const t = String(raw == null ? '' : raw).trim();
+            if (t.length < 3) continue;
+            const low = t.toLowerCase();
+            if (seen.has(low)) continue;
+            seen.add(low);
+            list.push(t);
+        }
+        list.sort((a, b) => b.length - a.length); // longest first: "Ana Kovac" before "Ana"
+        for (const term of list) {
+            const esc = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const re = new RegExp('(^|[^\\p{L}\\p{N}])(' + esc + ')(?=[^\\p{L}\\p{N}]|$)', 'giu');
+            out = out.replace(re, (m, pre) => pre + '[redacted]');
+        }
+        return out;
+    }
+    // Build the identity terms to scrub from free text (applicant + team: full strings AND their
+    // distinctive tokens, plus the email and its local part).
+    function _revIdentityTerms(parts) {
+        const terms = [];
+        const push = (v) => { const s = String(v == null ? '' : v).trim(); if (s) terms.push(s); };
+        const pushTokens = (v) => {
+            String(v == null ? '' : v).split(/[^\p{L}\p{N}]+/u).forEach((tok) => {
+                const t = tok.trim();
+                if (t.length >= 3 && !_REV_SCRUB_STOP.has(t.toLowerCase())) terms.push(t);
+            });
+        };
+        for (const n of (parts.names || [])) { push(n); pushTokens(n); }
+        for (const inst of (parts.institutions || [])) { push(inst); pushTokens(inst); }
+        for (const em of (parts.emails || [])) { push(em); push(String(em).split('@')[0]); }
+        return terms;
+    }
+    // ---- Per-source resolvers. One small branch per store normalizes it into the shared shape.
+    //      List row:   { id, source, label, applicant_name, institution, status }
+    //      Detail:     { ..., blind, display_name, identity_fields, content_fields, documents }
+    //      A new store (e.g. conference abstracts) plugs in by adding a branch to BOTH and pointing a
+    //      cycle's `source` at it — nothing else in the engine changes.
+    function reviewListFromSource(source, opts) {
+        opts = opts || {};
+        if (source === 'submission_pipeline') {
+            const track = opts.track || 'accelerator';
+            const rows = query.all(`SELECT id, user_id, payload_json, status FROM submission_pipeline
+                WHERE track = ? AND status IS NOT NULL AND status != 'draft'
+                ORDER BY submitted_at, created_at`, [track]);
+            return rows.map((r) => {
+                const p = _revParsePayload(r.payload_json);
+                const u = r.user_id ? query.get('SELECT first_name, last_name, email, institution FROM users WHERE id = ?', [r.user_id]) : null;
+                const applicant = u ? ([u.first_name, u.last_name].filter(Boolean).join(' ') || u.email) : '';
+                const teamInst = Array.isArray(p.team) ? ((p.team.find((m) => m && m.institution) || {}).institution || '') : '';
+                return {
+                    id: r.id, source,
+                    label: reviewSubmissionLabel(r),
+                    applicant_name: applicant || (p.project_name ? ('Project: ' + p.project_name) : '(no name)'),
+                    institution: (u && u.institution) || teamInst || '',
+                    status: r.status
+                };
+            });
+        }
+        if (source === 'accelerator_applications') {
+            const rows = query.all(`SELECT a.id, a.application_number, a.candidate_id, a.first_name, a.last_name,
+                       a.current_institution, a.status
+                FROM accelerator_applications a
+                WHERE a.status IS NOT NULL AND a.status != 'draft'
+                ORDER BY a.created_at`);
+            return rows.map((r) => ({
+                id: r.id, source,
+                label: reviewSubmissionLabel(r),
+                applicant_name: [r.first_name, r.last_name].filter(Boolean).join(' ') || '(no name)',
+                institution: r.current_institution || '',
+                status: r.status
+            }));
+        }
+        return [];
+    }
+    // Reviewable submissions for a cycle (normalized), driven by the cycle's `source` column.
+    function reviewListSubmissions(rubric) {
+        const source = (rubric && rubric.source) || 'submission_pipeline';
+        return reviewListFromSource(source, { track: (rubric && rubric.domain) || 'accelerator' });
+    }
+    function reviewResolveFromSource(source, submissionId, blind) {
+        if (source === 'submission_pipeline') {
+            const row = query.get('SELECT * FROM submission_pipeline WHERE id = ?', [submissionId]);
+            if (!row) return null;
+            const p = _revParsePayload(row.payload_json);
+            const u = row.user_id ? query.get('SELECT first_name, last_name, email, institution FROM users WHERE id = ?', [row.user_id]) : null;
+            const label = reviewSubmissionLabel(row);
+            const applicant_name = u ? ([u.first_name, u.last_name].filter(Boolean).join(' ') || u.email) : '';
+            const team = Array.isArray(p.team) ? p.team.filter((m) => m && (m.name || m.role || m.institution)) : [];
+            const teamInst = (team.find((m) => m.institution) || {}).institution || '';
+            // Identity terms for the blind free-text scrub: applicant + every team member.
+            const idTerms = _revIdentityTerms({
+                names: [applicant_name].concat(team.map((m) => m.name)),
+                institutions: [(u && u.institution) || '', teamInst].concat(team.map((m) => m.institution)),
+                emails: [u && u.email].filter(Boolean)
+            });
+            const scrub = (v) => blind ? _revScrubTerms(v, idTerms) : v;
+            const teamLine = team.map((m) => [m.name, [m.role, m.institution].filter(Boolean).join(', ')].filter(Boolean).join(' — ')).filter(Boolean).join('; ');
+            const content_fields = [
+                ['Project name', scrub(p.project_name)],
+                ['One-line summary', scrub(p.summary)],
+                ['Primary field', scrub(p.primary_field)],
+                ['Stage', p.stage],
+                ['Problem', scrub(p.problem)],
+                ['Proposed solution', scrub(p.solution)],
+                ['Relevant links', scrub(p.links)],
+                ['Team size', team.length ? String(team.length) : '']
+            ].filter(([, v]) => v != null && String(v).trim() !== '').map(([label2, v]) => _revField(label2, v));
+            const identity_fields = blind ? [] : [
+                ['Name', applicant_name],
+                ['Email', u && u.email],
+                ['Team', teamLine]
+            ].filter(([, v]) => v != null && String(v).trim() !== '').map(([label2, v]) => _revField(label2, v));
+            const documents = [];
+            if (p.pdf_url) {
+                documents.push({
+                    id: 'pdf',
+                    document_type: 'application_pdf',
+                    filename: blind ? reviewBlindFilename(label, 'application', p.pdf_name || p.pdf_url, 0) : (p.pdf_name || 'Application PDF')
+                });
+            }
+            return {
+                id: row.id, source, label, blind: !!blind,
+                display_name: blind ? ('Submission ' + label) : (applicant_name || (p.project_name || ('Submission ' + label))),
+                institution: blind ? null : ((u && u.institution) || teamInst || null),
+                status: row.status,
+                identity_fields, content_fields, documents
+            };
+        }
+        if (source === 'accelerator_applications') {
+            const a = query.get('SELECT * FROM accelerator_applications WHERE id = ?', [submissionId]);
+            if (!a) return null;
+            const label = reviewSubmissionLabel(a);
+            const docsRaw = query.all('SELECT id, document_type, original_filename FROM accelerator_documents WHERE application_id = ?', [submissionId]);
+            const documents = docsRaw.map((d, i) => ({
+                id: d.id,
+                document_type: d.document_type,
+                filename: blind ? reviewBlindFilename(label, d.document_type, d.original_filename, i) : (d.original_filename || d.document_type || ('Document ' + (i + 1)))
+            }));
+            const idTerms = _revIdentityTerms({
+                names: [[a.first_name, a.last_name].filter(Boolean).join(' '), a.first_name, a.last_name],
+                institutions: [a.current_institution],
+                emails: [a.email].filter(Boolean)
+            });
+            const scrub = (v) => blind ? _revScrubTerms(v, idTerms) : v;
+            const content_fields = [
+                ['Degree program', a.degree_program],
+                ['Year of study', a.year_of_study],
+                ['Research interests', scrub(a.research_interests)],
+                ['Motivation statement', scrub(a.motivation_statement)],
+                ['Previous research experience', scrub(a.previous_research_experience || a.previous_experience)],
+                ['Publications', scrub(a.publications)],
+                ['Awards and honours', scrub(a.awards_honors)],
+                ['Languages', a.languages],
+                ['Additional information', scrub(a.additional_info)]
+            ].filter(([, v]) => v != null && String(v).trim() !== '').map(([label2, v]) => _revField(label2, v));
+            const identity_fields = blind ? [] : [
+                ['Name', [a.first_name, a.last_name].filter(Boolean).join(' ')],
+                ['Email', a.email],
+                ['Current institution', a.current_institution],
+                ['Position', a.current_position],
+                ['Country of residence', a.country_of_residence]
+            ].filter(([, v]) => v != null && String(v).trim() !== '').map(([label2, v]) => _revField(label2, v));
+            const applicant_name = [a.first_name, a.last_name].filter(Boolean).join(' ');
+            return {
+                id: a.id, source, label, blind: !!blind,
+                display_name: blind ? ('Submission ' + label) : (applicant_name || ('Submission ' + label)),
+                institution: blind ? null : (a.current_institution || null),
+                status: a.status,
+                identity_fields, content_fields, documents
+            };
+        }
+        return null;
+    }
+    // Full detail of one submission, normalized + blind-aware. In blind mode: identity fields are
+    // dropped, institution is nulled, the display uses the code, document filenames are rewritten,
+    // AND free-text content is scrubbed of any applicant/team name, institution or email. The source
+    // defaults to the cycle rubric's source; an assignment may override it (each assignment stores its
+    // own submission_source), which keeps the engine correct across mixed-source cycles.
+    function reviewResolveSubmission(rubric, submissionId, blind, sourceOverride) {
+        const source = sourceOverride || (rubric && rubric.source) || 'submission_pipeline';
+        return reviewResolveFromSource(source, submissionId, blind);
+    }
+    function reviewReviewerByToken(token) {
+        if (!token) return null;
+        return query.get('SELECT * FROM review_reviewers WHERE access_token = ? AND is_active = 1', [token]);
+    }
+    // Reviewer display for an assignment row (admin or external).
+    function reviewReviewerLabel(kind, ref) {
+        if (kind === 'admin') {
+            const u = query.get('SELECT email, first_name, last_name FROM users WHERE id = ?', [ref]);
+            if (!u) return { name: 'Unknown reviewer', email: null };
+            return { name: [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email, email: u.email };
+        }
+        const r = query.get('SELECT name, email FROM review_reviewers WHERE id = ?', [ref]);
+        if (!r) return { name: 'Unknown reviewer', email: null };
+        return { name: r.name || r.email, email: r.email };
+    }
+    // Shared scorecard upsert used by BOTH the admin and the external routes. Validates scores,
+    // recomputes the weighted total from the rubric, and advances the assignment status. On submit
+    // ALL criteria must be scored. Returns { weighted_total, status } or throws Error(message).
+    function reviewUpsertScore(assignment, rubric, body) {
+        if (assignment.status === 'recused') throw new Error('You have recused yourself from this submission.');
+        const criteria = reviewCriteria(rubric);
+        const min = Number(rubric.scale_min || 1), max = Number(rubric.scale_max || 5);
+        const incoming = (body && body.scores && typeof body.scores === 'object') ? body.scores : {};
+        const validKeys = new Set(criteria.map((c) => c.key));
+        const scores = {};
+        for (const k of Object.keys(incoming)) {
+            if (!validKeys.has(k)) continue;
+            const v = incoming[k];
+            if (v === undefined || v === null || v === '') continue;
+            const n = Number(v);
+            if (isNaN(n) || n < min || n > max || Math.floor(n) !== n) throw new Error(`Each score must be a whole number from ${min} to ${max}.`);
+            scores[k] = n;
+        }
+        const submit = !!(body && body.submit);
+        if (submit) {
+            const missing = criteria.filter((c) => scores[c.key] === undefined);
+            if (missing.length) throw new Error('Score every criterion before you submit.');
+        }
+        const weighted = reviewWeightedTotal(criteria, scores);
+        const privateComments = (body && body.private_comments != null) ? String(body.private_comments) : '';
+        const feedback = (body && body.feedback_to_applicant != null) ? String(body.feedback_to_applicant) : '';
+        const now = new Date().toISOString();
+        const scoreStatus = submit ? 'submitted' : 'draft';
+        const existing = query.get('SELECT id FROM review_scores WHERE assignment_id = ?', [assignment.id]);
+        if (existing) {
+            db.run(`UPDATE review_scores SET scores = ?, weighted_total = ?, private_comments = ?, feedback_to_applicant = ?, status = ?, submitted_at = ?, updated_at = ? WHERE id = ?`,
+                [JSON.stringify(scores), weighted, privateComments, feedback, scoreStatus, submit ? now : null, now, existing.id]);
+        } else {
+            db.run(`INSERT INTO review_scores (id, assignment_id, cycle_key, submission_id, reviewer_kind, reviewer_ref, scores, weighted_total, private_comments, feedback_to_applicant, status, submitted_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [uuidv4(), assignment.id, assignment.cycle_key, assignment.submission_id, assignment.reviewer_kind, assignment.reviewer_ref,
+                 JSON.stringify(scores), weighted, privateComments, feedback, scoreStatus, submit ? now : null]);
+        }
+        const assignStatus = submit ? 'submitted' : (Object.keys(scores).length ? 'in_progress' : 'assigned');
+        db.run('UPDATE review_assignments SET status = ? WHERE id = ?', [assignStatus, assignment.id]);
+        saveDb();
+        return { weighted_total: weighted, status: assignStatus, score_status: scoreStatus };
+    }
+
+    // ---- Rubric config (adminOnly) ----
+    app.get('/api/admin/review/config', auth, adminOnly, (req, res) => {
+        const rubric = reviewGetRubric(req.query.cycle);
+        if (!rubric) return res.status(404).json({ error: 'No review cycle configured.' });
+        const criteria = reviewCriteria(rubric);
+        const subs = reviewListSubmissions(rubric);
+        const scored = query.get(`SELECT COUNT(*) AS c FROM review_scores WHERE cycle_key = ? AND status = 'submitted'`, [rubric.cycle_key]);
+        const totalAssign = query.get(`SELECT COUNT(*) AS c FROM review_assignments WHERE cycle_key = ? AND status != 'recused'`, [rubric.cycle_key]);
+        res.json({
+            cycle: rubric.cycle_key,
+            rubric: {
+                id: rubric.id, cycle_key: rubric.cycle_key, domain: rubric.domain, source: rubric.source,
+                name: rubric.name, criteria, scale_min: rubric.scale_min, scale_max: rubric.scale_max,
+                reviewers_per_submission: rubric.reviewers_per_submission, blind_review: !!rubric.blind_review,
+                status: rubric.status, updated_at: rubric.updated_at
+            },
+            weightSum: reviewWeightSum(criteria),
+            valid: reviewWeightSum(criteria) === 100,
+            submissionsCount: subs.length,
+            scorecardsSubmitted: scored ? scored.c : 0,
+            scorecardsExpected: totalAssign ? totalAssign.c : 0
+        });
+    });
+
+    app.put('/api/admin/review/rubric', auth, adminOnly, (req, res) => {
+        try {
+            const cycle = (req.body && req.body.cycle_key) || REVIEW_DEFAULT_CYCLE;
+            const rubric = reviewGetRubric(cycle);
+            if (!rubric) return res.status(404).json({ error: 'No review cycle configured.' });
+            const b = req.body || {};
+            let criteria = Array.isArray(b.criteria) ? b.criteria : reviewCriteria(rubric);
+            // Normalize + validate each criterion.
+            const seenKeys = new Set();
+            criteria = criteria.map((c, i) => {
+                const name = String(c.name || '').trim();
+                if (!name) throw new Error('Every criterion needs a name.');
+                let key = String(c.key || name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || ('c' + (i + 1))).slice(0, 40);
+                while (seenKeys.has(key)) key = key + '_' + (i + 1);
+                seenKeys.add(key);
+                const weight = Number(c.weight);
+                if (isNaN(weight) || weight < 0) throw new Error('Each weight must be a non-negative number.');
+                return {
+                    key, name,
+                    name_hr: String(c.name_hr || '').trim(),
+                    description: String(c.description || '').trim(),
+                    description_hr: String(c.description_hr || '').trim(),
+                    weight
+                };
+            });
+            if (!criteria.length) throw new Error('Add at least one criterion.');
+            const weightSum = reviewWeightSum(criteria);
+            const scaleMin = b.scale_min != null ? Number(b.scale_min) : rubric.scale_min;
+            const scaleMax = b.scale_max != null ? Number(b.scale_max) : rubric.scale_max;
+            if (!(scaleMax > scaleMin)) throw new Error('The score scale maximum must be greater than the minimum.');
+            const perSub = b.reviewers_per_submission != null ? Math.max(1, Number(b.reviewers_per_submission)) : rubric.reviewers_per_submission;
+            const blind = b.blind_review != null ? (b.blind_review ? 1 : 0) : rubric.blind_review;
+            let status = b.status != null ? String(b.status) : rubric.status;
+            // Guard: a cycle can only go 'active' when the weights sum to exactly 100.
+            if (status === 'active' && weightSum !== 100) {
+                return res.status(400).json({ error: `Weights must sum to 100 before this cycle can be activated (currently ${weightSum}).`, weightSum });
+            }
+            const name = b.name != null ? String(b.name).trim() : rubric.name;
+            db.run(`UPDATE review_rubrics SET name = ?, criteria = ?, scale_min = ?, scale_max = ?, reviewers_per_submission = ?, blind_review = ?, status = ?, updated_at = ? WHERE id = ?`,
+                [name, JSON.stringify(criteria), scaleMin, scaleMax, perSub, blind, status, new Date().toISOString(), rubric.id]);
+            saveDb();
+            logAudit(req, 'review_rubric_update', `${rubric.cycle_key} (weights ${weightSum}, status ${status})`);
+            res.json({ success: true, weightSum, valid: weightSum === 100, criteria, blind_review: !!blind, status });
+        } catch (e) { res.status(400).json({ error: e.message }); }
+    });
+
+    app.post('/api/admin/review/blind', auth, adminOnly, (req, res) => {
+        const cycle = (req.body && req.body.cycle_key) || REVIEW_DEFAULT_CYCLE;
+        const rubric = reviewGetRubric(cycle);
+        if (!rubric) return res.status(404).json({ error: 'No review cycle configured.' });
+        const blind = (req.body && req.body.blind_review) ? 1 : 0;
+        db.run('UPDATE review_rubrics SET blind_review = ?, updated_at = ? WHERE id = ?', [blind, new Date().toISOString(), rubric.id]);
+        saveDb();
+        logAudit(req, 'review_blind_toggle', `${rubric.cycle_key} -> ${blind ? 'ON' : 'OFF'}`);
+        res.json({ success: true, blind_review: !!blind });
+    });
+
+    // ---- Reviewers (adminOnly) ----
+    app.get('/api/admin/review/reviewers', auth, adminOnly, (req, res) => {
+        const rubric = reviewGetRubric(req.query.cycle);
+        const cycle = rubric ? rubric.cycle_key : REVIEW_DEFAULT_CYCLE;
+        const admins = query.all(`SELECT id, email, first_name, last_name FROM users WHERE is_admin = 1 OR is_staff = 1 ORDER BY first_name, email`).map((u) => {
+            const cnt = query.get(`SELECT COUNT(*) AS c FROM review_assignments WHERE cycle_key = ? AND reviewer_kind = 'admin' AND reviewer_ref = ? AND status != 'recused'`, [cycle, u.id]);
+            const done = query.get(`SELECT COUNT(*) AS c FROM review_scores WHERE cycle_key = ? AND reviewer_kind = 'admin' AND reviewer_ref = ? AND status = 'submitted'`, [cycle, u.id]);
+            return { kind: 'admin', ref: u.id, name: [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email, email: u.email, assigned: cnt ? cnt.c : 0, submitted: done ? done.c : 0 };
+        });
+        const externals = query.all(`SELECT * FROM review_reviewers WHERE cycle_key = ? ORDER BY created_at DESC`, [cycle]).map((e) => {
+            const cnt = query.get(`SELECT COUNT(*) AS c FROM review_assignments WHERE cycle_key = ? AND reviewer_kind = 'external' AND reviewer_ref = ? AND status != 'recused'`, [cycle, e.id]);
+            const done = query.get(`SELECT COUNT(*) AS c FROM review_scores WHERE cycle_key = ? AND reviewer_kind = 'external' AND reviewer_ref = ? AND status = 'submitted'`, [cycle, e.id]);
+            return { kind: 'external', ref: e.id, name: e.name || e.email, email: e.email, institution: e.institution, is_active: !!e.is_active, invited_at: e.invited_at, assigned: cnt ? cnt.c : 0, submitted: done ? done.c : 0 };
+        });
+        res.json({ cycle, admins, externals });
+    });
+
+    app.post('/api/admin/review/reviewers/external', auth, adminOnly, (req, res) => {
+        const rubric = reviewGetRubric(req.body && req.body.cycle_key);
+        const cycle = rubric ? rubric.cycle_key : REVIEW_DEFAULT_CYCLE;
+        const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+        const name = String((req.body && req.body.name) || '').trim();
+        const institution = String((req.body && req.body.institution) || '').trim();
+        if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'A valid email is required.' });
+        const existing = query.get('SELECT id FROM review_reviewers WHERE cycle_key = ? AND email = ?', [cycle, email]);
+        if (existing) return res.status(409).json({ error: 'A reviewer with that email already exists for this cycle.' });
+        const id = uuidv4();
+        const token = uuidv4();
+        db.run(`INSERT INTO review_reviewers (id, cycle_key, name, email, institution, access_token, is_active, created_by) VALUES (?,?,?,?,?,?,1,?)`,
+            [id, cycle, name, email, institution, token, req.user?.email || 'admin']);
+        saveDb();
+        logAudit(req, 'review_reviewer_add', `${email} (${cycle})`);
+        const base = req.headers.origin || (`http://localhost:${PORT}`);
+        res.json({ success: true, id, access_token: token, link: `${base}/review?token=${token}` });
+    });
+
+    app.post('/api/admin/review/reviewers/external/:id/invite', auth, adminOnly, async (req, res) => {
+        try {
+            const rev = query.get('SELECT * FROM review_reviewers WHERE id = ?', [req.params.id]);
+            if (!rev) return res.status(404).json({ error: 'Reviewer not found.' });
+            if (!rev.access_token) {
+                rev.access_token = uuidv4();
+                db.run('UPDATE review_reviewers SET access_token = ? WHERE id = ?', [rev.access_token, rev.id]);
+            }
+            const base = req.headers.origin || (`http://localhost:${PORT}`);
+            const link = `${base}/review?token=${rev.access_token}`;
+            const subject = 'Med&X Accelerator — reviewer access / pristup recenzentu';
+            const html = reviewInviteHtml(rev, link);
+            // Idempotency: one invite per reviewer per day. Skip the re-queue but still return the link.
+            const marker = `invite:${rev.id}:${new Date().toISOString().slice(0, 10)}`;
+            const dup = query.get("SELECT 1 AS x FROM drip_log WHERE user_id = 'review-invite' AND kind = ?", [marker]);
+            let queued = false;
+            if (!dup) {
+                const batch = 'review-invite-' + rev.id + '-' + Date.now();
+                const payload = JSON.stringify({ to: rev.email, subject, html });
+                db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                        VALUES (?, 'pending_approval', ?, 'review-invite', 'reviewer_invite', ?, ?, ?, ?, datetime('now'))`,
+                    [uuidv4(), batch, payload, rev.email, subject, req.user?.email || 'admin']);
+                db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'review-invite', ?, ?)", [uuidv4(), rev.email, marker]);
+                db.run("UPDATE review_reviewers SET invited_at = ? WHERE id = ?", [new Date().toISOString(), rev.id]);
+                queued = true;
+                logAudit(req, 'review_reviewer_invite', `${rev.email} queued to outbox`);
+            }
+            saveDb();
+            res.json({ success: true, queued, link, message: queued ? 'Invitation queued in the outbox for approval.' : 'Already queued today. The link is ready to copy.' });
+        } catch (e) { console.error('[review-invite]', e.message); res.status(500).json({ error: 'Could not queue the invitation.' }); }
+    });
+
+    app.post('/api/admin/review/reviewers/external/:id/toggle', auth, adminOnly, (req, res) => {
+        const rev = query.get('SELECT * FROM review_reviewers WHERE id = ?', [req.params.id]);
+        if (!rev) return res.status(404).json({ error: 'Reviewer not found.' });
+        const active = rev.is_active ? 0 : 1;
+        db.run('UPDATE review_reviewers SET is_active = ? WHERE id = ?', [active, rev.id]);
+        saveDb();
+        res.json({ success: true, is_active: !!active });
+    });
+
+    app.post('/api/admin/review/reviewers/external/:id/regenerate', auth, adminOnly, (req, res) => {
+        const token = uuidv4();
+        db.run('UPDATE review_reviewers SET access_token = ? WHERE id = ?', [token, req.params.id]);
+        saveDb();
+        const base = req.headers.origin || (`http://localhost:${PORT}`);
+        res.json({ success: true, access_token: token, link: `${base}/review?token=${token}` });
+    });
+
+    function reviewInviteHtml(rev, link) {
+        const nm = _revEsc(rev.name || 'Colleague');
+        return `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:600px;margin:0 auto;color:#0f172a;">
+  <div style="background:#0f172a;color:#fff;padding:22px 24px;border-radius:12px 12px 0 0;">
+    <div style="font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#22d3ee;">Med&amp;X Accelerator</div>
+    <div style="font-size:20px;font-weight:700;margin-top:4px;">Reviewer access</div>
+  </div>
+  <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;padding:24px;">
+    <p>Dear ${nm},</p>
+    <p>You are invited to review applications for the Med&amp;X Accelerator. Your private access link opens the scoring workspace — it shows only the applications assigned to you.</p>
+    <p style="text-align:center;margin:26px 0;">
+      <a href="${_revEsc(link)}" style="display:inline-block;background:#22d3ee;color:#0f172a;font-weight:700;padding:13px 26px;border-radius:8px;text-decoration:none;">Open the review workspace</a>
+    </p>
+    <p style="color:#475569;font-size:13px;">This link is unique to you. Please do not share it.</p>
+    <hr style="border:none;border-top:1px solid #e2e8f0;margin:22px 0;">
+    <p style="color:#334155;">Poštovani/a ${nm},</p>
+    <p style="color:#334155;">Pozvani ste da recenzirate prijave za Med&amp;X Accelerator. Vaša osobna poveznica otvara radni prostor za ocjenjivanje i prikazuje samo prijave koje su Vam dodijeljene.</p>
+    <p style="color:#475569;font-size:13px;">Poveznica je jedinstvena za Vas. Molimo ne dijelite je.</p>
+    <p style="color:#94a3b8;font-size:12px;margin-top:22px;">Med&amp;X — accelerator@medx.hr</p>
+  </div>
+</div>`;
+    }
+
+    // ---- Submissions + assignments overview (adminOnly, unblinded — the owner is never blinded) ----
+    app.get('/api/admin/review/submissions', auth, adminOnly, (req, res) => {
+        const rubric = reviewGetRubric(req.query.cycle);
+        if (!rubric) return res.status(404).json({ error: 'No review cycle configured.' });
+        const cycle = rubric.cycle_key;
+        const required = rubric.reviewers_per_submission || 3;
+        const subs = reviewListSubmissions(rubric).map((s) => {
+            const assigns = query.all(`SELECT * FROM review_assignments WHERE cycle_key = ? AND submission_id = ? ORDER BY assigned_at`, [cycle, s.id]);
+            const assignments = assigns.map((a) => {
+                const sc = query.get('SELECT status, weighted_total FROM review_scores WHERE assignment_id = ?', [a.id]);
+                return {
+                    id: a.id, reviewer_kind: a.reviewer_kind, reviewer_ref: a.reviewer_ref,
+                    reviewer_name: a.reviewer_name, reviewer_email: a.reviewer_email,
+                    status: a.status, recuse_reason: a.recuse_reason,
+                    score_status: sc ? sc.status : null, weighted_total: sc ? sc.weighted_total : null
+                };
+            });
+            const active = assignments.filter((a) => a.status !== 'recused');
+            const submitted = assignments.filter((a) => a.score_status === 'submitted');
+            const avg = submitted.length ? Math.round((submitted.reduce((x, a) => x + (a.weighted_total || 0), 0) / submitted.length) * 1000) / 1000 : null;
+            return { ...s, assignments, assignedCount: active.length, requiredCount: required, submittedCount: submitted.length, avg_weighted_total: avg };
+        });
+        res.json({ cycle, reviewers_per_submission: required, blind_review: !!rubric.blind_review, submissions: subs });
+    });
+
+    app.get('/api/admin/review/submissions/:id', auth, adminOnly, (req, res) => {
+        const rubric = reviewGetRubric(req.query.cycle);
+        if (!rubric) return res.status(404).json({ error: 'No review cycle configured.' });
+        const detail = reviewResolveSubmission(rubric, req.params.id, false);
+        if (!detail) return res.status(404).json({ error: 'Submission not found.' });
+        const assigns = query.all(`SELECT * FROM review_assignments WHERE cycle_key = ? AND submission_id = ? ORDER BY assigned_at`, [rubric.cycle_key, req.params.id]);
+        const criteria = reviewCriteria(rubric);
+        const assignments = assigns.map((a) => {
+            const sc = query.get('SELECT * FROM review_scores WHERE assignment_id = ?', [a.id]);
+            let scores = {}; try { scores = sc && sc.scores ? JSON.parse(sc.scores) : {}; } catch (e) { scores = {}; }
+            return {
+                id: a.id, reviewer_kind: a.reviewer_kind, reviewer_ref: a.reviewer_ref,
+                reviewer_name: a.reviewer_name, reviewer_email: a.reviewer_email, status: a.status, recuse_reason: a.recuse_reason,
+                score: sc ? { status: sc.status, weighted_total: sc.weighted_total, scores, private_comments: sc.private_comments, feedback_to_applicant: sc.feedback_to_applicant } : null
+            };
+        });
+        res.json({ submission: detail, criteria, scale_min: rubric.scale_min, scale_max: rubric.scale_max, assignments });
+    });
+
+    app.post('/api/admin/review/assignments', auth, adminOnly, (req, res) => {
+        const rubric = reviewGetRubric(req.body && req.body.cycle_key);
+        if (!rubric) return res.status(404).json({ error: 'No review cycle configured.' });
+        const cycle = rubric.cycle_key;
+        const submissionId = String((req.body && req.body.submission_id) || '');
+        const kind = (req.body && req.body.reviewer_kind) === 'external' ? 'external' : 'admin';
+        const ref = String((req.body && req.body.reviewer_ref) || '');
+        if (!submissionId || !ref) return res.status(400).json({ error: 'submission_id and reviewer_ref are required.' });
+        const lbl = reviewReviewerLabel(kind, ref);
+        if (!lbl.email && kind === 'external') return res.status(404).json({ error: 'Reviewer not found.' });
+        const dup = query.get('SELECT id FROM review_assignments WHERE cycle_key = ? AND submission_id = ? AND reviewer_kind = ? AND reviewer_ref = ?', [cycle, submissionId, kind, ref]);
+        if (dup) return res.status(409).json({ error: 'That reviewer is already assigned to this submission.' });
+        const id = uuidv4();
+        db.run(`INSERT INTO review_assignments (id, cycle_key, submission_source, submission_id, reviewer_kind, reviewer_ref, reviewer_email, reviewer_name, status, assigned_by)
+                VALUES (?,?,?,?,?,?,?,?, 'assigned', ?)`,
+            [id, cycle, rubric.source, submissionId, kind, ref, lbl.email, lbl.name, req.user?.email || 'admin']);
+        saveDb();
+        logAudit(req, 'review_assign', `${kind}:${lbl.email || ref} -> ${submissionId}`);
+        res.json({ success: true, id });
+    });
+
+    app.delete('/api/admin/review/assignments/:id', auth, adminOnly, (req, res) => {
+        const a = query.get('SELECT * FROM review_assignments WHERE id = ?', [req.params.id]);
+        if (!a) return res.status(404).json({ error: 'Assignment not found.' });
+        db.run('DELETE FROM review_scores WHERE assignment_id = ?', [req.params.id]);
+        db.run('DELETE FROM review_assignments WHERE id = ?', [req.params.id]);
+        saveDb();
+        logAudit(req, 'review_unassign', `${a.reviewer_email || a.reviewer_ref} from ${a.submission_id}`);
+        res.json({ success: true });
+    });
+
+    // Bulk round-robin auto-assign: fill every reviewable submission up to N reviewers, balancing
+    // load across the active pool (admin users + active external reviewers). Skips existing
+    // assignments and never assigns the same reviewer to a submission twice.
+    app.post('/api/admin/review/assignments/auto', auth, adminOnly, (req, res) => {
+        const rubric = reviewGetRubric(req.body && req.body.cycle_key);
+        if (!rubric) return res.status(404).json({ error: 'No review cycle configured.' });
+        const cycle = rubric.cycle_key;
+        const N = Math.max(1, Number((req.body && req.body.reviewers_per_submission) || rubric.reviewers_per_submission || 3));
+        const includeExternals = !(req.body && req.body.admins_only);
+        const admins = query.all(`SELECT id, email, first_name, last_name FROM users WHERE is_admin = 1 OR is_staff = 1`).map((u) => ({ kind: 'admin', ref: u.id, email: u.email, name: [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email }));
+        const externals = includeExternals ? query.all(`SELECT id, email, name FROM review_reviewers WHERE cycle_key = ? AND is_active = 1`, [cycle]).map((e) => ({ kind: 'external', ref: e.id, email: e.email, name: e.name || e.email })) : [];
+        const pool = admins.concat(externals);
+        if (!pool.length) return res.status(400).json({ error: 'No reviewers available. Add reviewers first.' });
+        const perSub = Math.min(N, pool.length);
+        const subs = reviewListSubmissions(rubric);
+        // Continue the rotation from the current global assignment count so repeated runs stay balanced.
+        const startRow = query.get(`SELECT COUNT(*) AS c FROM review_assignments WHERE cycle_key = ?`, [cycle]);
+        let cursor = startRow ? startRow.c : 0;
+        let created = 0;
+        for (const s of subs) {
+            const existing = query.all('SELECT reviewer_kind, reviewer_ref FROM review_assignments WHERE cycle_key = ? AND submission_id = ? AND status != \'recused\'', [cycle, s.id]);
+            const have = new Set(existing.map((x) => x.reviewer_kind + ':' + x.reviewer_ref));
+            let need = perSub - have.size;
+            let guard = 0;
+            while (need > 0 && guard < pool.length) {
+                const r = pool[cursor % pool.length];
+                cursor++; guard++;
+                const key = r.kind + ':' + r.ref;
+                if (have.has(key)) continue;
+                have.add(key);
+                db.run(`INSERT INTO review_assignments (id, cycle_key, submission_source, submission_id, reviewer_kind, reviewer_ref, reviewer_email, reviewer_name, status, assigned_by)
+                        VALUES (?,?,?,?,?,?,?,?, 'assigned', ?)`,
+                    [uuidv4(), cycle, rubric.source, s.id, r.kind, r.ref, r.email, r.name, req.user?.email || 'admin']);
+                created++; need--;
+            }
+        }
+        saveDb();
+        logAudit(req, 'review_auto_assign', `${created} assignments across ${subs.length} submissions (${perSub}/sub)`);
+        res.json({ success: true, created, submissions: subs.length, per_submission: perSub, pool_size: pool.length });
+    });
+
+    // ---- Admin reviewer dashboard + scorecard (the logged-in admin is the reviewer) ----
+    app.get('/api/admin/review/my/assignments', auth, (req, res) => {
+        if (!req.user || !(req.user.is_admin || req.user.is_staff)) return res.status(403).json({ error: 'Reviewer access required.' });
+        const rubric = reviewGetRubric(req.query.cycle);
+        if (!rubric) return res.json({ assignments: [] });
+        const rows = query.all(`SELECT * FROM review_assignments WHERE cycle_key = ? AND reviewer_kind = 'admin' AND reviewer_ref = ? ORDER BY assigned_at`, [rubric.cycle_key, req.user.id]);
+        const blind = !!rubric.blind_review;
+        const assignments = rows.map((a) => {
+            const detail = reviewResolveSubmission(rubric, a.submission_id, blind);
+            const sc = query.get('SELECT status, weighted_total FROM review_scores WHERE assignment_id = ?', [a.id]);
+            return {
+                assignment_id: a.id, status: a.status,
+                submission: detail ? { label: detail.label, display_name: detail.display_name, institution: detail.institution } : null,
+                score_status: sc ? sc.status : null, weighted_total: sc ? sc.weighted_total : null
+            };
+        });
+        const submitted = assignments.filter((a) => a.score_status === 'submitted').length;
+        res.json({ cycle: rubric.cycle_key, blind_review: blind, total: assignments.length, submitted, assignments });
+    });
+
+    app.get('/api/admin/review/my/scorecard/:assignmentId', auth, (req, res) => {
+        if (!req.user || !(req.user.is_admin || req.user.is_staff)) return res.status(403).json({ error: 'Reviewer access required.' });
+        const a = query.get('SELECT * FROM review_assignments WHERE id = ?', [req.params.assignmentId]);
+        if (!a || a.reviewer_kind !== 'admin' || a.reviewer_ref !== req.user.id) return res.status(403).json({ error: 'This scorecard is not assigned to you.' });
+        const rubric = reviewGetRubric(a.cycle_key);
+        const detail = reviewResolveSubmission(rubric, a.submission_id, !!rubric.blind_review);
+        const sc = query.get('SELECT * FROM review_scores WHERE assignment_id = ?', [a.id]);
+        let scores = {}; try { scores = sc && sc.scores ? JSON.parse(sc.scores) : {}; } catch (e) { scores = {}; }
+        res.json({
+            assignment: { id: a.id, status: a.status },
+            submission: detail, criteria: reviewCriteria(rubric),
+            scale_min: rubric.scale_min, scale_max: rubric.scale_max, blind_review: !!rubric.blind_review,
+            score: sc ? { status: sc.status, scores, weighted_total: sc.weighted_total, private_comments: sc.private_comments, feedback_to_applicant: sc.feedback_to_applicant } : { status: 'draft', scores: {}, weighted_total: null, private_comments: '', feedback_to_applicant: '' }
+        });
+    });
+
+    app.post('/api/admin/review/my/scorecard/:assignmentId', auth, (req, res) => {
+        if (!req.user || !(req.user.is_admin || req.user.is_staff)) return res.status(403).json({ error: 'Reviewer access required.' });
+        const a = query.get('SELECT * FROM review_assignments WHERE id = ?', [req.params.assignmentId]);
+        if (!a || a.reviewer_kind !== 'admin' || a.reviewer_ref !== req.user.id) return res.status(403).json({ error: 'This scorecard is not assigned to you.' });
+        try {
+            const rubric = reviewGetRubric(a.cycle_key);
+            const out = reviewUpsertScore(a, rubric, req.body || {});
+            res.json({ success: true, ...out });
+        } catch (e) { res.status(400).json({ error: e.message }); }
+    });
+
+    app.post('/api/admin/review/my/assignments/:assignmentId/recuse', auth, (req, res) => {
+        if (!req.user || !(req.user.is_admin || req.user.is_staff)) return res.status(403).json({ error: 'Reviewer access required.' });
+        const a = query.get('SELECT * FROM review_assignments WHERE id = ?', [req.params.assignmentId]);
+        if (!a || a.reviewer_kind !== 'admin' || a.reviewer_ref !== req.user.id) return res.status(403).json({ error: 'This assignment is not yours.' });
+        const reason = String((req.body && req.body.reason) || '').slice(0, 500);
+        db.run(`UPDATE review_assignments SET status = 'recused', recused_at = ?, recuse_reason = ? WHERE id = ?`, [new Date().toISOString(), reason, a.id]);
+        db.run(`DELETE FROM review_scores WHERE assignment_id = ?`, [a.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    // ---- Progress tracking (adminOnly) ----
+    app.get('/api/admin/review/progress', auth, adminOnly, (req, res) => {
+        const rubric = reviewGetRubric(req.query.cycle);
+        if (!rubric) return res.status(404).json({ error: 'No review cycle configured.' });
+        const cycle = rubric.cycle_key;
+        const required = rubric.reviewers_per_submission || 3;
+        const subs = reviewListSubmissions(rubric);
+        let fullyScored = 0;
+        subs.forEach((s) => {
+            const sub = query.get(`SELECT COUNT(*) AS c FROM review_scores sc JOIN review_assignments ra ON sc.assignment_id = ra.id WHERE ra.cycle_key = ? AND ra.submission_id = ? AND sc.status = 'submitted'`, [cycle, s.id]);
+            const need = query.get(`SELECT COUNT(*) AS c FROM review_assignments WHERE cycle_key = ? AND submission_id = ? AND status != 'recused'`, [cycle, s.id]);
+            if (need && need.c > 0 && sub && sub.c >= need.c) fullyScored++;
+        });
+        const scExpected = query.get(`SELECT COUNT(*) AS c FROM review_assignments WHERE cycle_key = ? AND status != 'recused'`, [cycle]);
+        const scDone = query.get(`SELECT COUNT(*) AS c FROM review_scores WHERE cycle_key = ? AND status = 'submitted'`, [cycle]);
+        // Per-reviewer breakdown (admins + externals with at least one assignment).
+        const rows = query.all(`SELECT reviewer_kind, reviewer_ref, reviewer_name, reviewer_email,
+                    SUM(CASE WHEN status != 'recused' THEN 1 ELSE 0 END) AS assigned,
+                    SUM(CASE WHEN status = 'recused' THEN 1 ELSE 0 END) AS recused
+                FROM review_assignments WHERE cycle_key = ? GROUP BY reviewer_kind, reviewer_ref`, [cycle]);
+        const reviewers = rows.map((r) => {
+            const done = query.get(`SELECT COUNT(*) AS c FROM review_scores WHERE cycle_key = ? AND reviewer_kind = ? AND reviewer_ref = ? AND status = 'submitted'`, [cycle, r.reviewer_kind, r.reviewer_ref]);
+            return { kind: r.reviewer_kind, name: r.reviewer_name, email: r.reviewer_email, assigned: r.assigned || 0, recused: r.recused || 0, submitted: done ? done.c : 0 };
+        }).sort((a, b) => b.assigned - a.assigned);
+        res.json({
+            cycle, reviewers_per_submission: required,
+            submissions_total: subs.length, submissions_fully_scored: fullyScored,
+            scorecards_expected: scExpected ? scExpected.c : 0, scorecards_submitted: scDone ? scDone.c : 0,
+            reviewers
+        });
+    });
+
+    // ---- EXTERNAL reviewer magic-link surface (no JWT — the token IS the credential) ----
+    app.get('/api/review-access/:token', (req, res) => {
+        const rev = reviewReviewerByToken(req.params.token);
+        if (!rev) return res.status(403).json({ error: 'Invalid or expired access link.' });
+        db.run('UPDATE review_reviewers SET last_seen_at = ? WHERE id = ?', [new Date().toISOString(), rev.id]);
+        const rubric = reviewGetRubric(rev.cycle_key);
+        const blind = !!(rubric && rubric.blind_review);
+        const rows = query.all(`SELECT * FROM review_assignments WHERE cycle_key = ? AND reviewer_kind = 'external' AND reviewer_ref = ? ORDER BY assigned_at`, [rev.cycle_key, rev.id]);
+        const assignments = rows.map((a) => {
+            const detail = reviewResolveSubmission(rubric, a.submission_id, blind);
+            const sc = query.get('SELECT status, weighted_total FROM review_scores WHERE assignment_id = ?', [a.id]);
+            return {
+                assignment_id: a.id, status: a.status,
+                submission: detail ? { label: detail.label, display_name: detail.display_name, institution: detail.institution } : null,
+                score_status: sc ? sc.status : null, weighted_total: sc ? sc.weighted_total : null
+            };
+        });
+        res.json({
+            reviewer: { name: rev.name, email: rev.email, institution: rev.institution },
+            cycle: rev.cycle_key, blind_review: blind,
+            criteria: reviewCriteria(rubric), scale_min: rubric ? rubric.scale_min : 1, scale_max: rubric ? rubric.scale_max : 5,
+            total: assignments.length, submitted: assignments.filter((a) => a.score_status === 'submitted').length,
+            assignments
+        });
+    });
+
+    app.get('/api/review-access/:token/submission/:assignmentId', (req, res) => {
+        const rev = reviewReviewerByToken(req.params.token);
+        if (!rev) return res.status(403).json({ error: 'Invalid or expired access link.' });
+        const a = query.get('SELECT * FROM review_assignments WHERE id = ?', [req.params.assignmentId]);
+        if (!a || a.reviewer_kind !== 'external' || a.reviewer_ref !== rev.id) return res.status(403).json({ error: 'That submission is not assigned to you.' });
+        const rubric = reviewGetRubric(a.cycle_key);
+        const detail = reviewResolveSubmission(rubric, a.submission_id, !!rubric.blind_review);
+        const sc = query.get('SELECT * FROM review_scores WHERE assignment_id = ?', [a.id]);
+        let scores = {}; try { scores = sc && sc.scores ? JSON.parse(sc.scores) : {}; } catch (e) { scores = {}; }
+        res.json({
+            assignment: { id: a.id, status: a.status },
+            submission: detail, criteria: reviewCriteria(rubric),
+            scale_min: rubric.scale_min, scale_max: rubric.scale_max, blind_review: !!rubric.blind_review,
+            score: sc ? { status: sc.status, scores, weighted_total: sc.weighted_total, private_comments: sc.private_comments, feedback_to_applicant: sc.feedback_to_applicant } : { status: 'draft', scores: {}, weighted_total: null, private_comments: '', feedback_to_applicant: '' }
+        });
+    });
+
+    app.post('/api/review-access/:token/scorecard/:assignmentId', (req, res) => {
+        const rev = reviewReviewerByToken(req.params.token);
+        if (!rev) return res.status(403).json({ error: 'Invalid or expired access link.' });
+        const a = query.get('SELECT * FROM review_assignments WHERE id = ?', [req.params.assignmentId]);
+        if (!a || a.reviewer_kind !== 'external' || a.reviewer_ref !== rev.id) return res.status(403).json({ error: 'That submission is not assigned to you.' });
+        try {
+            const rubric = reviewGetRubric(a.cycle_key);
+            const out = reviewUpsertScore(a, rubric, req.body || {});
+            res.json({ success: true, ...out });
+        } catch (e) { res.status(400).json({ error: e.message }); }
+    });
+
+    app.post('/api/review-access/:token/recuse/:assignmentId', (req, res) => {
+        const rev = reviewReviewerByToken(req.params.token);
+        if (!rev) return res.status(403).json({ error: 'Invalid or expired access link.' });
+        const a = query.get('SELECT * FROM review_assignments WHERE id = ?', [req.params.assignmentId]);
+        if (!a || a.reviewer_kind !== 'external' || a.reviewer_ref !== rev.id) return res.status(403).json({ error: 'That assignment is not yours.' });
+        const reason = String((req.body && req.body.reason) || '').slice(0, 500);
+        db.run(`UPDATE review_assignments SET status = 'recused', recused_at = ?, recuse_reason = ? WHERE id = ?`, [new Date().toISOString(), reason, a.id]);
+        db.run(`DELETE FROM review_scores WHERE assignment_id = ?`, [a.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
     // ========== ACCELERATOR INTERVIEWERS ==========
 
     // Get interviewers for a year
@@ -18190,6 +19123,184 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     });
 
     // ========== PUBLIC EVALUATION PAGE (Magic Link) ==========
+    // EXTERNAL REVIEWER magic-link workspace. Self-contained, bilingual (EN/HR, formal Vi register),
+    // no admin bundle. The ?token= in the URL is the only credential; the page talks solely to the
+    // /api/review-access/:token/* routes, which scope everything to that reviewer's assignments and
+    // honour the per-cycle blind toggle.
+    app.get('/review', (req, res) => {
+        res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Med&X Accelerator — Review</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root{--bg:#0f172a;--panel:#1e293b;--panel2:#243244;--text:#f1f5f9;--muted:#94a3b8;--border:#334155;--accent:#22d3ee;--accent2:#0ea5b7;--ok:#22c55e;--warn:#f59e0b;--danger:#ef4444;}
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+    .top{background:var(--panel);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+    .top .brand{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);}
+    .top .who{font-size:13px;color:var(--muted);}
+    .lang{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+    .lang button{background:transparent;color:var(--muted);border:none;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;}
+    .lang button.active{background:var(--accent);color:#0f172a;}
+    .wrap{max-width:1080px;margin:0 auto;padding:22px 18px 60px;}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;}
+    .card .hd{padding:14px 18px;border-bottom:1px solid var(--border);font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:10px;}
+    .card .bd{padding:18px;}
+    .muted{color:var(--muted);}
+    .row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:var(--panel2);cursor:pointer;transition:border-color .15s;}
+    .row:hover{border-color:var(--accent);}
+    .row .t{font-weight:600;}
+    .row .s{font-size:12px;color:var(--muted);}
+    .badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em;}
+    .b-assigned{background:rgba(148,163,184,.18);color:#cbd5e1;}
+    .b-progress{background:rgba(245,158,11,.18);color:#fbbf24;}
+    .b-submitted{background:rgba(34,197,94,.18);color:#4ade80;}
+    .b-recused{background:rgba(239,68,68,.18);color:#f87171;}
+    .field{margin-bottom:14px;}
+    .field .lab{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:5px;}
+    .field .val{white-space:pre-wrap;line-height:1.5;}
+    .crit{border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;background:var(--panel2);}
+    .crit .cn{font-weight:600;}
+    .crit .cd{font-size:12.5px;color:var(--muted);margin:4px 0 10px;line-height:1.45;}
+    .scale{display:flex;gap:8px;flex-wrap:wrap;}
+    .scale label{cursor:pointer;}
+    .scale input{position:absolute;opacity:0;}
+    .scale .pip{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border:1px solid var(--border);border-radius:9px;font-weight:700;color:var(--text);background:var(--panel);}
+    .scale input:checked + .pip{background:var(--accent);color:#0f172a;border-color:var(--accent);}
+    textarea{width:100%;background:var(--panel2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px 12px;font-family:inherit;font-size:14px;resize:vertical;min-height:80px;}
+    .btn{border:none;border-radius:9px;padding:11px 18px;font-weight:700;cursor:pointer;font-size:14px;}
+    .btn-primary{background:var(--accent);color:#0f172a;}
+    .btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
+    .btn-danger{background:transparent;color:#f87171;border:1px solid rgba(239,68,68,.5);}
+    .btn:disabled{opacity:.5;cursor:not-allowed;}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;}
+    .total{font-size:13px;color:var(--muted);}
+    .total b{color:var(--accent);font-size:16px;}
+    .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 18px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50;}
+    .toast.show{opacity:1;}
+    .toast.ok{border-color:var(--ok);} .toast.err{border-color:var(--danger);}
+    .hide{display:none;}
+    .doc{display:inline-flex;align-items:center;gap:7px;font-size:13px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:7px 11px;margin:0 8px 8px 0;color:var(--text);}
+    .backlink{color:var(--accent);cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px;margin-bottom:14px;}
+    .empty{text-align:center;color:var(--muted);padding:36px 12px;}
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div><span class="brand">Med&amp;X Accelerator</span> &nbsp;<span id="whoBlind" class="who"></span></div>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <span class="who" id="who"></span>
+      <span class="lang"><button id="langEn" class="active" onclick="RV.setLang('en')">EN</button><button id="langHr" onclick="RV.setLang('hr')">HR</button></span>
+    </div>
+  </div>
+  <div class="wrap" id="app"><div class="empty" id="loading">Loading…</div></div>
+  <div class="toast" id="toast"></div>
+  <script>
+  const RV = {
+    token: new URLSearchParams(location.search).get('token') || '',
+    lang: (localStorage.getItem('rv_lang') === 'hr') ? 'hr' : 'en',
+    data: null, view: 'list', current: null,
+    DICT: {
+      title:{en:'Your review assignments',hr:'Vaše dodijeljene recenzije'},
+      none:{en:'You have no assignments yet. They will appear here once the committee assigns them.',hr:'Zasad nemate dodijeljenih prijava. Pojavit će se ovdje čim ih odbor dodijeli.'},
+      invalid:{en:'This access link is not valid. Please ask the Med&X team to resend your invitation.',hr:'Ova pristupna poveznica nije važeća. Molimo zatražite od tima Med&X ponovno slanje pozivnice.'},
+      progress:{en:'{d} of {t} scored',hr:'{d} od {t} ocijenjeno'},
+      blindOn:{en:'Blind review — applicant identities are hidden',hr:'Slijepa recenzija — identiteti pristupnika su skriveni'},
+      open:{en:'Open',hr:'Otvori'},
+      back:{en:'Back to my assignments',hr:'Natrag na moje prijave'},
+      details:{en:'Submission',hr:'Prijava'},
+      documents:{en:'Documents',hr:'Dokumenti'},
+      scorecard:{en:'Scorecard',hr:'Ocjenjivanje'},
+      privateC:{en:'Private notes (committee only)',hr:'Privatne bilješke (samo za odbor)'},
+      feedback:{en:'Feedback for the applicant',hr:'Povratna informacija za pristupnika'},
+      weighted:{en:'Weighted total',hr:'Ponderirani zbroj'},
+      saveDraft:{en:'Save draft',hr:'Spremi skicu'},
+      submit:{en:'Submit review',hr:'Pošalji recenziju'},
+      recuse:{en:'Recuse (conflict of interest)',hr:'Izuzmi se (sukob interesa)'},
+      recuseAsk:{en:'Recuse yourself from this submission? A short reason helps the committee.',hr:'Izuzeti se od ove prijave? Kratko obrazloženje pomaže odboru.'},
+      savedD:{en:'Draft saved',hr:'Skica spremljena'},
+      savedS:{en:'Review submitted. Thank you.',hr:'Recenzija poslana. Hvala Vam.'},
+      recused:{en:'You have recused yourself.',hr:'Izuzeli ste se.'},
+      needAll:{en:'Please score every criterion before submitting.',hr:'Molimo ocijenite svaki kriterij prije slanja.'},
+      st_assigned:{en:'Assigned',hr:'Dodijeljeno'},st_in_progress:{en:'In progress',hr:'U tijeku'},st_submitted:{en:'Submitted',hr:'Poslano'},st_recused:{en:'Recused',hr:'Izuzeto'},
+    },
+    T(k,v){ let s=(this.DICT[k]&&this.DICT[k][this.lang])||k; if(v){Object.keys(v).forEach(x=>s=s.replace('{'+x+'}',v[x]));} return s; },
+    setLang(l){ this.lang=l; localStorage.setItem('rv_lang',l); document.getElementById('langEn').classList.toggle('active',l==='en'); document.getElementById('langHr').classList.toggle('active',l==='hr'); if(this.view==='list') this.renderList(); else this.renderDetail(); },
+    esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); },
+    toast(msg,type){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show '+(type||''); setTimeout(()=>t.className='toast',2600); },
+    async api(path,method,body){ const o={method:method||'GET',headers:{}}; if(body){o.headers['Content-Type']='application/json';o.body=JSON.stringify(body);} const r=await fetch(path,o); const d=await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.error||('HTTP '+r.status)); return d; },
+    async load(){
+      try{ this.data=await this.api('/api/review-access/'+encodeURIComponent(this.token)); }
+      catch(e){ document.getElementById('app').innerHTML='<div class="empty">'+this.esc(this.T('invalid'))+'</div>'; return; }
+      document.getElementById('who').textContent=(this.data.reviewer&&this.data.reviewer.name)?this.data.reviewer.name:(this.data.reviewer&&this.data.reviewer.email)||'';
+      document.getElementById('whoBlind').textContent=this.data.blind_review?('· '+this.T('blindOn')):'';
+      this.renderList();
+    },
+    badge(st){ const map={assigned:'b-assigned',in_progress:'b-progress',submitted:'b-submitted',recused:'b-recused'}; return '<span class="badge '+(map[st]||'b-assigned')+'">'+this.esc(this.T('st_'+st))+'</span>'; },
+    rowStatus(a){ if(a.status==='recused')return 'recused'; if(a.score_status==='submitted')return 'submitted'; if(a.status==='in_progress'||a.score_status==='draft')return 'in_progress'; return 'assigned'; },
+    renderList(){
+      this.view='list';
+      const d=this.data; if(!d){return;}
+      if(document.getElementById('whoBlind')) document.getElementById('whoBlind').textContent=d.blind_review?('· '+this.T('blindOn')):'';
+      let h='<div class="card"><div class="hd"><span>'+this.esc(this.T('title'))+'</span><span class="muted" style="font-size:13px;">'+this.esc(this.T('progress',{d:d.submitted,t:d.total}))+'</span></div><div class="bd">';
+      if(!d.assignments.length){ h+='<div class="empty">'+this.esc(this.T('none'))+'</div>'; }
+      else { d.assignments.forEach(a=>{ const st=this.rowStatus(a); const nm=a.submission?a.submission.display_name:'—'; const inst=(a.submission&&a.submission.institution)?(' · '+this.esc(a.submission.institution)):''; h+='<div class="row" onclick="RV.openDetail(\\''+a.assignment_id+'\\')"><div><div class="t">'+this.esc(nm)+'</div><div class="s">'+this.esc((a.submission&&a.submission.label)||'')+inst+'</div></div><div style="display:flex;align-items:center;gap:12px;">'+this.badge(st)+'<i class="fas fa-chevron-right muted"></i></div></div>'; }); }
+      h+='</div></div>';
+      document.getElementById('app').innerHTML=h;
+    },
+    async openDetail(aid){
+      try{ this.current=await this.api('/api/review-access/'+encodeURIComponent(this.token)+'/submission/'+encodeURIComponent(aid)); this.current._aid=aid; this.renderDetail(); window.scrollTo(0,0); }
+      catch(e){ this.toast(e.message,'err'); }
+    },
+    renderDetail(){
+      this.view='detail';
+      const c=this.current; if(!c){return;}
+      const sub=c.submission; const sc=c.score||{scores:{}};
+      let h='<div class="backlink" onclick="RV.renderList()"><i class="fas fa-arrow-left"></i> '+this.esc(this.T('back'))+'</div>';
+      // Submission
+      h+='<div class="card"><div class="hd"><span>'+this.esc(this.T('details'))+' · '+this.esc(sub.display_name)+'</span>'+(c.blind_review?'<span class="badge b-assigned">'+this.esc(this.T('blindOn'))+'</span>':'')+'</div><div class="bd">';
+      (sub.identity_fields||[]).forEach(f=>{ h+='<div class="field"><div class="lab">'+this.esc(this.lang==='hr'&&f.label_hr?f.label_hr:f.label)+'</div><div class="val">'+this.esc(f.value)+'</div></div>'; });
+      (sub.content_fields||[]).forEach(f=>{ h+='<div class="field"><div class="lab">'+this.esc(this.lang==='hr'&&f.label_hr?f.label_hr:f.label)+'</div><div class="val">'+this.esc(f.value)+'</div></div>'; });
+      if(sub.documents&&sub.documents.length){ h+='<div class="field"><div class="lab">'+this.esc(this.T('documents'))+'</div><div>'+sub.documents.map(dc=>'<span class="doc"><i class="fas fa-file"></i> '+this.esc(dc.filename)+'</span>').join('')+'</div></div>'; }
+      h+='</div></div>';
+      // Scorecard
+      const recused=c.assignment&&c.assignment.status==='recused';
+      h+='<div class="card"><div class="hd"><span>'+this.esc(this.T('scorecard'))+'</span><span class="total">'+this.esc(this.T('weighted'))+': <b id="wtTotal">'+(sc.weighted_total!=null?sc.weighted_total:'—')+'</b> / '+c.scale_max+'</span></div><div class="bd">';
+      if(recused){ h+='<div class="empty">'+this.esc(this.T('st_recused'))+'</div>'; }
+      else {
+        c.criteria.forEach(cr=>{ const nm=this.lang==='hr'&&cr.name_hr?cr.name_hr:cr.name; const ds=this.lang==='hr'&&cr.description_hr?cr.description_hr:cr.description; h+='<div class="crit"><div class="cn">'+this.esc(nm)+' <span class="muted" style="font-weight:500;font-size:12px;">('+cr.weight+'%)</span></div>'+(ds?'<div class="cd">'+this.esc(ds)+'</div>':''); h+='<div class="scale">'; for(let n=c.scale_min;n<=c.scale_max;n++){ const chk=(Number(sc.scores[cr.key])===n)?'checked':''; h+='<label><input type="radio" name="cr_'+cr.key+'" value="'+n+'" '+chk+' onchange="RV.onScore()"><span class="pip">'+n+'</span></label>'; } h+='</div></div>'; });
+        h+='<div class="field"><div class="lab">'+this.esc(this.T('privateC'))+'</div><textarea id="privateC">'+this.esc(sc.private_comments||'')+'</textarea></div>';
+        h+='<div class="field"><div class="lab">'+this.esc(this.T('feedback'))+'</div><textarea id="feedbackA">'+this.esc(sc.feedback_to_applicant||'')+'</textarea></div>';
+        h+='<div class="actions"><button class="btn btn-ghost" onclick="RV.save(false)">'+this.esc(this.T('saveDraft'))+'</button><button class="btn btn-primary" onclick="RV.save(true)">'+this.esc(this.T('submit'))+'</button><button class="btn btn-danger" onclick="RV.recuse()">'+this.esc(this.T('recuse'))+'</button></div>';
+      }
+      h+='</div></div>';
+      document.getElementById('app').innerHTML=h;
+    },
+    collectScores(){ const s={}; (this.current.criteria||[]).forEach(cr=>{ const el=document.querySelector('input[name="cr_'+cr.key+'"]:checked'); if(el) s[cr.key]=Number(el.value); }); return s; },
+    onScore(){ const s=this.collectScores(); let ws=0,acc=0; (this.current.criteria||[]).forEach(cr=>{ if(s[cr.key]!=null){ws+=Number(cr.weight)||0;acc+=s[cr.key]*(Number(cr.weight)||0);} }); const el=document.getElementById('wtTotal'); if(el) el.textContent=ws>0?(Math.round((acc/ws)*1000)/1000):'—'; },
+    async save(submit){
+      const body={scores:this.collectScores(),private_comments:(document.getElementById('privateC')||{}).value||'',feedback_to_applicant:(document.getElementById('feedbackA')||{}).value||'',submit:!!submit};
+      if(submit){ const missing=(this.current.criteria||[]).some(cr=>body.scores[cr.key]==null); if(missing){ this.toast(this.T('needAll'),'err'); return; } }
+      try{ const r=await this.api('/api/review-access/'+encodeURIComponent(this.token)+'/scorecard/'+encodeURIComponent(this.current._aid),'POST',body); this.toast(submit?this.T('savedS'):this.T('savedD'),'ok'); await this.load(); if(submit){ this.renderList(); } else { await this.openDetail(this.current._aid); } }
+      catch(e){ this.toast(e.message,'err'); }
+    },
+    async recuse(){
+      const reason=prompt(this.T('recuseAsk')); if(reason===null) return;
+      try{ await this.api('/api/review-access/'+encodeURIComponent(this.token)+'/recuse/'+encodeURIComponent(this.current._aid),'POST',{reason:reason}); this.toast(this.T('recused'),'ok'); await this.load(); this.renderList(); }
+      catch(e){ this.toast(e.message,'err'); }
+    }
+  };
+  document.getElementById('langEn').classList.toggle('active',RV.lang==='en');
+  document.getElementById('langHr').classList.toggle('active',RV.lang==='hr');
+  if(!RV.token){ document.getElementById('app').innerHTML='<div class="empty">'+RV.esc(RV.T('invalid'))+'</div>'; } else { RV.load(); }
+  </script>
+</body>
+</html>`);
+    });
+
     app.get('/evaluate', (req, res) => {
         res.send(`<!DOCTYPE html>
 <html lang="hr">

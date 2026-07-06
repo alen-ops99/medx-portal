@@ -65253,7 +65253,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         <p>Launch your research career with summer internships at Harvard, Yale, Mayo Clinic, and more</p>
 
                         <!-- Deadline Countdown -->
-                        <div class="ax-deadline-text" id="axHeroDeadlineText"><i class="far fa-clock"></i> Application Deadline: March 31, 2026</div>
+                        <div class="ax-deadline-text" id="axHeroDeadlineText"><i class="far fa-clock"></i> <span data-i18n="axi.heroOpens">Applications open in November 2026</span></div>
                         <div class="ax-deadline-countdown" id="axDeadlineCountdown">
                             <div class="ax-countdown-item">
                                 <div class="ax-countdown-number" id="axCountdownDays">--</div>
@@ -65274,7 +65274,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         </div>
 
                         <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
-                            <button class="ax-hero-btn ax-hero-btn-primary" onclick="AcceleratorPortal.showTab('apply')">
+                            <button class="ax-hero-btn ax-hero-btn-primary" onclick="AcceleratorPortal.showTab('intake')">
                                 Apply Now <i class="fas fa-arrow-right"></i>
                             </button>
                             <button class="ax-hero-btn ax-hero-btn-secondary" onclick="AcceleratorPortal.showTab('institutions')">
@@ -65291,8 +65291,11 @@ button,input,select,textarea{font-family:var(--sans);}
                         <button class="ax-tab" onclick="AcceleratorPortal.showTab('institutions')" data-tab="institutions">
                             <i class="fas fa-flask"></i> Labs & Clinics
                         </button>
+                        <button class="ax-tab" onclick="AcceleratorPortal.showTab('intake')" data-tab="intake">
+                            <i class="fas fa-rocket"></i> <span data-i18n="axi.tabApply">Apply</span>
+                        </button>
                         <button class="ax-tab" onclick="AcceleratorPortal.showTab('apply')" data-tab="apply">
-                            <i class="fas fa-edit"></i> Apply
+                            <i class="fas fa-edit"></i> <span data-i18n="ax.tabPlacements">Placements</span>
                         </button>
                         <button class="ax-tab" onclick="AcceleratorPortal.showTab('myapplications')" data-tab="myapplications">
                             <i class="fas fa-folder"></i> My Applications
@@ -65381,8 +65384,8 @@ button,input,select,textarea{font-family:var(--sans);}
                         <div class="ax-dates-grid">
                             <div class="ax-date-card">
                                 <div class="ax-date-card-icon"><i class="fas fa-calendar-check"></i></div>
-                                <div class="ax-date-card-label">Application Deadline</div>
-                                <div class="ax-date-card-value" id="axOverviewDeadline">March 31, 2026</div>
+                                <div class="ax-date-card-label" data-i18n="axi.applicationsOpen">Applications Open</div>
+                                <div class="ax-date-card-value" id="axOverviewDeadline" data-i18n="axi.novMonth">November 2026</div>
                             </div>
                             <div class="ax-date-card">
                                 <div class="ax-date-card-icon"><i class="fas fa-clock"></i></div>
@@ -66049,6 +66052,9 @@ button,input,select,textarea{font-family:var(--sans);}
                     </div>
 
                     <!-- Apply Panel -->
+                    <!-- Apply Panel (NEW intake — window-gated submission pipeline, bilingual EN+HR; filled by AcceleratorIntake.render) -->
+                    <div class="ax-panel" id="ax-panel-intake"></div>
+
                     <div class="ax-panel" id="ax-panel-apply">
                         <div class="ax-wizard">
                             <!-- Progress Steps -->
@@ -88910,6 +88916,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 this.loadDocChecklist();
                 this.loadSites();
                 this.loadAppStatus();
+                if (typeof AcceleratorIntake !== 'undefined') AcceleratorIntake.registerI18n();
                 if (window.MedXSectionStatus) MedXSectionStatus.apply('accelerator');
             },
 
@@ -88971,6 +88978,9 @@ You can use variables like {first_name} that will be personalized for each recip
                     if (!res.ok) return;
                     const cfg = await res.json();
                     if (!cfg) return;
+                    // Item 4: never surface a PAST program deadline as the live intake date — the real
+                    // intake opens November 2026 (see /api/accelerator/intake). Drop any stale past date.
+                    if (cfg.applicationDeadline && new Date(cfg.applicationDeadline + 'T23:59:59') < new Date()) cfg.applicationDeadline = null;
 
                     // Update the 4 overview stat cards
                     if (cfg.applicationDeadline) {
@@ -89288,6 +89298,11 @@ You can use variables like {first_name} that will be personalized for each recip
                     this.renderMyApplications();
                 }
 
+                // Render the NEW window-gated intake journey on the Apply tab
+                if (tabId === 'intake' && typeof AcceleratorIntake !== 'undefined') {
+                    AcceleratorIntake.render();
+                }
+
                 // Show/hide checklist widget on Apply tab
                 const checklistWidget = document.getElementById('axChecklistWidget');
                 if (checklistWidget) {
@@ -89342,17 +89357,16 @@ You can use variables like {first_name} that will be personalized for each recip
                         if (secondsEl) secondsEl.textContent = '00';
                         if (container) container.style.display = 'none';
                         const heroText = document.getElementById('axHeroDeadlineText');
-                        if (heroText) heroText.innerHTML = '<i class="far fa-clock"></i> Applications for this cohort have closed. The next call opens soon.';
+                        if (heroText) heroText.innerHTML = '<i class="far fa-clock"></i> ' + ((window.t && t('axi.heroOpens')) || 'Applications open in November 2026');
                         const badge = document.querySelector('#up-section-accelerator .ax-hero-badge');
-                        if (badge) { badge.innerHTML = '<i class="fas fa-rocket"></i> <span data-mx-status="accelerator">Applications open in November 2026</span>'; if (window.MedXSectionStatus) MedXSectionStatus.apply('accelerator'); }
-                        // Overview deadline card mirrors the closed state
+                        if (badge) { badge.innerHTML = '<i class="fas fa-rocket"></i> <span data-mx-status="accelerator" data-i18n="axi.comingTitle">Applications open in November 2026</span>'; if (window.MedXI18n) MedXI18n.apply(badge); if (window.MedXSectionStatus) MedXSectionStatus.apply('accelerator'); }
+                        // Overview 'Applications Open' card mirrors the coming-soon state
                         const overviewDeadline = document.getElementById('axOverviewDeadline');
-                        if (overviewDeadline) overviewDeadline.textContent = 'Closed — next call opens soon';
-                        // Hero CTA: no live application to submit, offer the contact card instead
+                        if (overviewDeadline) overviewDeadline.textContent = (window.t && t('axi.novMonth')) || 'November 2026';
+                        // Hero CTA opens the window-gated apply journey (coming-soon + notify, or the live form)
                         const applyBtn = document.querySelector('#up-section-accelerator .ax-hero .ax-hero-btn-primary');
                         if (applyBtn) {
-                            applyBtn.innerHTML = '<i class="far fa-bell"></i> Get notified';
-                            applyBtn.onclick = function() { AcceleratorPortal.scrollToContact(); };
+                            applyBtn.onclick = function() { AcceleratorPortal.showTab('intake'); };
                         }
                         // Subtle label on the all-past Application Timeline
                         const tlTitle = document.getElementById('axTimelineTitle');
@@ -90547,6 +90561,693 @@ You can use variables like {first_name} that will be personalized for each recip
                         </button>
                     </div>
                 `;
+            }
+        };
+
+
+        // =========================================
+        // ACCELERATOR INTAKE — submission pipeline (applicant surface)
+        // Clean, window-gated apply journey backed by /api/accelerator/intake*. Kept as its own
+        // object so it never entangles with the legacy AcceleratorPortal research-placement flow.
+        // Generic internals (submission_pipeline), accelerator-specific surface. Bilingual EN + HR.
+        // =========================================
+        const AcceleratorIntake = {
+            state: 'before',
+            windowInfo: null,
+            draftId: null,
+            data: null,
+            mine: [],
+            currentStep: 1,
+            totalSteps: 3,
+            saveTimer: null,
+            saving: false,
+            notifyOn: false,
+            uploadsAvailable: true,
+            _i18nDone: false,
+            _cssDone: false,
+            _localeHooked: false,
+
+            registerI18n() {
+                if (this._i18nDone || !window.MedXI18n || !MedXI18n.extend) return;
+                MedXI18n.extend({
+                    'axi.tabApply': { en: 'Apply', hr: 'Prijava' },
+                    'ax.tabPlacements': { en: 'Placements', hr: 'Prakse' },
+                    'axi.heroOpens': { en: 'Applications open in November 2026', hr: 'Prijave se otvaraju u studenome 2026.' },
+                    'axi.novMonth': { en: 'November 2026', hr: 'Studeni 2026.' },
+                    'axi.applicationsOpen': { en: 'Applications Open', hr: 'Prijave otvorene' },
+                    'axi.loading': { en: 'Loading…', hr: 'Učitavanje…' },
+                    'axi.comingTitle': { en: 'Applications open in November 2026', hr: 'Prijave se otvaraju u studenome 2026.' },
+                    'axi.comingBody': { en: 'The next Med&X Accelerator cycle opens for applications in November 2026. Leave your name and we will let you know the moment it opens.', hr: 'Sljedeći ciklus Med&X Acceleratora otvara prijave u studenome 2026. Ostavite svoje ime i javit ćemo Vam se čim se otvori.' },
+                    'axi.closedTitle': { en: 'Applications are closed', hr: 'Prijave su zatvorene' },
+                    'axi.closedBody': { en: 'Applications for this cycle have closed. Leave your name to hear about the next call.', hr: 'Prijave za ovaj ciklus su zatvorene. Ostavite svoje ime da čujete o sljedećem pozivu.' },
+                    'axi.notifyBtn': { en: 'Notify me when it opens', hr: 'Obavijestite me kad se otvori' },
+                    'axi.notifyWorking': { en: 'Saving…', hr: 'Spremanje…' },
+                    'axi.notifyOnTitle': { en: 'You are on the list', hr: 'Na popisu ste' },
+                    'axi.notifyOnBody': { en: 'We will email you the moment applications open.', hr: 'Poslat ćemo Vam e-poštu čim se prijave otvore.' },
+                    'axi.notifyToast': { en: 'You are on the list — we will let you know.', hr: 'Na popisu ste — javit ćemo Vam se.' },
+                    'axi.prepTitle': { en: 'While you wait', hr: 'Dok čekate' },
+                    'axi.prepBody': { en: 'Ready a one-line summary of your project, the problem it solves, and who is on your team.', hr: 'Pripremite sažetak projekta u jednoj rečenici, problem koji rješava i tko je u Vašem timu.' },
+                    'axi.stepLabel': { en: 'Step {n} of {t}', hr: '{n}. korak od {t}' },
+                    'axi.step1': { en: 'Your project', hr: 'Vaš projekt' },
+                    'axi.step2': { en: 'Problem and solution', hr: 'Problem i rješenje' },
+                    'axi.step3': { en: 'Team and pitch', hr: 'Tim i prezentacija' },
+                    'axi.fProjectName': { en: 'Project name', hr: 'Naziv projekta' },
+                    'axi.fSummary': { en: 'One-line summary', hr: 'Sažetak u jednoj rečenici' },
+                    'axi.fSummaryHint': { en: 'Describe your project in a single sentence.', hr: 'Opišite svoj projekt u jednoj rečenici.' },
+                    'axi.fField': { en: 'Primary field', hr: 'Glavno područje' },
+                    'axi.fFieldHint': { en: 'For example neuroscience, oncology, or digital health.', hr: 'Na primjer neuroznanost, onkologija ili digitalno zdravlje.' },
+                    'axi.fStage': { en: 'Stage', hr: 'Faza' },
+                    'axi.stageIdea': { en: 'Idea', hr: 'Ideja' },
+                    'axi.stagePrototype': { en: 'Prototype', hr: 'Prototip' },
+                    'axi.stageValidated': { en: 'Validated', hr: 'Potvrđeno' },
+                    'axi.fProblem': { en: 'The problem', hr: 'Problem' },
+                    'axi.fProblemHint': { en: 'What problem are you solving, and for whom?', hr: 'Koji problem rješavate i za koga?' },
+                    'axi.fSolution': { en: 'Your proposed solution', hr: 'Vaše predloženo rješenje' },
+                    'axi.fSolutionHint': { en: 'How does your project address the problem?', hr: 'Kako Vaš projekt rješava taj problem?' },
+                    'axi.fLinks': { en: 'Relevant links', hr: 'Relevantne poveznice' },
+                    'axi.fLinksHint': { en: 'Website, demo, paper, or repository. One per line, optional.', hr: 'Web stranica, demo, rad ili repozitorij. Jedna po retku, nije obavezno.' },
+                    'axi.fTeam': { en: 'Team members', hr: 'Članovi tima' },
+                    'axi.fTeamHint': { en: 'Add up to five people. At least one is required.', hr: 'Dodajte najviše pet osoba. Barem jedna je obavezna.' },
+                    'axi.tName': { en: 'Name', hr: 'Ime i prezime' },
+                    'axi.tRole': { en: 'Role', hr: 'Uloga' },
+                    'axi.tInstitution': { en: 'Institution', hr: 'Ustanova' },
+                    'axi.addMember': { en: 'Add team member', hr: 'Dodaj člana tima' },
+                    'axi.fPdf': { en: 'Pitch document (PDF, optional)', hr: 'Prezentacija (PDF, nije obavezno)' },
+                    'axi.fPdfHint': { en: 'A single PDF up to 10 MB.', hr: 'Jedan PDF do 10 MB.' },
+                    'axi.pdfChoose': { en: 'Choose PDF', hr: 'Odaberite PDF' },
+                    'axi.pdfReplace': { en: 'Replace PDF', hr: 'Zamijenite PDF' },
+                    'axi.pdfRemove': { en: 'Remove', hr: 'Ukloni' },
+                    'axi.pdfTooBig': { en: 'That file is over 10 MB. Please choose a smaller PDF.', hr: 'Datoteka je veća od 10 MB. Odaberite manji PDF.' },
+                    'axi.pdfType': { en: 'Please choose a PDF file.', hr: 'Odaberite PDF datoteku.' },
+                    'axi.pdfUnavailable': { en: 'File uploads are unavailable right now. You can still submit — add a link under relevant links instead.', hr: 'Prijenos datoteka trenutačno nije dostupan. I dalje možete poslati prijavu — umjesto toga dodajte poveznicu pod relevantne poveznice.' },
+                    'axi.pdfUploading': { en: 'Uploading…', hr: 'Prijenos…' },
+                    'axi.back': { en: 'Back', hr: 'Natrag' },
+                    'axi.next': { en: 'Next', hr: 'Dalje' },
+                    'axi.submit': { en: 'Submit application', hr: 'Pošalji prijavu' },
+                    'axi.submitting': { en: 'Submitting…', hr: 'Slanje…' },
+                    'axi.saved': { en: 'Draft saved', hr: 'Skica spremljena' },
+                    'axi.saving': { en: 'Saving…', hr: 'Spremanje…' },
+                    'axi.resumeNote': { en: 'We saved your progress. You can finish any time.', hr: 'Spremili smo Vaš napredak. Možete završiti bilo kada.' },
+                    'axi.optional': { en: 'Optional', hr: 'Nije obavezno' },
+                    'axi.vProjectName': { en: 'Please add a project name.', hr: 'Unesite naziv projekta.' },
+                    'axi.vSummary': { en: 'Please add a one-line summary.', hr: 'Unesite kratki sažetak.' },
+                    'axi.vField': { en: 'Please add your primary field.', hr: 'Unesite glavno područje.' },
+                    'axi.vStage': { en: 'Please choose a stage.', hr: 'Odaberite fazu.' },
+                    'axi.vProblem': { en: 'Please describe the problem in a little more detail.', hr: 'Opišite problem s malo više detalja.' },
+                    'axi.vSolution': { en: 'Please describe your proposed solution.', hr: 'Opišite svoje predloženo rješenje.' },
+                    'axi.vTeam': { en: 'Please add at least one team member with a name.', hr: 'Dodajte barem jednog člana tima s imenom.' },
+                    'axi.yourApp': { en: 'Your application', hr: 'Vaša prijava' },
+                    'axi.statusSubmitted': { en: 'Submitted', hr: 'Poslano' },
+                    'axi.statusUnderReview': { en: 'Under review', hr: 'U postupku pregleda' },
+                    'axi.statusAccepted': { en: 'Accepted', hr: 'Prihvaćeno' },
+                    'axi.statusWaitlisted': { en: 'Waitlisted', hr: 'Na listi čekanja' },
+                    'axi.statusDeclined': { en: 'Not selected', hr: 'Nije odabrano' },
+                    'axi.statusWithdrawn': { en: 'Withdrawn', hr: 'Povučeno' },
+                    'axi.submittedBody': { en: 'Thank you. Your application has been received and a confirmation is on its way to your inbox.', hr: 'Hvala Vam. Vaša je prijava zaprimljena, a potvrda je na putu u Vašu e-poštu.' },
+                    'axi.underReviewBody': { en: 'Our team reviews every submission after the intake window closes. We will let you know as soon as there is a decision.', hr: 'Naš tim pregledava svaku prijavu nakon zatvaranja razdoblja prijava. Javit ćemo Vam se čim odluka bude poznata.' },
+                    'axi.decisionBody': { en: 'A decision has been published for your application.', hr: 'Za Vašu je prijavu objavljena odluka.' },
+                    'axi.withdrawnBody': { en: 'Your application has been withdrawn.', hr: 'Vaša je prijava povučena.' },
+                    'axi.submittedOn': { en: 'Submitted', hr: 'Poslano' },
+                    'axi.withdraw': { en: 'Withdraw application', hr: 'Povuci prijavu' },
+                    'axi.withdrawConfirm': { en: 'Withdraw your application? This cannot be undone.', hr: 'Želite li povući prijavu? Ovo se ne može poništiti.' },
+                    'axi.submitError': { en: 'Something went wrong. Please check the highlighted fields and try again.', hr: 'Nešto je pošlo po zlu. Provjerite označena polja i pokušajte ponovno.' }
+                });
+                this._i18nDone = true;
+            },
+
+            injectCss() {
+                if (this._cssDone) return;
+                const css = `
+                .axi-wrap{max-width:760px;margin:0 auto;}
+                .axi-loading{padding:60px 20px;text-align:center;color:var(--up-text-secondary,#6e6e73);}
+                .axi-card{background:var(--up-bg,#fff);border:1px solid var(--up-border,#e7e2da);border-radius:18px;padding:32px;margin-bottom:20px;}
+                .axi-coming{text-align:center;padding:44px 32px;background:linear-gradient(180deg,var(--up-bg,#fff),var(--up-bg-subtle,#faf7f2));border:1px solid var(--up-border,#e7e2da);border-radius:20px;}
+                .axi-coming-badge{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--up-gold,#b7902f);background:rgba(201,169,98,.12);border:1px solid rgba(201,169,98,.35);padding:8px 16px;border-radius:999px;margin-bottom:20px;}
+                .axi-coming h2{font-size:26px;font-weight:700;color:var(--up-text,#15110f);margin:0 0 12px;line-height:1.2;}
+                .axi-coming p{font-size:15px;color:var(--up-text-secondary,#6e6e73);line-height:1.7;max-width:520px;margin:0 auto 24px;}
+                .axi-btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;border:none;border-radius:12px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;padding:14px 28px;transition:transform .12s ease,box-shadow .12s ease,opacity .12s ease;}
+                .axi-btn:hover{transform:translateY(-1px);}
+                .axi-btn:disabled{opacity:.6;cursor:default;transform:none;}
+                .axi-btn-primary{background:var(--up-gold,#c9a962);color:#1a1206;box-shadow:0 6px 20px rgba(201,169,98,.28);}
+                .axi-btn-ghost{background:transparent;color:var(--up-text,#15110f);border:1px solid var(--up-border,#e7e2da);}
+                .axi-notify-ok{display:flex;align-items:center;gap:14px;justify-content:center;background:rgba(21,120,79,.08);border:1px solid rgba(21,120,79,.28);border-radius:14px;padding:18px 22px;max-width:460px;margin:0 auto;}
+                .axi-notify-ok i{color:#15784f;font-size:22px;}
+                .axi-notify-ok .t{text-align:left;}
+                .axi-notify-ok .t b{display:block;color:var(--up-text,#15110f);font-size:15px;}
+                .axi-notify-ok .t span{color:var(--up-text-secondary,#6e6e73);font-size:13px;}
+                .axi-prep{margin-top:26px;padding-top:22px;border-top:1px solid var(--up-border,#eee);color:var(--up-text-secondary,#6e6e73);font-size:13.5px;line-height:1.6;max-width:520px;margin-left:auto;margin-right:auto;}
+                .axi-prep b{color:var(--up-text,#15110f);display:block;margin-bottom:4px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;}
+                .axi-progress{margin-bottom:26px;}
+                .axi-progress-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+                .axi-progress-step{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--up-gold,#b7902f);}
+                .axi-progress-name{font-size:14px;font-weight:600;color:var(--up-text,#15110f);}
+                .axi-progress-save{font-size:12px;color:var(--up-text-secondary,#8a847b);display:inline-flex;align-items:center;gap:6px;min-height:16px;}
+                .axi-progress-save.ok{color:#15784f;}
+                .axi-bar{height:6px;background:var(--up-bg-subtle,#efe9df);border-radius:999px;overflow:hidden;}
+                .axi-bar-fill{height:100%;background:linear-gradient(90deg,#c9a962,#dfc070);border-radius:999px;transition:width .3s ease;}
+                .axi-field{margin-bottom:20px;}
+                .axi-field > label{display:block;font-size:14px;font-weight:600;color:var(--up-text,#15110f);margin-bottom:6px;}
+                .axi-field .axi-hint{font-size:12.5px;color:var(--up-text-secondary,#8a847b);margin:-2px 0 8px;line-height:1.5;}
+                .axi-req{color:var(--crimson,#9b1b22);margin-left:3px;}
+                .axi-opt{font-weight:500;color:var(--up-text-secondary,#a49c8f);font-size:12px;margin-left:6px;}
+                .axi-input,.axi-textarea{width:100%;box-sizing:border-box;background:var(--up-bg,#fff);border:1px solid var(--up-border,#dcd6cc);border-radius:11px;padding:12px 14px;font-family:inherit;font-size:14.5px;color:var(--up-text,#15110f);transition:border-color .12s ease,box-shadow .12s ease;}
+                .axi-input:focus,.axi-textarea:focus{outline:none;border-color:var(--up-gold,#c9a962);box-shadow:0 0 0 3px rgba(201,169,98,.16);}
+                .axi-textarea{resize:vertical;min-height:96px;line-height:1.6;}
+                .axi-input.axi-err,.axi-textarea.axi-err{border-color:var(--crimson,#9b1b22);box-shadow:0 0 0 3px rgba(155,27,34,.12);}
+                .axi-errmsg{color:var(--crimson,#9b1b22);font-size:12.5px;margin-top:6px;display:none;}
+                .axi-errmsg.show{display:block;}
+                .axi-stages{display:flex;gap:10px;flex-wrap:wrap;}
+                .axi-stage{flex:1;min-width:120px;border:1px solid var(--up-border,#dcd6cc);border-radius:12px;padding:14px;cursor:pointer;text-align:center;font-size:14px;font-weight:600;color:var(--up-text,#15110f);background:var(--up-bg,#fff);transition:all .12s ease;}
+                .axi-stage:hover{border-color:var(--up-gold,#c9a962);}
+                .axi-stage.sel{border-color:var(--up-gold,#c9a962);background:rgba(201,169,98,.1);box-shadow:0 0 0 2px rgba(201,169,98,.2) inset;}
+                .axi-stage small{display:block;font-weight:500;color:var(--up-text-secondary,#8a847b);font-size:11.5px;margin-top:3px;}
+                .axi-team-row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-bottom:10px;align-items:start;}
+                .axi-team-row .axi-input{margin:0;}
+                .axi-team-del{background:transparent;border:1px solid var(--up-border,#e7e2da);border-radius:10px;color:var(--crimson,#9b1b22);cursor:pointer;padding:0 12px;height:42px;font-size:14px;}
+                .axi-add{background:transparent;border:1px dashed var(--up-border,#cfc7ba);border-radius:11px;color:var(--up-gold,#b7902f);font-weight:600;font-size:13.5px;cursor:pointer;padding:11px 16px;display:inline-flex;align-items:center;gap:8px;font-family:inherit;}
+                .axi-add:disabled{opacity:.5;cursor:default;}
+                .axi-pdf{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+                .axi-pdf-name{font-size:13.5px;color:var(--up-text,#15110f);display:inline-flex;align-items:center;gap:8px;background:var(--up-bg-subtle,#f5f1ea);border:1px solid var(--up-border,#e7e2da);border-radius:10px;padding:8px 12px;}
+                .axi-pdf-warn{font-size:12.5px;color:var(--crimson,#9b1b22);margin-top:8px;}
+                .axi-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;}
+                .axi-status{display:flex;gap:18px;align-items:flex-start;background:var(--up-bg,#fff);border:1px solid var(--up-border,#e7e2da);border-radius:18px;padding:28px;}
+                .axi-status-ico{width:52px;height:52px;border-radius:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;background:rgba(201,169,98,.12);color:var(--up-gold,#b7902f);}
+                .axi-status-body{flex:1;min-width:0;}
+                .axi-status-eyebrow{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--up-text-muted,#8a847b);margin-bottom:6px;}
+                .axi-status-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px;}
+                .axi-status-name{font-size:18px;font-weight:700;color:var(--up-text,#15110f);}
+                .axi-status-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:5px 12px;border-radius:999px;}
+                .axi-status-sub{font-size:14px;color:var(--up-text-secondary,#6e6e73);line-height:1.6;}
+                .axi-status-meta{font-size:12.5px;color:var(--up-text-muted,#9a9488);margin-top:10px;}
+                .axi-status-actions{margin-top:16px;}
+                .axi-link{background:none;border:none;color:var(--crimson,#9b1b22);font-weight:600;font-size:13.5px;cursor:pointer;font-family:inherit;padding:0;}
+                @media(max-width:560px){
+                    .axi-card{padding:22px;}
+                    .axi-team-row{grid-template-columns:1fr;}
+                    .axi-team-del{width:100%;height:38px;}
+                    .axi-actions{flex-direction:column-reverse;align-items:stretch;}
+                    .axi-actions .axi-btn{width:100%;}
+                }`;
+                const el = document.createElement('style');
+                el.id = 'axi-styles';
+                el.textContent = css;
+                document.head.appendChild(el);
+                this._cssDone = true;
+            },
+
+            hookLocale() {
+                if (this._localeHooked) return;
+                document.addEventListener('medx:localechange', () => {
+                    const panel = document.getElementById('ax-panel-intake');
+                    if (panel && panel.classList.contains('active')) this.render();
+                });
+                this._localeHooked = true;
+            },
+
+            blankData() {
+                return { project_name: '', summary: '', primary_field: '', stage: '', links: '', problem: '', solution: '', team: [{ name: '', role: '', institution: '' }], pdf_url: '', pdf_name: '' };
+            },
+
+            esc(v) { try { return escapeHtml(String(v == null ? '' : v)); } catch (e) { return ''; } },
+
+            async render() {
+                this.registerI18n();
+                this.injectCss();
+                this.hookLocale();
+                const host = document.getElementById('ax-panel-intake');
+                if (!host) return;
+                host.innerHTML = '<div class="axi-loading"><i class="fas fa-spinner fa-spin"></i> ' + this.esc(t('axi.loading')) + '</div>';
+
+                let win = null;
+                try { win = await fetch('/api/accelerator/intake').then(r => r.ok ? r.json() : null); } catch (e) {}
+                this.windowInfo = win;
+                this.state = win && win.state ? win.state : 'before';
+
+                let mine = [];
+                try { const res = await UserPortal.api('/api/accelerator/intake/mine'); mine = (res && res.submissions) || []; } catch (e) { mine = []; }
+                this.mine = mine;
+
+                const active = mine.find(s => s.status && s.status !== 'draft');
+                if (active) { host.innerHTML = '<div class="axi-wrap">' + this.statusCardHtml(active) + '</div>'; MedXI18n.apply(host); return; }
+
+                if (this.state !== 'open') { host.innerHTML = '<div class="axi-wrap">' + this.comingSoonHtml() + '</div>'; this.afterComingSoon(); MedXI18n.apply(host); return; }
+
+                const draft = mine.find(s => s.status === 'draft');
+                this.draftId = draft ? draft.id : null;
+                this.data = draft ? Object.assign(this.blankData(), draft.payload || {}) : this.blankData();
+                if (!Array.isArray(this.data.team) || !this.data.team.length) this.data.team = [{ name: '', role: '', institution: '' }];
+                this.currentStep = 1;
+                host.innerHTML = '<div class="axi-wrap">' + this.formShellHtml(!!draft) + '</div>';
+                this.renderStep();
+                MedXI18n.apply(host);
+            },
+
+            // ---------- coming-soon / notify ----------
+            comingSoonHtml() {
+                const closed = this.state === 'closed';
+                const title = closed ? 'axi.closedTitle' : 'axi.comingTitle';
+                const body = closed ? 'axi.closedBody' : 'axi.comingBody';
+                return `
+                <div class="axi-coming">
+                    <div class="axi-coming-badge"><i class="fas fa-rocket"></i> Med&amp;X Accelerator 2026</div>
+                    <h2 data-i18n="${title}"></h2>
+                    <p data-i18n="${body}"></p>
+                    <div id="axiNotifyZone"></div>
+                    <div class="axi-prep">
+                        <b data-i18n="axi.prepTitle"></b>
+                        <span data-i18n="axi.prepBody"></span>
+                    </div>
+                </div>`;
+            },
+
+            async afterComingSoon() {
+                const zone = document.getElementById('axiNotifyZone');
+                if (!zone) return;
+                let on = false;
+                try {
+                    const r = await UserPortal.api('/api/notify-topics');
+                    on = !!(r && Array.isArray(r.projects) && r.projects.indexOf('accelerator') > -1);
+                } catch (e) {}
+                this.notifyOn = on;
+                this.renderNotifyZone();
+            },
+
+            renderNotifyZone() {
+                const zone = document.getElementById('axiNotifyZone');
+                if (!zone) return;
+                if (this.notifyOn) {
+                    zone.innerHTML = `<div class="axi-notify-ok"><i class="fas fa-check-circle"></i><div class="t"><b data-i18n="axi.notifyOnTitle"></b><span data-i18n="axi.notifyOnBody"></span></div></div>`;
+                } else {
+                    zone.innerHTML = `<button class="axi-btn axi-btn-primary" id="axiNotifyBtn" onclick="AcceleratorIntake.toggleNotify()"><i class="far fa-bell"></i> <span data-i18n="axi.notifyBtn"></span></button>`;
+                }
+                MedXI18n.apply(zone);
+            },
+
+            async toggleNotify() {
+                const btn = document.getElementById('axiNotifyBtn');
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + this.esc(t('axi.notifyWorking')); }
+                try {
+                    await UserPortal.api('/api/notify-topics', { method: 'POST', body: JSON.stringify({ project: 'accelerator', on: true }) });
+                    this.notifyOn = true;
+                    this.renderNotifyZone();
+                    if (typeof Toast !== 'undefined') Toast.success(t('axi.notifyToast'));
+                } catch (e) {
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="far fa-bell"></i> ' + this.esc(t('axi.notifyBtn')); }
+                    if (typeof Toast !== 'undefined') Toast.error(t('axi.submitError'));
+                }
+            },
+
+            // ---------- form shell + steps ----------
+            formShellHtml(resumed) {
+                const stepName = ['axi.step1', 'axi.step2', 'axi.step3'][this.currentStep - 1];
+                return `
+                ${resumed ? '<div class="axi-hint" style="margin-bottom:16px;color:var(--up-text-secondary,#6e6e73);"><i class="fas fa-clock-rotate-left"></i> <span data-i18n="axi.resumeNote"></span></div>' : ''}
+                <div class="axi-card">
+                    <div class="axi-progress">
+                        <div class="axi-progress-top">
+                            <div>
+                                <div class="axi-progress-step" id="axiStepNum">${this.esc(t('axi.stepLabel', { n: this.currentStep, t: this.totalSteps }))}</div>
+                                <div class="axi-progress-name" id="axiStepName" data-i18n="${stepName}"></div>
+                            </div>
+                            <div class="axi-progress-save" id="axiSaveInd" aria-live="polite"></div>
+                        </div>
+                        <div class="axi-bar"><div class="axi-bar-fill" id="axiBar" style="width:${Math.round(this.currentStep / this.totalSteps * 100)}%;"></div></div>
+                    </div>
+                    <div id="axiStepBody"></div>
+                    <div class="axi-actions">
+                        <button class="axi-btn axi-btn-ghost" id="axiBack" onclick="AcceleratorIntake.goBack()" style="${this.currentStep === 1 ? 'visibility:hidden;' : ''}"><i class="fas fa-arrow-left"></i> <span data-i18n="axi.back"></span></button>
+                        <button class="axi-btn axi-btn-primary" id="axiNext" onclick="AcceleratorIntake.goNext()"></button>
+                    </div>
+                </div>`;
+            },
+
+            renderStep() {
+                const body = document.getElementById('axiStepBody');
+                if (!body) return;
+                body.innerHTML = this.stepFieldsHtml(this.currentStep);
+                // header + progress
+                const num = document.getElementById('axiStepNum');
+                if (num) num.textContent = t('axi.stepLabel', { n: this.currentStep, t: this.totalSteps });
+                const nm = document.getElementById('axiStepName');
+                if (nm) { nm.setAttribute('data-i18n', ['axi.step1', 'axi.step2', 'axi.step3'][this.currentStep - 1]); }
+                const bar = document.getElementById('axiBar');
+                if (bar) bar.style.width = Math.round(this.currentStep / this.totalSteps * 100) + '%';
+                const back = document.getElementById('axiBack');
+                if (back) back.style.visibility = this.currentStep === 1 ? 'hidden' : 'visible';
+                const next = document.getElementById('axiNext');
+                if (next) {
+                    if (this.currentStep === this.totalSteps) next.innerHTML = '<i class="fas fa-paper-plane"></i> <span data-i18n="axi.submit"></span>';
+                    else next.innerHTML = '<span data-i18n="axi.next"></span> <i class="fas fa-arrow-right"></i>';
+                }
+                this.bindInputs();
+                MedXI18n.apply(document.getElementById('ax-panel-intake'));
+            },
+
+            fieldErr(key) { return `<div class="axi-errmsg" data-err="${key}"></div>`; },
+
+            stepFieldsHtml(step) {
+                const d = this.data;
+                if (step === 1) {
+                    return `
+                    <div class="axi-field">
+                        <label><span data-i18n="axi.fProjectName"></span><span class="axi-req">*</span></label>
+                        <input class="axi-input" id="f_project_name" maxlength="140" value="${this.esc(d.project_name)}">
+                        ${this.fieldErr('project_name')}
+                    </div>
+                    <div class="axi-field">
+                        <label><span data-i18n="axi.fSummary"></span><span class="axi-req">*</span></label>
+                        <div class="axi-hint" data-i18n="axi.fSummaryHint"></div>
+                        <input class="axi-input" id="f_summary" maxlength="160" value="${this.esc(d.summary)}">
+                        ${this.fieldErr('summary')}
+                    </div>
+                    <div class="axi-field">
+                        <label><span data-i18n="axi.fField"></span><span class="axi-req">*</span></label>
+                        <div class="axi-hint" data-i18n="axi.fFieldHint"></div>
+                        <input class="axi-input" id="f_primary_field" maxlength="120" value="${this.esc(d.primary_field)}">
+                        ${this.fieldErr('primary_field')}
+                    </div>
+                    <div class="axi-field">
+                        <label><span data-i18n="axi.fStage"></span><span class="axi-req">*</span></label>
+                        <div class="axi-stages">
+                            ${this.stageBtn('idea', 'axi.stageIdea')}
+                            ${this.stageBtn('prototype', 'axi.stagePrototype')}
+                            ${this.stageBtn('validated', 'axi.stageValidated')}
+                        </div>
+                        ${this.fieldErr('stage')}
+                    </div>`;
+                }
+                if (step === 2) {
+                    return `
+                    <div class="axi-field">
+                        <label><span data-i18n="axi.fProblem"></span><span class="axi-req">*</span></label>
+                        <div class="axi-hint" data-i18n="axi.fProblemHint"></div>
+                        <textarea class="axi-textarea" id="f_problem" maxlength="2000">${this.esc(d.problem)}</textarea>
+                        ${this.fieldErr('problem')}
+                    </div>
+                    <div class="axi-field">
+                        <label><span data-i18n="axi.fSolution"></span><span class="axi-req">*</span></label>
+                        <div class="axi-hint" data-i18n="axi.fSolutionHint"></div>
+                        <textarea class="axi-textarea" id="f_solution" maxlength="2000">${this.esc(d.solution)}</textarea>
+                        ${this.fieldErr('solution')}
+                    </div>
+                    <div class="axi-field">
+                        <label><span data-i18n="axi.fLinks"></span><span class="axi-opt" data-i18n="axi.optional"></span></label>
+                        <div class="axi-hint" data-i18n="axi.fLinksHint"></div>
+                        <textarea class="axi-textarea" id="f_links" maxlength="1500" style="min-height:76px;">${this.esc(d.links)}</textarea>
+                    </div>`;
+                }
+                // step 3 — team + pdf
+                return `
+                <div class="axi-field">
+                    <label><span data-i18n="axi.fTeam"></span><span class="axi-req">*</span></label>
+                    <div class="axi-hint" data-i18n="axi.fTeamHint"></div>
+                    <div id="axiTeam">${(d.team || []).map((m, i) => this.teamRowHtml(m, i)).join('')}</div>
+                    <button class="axi-add" id="axiAddMember" onclick="AcceleratorIntake.addMember()"><i class="fas fa-plus"></i> <span data-i18n="axi.addMember"></span></button>
+                    ${this.fieldErr('team')}
+                </div>
+                <div class="axi-field">
+                    <label><span data-i18n="axi.fPdf"></span></label>
+                    <div class="axi-hint" data-i18n="axi.fPdfHint"></div>
+                    <input type="file" id="axiPdfInput" accept="application/pdf" style="display:none;" onchange="AcceleratorIntake.onPdfPicked(event)">
+                    <div class="axi-pdf" id="axiPdfZone">${this.pdfZoneHtml()}</div>
+                </div>`;
+            },
+
+            stageBtn(val, key) {
+                const sel = this.data.stage === val ? ' sel' : '';
+                return `<div class="axi-stage${sel}" data-stage="${val}" onclick="AcceleratorIntake.pickStage('${val}')"><span data-i18n="${key}"></span></div>`;
+            },
+
+            teamRowHtml(m, i) {
+                m = m || {};
+                const del = (this.data.team && this.data.team.length > 1) ? `<button class="axi-team-del" onclick="AcceleratorIntake.removeMember(${i})" title="${this.esc(t('axi.pdfRemove'))}"><i class="fas fa-times"></i></button>` : `<span></span>`;
+                return `<div class="axi-team-row" data-idx="${i}">
+                    <input class="axi-input axi-team-name" data-idx="${i}" placeholder="${this.esc(t('axi.tName'))}" maxlength="160" value="${this.esc(m.name)}">
+                    <input class="axi-input axi-team-role" data-idx="${i}" placeholder="${this.esc(t('axi.tRole'))}" maxlength="160" value="${this.esc(m.role)}">
+                    <input class="axi-input axi-team-inst" data-idx="${i}" placeholder="${this.esc(t('axi.tInstitution'))}" maxlength="200" value="${this.esc(m.institution)}">
+                    ${del}
+                </div>`;
+            },
+
+            pdfZoneHtml() {
+                const d = this.data;
+                if (d.pdf_url) {
+                    return `<span class="axi-pdf-name"><i class="fas fa-file-pdf" style="color:#b0402f;"></i> ${this.esc(d.pdf_name || 'application.pdf')}</span>
+                        <button class="axi-btn axi-btn-ghost" style="padding:10px 16px;font-size:13px;" onclick="AcceleratorIntake.pickPdf()"><span data-i18n="axi.pdfReplace"></span></button>
+                        <button class="axi-link" onclick="AcceleratorIntake.removePdf()" data-i18n="axi.pdfRemove"></button>`;
+                }
+                return `<button class="axi-btn axi-btn-ghost" style="padding:11px 18px;font-size:13.5px;" onclick="AcceleratorIntake.pickPdf()"><i class="fas fa-upload"></i> <span data-i18n="axi.pdfChoose"></span></button>
+                    <span class="axi-pdf-warn" id="axiPdfWarn" style="display:none;"></span>`;
+            },
+
+            // ---------- input binding + autosave ----------
+            bindInputs() {
+                const panel = document.getElementById('ax-panel-intake');
+                if (!panel) return;
+                const simple = { f_project_name: 'project_name', f_summary: 'summary', f_primary_field: 'primary_field', f_problem: 'problem', f_solution: 'solution', f_links: 'links' };
+                Object.keys(simple).forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.addEventListener('input', () => { this.data[simple[id]] = el.value; el.classList.remove('axi-err'); this.hideErr(simple[id]); this.scheduleSave(); });
+                });
+                panel.querySelectorAll('.axi-team-name,.axi-team-role,.axi-team-inst').forEach(el => {
+                    el.addEventListener('input', () => { this.collectTeam(); this.hideErr('team'); this.scheduleSave(); });
+                });
+            },
+
+            collectTeam() {
+                const rows = document.querySelectorAll('#axiTeam .axi-team-row');
+                const team = [];
+                rows.forEach(r => {
+                    team.push({
+                        name: (r.querySelector('.axi-team-name') || {}).value || '',
+                        role: (r.querySelector('.axi-team-role') || {}).value || '',
+                        institution: (r.querySelector('.axi-team-inst') || {}).value || ''
+                    });
+                });
+                if (team.length) this.data.team = team;
+            },
+
+            pickStage(v) {
+                this.data.stage = v;
+                document.querySelectorAll('#ax-panel-intake .axi-stage').forEach(s => s.classList.toggle('sel', s.getAttribute('data-stage') === v));
+                this.hideErr('stage');
+                this.scheduleSave();
+            },
+
+            addMember() {
+                this.collectTeam();
+                if (!Array.isArray(this.data.team)) this.data.team = [];
+                if (this.data.team.length >= 5) return;
+                this.data.team.push({ name: '', role: '', institution: '' });
+                const wrap = document.getElementById('axiTeam');
+                if (wrap) { wrap.innerHTML = this.data.team.map((m, i) => this.teamRowHtml(m, i)).join(''); MedXI18n.apply(wrap); this.bindInputs(); }
+                const add = document.getElementById('axiAddMember');
+                if (add) add.disabled = this.data.team.length >= 5;
+                this.scheduleSave();
+            },
+
+            removeMember(i) {
+                this.collectTeam();
+                this.data.team.splice(i, 1);
+                if (!this.data.team.length) this.data.team = [{ name: '', role: '', institution: '' }];
+                const wrap = document.getElementById('axiTeam');
+                if (wrap) { wrap.innerHTML = this.data.team.map((m, idx) => this.teamRowHtml(m, idx)).join(''); MedXI18n.apply(wrap); this.bindInputs(); }
+                const add = document.getElementById('axiAddMember');
+                if (add) add.disabled = this.data.team.length >= 5;
+                this.scheduleSave();
+            },
+
+            scheduleSave() {
+                this.setSaveInd('saving');
+                if (this.saveTimer) clearTimeout(this.saveTimer);
+                this.saveTimer = setTimeout(() => this.saveDraft(), 800);
+            },
+
+            setSaveInd(kind) {
+                const el = document.getElementById('axiSaveInd');
+                if (!el) return;
+                if (kind === 'saving') { el.classList.remove('ok'); el.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + this.esc(t('axi.saving')); }
+                else if (kind === 'saved') { el.classList.add('ok'); el.innerHTML = '<i class="fas fa-check"></i> ' + this.esc(t('axi.saved')); }
+                else { el.classList.remove('ok'); el.innerHTML = ''; }
+            },
+
+            async saveDraft() {
+                if (this.saving) { this.scheduleSave(); return; }
+                this.saving = true;
+                try {
+                    const res = await UserPortal.api('/api/accelerator/intake/draft', { method: 'POST', body: JSON.stringify({ id: this.draftId, payload: this.data }) });
+                    if (res && res.id) this.draftId = res.id;
+                    this.setSaveInd('saved');
+                } catch (e) {
+                    this.setSaveInd('');
+                } finally { this.saving = false; }
+            },
+
+            // ---------- validation + navigation ----------
+            hideErr(field) {
+                const m = document.querySelector('#ax-panel-intake .axi-errmsg[data-err="' + field + '"]');
+                if (m) m.classList.remove('show');
+            },
+            showErr(field, msgKey) {
+                const m = document.querySelector('#ax-panel-intake .axi-errmsg[data-err="' + field + '"]');
+                if (m) { m.textContent = t(msgKey); m.classList.add('show'); }
+                const input = document.getElementById('f_' + field);
+                if (input) input.classList.add('axi-err');
+            },
+
+            validateStep(step) {
+                let ok = true;
+                const bad = (field, key) => { this.showErr(field, key); ok = false; };
+                if (step === 1) {
+                    if (!String(this.data.project_name || '').trim()) bad('project_name', 'axi.vProjectName');
+                    if (String(this.data.summary || '').trim().length < 4) bad('summary', 'axi.vSummary');
+                    if (!String(this.data.primary_field || '').trim()) bad('primary_field', 'axi.vField');
+                    if (!['idea', 'prototype', 'validated'].includes(this.data.stage)) bad('stage', 'axi.vStage');
+                } else if (step === 2) {
+                    if (String(this.data.problem || '').trim().length < 10) bad('problem', 'axi.vProblem');
+                    if (String(this.data.solution || '').trim().length < 10) bad('solution', 'axi.vSolution');
+                } else if (step === 3) {
+                    this.collectTeam();
+                    const named = (this.data.team || []).filter(m => String(m.name || '').trim());
+                    if (!named.length) bad('team', 'axi.vTeam');
+                }
+                return ok;
+            },
+
+            goBack() {
+                if (this.currentStep <= 1) return;
+                this.collectTeam();
+                this.currentStep--;
+                this.renderStep();
+                const host = document.querySelector('#ax-panel-intake .axi-card');
+                if (host) host.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            },
+
+            goNext() {
+                if (!this.validateStep(this.currentStep)) return;
+                if (this.currentStep < this.totalSteps) {
+                    this.currentStep++;
+                    this.saveDraft();
+                    this.renderStep();
+                    const host = document.querySelector('#ax-panel-intake .axi-card');
+                    if (host) host.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                    this.submit();
+                }
+            },
+
+            // ---------- PDF upload (reuses shared /api/upload/accelerator boundary) ----------
+            pickPdf() { const i = document.getElementById('axiPdfInput'); if (i) i.click(); },
+
+            async onPdfPicked(ev) {
+                const file = ev.target && ev.target.files && ev.target.files[0];
+                if (!file) return;
+                const warn = document.getElementById('axiPdfWarn');
+                const showWarn = (msg) => { if (warn) { warn.textContent = msg; warn.style.display = 'inline'; } else if (typeof Toast !== 'undefined') Toast.error(msg); };
+                if (file.type !== 'application/pdf') { showWarn(t('axi.pdfType')); return; }
+                if (file.size > 10 * 1024 * 1024) { showWarn(t('axi.pdfTooBig')); return; }
+                const zone = document.getElementById('axiPdfZone');
+                if (zone) zone.innerHTML = '<span class="axi-pdf-name"><i class="fas fa-spinner fa-spin"></i> ' + this.esc(t('axi.pdfUploading')) + '</span>';
+                try {
+                    const fd = new FormData();
+                    fd.append('file', file);
+                    const res = await fetch('/api/upload/accelerator', { method: 'POST', headers: { 'Authorization': 'Bearer ' + UserPortal.token }, body: fd });
+                    if (res.status === 503) { this.data.pdf_url = ''; this.data.pdf_name = ''; if (zone) { zone.innerHTML = this.pdfZoneHtml(); MedXI18n.apply(zone); } const w2 = document.getElementById('axiPdfWarn'); if (w2) { w2.textContent = t('axi.pdfUnavailable'); w2.style.display = 'inline'; } return; }
+                    if (!res.ok) throw new Error('upload failed');
+                    const j = await res.json();
+                    this.data.pdf_url = j.file_url || '';
+                    this.data.pdf_name = file.name;
+                    if (zone) { zone.innerHTML = this.pdfZoneHtml(); MedXI18n.apply(zone); }
+                    this.saveDraft();
+                } catch (e) {
+                    if (zone) { zone.innerHTML = this.pdfZoneHtml(); MedXI18n.apply(zone); }
+                    const w3 = document.getElementById('axiPdfWarn'); if (w3) { w3.textContent = t('axi.pdfUnavailable'); w3.style.display = 'inline'; }
+                }
+            },
+
+            removePdf() {
+                this.data.pdf_url = ''; this.data.pdf_name = '';
+                const zone = document.getElementById('axiPdfZone');
+                if (zone) { zone.innerHTML = this.pdfZoneHtml(); MedXI18n.apply(zone); }
+                this.saveDraft();
+            },
+
+            // ---------- submit ----------
+            async submit() {
+                if (this.saveTimer) { clearTimeout(this.saveTimer); }
+                await this.saveDraft();
+                if (!this.draftId) { if (typeof Toast !== 'undefined') Toast.error(t('axi.submitError')); return; }
+                const next = document.getElementById('axiNext');
+                if (next) { next.disabled = true; next.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + this.esc(t('axi.submitting')); }
+                try {
+                    const res = await UserPortal.api('/api/accelerator/intake/' + encodeURIComponent(this.draftId) + '/submit', { method: 'POST', body: JSON.stringify({ payload: this.data }) });
+                    if (typeof Toast !== 'undefined') Toast.success(t('axi.statusSubmitted'));
+                    this.render();
+                } catch (e) {
+                    if (next) { next.disabled = false; next.innerHTML = '<i class="fas fa-paper-plane"></i> ' + this.esc(t('axi.submit')); }
+                    const fields = (e && e.body && Array.isArray(e.body.fields)) ? e.body.fields : [];
+                    if (fields.length) {
+                        const stepOf = { project_name: 1, summary: 1, primary_field: 1, stage: 1, problem: 2, solution: 2, team: 3 };
+                        const first = fields[0];
+                        const goto = stepOf[first] || 1;
+                        if (goto !== this.currentStep) { this.currentStep = goto; this.renderStep(); }
+                        const keymap = { project_name: 'axi.vProjectName', summary: 'axi.vSummary', primary_field: 'axi.vField', stage: 'axi.vStage', problem: 'axi.vProblem', solution: 'axi.vSolution', team: 'axi.vTeam' };
+                        fields.forEach(f => { if (keymap[f]) this.showErr(f, keymap[f]); });
+                    }
+                    if (typeof Toast !== 'undefined') Toast.error(t('axi.submitError'));
+                }
+            },
+
+            // ---------- status card ----------
+            statusMeta(status) {
+                const map = {
+                    submitted: { key: 'axi.statusSubmitted', bg: 'rgba(201,169,98,.16)', fg: '#a8842f', ico: 'fa-paper-plane' },
+                    under_review: { key: 'axi.statusUnderReview', bg: 'rgba(201,169,98,.16)', fg: '#a8842f', ico: 'fa-hourglass-half' },
+                    accepted: { key: 'axi.statusAccepted', bg: 'rgba(21,120,79,.12)', fg: '#15784f', ico: 'fa-circle-check' },
+                    waitlisted: { key: 'axi.statusWaitlisted', bg: 'rgba(201,169,98,.16)', fg: '#a8842f', ico: 'fa-list-ul' },
+                    declined: { key: 'axi.statusDeclined', bg: 'rgba(110,110,115,.12)', fg: '#6e6e73', ico: 'fa-circle-info' },
+                    withdrawn: { key: 'axi.statusWithdrawn', bg: 'rgba(110,110,115,.12)', fg: '#6e6e73', ico: 'fa-circle-minus' }
+                };
+                return map[status] || map.submitted;
+            },
+
+            statusCardHtml(sub) {
+                const meta = this.statusMeta(sub.status);
+                const p = sub.payload || {};
+                const name = this.esc(p.project_name || t('axi.yourApp'));
+                let bodyKey = 'axi.underReviewBody';
+                if (sub.status === 'withdrawn') bodyKey = 'axi.withdrawnBody';
+                else if (['accepted', 'waitlisted', 'declined'].includes(sub.status)) bodyKey = 'axi.decisionBody';
+                else if (sub.status === 'submitted') bodyKey = 'axi.submittedBody';
+                const when = sub.submitted_at ? new Date(sub.submitted_at).toLocaleDateString(MedXI18n.dateLocale ? MedXI18n.dateLocale() : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+                const canWithdraw = ['submitted', 'under_review'].includes(sub.status);
+                return `
+                <div class="axi-status">
+                    <div class="axi-status-ico" style="background:${meta.bg};color:${meta.fg};"><i class="fas ${meta.ico}"></i></div>
+                    <div class="axi-status-body">
+                        <div class="axi-status-eyebrow" data-i18n="axi.yourApp"></div>
+                        <div class="axi-status-row">
+                            <span class="axi-status-name">${name}</span>
+                            <span class="axi-status-chip" style="background:${meta.bg};color:${meta.fg};"><i class="fas ${meta.ico}"></i> <span data-i18n="${meta.key}"></span></span>
+                        </div>
+                        <div class="axi-status-sub" data-i18n="${bodyKey}"></div>
+                        ${when ? `<div class="axi-status-meta"><span data-i18n="axi.submittedOn"></span>: ${this.esc(when)}</div>` : ''}
+                        ${canWithdraw ? `<div class="axi-status-actions"><button class="axi-link" onclick="AcceleratorIntake.withdraw('${this.esc(sub.id)}')"><i class="fas fa-circle-minus"></i> <span data-i18n="axi.withdraw"></span></button></div>` : ''}
+                    </div>
+                </div>`;
+            },
+
+            async withdraw(id) {
+                const go = async () => {
+                    try {
+                        await UserPortal.api('/api/accelerator/intake/' + encodeURIComponent(id) + '/withdraw', { method: 'POST', body: JSON.stringify({}) });
+                        if (typeof Toast !== 'undefined') Toast.success(t('axi.statusWithdrawn'));
+                        this.render();
+                    } catch (e) { if (typeof Toast !== 'undefined') Toast.error(t('axi.submitError')); }
+                };
+                if (typeof ConfirmationModal !== 'undefined' && ConfirmationModal.show) {
+                    try { await ConfirmationModal.show({ type: 'warning', icon: 'fa-circle-minus', title: t('axi.withdraw'), message: t('axi.withdrawConfirm'), confirmText: t('axi.withdraw'), cancelText: t('axi.back') }); await go(); } catch (e) { /* cancelled */ }
+                } else if (window.confirm(t('axi.withdrawConfirm'))) { await go(); }
             }
         };
 

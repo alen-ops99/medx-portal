@@ -7441,6 +7441,48 @@ async function initializeApp() {
     // user-portal only, guarded — kept OUTSIDE the SCHEMA-MIRROR block so both portals boot clean.
     try { db.run("ALTER TABLE users ADD COLUMN locale TEXT"); } catch (e) { /* column may already exist */ }
 
+    // ============ ACCELERATOR / ABSTRACT SUBMISSION-AND-SCORING PIPELINE (SHARED) ============
+    // Generic intake + review pipeline. The applicant surface (user portal) writes drafts and
+    // submissions here; the review surface (admin portal) reads them, assigns reviewers, and records
+    // decisions. Internals are deliberately generic — a `track` discriminator ('accelerator' now,
+    // 'abstract' later) lets the SAME pipeline serve conference-abstract review, with only the
+    // front-end copy staying accelerator-specific. These tables live OUTSIDE the SCHEMA-MIRROR block
+    // but are declared IDENTICALLY in BOTH portal server.js files (both touch the shared Turso DB in
+    // prod). Every statement is idempotent so whichever portal boots first creates them once.
+    //
+    // NOTE: the legacy `accelerator_applications` table is a DIFFERENT (research-placement) model and
+    // is left untouched — this is the clean go-forward intake and never collides with it.
+    db.run(`CREATE TABLE IF NOT EXISTS submission_pipeline (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        track TEXT NOT NULL DEFAULT 'accelerator',
+        cycle TEXT,
+        payload_json TEXT,
+        status TEXT NOT NULL DEFAULT 'draft',
+        submitted_at TEXT,
+        decision_at TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    // Admin-configurable intake window per (track, cycle). opens_at / closes_at are ISO datetimes;
+    // a NULL opens_at means "not yet scheduled" (renders the coming-soon state), and a NULL closes_at
+    // means open-ended. The user portal reads this to gate the coming-soon state vs the live form.
+    db.run(`CREATE TABLE IF NOT EXISTS intake_windows (
+        id TEXT PRIMARY KEY,
+        track TEXT NOT NULL DEFAULT 'accelerator',
+        cycle TEXT NOT NULL,
+        opens_at TEXT,
+        closes_at TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(track, cycle)
+    )`);
+    // Seed the 2026 accelerator window: opens 1 November 2026; the close date is set by the admin
+    // later. Idempotent — UNIQUE(track,cycle) makes a re-seed a no-op and never clobbers admin edits.
+    try {
+        db.run(`INSERT OR IGNORE INTO intake_windows (id, track, cycle, opens_at, closes_at, updated_at)
+                VALUES ('iw_accelerator_2026', 'accelerator', '2026', '2026-11-01T00:00:00.000Z', NULL, CURRENT_TIMESTAMP)`);
+    } catch (e) { /* seed is best-effort */ }
+
     // ====================== THE BIOMEDICAL FORUM — WING schema ======================
     // The Forum wing (/forum) is a dignified, invitation-only experience convened under Med&X.
     // These tables live OUTSIDE the SCHEMA-MIRROR block, but are added IDENTICALLY to BOTH portal
@@ -12896,6 +12938,212 @@ By applying to this program, I provide the following consents:
         db.run('DELETE FROM accelerator_form_config WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
+    });
+
+    // ========== ACCELERATOR INTAKE — submission pipeline (applicant surface) ==========
+    // Clean go-forward apply journey backed by the generic `submission_pipeline` table. The visible
+    // surface is accelerator-specific; the internals (track discriminator) can later serve abstract
+    // review. Reuses the shared upload boundary (POST /api/upload/accelerator) for the optional PDF,
+    // the outbox + drip_log for the confirmation email, and /api/notify-topics for the notify-me CTA.
+    const INTAKE_TRACK = 'accelerator';
+    const INTAKE_CYCLE = '2026';
+
+    function intakeSafeJson(s) { try { return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+
+    function intakeWindowRow() {
+        try { return query.get('SELECT * FROM intake_windows WHERE track = ? AND cycle = ?', [INTAKE_TRACK, INTAKE_CYCLE]) || null; }
+        catch (e) { return null; }
+    }
+
+    // 'before' (not yet open / no window), 'open' (within window), 'closed' (past close date).
+    function intakeState(w) {
+        const now = Date.now();
+        if (!w || !w.opens_at) return 'before';
+        const opens = Date.parse(w.opens_at);
+        if (isNaN(opens) || now < opens) return 'before';
+        if (w.closes_at) { const closes = Date.parse(w.closes_at); if (!isNaN(closes) && now > closes) return 'closed'; }
+        return 'open';
+    }
+
+    // Server-side required-field check. Returns a list of field keys that need attention (the client
+    // maps these to kind, localized messages). Mirrors the client validation so a crafted request
+    // cannot submit an incomplete application.
+    function validateIntakePayload(p) {
+        p = p || {};
+        const errors = [];
+        const need = (k, min) => { const v = (p[k] == null ? '' : String(p[k])).trim(); if (v.length < (min || 1)) errors.push(k); };
+        need('project_name', 2);
+        need('summary', 4);
+        need('primary_field', 2);
+        need('problem', 10);
+        need('solution', 10);
+        if (!['idea', 'prototype', 'validated'].includes(String(p.stage || ''))) errors.push('stage');
+        const team = Array.isArray(p.team) ? p.team.filter(m => m && String(m.name || '').trim()) : [];
+        if (!team.length) errors.push('team');
+        return errors;
+    }
+
+    // Normalize + cap the payload before persisting (team capped at 5, JSON size guarded).
+    function intakeNormalizePayload(raw) {
+        const p = (raw && typeof raw === 'object') ? { ...raw } : {};
+        if (Array.isArray(p.team)) p.team = p.team.slice(0, 5).map(m => ({
+            name: String((m && m.name) || '').slice(0, 160),
+            role: String((m && m.role) || '').slice(0, 160),
+            institution: String((m && m.institution) || '').slice(0, 200)
+        }));
+        return JSON.stringify(p).slice(0, 200000);
+    }
+
+    // Public read: the current window + computed state. Drives the coming-soon-vs-form gate. No auth
+    // so the coming-soon state can render for anyone; the form itself still requires a signed-in member.
+    app.get('/api/accelerator/intake', (req, res) => {
+        const w = intakeWindowRow();
+        res.json({
+            track: INTAKE_TRACK,
+            cycle: INTAKE_CYCLE,
+            opens_at: w ? w.opens_at : null,
+            closes_at: w ? w.closes_at : null,
+            state: intakeState(w),
+            server_time: new Date().toISOString()
+        });
+    });
+
+    // The caller's submissions for the current cycle (status card + resume-draft).
+    app.get('/api/accelerator/intake/mine', auth, (req, res) => {
+        if (!req.user || !req.user.id) return res.json({ submissions: [] });
+        const rows = query.all(
+            `SELECT id, cycle, payload_json, status, submitted_at, decision_at, created_at, updated_at
+             FROM submission_pipeline WHERE track = ? AND cycle = ? AND user_id = ?
+             ORDER BY datetime(updated_at) DESC`,
+            [INTAKE_TRACK, INTAKE_CYCLE, req.user.id]
+        );
+        res.json({ submissions: rows.map(r => ({
+            id: r.id, cycle: r.cycle, status: r.status,
+            submitted_at: r.submitted_at, decision_at: r.decision_at,
+            created_at: r.created_at, updated_at: r.updated_at,
+            payload: intakeSafeJson(r.payload_json) || {}
+        })) });
+    });
+
+    // Save or update a draft (autosave). Body { id?, payload }. Only editable while the window is open
+    // and the row is still a draft.
+    app.post('/api/accelerator/intake/draft', auth, (req, res) => {
+        if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication required' });
+        if (intakeState(intakeWindowRow()) !== 'open') return res.status(409).json({ error: 'Applications are not open right now.' });
+        const b = req.body || {};
+        const payloadStr = intakeNormalizePayload(b.payload);
+        const now = new Date().toISOString();
+        let id = b.id ? String(b.id) : null;
+        if (id) {
+            const existing = query.get('SELECT id, user_id, status FROM submission_pipeline WHERE id = ? AND track = ?', [id, INTAKE_TRACK]);
+            if (!existing) return res.status(404).json({ error: 'Draft not found' });
+            if (existing.user_id !== req.user.id) return res.status(403).json({ error: 'Not your draft' });
+            if (existing.status !== 'draft') return res.status(409).json({ error: 'This application can no longer be edited.' });
+            db.run('UPDATE submission_pipeline SET payload_json = ?, updated_at = ? WHERE id = ?', [payloadStr, now, id]);
+        } else {
+            id = uuidv4();
+            db.run(`INSERT INTO submission_pipeline (id, user_id, track, cycle, payload_json, status, created_at, updated_at)
+                    VALUES (?,?,?,?,?, 'draft', ?, ?)`,
+                [id, req.user.id, INTAKE_TRACK, INTAKE_CYCLE, payloadStr, now, now]);
+        }
+        saveDb();
+        res.json({ success: true, id, status: 'draft', updated_at: now });
+    });
+
+    // Submit a draft. Validates required fields, flips status to 'submitted', and enqueues ONE
+    // confirmation email through the outbox (drip_log kind acc_submit:<id> makes it exactly-once).
+    app.post('/api/accelerator/intake/:id/submit', auth, (req, res) => {
+        if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication required' });
+        const id = String(req.params.id);
+        const row = query.get('SELECT * FROM submission_pipeline WHERE id = ? AND track = ?', [id, INTAKE_TRACK]);
+        if (!row) return res.status(404).json({ error: 'Application not found' });
+        if (row.user_id !== req.user.id) return res.status(403).json({ error: 'Not your application' });
+        if (intakeState(intakeWindowRow()) !== 'open') return res.status(409).json({ error: 'Applications are not open right now.' });
+        if (row.status !== 'draft') return res.status(409).json({ error: 'This application has already been submitted.' });
+
+        const b = req.body || {};
+        let payload = (b.payload && typeof b.payload === 'object') ? b.payload : (intakeSafeJson(row.payload_json) || {});
+        const problems = validateIntakePayload(payload);
+        if (problems.length) return res.status(400).json({ error: 'Please complete the required fields.', fields: problems });
+
+        const now = new Date().toISOString();
+        const payloadStr = intakeNormalizePayload(payload);
+        db.run('UPDATE submission_pipeline SET payload_json = ?, status = ?, submitted_at = ?, updated_at = ? WHERE id = ?',
+            [payloadStr, 'submitted', now, now, id]);
+
+        // Confirmation email — enqueue-only, idempotent per submission via drip_log.
+        try {
+            const dripKind = 'acc_submit:' + id;
+            db.run('INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?,?,?,?)', [uuidv4(), req.user.id, req.user.email || null, dripKind]);
+            if (db.getRowsModified() === 1) {
+                const u = query.get('SELECT first_name, email, locale FROM users WHERE id = ?', [req.user.id]) || {};
+                const to = u.email || req.user.email;
+                if (to) {
+                    const loc = memberLocale({ id: req.user.id, locale: u.locale });
+                    const hr = loc === 'hr';
+                    const first = escapeHtml(String(u.first_name || (hr ? '' : 'there')));
+                    const projName = escapeHtml(String((payload && payload.project_name) || (hr ? 'Vaš projekt' : 'your project')));
+                    const base = (process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
+                    const subject = hr ? 'Med&X Accelerator — prijava zaprimljena' : 'Med&X Accelerator — application received';
+                    const body = hr ? `
+                        <p>Poštovani ${first},</p>
+                        <p>Vaša prijava za Med&amp;X Accelerator je zaprimljena. Hvala Vam što ste s nama podijelili projekt <strong>${projName}</strong>.</p>
+                        <p>Evo što slijedi. Naš tim pregledava svaku prijavu nakon zatvaranja razdoblja prijava. Status svoje prijave možete pratiti u svakom trenutku u svom članskom portalu, u odjeljku Accelerator.</p>
+                        <div style="text-align:center;margin:32px 0;">
+                            <a href="${base}/" style="display:inline-block;background:#C9A962;color:#0f172a;text-decoration:none;padding:14px 36px;border-radius:8px;font-weight:600;font-size:16px;">Otvorite svoj članski portal</a>
+                        </div>
+                        <p style="color:#64748b;font-size:13px;">Prijavu možete povući dok je u postupku pregleda, izravno iz portala.</p>
+                    ` : `
+                        <p>Hi ${first},</p>
+                        <p>Your application to the Med&amp;X Accelerator has been received. Thank you for sharing <strong>${projName}</strong> with us.</p>
+                        <p>Here is what happens next. Our team reviews every submission after the intake window closes. You can follow your status any time from your member portal, in the Accelerator section.</p>
+                        <div style="text-align:center;margin:32px 0;">
+                            <a href="${base}/" style="display:inline-block;background:#C9A962;color:#0f172a;text-decoration:none;padding:14px 36px;border-radius:8px;font-weight:600;font-size:16px;">Open your member portal</a>
+                        </div>
+                        <p style="color:#64748b;font-size:13px;">You can withdraw your application while it is under review, straight from the portal.</p>
+                    `;
+                    const html = buildEmailTemplate(subject, body, loc);
+                    db.run(`INSERT INTO scheduled_emails (id, status, source_engine, template, recipient_email, subject, payload_json, scheduled_for, created_by, created_at)
+                            VALUES (?, 'scheduled', 'accelerator-intake', 'acc_submit', ?, ?, ?, NULL, 'accelerator-intake', datetime('now'))`,
+                        [uuidv4(), to, subject, JSON.stringify({ to, subject, html })]);
+                }
+            }
+        } catch (e) { console.error('[Accelerator intake] confirmation email enqueue failed:', e.message); }
+
+        saveDb();
+        res.json({ success: true, id, status: 'submitted', submitted_at: now });
+    });
+
+    // Withdraw a submitted application while it is still under review.
+    app.post('/api/accelerator/intake/:id/withdraw', auth, (req, res) => {
+        if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication required' });
+        const id = String(req.params.id);
+        const row = query.get('SELECT id, user_id, status FROM submission_pipeline WHERE id = ? AND track = ?', [id, INTAKE_TRACK]);
+        if (!row) return res.status(404).json({ error: 'Application not found' });
+        if (row.user_id !== req.user.id) return res.status(403).json({ error: 'Not your application' });
+        if (!['submitted', 'under_review'].includes(row.status)) return res.status(409).json({ error: 'Only a submitted application under review can be withdrawn.' });
+        const now = new Date().toISOString();
+        db.run('UPDATE submission_pipeline SET status = ?, updated_at = ? WHERE id = ?', ['withdrawn', now, id]);
+        saveDb();
+        res.json({ success: true, id, status: 'withdrawn' });
+    });
+
+    // Admin: configure the intake window (open/close dates). Hosted here behind adminOnly, mirroring
+    // the other admin-token routes already in this file (e.g. /api/accelerator/years) that the admin
+    // portal calls against the shared DB. opens_at / closes_at are ISO datetimes (or null to clear).
+    app.put('/api/accelerator/intake/window', auth, adminOnly, (req, res) => {
+        const b = req.body || {};
+        const track = b.track ? String(b.track) : INTAKE_TRACK;
+        const cycle = b.cycle ? String(b.cycle) : INTAKE_CYCLE;
+        const opens = b.opens_at ? String(b.opens_at) : null;
+        const closes = b.closes_at ? String(b.closes_at) : null;
+        const now = new Date().toISOString();
+        const existing = query.get('SELECT id FROM intake_windows WHERE track = ? AND cycle = ?', [track, cycle]);
+        if (existing) db.run('UPDATE intake_windows SET opens_at = ?, closes_at = ?, updated_at = ? WHERE id = ?', [opens, closes, now, existing.id]);
+        else db.run('INSERT INTO intake_windows (id, track, cycle, opens_at, closes_at, updated_at) VALUES (?,?,?,?,?,?)', [uuidv4(), track, cycle, opens, closes, now]);
+        saveDb();
+        const w = query.get('SELECT * FROM intake_windows WHERE track = ? AND cycle = ?', [track, cycle]);
+        res.json({ success: true, window: w, state: intakeState(w) });
     });
 
     // ========== BIOMEDICAL FORUM ROUTES ==========

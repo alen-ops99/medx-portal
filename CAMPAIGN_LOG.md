@@ -122,3 +122,61 @@ Verdict: PASS. Independent E2E on shared dev DB (gala isolated by temporarily un
 - Frozen (Stripe/calculateTotal/registration/QR/scanner) untouched; quiet-profile respected (email+public page, no gamification); copy clean (no semicolons/'honest'). node --check both OK.
 - Non-blocking notes: (1) survey-schema code comment still says "signed HMAC token, no secret stored" but impl uses a random STORED token; (2) CREATE sits after SCHEMA-MIRROR:END so check-schema-sync.sh does not actually guard this table's mirror (identity verified manually); (3) postEventCheckedIn does not filter status, so a cancelled-but-checked-in reg would be surveyed (pre-existing shared behavior).
 - Cleanup: all test rows/markers/responses/outbox deleted, 3 demo gala rows restored to checked_in=1, plexus untouched, temp PNGs/scripts removed.
+
+
+2026-07-06 ACCELERATOR SUBMISSION-AND-SCORING PIPELINE — applicant side (user portal) — BUILT + E2E VERIFIED:
+Owner-priority cluster: a clean, window-gated apply journey for the Med&X Accelerator, architected generic so it can later serve conference-abstract review (generic internals, accelerator-specific surface). Bilingual EN + HR throughout (formal Vi), no semicolons in user-facing copy, no word 'honest'.
+
+ARCHITECTURE / NAMING DECISION: the task named the store `accelerator_applications`, but that table ALREADY EXISTS with an incompatible research-placement schema (institutions/interviews/ranking). A guarded `CREATE TABLE IF NOT EXISTS accelerator_applications (...)` would be a silent no-op and inserts of cycle/payload_json would throw "no such column", and reusing it would pollute the legacy /my-applications, ranking and evaluate flows. So I created a NEW generic table `submission_pipeline` (id, user_id, track DEFAULT 'accelerator', cycle, payload_json, status, submitted_at, decision_at, created_at, updated_at) — the `track` discriminator is the generic hook for abstract review later. The legacy accelerator flow is left 100% untouched.
+
+BACKEND (both server.js — SHARED tables added IDENTICALLY after the SCHEMA-MIRROR:END marker, check-schema-sync.sh exit 0):
+- `submission_pipeline` (generic intake+review store) and `intake_windows` (admin-configurable open/close per track+cycle, UNIQUE(track,cycle)). Seeded iw_accelerator_2026 opens 2026-11-01, closes NULL (admin-set later) via INSERT OR IGNORE (never clobbers admin edits).
+- User-portal routes (applicant surface): GET /api/accelerator/intake (public window+state before|open|closed), GET /api/accelerator/intake/mine (auth, status card + resume draft), POST /api/accelerator/intake/draft (auth, autosave, gated to open window, team capped 5, payload size-guarded), POST /api/accelerator/intake/:id/submit (auth, server-side required-field validation, flips to submitted, ONE confirmation email), POST /api/accelerator/intake/:id/withdraw (auth, only from submitted/under_review), PUT /api/accelerator/intake/window (auth+adminOnly, hosted here mirroring the existing admin-token routes like /api/accelerator/years).
+- Confirmation email is bilingual by member locale, staged into the ONE approval outbox (scheduled_emails, source_engine 'accelerator-intake', template 'acc_submit') via buildEmailTemplate, idempotent per submission via drip_log kind acc_submit:<id>. Enqueue-only; the dev drainer sends.
+- Optional single PDF reuses the existing upload boundary (POST /api/upload/accelerator, 10MB cap, Cloudinary/local, graceful 503 in prod without persistent storage) — no new upload path.
+
+FRONTEND (user-portal/frontend/index.html, all edits via python3 heredoc with assert count==1):
+- New self-contained AcceleratorIntake object (never entangles with legacy AcceleratorPortal). render() gates: non-draft submission -> status card; window not open -> premium coming-soon card with a "Notify me" button that REUSES /api/notify-topics (project=accelerator); window open -> multi-step form.
+- Multi-step form (3 steps: Your project / Problem and solution / Team and pitch): project name, one-line summary, primary field, stage (idea/prototype/validated chips), problem, proposed solution, relevant links, team members repeater (add up to 5, name/role/institution), optional PDF. Progress bar + Step X of 3, debounced autosave to the draft endpoint with a live "Draft saved" indicator, kind inline validation, resume-draft note.
+- Status card ("Your application — Submitted/Under review/Accepted/Waitlisted/Not selected/Withdrawn") with a Withdraw action (ConfirmationModal.show) while submitted/under_review.
+- Item 4 (stale copy): hero deadline + overview card now say "Applications open November 2026" (localized), loadOverviewConfig ignores any PAST program deadline so the stale March 2026 data can't contradict the intake, and the countdown expired-branch was aligned to Nov 2026 + routes to the intake journey. New "Apply" tab (rocket) added; the legacy Apply tab relabeled "Placements" (EN) / "Prakse" (HR) so there is one clear apply journey. Hero primary CTA -> intake.
+- ~90 new bilingual i18n keys registered via MedXI18n.extend; live re-render on medx:localechange.
+
+E2E VERIFIED (harness 1440x900 + 390x844, PNGs read then deleted, 0 console errors throughout):
+- Before-window (seed Nov 2026): coming-soon + Notify me renders EN + HR, desktop + mobile; clicking Notify subscribes via /api/notify-topics and shows "You are on the list".
+- Admin PUT window -> open: multi-step form renders EN + HR, desktop + mobile.
+- Draft autosave: filled step 1 -> "Draft saved" -> full page RELOAD -> returned to Apply tab -> project_name field prefilled (draft persisted server-side).
+- Submit: status -> submitted, status card shows Submitted + confirmation line; DB confirmed submission_pipeline.status=submitted, scheduled_emails outbox row (template acc_submit, subject "Med&X Accelerator — application received") status=sent, drip_log acc_submit:<id> present (idempotent).
+- Withdraw: UI withdraw via ConfirmationModal -> withdrawn card; API repeat withdraw returns 409.
+- Restored the shipped window (opens 2026-11-01, closes NULL, state=before), cleaned all tester test rows.
+FROZEN Stripe/checkout/calculateTotal/POST /api/registrations/QR untouched (additive reuse only). Quiet-profile rule intact. node --check both servers OK, check-schema-sync.sh exit 0. Admin routes/UI for scoring are a sibling cluster (the shared submission_pipeline table is present in admin server.js so that side can read it). No git commits.
+
+---
+
+## Med&X Accelerator — Submissions Review & Scoring Engine (admin) — 2026-07-06
+
+Built the admin-side submission-and-scoring pipeline as a GENERIC "submissions review" engine (domain-neutral internals so conference-abstract review plugs in later) surfaced as **Accelerator** now. All work in `admin-portal` only; the user portal was not touched, and `scripts/check-schema-sync.sh` stays green (435-line mirror block unchanged).
+
+### Schema (admin-only, guarded, OUTSIDE the SCHEMA-MIRROR block — admin server.js only)
+- `review_rubrics` — one row per review **cycle** (`cycle_key`). Holds the admin-editable `criteria` (JSON: key/name/name_hr/description/description_hr/weight), `scale_min/max` (1..5), `reviewers_per_submission`, the per-cycle `blind_review` toggle, and `status` (draft|active). Seeded `accelerator-2026` as a DRAFT with the owner's 5 criteria (25/20/20/25/10 = 100). The owner approves it by editing — nothing hardcoded.
+- `review_assignments` — links a reviewer (`reviewer_kind` admin→users.id | external→review_reviewers.id) to a `submission_id` (generic `submission_source`, `accelerator_applications` now). One-click recusal sets status='recused'.
+- `review_scores` — one weighted scorecard per assignment. `scores` JSON map, `weighted_total` recomputed on every save, `private_comments` (committee-only) + `feedback_to_applicant`.
+- `review_reviewers` — invited EXTERNAL reviewer accounts (limited, magic-link, `access_token`). Kept OUT of the members `users` table by design (scanner-staff spirit) so they never surface in the member portal.
+
+### Backend (admin server.js)
+Generic helpers: submission resolver (`accelerator_applications` → normalized, blind-aware), blind sanitizer (drops identity fields + institution + rewrites document filenames), weighted-total (`Σ score·weight / Σ weight`), shared scorecard upsert. Routes: rubric GET/PUT (live weight-sum validation — a cycle can only go 'active' when weights = 100), blind toggle, reviewers list + external add/invite/toggle/regenerate, submissions overview, single/bulk (round-robin) assignment, admin reviewer dashboard + scorecard + recuse, progress, and the external magic-link surface `/api/review-access/:token/*`. Reviewer invite goes through the approval outbox (`scheduled_emails` pending_approval, source_engine='review-invite') with `drip_log` idempotency (one invite/reviewer/day) — bilingual EN+HR email.
+
+### Frontend
+- Admin: new **Review** tab in the Accelerator section (`ReviewEngine` self-contained module in `admin-portal/frontend/index.html`, edited via python3 heredoc). Sub-tabs: Rubric (editable, live weight badge), Reviewers (internal + external + invite/copy-link), Assignments (per-submission chips + manual assign + round-robin auto-assign), My reviews (scorecard modal with live weighted total + recuse), Progress (fully-scored + per-reviewer table).
+- External: standalone bilingual (EN/HR, formal Vi) magic-link workspace at `/review?token=…` — shows ONLY the reviewer's assignments, blind-aware, scorecard with save-draft/submit/recuse. No admin bundle.
+
+### Verified (desktop 1440×900 + mobile 390×844, screenshots read then deleted)
+- Rubric edit + weight-sum validation: activating at sum 90 rejected; sum 100 accepted.
+- Round-robin auto-assign: 10 assignments, 2/sub across a 4-reviewer pool, balanced.
+- Scored TWO applications from TWO reviewer sessions — external (4.4) and admin (4.1); both weighted totals **hand-verified against the DB** (MATCH).
+- Blind toggle ON: names, institution AND the PDF filename (`Ivana_Brkic_CV_2026.pdf` → `Submission-APP-18D88FD8--cv.pdf`) all hidden; leak-check for the surname across the whole payload = false. Applies to the external view AND the admin reviewer scorecard.
+- Recusal: status→recused, score row deleted, excluded from progress denominator.
+- External token scoping: cannot open/score a non-assigned submission (403); invalid token (403).
+- Invite queues to outbox once, idempotent on repeat; HR labels + criteria render on the external page.
+
+Notes: demo review activity (assignments + 2 scorecards + 1 queued outbox invite to a demo reviewer) left in place to show the engine live. `node --check` clean, schema-sync clean, no git commits.
