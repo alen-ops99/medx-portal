@@ -17215,6 +17215,17 @@
         .talk-coming-soon p { margin:0; font-size:13.5px; line-height:1.55; max-width:460px; margin-left:auto; margin-right:auto; }
         .talk-section-future .talk-section-head { border-bottom-style:dashed; }
 
+        /* Talk ratings — one-tap 1-5 star member feedback (feedback, never gamification) */
+        .talk-rate { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--up-border,var(--line,rgba(20,15,12,.08))); }
+        .talk-stars { display:inline-flex; gap:1px; }
+        .talk-stars .tstar { border:none; background:none; padding:2px 1px; margin:0; cursor:pointer; font-size:15px; line-height:1; color:var(--up-text-muted,rgba(20,15,12,.24)); transition:color .12s ease, transform .1s ease; }
+        .talk-stars .tstar:hover { transform:scale(1.14); }
+        .talk-stars .tstar.on { color:var(--gold,#c9a962); }
+        .talk-rate-hint { font-size:11.5px; color:var(--up-text-muted,var(--muted)); }
+        .talk-rate-agg { display:inline-flex; align-items:center; gap:5px; margin-left:auto; font-size:12px; font-weight:700; color:var(--up-text-secondary,var(--muted)); white-space:nowrap; }
+        .talk-rate-agg i { color:var(--gold,#c9a962); font-size:11px; }
+        .talk-rate-agg .tra-count { font-weight:600; color:var(--up-text-muted,var(--muted)); }
+
         /* ===== Mentorship matching (menu 10) ===== */
         .ment-status-card { background:var(--up-bg,#fff); border:1px solid var(--up-border,var(--line)); border-radius:16px; padding:18px 20px; margin-bottom:22px; }
         .ment-status-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
@@ -57542,6 +57553,14 @@ button,input,select,textarea{font-family:var(--sans);}
             'talk.futureBody':   {en:'Keynotes and sessions from Plexus 2026 will be published here on demand after the conference. Registered members get first access.', hr:'Plenarna izlaganja i sesije s Plexusa 2026 bit će ovdje objavljeni na zahtjev nakon konferencije. Prijavljeni članovi dobivaju prvi pristup.'},
             'talk.recordingSoon':{en:'This recording will be available soon.', hr:'Ova snimka bit će uskoro dostupna.'},
             'talk.sessions':     {en:'Sessions', hr:'Sesije'},
+            'talk.rateThis':     {en:'Rate this session', hr:'Ocijenite ovu sesiju'},
+            'talk.yourRating':   {en:'Your rating {n} of 5', hr:'Vaša ocjena {n} od 5'},
+            'talk.rateThanks':   {en:'Thank you for rating this session', hr:'Hvala vam na ocjeni ove sesije'},
+            'talk.rateUpdated':  {en:'Your rating has been updated', hr:'Vaša ocjena je ažurirana'},
+            'talk.rateError':    {en:'We could not save your rating. Please try again in a moment.', hr:'Nismo mogli spremiti vašu ocjenu. Pokušajte ponovno za koji trenutak.'},
+            'talk.topRated':     {en:'Top rated', hr:'Najbolje ocijenjeno'},
+            'talk.topRatedSub':  {en:'The sessions members rate most highly', hr:'Sesije koje članovi ocjenjuju najvišim ocjenama'},
+            'talk.topRatedEmpty':{en:'Top-rated sessions appear once at least three members have rated a talk. Be among the first to rate the sessions you have watched.', hr:'Najbolje ocijenjene sesije pojavljuju se kada barem tri člana ocijene predavanje. Budite među prvima koji će ocijeniti sesije koje ste pogledali.'},
 
             // --- Biomedical Forum (index.html surface): directory search placeholders (HR3 gap) ---
             'fm.searchMembers':   {en:'Search by name, institution, or expertise...', hr:'Pretražite po imenu, ustanovi ili stručnosti...'},
@@ -71186,6 +71205,12 @@ button,input,select,textarea{font-family:var(--sans);}
                     .mmx-share-btn.linkedin{background:#0a66c2;border-color:#0a66c2;color:#fff;}
                     .mmx-share-btn.linkedin:hover{background:#0958a8;border-color:#0958a8;}
                     .mmx-share-btn i{font-size:13px;}
+                    /* Donor thank-you (WARMTH PACK) — dignified, shown to every supporter incl. quiet members */
+                    .mmx-giving{margin:0 0 24px;padding:20px 22px;background:linear-gradient(135deg,rgba(201,169,98,.12),rgba(155,27,34,.05));border:1px solid var(--gold,#c9a962);border-radius:16px;box-shadow:var(--shadow-sm,0 1px 2px rgba(21,17,15,.04));}
+                    .mmx-giving-eyebrow{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-dim,var(--gold,#c9a962));font-weight:700;}
+                    .mmx-giving-eyebrow i{font-size:13px;}
+                    .mmx-giving-title{font-family:var(--serif,'Fraunces',serif);font-size:20px;font-weight:600;color:var(--ink,#15110f);margin:8px 0 8px;}
+                    .mmx-giving-body{font-size:13.5px;color:var(--muted,#6b6258);line-height:1.6;margin:0;max-width:640px;}
                     </style>
                     <div class="mmx-hero">
                         <div class="mmx-hero-cardcol">
@@ -71219,6 +71244,9 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                         </div>
                     </div>
+
+                    <!-- Donor thank-you (WARMTH PACK) — MyMedXPortal.renderGiving(); hidden unless a real giving record exists -->
+                    <div id="mymedxGiving" style="display:none;"><!-- MyMedXPortal.renderGiving() --></div>
 
                     <!-- Programs Grid -->
                     <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0 0 12px; padding-left: 4px;" data-i18n="mmx.myProjects">My projects</h3>
@@ -79124,10 +79152,38 @@ You can use variables like {first_name} that will be personalized for each recip
                 this.renderNetworkStats();
                 this.renderRecord();
                 this.renderGuestPasses();
+                this.renderGiving();
             },
 
             // Member-initiated guest passes ("Bring a colleague") — renders the plexus + bridges hub.
             renderGuestPasses() { try { if (window.GuestPass) GuestPass.renderHub('mymedxGuestPasses'); } catch(e){} },
+
+            // Giving / supporter recognition (WARMTH PACK). Reads the real giving signal from
+            // /api/member/giving. The thank-you card is shown to every supporter — including quiet
+            // gala/forum members — because it is dignified, not gamified. The Supporter chip lives on
+            // the recognition rail (renderRecognition), which sits in the quiet-hidden sidecol.
+            _giving: undefined,
+            renderGiving() {
+                var self = this;
+                var token = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
+                var apiBase = (typeof API_BASE !== 'undefined') ? API_BASE : '';
+                fetch(apiBase + '/api/member/giving', { headers: token ? { 'Authorization': 'Bearer ' + token } : {} })
+                    .then(function(r){ return r.ok ? r.json() : null; })
+                    .then(function(d){ self._giving = d || { is_supporter: false }; self._paintGiving(); if (self._regs) self.renderRecognition(self._regs); })
+                    .catch(function(){ self._giving = { is_supporter: false }; self._paintGiving(); });
+            },
+            _paintGiving() {
+                var el = document.getElementById('mymedxGiving');
+                if (!el) return;
+                var g = this._giving || {};
+                if (!g.is_supporter) { el.style.display = 'none'; el.innerHTML = ''; return; }
+                el.style.display = '';
+                el.innerHTML = '<div class="mmx-giving">'
+                    + '<div class="mmx-giving-eyebrow"><i class="fas fa-hand-holding-heart"></i> <span>' + t('mmx.givingEyebrow') + '</span></div>'
+                    + '<div class="mmx-giving-title">' + t('mmx.givingTitle') + '</div>'
+                    + '<p class="mmx-giving-body">' + t('mmx.givingBody') + '</p>'
+                + '</div>';
+            },
 
             // ===== Member data (single fetch → Recognition + Wallet) =====
             renderTierCard() { this._loadMemberData(); },
@@ -79165,6 +79221,9 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (yearCount > 1) badges.push({icon:'fa-star', label: this._isHR() ? (yearCount + ' ' + this._plural(yearCount,'godina','godina','godina','godine','godina') + ' sudjelovanja') : (yearCount + '-year participant'), color:'var(--gold-dim)'});
                 try { if ((JSON.parse(localStorage.getItem('medx_accelerator_applications')||'[]')).length) badges.push({icon:'fa-rocket', label:t('mmx.bAccelApplicant'), color:'var(--cat-accelerator)'}); } catch(e){}
                 try { if (localStorage.getItem('forum_member')==='1' || (JSON.parse(localStorage.getItem('forum_registered_events')||'[]')).length) badges.push({icon:'fa-landmark', label:t('mmx.bForumParticipant'), color:'var(--cat-forum)'}); } catch(e){}
+                // Supporter chip — gamification, so quiet members never see it (fail-closed via the
+                // sidecol CSS gate AND this allowPlayful() check).
+                if (this._giving && this._giving.is_supporter && (typeof MedXQuiet === 'undefined' || MedXQuiet.allowPlayful())) badges.push({icon:'fa-hand-holding-heart', label:t('mmx.bSupporter'), color:'var(--gold-dim, var(--gold))'});
 
                 var badgesHtml = badges.length
                     ? '<div class="mmx-badges">' + badges.map(function(b){
@@ -80089,7 +80148,7 @@ You can use variables like {first_name} that will be personalized for each recip
 
             _isHR(){ try{ return !!(window.MedXI18n && MedXI18n.get && MedXI18n.get()==='hr'); }catch(e){ return false; } },
             _plural(n, en1, enN, hr1, hr234, hr5){ if(this._isHR()){ var mm=n%100, dd=n%10; if(dd===1&&mm!==11) return hr1; if(dd>=2&&dd<=4&&!(mm>=12&&mm<=14)) return hr234; return hr5; } return n===1?en1:enN; },
-            relocalize(){ try{ this.renderPrograms(); this.renderInterests(); this.renderNetworkStats(); if(this._regs){ this.renderRecognition(this._regs); this._renderWalletCards(this._regs); this.renderPurchases(this._regs); } if(this._record!==undefined){ this._renderRecordHtml(this._record); } this.loadPoints(); this.renderMembershipCardVisual(); this.renderGuestPasses(); }catch(e){} }
+            relocalize(){ try{ this.renderPrograms(); this.renderInterests(); this.renderNetworkStats(); if(this._regs){ this.renderRecognition(this._regs); this._renderWalletCards(this._regs); this.renderPurchases(this._regs); } if(this._record!==undefined){ this._renderRecordHtml(this._record); } if(this._giving!==undefined){ this._paintGiving(); } this.loadPoints(); this.renderMembershipCardVisual(); this.renderGuestPasses(); }catch(e){} }
         };
 
         document.addEventListener('medx:localechange', function(){ try{ if(typeof MyMedXPortal!=='undefined' && MyMedXPortal.relocalize) MyMedXPortal.relocalize(); }catch(e){} });
@@ -80296,7 +80355,10 @@ You can use variables like {first_name} that will be personalized for each recip
                 'mmx.givingEyebrow':  { en: 'With gratitude', hr: 'Sa zahvalnošću' },
                 'mmx.givingTitle':    { en: 'Thank you for your generosity', hr: 'Hvala vam na velikodušnosti' },
                 'mmx.givingBody':     { en: 'Your support of the Plexus Donor Night carries the Fellowship, the Accelerator and the future of Croatian biomedicine forward. We are deeply grateful to have you alongside us.', hr: 'Vaša podrška Plexus Donor Night večeri nosi Fellowship, Accelerator i budućnost hrvatske biomedicine naprijed. Duboko smo zahvalni što ste uz nas.' },
-                'mmx.bSupporter':     { en: 'Supporter', hr: 'Podupiratelj' }
+                'mmx.bSupporter':     { en: 'Supporter', hr: 'Podupiratelj' },
+                // Plexus attendees empty state
+                'net.attendeesEmptyTitle': { en: 'No attendees yet', hr: 'Još nema sudionika' },
+                'net.attendeesEmptySub':   { en: 'Be the first to register for Plexus and connect with the community.', hr: 'Prijavite se prvi za Plexus i povežite se sa zajednicom.' }
             });
         } catch (e) {}
 
@@ -85997,7 +86059,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 try {
                     const users = await UserPortal.api('/api/plexus/attendees');
                     if (!Array.isArray(users) || users.length === 0) {
-                        grid.innerHTML = '<div style="text-align:center; padding:40px; color:var(--up-text-muted,var(--muted));"><i class="fas fa-users" style="font-size:32px; display:block; margin-bottom:12px; opacity:0.5;"></i><h3 style="margin-top:12px;">No attendees yet</h3><p>Be the first to register!</p></div>';
+                        grid.innerHTML = MedXState.render({ gridSpan: true, icon: 'fa-users', title: t('net.attendeesEmptyTitle'), body: t('net.attendeesEmptySub') });
                         return;
                     }
                     grid.innerHTML = users.map(u => {
@@ -86019,7 +86081,7 @@ You can use variables like {first_name} that will be personalized for each recip
                         </div>`;
                     }).join('');
                 } catch(e) {
-                    grid.innerHTML = '<div style="text-align:center; padding:40px; color:var(--up-text-muted);">Unable to load attendees</div>';
+                    grid.innerHTML = MedXState.render({ gridSpan: true, tone: 'error', icon: 'fa-cloud-arrow-down', body: t('net.loadError'), actionLabel: t('state.retry'), actionOnclick: 'PlexusPortal.loadAttendees()' });
                 }
             },
 
@@ -93518,7 +93580,7 @@ You can use variables like {first_name} that will be personalized for each recip
                             </div>
                         </div>`;
                     }).join('');
-                } catch(e) { console.error('Load connections failed:', e); }
+                } catch(e) { console.error('Load connections failed:', e); var g = document.getElementById('connectionsGrid'); if (g && !g.getAttribute('data-live')) g.innerHTML = MedXState.render({ gridSpan: true, tone: 'error', icon: 'fa-cloud-arrow-down', body: NetworkingPortal._t('net.loadError'), actionLabel: NetworkingPortal._t('state.retry'), actionOnclick: 'NetworkingPortal.loadConnections()' }); }
             },
 
             async loadPendingRequests() {
@@ -93527,7 +93589,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 try {
                     const pending = await UserPortal.api('/api/networking/connections/pending');
                     if (!Array.isArray(pending) || pending.length === 0) {
-                        grid.innerHTML = '<div style="text-align:center;padding:40px;grid-column:1/-1;color:var(--up-text-muted,var(--muted));"><p>No pending requests</p></div>';
+                        grid.innerHTML = MedXState.render({ gridSpan: true, icon: 'fa-user-plus', title: NetworkingPortal._t('net.reqEmptyTitle'), body: NetworkingPortal._t('net.reqEmptySub'), actionLabel: NetworkingPortal._t('net.discoverPeople'), actionOnclick: "NetworkingPortal.showTab('discover')" });
                         const countEl = document.getElementById('pendingRequestsTotal');
                         if (countEl) countEl.textContent = '0';
                         const badgeEl = document.getElementById('requestsCount');
@@ -93553,7 +93615,7 @@ You can use variables like {first_name} that will be personalized for each recip
                             </div>
                         </div>`;
                     }).join('');
-                } catch(e) { console.error('Load pending failed:', e); }
+                } catch(e) { console.error('Load pending failed:', e); var g = document.getElementById('requestsGrid'); if (g) g.innerHTML = MedXState.render({ gridSpan: true, tone: 'error', icon: 'fa-cloud-arrow-down', body: NetworkingPortal._t('net.loadError'), actionLabel: NetworkingPortal._t('state.retry'), actionOnclick: 'NetworkingPortal.loadPendingRequests()' }); }
             },
 
             // ===== Member Directory (internal-Facebook style) =====
@@ -124495,6 +124557,7 @@ By applying to this program, I give the following consents:
             _loaded: false,
             yearFilter: '',
             eventFilter: '',
+            sortMode: '',
 
             async init() {
                 const grid = document.getElementById('talksGrid');
@@ -124516,21 +124579,24 @@ By applying to this program, I give the following consents:
                 if (!bar) return;
                 const years = [...new Set(this.items.map(t => t.year).filter(Boolean))].sort((a, b) => b - a);
                 const events = [...new Set(this.items.map(t => t.event_label).filter(Boolean))];
-                let html = `<button class="opp-pill ${this.yearFilter === '' && this.eventFilter === '' ? 'active' : ''}" onclick="TalkLibrary.setFilter('all','')">${TalkLibrary._t('talk.allSessions')}</button>`;
+                const base = this.sortMode === '' && this.yearFilter === '' && this.eventFilter === '';
+                let html = `<button class="opp-pill ${base ? 'active' : ''}" onclick="TalkLibrary.setFilter('all','')">${TalkLibrary._t('talk.allSessions')}</button>`;
+                html += `<button class="opp-pill ${this.sortMode === 'top' ? 'active' : ''}" onclick="TalkLibrary.setFilter('top','')"><i class="fas fa-star" style="font-size:10px;margin-right:5px;"></i>${TalkLibrary._t('talk.topRated')}</button>`;
                 years.forEach(y => {
-                    html += `<button class="opp-pill ${this.yearFilter === String(y) ? 'active' : ''}" onclick="TalkLibrary.setFilter('year','${y}')">${y}</button>`;
+                    html += `<button class="opp-pill ${this.sortMode === '' && this.yearFilter === String(y) ? 'active' : ''}" onclick="TalkLibrary.setFilter('year','${y}')">${y}</button>`;
                 });
                 events.forEach(ev => {
                     const safe = String(ev).replace(/'/g, "\\'");
-                    html += `<button class="opp-pill ${this.eventFilter === ev ? 'active' : ''}" onclick="TalkLibrary.setFilter('event','${safe}')">${escapeHtml(ev)}</button>`;
+                    html += `<button class="opp-pill ${this.sortMode === '' && this.eventFilter === ev ? 'active' : ''}" onclick="TalkLibrary.setFilter('event','${safe}')">${escapeHtml(ev)}</button>`;
                 });
                 bar.innerHTML = html;
             },
 
             setFilter(type, val) {
-                if (type === 'all') { this.yearFilter = ''; this.eventFilter = ''; }
-                else if (type === 'year') { this.yearFilter = String(val); this.eventFilter = ''; }
-                else if (type === 'event') { this.eventFilter = val; this.yearFilter = ''; }
+                if (type === 'all') { this.sortMode = ''; this.yearFilter = ''; this.eventFilter = ''; }
+                else if (type === 'top') { this.sortMode = 'top'; this.yearFilter = ''; this.eventFilter = ''; }
+                else if (type === 'year') { this.sortMode = ''; this.yearFilter = String(val); this.eventFilter = ''; }
+                else if (type === 'event') { this.sortMode = ''; this.eventFilter = val; this.yearFilter = ''; }
                 this.renderFilters();
                 this.render();
             },
@@ -124538,6 +124604,7 @@ By applying to this program, I give the following consents:
             render() {
                 const grid = document.getElementById('talksGrid');
                 if (!grid) return;
+                if (this.sortMode === 'top') { this._renderTopRated(grid); return; }
                 let list = this.items;
                 if (this.yearFilter) list = list.filter(t => String(t.year) === this.yearFilter);
                 if (this.eventFilter) list = list.filter(t => t.event_label === this.eventFilter);
@@ -124595,8 +124662,96 @@ By applying to this program, I give the following consents:
                     <div class="talk-body">
                         <h4>${escapeHtml(t.title || '')}</h4>
                         ${speaker}
+                        ${this._starsHtml(t)}
                     </div>
                 </div>`;
+            },
+
+            // Interactive one-tap star row + suppressed aggregate. The wrapper stops click
+            // propagation so rating a talk never triggers the card's play handler. The aggregate
+            // (avg + count) only renders when at least three members have rated (matches the server).
+            _starsHtml(t) {
+                const mine = t.my_rating || 0;
+                const tid = String(t.id).replace(/'/g, "\\'");
+                let stars = '';
+                for (let v = 1; v <= 5; v++) {
+                    stars += `<button type="button" class="tstar${v <= mine ? ' on' : ''}" data-v="${v}" aria-label="${TalkLibrary._starAria(v)}" onmouseover="TalkLibrary._hoverStars(this,${v})" onfocus="TalkLibrary._hoverStars(this,${v})" onclick="TalkLibrary.rate('${tid}',${v},event)"><i class="fas fa-star"></i></button>`;
+                }
+                const hint = mine
+                    ? TalkLibrary._t('talk.yourRating').replace('{n}', mine)
+                    : TalkLibrary._t('talk.rateThis');
+                let agg = '';
+                if ((t.rating_count || 0) >= 3 && t.rating_avg != null) {
+                    agg = `<span class="talk-rate-agg"><i class="fas fa-star"></i> ${TalkLibrary._fmtAvg(t.rating_avg)} <span class="tra-count">${TalkLibrary._ratingCount(t.rating_count)}</span></span>`;
+                }
+                return `<div class="talk-rate" onclick="event.stopPropagation()">
+                    <div class="talk-stars" data-mine="${mine}" onmouseleave="TalkLibrary._resetStars(this)">${stars}</div>
+                    <span class="talk-rate-hint">${hint}</span>
+                    ${agg}
+                </div>`;
+            },
+
+            _hoverStars(btn, v) {
+                const c = btn.parentElement;
+                if (!c) return;
+                c.querySelectorAll('.tstar').forEach(b => { b.classList.toggle('on', parseInt(b.getAttribute('data-v'), 10) <= v); });
+            },
+            _resetStars(container) {
+                const mine = parseInt(container.getAttribute('data-mine') || '0', 10);
+                container.querySelectorAll('.tstar').forEach(b => { b.classList.toggle('on', parseInt(b.getAttribute('data-v'), 10) <= mine); });
+            },
+
+            // Optimistic upsert: reflect the tap immediately, then reconcile with the server's
+            // authoritative aggregate. On failure we revert to the previous state. No points ever.
+            rate(tid, v, ev) {
+                if (ev) ev.stopPropagation();
+                const item = this.items.find(x => String(x.id) === String(tid));
+                if (!item) return;
+                const prev = { my: item.my_rating || 0, count: item.rating_count || 0, avg: item.rating_avg };
+                item.my_rating = v;
+                this.render();
+                UserPortal.api('/api/talks/' + encodeURIComponent(tid) + '/rating', { method: 'POST', body: JSON.stringify({ rating: v }) })
+                    .then(r => {
+                        item.my_rating = r.my_rating;
+                        item.rating_count = r.rating_count;
+                        item.rating_avg = r.rating_avg;
+                        this.render();
+                        try { Toast.success(TalkLibrary._t(prev.my ? 'talk.rateUpdated' : 'talk.rateThanks')); } catch (e) {}
+                    })
+                    .catch(e => {
+                        item.my_rating = prev.my; item.rating_count = prev.count; item.rating_avg = prev.avg;
+                        this.render();
+                        try { Toast.error(TalkLibrary._t('talk.rateError')); } catch (e2) {}
+                    });
+            },
+
+            _renderTopRated(grid) {
+                const rated = this.items
+                    .filter(t => (t.rating_count || 0) >= 3 && t.rating_avg != null)
+                    .sort((a, b) => (b.rating_avg - a.rating_avg) || ((b.rating_count || 0) - (a.rating_count || 0)) || String(a.title || '').localeCompare(String(b.title || '')));
+                grid.classList.add('talks-grouped');
+                const head = `<div class="talk-section-head"><div class="tsh-left"><h3>${TalkLibrary._t('talk.topRated')}</h3><span class="tsh-sub">${TalkLibrary._t('talk.topRatedSub')}</span></div>${rated.length ? `<span class="talk-section-count">${TalkLibrary._sessionCount(rated.length)}</span>` : ''}</div>`;
+                if (!rated.length) {
+                    grid.innerHTML = `<div class="talk-section">${head}<div class="talk-coming-soon"><i class="fas fa-star"></i><p>${TalkLibrary._t('talk.topRatedEmpty')}</p></div></div>`;
+                    return;
+                }
+                const cards = rated.map(t => this._cardHtml(t)).join('');
+                grid.innerHTML = `<div class="talk-section">${head}<div class="talks-grid">${cards}</div></div>`;
+            },
+
+            _fmtAvg(n) {
+                let isHR = false; try { isHR = !!(window.MedXI18n && MedXI18n.get && MedXI18n.get() === 'hr'); } catch (e) {}
+                const s = (Math.round(Number(n) * 10) / 10).toFixed(1);
+                return isHR ? s.replace('.', ',') : s;
+            },
+            _ratingCount(n) {
+                let isHR = false; try { isHR = !!(window.MedXI18n && MedXI18n.get && MedXI18n.get() === 'hr'); } catch (e) {}
+                if (isHR) { const m = n % 100, d = n % 10; const w = (d === 1 && m !== 11) ? 'ocjena' : ((d >= 2 && d <= 4 && !(m >= 12 && m <= 14)) ? 'ocjene' : 'ocjena'); return n + ' ' + w; }
+                return n + ' rating' + (n === 1 ? '' : 's');
+            },
+            _starAria(v) {
+                let isHR = false; try { isHR = !!(window.MedXI18n && MedXI18n.get && MedXI18n.get() === 'hr'); } catch (e) {}
+                return (isHR ? 'Ocijenite ' : 'Rate ') + v + (isHR ? ' od 5' : ' of 5');
             },
 
             _futureSectionHtml() {

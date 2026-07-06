@@ -300,3 +300,105 @@ One tracked list of the placeholder content the owner still owes across the webs
 - UI (desktop + mobile): card renders clean, badge shows 10, check-off flips badge 10->9 and reopen 9->10 live, add form + inline notes editor + Done collapse all render. Zero console/page errors on every run.
 - DB cleanup: removed the added E2E item, restored the one edited seed note, removed all content_checklist audit rows created by testing. Final state 10 open / 0 done. e2e.* accelerator rows untouched.
 - `node --check` admin + user server.js: OK. `scripts/check-schema-sync.sh`: exit 0 (435 lines, byte-identical). No git add/commit.
+
+## 2026-07-06 — A-scanner ADVERSARIAL VERIFY (independent) — PASS
+Verified builder commit bed896a scanner CAPTURE-LAYER work in admin-portal/frontend/index.html (QRCapture BarcodeDetector-first + torch). Ran real-QR decode tests via /tmp/medx-pw harness; screenshots read then deleted.
+- Decode parity PROVEN with real server-generated QR PNGs (node qrcode) for BOTH frozen branches (MEDX_MEMBER ticket JSON + plain UUID): forced-jsQR === default real-BarcodeDetector (harness Chromium exposes a genuine qr_code-capable BarcodeDetector) === mocked-hardware — byte-identical decoded string every time.
+- Dispatch PROVEN with a sentinel-poison mock: default path genuinely invokes hardware (returns SENTINEL, 1 detect call), forceJsqr genuinely bypasses hardware (returns real jsQR value, no extra detect call). jsQR fallback library present at /vendor/jsqr.min.js.
+- Verify-request parity: decode returns the identical string on both paths and the frozen validation fns (verifyCode / globalCheckin / _globalTicketCheckin / showUserProfileFromQR) are NOT in the diff (call-sites only, passing the same string) -> request necessarily identical. git diff across the whole commit shows ZERO edits to /api/admin/checkin/verify, QR generation, or validation bodies. Scanner change is admin-frontend-only (user-portal untouched).
+- Torch button hidden when unsupported PROVEN: default display:none; hasTorch(null/no-cap)=false -> hidden; torch cap -> display:flex, OFF aria-pressed=false + dark bg; toggle -> aria-pressed=true + gold bg rgba(201,169,98,0.95) + dark text.
+- Offline cache UNCHANGED: existing offline harness passes (roster cached 47, offline scan queued, matched cached guest, queue flushed on reconnect); diff touches no offline/roster/cache code.
+- Gates: schema-sync exit 0 (435 lines byte-identical); node --check admin+user server.js OK; inline admin script block node --check OK. Visual desktop 1440x900 + mobile 390x844 on admin home + scanner modal render clean; 0 app-origin console errors (only fonts.gstatic.com woff2 fails — no-network sandbox).
+- DB cleanup: reset petra.uitest@example.com check-in (flipped 0->1 by my offline reconnect-flush test) back to checked_in=0 / checked_in_at=NULL. e2e.* accelerator rows untouched. No git add/commit.
+- Note (out of scanner scope): commit bed896a is a bundled checkpoint also carrying ContentChecklist + web-push features; CAMPAIGN_LOG.md contains the literal word "honest" in a web-push self-compliance note ("Word 'honest' not used.") — internal log text, not shipped copy, not the scanner cluster.
+
+## 2026-07-06 — U-push ADVERSARIAL VERIFY (independent) — PASS
+Verified builder commit bed896a web-push CLIENT loop + app-icon badge (user-portal/frontend/index.html MedXPush module + sw.js). Instrumented headless Chromium (/tmp/medx-pw), spies installed via addInitScript BEFORE app JS; screenshots read then deleted.
+- NO PROMPT ON LOAD: Notification.requestPermission wrapped by a spy before app boot. Fresh UI login -> 0 requestPermission calls, 0 pushManager.subscribe calls, pushPermissionBanner not active. Even after driving WelcomeTour.complete() (full onboarding) -> still 0 auto requestPermission calls. Prompt fires only on explicit user action.
+- SUBSCRIBE E2E: MedXPush.subscribe() (permission granted, stubbed reg) -> real authed POST /api/push/subscribe -> real row in shared push_subscriptions (user_id = tester 935d7e1b), localStorage medx_push_enabled='1'. Unsubscribe -> real DELETE, row removed, flag '0'.
+- SETTINGS TOGGLE round-trip: onSettingsToggle(true) -> subscribe + row + flag; onSettingsToggle(false) -> unsubscribe + row gone.
+- DENIED recoverable: requestPermission->'denied' -> subscribe returns reason 'denied' (no throw); toggle left unchecked+disabled with blocked help copy. No stuck/broken state.
+- UNSUPPORTED guards: MedXPush.supported()=false -> subscribe returns reason 'unsupported' (no throw); onSettingsToggle no throw; toggle disabled; updateAppBadge/clearBadge with navigator.setAppBadge/clearAppBadge deleted -> no throw.
+- BADGE: NotificationSystem.render() at unread=4 -> navigator.setAppBadge(4); at unread=0 -> clearAppBadge (['set:4','clear']). Cleared on logout (MedXPush.clearBadge in UserPortal.logout).
+- FAN-OUT: enqueued a push_outbox broadcast row against the live drainer -> drain executed, marked sent=1, logged '[Push] Broadcast ... device(s)', server stayed 200, no crash. (Positive encrypted-POST-to-mock not independently reproduced: web-push rejects plain http and a self-signed https can't be cert-bypassed in the already-running server; builder's aes128gcm-to-HTTPS-mock claim is plausible and the send code (server.js) is untouched by this cluster.)
+- Bilingual EN+HR verified live (card 'Push Notifications'/'Push obavijesti', row 'Notifications on this device'/'Obavijesti na ovom uređaju', banner 'Stay in the loop'/'Ostanite u tijeku') with correct diacritics; re-renders on medx:localechange. No semicolons in push copy; word 'honest' absent from client code.
+- Gates: node --check sw.js + user server.js OK; scripts/check-schema-sync.sh exit 0 (435 lines byte-identical); 0 app-origin console errors desktop 1440x900 + mobile 390x844 (only baseline anonymous 401 GET /api/project-status). Frozen surfaces (Stripe/calculateTotal/registrations/QR gen + /api/admin/checkin/verify) not in the push diff.
+- DB cleanup: all test push_subscriptions + push_outbox verifier rows removed. Final: 0 subscriptions, 0 unsent outbox (6 pre-existing accelerator 'Accelerator applications open' outbox rows from 07-04 left untouched). No git add/commit.
+- NOTE (out of U-push scope): the post-onboarding push offer is now routed through the warmth-pack FounderWelcome (WelcomeTour.complete -> FounderWelcome.afterOnboarding -> on dismiss -> MedXPush.offerAfterOnboarding); the offer still reaches the member via handoff and a fallback calls offerAfterOnboarding directly if FounderWelcome is absent. NotificationSystem.dismissPermission is now dead code (banner rewired to MedXPush). Neither is a push defect.
+
+## 2026-07-06 — Content completion checklist — INDEPENDENT RE-VERIFY (already built in bed896a, no rebuild)
+Re-ran the full spec verification against the shipped feature (backend table + seed + endpoints, admin-home card + JS module, weekly-pulse line) — all present and correct from commit bed896a. No code changes made this pass (the guarded CREATE + INSERT-if-empty seed made a rebuild neither needed nor safe). Only CAMPAIGN_LOG.md touched.
+- Ownership + schema: content_checklist (id, title, area, location_hint, status, notes, created_at, updated_at, done_at, done_by) + status index, guarded CREATE placed AFTER SCHEMA-MIRROR:END in admin server ONLY. Confirmed ZERO content_checklist references in user-portal/backend/server.js (admin-owned, user portal never reads or writes it). schema-sync exit 0 (435 lines byte-identical).
+- Seed exactly once over a DOUBLE server restart: killed both by port, restarted user(3001)+admin(3002), count held 10 open / 0 done / 10 total with NO re-seed log; restarted again, still 10, no re-seed. INSERT-if-empty guard holds. (Note: booting both servers simultaneously against the shared SQLite DB loses a boot race — SQLITE_BUSY_RECOVERY; start them sequentially, user first.)
+- Endpoints (auth+adminOnly) exercised live: GET list returns 10 items + counts; check-off stamps status=done + done_at + done_by (email), counts recompute open 10->9; reopen clears done_at/done_by, back to open 10; add creates an open row (counts 11); edit-notes persists; empty title -> 400. Every write logs audit + saveDb.
+- Weekly pulse: /api/admin/pulse/run (force) staged HTML carried the "Content to fill" section + "Items still to replace" line reading the LIVE open count (rendered 11 while the temp test item was present, proving it is live not static). Test pulse batch (3 scheduled_emails) + its manual drip_log marker + the pulse.generate audit row deleted afterward; 6 pre-existing cancelled pulse rows untouched.
+- Visual (headless /tmp/medx-pw harness, desktop 1440x900 + mobile 390x844): "Content to fill" card renders clean with the crimson open-count badge = 10, per-item check-off circle + area chip (Website/Member portal/Admin) + location hint + notes + inline Notes editor + Add-item form + collapsible Done section. LIVE click of the check-off (inline onclick) fired under the running CSP: badge 10->9, Done section appeared; reopen -> 10. 0 console/page errors on both viewports.
+- DB cleanup: removed the temp added item, the pulse test batch + drip marker, and all content_checklist/pulse test audit rows; reset the one browser-toggled seed row to pristine (updated_at=created_at, done_at/done_by NULL). Final state 10 open / 0 done, 0 non-pristine rows. Accelerator worked-example rows (submission_pipeline, 3) untouched. Copy compliance re-checked: no ";" in any user-facing seed string, no "honest" anywhere in the feature code.
+- Gates: node --check admin + user server.js OK; scripts/check-schema-sync.sh exit 0. Frozen surfaces (Stripe/checkout/calculateTotal/registrations/QR generation + /api/admin/checkin/verify) never touched. No git add/commit.
+
+## 2026-07-06 — A-checklist ADVERSARIAL VERIFY (independent) — PASS
+Verified the CONTENT COMPLETION CHECKLIST feature shipped in commit bed896a (admin-owned table + seed + endpoints, admin-home card + JS module, weekly-pulse line). No feature code changed this pass; only this log entry appended.
+- Ownership + schema-mirror: content_checklist CREATE at admin-portal/backend/server.js:4425 is AFTER the SCHEMA-MIRROR:END marker (line 3915). ZERO content_checklist references in user-portal/backend/server.js (admin-owned, user portal never touches it). check-schema-sync.sh exit 0 (435 lines byte-identical). node --check admin + user server.js OK.
+- Seed exactly once over DOUBLE admin restart: restarted admin (port 3002 only) twice; seed log line never re-fired and total held at 11 (10 seed + 1 verifier-added) both rounds. INSERT-if-empty guard holds.
+- Persistence across the double restart: a checked-off item stayed done with done_by=juginovic.alen@gmail.com + done_at intact; an edited note persisted; the added item persisted. Reopen clears done_at/done_by. Add empty title -> 400; edit empty title -> 400 (404 for unknown id). area validated against website/member-portal/admin.
+- Pulse: /api/admin/pulse/run (force) staged HTML rendered the "Content to fill" section + "Items still to replace" reading the LIVE open count (10, matching the DB). Staged scheduled_emails batch + manual drip_log marker + pulse.generate audit rows deleted after each run; 6 pre-existing cancelled pulse rows + their marker left untouched.
+- Visual (headless /tmp/medx-pw, desktop 1440x900 + mobile 390x844): "Content to fill" card renders with crimson open-count badge=10, per-item check-off circle + area chip (Website/Member portal/Admin) + location hint + notes + inline Notes editor + Add-item form + collapsible Done section. 0 console/page errors on both viewports. All frontend text rendering escapes values via escapeHtml.
+- Copy: no semicolons in seed titles/notes or pulse copy; word "honest" absent from the feature code. Admin surface is EN only (bilingual not required for admin). Quiet-profile cannot be violated — feature is admin-only with zero user-portal footprint.
+- Frozen surfaces untouched: feature blocks reference no Stripe/checkout/calculateTotal/registrations/QR-generation/checkin-verify; git diff HEAD shows no uncommitted changes to any server.js. (Working tree carries an UNRELATED uncommitted user-portal/frontend/index.html change = the warmth-pack/_giving WIP from the U-warmth cluster per bed896a's commit message, not this feature.)
+- DB cleanup: restored the checked-off + note-edited seed rows to pristine (updated_at=created_at, done stamps NULL), deleted the verifier-added item and all content_checklist audit rows, removed the staged pulse batches/markers. Final state 10 open / 0 done / 10 total, 0 non-pristine rows. Accelerator worked-example rows (submission_pipeline, 3) untouched. Screenshots + temp harness scripts read then deleted. No git add/commit.
+
+## 2026-07-06 — WARMTH PACK (user portal) — COMPLETE + VERIFIED
+User-portal-only (user-portal/frontend/index.html). No server.js edits (both warmth endpoints already existed), so SCHEMA-MIRROR untouched. All frontend edits via python3 unique-string replace, count==1 asserted per edit (12 edits). Frozen surfaces (Stripe/calculateTotal/registrations/QR gen + /api/admin/checkin/verify) not in the diff.
+
+Entered a partially-built state: MedXState shared warm-state renderer, the founder-welcome banner+endpoints, and the giving endpoint + i18n keys were already committed (bundled in the U-push checkpoint). Finished the three gaps and verified every state live EN+HR, desktop 1440x900 + mobile 390x844, screenshots read then deleted.
+
+### 1. Empty/error states sweep
+- Already warm before this pass: tickets (tk.loadError), record (mmx.recordLoadErr), purchases (mmx.purchasesErr), notifications (nc.loadError/nc.empty), feed (feed.loading/feed.emptyNow), talks (talk.loadError) — all via MedXState + bilingual.
+- Remaining bare/cold states, now warmed through MedXState (bilingual, reassuring line + next action, reusing the dashed-card look):
+  - Network > Requests empty: bare "No pending requests" -> net.reqEmptyTitle + net.reqEmptySub + "Discover people" action into the directory.
+  - Network > Requests + Connections load failure: added warm error catches (net.loadError + "Try again" retry). Connections error respects data-live so a good render is never wiped.
+  - Plexus > Attendees empty ("No attendees yet" EN-only) + error ("Unable to load attendees" EN-only): now bilingual via net.attendeesEmptyTitle/Sub + net.loadError + retry.
+- VERIFIED live: requests empty EN "No connection requests yet / When someone asks to connect... / Discover people" and HR "Još nema zahtjeva za povezivanje / ... / Otkrijte članove"; requests + connections error "We could not load this right now... / Try again"; attendees empty + error render warm bilingual. Forced-rejection tests fire only the pre-existing diagnostic console.error on the error path (deliberately triggered); normal loads are 0-error.
+
+### 2. Founder welcome moment
+- Fully wired already (banner DOM, CSS, FounderWelcome JS, GET/POST /api/member/founder-welcome using dashboard_preferences, called from WelcomeTour.complete -> afterOnboarding -> hands off to the push offer on dismiss). Verified end-to-end.
+- Calm bottom-right card (not a modal ambush), signed "Alen Juginović / Founder & President, Med&X" / HR "Osnivač i predsjednik, Med&X". EN cta "Thank you" / HR "Hvala". Bilingual body with correct diacritics.
+- First-login only: reset the tester seen-flag -> GET show:true -> banner shows; dismiss -> POST -> GET show:false; re-running afterOnboarding does NOT show it again (persisted server-side). Tester flag restored to its original is_visible=0 (seen).
+
+### 3. Donor thank-you + quiet Supporter badge
+- New frontend rendering over the existing read-only GET /api/member/giving (reads bridges_registrations donor-night, fail-closed). Added: dignified thank-you card #mymedxGiving in the MyMedX MAIN column (gold-bordered, serif, "With gratitude / Thank you for your generosity" — mmx.givingEyebrow/Title/Body), MyMedXPortal.renderGiving/_paintGiving, init + relocalize hooks; a gold "Supporter" chip (mmx.bSupporter, hand-holding-heart) on the recognition rail.
+- QUIET GATE fail-closed, exactly per existing pattern: the thank-you card is dignified (not gamified) and shows to EVERY supporter incl. quiet members; the Supporter chip is gamification so it is hidden for quiet — it lives in .mmx-hero-sidecol (already display:none for body.medx-quiet) AND is only pushed when MedXQuiet.allowPlayful().
+- VERIFIED with a seeded paid donor-night row for the tester: non-quiet -> giving card + Supporter chip both visible (EN+HR, desktop+mobile); forced quiet -> card still visible, Supporter chip absent from DOM, whole sidecol hidden. Seed row (warmthtest-donor-001) deleted after; giving API reverts to is_supporter:false.
+
+### Gates + cleanup
+- scripts/check-schema-sync.sh exit 0 (435 lines byte-identical). node --check user + admin server.js OK. Copy: no semicolons in user-facing copy, word "honest"/"honestly" absent. Member copy bilingual EN+HR (formal Vi) via MedXI18n, re-renders on medx:localechange.
+- Final normal-load smoke (dashboard/mymedx/network/plexus, EN then HR): 0 console/page errors (baseline anonymous 401 /api/project-status excluded). DB test junk removed (donor seed gone, founder flag restored); e2e.* accelerator rows untouched. No git add/commit.
+
+---
+
+## 2026-07-06 — Session star ratings + Top rated (USER portal)
+
+Built one-tap 1-5 star ratings on Talk Library cards plus a "Top rated" sort/section. User-portal only (`user-portal/`); admin-portal untouched.
+
+### Backend (user-portal/backend/server.js)
+- New USER-OWNED table `talk_ratings` (id, user_id, talk_id, rating 1-5, created_at, updated_at, UNIQUE(user_id, talk_id)) via guarded CREATE placed AFTER the SCHEMA-MIRROR:END marker (next to the talks duration/is_sample ALTERs). NOT mirrored to admin — admin never reads/writes it. Plus indexes on talk_id and user_id.
+- `GET /api/talks` augmented: each row now carries `my_rating` (0 when unrated), `rating_count` (always), and `rating_avg` — avg is emitted ONLY when count >= 3 (single-vote boards suppressed server-side, not just hidden in UI). Original columns preserved; extra fields are additive.
+- `GET /api/talks/:id/rating` — own rating + aggregate for one talk (avg gated at >= 3).
+- `POST /api/talks/:id/rating` — upsert own rating. UNIQUE(user_id, talk_id) makes a re-rating an UPDATE, never a duplicate. Validates talk exists + published and rating in 1..5 (400/404 otherwise). Returns fresh aggregate. No rewards/points path is ever touched.
+
+### Frontend (user-portal/frontend/index.html)
+- `TalkLibrary._cardHtml` gains an interactive star row: 5 tap targets with JS hover preview (`_hoverStars`/`_resetStars`), the member's own rating persisted as filled gold stars, a bilingual hint ("Rate this session" / "Vaša ocjena N od 5"), and the suppressed aggregate ("3.0 · 3 ratings"). Wrapper stops click propagation so rating never triggers the card's play handler.
+- Optimistic `rate()` — reflects the tap immediately, reconciles with the server's authoritative aggregate, reverts on failure with a toast.
+- New "Top rated" filter pill + `_renderTopRated` section: talks with count >= 3 sorted by avg desc then count desc then title; dignified empty state until three members have rated. Integrated with the existing year/event filters and `medx:localechange` relocalize.
+- CSS for `.talk-rate`/`.talk-stars`/`.talk-rate-agg` (gold `--gold` fill, muted empty stars, hairline divider). i18n keys `talk.rateThis/yourRating/rateThanks/rateUpdated/rateError/topRated/topRatedSub/topRatedEmpty` (EN + HR formal Vi, correct diacritics). Croatian decimal comma + plural (`3,0 3 ocjene`).
+
+### Quiet-profile
+- Ratings ARE available to quiet members (feedback, not gamification) — the star UI is not quiet-gated. No points are awarded and no rewards surface is touched, so quiet profiles stay clean.
+
+### Verify (E2E)
+- API: three raters on one talk (5/4/3) -> count 3, avg 4.0; avg stayed null at count 1 and 2. Tester re-rated 5->2: DB kept exactly 3 rows / 3 distinct users (unique constraint held), avg recomputed to 3.0. Invalid rating -> 400, unknown talk -> 404.
+- UI (playwright harness, desktop 1440x900 + mobile 390x844, EN + HR): 11 cards each with a star row, rated card shows filled stars + "3.0 · 3 ratings" (HR "3,0 · 3 ocjene"), hover preview fills to the hovered star, "Top rated" section shows only the qualifying talk. 0 console/page errors.
+- Test rating rows deleted after verification (table persists empty across a restart). e2e.* accelerator rows untouched.
+
+### Gates
+- node --check user-portal/backend/server.js OK. scripts/check-schema-sync.sh exit 0 (435 lines byte-identical — new table is outside the mirror block). No semicolons in user-facing copy, word "honest"/"honestly" absent. No git add/commit.

@@ -7670,6 +7670,25 @@ async function initializeApp() {
     try { db.run('ALTER TABLE talks ADD COLUMN duration TEXT'); } catch (e) {}
     try { db.run('ALTER TABLE talks ADD COLUMN is_sample INTEGER DEFAULT 0'); } catch (e) {}
 
+    // ===== Talk ratings — one-tap 1-5 star member feedback on Talk Library items =====
+    // USER-OWNED table: this server owns the Talk Library feature, so the table lives here
+    // ONLY and is deliberately NOT mirrored to the admin portal (the admin never reads or
+    // writes it). Kept OUTSIDE the SCHEMA-MIRROR block. One rating per member per talk —
+    // UNIQUE(user_id, talk_id) makes a re-rating an UPDATE, never a duplicate row. Ratings are
+    // member feedback, never gamification: no rewards/points path ever touches this table, so
+    // quiet gala/forum-only members can rate freely.
+    db.run(`CREATE TABLE IF NOT EXISTS talk_ratings (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        talk_id TEXT NOT NULL,
+        rating INTEGER NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, talk_id)
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_talk_ratings_talk ON talk_ratings(talk_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_talk_ratings_user ON talk_ratings(user_id)`);
+
     // Audience scope for member announcements (additive, guarded — deliberately OUTSIDE the mirror
     // block so it never disturbs the byte-identical CREATE TABLE region). Values:
     //   'everyone' | 'interested' | 'registered' | 'interested_not_registered'.
@@ -10550,10 +10569,60 @@ async function submitReset(e){
         res.json({ success: true, id, status: 'pending' });
     });
 
-    // On-demand talk library — published sessions only.
+    // On-demand talk library — published sessions only. Each row also carries the caller's own
+    // 1-5 star rating (my_rating, 0 when unrated) plus the aggregate: rating_count is always
+    // present, but rating_avg is emitted ONLY once at least three members have rated (single-vote
+    // boards are suppressed server-side, not just hidden in the UI). Ratings are member feedback,
+    // never gamification — no rewards/points path runs here, so quiet profiles read the same shape.
     app.get('/api/talks', auth, (req, res) => {
-        res.json(query.all(`SELECT id, title, speaker, event_label, year, video_url, thumb_url, duration, is_sample
-            FROM talks WHERE published = 1 ORDER BY year DESC, title ASC`));
+        const uid = (req.user && req.user.id) || '';
+        const rows = query.all(`SELECT t.id, t.title, t.speaker, t.event_label, t.year, t.video_url, t.thumb_url, t.duration, t.is_sample,
+                (SELECT COUNT(*) FROM talk_ratings r WHERE r.talk_id = t.id) AS rating_count,
+                (SELECT AVG(r.rating) FROM talk_ratings r WHERE r.talk_id = t.id) AS rating_avg_raw,
+                (SELECT r.rating FROM talk_ratings r WHERE r.talk_id = t.id AND r.user_id = ?) AS my_rating
+            FROM talks t WHERE t.published = 1 ORDER BY t.year DESC, t.title ASC`, [uid]);
+        rows.forEach(r => {
+            r.rating_count = r.rating_count || 0;
+            r.rating_avg = (r.rating_count >= 3 && r.rating_avg_raw != null) ? Math.round(r.rating_avg_raw * 100) / 100 : null;
+            delete r.rating_avg_raw;
+            r.my_rating = r.my_rating || 0;
+        });
+        res.json(rows);
+    });
+
+    // Aggregate + the caller's own rating for a single talk (avg only surfaces at >= 3 ratings).
+    app.get('/api/talks/:id/rating', auth, (req, res) => {
+        const uid = (req.user && req.user.id) || '';
+        const talkId = req.params.id;
+        const agg = query.get('SELECT COUNT(*) AS c, AVG(rating) AS a FROM talk_ratings WHERE talk_id = ?', [talkId]);
+        const count = (agg && agg.c) || 0;
+        const avg = (count >= 3 && agg && agg.a != null) ? Math.round(agg.a * 100) / 100 : null;
+        const mine = uid ? query.get('SELECT rating FROM talk_ratings WHERE user_id = ? AND talk_id = ?', [uid, talkId]) : null;
+        res.json({ my_rating: mine ? mine.rating : 0, rating_count: count, rating_avg: avg });
+    });
+
+    // Upsert the caller's own 1-5 star rating for a talk. One rating per member per talk:
+    // UNIQUE(user_id, talk_id) means a re-rating UPDATEs the existing row, never a duplicate.
+    // Returns the fresh aggregate (count always, avg only at >= 3 ratings). No points are awarded.
+    app.post('/api/talks/:id/rating', auth, (req, res) => {
+        const uid = req.user && req.user.id;
+        if (!uid) return res.status(401).json({ error: 'Authentication required' });
+        const talkId = req.params.id;
+        const talk = query.get('SELECT id FROM talks WHERE id = ? AND published = 1', [talkId]);
+        if (!talk) return res.status(404).json({ error: 'Talk not found' });
+        const rating = parseInt((req.body || {}).rating, 10);
+        if (!(rating >= 1 && rating <= 5)) return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+        const existing = query.get('SELECT id FROM talk_ratings WHERE user_id = ? AND talk_id = ?', [uid, talkId]);
+        if (existing) {
+            db.run('UPDATE talk_ratings SET rating = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [rating, existing.id]);
+        } else {
+            db.run('INSERT INTO talk_ratings (id, user_id, talk_id, rating) VALUES (?,?,?,?)', [uuidv4(), uid, talkId, rating]);
+        }
+        saveDb();
+        const agg = query.get('SELECT COUNT(*) AS c, AVG(rating) AS a FROM talk_ratings WHERE talk_id = ?', [talkId]);
+        const count = (agg && agg.c) || 0;
+        const avg = (count >= 3 && agg && agg.a != null) ? Math.round(agg.a * 100) / 100 : null;
+        res.json({ success: true, my_rating: rating, rating_count: count, rating_avg: avg });
     });
 
     // ===== Project hub status (member reads; admin owns the rows) =====
