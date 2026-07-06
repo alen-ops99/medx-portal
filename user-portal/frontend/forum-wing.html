@@ -258,6 +258,10 @@ input,button,select,textarea{font-family:inherit;font-size:inherit}
 .foot-col a:hover{color:#f6f1e6}
 .foot-bottom{display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;align-items:center;margin-top:28px;font-size:.86rem;color:rgba(246,241,230,.5)}
 
+.wing-lang{display:inline-flex;align-items:center;gap:0;border:1px solid var(--line-strong);border-radius:999px;padding:2px;margin-right:4px}
+.wing-lang button{appearance:none;border:none;background:transparent;cursor:pointer;font-family:var(--sans);font-size:11.5px;font-weight:700;letter-spacing:.04em;color:var(--ink-mute);padding:4px 9px;border-radius:999px;line-height:1;transition:background .16s ease,color .16s ease}
+.wing-lang button:hover{color:var(--ink)}
+.wing-lang button.on{background:var(--ink);color:var(--paper)}
 .loading{padding:80px 0;text-align:center;color:var(--ink-mute);font-family:var(--serif);font-style:italic;font-size:1.2rem}
 </style>
 </head>
@@ -269,19 +273,20 @@ input,button,select,textarea{font-family:inherit;font-size:inherit}
       <img class="logo" src="/assets/images/medx-logo.png" alt="Med&amp;X">
       <span class="wm">
         <span class="mk">Biomedical <em>Forum</em></span>
-        <span class="sub">An initiative of Med&amp;X</span>
+        <span class="sub" data-i18n="wing.initiative">An initiative of Med&amp;X</span>
       </span>
     </div>
     <nav class="fnav-links" id="navLinks" aria-label="Primary">
-      <a data-view="home" onclick="Wing.go('home')">The Forum</a>
-      <a data-view="directory" onclick="Wing.go('directory')">Directory</a>
-      <a data-view="convenings" onclick="Wing.go('convenings')">Convenings</a>
-      <a data-view="profile" onclick="Wing.go('profile')">My standing</a>
-      <a class="mob-leave" onclick="Wing.leave()">Leave the Forum</a>
+      <a data-view="home" onclick="Wing.go('home')" data-i18n="wing.navForum">The Forum</a>
+      <a data-view="directory" onclick="Wing.go('directory')" data-i18n="wing.navDirectory">Directory</a>
+      <a data-view="convenings" onclick="Wing.go('convenings')" data-i18n="wing.navConvenings">Convenings</a>
+      <a data-view="profile" onclick="Wing.go('profile')" data-i18n="wing.navStanding">My standing</a>
+      <a class="mob-leave" onclick="Wing.leave()" data-i18n="wing.leave">Leave the Forum</a>
     </nav>
     <div class="fnav-right">
+      <span class="wing-lang" role="group" aria-label="Language / Jezik"><button type="button" data-loc="en" onclick="WingI18n.set('en')">EN</button><button type="button" data-loc="hr" onclick="WingI18n.set('hr')">HR</button></span>
       <span class="fnav-who" id="navWho"></span>
-      <span class="fnav-out" id="navOut" onclick="Wing.leave()" style="display:none">Leave the Forum</span>
+      <span class="fnav-out" id="navOut" onclick="Wing.leave()" style="display:none" data-i18n="wing.leave">Leave the Forum</span>
       <button class="fnav-burger" id="burger" aria-label="Menu" onclick="document.getElementById('fnav').classList.toggle('mobopen')"><span></span><span></span><span></span></button>
     </div>
   </div>
@@ -293,36 +298,36 @@ input,button,select,textarea{font-family:inherit;font-size:inherit}
   <section class="view" id="view-access">
     <div class="hero">
       <div class="wrap">
-        <p class="hero-est">By invitation &middot; Convened under Med&amp;X</p>
-        <h1>A standing circle of senior <em>biomedical</em> leaders.</h1>
-        <p class="hero-lead">The Biomedical Forum brings together directors, professors, and senior physicians from Croatia and abroad. One comes to the Forum by invitation. There are no passwords to keep — a personal link is all that is ever needed.</p>
+        <p class="hero-est" data-i18n="wing.accessEst">By invitation &middot; Convened under Med&amp;X</p>
+        <h1 data-i18n-html="wing.accessH1">A standing circle of senior <em>biomedical</em> leaders.</h1>
+        <p class="hero-lead" data-i18n="wing.accessLead">The Biomedical Forum brings together directors, professors, and senior physicians from Croatia and abroad. One comes to the Forum by invitation. There are no passwords to keep — a personal link is all that is ever needed.</p>
       </div>
     </div>
     <div class="wrap pad">
       <div class="access-grid">
         <div class="access-col">
-          <h3>Enter by personal link</h3>
-          <p class="lede">If you are within the circle, a personal link admits you at once. Enter the email address the Forum holds for you, and one is sent.</p>
+          <h3 data-i18n="wing.enterTitle">Enter by personal link</h3>
+          <p class="lede" data-i18n="wing.enterLede">If you are within the circle, a personal link admits you at once. Enter the email address the Forum holds for you, and one is sent.</p>
           <div class="field">
-            <label for="lkEmail">Email address</label>
+            <label for="lkEmail" data-i18n="wing.emailLabel">Email address</label>
             <input type="email" id="lkEmail" placeholder="you@institution.org" autocomplete="email">
           </div>
           <div class="form-actions">
-            <button class="btn btn-solid" id="lkBtn" onclick="Wing.requestLink()">Send my personal link <span class="arr">&rarr;</span></button>
+            <button class="btn btn-solid" id="lkBtn" onclick="Wing.requestLink()" data-i18n="wing.sendLink">Send my personal link <span class="arr">&rarr;</span></button>
           </div>
           <div class="notice" id="lkNotice"></div>
           <div class="devlink" id="lkDev"></div>
         </div>
         <div class="access-col">
-          <h3>Request consideration</h3>
-          <p class="lede">If you believe your standing, or a colleague's, belongs within the Forum, you are welcome to ask. We reply to each note personally, and without hurry.</p>
-          <div class="field"><label for="rcName">Name and title</label><input type="text" id="rcName" placeholder="prof. dr. sc. Ivan Marković, dr. med."></div>
-          <div class="field"><label for="rcEmail">Email address</label><input type="email" id="rcEmail" placeholder="you@institution.org" autocomplete="email"></div>
-          <div class="field"><label for="rcInst">Institution</label><input type="text" id="rcInst" placeholder="KBC Zagreb"></div>
-          <div class="field"><label for="rcField">Field</label><input type="text" id="rcField" placeholder="Cardiology"></div>
-          <div class="field"><label for="rcNote">A few lines</label><textarea id="rcNote" placeholder="Who you are, and why the circle would be of mutual value."></textarea></div>
+          <h3 data-i18n="wing.reqTitle">Request consideration</h3>
+          <p class="lede" data-i18n="wing.reqLede">If you believe your standing, or a colleague's, belongs within the Forum, you are welcome to ask. We reply to each note personally, and without hurry.</p>
+          <div class="field"><label for="rcName" data-i18n="wing.nameTitle">Name and title</label><input type="text" id="rcName" placeholder="prof. dr. sc. Ivan Marković, dr. med."></div>
+          <div class="field"><label for="rcEmail" data-i18n="wing.emailLabel">Email address</label><input type="email" id="rcEmail" placeholder="you@institution.org" autocomplete="email"></div>
+          <div class="field"><label for="rcInst" data-i18n="wing.institution">Institution</label><input type="text" id="rcInst" placeholder="KBC Zagreb"></div>
+          <div class="field"><label for="rcField" data-i18n="wing.field">Field</label><input type="text" id="rcField" placeholder="Cardiology" data-i18n-placeholder="wing.fieldPh"></div>
+          <div class="field"><label for="rcNote" data-i18n="wing.fewLines">A few lines</label><textarea id="rcNote" placeholder="Who you are, and why the circle would be of mutual value." data-i18n-placeholder="wing.notePh"></textarea></div>
           <div class="form-actions">
-            <button class="btn btn-outline" id="rcBtn" onclick="Wing.requestConsideration()">Submit for consideration <span class="arr">&rarr;</span></button>
+            <button class="btn btn-outline" id="rcBtn" onclick="Wing.requestConsideration()" data-i18n="wing.submitConsider">Submit for consideration <span class="arr">&rarr;</span></button>
           </div>
           <div class="notice" id="rcNotice"></div>
         </div>
@@ -334,32 +339,32 @@ input,button,select,textarea{font-family:inherit;font-size:inherit}
   <section class="view" id="view-home">
     <div class="hero">
       <div class="wrap">
-        <p class="hero-est" id="homeEst">Within the circle</p>
-        <h1 id="homeGreeting">Welcome back.</h1>
-        <p class="hero-lead" id="homeLead">Your convenings, and word from the Forum. Everything here is held in confidence, among the circle.</p>
+        <p class="hero-est" id="homeEst" data-i18n="wing.homeEst">Within the circle</p>
+        <h1 id="homeGreeting" data-i18n="wing.welcomeBackDot">Welcome back.</h1>
+        <p class="hero-lead" id="homeLead" data-i18n="wing.homeLead">Your convenings, and word from the Forum. Everything here is held in confidence, among the circle.</p>
         <div class="hero-foot">
-          <span class="idx">Peer exchange <i>&middot;</i> Mentorship <i>&middot;</i> National impact</span>
-          <span class="seat">Held with discretion.</span>
+          <span class="idx" data-i18n-html="wing.heroIdx">Peer exchange <i>&middot;</i> Mentorship <i>&middot;</i> National impact</span>
+          <span class="seat" data-i18n="wing.heldDiscretion">Held with discretion.</span>
         </div>
       </div>
     </div>
     <div class="wrap pad">
       <div class="home-grid">
         <div>
-          <div class="chap"><span class="rom">I</span><span class="lbl">Your convenings</span></div>
-          <div id="homeConvenings"><div class="loading">Gathering the year ahead…</div></div>
-          <div style="margin-top:26px"><span class="tlink" onclick="Wing.go('convenings')">See the full programs <span class="arr">&rarr;</span></span></div>
+          <div class="chap"><span class="rom">I</span><span class="lbl" data-i18n="wing.yourConvenings">Your convenings</span></div>
+          <div id="homeConvenings"><div class="loading" data-i18n="wing.gatheringYear">Gathering the year ahead…</div></div>
+          <div style="margin-top:26px"><span class="tlink" onclick="Wing.go('convenings')" data-i18n="wing.seeFullPrograms">See the full programs <span class="arr">&rarr;</span></span></div>
         </div>
         <div>
           <div class="panel">
-            <div class="panel-head"><h3>Forum news</h3><span class="k">In confidence</span></div>
+            <div class="panel-head"><h3 data-i18n="wing.forumNews">Forum news</h3><span class="k" data-i18n="wing.inConfidence">In confidence</span></div>
             <div class="panel-body" id="homeNews"><div class="loading" style="padding:30px 0">…</div></div>
           </div>
           <div class="panel" style="margin-top:26px">
-            <div class="panel-head"><h3>The circle</h3><span class="k">Private</span></div>
+            <div class="panel-head"><h3 data-i18n="wing.theCircle">The circle</h3><span class="k" data-i18n="wing.private">Private</span></div>
             <div class="panel-body">
-              <p style="color:var(--ink-soft);font-size:1rem;line-height:1.6">The directory is held privately to the Forum. Search a name, an institution, or a field, and colleagues surface at once.</p>
-              <div style="margin-top:16px"><span class="tlink" onclick="Wing.go('directory')">Open the directory <span class="arr">&rarr;</span></span></div>
+              <p style="color:var(--ink-soft);font-size:1rem;line-height:1.6" data-i18n="wing.circleBody">The directory is held privately to the Forum. Search a name, an institution, or a field, and colleagues surface at once.</p>
+              <div style="margin-top:16px"><span class="tlink" onclick="Wing.go('directory')" data-i18n="wing.openDirectory">Open the directory <span class="arr">&rarr;</span></span></div>
             </div>
           </div>
         </div>
@@ -371,22 +376,22 @@ input,button,select,textarea{font-family:inherit;font-size:inherit}
   <section class="view" id="view-directory">
     <div class="hero" style="padding-bottom:44px">
       <div class="wrap">
-        <p class="hero-est">The circle &middot; private</p>
-        <h1 style="max-width:18ch">The company you <em>keep.</em></h1>
-        <p class="hero-lead">Search a name, an institution, or a field. The directory is private to the Forum and never shown beyond it.</p>
+        <p class="hero-est" data-i18n="wing.dirEst">The circle &middot; private</p>
+        <h1 style="max-width:18ch" data-i18n-html="wing.dirH1">The company you <em>keep.</em></h1>
+        <p class="hero-lead" data-i18n="wing.dirLead">Search a name, an institution, or a field. The directory is private to the Forum and never shown beyond it.</p>
       </div>
     </div>
     <div class="wrap pad">
       <div class="dir-search">
         <svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input type="text" id="dirQuery" placeholder="Search by name, institution, or field…" autocomplete="off" oninput="Wing.onSearch()">
+        <input type="text" id="dirQuery" placeholder="Search by name, institution, or field…" data-i18n-placeholder="wing.dirSearchPh" autocomplete="off" oninput="Wing.onSearch()">
       </div>
       <div class="dir-filters" id="dirFieldFilters"></div>
       <div class="dir-filters" id="dirInstFilters"></div>
       <div class="dir-count" id="dirCount"></div>
-      <div id="dirFeaturedLbl" class="dir-featured-lbl" style="display:none">Featured within the circle</div>
+      <div id="dirFeaturedLbl" class="dir-featured-lbl" style="display:none" data-i18n="wing.featuredInCircle">Featured within the circle</div>
       <div class="members-grid" id="dirResults"></div>
-      <div class="dir-more" id="dirMore" style="display:none"><button class="btn btn-outline" onclick="Wing.moreMembers()">Show more of the circle <span class="arr">&rarr;</span></button></div>
+      <div class="dir-more" id="dirMore" style="display:none"><button class="btn btn-outline" onclick="Wing.moreMembers()" data-i18n="wing.showMore">Show more of the circle <span class="arr">&rarr;</span></button></div>
     </div>
   </section>
 
@@ -394,17 +399,17 @@ input,button,select,textarea{font-family:inherit;font-size:inherit}
   <section class="view" id="view-convenings">
     <div class="hero" style="padding-bottom:44px">
       <div class="wrap">
-        <p class="hero-est">Two gatherings a year</p>
-        <h1 style="max-width:16ch">The Forum's <em>convenings.</em></h1>
-        <p class="hero-lead">Reserve your place in a single click. Tick the parts of an evening you will attend — everything else arrives by email.</p>
+        <p class="hero-est" data-i18n="wing.convEst">Two gatherings a year</p>
+        <h1 style="max-width:16ch" data-i18n-html="wing.convH1">The Forum's <em>convenings.</em></h1>
+        <p class="hero-lead" data-i18n="wing.convLead">Reserve your place in a single click. Tick the parts of an evening you will attend — everything else arrives by email.</p>
       </div>
     </div>
     <div class="wrap pad">
-      <div class="chap"><span class="rom">I</span><span class="lbl">Reserve your place</span></div>
-      <div id="convList"><div class="loading">Gathering the programs…</div></div>
+      <div class="chap"><span class="rom">I</span><span class="lbl" data-i18n="wing.chapReserve">Reserve your place</span></div>
+      <div id="convList"><div class="loading" data-i18n="wing.gatheringPrograms">Gathering the programs…</div></div>
 
-      <div style="margin-top:64px" class="chap"><span class="rom">II</span><span class="lbl">Beyond the Forum</span></div>
-      <p style="max-width:60ch;color:var(--ink-soft);font-size:1.05rem;line-height:1.62;margin-bottom:30px">The wider Med&amp;X calendar is open to you as well. Where the Forum already holds your details, a place is reserved in a single click.</p>
+      <div style="margin-top:64px" class="chap"><span class="rom">II</span><span class="lbl" data-i18n="wing.chapBeyond">Beyond the Forum</span></div>
+      <p style="max-width:60ch;color:var(--ink-soft);font-size:1.05rem;line-height:1.62;margin-bottom:30px" data-i18n="wing.beyondLead">The wider Med&amp;X calendar is open to you as well. Where the Forum already holds your details, a place is reserved in a single click.</p>
       <div class="beyond-grid" id="beyondGrid"></div>
     </div>
   </section>
@@ -413,9 +418,9 @@ input,button,select,textarea{font-family:inherit;font-size:inherit}
   <section class="view" id="view-profile">
     <div class="hero" style="padding-bottom:44px">
       <div class="wrap">
-        <p class="hero-est">Your standing</p>
-        <h1 style="max-width:16ch">How the Forum <em>knows you.</em></h1>
-        <p class="hero-lead">This is the entry the circle sees. To amend it, a word to the Office of the Forum is all that is needed.</p>
+        <p class="hero-est" data-i18n="wing.profEst">Your standing</p>
+        <h1 style="max-width:16ch" data-i18n-html="wing.profH1">How the Forum <em>knows you.</em></h1>
+        <p class="hero-lead" data-i18n="wing.profLead">This is the entry the circle sees. To amend it, a word to the Office of the Forum is all that is needed.</p>
       </div>
     </div>
     <div class="wrap pad">
@@ -433,24 +438,24 @@ input,button,select,textarea{font-family:inherit;font-size:inherit}
           <img class="logo" src="/assets/images/medx-logo.png" alt="Med&amp;X">
           <span class="mk">Biomedical <em>Forum</em></span>
         </div>
-        <p>An invited circle of senior biomedical leaders, convened by Med&amp;X for peer exchange, mentorship, and the standing of Croatian medicine.</p>
+        <p data-i18n="wing.footBrand">An invited circle of senior biomedical leaders, convened by Med&amp;X for peer exchange, mentorship, and the standing of Croatian medicine.</p>
       </div>
       <div class="foot-col">
-        <h4>The Forum</h4>
-        <a onclick="Wing.go('home')">The Forum</a>
-        <a onclick="Wing.go('directory')">Directory</a>
-        <a onclick="Wing.go('convenings')">Convenings</a>
+        <h4 data-i18n="wing.navForum">The Forum</h4>
+        <a onclick="Wing.go('home')" data-i18n="wing.navForum">The Forum</a>
+        <a onclick="Wing.go('directory')" data-i18n="wing.navDirectory">Directory</a>
+        <a onclick="Wing.go('convenings')" data-i18n="wing.navConvenings">Convenings</a>
       </div>
       <div class="foot-col">
-        <h4>Correspondence</h4>
-        <p>The Office of the Forum</p>
+        <h4 data-i18n="wing.correspondence">Correspondence</h4>
+        <p data-i18n="wing.officeForum">The Office of the Forum</p>
         <a href="mailto:president@medx.hr">president@medx.hr</a>
-        <p>Your office may write on your behalf.</p>
+        <p data-i18n="wing.officeBehalf">Your office may write on your behalf.</p>
       </div>
     </div>
     <div class="foot-bottom">
-      <span>&copy; 2026 Med&amp;X Association. The Biomedical Forum.</span>
-      <span>By invitation &middot; Held with discretion</span>
+      <span data-i18n="wing.footCopy">&copy; 2026 Med&amp;X Association. The Biomedical Forum.</span>
+      <span data-i18n="wing.footDiscretion">By invitation &middot; Held with discretion</span>
     </div>
   </div>
 </footer>
@@ -459,13 +464,13 @@ input,button,select,textarea{font-family:inherit;font-size:inherit}
   <div class="modal">
     <div class="modal-top">
       <div class="mk"><svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg></div>
-      <h3 id="resTitle">Your place is reserved</h3>
+      <h3 id="resTitle" data-i18n="wing.placeReserved">Your place is reserved</h3>
     </div>
     <div class="modal-body">
       <ul class="segs" id="resSegs"></ul>
-      <p class="line" id="resLine">Everything arrives by email — your details and QR code.</p>
-      <p class="line" style="font-size:.95rem;color:var(--ink-mute)">Reference <span class="ref" id="resRef"></span></p>
-      <div class="modal-actions"><button class="btn btn-solid" onclick="Wing.closeModal()">Very good</button></div>
+      <p class="line" id="resLine" data-i18n="wing.everythingEmail">Everything arrives by email — your details and QR code.</p>
+      <p class="line" style="font-size:.95rem;color:var(--ink-mute)"><span data-i18n="wing.reference">Reference</span> <span class="ref" id="resRef"></span></p>
+      <div class="modal-actions"><button class="btn btn-solid" onclick="Wing.closeModal()" data-i18n="wing.veryGood">Very good</button></div>
     </div>
   </div>
 </div>
@@ -479,6 +484,129 @@ var TOKEN_KEY='medx_user_token', USER_KEY='medx_user_data';
 
 // harvest a magic-link token from ?mxt=… (same mechanism the wider Med&X apps use), then clean the URL
 try{var p=new URLSearchParams(location.search);var t=p.get('mxt');if(t){localStorage.setItem(TOKEN_KEY,t);history.replaceState(null,'','/forum');}}catch(e){}
+
+// ============================ WingI18n — self-contained EN/HR layer =========================
+// The Forum wing is a standalone page (served at /forum) that does NOT load the portal's
+// MedXI18n. This mirrors that mechanism's conventions (same localStorage key + data-i18n
+// attributes + silent English fallback) so a member who chose Croatian in the portal arrives
+// here in Croatian. Stately register throughout; convenings = "susreti".
+var LS_KEY='medx_locale', LS_SET='medx_locale_set';
+function _safeLS(fn){try{return fn();}catch(e){return null;}}
+var L=(function(){var v=_safeLS(function(){return localStorage.getItem(LS_KEY);});return (v==='hr'||v==='en')?v:'en';})();
+var WD={
+  'wing.navForum':{en:'The Forum',hr:'Forum'},
+  'wing.navDirectory':{en:'Directory',hr:'Imenik'},
+  'wing.navConvenings':{en:'Convenings',hr:'Susreti'},
+  'wing.navStanding':{en:'My standing',hr:'Moj status'},
+  'wing.leave':{en:'Leave the Forum',hr:'Napustite Forum'},
+  'wing.signedIn':{en:'Signed in',hr:'Prijavljeni'},
+  'wing.initiative':{en:'An initiative of Med&X',hr:'Inicijativa Med&X-a'},
+  'wing.accessEst':{en:'By invitation · Convened under Med&X',hr:'Uz poziv · U organizaciji Med&X-a'},
+  'wing.accessH1':{en:'A standing circle of senior <em>biomedical</em> leaders.',hr:'Stalni krug istaknutih <em>biomedicinskih</em> čelnika.'},
+  'wing.accessLead':{en:'The Biomedical Forum brings together directors, professors, and senior physicians from Croatia and abroad. One comes to the Forum by invitation. There are no passwords to keep — a personal link is all that is ever needed.',hr:'Biomedicinski forum okuplja ravnatelje, profesore i istaknute liječnike iz Hrvatske i inozemstva. Forumu se pristupa uz poziv. Nema lozinki koje treba pamtiti — dovoljna je osobna poveznica.'},
+  'wing.enterTitle':{en:'Enter by personal link',hr:'Ulaz osobnom poveznicom'},
+  'wing.enterLede':{en:'If you are within the circle, a personal link admits you at once. Enter the email address the Forum holds for you, and one is sent.',hr:'Ako ste unutar kruga, osobna vas poveznica odmah propušta. Unesite adresu e-pošte koju Forum vodi za vas i poveznica stiže.'},
+  'wing.emailLabel':{en:'Email address',hr:'Adresa e-pošte'},
+  'wing.sendLink':{en:'Send my personal link',hr:'Pošaljite mi osobnu poveznicu'},
+  'wing.reqTitle':{en:'Request consideration',hr:'Zatražite razmatranje'},
+  'wing.reqLede':{en:"If you believe your standing, or a colleague's, belongs within the Forum, you are welcome to ask. We reply to each note personally, and without hurry.",hr:'Ako smatrate da vaš ugled, ili ugled kolege, pripada Forumu, slobodno nam se javite. Na svaku poruku odgovaramo osobno i bez žurbe.'},
+  'wing.nameTitle':{en:'Name and title',hr:'Ime i titula'},
+  'wing.institution':{en:'Institution',hr:'Ustanova'},
+  'wing.field':{en:'Field',hr:'Područje'},
+  'wing.fieldPh':{en:'Cardiology',hr:'Kardiologija'},
+  'wing.fewLines':{en:'A few lines',hr:'Nekoliko redaka'},
+  'wing.notePh':{en:'Who you are, and why the circle would be of mutual value.',hr:'Tko ste i zašto bi krug bio od uzajamne vrijednosti.'},
+  'wing.submitConsider':{en:'Submit for consideration',hr:'Pošaljite na razmatranje'},
+  'wing.homeEst':{en:'Within the circle',hr:'Unutar kruga'},
+  'wing.welcomeBackDot':{en:'Welcome back.',hr:'Dobro došli natrag.'},
+  'wing.welcomeBack':{en:'Welcome back',hr:'Dobro došli natrag'},
+  'wing.homeLead':{en:'Your convenings, and word from the Forum. Everything here is held in confidence, among the circle.',hr:'Vaši susreti i riječ Foruma. Sve je ovdje povjerljivo, unutar kruga.'},
+  'wing.heroIdx':{en:'Peer exchange <i>·</i> Mentorship <i>·</i> National impact',hr:'Razmjena među kolegama <i>·</i> Mentorstvo <i>·</i> Nacionalni doprinos'},
+  'wing.heldDiscretion':{en:'Held with discretion.',hr:'Uz punu diskreciju.'},
+  'wing.yourConvenings':{en:'Your convenings',hr:'Vaši susreti'},
+  'wing.seeFullPrograms':{en:'See the full programs',hr:'Pogledajte cjelovite programe'},
+  'wing.forumNews':{en:'Forum news',hr:'Vijesti Foruma'},
+  'wing.inConfidence':{en:'In confidence',hr:'Povjerljivo'},
+  'wing.theCircle':{en:'The circle',hr:'Krug'},
+  'wing.private':{en:'Private',hr:'Privatno'},
+  'wing.circleBody':{en:'The directory is held privately to the Forum. Search a name, an institution, or a field, and colleagues surface at once.',hr:'Imenik se vodi privatno, unutar Foruma. Pretražite ime, ustanovu ili područje i kolege se odmah pojavljuju.'},
+  'wing.openDirectory':{en:'Open the directory',hr:'Otvorite imenik'},
+  'wing.dirEst':{en:'The circle · private',hr:'Krug · privatno'},
+  'wing.dirH1':{en:'The company you <em>keep.</em>',hr:'Krug oko <em>vas.</em>'},
+  'wing.dirLead':{en:'Search a name, an institution, or a field. The directory is private to the Forum and never shown beyond it.',hr:'Pretražite ime, ustanovu ili područje. Imenik je privatan za Forum i nikada se ne prikazuje izvan njega.'},
+  'wing.dirSearchPh':{en:'Search by name, institution, or field…',hr:'Pretražite po imenu, ustanovi ili području…'},
+  'wing.byField':{en:'By field',hr:'Po području'},
+  'wing.byInstitution':{en:'By institution',hr:'Po ustanovi'},
+  'wing.featuredInCircle':{en:'Featured within the circle',hr:'Istaknuti u krugu'},
+  'wing.showMore':{en:'Show more of the circle',hr:'Prikažite više članova kruga'},
+  'wing.dirEmpty':{en:'No colleague in the circle matches that just yet.',hr:'Nijedan kolega u krugu tomu još ne odgovara.'},
+  'wing.convEst':{en:'Two gatherings a year',hr:'Dva susreta godišnje'},
+  'wing.convH1':{en:"The Forum's <em>convenings.</em>",hr:'Susreti <em>Foruma.</em>'},
+  'wing.convLead':{en:'Reserve your place in a single click. Tick the parts of an evening you will attend — everything else arrives by email.',hr:'Rezervirajte mjesto jednim klikom. Označite dijelove večeri kojima ćete prisustvovati — sve ostalo stiže e-poštom.'},
+  'wing.chapReserve':{en:'Reserve your place',hr:'Rezervirajte mjesto'},
+  'wing.chapBeyond':{en:'Beyond the Forum',hr:'Izvan Foruma'},
+  'wing.beyondLead':{en:'The wider Med&X calendar is open to you as well. Where the Forum already holds your details, a place is reserved in a single click.',hr:'I širi kalendar Med&X-a otvoren je za vas. Ondje gdje Forum već vodi vaše podatke, mjesto se rezervira jednim klikom.'},
+  'wing.profEst':{en:'Your standing',hr:'Vaš status'},
+  'wing.profH1':{en:'How the Forum <em>knows you.</em>',hr:'Kako vas Forum <em>poznaje.</em>'},
+  'wing.profLead':{en:'This is the entry the circle sees. To amend it, a word to the Office of the Forum is all that is needed.',hr:'Ovo je zapis koji krug vidi. Za izmjenu je dovoljna poruka Uredu Foruma.'},
+  'wing.footBrand':{en:'An invited circle of senior biomedical leaders, convened by Med&X for peer exchange, mentorship, and the standing of Croatian medicine.',hr:'Krug pozvanih istaknutih biomedicinskih čelnika, okupljen pod okriljem Med&X-a radi razmjene među kolegama, mentorstva i ugleda hrvatske medicine.'},
+  'wing.correspondence':{en:'Correspondence',hr:'Dopisivanje'},
+  'wing.officeForum':{en:'The Office of the Forum',hr:'Ured Foruma'},
+  'wing.officeBehalf':{en:'Your office may write on your behalf.',hr:'Vaš ured može pisati u vaše ime.'},
+  'wing.footCopy':{en:'© 2026 Med&X Association. The Biomedical Forum.',hr:'© 2026 Med&X Association. Biomedicinski forum.'},
+  'wing.footDiscretion':{en:'By invitation · Held with discretion',hr:'Uz poziv · Uz punu diskreciju'},
+  'wing.placeReserved':{en:'Your place is reserved',hr:'Vaše je mjesto rezervirano'},
+  'wing.everythingEmail':{en:'Everything arrives by email — your details and QR code.',hr:'Sve stiže e-poštom — vaši podaci i QR kod.'},
+  'wing.reference':{en:'Reference',hr:'Referenca'},
+  'wing.veryGood':{en:'Very good',hr:'U redu'},
+  // dynamic
+  'wing.reserveMyPlace':{en:'Reserve my place',hr:'Rezervirajte mjesto'},
+  'wing.reserving':{en:'Reserving…',hr:'Rezerviranje…'},
+  'wing.reservedMark':{en:'Your place is reserved',hr:'Vaše je mjesto rezervirano'},
+  'wing.reserveNoteEmail':{en:'A note of your details and QR code was sent by email.',hr:'Poruka s vašim podacima i QR kodom poslana je e-poštom.'},
+  'wing.tickNote':{en:'Tick the parts you will attend, then one click.',hr:'Označite dijelove kojima ćete prisustvovati, zatim jedan klik.'},
+  'wing.oneClickNote':{en:'One click, and everything arrives by email.',hr:'Jedan klik i sve stiže e-poštom.'},
+  'wing.notCompleted':{en:'That could not be completed just now.',hr:'To se trenutačno nije moglo dovršiti.'},
+  'wing.gatheringYear':{en:'Gathering the year ahead…',hr:'Priprema se godina pred vama…'},
+  'wing.noNews':{en:'No word from the Forum just now.',hr:'Trenutačno nema vijesti iz Foruma.'},
+  'wing.yearArranged':{en:'The year ahead is being arranged.',hr:'Godina pred nama još se priprema.'},
+  'wing.gatheringPrograms':{en:'Gathering the programs…',hr:'Pripremaju se programi…'},
+  'wing.dirCountBrowse':{en:'The circle numbers {n}. Search, or browse by field and institution.',hr:'Krug broji {n} {clan}. Pretražite ili pregledavajte po području i ustanovi.'},
+  'wing.beyondPlexusTag':{en:'Plexus Conference',hr:'Konferencija Plexus'},
+  'wing.beyondPlexusBody':{en:'The Med&X flagship, 4 and 5 December in Zagreb. A ticketed convening — one click carries your details across to the secure checkout, where you confirm and complete payment.',hr:'Vodeći događaj Med&X-a, 4. i 5. prosinca u Zagrebu. Susret s ulaznicom — jedan klik prenosi vaše podatke na sigurnu naplatu, gdje potvrđujete i dovršavate plaćanje.'},
+  'wing.beyondBridgesBody':{en:'An evening of panel conversations and open networking during Plexus Week. Where the Forum holds your details, one click confirms your participation.',hr:'Večer panel-razgovora i otvorenog umrežavanja tijekom Plexus tjedna. Ondje gdje Forum vodi vaše podatke, jedan klik potvrđuje vaše sudjelovanje.'},
+  'wing.carryingCheckout':{en:'Carrying you to the secure checkout, prefilled…',hr:'Vodimo vas na sigurnu naplatu s ispunjenim podacima…'},
+  'wing.confirmedByEmail':{en:'Confirmed by email',hr:'Potvrđeno e-poštom'},
+  'wing.profFieldK':{en:'Field',hr:'Područje'},
+  'wing.profInstitution':{en:'Institution',hr:'Ustanova'},
+  'wing.profPosition':{en:'Position',hr:'Položaj'},
+  'wing.profLocation':{en:'Location',hr:'Lokacija'},
+  'wing.profContribution':{en:'Contribution',hr:'Doprinos'},
+  'wing.profSince':{en:'Within the circle since',hr:'U krugu od'},
+  'wing.profDefaultName':{en:'A member of the Forum',hr:'Član Foruma'},
+  'wing.profNote':{en:'This is the entry the circle sees when they search the directory. To amend anything, a word to the Office of the Forum at president@medx.hr is all that is needed.',hr:'Ovo je zapis koji krug vidi pri pretraživanju imenika. Za bilo kakvu izmjenu dovoljna je poruka Uredu Foruma na president@medx.hr.'},
+  'wing.accessNoticeAuthed':{en:'You are signed in, but not yet within the circle. You are welcome to request consideration below.',hr:'Prijavljeni ste, ali još niste unutar kruga. Slobodno zatražite razmatranje u nastavku.'},
+  'wing.emailNeeded':{en:'A valid email address is needed.',hr:'Potrebna je valjana adresa e-pošte.'},
+  'wing.sending':{en:'Sending…',hr:'Slanje…'},
+  'wing.linkOnWay':{en:'If that address is held by the Forum, a personal link is on its way.',hr:'Ako Forum vodi tu adresu, osobna je poveznica na putu.'},
+  'wing.devLink':{en:'Development link (email not configured):',hr:'Razvojna poveznica (e-pošta nije postavljena):'},
+  'wing.nameEmailNeeded':{en:'A name and a valid email address are needed.',hr:'Potrebni su ime i valjana adresa e-pošte.'},
+  'wing.submitting':{en:'Submitting…',hr:'Slanje…'},
+  'wing.considerThanks':{en:'Thank you. Your note has reached the Office of the Forum, and we will reply personally.',hr:'Hvala vam. Vaša je poruka stigla Uredu Foruma i odgovorit ćemo osobno.'},
+  'wing.notSubmitted':{en:'That could not be submitted just now.',hr:'To se trenutačno nije moglo poslati.'}
+};
+function WT(k,vars){var e=WD[k];var v=e?((e[L]!=null&&e[L]!=='')?e[L]:e.en):k;if(v==null)v=k;if(vars){v=v.replace(/\{(\w+)\}/g,function(m,kk){return vars[kk]!=null?String(vars[kk]):m;});}return v;}
+function _plKolega(n){if(L!=='hr')return n===1?'colleague':'colleagues';var m=n%100,d=n%10;return (d===1&&m!==11)?'kolega':((d>=2&&d<=4&&!(m>=12&&m<=14))?'kolege':'kolega');}
+function _plClan(n){var m=n%100,d=n%10;return (d===1&&m!==11)?'član':((d>=2&&d<=4&&!(m>=12&&m<=14))?'člana':'članova');}
+function _replaceFirstText(el,val){for(var i=0;i<el.childNodes.length;i++){var nn=el.childNodes[i];if(nn.nodeType===3&&nn.nodeValue&&nn.nodeValue.trim()!==''){nn.nodeValue=(/^\s/.test(nn.nodeValue)?' ':'')+val+(/\s$/.test(nn.nodeValue)?' ':'');return;}}el.insertBefore(document.createTextNode(val),el.firstChild);}
+function applyStatic(root){root=root||document;try{
+  root.querySelectorAll('[data-i18n]').forEach(function(el){var k=el.getAttribute('data-i18n');if(WD[k])_replaceFirstText(el,WT(k));});
+  root.querySelectorAll('[data-i18n-html]').forEach(function(el){var k=el.getAttribute('data-i18n-html');if(WD[k])el.innerHTML=WT(k);});
+  root.querySelectorAll('[data-i18n-placeholder]').forEach(function(el){var k=el.getAttribute('data-i18n-placeholder');if(WD[k])el.setAttribute('placeholder',WT(k));});
+}catch(e){}}
+function _updateToggle(){try{document.querySelectorAll('.wing-lang button').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-loc')===L);});}catch(e){}}
+function setLocale(loc){if(loc!=='hr'&&loc!=='en')return;L=loc;_safeLS(function(){localStorage.setItem(LS_KEY,loc);localStorage.setItem(LS_SET,'1');});try{document.documentElement.setAttribute('lang',loc);}catch(e){}applyStatic(document);_updateToggle();try{if(window.Wing&&Wing.relocalize)Wing.relocalize();}catch(e){}try{var tk=(window.Wing&&Wing.token_get)?Wing.token_get():null;if(tk)fetch('/api/me',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({locale:loc})}).catch(function(){});}catch(e){}}
+window.WingI18n={set:setLocale,t:WT,get:function(){return L;},apply:applyStatic,plKolega:_plKolega,plClan:_plClan};
 
 var Wing={
   token:null, me:null, view:'access',
@@ -511,10 +639,10 @@ var Wing={
   showAccess:function(authed){
     document.getElementById('navLinks').style.visibility='hidden';
     document.getElementById('navOut').style.display= authed?'inline-flex':'none';
-    document.getElementById('navWho').textContent= authed?'Signed in':'';
+    document.getElementById('navWho').textContent= authed?WT('wing.signedIn'):'';
     this.setView('access');
     if(authed){
-      var n=document.getElementById('rcNotice'); n.className='notice ok'; n.textContent='You are signed in, but not yet within the circle. You are welcome to request consideration below.';
+      var n=document.getElementById('rcNotice'); n.className='notice ok'; n.textContent=WT('wing.accessNoticeAuthed');
     }
   },
 
@@ -524,7 +652,7 @@ var Wing={
     document.getElementById('navOut').style.display='inline-flex';
     document.getElementById('navWho').textContent = m.profile && m.profile.name ? m.profile.name : '';
     var first = (m.profile && m.profile.name ? m.profile.name.replace(/,.*/,'').split(/\s+/).slice(-1)[0] : '');
-    document.getElementById('homeGreeting').innerHTML = 'Welcome back'+(first?', <em>'+this.esc(first)+'</em>':'')+'.';
+    document.getElementById('homeGreeting').innerHTML = WT('wing.welcomeBack')+(first?', <em>'+this.esc(first)+'</em>':'')+'.';
     this.renderHome();
     this.go('home');
   },
@@ -554,7 +682,7 @@ var Wing={
     var news=(this.me&&this.me.news)||[];
     document.getElementById('homeNews').innerHTML = news.length ? news.map(function(n){
       return '<div class="news-item"><div class="d">'+self.esc(self.dateLabel(n.date))+'</div><h4>'+self.esc(n.title)+'</h4><p>'+self.esc(n.body)+'</p></div>';
-    }).join('') : '<p style="color:var(--ink-mute);font-style:italic">No word from the Forum just now.</p>';
+    }).join('') : '<p style="color:var(--ink-mute);font-style:italic">'+WT('wing.noNews')+'</p>';
     // load convenings summary for home
     this.api('/api/forum/wing/convenings').then(function(res){
       var list=(res.body&&res.body.convenings)||[];
@@ -564,13 +692,13 @@ var Wing={
           '<p class="meta">'+self.esc(c.when_label||'')+(c.venue?' &middot; '+self.esc(c.venue):'')+'</p>'+
           '<p class="summary">'+self.esc(c.summary||'')+'</p>'+
           '<div class="conv-actions">'+(reserved
-            ? '<span class="reserved-mark"><svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg> Your place is reserved</span>'
-            : '<button class="btn btn-solid" onclick="Wing.go(\'convenings\')">Reserve my place <span class="arr">&rarr;</span></button>')+'</div></div>';
-      }).join('') : '<p style="color:var(--ink-mute);font-style:italic">The year ahead is being arranged.</p>';
+            ? '<span class="reserved-mark"><svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg> '+WT('wing.reservedMark')+'</span>'
+            : '<button class="btn btn-solid" onclick="Wing.go(\'convenings\')">'+WT('wing.reserveMyPlace')+' <span class="arr">&rarr;</span></button>')+'</div></div>';
+      }).join('') : '<p style="color:var(--ink-mute);font-style:italic">'+WT('wing.yearArranged')+'</p>';
     });
   },
 
-  dateLabel:function(d){ if(!d) return ''; try{var dt=new Date(d+'T00:00:00'); return dt.toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});}catch(e){return d;} },
+  dateLabel:function(d){ if(!d) return ''; try{var dt=new Date(d+'T00:00:00'); return dt.toLocaleDateString(L==='hr'?'hr-HR':'en-GB',{day:'numeric',month:'long',year:'numeric'});}catch(e){return d;} },
 
   // ---------- DIRECTORY ----------
   loadDirectory:function(){
@@ -589,12 +717,12 @@ var Wing={
     // filter chips (built once from the full facet lists)
     var ff=document.getElementById('dirFieldFilters');
     if(d.fields && !ff.getAttribute('data-built')){
-      ff.innerHTML='<span class="fl-label">By field</span>'+d.fields.map(function(f){return '<span class="chip" data-f="'+self.esc(f)+'" onclick="Wing.setFilter(\'field\',\''+self.esc(f).replace(/'/g,"\\'")+'\')">'+self.esc(f)+'</span>';}).join('');
+      ff.innerHTML='<span class="fl-label">'+WT('wing.byField')+'</span>'+d.fields.map(function(f){return '<span class="chip" data-f="'+self.esc(f)+'" onclick="Wing.setFilter(\'field\',\''+self.esc(f).replace(/'/g,"\\'")+'\')">'+self.esc(f)+'</span>';}).join('');
       ff.setAttribute('data-built','1');
     }
     var inf=document.getElementById('dirInstFilters');
     if(d.institutions && !inf.getAttribute('data-built')){
-      inf.innerHTML='<span class="fl-label">By institution</span>'+d.institutions.map(function(f){return '<span class="chip" data-i="'+self.esc(f)+'" onclick="Wing.setFilter(\'inst\',\''+self.esc(f).replace(/'/g,"\\'")+'\')">'+self.esc(f)+'</span>';}).join('');
+      inf.innerHTML='<span class="fl-label">'+WT('wing.byInstitution')+'</span>'+d.institutions.map(function(f){return '<span class="chip" data-i="'+self.esc(f)+'" onclick="Wing.setFilter(\'inst\',\''+self.esc(f).replace(/'/g,"\\'")+'\')">'+self.esc(f)+'</span>';}).join('');
       inf.setAttribute('data-built','1');
     }
     // reflect active
@@ -605,10 +733,10 @@ var Wing={
     var searching = self.dir.q || self.dir.field || self.dir.inst;
     document.getElementById('dirFeaturedLbl').style.display = (!searching && d.featured_note) ? 'block' : 'none';
     document.getElementById('dirCount').textContent = searching
-      ? (total+' '+(total===1?'colleague':'colleagues')+' within the circle match your search.')
-      : ('The circle numbers '+total+'. Search, or browse by field and institution.');
+      ? (L==='hr' ? ('Vašoj pretrazi u krugu odgovara '+total+' '+_plKolega(total)+'.') : (total+' '+(total===1?'colleague':'colleagues')+' within the circle match your search.'))
+      : (L==='hr' ? WT('wing.dirCountBrowse',{n:total,clan:_plClan(total)}) : ('The circle numbers '+total+'. Search, or browse by field and institution.'));
     var host=document.getElementById('dirResults');
-    if(!members.length){ host.innerHTML='<div class="dir-empty">No colleague in the circle matches that just yet.</div>'; document.getElementById('dirMore').style.display='none'; return; }
+    if(!members.length){ host.innerHTML='<div class="dir-empty">'+WT('wing.dirEmpty')+'</div>'; document.getElementById('dirMore').style.display='none'; return; }
     host.innerHTML=members.map(function(m){
       var mono = m.photo_url ? '<img src="'+self.esc(m.photo_url)+'" alt="">' : self.esc(m.initials||self.initials(m.name));
       return '<article class="member"><div class="mono" aria-hidden="true">'+mono+'</div><div>'+
@@ -626,7 +754,7 @@ var Wing={
     var self=this;
     this.api('/api/forum/wing/convenings').then(function(res){
       var list=(res.body&&res.body.convenings)||[];
-      document.getElementById('convList').innerHTML = list.map(function(c){ return self.convHtml(c); }).join('') || '<p style="color:var(--ink-mute);font-style:italic">The year ahead is being arranged.</p>';
+      document.getElementById('convList').innerHTML = list.map(function(c){ return self.convHtml(c); }).join('') || '<p style="color:var(--ink-mute);font-style:italic">'+WT('wing.yearArranged')+'</p>';
     });
     this.renderBeyond();
   },
@@ -644,9 +772,9 @@ var Wing={
         '<span class="l">'+self.esc(s.label)+'</span></div>';
     }).join('');
     var action = reserved
-      ? '<span class="reserved-mark"><svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg> Your place is reserved</span><span class="conv-note">A note of your details and QR code was sent by email.</span>'
-      : '<button class="btn btn-solid" data-conv="'+c.id+'" onclick="Wing.reserve(this,\''+c.id+'\')">Reserve my place <span class="arr">&rarr;</span></button>'+
-        (segs.length?'<span class="conv-note">Tick the parts you will attend, then one click.</span>':'<span class="conv-note">One click, and everything arrives by email.</span>');
+      ? '<span class="reserved-mark"><svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg> '+WT('wing.reservedMark')+'</span><span class="conv-note">'+WT('wing.reserveNoteEmail')+'</span>'
+      : '<button class="btn btn-solid" data-conv="'+c.id+'" onclick="Wing.reserve(this,\''+c.id+'\')">'+WT('wing.reserveMyPlace')+' <span class="arr">&rarr;</span></button>'+
+        (segs.length?'<span class="conv-note">'+WT('wing.tickNote')+'</span>':'<span class="conv-note">'+WT('wing.oneClickNote')+'</span>');
     return '<div class="conv" data-convrow="'+c.id+'"><span class="tag">'+self.esc(c.tag||'')+'</span><h4>'+self.esc(c.title)+'</h4>'+
       '<p class="meta">'+self.esc(c.when_label||'')+(c.venue?' &middot; '+self.esc(c.venue):'')+(c.dress?' &middot; '+self.esc(c.dress):'')+'</p>'+
       '<p class="summary">'+self.esc(c.summary||'')+'</p>'+
@@ -660,23 +788,23 @@ var Wing={
     var self=this;
     var row=document.querySelector('[data-convrow="'+cid+'"]');
     var ticks=[]; if(row){ row.querySelectorAll('.seg.ticked').forEach(function(s){ ticks.push(s.getAttribute('data-seg')); }); }
-    btn.setAttribute('disabled','disabled'); btn.innerHTML='Reserving…';
+    btn.setAttribute('disabled','disabled'); btn.innerHTML=WT('wing.reserving');
     this.api('/api/forum/wing/convenings/'+cid+'/reserve',{method:'POST',body:{segments:ticks}}).then(function(res){
       if(res.ok && res.body && res.body.success){
         self.showResModal(res.body);
         self.loadConvenings();
       } else {
-        btn.removeAttribute('disabled'); btn.innerHTML='Reserve my place <span class="arr">&rarr;</span>';
-        self.toast((res.body&&res.body.error)||'That could not be completed just now.');
+        btn.removeAttribute('disabled'); btn.innerHTML=WT('wing.reserveMyPlace')+' <span class="arr">&rarr;</span>';
+        self.toast((res.body&&res.body.error)||WT('wing.notCompleted'));
       }
-    }).catch(function(){ btn.removeAttribute('disabled'); btn.innerHTML='Reserve my place <span class="arr">&rarr;</span>'; self.toast('That could not be completed just now.'); });
+    }).catch(function(){ btn.removeAttribute('disabled'); btn.innerHTML=WT('wing.reserveMyPlace')+' <span class="arr">&rarr;</span>'; self.toast(WT('wing.notCompleted')); });
   },
 
   showResModal:function(b){
     var segs=b.segments||[];
-    document.getElementById('resTitle').textContent='Your place is reserved';
+    document.getElementById('resTitle').textContent=WT('wing.placeReserved');
     document.getElementById('resSegs').innerHTML = segs.length ? segs.map(function(s){return '<li>'+Wing.esc(s)+'</li>';}).join('') : '';
-    document.getElementById('resLine').textContent='Everything arrives by email — your details and QR code.';
+    document.getElementById('resLine').textContent=WT('wing.everythingEmail');
     document.getElementById('resRef').textContent=b.reference||b.qr_code||'';
     document.getElementById('resModal').classList.add('on');
   },
@@ -685,8 +813,8 @@ var Wing={
   renderBeyond:function(){
     var self=this;
     var cards=[
-      { tag:'Plexus Conference', title:'Plexus 2026', body:'The Med&X flagship, 4 and 5 December in Zagreb. A ticketed convening — one click carries your details across to the secure checkout, where you confirm and complete payment.', label:'Reserve my place', paid:true, flow:'plexus' },
-      { tag:'Building Bridges', title:'Building Bridges in Biomedicine', body:'An evening of panel conversations and open networking during Plexus Week. Where the Forum holds your details, one click confirms your participation.', label:'Reserve my place', paid:false, flow:'bridges' }
+      { tag:WT('wing.beyondPlexusTag'), title:'Plexus 2026', body:WT('wing.beyondPlexusBody'), label:WT('wing.reserveMyPlace'), paid:true, flow:'plexus' },
+      { tag:'Building Bridges', title:'Building Bridges in Biomedicine', body:WT('wing.beyondBridgesBody'), label:WT('wing.reserveMyPlace'), paid:false, flow:'bridges' }
     ];
     document.getElementById('beyondGrid').innerHTML = cards.map(function(c){
       return '<div class="beyond"><span class="tag">'+self.esc(c.tag)+'</span><h4>'+self.esc(c.title)+'</h4><p>'+self.esc(c.body)+'</p>'+
@@ -699,25 +827,25 @@ var Wing={
     if(flow==='plexus'){
       // Paid: hand the member into the EXISTING frozen checkout with fields prefilled — zero typing.
       var qp=new URLSearchParams({ fn:(prof.first_name||''), ln:(prof.last_name||''), email:(prof.email||''), inst:(prof.institution||''), src:'forum' });
-      this.toast('Carrying you to the secure checkout, prefilled…');
+      this.toast(WT('wing.carryingCheckout'));
       setTimeout(function(){ location.href='/plexus?'+qp.toString(); }, 600);
       return;
     }
     // Free (Building Bridges): one click calls the EXISTING frozen public registration endpoint with
     // the member's profile — additive frontend flow only, zero typing, no payment/registration code touched.
-    btn.setAttribute('disabled','disabled'); btn.innerHTML='Reserving…';
+    btn.setAttribute('disabled','disabled'); btn.innerHTML=WT('wing.reserving');
     var body={ event:'building-bridges', first_name:(prof.first_name||''), last_name:(prof.last_name||''), email:(prof.email||''), institution:(prof.institution||''), role:(prof.position||prof.field||'Forum member') };
     fetch('/api/public-events/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       .then(function(r){return r.json().then(function(j){return {ok:r.ok,body:j};});})
       .then(function(res){
         if(res.ok && res.body && (res.body.status==='confirmed' || res.body.success || res.body.regId)){
-          self.showResModal({ reference:res.body.regId||'Confirmed by email', segments:['Building Bridges in Biomedicine'] });
-          btn.innerHTML='Your place is reserved';
+          self.showResModal({ reference:res.body.regId||WT('wing.confirmedByEmail'), segments:['Building Bridges in Biomedicine'] });
+          btn.innerHTML=WT('wing.reservedMark');
         } else {
-          btn.removeAttribute('disabled'); btn.innerHTML='Reserve my place <span class="arr">&rarr;</span>';
-          self.toast((res.body&&res.body.error)||'That could not be completed just now.');
+          btn.removeAttribute('disabled'); btn.innerHTML=WT('wing.reserveMyPlace')+' <span class="arr">&rarr;</span>';
+          self.toast((res.body&&res.body.error)||WT('wing.notCompleted'));
         }
-      }).catch(function(){ btn.removeAttribute('disabled'); btn.innerHTML='Reserve my place <span class="arr">&rarr;</span>'; self.toast('That could not be completed just now.'); });
+      }).catch(function(){ btn.removeAttribute('disabled'); btn.innerHTML=WT('wing.reserveMyPlace')+' <span class="arr">&rarr;</span>'; self.toast(WT('wing.notCompleted')); });
   },
 
   // ---------- PROFILE ----------
@@ -726,19 +854,30 @@ var Wing={
     var mono = p.photo_url ? '<img src="'+this.esc(p.photo_url)+'" alt="">' : this.esc(p.initials||this.initials(p.name));
     var rows='';
     var add=function(k,v){ if(v) rows+='<div class="prof-row"><div class="k">'+k+'</div><div class="v">'+Wing.esc(v)+'</div></div>'; };
-    add('Field', p.field);
-    add('Institution', p.institution);
-    add('Position', p.position);
-    add('Location', [p.city,p.country].filter(Boolean).join(', '));
-    add('Contribution', p.contribution);
-    add('Within the circle since', p.member_since);
+    add(WT('wing.field'), p.field);
+    add(WT('wing.institution'), p.institution);
+    add(WT('wing.profPosition'), p.position);
+    add(WT('wing.profLocation'), [p.city,p.country].filter(Boolean).join(', '));
+    add(WT('wing.profContribution'), p.contribution);
+    add(WT('wing.profSince'), p.member_since);
     document.getElementById('profBody').innerHTML =
       '<div class="prof-card"><div class="prof-head"><div class="prof-mono">'+mono+'</div><div>'+
-      '<div class="nm">'+this.esc(p.name||'A member of the Forum')+'</div>'+
+      '<div class="nm">'+this.esc(p.name||WT('wing.profDefaultName'))+'</div>'+
       (p.field?'<div class="role">'+this.esc(p.field)+'</div>':'')+
       (p.institution?'<div class="aff">'+this.esc([p.position,p.institution].filter(Boolean).join(' · '))+'</div>':'')+
       '</div></div><div class="prof-rows">'+rows+'</div>'+
-      '<p class="prof-note">This is the entry the circle sees when they search the directory. To amend anything, a word to the Office of the Forum at president@medx.hr is all that is needed.</p></div>';
+      '<p class="prof-note">'+WT('wing.profNote')+'</p></div>';
+  },
+
+  relocalize:function(){
+    try{
+      if(this.me&&this.me.member){ var m=this.me; var first=(m.profile&&m.profile.name?m.profile.name.replace(/,.*/,'').split(/\s+/).slice(-1)[0]:''); var g=document.getElementById('homeGreeting'); if(g) g.innerHTML=WT('wing.welcomeBack')+(first?', <em>'+this.esc(first)+'</em>':'')+'.'; if(m.profile&&m.profile.name){ var w=document.getElementById('navWho'); if(w) w.textContent=m.profile.name; } }
+      if(this.view==='home'){ this.renderHome(); }
+      else if(this.view==='directory'){ var ff=document.getElementById('dirFieldFilters'); if(ff) ff.removeAttribute('data-built'); var inf=document.getElementById('dirInstFilters'); if(inf) inf.removeAttribute('data-built'); this.dir.data=null; this.loadDirectory(); }
+      else if(this.view==='convenings'){ this.loadConvenings(); }
+      else if(this.view==='profile'){ this.renderProfile(); }
+      else if(this.view==='access'){ if(this.me){ this.showAccess(this.me.authenticated); } }
+    }catch(e){}
   },
 
   // ---------- ACCESS actions ----------
@@ -746,14 +885,14 @@ var Wing={
     var self=this, email=(document.getElementById('lkEmail').value||'').trim();
     var n=document.getElementById('lkNotice'), dev=document.getElementById('lkDev');
     n.className='notice'; dev.innerHTML='';
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ n.className='notice err'; n.textContent='A valid email address is needed.'; return; }
-    var btn=document.getElementById('lkBtn'); btn.setAttribute('disabled','disabled'); btn.innerHTML='Sending…';
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ n.className='notice err'; n.textContent=WT('wing.emailNeeded'); return; }
+    var btn=document.getElementById('lkBtn'); btn.setAttribute('disabled','disabled'); btn.innerHTML=WT('wing.sending');
     this.api('/api/forum/wing/request-link',{method:'POST',body:{email:email}}).then(function(res){
-      btn.removeAttribute('disabled'); btn.innerHTML='Send my personal link <span class="arr">&rarr;</span>';
+      btn.removeAttribute('disabled'); btn.innerHTML=WT('wing.sendLink')+' <span class="arr">&rarr;</span>';
       n.className='notice ok';
-      n.textContent = res.body && res.body.message ? res.body.message : 'If that address is held by the Forum, a personal link is on its way.';
-      if(res.body && res.body.devLink){ dev.innerHTML='Development link (email not configured): <a href="'+self.esc(res.body.devLink)+'">'+self.esc(res.body.devLink)+'</a>'; }
-    }).catch(function(){ btn.removeAttribute('disabled'); btn.innerHTML='Send my personal link <span class="arr">&rarr;</span>'; n.className='notice err'; n.textContent='That could not be completed just now.'; });
+      n.textContent = res.body && res.body.message ? res.body.message : WT('wing.linkOnWay');
+      if(res.body && res.body.devLink){ dev.innerHTML=WT('wing.devLink')+' <a href="'+self.esc(res.body.devLink)+'">'+self.esc(res.body.devLink)+'</a>'; }
+    }).catch(function(){ btn.removeAttribute('disabled'); btn.innerHTML=WT('wing.sendLink')+' <span class="arr">&rarr;</span>'; n.className='notice err'; n.textContent=WT('wing.notCompleted'); });
   },
 
   requestConsideration:function(){
@@ -762,18 +901,20 @@ var Wing={
       institution:(document.getElementById('rcInst').value||'').trim(), field:(document.getElementById('rcField').value||'').trim(),
       note:(document.getElementById('rcNote').value||'').trim(), source:'wing' };
     var n=document.getElementById('rcNotice'); n.className='notice';
-    if(!body.name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)){ n.className='notice err'; n.textContent='A name and a valid email address are needed.'; return; }
-    var btn=document.getElementById('rcBtn'); btn.setAttribute('disabled','disabled'); btn.innerHTML='Submitting…';
+    if(!body.name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)){ n.className='notice err'; n.textContent=WT('wing.nameEmailNeeded'); return; }
+    var btn=document.getElementById('rcBtn'); btn.setAttribute('disabled','disabled'); btn.innerHTML=WT('wing.submitting');
     this.api('/api/public/forum-consideration',{method:'POST',body:body}).then(function(res){
-      btn.removeAttribute('disabled'); btn.innerHTML='Submit for consideration <span class="arr">&rarr;</span>';
+      btn.removeAttribute('disabled'); btn.innerHTML=WT('wing.submitConsider')+' <span class="arr">&rarr;</span>';
       if(res.ok && res.body && res.body.success){
-        n.className='notice ok'; n.textContent='Thank you. Your note has reached the Office of the Forum, and we will reply personally.';
+        n.className='notice ok'; n.textContent=WT('wing.considerThanks');
         ['rcName','rcEmail','rcInst','rcField','rcNote'].forEach(function(id){document.getElementById(id).value='';});
-      } else { n.className='notice err'; n.textContent=(res.body&&res.body.error)||'That could not be submitted just now.'; }
-    }).catch(function(){ btn.removeAttribute('disabled'); btn.innerHTML='Submit for consideration <span class="arr">&rarr;</span>'; n.className='notice err'; n.textContent='That could not be submitted just now.'; });
+      } else { n.className='notice err'; n.textContent=(res.body&&res.body.error)||WT('wing.notSubmitted'); }
+    }).catch(function(){ btn.removeAttribute('disabled'); btn.innerHTML=WT('wing.submitConsider')+' <span class="arr">&rarr;</span>'; n.className='notice err'; n.textContent=WT('wing.notSubmitted'); });
   }
 };
 window.Wing=Wing;
+try{ document.documentElement.setAttribute('lang', L); }catch(e){}
+applyStatic(document); _updateToggle();
 Wing.boot();
 })();
 </script>

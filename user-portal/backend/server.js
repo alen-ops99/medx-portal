@@ -219,6 +219,14 @@ async function sendEmail(to, subject, htmlContent, attachments, cc) {
     if (atts.length) {
         console.log(`[Email Mock] Attachments: ${atts.map(a => `${a.filename} (${Buffer.from(a.content).length}b)`).join(', ')}`);
     }
+    // Dev-only: dump the rendered HTML to disk for visual QA (guarded by env var — no effect in prod).
+    if (process.env.EMAIL_DUMP_DIR) {
+        try {
+            const fs = require('fs');
+            const safe = String(subject || 'email').replace(/[^a-z0-9]+/gi, '_').slice(0, 60);
+            fs.writeFileSync(require('path').join(process.env.EMAIL_DUMP_DIR, safe + '_' + Date.now() + '.html'), htmlContent || '');
+        } catch (e) { /* dump is best-effort */ }
+    }
     return { success: true, mock: true };
 }
 
@@ -487,10 +495,24 @@ function linkNoticePage(headline, lede, primary) {
     });
 }
 
-function buildEmailTemplate(title, bodyHtml) {
+// Resolve a member's locale ('hr' | 'en') for email selection. Accepts a user object
+// (uses its .locale) or a user id (looks it up). Defaults to English — additive + frozen-safe.
+function memberLocale(userOrId) {
+    try {
+        if (userOrId && typeof userOrId === 'object' && (userOrId.locale === 'hr' || userOrId.locale === 'en')) return userOrId.locale;
+        const id = (userOrId && typeof userOrId === 'object') ? userOrId.id : userOrId;
+        if (id) { const r = query.get('SELECT locale FROM users WHERE id = ?', [id]); if (r && (r.locale === 'hr' || r.locale === 'en')) return r.locale; }
+    } catch (e) { /* fall through to English */ }
+    return 'en';
+}
+
+// locale is optional; omitting it (or any non-'hr' value) keeps the English chrome byte-identical
+// for all existing callers. Only the shared footer chrome + <html lang> localize.
+function buildEmailTemplate(title, bodyHtml, locale) {
+    const hr = locale === 'hr';
     return `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="${hr ? 'hr' : 'en'}">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin: 0; padding: 0; background: #f0f0f3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background: #f0f0f3; padding: 40px 16px;">
@@ -518,7 +540,7 @@ function buildEmailTemplate(title, bodyHtml) {
         <img src="${MEDX_LOGO_URL}" alt="Med&X" width="80" style="display: block; margin: 0 auto 10px; height: auto; max-width: 80px; filter: brightness(0) invert(1);" />
         <div style="color: #94a3b8; font-size: 11px; margin-bottom: 16px; letter-spacing: 1px;">Building Bridges in Biomedicine</div>
         <div style="margin-bottom: 16px;">
-            <a href="https://medx.hr" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">Website</a>
+            <a href="https://medx.hr" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">${hr ? 'Web stranica' : 'Website'}</a>
             <span style="color: #334155;">|</span>
             <a href="https://www.linkedin.com/company/med-x-association/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">LinkedIn</a>
             <span style="color: #334155;">|</span>
@@ -527,12 +549,12 @@ function buildEmailTemplate(title, bodyHtml) {
             <a href="https://www.facebook.com/profile.php?id=61554188818525" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">Facebook</a>
         </div>
         <div style="border-top: 1px solid #1e293b; padding-top: 12px; color: #64748b; font-size: 11px; line-height: 1.55;">
-            Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organizing and delivering this event.
-            <a href="https://medx-user-portal.onrender.com/privacy" style="color: #C9A962; text-decoration: none;">Privacy Policy</a>
+            ${hr ? 'Vaši se osobni podaci obrađuju u skladu s Općom uredbom EU o zaštiti podataka (GDPR) i koriste isključivo u svrhu organizacije i provedbe ovog događaja.' : 'Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organizing and delivering this event.'}
+            <a href="https://medx-user-portal.onrender.com/privacy" style="color: #C9A962; text-decoration: none;">${hr ? 'Pravila privatnosti' : 'Privacy Policy'}</a>
             &nbsp;·&nbsp;
-            <a href="https://medx-user-portal.onrender.com/terms" style="color: #C9A962; text-decoration: none;">Terms</a>
+            <a href="https://medx-user-portal.onrender.com/terms" style="color: #C9A962; text-decoration: none;">${hr ? 'Uvjeti korištenja' : 'Terms'}</a>
         </div>
-        <div style="margin-top: 10px; color: #475569; font-size: 11px;">&copy; ${new Date().getFullYear()} Med&amp;X. All rights reserved.</div>
+        <div style="margin-top: 10px; color: #475569; font-size: 11px;">&copy; ${new Date().getFullYear()} Med&amp;X. ${hr ? 'Sva prava pridržana.' : 'All rights reserved.'}</div>
     </td></tr>
 </table>
 </td></tr>
@@ -3026,8 +3048,18 @@ app.post('/api/forum/wing/convenings/:id/reserve', auth, forumWingMemberGate, as
                 (async () => {
                     let atts = [];
                     try { const png = await QRCode.toBuffer(JSON.stringify({ r: reservation.id, k: 'forum' }), { errorCorrectionLevel: 'L', width: 560, margin: 2, color: { dark: '#000000', light: '#ffffff' } }); atts = [{ filename: 'forum-credential.png', content: png }]; } catch (e) { /* email still sends without the attachment */ }
+                    const loc = memberLocale(req.user);
+                    const hr = loc === 'hr';
                     const segRows = chosenLabels.length ? `<ul style="margin:10px 0 18px;padding-left:18px;color:#3a352f;">${chosenLabels.map(l => `<li style="margin-bottom:5px;">${escapeHtml(l)}</li>`).join('')}</ul>` : '';
-                    const html = buildEmailTemplate('Your place is reserved', `
+                    const html = buildEmailTemplate(hr ? 'Vaše je mjesto rezervirano' : 'Your place is reserved', hr ? `
+                        <p>${profile.name ? 'Poštovani ' + escapeHtml(profile.name.replace(/,.*/, '')) + ',' : 'Poštovani kolega,'}</p>
+                        <p>Vaše mjesto na <strong>${escapeHtml(conv.title)}</strong> je rezervirano.</p>
+                        <p style="color:#475569;font-size:14px;">${escapeHtml(conv.when_label || '')}${conv.venue ? '<br>' + escapeHtml(conv.venue) : ''}${conv.dress ? '<br>' + escapeHtml(conv.dress) : ''}</p>
+                        ${segRows ? '<p style="font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#6f5a31;">Prisustvovat ćete</p>' + segRows : ''}
+                        <p>Vaša ulazna iskaznica priložena je kao diskretan kod — tiha zaštita za ulaz, koja se očita u trenutku na dolasku. Nema se što ispisivati ni pamtiti.</p>
+                        <p style="color:#475569;font-size:14px;">Referenca <strong>${escapeHtml(reservation.qr_code || '')}</strong></p>
+                        <p style="color:#6a625a;font-size:13px;margin-top:22px;">Uz punu diskreciju — Ured Foruma, inicijativa Med&amp;X-a.</p>
+                    ` : `
                         <p>${profile.name ? 'Dear ' + escapeHtml(profile.name.replace(/,.*/, '')) + ',' : 'Dear colleague,'}</p>
                         <p>Your place at <strong>${escapeHtml(conv.title)}</strong> is reserved.</p>
                         <p style="color:#475569;font-size:14px;">${escapeHtml(conv.when_label || '')}${conv.venue ? '<br>' + escapeHtml(conv.venue) : ''}${conv.dress ? '<br>' + escapeHtml(conv.dress) : ''}</p>
@@ -3035,8 +3067,8 @@ app.post('/api/forum/wing/convenings/:id/reserve', auth, forumWingMemberGate, as
                         <p>Your entry credential is attached as a discreet code — a quiet backup for the door, read in a moment on arrival. There is nothing to print and nothing to remember.</p>
                         <p style="color:#475569;font-size:14px;">Reference <strong>${escapeHtml(reservation.qr_code || '')}</strong></p>
                         <p style="color:#6a625a;font-size:13px;margin-top:22px;">Held with discretion — the Office of the Forum, an initiative of Med&amp;X.</p>
-                    `);
-                    try { await sendEmail(profile.email, 'Your place is reserved — ' + conv.title, html, atts); } catch (e) { console.error('[forum-wing] reserve email:', e && e.message); }
+                    `, loc);
+                    try { await sendEmail(profile.email, (hr ? 'Vaše je mjesto rezervirano — ' : 'Your place is reserved — ') + conv.title, html, atts); } catch (e) { console.error('[forum-wing] reserve email:', e && e.message); }
                 })();
             }
         }
@@ -7911,7 +7943,7 @@ async function initializeApp() {
 
     app.post('/api/auth/register', authLimiter, async (req, res) => {
         try {
-            const { email, password, first_name, last_name, institution, country } = req.body;
+            const { email, password, first_name, last_name, institution, country, locale } = req.body;
 
             // Input validation
             if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -7932,11 +7964,14 @@ async function initializeApp() {
             // sendEmail() mock boundary; in dev the link is logged, never actually emailed.
             db.run(`INSERT INTO users (id, email, password_hash, first_name, last_name, institution, country, email_verified, verification_token)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [id, email, hash, first_name, last_name, institution, country, 0, null]);
+            // Adopt the locale the member chose on the portal (additive — used for member-facing emails).
+            const signupLocale = (locale === 'hr' || locale === 'en') ? locale : null;
+            if (signupLocale) { try { db.run('UPDATE users SET locale = ? WHERE id = ?', [signupLocale, id]); } catch (e) { /* locale column added by HR1 migration */ } }
             saveDb();
 
-            const verifyUrl = await issueEmailVerification({ id, email, first_name }, req);
+            const verifyUrl = await issueEmailVerification({ id, email, first_name, locale: signupLocale }, req);
             // WELCOME DRIP (#5): T+0 welcome + T+3 interests, idempotent per user (drip_log).
-            try { scheduleWelcomeDrip({ id, email, first_name }); } catch (e) { console.error('welcome-drip enqueue:', e && e.message); }
+            try { scheduleWelcomeDrip({ id, email, first_name, locale: signupLocale }); } catch (e) { console.error('welcome-drip enqueue:', e && e.message); }
 
             const token = jwt.sign({ id, email, is_admin: 0 }, JWT_SECRET, { expiresIn: '7d' });
             // Dev/demo delivery hint: when no mail provider is configured the verification email
@@ -8162,7 +8197,18 @@ async function initializeApp() {
         const baseUrl = `${req.protocol}://${req.get('host')}`;
         const verifyUrl = `${baseUrl}/api/auth/verify?token=${token}`;
         console.log(`[Auth] Verification link for ${user.email}: ${verifyUrl}`);
-        const emailHtml = buildEmailTemplate('Confirm your email', `
+        const loc = memberLocale(user);
+        const hr = loc === 'hr';
+        const emailHtml = buildEmailTemplate(hr ? 'Potvrdite svoju e-poštu' : 'Confirm your email', hr ? `
+            <p>Poštovani ${user.first_name || ''},</p>
+            <p>Dobro došli u Med&amp;X. Molimo potvrdite svoju adresu e-pošte kako biste dovršili postavljanje računa.</p>
+            <div style="text-align: center; margin: 32px 0;">
+                <a href="${verifyUrl}" style="display: inline-block; background: #C9A962; color: #0f172a; text-decoration: none; padding: 14px 36px; border-radius: 8px; font-weight: 600; font-size: 16px;">Potvrdite e-poštu</a>
+            </div>
+            <p style="color: #64748b; font-size: 13px;">Ako gumb ne radi, kopirajte i zalijepite ovu poveznicu u svoj preglednik:</p>
+            <p style="word-break: break-all; color: #64748b; font-size: 13px;">${verifyUrl}</p>
+            <p style="color: #64748b; font-size: 13px; margin-top: 24px;">Ova poveznica istječe za 24 sata. Ako niste otvorili Med&amp;X račun, slobodno zanemarite ovu poruku.</p>
+        ` : `
             <p>Hi ${user.first_name || 'there'},</p>
             <p>Welcome to Med&amp;X. Please confirm your email address to finish setting up your account.</p>
             <div style="text-align: center; margin: 32px 0;">
@@ -8171,9 +8217,9 @@ async function initializeApp() {
             <p style="color: #64748b; font-size: 13px;">If the button doesn't work, copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color: #64748b; font-size: 13px;">${verifyUrl}</p>
             <p style="color: #64748b; font-size: 13px; margin-top: 24px;">This link expires in 24 hours. If you didn't create a Med&amp;X account, you can ignore this email.</p>
-        `);
+        `, loc);
         try {
-            await sendEmail(user.email, 'Confirm your Med&X account', emailHtml);
+            await sendEmail(user.email, hr ? 'Potvrdite svoj Med&X račun' : 'Confirm your Med&X account', emailHtml);
         } catch (e) { console.error('Verification email error for', user.email, e && e.message); }
         return verifyUrl;
     }
@@ -8223,34 +8269,47 @@ async function initializeApp() {
         // Quiet members (gala/forum-only) get a peer-register welcome with no rewards mention and no
         // "young students" framing — same as every other youth-coded surface, one derivation.
         const quiet = quietFlagFor(user);
+        const loc = memberLocale(user);
+        const hr = loc === 'hr';
+        const greet = hr ? `<p>Poštovani ${user.first_name || ''},</p>` : `<p>Hi ${first},</p>`;
         if (claimDrip(user.id, user.email, 'welcome')) {
-            const communityLine = quiet
-                ? `<p>Welcome to Med&amp;X. You now have a place among the physicians, scientists, and researchers in our community.</p>`
-                : `<p>Welcome to Med&amp;X. You are now part of a growing community of young physicians, scientists, and students building bridges across biomedicine.</p>`;
-            const portalLine = quiet
-                ? `<p>Your member portal is where it all lives — your event tickets and QR codes, the member directory, and program updates.</p>`
-                : `<p>Your member portal is where it all lives — your Plexus conference pass, event tickets and QR codes, networking, and rewards.</p>`;
-            const html = buildEmailTemplate('Welcome to Med&X', `
-                <p>Hi ${first},</p>
+            const communityLine = hr
+                ? (quiet
+                    ? `<p>Dobro došli u Med&amp;X. Sada imate svoje mjesto među liječnicima, znanstvenicima i istraživačima u našoj zajednici.</p>`
+                    : `<p>Dobro došli u Med&amp;X. Sada ste dio rastuće zajednice mladih liječnika, znanstvenika i studenata koji grade mostove u biomedicini.</p>`)
+                : (quiet
+                    ? `<p>Welcome to Med&amp;X. You now have a place among the physicians, scientists, and researchers in our community.</p>`
+                    : `<p>Welcome to Med&amp;X. You are now part of a growing community of young physicians, scientists, and students building bridges across biomedicine.</p>`);
+            const portalLine = hr
+                ? (quiet
+                    ? `<p>Vaš članski portal mjesto je gdje je sve na okupu — vaše ulaznice i QR kodovi, imenik članova i novosti o programima.</p>`
+                    : `<p>Vaš članski portal mjesto je gdje je sve na okupu — vaša ulaznica za konferenciju Plexus, ulaznice i QR kodovi, umrežavanje i nagrade.</p>`)
+                : (quiet
+                    ? `<p>Your member portal is where it all lives — your event tickets and QR codes, the member directory, and program updates.</p>`
+                    : `<p>Your member portal is where it all lives — your Plexus conference pass, event tickets and QR codes, networking, and rewards.</p>`);
+            const html = buildEmailTemplate(hr ? 'Dobro došli u Med&X' : 'Welcome to Med&X', `
+                ${greet}
                 ${communityLine}
                 ${portalLine}
                 <div style="text-align:center;margin:32px 0;">
-                    <a href="${base}/" style="display:inline-block;background:#C9A962;color:#0f172a;text-decoration:none;padding:14px 36px;border-radius:8px;font-weight:600;font-size:16px;">Open your member portal</a>
+                    <a href="${base}/" style="display:inline-block;background:#C9A962;color:#0f172a;text-decoration:none;padding:14px 36px;border-radius:8px;font-weight:600;font-size:16px;">${hr ? 'Otvorite svoj članski portal' : 'Open your member portal'}</a>
                 </div>
-                <p style="color:#64748b;font-size:13px;">We are glad you are here.</p>
-            `);
-            enqueueTransactionalEmail({ to: user.email, subject: 'Welcome to Med&X', html, source_engine: 'welcome-drip', template: 'welcome' });
+                <p style="color:#64748b;font-size:13px;">${hr ? 'Drago nam je što ste s nama.' : 'We are glad you are here.'}</p>
+            `, loc);
+            enqueueTransactionalEmail({ to: user.email, subject: hr ? 'Dobro došli u Med&X' : 'Welcome to Med&X', html, source_engine: 'welcome-drip', template: 'welcome' });
         }
         if (claimDrip(user.id, user.email, 'interests')) {
-            const html = buildEmailTemplate('Pick what you want to hear about', `
-                <p>Hi ${first},</p>
-                <p>Med&amp;X runs several programs — the Plexus Conference, the Gala evening, the Accelerator, and Building Bridges. Follow the ones you care about and we will notify you the moment registration opens or news drops.</p>
+            const html = buildEmailTemplate(hr ? 'Odaberite o čemu želite primati vijesti' : 'Pick what you want to hear about', `
+                ${greet}
+                ${hr
+                    ? `<p>Med&amp;X vodi nekoliko programa — konferenciju Plexus, Gala večer, Accelerator i Building Bridges. Pratite one koji vas zanimaju i obavijestit ćemo vas čim se otvore prijave ili stignu novosti.</p>`
+                    : `<p>Med&amp;X runs several programs — the Plexus Conference, the Gala evening, the Accelerator, and Building Bridges. Follow the ones you care about and we will notify you the moment registration opens or news drops.</p>`}
                 <div style="text-align:center;margin:32px 0;">
-                    <a href="${base}/#projects" style="display:inline-block;background:#C9A962;color:#0f172a;text-decoration:none;padding:14px 36px;border-radius:8px;font-weight:600;font-size:16px;">Choose your interests</a>
+                    <a href="${base}/#projects" style="display:inline-block;background:#C9A962;color:#0f172a;text-decoration:none;padding:14px 36px;border-radius:8px;font-weight:600;font-size:16px;">${hr ? 'Odaberite svoje interese' : 'Choose your interests'}</a>
                 </div>
-                <p style="color:#64748b;font-size:13px;">Tap the bell on any project to start following it.</p>
-            `);
-            enqueueTransactionalEmail({ to: user.email, subject: 'Pick what you want to hear about', html, source_engine: 'welcome-drip', template: 'interests', scheduledFor: sqlDateTime(Date.now() + 3 * 24 * 60 * 60 * 1000) });
+                <p style="color:#64748b;font-size:13px;">${hr ? 'Dodirnite zvono na bilo kojem projektu kako biste ga počeli pratiti.' : 'Tap the bell on any project to start following it.'}</p>
+            `, loc);
+            enqueueTransactionalEmail({ to: user.email, subject: hr ? 'Odaberite o čemu želite primati vijesti' : 'Pick what you want to hear about', html, source_engine: 'welcome-drip', template: 'interests', scheduledFor: sqlDateTime(Date.now() + 3 * 24 * 60 * 60 * 1000) });
         }
         try { saveDb(); } catch (e) {}
     }
