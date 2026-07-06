@@ -7238,6 +7238,40 @@ async function initializeApp() {
     db.run(`CREATE INDEX IF NOT EXISTS idx_forum_considerations_status ON forum_considerations(status)`);
     // ====================== END FORUM WING schema ======================
 
+    // ====================== GUEST PASSES — member-initiated colleague invites ======================
+    // Shared table (both portals touch it): the user portal creates + revokes a member's own passes
+    // and stages the guest email, while the admin portal lists passes in the event guest lists,
+    // enriches the scanner with "Guest of Dr. X", revokes, and counts them in dashboards + the weekly
+    // pulse. Lives OUTSIDE the SCHEMA-MIRROR block but is added IDENTICALLY to BOTH server.js files
+    // (like the Forum wing tables). Idempotent CREATE so whichever process boots first against the
+    // shared DB creates it once. A guest's QR ticket is a REAL row in the event's own registration
+    // table (registrations for the Plexus conference, bridges_registrations for Building Bridges) so
+    // the FROZEN scanner validates it unchanged — reg_table + reg_id below are that linkage. status is
+    // one of invited | accepted | checked_in | revoked.
+    db.run(`CREATE TABLE IF NOT EXISTS guest_passes (
+        id TEXT PRIMARY KEY,
+        event TEXT NOT NULL,
+        event_ref TEXT,
+        member_user_id TEXT NOT NULL,
+        member_name TEXT,
+        guest_name TEXT NOT NULL,
+        guest_email TEXT NOT NULL,
+        note TEXT,
+        status TEXT DEFAULT 'invited',
+        reg_table TEXT,
+        reg_id TEXT,
+        qr_code TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        accepted_at TEXT,
+        checked_in_at TEXT,
+        revoked_at TEXT
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_guest_passes_member ON guest_passes(member_user_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_guest_passes_event ON guest_passes(event, event_ref)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_guest_passes_reg ON guest_passes(reg_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_guest_passes_gemail ON guest_passes(guest_email)`);
+    // ====================== END GUEST PASSES schema ======================
+
     // FORUM WING seed — user portal only (idempotent by slug). The two standing convenings and a
     // little Forum news, harvested from the approved wing design. Existence-guarded so a re-boot
     // never duplicates, and scoped to this portal so there is no double-seed race against admin.
@@ -9181,6 +9215,222 @@ async function submitReset(e){
             return res.status(403).json({ error: 'Access denied' });
         }
         res.json(reg);
+    });
+
+    // ========== MEMBER-INITIATED GUEST PASSES ("Bring a colleague") ==========
+    // A member may invite a colleague to an ELIGIBLE event (the Plexus conference and Building
+    // Bridges). The Gala is invitation-only and Forum convenings are private, so both are excluded.
+    // The guest attends UNDER the member's name. Each guest gets a REAL registration row in the
+    // event's own table (registrations / bridges_registrations) so the FROZEN /qr/:id.png issuance +
+    // scanner validate the guest ticket unchanged — we only ADD the guest_passes linkage row + a
+    // premium invite email staged into the approval outbox. Limit: GUEST_PASS_LIMIT_PER_EVENT active
+    // passes per member per event.
+    const GUEST_PASS_LIMIT_PER_EVENT = 2;
+    const GUEST_PASS_ACTIVE = ['invited', 'accepted', 'checked_in'];
+
+    // Resolve an event key to the concrete event + which registration table backs its ticket.
+    // Returns null for anything that is NOT eligible (gala, donor night, forum, unknown).
+    function resolveGuestPassEvent(eventKey, eventRef) {
+        const key = String(eventKey || '').toLowerCase();
+        if (key === 'plexus' || key === 'conference') {
+            const conf = getActiveConference();
+            if (!conf) return null;
+            return { kind: 'plexus', ref: conf.id, name: conf.name || 'Plexus Conference 2026', regTable: 'registrations', conf };
+        }
+        if (key === 'bridges') {
+            let ev = null;
+            if (eventRef) { try { ev = query.get('SELECT * FROM bridges_events WHERE id = ?', [eventRef]); } catch (e) {} }
+            if (!ev) { try { ev = query.get("SELECT * FROM bridges_events WHERE slug = 'building-bridges'"); } catch (e) {} }
+            // Donor Night shares bridges_events but is a paid, separately-run seat — never eligible.
+            if (!ev || ev.slug === 'donor-night') return null;
+            return { kind: 'bridges', ref: ev.id, name: ev.name || 'Building Bridges', regTable: 'bridges_registrations', bridgesEvent: ev };
+        }
+        return null;
+    }
+
+    // Effective status of a pass: revoked stays revoked; otherwise the linked registration's
+    // checked-in flag promotes it to 'checked_in'. Derived on read so the FROZEN scanner never has
+    // to write back into guest_passes.
+    function guestPassView(p) {
+        let checkedIn = false;
+        try {
+            if (p.reg_table === 'registrations' || p.reg_table === 'bridges_registrations') {
+                const r = query.get(`SELECT checked_in, checked_in_at FROM ${p.reg_table} WHERE id = ?`, [p.reg_id]);
+                if (r && r.checked_in) checkedIn = true;
+            }
+        } catch (e) {}
+        const status = p.status === 'revoked' ? 'revoked' : (checkedIn ? 'checked_in' : p.status);
+        return {
+            id: p.id, event: p.event, event_ref: p.event_ref, event_name: p.event_name || '',
+            guest_name: p.guest_name, guest_email: p.guest_email, note: p.note || '',
+            status, checked_in: checkedIn, created_at: p.created_at,
+            member_name: p.member_name || ''
+        };
+    }
+
+    // Premium guest invite email body (bilingual, formal Vi register in Croatian).
+    function buildGuestPassEmailBody(memberName, guestFirst, eventName, whenLine, regId, kind, locale) {
+        const hr = locale === 'hr';
+        const qrBlock = buildTicketQrBlock(regId, hr
+            ? { label: 'Vaš QR kod za ulazak', caption: 'Pokažite ovaj kod na ulazu u događaj' }
+            : { label: 'Your Check-in QR Code', caption: 'Present this code at the event entrance' });
+        const whenRow = whenLine ? `<div style="padding:10px 0;border-bottom:1px solid #e2e8f0;"><span style="color:#64748b;">${hr ? 'Kada i gdje' : 'When and where'}</span> &nbsp;<strong style="color:#0f172a;">${whenLine}</strong></div>` : '';
+        const guestBadge = `<div style="text-align:center;margin:2px 0 22px;"><span style="display:inline-block;background:rgba(201,169,98,0.14);border:1px solid #C9A962;color:#8a6d1f;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border-radius:20px;padding:6px 16px;">${hr ? 'Gost · ' : 'Guest of '}${escapeHtml(memberName)}</span></div>`;
+        if (hr) {
+            return `
+                <p>Poštovani ${escapeHtml(guestFirst)},</p>
+                <p><strong>${escapeHtml(memberName)}</strong> pozvao Vas je kao svojeg gosta na <strong>${escapeHtml(eventName)}</strong>. Dobrodošli.</p>
+                ${guestBadge}
+                <div style="margin:20px 0;">
+                    <div style="padding:10px 0;border-bottom:1px solid #e2e8f0;"><span style="color:#64748b;">Događaj</span> &nbsp;<strong style="color:#0f172a;">${escapeHtml(eventName)}</strong></div>
+                    ${whenRow}
+                    <div style="padding:10px 0;"><span style="color:#64748b;">Vaš domaćin</span> &nbsp;<strong style="color:#0f172a;">${escapeHtml(memberName)}</strong></div>
+                </div>
+                <p>Prisustvujete pod imenom svojeg domaćina. Ponesite QR kod ispod na ulaz — vrijedi kao Vaša ulaznica.</p>
+                ${qrBlock}
+                <p style="color:#64748b;font-size:13px;">Radujemo se što ćete nam se pridružiti.</p>`;
+        }
+        return `
+            <p>Dear ${escapeHtml(guestFirst)},</p>
+            <p><strong>${escapeHtml(memberName)}</strong> has invited you as their guest to <strong>${escapeHtml(eventName)}</strong>. We are glad to welcome you.</p>
+            ${guestBadge}
+            <div style="margin:20px 0;">
+                <div style="padding:10px 0;border-bottom:1px solid #e2e8f0;"><span style="color:#64748b;">Event</span> &nbsp;<strong style="color:#0f172a;">${escapeHtml(eventName)}</strong></div>
+                ${whenRow}
+                <div style="padding:10px 0;"><span style="color:#64748b;">Your host</span> &nbsp;<strong style="color:#0f172a;">${escapeHtml(memberName)}</strong></div>
+            </div>
+            <p>You are attending under your host's name. Bring the QR code below to the entrance — it is your ticket.</p>
+            ${qrBlock}
+            <p style="color:#64748b;font-size:13px;">We look forward to seeing you there.</p>`;
+    }
+
+    // Stage the guest invite into the approval outbox (pending_approval) with the QR attached, so the
+    // owner approves it before it sends. drip_log guest_pass:<id> marks the send exactly once.
+    async function stageGuestPassEmail(pass, ev, regId, locale) {
+        const first = (String(pass.guest_name || '').trim().split(/\s+/)[0]) || (locale === 'hr' ? 'gost' : 'there');
+        const whenLine = lookupEventWhen(ev.kind, regId);
+        const subject = locale === 'hr'
+            ? `${pass.member_name} Vas poziva kao gosta — ${ev.name}`
+            : `${pass.member_name} has invited you as their guest — ${ev.name}`;
+        const title = locale === 'hr' ? 'Poziv za gosta' : 'You are invited as a guest';
+        const html = buildEmailTemplate(title, buildGuestPassEmailBody(pass.member_name, first, ev.name, whenLine, regId, ev.kind, locale), locale);
+        let attachments = [];
+        try {
+            const png = await qrPngAttachment({ regId, evt: ev.kind });
+            if (png && png[0]) attachments = [{ filename: png[0].filename, content_b64: Buffer.from(png[0].content).toString('base64'), type: png[0].type }];
+        } catch (e) {}
+        const batchId = 'guest-pass-' + pass.id;
+        const payload = JSON.stringify({ to: pass.guest_email, subject, html, attachments });
+        db.run(`INSERT INTO scheduled_emails (id, status, source_engine, template, batch_id, recipient_email, subject, payload_json, created_by, created_at)
+            VALUES (?, 'pending_approval', 'guest-pass', 'guest-pass-invite', ?, ?, ?, ?, 'guest-pass', datetime('now'))`,
+            [uuidv4(), batchId, pass.guest_email, subject, payload]);
+        try { db.run('INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?,?,?,?)', [uuidv4(), pass.member_user_id, pass.guest_email, 'guest_pass:' + pass.id]); } catch (e) {}
+    }
+
+    // List a member's own guest passes (optionally scoped to one event) + the remaining allowance.
+    app.get('/api/guest-passes', auth, (req, res) => {
+        try {
+            const evKey = req.query.event ? String(req.query.event).toLowerCase() : null;
+            const evRef = req.query.event_ref ? String(req.query.event_ref) : null;
+            let rows;
+            if (evKey) {
+                const ev = resolveGuestPassEvent(evKey, evRef);
+                if (!ev) return res.status(400).json({ error: 'This event does not accept guest passes.' });
+                rows = query.all('SELECT * FROM guest_passes WHERE member_user_id = ? AND event = ? AND event_ref = ? ORDER BY created_at DESC', [req.user.id, ev.kind, ev.ref]);
+                const active = rows.filter(r => GUEST_PASS_ACTIVE.includes(r.status)).length;
+                return res.json({ passes: rows.map(guestPassView), limit: GUEST_PASS_LIMIT_PER_EVENT, active_count: active, remaining: Math.max(0, GUEST_PASS_LIMIT_PER_EVENT - active), event: ev.kind, event_name: ev.name });
+            }
+            rows = query.all('SELECT * FROM guest_passes WHERE member_user_id = ? ORDER BY created_at DESC', [req.user.id]);
+            res.json({ passes: rows.map(guestPassView), limit: GUEST_PASS_LIMIT_PER_EVENT });
+        } catch (e) { console.error('guest-passes list', e.message); res.status(500).json({ error: 'Could not load your guest passes.' }); }
+    });
+
+    // Create a guest pass: validate eligibility + limit, issue the ticket row through the existing
+    // per-event registration table (so the FROZEN scanner validates it), link it, and stage the email.
+    app.post('/api/guest-passes', auth, async (req, res) => {
+        try {
+            const { event, event_ref, guest_name, guest_email, note, institution } = req.body || {};
+            const ev = resolveGuestPassEvent(event, event_ref);
+            if (!ev) return res.status(400).json({ error: 'This event does not accept guest passes.' });
+
+            const gName = String(guest_name || '').trim();
+            const gEmail = String(guest_email || '').trim().toLowerCase();
+            if (!gName) return res.status(400).json({ error: 'Please enter your guest\'s name.' });
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(gEmail)) return res.status(400).json({ error: 'Please enter a valid guest email address.' });
+
+            // Enforce the per-member, per-event active limit.
+            const activeCount = query.get(
+                `SELECT COUNT(*) AS c FROM guest_passes WHERE member_user_id = ? AND event = ? AND event_ref = ? AND status IN ('invited','accepted','checked_in')`,
+                [req.user.id, ev.kind, ev.ref]
+            )?.c || 0;
+            if (activeCount >= GUEST_PASS_LIMIT_PER_EVENT) {
+                return res.status(409).json({ error: `You can have up to ${GUEST_PASS_LIMIT_PER_EVENT} active guest passes for this event. Revoke one to invite someone new.`, limit_reached: true });
+            }
+            // Don't invite the same guest twice to the same event while a pass is still active.
+            const dup = query.get(
+                `SELECT id FROM guest_passes WHERE member_user_id = ? AND event = ? AND event_ref = ? AND LOWER(guest_email) = ? AND status IN ('invited','accepted','checked_in')`,
+                [req.user.id, ev.kind, ev.ref, gEmail]
+            );
+            if (dup) return res.status(409).json({ error: 'You have already invited this colleague to this event.' });
+
+            const me = query.get('SELECT first_name, last_name, email FROM users WHERE id = ?', [req.user.id]) || {};
+            const memberName = `${me.first_name || ''} ${me.last_name || ''}`.trim() || (me.email || 'A Med&X member');
+            const nameParts = gName.split(/\s+/);
+            const gFirst = nameParts[0] || null;
+            const gLast = nameParts.length > 1 ? nameParts.slice(1).join(' ') : null;
+            const gInst = institution ? String(institution).trim() : null;
+            const noteClean = note ? String(note).trim().slice(0, 280) : null;
+
+            // 1) Issue the guest's ticket row in the event's OWN registration table so the existing
+            //    QR/scanner path validates it. Additive INSERT — never the frozen registration POST.
+            const regId = uuidv4();
+            let qrCode = null;
+            if (ev.kind === 'plexus') {
+                const ticket = query.get('SELECT id FROM ticket_types WHERE conference_id = ? AND COALESCE(price_regular,0) = 0 ORDER BY sort_order LIMIT 1', [ev.ref])
+                    || query.get('SELECT id FROM ticket_types WHERE conference_id = ? ORDER BY sort_order LIMIT 1', [ev.ref]);
+                qrCode = qrImageUrl(regId);
+                db.run(`INSERT INTO registrations (id, conference_id, user_id, ticket_type_id, registration_type, status, payment_status, amount_paid, first_name, last_name, email, institution, applied_for, ticket_qr_code)
+                    VALUES (?, ?, NULL, ?, 'guest', 'confirmed', 'comp', 0, ?, ?, ?, ?, ?, ?)`,
+                    [regId, ev.ref, ticket ? ticket.id : null, gFirst, gLast, gEmail, gInst, ev.name, qrCode]);
+            } else {
+                qrCode = `MEDX-BB-${ev.ref}-${regId}`;
+                db.run(`INSERT INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, position, notes, status, qr_code)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'registered', ?)`,
+                    [regId, ev.ref, gFirst, gLast, gEmail, gInst, null, noteClean, qrCode]);
+            }
+
+            // 2) Link the pass.
+            const passId = uuidv4();
+            db.run(`INSERT INTO guest_passes (id, event, event_ref, member_user_id, member_name, guest_name, guest_email, note, status, reg_table, reg_id, qr_code)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'invited', ?, ?, ?)`,
+                [passId, ev.kind, ev.ref, req.user.id, memberName, gName, gEmail, noteClean, ev.regTable, regId, qrCode]);
+            saveDb();
+
+            // 3) Stage the premium guest invite into the approval outbox (owner approves before send).
+            const pass = { id: passId, member_user_id: req.user.id, member_name: memberName, guest_name: gName, guest_email: gEmail };
+            const locale = memberLocale(query.get('SELECT * FROM users WHERE id = ?', [req.user.id]) || {});
+            try { await stageGuestPassEmail(pass, ev, regId, locale); saveDb(); } catch (e) { console.error('guest-pass email stage', e.message); }
+
+            res.json({ success: true, id: passId, event: ev.kind, event_name: ev.name, guest_name: gName, guest_email: gEmail });
+        } catch (e) { console.error('guest-pass create', e.message); res.status(500).json({ error: 'Could not create the guest pass. Please try again.' }); }
+    });
+
+    // Member revokes their OWN pass: the linked ticket is cancelled (so the scanner rejects it
+    // cleanly), any not-yet-approved invite email is pulled from the outbox, and the pass is closed.
+    app.post('/api/guest-passes/:id/revoke', auth, (req, res) => {
+        try {
+            const pass = query.get('SELECT * FROM guest_passes WHERE id = ? AND member_user_id = ?', [req.params.id, req.user.id]);
+            if (!pass) return res.status(404).json({ error: 'Guest pass not found.' });
+            if (pass.status === 'revoked') return res.json({ success: true, already: true });
+            db.run("UPDATE guest_passes SET status = 'revoked', revoked_at = datetime('now') WHERE id = ?", [pass.id]);
+            if ((pass.reg_table === 'registrations' || pass.reg_table === 'bridges_registrations') && pass.reg_id) {
+                try { db.run(`UPDATE ${pass.reg_table} SET status = 'cancelled' WHERE id = ?`, [pass.reg_id]); } catch (e) {}
+            }
+            // Pull the invite from the outbox if it has not been approved/sent yet.
+            try { db.run("UPDATE scheduled_emails SET status = 'cancelled' WHERE batch_id = ? AND status = 'pending_approval'", ['guest-pass-' + pass.id]); } catch (e) {}
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { console.error('guest-pass revoke', e.message); res.status(500).json({ error: 'Could not revoke the guest pass.' }); }
     });
 
     // ========== MEMBER CLASS + STANDING + RECORD (menu 22) ==========

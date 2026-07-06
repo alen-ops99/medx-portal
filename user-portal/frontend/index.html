@@ -56770,6 +56770,38 @@ button,input,select,textarea{font-family:var(--sans);}
             'bb.statContinents':{en:'Continents', hr:'Kontinenti'},
             'bb.statEvents2026':{en:'Events in 2026', hr:'Događaji u 2026.'},
             'bb.testimonials':{en:'What Attendees Say', hr:'Što kažu sudionici'},
+            // --- Guest passes ("Bring a colleague") — member-initiated colleague invites ---
+            'gp.hubTitle':   {en:'Bring a colleague', hr:'Dovedite kolegu'},
+            'gp.hubSub':     {en:'Invite a colleague to an event you attend. They come as your guest, under your name.', hr:'Pozovite kolegu na događaj na kojem sudjelujete. Dolazi kao Vaš gost, pod Vašim imenom.'},
+            'gp.cardDesc':   {en:'Invite a colleague as your guest. They receive their own entry pass by email and attend under your name.', hr:'Pozovite kolegu kao svojeg gosta. E-poštom dobiva vlastitu ulaznicu i prisustvuje pod Vašim imenom.'},
+            'gp.cta':        {en:'Bring a colleague', hr:'Dovedite kolegu'},
+            'gp.remaining':  {en:'{n} of {limit} guest passes remaining', hr:'Preostalo ulaznica za goste: {n} od {limit}'},
+            'gp.limitReached':{en:'You have used all your guest passes for this event. Revoke one to invite someone new.', hr:'Iskoristili ste sve ulaznice za goste za ovaj događaj. Povucite jednu da pozovete nekoga novog.'},
+            'gp.yourPasses': {en:'Guests you have invited', hr:'Gosti koje ste pozvali'},
+            'gp.noPasses':   {en:'You have not invited anyone to this event yet.', hr:'Još niste nikoga pozvali na ovaj događaj.'},
+            'gp.statusInvited':{en:'Invited', hr:'Pozvan'},
+            'gp.statusCheckedIn':{en:'Checked in', hr:'Prijavljen'},
+            'gp.statusRevoked':{en:'Revoked', hr:'Povučeno'},
+            'gp.revoke':     {en:'Revoke', hr:'Povucite'},
+            'gp.confirmRevoke':{en:'Revoke this guest pass? Your colleague\'s entry will no longer be valid.', hr:'Povući ovu ulaznicu za gosta? Ulazak Vašeg kolege više neće vrijediti.'},
+            'gp.modalTitle': {en:'Bring a colleague', hr:'Dovedite kolegu'},
+            'gp.attendsUnder':{en:'Your guest attends under your name. You can invite up to {limit} colleagues per event.', hr:'Vaš gost prisustvuje pod Vašim imenom. Možete pozvati do {limit} kolega po događaju.'},
+            'gp.guestName':  {en:'Guest name', hr:'Ime gosta'},
+            'gp.guestNamePh':{en:'Your colleague\'s full name', hr:'Puno ime Vašeg kolege'},
+            'gp.guestEmail': {en:'Guest email', hr:'E-pošta gosta'},
+            'gp.guestEmailPh':{en:'name@institution.hr', hr:'ime@ustanova.hr'},
+            'gp.note':       {en:'A short note (optional)', hr:'Kratka poruka (nije obavezno)'},
+            'gp.notePh':     {en:'e.g. a cardiology colleague from KBC Zagreb', hr:'npr. kolega kardiolog iz KBC-a Zagreb'},
+            'gp.send':       {en:'Send guest pass', hr:'Pošaljite ulaznicu'},
+            'gp.sending':    {en:'Sending…', hr:'Šaljem…'},
+            'gp.cancel':     {en:'Cancel', hr:'Odustani'},
+            'gp.sentToast':  {en:'Guest pass on its way to {name}.', hr:'Ulaznica za gosta stiže: {name}.'},
+            'gp.revokedToast':{en:'Guest pass revoked.', hr:'Ulaznica za gosta povučena.'},
+            'gp.errName':    {en:'Please enter your guest\'s name.', hr:'Unesite ime svojeg gosta.'},
+            'gp.errEmail':   {en:'Please enter a valid email address.', hr:'Unesite valjanu adresu e-pošte.'},
+            'gp.loadError':  {en:'Could not load your guest passes.', hr:'Nije moguće učitati vaše ulaznice za goste.'},
+            'gp.eventPlexus':{en:'Plexus Conference', hr:'Konferencija Plexus'},
+            'gp.eventBridges':{en:'Building Bridges', hr:'Building Bridges'},
             'bb.questions':  {en:'Questions about Building Bridges?', hr:'Pitanja o Building Bridgesu?'},
             'bb.featuredSpeakers':{en:'Featured Speakers', hr:'Istaknuti govornici'},
             'bb.featuredSpeakersSub':{en:'Meet the experts presenting at our upcoming Building Bridges events', hr:'Upoznajte stručnjake koji izlažu na nadolazećim Building Bridges događajima'},
@@ -57456,7 +57488,91 @@ button,input,select,textarea{font-family:var(--sans);}
             'fm.searchMembers':   {en:'Search by name, institution, or expertise...', hr:'Pretražite po imenu, ustanovi ili stručnosti...'},
             'fm.searchDirectory': {en:'Search by name, title, institution, or expertise...', hr:'Pretražite po imenu, tituli, ustanovi ili stručnosti...'},
             'fm.searchUniversal': {en:'Search members by name, institution, expertise...', hr:'Pretražite članove po imenu, ustanovi, stručnosti...'},
-            'fm.searchNetwork':   {en:'Search by name, title, institution, expertise, or location...', hr:'Pretražite po imenu, tituli, ustanovi, stručnosti ili lokaciji...'}
+            'fm.searchNetwork':   {en:'Search by name, title, institution, expertise, or location...', hr:'Pretražite po imenu, tituli, ustanovi, stručnosti ili lokaciji...'},
+
+            // === HR long tail (final batch): AF26 schedule + speakers, Bridges peer cards,
+            // === Gala pricing/register labels, Plexus chrome + registration consent sentences ===
+            'af.schedWelcomeSub':{en:'Champagne reception and networking', hr:'Prijem uz šampanjac i umrežavanje'},
+            'af.schedOpeningSub':{en:'Dr. Alen Juginovic, President of Med&X', hr:'Dr. Alen Juginović, predsjednik Med&X-a'},
+            'af.schedKeynoteSub':{en:'The Future of Biomedicine - Vision 2030', hr:'Budućnost biomedicine - Vizija 2030'},
+            'af.schedDinnerSub':{en:'Four-course dinner with wine pairing', hr:'Večera u četiri slijeda uz odabrana vina'},
+            'af.schedAwardsSub':{en:'Recognition of outstanding achievements', hr:'Priznanja za iznimna postignuća'},
+            'af.schedEntSub':{en:'Live music and continued networking', hr:'Glazba uživo i nastavak umrežavanja'},
+            'af.spkKeynote':{en:'Keynote Speaker', hr:'Plenarni govornik'},
+            'af.spkWhoAdvisor':{en:'WHO Advisor', hr:'Savjetnica SZO-a'},
+            'af.spkMaxPlanck':{en:'Max Planck Director', hr:'Direktor Instituta Max Planck'},
+            'af.spkBiotechCeo':{en:'Biotech CEO', hr:'Direktorica biotehnološke tvrtke'},
+            'af.spkNihDirector':{en:'NIH Director', hr:'Ravnateljica NIH-a'},
+            'af.limited200':{en:'Limited to 200 guests. Forum members only.', hr:'Ograničeno na 200 uzvanika. Samo za članove Foruma.'},
+            'af.questionsForumBody':{en:"Whether you need assistance with your invitation, have questions about the program, or want to explore sponsorship opportunities, we're here to help.", hr:'Trebate li pomoć s pozivnicom, imate li pitanja o programu ili želite razmotriti mogućnosti sponzorstva, tu smo za vas.'},
+            'bb.ourMission':{en:'Our Mission', hr:'Naša misija'},
+            'bb.ourMissionBody':{en:'Building Bridges connects Croatian biomedical professionals across the globe with leading institutions in their local cities. Through intimate networking events of 40-50 attendees, we create meaningful connections that advance careers and foster international collaboration.', hr:'Building Bridges povezuje hrvatske biomedicinske stručnjake diljem svijeta s vodećim ustanovama u njihovim gradovima. Kroz manja događanja za umrežavanje s 40-50 sudionika stvaramo vrijedne veze koje unapređuju karijere i potiču međunarodnu suradnju.'},
+            'bb.eventCities':{en:'Event Cities', hr:'Gradovi događanja'},
+            'bb.eventCitiesBody':{en:'We host events in strategic locations where Croatian diaspora meets world-leading institutions.', hr:'Događanja održavamo na strateškim lokacijama gdje se hrvatska dijaspora susreće sa svjetski vodećim ustanovama.'},
+            'bb.whoCanApplyBody':{en:'Applications are open to Croatian biomedical professionals worldwide - researchers, physicians, industry professionals, and students pursuing advanced degrees at recognized institutions.', hr:'Prijave su otvorene hrvatskim biomedicinskim stručnjacima diljem svijeta - istraživačima, liječnicima, stručnjacima iz industrije i studentima naprednih studija na priznatim ustanovama.'},
+            'bb.eventFormat':{en:'Event Format', hr:'Format događanja'},
+            'bb.eventFormatBody':{en:'Each event features keynote speakers from local institutions, structured networking sessions, and social activities. Events are typically held at prestigious venues with catering and professional facilitation.', hr:'Svako događanje uključuje plenarne govornike iz lokalnih ustanova, strukturirane sesije umrežavanja i druženje. Događanja se u pravilu održavaju na prestižnim lokacijama uz catering i profesionalno vođenje.'},
+            'bb.cityUpcoming':{en:'(upcoming)', hr:'(uskoro)'},
+            'bb.cityPast':{en:'(past)', hr:'(održano)'},
+            'gala.priceGalaOnly':{en:'Gala Evening Only', hr:'Samo Gala večer'},
+            'gala.priceGalaOnlyDesc':{en:'Perfect for VIP professionals', hr:'Idealno za VIP profesionalce'},
+            'gala.saveBadge':{en:'Save €20', hr:'Uštedite 20 €'},
+            'gala.priceBundle':{en:'Plexus + Gala Bundle', hr:'Paket Plexus + Gala'},
+            'gala.priceBundleDesc':{en:'Full conference experience', hr:'Potpuno konferencijsko iskustvo'},
+            'gala.requestInvitation':{en:'Request Invitation', hr:'Zatražite pozivnicu'},
+            'gala.reviewNote':{en:"The Gala Evening is an exclusive, limited-capacity event. Your registration will be reviewed and you'll receive a confirmation email once approved.", hr:'Gala večer ekskluzivan je događaj ograničenog kapaciteta. Vašu ćemo prijavu pregledati, a nakon odobrenja primit ćete e-poruku s potvrdom.'},
+            'gala.consentIntro':{en:"By registering you agree to Med&X's", hr:'Prijavom prihvaćate Med&X-ove'},
+            'gala.consentTail':{en:'. Registration fees are non-refundable.', hr:'. Kotizacija se ne vraća.'},
+            'px.consentIntro':{en:"By completing registration, you agree to Med&X's", hr:'Dovršetkom prijave prihvaćate Med&X-ove'},
+            'px.consentTail':{en:'. All personal data is processed in accordance with GDPR. Med&X reserves the right to modify the conference program. Prices include applicable taxes.', hr:'. Svi osobni podaci obrađuju se u skladu s GDPR-om. Med&X zadržava pravo izmjene programa konferencije. Cijene uključuju primjenjive poreze.'},
+            'consent.and':{en:'and', hr:'i'},
+            'consent.commaAnd':{en:', and', hr:', kao i'},
+            'legal.termsAcc':{en:'Terms & Conditions', hr:'Uvjete korištenja'},
+            'legal.privacyAcc':{en:'Privacy Policy', hr:'Pravila privatnosti'},
+            'px.mySchedule':{en:'My Schedule', hr:'Moj raspored'},
+            'px.addToCalendar':{en:'Add to Calendar', hr:'Dodajte u kalendar'},
+            'px.regOpen':{en:'Registration Open', hr:'Prijave su otvorene'},
+            'px.questionsBody':{en:"Whether you're interested in attending, speaking, sponsoring, or partnering with us, our team is here to help.", hr:'Bilo da vas zanima sudjelovanje, izlaganje, sponzorstvo ili partnerstvo, naš vam je tim na raspolaganju.'},
+            'ax.questions':{en:'Questions about the Accelerator?', hr:'Pitanja o Acceleratoru?'},
+            'ax.questionsBody':{en:'Whether you are interested in applying, collaborating, or learning more about the program, our team is here to help.', hr:'Bilo da se želite prijaviti, surađivati ili saznati više o programu, naš vam je tim na raspolaganju.'},
+            'f.specialReqPh':{en:'Accessibility needs, seating preferences, etc.', hr:'Potrebe pristupačnosti, željeni raspored sjedenja i slično'},
+            // === FIX-agent sweep: Gala + Bridges static chrome stragglers ===
+            'gala.meetEyebrow':{en:'Why the evening exists', hr:'Zašto postoji ova večer'},
+            'bb.threeCitySub':{en:'Three city editions are being scheduled for 2026 — register your interest to hear dates first.', hr:'Za 2026. pripremamo tri gradska izdanja — prijavite interes da prvi saznate datume.'},
+            'bb.questionsBody':{en:"Whether you're interested in attending, speaking, or partnering with us, we'd love to hear from you.", hr:'Bilo da vas zanima sudjelovanje, izlaganje ili partnerstvo, rado ćemo se čuti s vama.'},
+            'px.yourPackage':{en:'Your Package', hr:'Vaš paket'},
+            'px.continue':{en:'Continue', hr:'Nastavite'},
+
+            // === HR long tail (sweep pass): Plexus page static chrome stragglers ===
+            'px.agendaNoteTail':{en:'Tap any program or speaker session to pre-fill it, then add the whole thing to your calendar.', hr:'Dodirnite bilo koji program ili sesiju predavača da je unaprijed ispunite, a zatim sve dodajte u svoj kalendar.'},
+            'px.register':{en:'Register', hr:'Prijavite se'},
+            'px.browseProgram':{en:'Browse the program', hr:'Pregledajte program'},
+            'px.learnMoreRsvp':{en:'Learn More & RSVP', hr:'Saznajte više i prijavite dolazak'},
+            'px.addToPackage':{en:'Add to Package', hr:'Dodajte u paket'},
+            'px.aboutBody1':{en:"Plexus is Croatia's premier biomedical conference, bringing together researchers, clinicians, students, and industry leaders from around the world. Now in its 10th year, Plexus features keynote speeches from biomedical leaders, cutting-edge research presentations, and unparalleled networking opportunities.", hr:'Plexus je vodeća hrvatska biomedicinska konferencija koja okuplja istraživače, kliničare, studente i predvodnike industrije iz cijelog svijeta. U svojoj desetoj godini Plexus donosi plenarna izlaganja biomedicinskih predvodnika, predstavljanja najnovijih istraživanja i nenadmašne prilike za umrežavanje.'},
+            'px.aboutBody2':{en:"Join us in December 2026 for two days of inspiring talks, poster sessions, workshops, and the Gala Evening featuring the Biomedical Forum's Annual Awards ceremony.", hr:'Pridružite nam se u prosincu 2026. na dva dana nadahnjujućih izlaganja, posterskih sesija, radionica i Gala večeri s dodjelom Godišnjih nagrada Biomedicinskog foruma.'},
+            'px.galaEyebrow':{en:'Exclusive Evening Event', hr:'Ekskluzivan večernji događaj'},
+            'px.galaFeatDate':{en:'Saturday, December 5, 2026 — Grand Ballroom, Hotel Esplanade Zagreb', hr:'Subota, 5. prosinca 2026. — Velika dvorana, Hotel Esplanade Zagreb'},
+            'px.galaFeatDesc':{en:'An unforgettable evening celebrating biomedical excellence. Join biomedical leaders, leading researchers, and fellow attendees for the Annual Awards Ceremony, fine dining, and live entertainment. Formal attire required.', hr:'Nezaboravna večer u čast biomedicinske izvrsnosti. Pridružite se biomedicinskim predvodnicima, vrhunskim istraživačima i ostalim uzvanicima na dodjeli Godišnjih nagrada, uz vrhunsku večeru i zabavu uživo. Obvezan je svečani dress code.'},
+            'px.galaHiAwards':{en:'Annual Awards Ceremony', hr:'Dodjela Godišnjih nagrada'},
+            'px.galaHiDining':{en:'Fine Dining', hr:'Vrhunska večera'},
+            'px.galaHiEnt':{en:'Live Entertainment', hr:'Zabava uživo'},
+            'px.galaHiMeet':{en:'Keynote Speaker Meet & Greet', hr:'Druženje s plenarnim govornicima'},
+            'px.connectedTail':{en:'participants already connected', hr:'sudionika već povezano'},
+            'px.momentsSub':{en:'Join a community of 2,500+ researchers and clinicians built across our Plexus conferences', hr:'Pridružite se zajednici od više od 2.500 istraživača i kliničara izgrađenoj kroz naše konferencije Plexus'},
+            'px.testimonialsSub':{en:"Hear from researchers who've joined us in previous years", hr:'Poslušajte istraživače koji su nam se pridružili prethodnih godina'},
+            'px.harvardFoot':{en:'Two of our keynote speakers also hold Harvard Medical School professorships.', hr:'Dvoje naših plenarnih govornika ujedno su i profesori na Harvard Medical School.'},
+            'px.viewBio':{en:'View bio', hr:'Pogledajte životopis'},
+
+            // === HR long tail (sweep pass): Gala page static prose stragglers ===
+            'gala.meetBody1':{en:"The Gala Evening is built for the conversations that outlast the night. Over cocktails and a shared table, Croatia's clinicians and researchers sit beside the people who lead the world's foremost hospitals and universities.", hr:'Gala večer stvorena je za razgovore koji nadžive samu noć. Uz koktele i zajednički stol, hrvatski kliničari i istraživači sjede uz ljude koji vode vodeće svjetske bolnice i sveučilišta.'},
+            'gala.meetBody2':{en:'Every seat is placed to build a bridge — a mentor found, a collaboration started, a door opened between a young Croatian scientist and a laboratory abroad.', hr:'Svako je mjesto osmišljeno da izgradi most — pronađen mentor, započeta suradnja, otvorena vrata između mladog hrvatskog znanstvenika i laboratorija u inozemstvu.'},
+            'gala.seatingLimited':{en:'Seating is limited to keep the room personal', hr:'Broj mjesta je ograničen kako bi ozračje ostalo prisno'},
+            'gala.performBody':{en:"The evening closes with live music and celebration. Two of Croatia's most beloved performers join the night, and their names are revealed closer to December.", hr:'Večer se zatvara glazbom uživo i slavljem. Pridružit će nam se dvoje najomiljenijih hrvatskih izvođača, a njihova se imena otkrivaju bliže prosincu.'},
+            'gala.toBeAnnounced':{en:'To be announced', hr:'Uskoro objavljujemo'},
+            'gala.aboutBody1':{en:"The anchor dinner of Plexus 2026. The people who lead the world's foremost hospitals and universities join Croatia's rising clinicians and researchers for the Biomedical Forum Awards, a five-course dinner, keynote addresses, and live music.", hr:'Središnja večera Plexusa 2026. Ljudi koji vode vodeće svjetske bolnice i sveučilišta pridružuju se hrvatskim kliničarima i istraživačima u usponu na dodjeli nagrada Biomedicinskog foruma, uz večeru u pet slijedova, plenarna izlaganja i glazbu uživo.'},
+            'gala.aboutBody2':{en:'Seating is limited by design. The evening is kept intimate so every guest is within reach of the people who lead their field, and so the conversations that start here can carry on long afterward.', hr:'Broj mjesta namjerno je ograničen. Večer ostaje prisna kako bi svaki gost bio nadohvat ljudima koji predvode svoje područje i kako bi se razgovori započeti ovdje mogli nastaviti još dugo nakon nje.'},
+            'gala.dressCodeVal':{en:'Black Tie / Formal Evening Attire', hr:'Black Tie / svečana večernja odjeća'}
           };
 
           var _locale='en';
@@ -61605,7 +61721,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     <div class="px-hero">
                         <div class="px-hero-badge">
                             <i class="fas fa-calendar-check"></i>
-                            <span data-mx-status="plexus">Registration Open</span>
+                            <span data-mx-status="plexus" data-i18n="px.regOpen">Registration Open</span>
                         </div>
                         <h1>Plexus Conference 2026</h1>
                         <p>December 4-5, 2026 in Zagreb, Croatia</p>
@@ -61708,7 +61824,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                     <p class="mxlead-kn-name">Lord Smith of Finsbury</p>
                                     <p class="mxlead-kn-role">Chancellor</p>
                                     <span class="mxlead-kn-logo"><span class="knl-mono">CAM</span><span class="knl-name">University of Cambridge</span></span>
-                                    <span class="mxlead-kn-more"><i class="fas fa-arrow-right"></i> View bio</span>
+                                    <span class="mxlead-kn-more" data-i18n="px.viewBio"><i class="fas fa-arrow-right"></i> View bio</span>
                                 </div>
                                 <div class="mxlead-kn kn-focus-high" role="button" tabindex="0" aria-label="View bio for Johnese Spisso, MPA" onclick="PlexusPortal.showKeynoteBio('spisso')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();PlexusPortal.showKeynoteBio('spisso');}">
                                     <div class="mxlead-kn-imgwrap"><img src="assets/gala/gala_keynote_spisso.jpg" alt="Johnese Spisso, MPA" loading="lazy"></div>
@@ -61716,7 +61832,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                     <p class="mxlead-kn-name">Johnese Spisso, MPA</p>
                                     <p class="mxlead-kn-role">President, UCLA Health</p>
                                     <span class="mxlead-kn-logo"><span class="knl-mono">UCLA</span><span class="knl-name">UCLA Health</span></span>
-                                    <span class="mxlead-kn-more"><i class="fas fa-arrow-right"></i> View bio</span>
+                                    <span class="mxlead-kn-more" data-i18n="px.viewBio"><i class="fas fa-arrow-right"></i> View bio</span>
                                 </div>
                                 <div class="mxlead-kn kn-focus-mid" role="button" tabindex="0" aria-label="View bio for Dr Marcela del Carmen" onclick="PlexusPortal.showKeynoteBio('delcarmen')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();PlexusPortal.showKeynoteBio('delcarmen');}">
                                     <div class="mxlead-kn-imgwrap"><img src="assets/gala/gala_keynote_delcarmen.jpg" alt="Dr Marcela del Carmen" loading="lazy"></div>
@@ -61724,7 +61840,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                     <p class="mxlead-kn-name">Dr Marcela del Carmen</p>
                                     <p class="mxlead-kn-role">President</p>
                                     <span class="mxlead-kn-logo"><span class="knl-mono">MGH</span><span class="knl-name">Massachusetts General Hospital</span></span>
-                                    <span class="mxlead-kn-more"><i class="fas fa-arrow-right"></i> View bio</span>
+                                    <span class="mxlead-kn-more" data-i18n="px.viewBio"><i class="fas fa-arrow-right"></i> View bio</span>
                                 </div>
                                 <div class="mxlead-kn kn-focus-mid" role="button" tabindex="0" aria-label="View bio for Dr Kevin Smith" onclick="PlexusPortal.showKeynoteBio('kevinsmith')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();PlexusPortal.showKeynoteBio('kevinsmith');}">
                                     <div class="mxlead-kn-imgwrap"><img src="assets/gala/gala_keynote_kevin_smith.jpg" alt="Dr Kevin Smith" loading="lazy"></div>
@@ -61732,7 +61848,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                     <p class="mxlead-kn-name">Dr Kevin Smith</p>
                                     <p class="mxlead-kn-role">President &amp; CEO</p>
                                     <span class="mxlead-kn-logo"><span class="knl-mono">UHN</span><span class="knl-name">University Health Network</span></span>
-                                    <span class="mxlead-kn-more"><i class="fas fa-arrow-right"></i> View bio</span>
+                                    <span class="mxlead-kn-more" data-i18n="px.viewBio"><i class="fas fa-arrow-right"></i> View bio</span>
                                 </div>
                                 <div class="mxlead-kn kn-focus-tight" role="button" tabindex="0" aria-label="View bio for Dr Paul Anderson" onclick="PlexusPortal.showKeynoteBio('anderson')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();PlexusPortal.showKeynoteBio('anderson');}">
                                     <div class="mxlead-kn-imgwrap"><img src="assets/gala/gala_keynote_anderson.jpg" alt="Dr Paul Anderson" loading="lazy"></div>
@@ -61740,10 +61856,10 @@ button,input,select,textarea{font-family:var(--sans);}
                                     <p class="mxlead-kn-name">Dr Paul Anderson</p>
                                     <p class="mxlead-kn-role">Chief Academic Officer</p>
                                     <span class="mxlead-kn-logo"><span class="knl-mono">MGB</span><span class="knl-name">Mass General Brigham</span></span>
-                                    <span class="mxlead-kn-more"><i class="fas fa-arrow-right"></i> View bio</span>
+                                    <span class="mxlead-kn-more" data-i18n="px.viewBio"><i class="fas fa-arrow-right"></i> View bio</span>
                                 </div>
                             </div>
-                            <p class="mxlead-foot">Two of our keynote speakers also hold Harvard Medical School professorships.</p>
+                            <p class="mxlead-foot" data-i18n="px.harvardFoot">Two of our keynote speakers also hold Harvard Medical School professorships.</p>
                         </div>
                         <!-- (2) Program at a glance -->
                         <div class="mxlead px-program-block">
@@ -61780,9 +61896,9 @@ button,input,select,textarea{font-family:var(--sans);}
                         <!-- (5) My Schedule promoted near the top; becomes personal once you register -->
                         <div class="up-card px-mysched-card" style="margin: 0 0 32px;">
                             <div class="up-card-header">
-                                <h3 class="up-card-title"><i class="fas fa-bookmark" style="margin-right: 8px; color: var(--up-gold);"></i> My Schedule</h3>
+                                <h3 class="up-card-title" data-i18n="px.mySchedule"><i class="fas fa-bookmark" style="margin-right: 8px; color: var(--up-gold);"></i> My Schedule</h3>
                                 <div class="calendar-dropdown" id="calendarDropdown">
-                                    <button class="calendar-dropdown-btn" onclick="EventCalendar.toggleDropdown()">
+                                    <button class="calendar-dropdown-btn" data-i18n="px.addToCalendar" onclick="EventCalendar.toggleDropdown()">
                                         <i class="fas fa-calendar-plus"></i> Add to Calendar
                                     </button>
                                     <div class="calendar-dropdown-menu">
@@ -61808,8 +61924,8 @@ button,input,select,textarea{font-family:var(--sans);}
                             <p style="color: var(--up-text-muted); font-size: 13px; margin: -8px 0 16px 0; padding: 0 20px;" data-i18n="px.agendaTitle">Your personal conference agenda</p>
                             <div class="px-sched-cta" id="pxSchedRegCta">
                                 <div class="px-sched-cta-ico"><i class="fas fa-calendar-check"></i></div>
-                                <div class="px-sched-cta-copy"><p><strong data-i18n="px.agendaNote">This becomes your schedule once you register.</strong> Tap any program or speaker session to pre-fill it, then add the whole thing to your calendar.</p></div>
-                                <button class="px-sched-cta-btn" onclick="PlexusPortal.showTab('register')"><i class="fas fa-ticket-alt"></i> Register</button>
+                                <div class="px-sched-cta-copy"><p><strong data-i18n="px.agendaNote">This becomes your schedule once you register.</strong> <span data-i18n="px.agendaNoteTail">Tap any program or speaker session to pre-fill it, then add the whole thing to your calendar.</span></p></div>
+                                <button class="px-sched-cta-btn" data-i18n="px.register" onclick="PlexusPortal.showTab('register')"><i class="fas fa-ticket-alt"></i> Register</button>
                             </div>
                             <div class="up-card-body">
                                 <div id="myScheduleSessions" style="display: flex; flex-direction: column; gap: 12px;">
@@ -61818,7 +61934,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 <div id="myScheduleEmpty" style="text-align: center; padding: 32px; color: var(--up-text-muted);">
                                     <i class="far fa-bookmark" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
                                     <p data-i18n="px.agendaEmpty">No sessions saved yet. Tap a program item or a speaker session to add it here.</p>
-                                    <button class="px-sched-cta-btn" style="margin-top: 12px;" onclick="PlexusPortal.showTab('schedule')">
+                                    <button class="px-sched-cta-btn" style="margin-top: 12px;" data-i18n="px.browseProgram" onclick="PlexusPortal.showTab('schedule')">
                                         <i class="fas fa-calendar-alt"></i> Browse the program
                                     </button>
                                 </div>
@@ -61839,7 +61955,7 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                             <div class="px-info-card" id="pxRegistrationCard">
                                 <div class="px-info-card-icon"><i class="fas fa-door-open"></i></div>
-                                <div class="px-info-card-value" style="font-size: 16px; line-height: 1.3;">Registration Open</div>
+                                <div class="px-info-card-value" style="font-size: 16px; line-height: 1.3;" data-i18n="px.regOpen">Registration Open</div>
                                 <div class="px-info-card-label" data-i18n="px.tileEarlyBird">Early Bird Available</div>
                             </div>
                             <div class="px-info-card">
@@ -61867,10 +61983,10 @@ button,input,select,textarea{font-family:var(--sans);}
                                     <h3 data-i18n="px.aboutTitle" class="up-card-title">About Plexus</h3>
                                 </div>
                                 <div class="up-card-body">
-                                    <p style="color: var(--up-text-secondary); line-height: 1.8; margin-bottom: 16px;">
+                                    <p style="color: var(--up-text-secondary); line-height: 1.8; margin-bottom: 16px;" data-i18n="px.aboutBody1">
                                         Plexus is Croatia's premier biomedical conference, bringing together researchers, clinicians, students, and industry leaders from around the world. Now in its 10th year, Plexus features keynote speeches from biomedical leaders, cutting-edge research presentations, and unparalleled networking opportunities.
                                     </p>
-                                    <p style="color: var(--up-text-secondary); line-height: 1.8;">
+                                    <p style="color: var(--up-text-secondary); line-height: 1.8;" data-i18n="px.aboutBody2">
                                         Join us in December 2026 for two days of inspiring talks, poster sessions, workshops, and the Gala Evening featuring the Biomedical Forum's Annual Awards ceremony.
                                     </p>
                                 </div>
@@ -61889,7 +62005,7 @@ button,input,select,textarea{font-family:var(--sans);}
 
                         <!-- Gala Evening Featured Card (moved up for prominence) -->
                         <div class="gala-featured-card" style="margin: 0 auto 32px auto; max-width: 900px;">
-                            <div class="gala-featured-badge">
+                            <div class="gala-featured-badge" data-i18n="px.galaEyebrow">
                                 <i class="fas fa-star"></i> Exclusive Evening Event
                             </div>
                             <div class="gala-featured-content">
@@ -61898,21 +62014,21 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                                 <div class="gala-featured-text">
                                     <h3 data-i18n="px.galaAwards">Gala Evening & Awards Ceremony</h3>
-                                    <p class="gala-featured-date"><i class="far fa-calendar"></i> Saturday, December 5, 2026 &mdash; Grand Ballroom, Hotel Esplanade Zagreb</p>
-                                    <p class="gala-featured-desc">An unforgettable evening celebrating biomedical excellence. Join biomedical leaders, leading researchers, and fellow attendees for the Annual Awards Ceremony, fine dining, and live entertainment. Formal attire required.</p>
+                                    <p class="gala-featured-date" data-i18n="px.galaFeatDate"><i class="far fa-calendar"></i> Saturday, December 5, 2026 &mdash; Grand Ballroom, Hotel Esplanade Zagreb</p>
+                                    <p class="gala-featured-desc" data-i18n="px.galaFeatDesc">An unforgettable evening celebrating biomedical excellence. Join biomedical leaders, leading researchers, and fellow attendees for the Annual Awards Ceremony, fine dining, and live entertainment. Formal attire required.</p>
                                 </div>
                             </div>
                             <div class="gala-featured-highlights">
-                                <div class="gala-highlight"><i class="fas fa-trophy"></i> Annual Awards Ceremony</div>
-                                <div class="gala-highlight"><i class="fas fa-utensils"></i> Fine Dining</div>
-                                <div class="gala-highlight"><i class="fas fa-music"></i> Live Entertainment</div>
-                                <div class="gala-highlight"><i class="fas fa-users"></i> Keynote Speaker Meet & Greet</div>
+                                <div class="gala-highlight" data-i18n="px.galaHiAwards"><i class="fas fa-trophy"></i> Annual Awards Ceremony</div>
+                                <div class="gala-highlight" data-i18n="px.galaHiDining"><i class="fas fa-utensils"></i> Fine Dining</div>
+                                <div class="gala-highlight" data-i18n="px.galaHiEnt"><i class="fas fa-music"></i> Live Entertainment</div>
+                                <div class="gala-highlight" data-i18n="px.galaHiMeet"><i class="fas fa-users"></i> Keynote Speaker Meet & Greet</div>
                             </div>
                             <div class="gala-featured-actions">
-                                <button class="gala-btn gala-btn-primary" onclick="UserPortal.showSection('gala')">
+                                <button class="gala-btn gala-btn-primary" data-i18n="px.learnMoreRsvp" onclick="UserPortal.showSection('gala')">
                                     <i class="fas fa-ticket-alt"></i> Learn More & RSVP
                                 </button>
-                                <button class="gala-btn gala-btn-secondary" onclick="PlexusPortal.showTab('register')">
+                                <button class="gala-btn gala-btn-secondary" data-i18n="px.addToPackage" onclick="PlexusPortal.showTab('register')">
                                     <i class="fas fa-plus"></i> Add to Package
                                 </button>
                             </div>
@@ -61967,7 +62083,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                                 <div class="px-connect-cta">
                                     <span class="px-connect-stats">
-                                        <i class="fas fa-user-check"></i> <span id="pxParticipantCount">847</span> participants already connected
+                                        <i class="fas fa-user-check"></i> <span id="pxParticipantCount">847</span> <span data-i18n="px.connectedTail">participants already connected</span>
                                     </span>
                                 </div>
                             </div>
@@ -61977,7 +62093,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         <div class="px-gallery-section">
                             <div class="px-gallery-header">
                                 <h3 data-i18n="px.momentsTitle">Moments from Past Conferences</h3>
-                                <p>Join a community of 2,500+ researchers and clinicians built across our Plexus conferences</p>
+                                <p data-i18n="px.momentsSub">Join a community of 2,500+ researchers and clinicians built across our Plexus conferences</p>
                             </div>
                             <div class="px-gallery-grid">
                                 <div class="px-gallery-item">
@@ -62005,7 +62121,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         <div class="px-testimonials-section">
                             <div class="px-testimonials-header">
                                 <h3 data-i18n="px.testimonials">What Attendees Say</h3>
-                                <p>Hear from researchers who've joined us in previous years</p>
+                                <p data-i18n="px.testimonialsSub">Hear from researchers who've joined us in previous years</p>
                             </div>
                             <div class="px-testimonials-carousel">
                                 <div class="px-testimonials-track" id="pxTestimonialsTrack">
@@ -62024,9 +62140,9 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                                 <div class="px-contact-content">
                                     <h3 data-i18n="px.questions">Questions about Plexus?</h3>
-                                    <p>Whether you're interested in attending, speaking, sponsoring, or partnering with us, our team is here to help.</p>
+                                    <p data-i18n="px.questionsBody">Whether you're interested in attending, speaking, sponsoring, or partnering with us, our team is here to help.</p>
                                     <div class="px-contact-actions">
-                                        <a href="mailto:plexus@medx.hr" class="px-contact-btn primary">
+                                        <a href="mailto:plexus@medx.hr" class="px-contact-btn primary" data-i18n="contact.emailUs">
                                             <i class="fas fa-paper-plane"></i> Email Us
                                         </a>
                                     </div>
@@ -62269,7 +62385,7 @@ button,input,select,textarea{font-family:var(--sans);}
 
                                         <!-- Package Summary Sidebar -->
                                         <div class="px-package-summary" id="packageSummary">
-                                            <h3><i class="fas fa-shopping-cart"></i> Your Package</h3>
+                                            <h3 data-i18n="px.yourPackage"><i class="fas fa-shopping-cart"></i> Your Package</h3>
                                             <div class="px-package-summary-items" id="packageItems">
                                                 <div class="px-package-summary-item">
                                                     <span data-i18n="px.selectPass">Select a pass above</span>
@@ -62280,7 +62396,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                                 <span data-i18n="px.total">Total</span>
                                                 <span class="amount" id="packageTotal">€0</span>
                                             </div>
-                                            <button class="px-hero-btn px-hero-btn-primary" onclick="PlexusPortal.nextStep()" style="width: 100%; margin-top: 20px; justify-content: center;">
+                                            <button class="px-hero-btn px-hero-btn-primary" data-i18n="px.continue" onclick="PlexusPortal.nextStep()" style="width: 100%; margin-top: 20px; justify-content: center;">
                                                 Continue <i class="fas fa-arrow-right"></i>
                                             </button>
                                         </div>
@@ -62707,9 +62823,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                             </div>
                                             <div style="font-size: 11px; color: var(--up-text-muted, var(--muted)); margin: 16px 0; line-height: 1.5;">
                                                 <i class="fas fa-shield-alt" style="color: var(--up-gold, var(--gold));"></i>
-                                                By completing registration, you agree to Med&X's <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('terms');" style="color: var(--up-gold, var(--gold));">Terms &amp; Conditions</a>, <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('privacy');" style="color: var(--up-gold, var(--gold));">Privacy Policy</a>, and <a href="#" data-i18n="footer.refund" onclick="event.preventDefault(); UserPortal.showLegalModal('refund');" style="color: var(--up-gold, var(--gold));">Refund Policy</a>.
-                                                All personal data is processed in accordance with GDPR.
-                                                Med&X reserves the right to modify the conference program. Prices include applicable taxes.
+                                                <span data-i18n="px.consentIntro">By completing registration, you agree to Med&X's</span> <a href="#" data-i18n="legal.termsAcc" onclick="event.preventDefault(); UserPortal.showLegalModal('terms');" style="color: var(--up-gold, var(--gold));">Terms &amp; Conditions</a>, <a href="#" data-i18n="legal.privacyAcc" onclick="event.preventDefault(); UserPortal.showLegalModal('privacy');" style="color: var(--up-gold, var(--gold));">Privacy Policy</a><span data-i18n="consent.commaAnd">, and</span> <a href="#" data-i18n="footer.refund" onclick="event.preventDefault(); UserPortal.showLegalModal('refund');" style="color: var(--up-gold, var(--gold));">Refund Policy</a><span data-i18n="px.consentTail">. All personal data is processed in accordance with GDPR. Med&X reserves the right to modify the conference program. Prices include applicable taxes.</span>
                                             </div>
                                             <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">
                                                 <button class="px-hero-btn px-hero-btn-primary" id="pxSubmitRegBtn" onclick="PlexusPortal.submitRegistration()" style="width: 100%; justify-content: center; background: var(--up-success);">
@@ -63024,9 +63138,9 @@ button,input,select,textarea{font-family:var(--sans);}
                         <!-- My Schedule / Agenda Builder -->
                         <div class="up-card" style="margin-top: 24px;">
                             <div class="up-card-header">
-                                <h3 class="up-card-title"><i class="fas fa-bookmark" style="margin-right: 8px; color: var(--up-gold);"></i> My Schedule</h3>
+                                <h3 class="up-card-title" data-i18n="px.mySchedule"><i class="fas fa-bookmark" style="margin-right: 8px; color: var(--up-gold);"></i> My Schedule</h3>
                                 <div class="calendar-dropdown">
-                                    <button class="calendar-dropdown-btn" onclick="EventCalendar.toggleDropdown()">
+                                    <button class="calendar-dropdown-btn" data-i18n="px.addToCalendar" onclick="EventCalendar.toggleDropdown()">
                                         <i class="fas fa-calendar-plus"></i> Add to Calendar
                                     </button>
                                     <div class="calendar-dropdown-menu">
@@ -63327,9 +63441,9 @@ button,input,select,textarea{font-family:var(--sans);}
                         <!-- My Schedule / Agenda Builder -->
                         <div class="up-card" style="margin-top: 24px;">
                             <div class="up-card-header">
-                                <h3 class="up-card-title"><i class="fas fa-bookmark" style="margin-right: 8px; color: var(--up-gold);"></i> My Schedule</h3>
+                                <h3 class="up-card-title" data-i18n="px.mySchedule"><i class="fas fa-bookmark" style="margin-right: 8px; color: var(--up-gold);"></i> My Schedule</h3>
                                 <div class="calendar-dropdown">
-                                    <button class="calendar-dropdown-btn" onclick="EventCalendar.toggleDropdown()">
+                                    <button class="calendar-dropdown-btn" data-i18n="px.addToCalendar" onclick="EventCalendar.toggleDropdown()">
                                         <i class="fas fa-calendar-plus"></i> Add to Calendar
                                     </button>
                                     <div class="calendar-dropdown-menu">
@@ -64057,9 +64171,9 @@ button,input,select,textarea{font-family:var(--sans);}
                         <!-- My Schedule / Agenda Builder -->
                         <div class="up-card" style="margin-top: 24px;">
                             <div class="up-card-header">
-                                <h3 class="up-card-title"><i class="fas fa-bookmark" style="margin-right: 8px; color: var(--up-gold);"></i> My Schedule</h3>
+                                <h3 class="up-card-title" data-i18n="px.mySchedule"><i class="fas fa-bookmark" style="margin-right: 8px; color: var(--up-gold);"></i> My Schedule</h3>
                                 <div class="calendar-dropdown">
-                                    <button class="calendar-dropdown-btn" onclick="EventCalendar.toggleDropdown()">
+                                    <button class="calendar-dropdown-btn" data-i18n="px.addToCalendar" onclick="EventCalendar.toggleDropdown()">
                                         <i class="fas fa-calendar-plus"></i> Add to Calendar
                                     </button>
                                     <div class="calendar-dropdown-menu">
@@ -64579,7 +64693,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     <div class="gala-hero">
                         <div class="gala-hero-content">
                             <div class="gala-hero-badge">
-                                <i class="fas fa-star"></i> <span data-mx-status="gala" data-i18n="gala.reserveSeat">Exclusive Event</span>
+                                <i class="fas fa-star"></i> <span data-mx-status="gala" data-i18n="gala.exclusive">Exclusive Event</span>
                             </div>
                             <h1>Gala Evening 2026</h1>
                             <p data-i18n="gala.tagline" class="gala-hero-tagline">The Pinnacle of Biomedical Excellence</p>
@@ -64658,7 +64772,7 @@ button,input,select,textarea{font-family:var(--sans);}
                         <div class="mxlead">
                             <div class="mxlead-head">
                                 <div>
-                                    <p class="mxlead-eyebrow" data-i18n="gala.confirmedKeynotes"><i class="fas fa-star"></i> Confirmed keynotes 2026</p>
+                                    <p class="mxlead-eyebrow" data-i18n="gala.confirmedKeynotes"><i class="fas fa-star"></i> Confirmed Keynotes 2026</p>
                                     <h2 data-i18n="gala.leadTitle" class="mxlead-title">The people who lead the world's medicine</h2>
                                     <p class="mxlead-sub" data-i18n="gala.leadSub">The heads of the world's foremost hospitals and universities, in Zagreb, in person, for one evening.</p>
                                 </div>
@@ -64704,18 +64818,18 @@ button,input,select,textarea{font-family:var(--sans);}
                                     <p class="mxlead-kn-org">Mass General Brigham</p>
                                 </div>
                             </div>
-                            <p class="mxlead-foot">Two of our keynote speakers also hold Harvard Medical School professorships.</p>
+                            <p class="mxlead-foot" data-i18n="px.harvardFoot">Two of our keynote speakers also hold Harvard Medical School professorships.</p>
                         </div>
 
                         <!-- Networking & bridge-building — the felt centerpiece of the evening -->
                         <div class="gala-feature">
                             <div class="gala-feature-media" style="background-image:url('assets/photos/plexus_moment_networking.jpg')"></div>
                             <div class="gala-feature-body">
-                                <p class="gala-feature-eyebrow"><i class="fas fa-handshake"></i> Why the evening exists</p>
+                                <p class="gala-feature-eyebrow" data-i18n="gala.meetEyebrow"><i class="fas fa-handshake"></i> Why the evening exists</p>
                                 <h2 data-i18n="gala.meetTitle" class="gala-feature-title">Where Croatian and international biomedicine meet</h2>
-                                <p class="gala-feature-text">The Gala Evening is built for the conversations that outlast the night. Over cocktails and a shared table, Croatia's clinicians and researchers sit beside the people who lead the world's foremost hospitals and universities.</p>
-                                <p class="gala-feature-text">Every seat is placed to build a bridge &mdash; a mentor found, a collaboration started, a door opened between a young Croatian scientist and a laboratory abroad.</p>
-                                <span class="gala-seating"><i class="fas fa-gem"></i> Seating is limited to keep the room personal</span>
+                                <p class="gala-feature-text" data-i18n="gala.meetBody1">The Gala Evening is built for the conversations that outlast the night. Over cocktails and a shared table, Croatia's clinicians and researchers sit beside the people who lead the world's foremost hospitals and universities.</p>
+                                <p class="gala-feature-text" data-i18n="gala.meetBody2">Every seat is placed to build a bridge &mdash; a mentor found, a collaboration started, a door opened between a young Croatian scientist and a laboratory abroad.</p>
+                                <span class="gala-seating" data-i18n="gala.seatingLimited"><i class="fas fa-gem"></i> Seating is limited to keep the room personal</span>
                             </div>
                         </div>
 
@@ -64749,15 +64863,15 @@ button,input,select,textarea{font-family:var(--sans);}
                             <div class="gala-perform-body">
                                 <p class="gala-perform-eyebrow" data-i18n="gala.performersLive">Live on the night</p>
                                 <h3 data-i18n="gala.performers" class="gala-perform-title">Featured performers</h3>
-                                <p class="gala-perform-text">The evening closes with live music and celebration. Two of Croatia's most beloved performers join the night, and their names are revealed closer to December.</p>
+                                <p class="gala-perform-text" data-i18n="gala.performBody">The evening closes with live music and celebration. Two of Croatia's most beloved performers join the night, and their names are revealed closer to December.</p>
                                 <div class="gala-perform-people">
                                     <figure class="gala-perform-person">
                                         <img src="assets/gala/gala_perform_singer.jpg" alt="Featured Plexus Gala performer, name to be announced" loading="lazy">
-                                        <figcaption>To be announced</figcaption>
+                                        <figcaption data-i18n="gala.toBeAnnounced">To be announced</figcaption>
                                     </figure>
                                     <figure class="gala-perform-person">
                                         <img src="assets/gala/gala_perform_guitarist.jpg" alt="Featured Plexus Gala performer, name to be announced" loading="lazy">
-                                        <figcaption>To be announced</figcaption>
+                                        <figcaption data-i18n="gala.toBeAnnounced">To be announced</figcaption>
                                     </figure>
                                 </div>
                             </div>
@@ -64771,13 +64885,13 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                             <div class="up-card-body">
                                 <p style="color: var(--up-text-secondary); line-height: 1.8; margin-bottom: 16px;">
-                                    The anchor dinner of Plexus 2026. The people who lead the world's foremost hospitals and universities join Croatia's rising clinicians and researchers for the Biomedical Forum Awards, a five-course dinner, keynote addresses, and live music.
+<span data-i18n="gala.aboutBody1">The anchor dinner of Plexus 2026. The people who lead the world's foremost hospitals and universities join Croatia's rising clinicians and researchers for the Biomedical Forum Awards, a five-course dinner, keynote addresses, and live music.</span>
                                 </p>
                                 <p style="color: var(--up-text-secondary); line-height: 1.8; margin-bottom: 16px;">
-                                    Seating is limited by design. The evening is kept intimate so every guest is within reach of the people who lead their field, and so the conversations that start here can carry on long afterward.
+<span data-i18n="gala.aboutBody2">Seating is limited by design. The evening is kept intimate so every guest is within reach of the people who lead their field, and so the conversations that start here can carry on long afterward.</span>
                                 </p>
                                 <p style="color: var(--up-text-secondary); line-height: 1.8;">
-                                    <strong data-i18n="gala.dressCode">Dress Code:</strong> Black Tie / Formal Evening Attire
+                                    <strong data-i18n="gala.dressCode">Dress Code:</strong> <span data-i18n="gala.dressCodeVal">Black Tie / Formal Evening Attire</span>
                                 </p>
                             </div>
                         </div>
@@ -64907,7 +65021,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 <p class="mxlead-kn-org">Mass General Brigham</p>
                             </div>
                         </div>
-                        <p class="mxlead-foot">Two of our keynote speakers also hold Harvard Medical School professorships.</p>
+                        <p class="mxlead-foot" data-i18n="px.harvardFoot">Two of our keynote speakers also hold Harvard Medical School professorships.</p>
 
                         <!-- Featured performers — real promo photos, names revealed later -->
                         <div class="gala-perform" style="margin-bottom:0;">
@@ -64919,11 +65033,11 @@ button,input,select,textarea{font-family:var(--sans);}
                                 <div class="gala-perform-people">
                                     <figure class="gala-perform-person">
                                         <img src="assets/gala/gala_perform_singer.jpg" alt="Featured Plexus Gala performer, name to be announced" loading="lazy">
-                                        <figcaption>To be announced</figcaption>
+                                        <figcaption data-i18n="gala.toBeAnnounced">To be announced</figcaption>
                                     </figure>
                                     <figure class="gala-perform-person">
                                         <img src="assets/gala/gala_perform_guitarist.jpg" alt="Featured Plexus Gala performer, name to be announced" loading="lazy">
-                                        <figcaption>To be announced</figcaption>
+                                        <figcaption data-i18n="gala.toBeAnnounced">To be announced</figcaption>
                                     </figure>
                                 </div>
                             </div>
@@ -65001,8 +65115,8 @@ button,input,select,textarea{font-family:var(--sans);}
                         <div class="gala-pricing-grid">
                             <!-- Gala Only -->
                             <div class="gala-pricing-card" onclick="GalaPortal.selectPricing(this, 'gala-only')">
-                                <div class="gala-pricing-name">Gala Evening Only</div>
-                                <div class="gala-pricing-desc">Perfect for VIP professionals</div>
+                                <div class="gala-pricing-name" data-i18n="gala.priceGalaOnly">Gala Evening Only</div>
+                                <div class="gala-pricing-desc" data-i18n="gala.priceGalaOnlyDesc">Perfect for VIP professionals</div>
                                 <div class="gala-pricing-price">
                                     <span class="gala-price-amount">€95</span>
                                     <span class="gala-price-label" data-i18n="gala.perPerson">per person</span>
@@ -65018,9 +65132,9 @@ button,input,select,textarea{font-family:var(--sans);}
 
                             <!-- Plexus + Gala Bundle -->
                             <div class="gala-pricing-card featured" onclick="GalaPortal.selectPricing(this, 'bundle')">
-                                <div class="gala-pricing-badge">Save €20</div>
-                                <div class="gala-pricing-name">Plexus + Gala Bundle</div>
-                                <div class="gala-pricing-desc">Full conference experience</div>
+                                <div class="gala-pricing-badge" data-i18n="gala.saveBadge">Save €20</div>
+                                <div class="gala-pricing-name" data-i18n="gala.priceBundle">Plexus + Gala Bundle</div>
+                                <div class="gala-pricing-desc" data-i18n="gala.priceBundleDesc">Full conference experience</div>
                                 <div class="gala-pricing-price">
                                     <span class="gala-price-amount">€174</span>
                                     <span class="gala-price-label" data-i18n="gala.perPerson">per person</span>
@@ -65077,16 +65191,16 @@ button,input,select,textarea{font-family:var(--sans);}
                             </div>
                             <div class="auth-form-group">
                                 <label class="auth-form-label" data-i18n="f.specialRequests">Special Requests</label>
-                                <textarea class="auth-form-input" id="galaRequests" rows="2" placeholder="Accessibility needs, seating preferences, etc." maxlength="2000"></textarea>
+                                <textarea class="auth-form-input" id="galaRequests" rows="2" data-i18n-placeholder="f.specialReqPh" placeholder="Accessibility needs, seating preferences, etc." maxlength="2000"></textarea>
                             </div>
-                            <button class="gala-btn gala-btn-primary" onclick="GalaPortal.submitRegistration()" style="width: 100%; margin-top: 16px;">
+                            <button class="gala-btn gala-btn-primary" data-i18n="gala.requestInvitation" onclick="GalaPortal.submitRegistration()" style="width: 100%; margin-top: 16px;">
                                 <i class="fas fa-paper-plane"></i> Request Invitation
                             </button>
-                            <p style="font-size: 12px; color: var(--up-text-muted); text-align: center; margin-top: 12px;">
+                            <p style="font-size: 12px; color: var(--up-text-muted); text-align: center; margin-top: 12px;" data-i18n="gala.reviewNote">
                                 <i class="fas fa-info-circle"></i> The Gala Evening is an exclusive, limited-capacity event. Your registration will be reviewed and you'll receive a confirmation email once approved.
                             </p>
                             <p style="font-size: 12px; color: var(--up-text-muted); text-align: center; margin-top: 8px;">
-                                By registering you agree to Med&X's <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('terms');" style="color: var(--up-gold);">Terms &amp; Conditions</a> and <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('refund');" style="color: var(--up-gold);">Refund Policy</a>. Registration fees are non-refundable.
+                                <span data-i18n="gala.consentIntro">By registering you agree to Med&X's</span> <a href="#" data-i18n="legal.termsAcc" onclick="event.preventDefault(); UserPortal.showLegalModal('terms');" style="color: var(--up-gold);">Terms &amp; Conditions</a> <span data-i18n="consent.and">and</span> <a href="#" data-i18n="footer.refund" onclick="event.preventDefault(); UserPortal.showLegalModal('refund');" style="color: var(--up-gold);">Refund Policy</a><span data-i18n="gala.consentTail">. Registration fees are non-refundable.</span>
                             </p>
                         </div>
                     </div>
@@ -65664,10 +65778,10 @@ button,input,select,textarea{font-family:var(--sans);}
                                 <div class="ax-contact-icon" style="margin-bottom: 16px;">
                                     <i class="fas fa-envelope"></i>
                                 </div>
-                                <h3 style="font-size: 22px; font-weight: 700; color: var(--up-text, var(--ink)); margin: 0 0 8px 0;">Questions about the Accelerator?</h3>
-                                <p style="font-size: 14px; color: var(--up-text-secondary, var(--muted)); margin: 0 0 24px 0; line-height: 1.6; max-width: 480px;">Whether you are interested in applying, collaborating, or learning more about the program, our team is here to help.</p>
+                                <h3 style="font-size: 22px; font-weight: 700; color: var(--up-text, var(--ink)); margin: 0 0 8px 0;" data-i18n="ax.questions">Questions about the Accelerator?</h3>
+                                <p style="font-size: 14px; color: var(--up-text-secondary, var(--muted)); margin: 0 0 24px 0; line-height: 1.6; max-width: 480px;" data-i18n="ax.questionsBody">Whether you are interested in applying, collaborating, or learning more about the program, our team is here to help.</p>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; max-width: 400px; margin-bottom: 20px;">
-                                    <a href="mailto:accelerator@medx.hr" class="ax-contact-btn primary" style="justify-content: center; padding: 14px 20px;">
+                                    <a href="mailto:accelerator@medx.hr" class="ax-contact-btn primary" data-i18n="contact.emailUs" style="justify-content: center; padding: 14px 20px;">
                                         <i class="fas fa-paper-plane"></i> Email Us
                                     </a>
                                     <a href="https://www.linkedin.com/company/medx-croatia" target="_blank" class="ax-contact-btn secondary" style="justify-content: center; padding: 14px 20px;">
@@ -68181,42 +68295,42 @@ button,input,select,textarea{font-family:var(--sans);}
                                 <div class="af-schedule-time">18:00</div>
                                 <div class="af-schedule-content">
                                     <h5 data-i18n="gala.s1">Welcome Reception</h5>
-                                    <p>Champagne reception and networking</p>
+                                    <p data-i18n="af.schedWelcomeSub">Champagne reception and networking</p>
                                 </div>
                             </div>
                             <div class="af-schedule-item">
                                 <div class="af-schedule-time">19:00</div>
                                 <div class="af-schedule-content">
                                     <h5 data-i18n="af.openingRemarks">Opening Remarks</h5>
-                                    <p>Dr. Alen Juginovic, President of Med&X</p>
+                                    <p data-i18n="af.schedOpeningSub">Dr. Alen Juginovic, President of Med&X</p>
                                 </div>
                             </div>
                             <div class="af-schedule-item">
                                 <div class="af-schedule-time">19:30</div>
                                 <div class="af-schedule-content">
                                     <h5 data-i18n="af.keynoteAddress">Keynote Address</h5>
-                                    <p>The Future of Biomedicine - Vision 2030</p>
+                                    <p data-i18n="af.schedKeynoteSub">The Future of Biomedicine - Vision 2030</p>
                                 </div>
                             </div>
                             <div class="af-schedule-item">
                                 <div class="af-schedule-time">20:30</div>
                                 <div class="af-schedule-content">
                                     <h5 data-i18n="af.galaDinner">Gala Dinner</h5>
-                                    <p>Four-course dinner with wine pairing</p>
+                                    <p data-i18n="af.schedDinnerSub">Four-course dinner with wine pairing</p>
                                 </div>
                             </div>
                             <div class="af-schedule-item">
                                 <div class="af-schedule-time">22:00</div>
                                 <div class="af-schedule-content">
                                     <h5 data-i18n="af.awardsCeremony">Awards Ceremony</h5>
-                                    <p>Recognition of outstanding achievements</p>
+                                    <p data-i18n="af.schedAwardsSub">Recognition of outstanding achievements</p>
                                 </div>
                             </div>
                             <div class="af-schedule-item">
                                 <div class="af-schedule-time">23:00</div>
                                 <div class="af-schedule-content">
                                     <h5 data-i18n="af.eveningEntertainment">Evening Entertainment</h5>
-                                    <p>Live music and continued networking</p>
+                                    <p data-i18n="af.schedEntSub">Live music and continued networking</p>
                                 </div>
                             </div>
                         </div>
@@ -68228,22 +68342,22 @@ button,input,select,textarea{font-family:var(--sans);}
                                 <div class="af-speaker-card">
                                     <div class="af-speaker-avatar"><i class="fas fa-user"></i></div>
                                     <div class="af-speaker-name">Prof. James Thompson</div>
-                                    <div class="af-speaker-title">Keynote Speaker</div>
+                                    <div class="af-speaker-title" data-i18n="af.spkKeynote">Keynote Speaker</div>
                                 </div>
                                 <div class="af-speaker-card">
                                     <div class="af-speaker-avatar"><i class="fas fa-user"></i></div>
                                     <div class="af-speaker-name">Dr. Maria Santos</div>
-                                    <div class="af-speaker-title">WHO Advisor</div>
+                                    <div class="af-speaker-title" data-i18n="af.spkWhoAdvisor">WHO Advisor</div>
                                 </div>
                                 <div class="af-speaker-card">
                                     <div class="af-speaker-avatar"><i class="fas fa-user"></i></div>
                                     <div class="af-speaker-name">Prof. Klaus Weber</div>
-                                    <div class="af-speaker-title">Max Planck Director</div>
+                                    <div class="af-speaker-title" data-i18n="af.spkMaxPlanck">Max Planck Director</div>
                                 </div>
                                 <div class="af-speaker-card">
                                     <div class="af-speaker-avatar"><i class="fas fa-user"></i></div>
                                     <div class="af-speaker-name">Dr. Emily Chen</div>
-                                    <div class="af-speaker-title">Biotech CEO</div>
+                                    <div class="af-speaker-title" data-i18n="af.spkBiotechCeo">Biotech CEO</div>
                                 </div>
                                 <div class="af-speaker-card">
                                     <div class="af-speaker-avatar"><i class="fas fa-user"></i></div>
@@ -68253,7 +68367,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 <div class="af-speaker-card">
                                     <div class="af-speaker-avatar"><i class="fas fa-user"></i></div>
                                     <div class="af-speaker-name">Dr. Sarah Johnson</div>
-                                    <div class="af-speaker-title">NIH Director</div>
+                                    <div class="af-speaker-title" data-i18n="af.spkNihDirector">NIH Director</div>
                                 </div>
                             </div>
                         </div>
@@ -68263,7 +68377,7 @@ button,input,select,textarea{font-family:var(--sans);}
                             <button class="af-btn af-btn-primary" data-i18n="af.secureSpot" onclick="AF26Portal.showRegistration()" style="font-size: 18px; padding: 18px 48px;">
                                 <i class="fas fa-ticket-alt"></i> Secure Your Spot
                             </button>
-                            <p style="margin-top: 16px; color: var(--up-text-muted); font-size: 14px;">
+                            <p style="margin-top: 16px; color: var(--up-text-muted); font-size: 14px;" data-i18n="af.limited200">
                                 <i class="fas fa-info-circle"></i> Limited to 200 guests. Forum members only.
                             </p>
                         </div>
@@ -68276,7 +68390,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                                 <div>
                                     <h3 data-i18n="af.questionsForum" style="font-size: 20px; font-weight: 700; color: var(--up-text, var(--ink)); margin: 0 0 8px 0;">Questions about the Annual Forum?</h3>
-                                    <p style="font-size: 14px; color: var(--up-text-secondary, var(--muted)); margin: 0 0 20px 0; line-height: 1.6;">Whether you need assistance with your invitation, have questions about the program, or want to explore sponsorship opportunities, we're here to help.</p>
+                                    <p style="font-size: 14px; color: var(--up-text-secondary, var(--muted)); margin: 0 0 20px 0; line-height: 1.6;" data-i18n="af.questionsForumBody">Whether you need assistance with your invitation, have questions about the program, or want to explore sponsorship opportunities, we're here to help.</p>
                                     <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;">
                                         <a href="mailto:forum@medx.hr" data-i18n="contact.emailUs" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; text-decoration: none; background: var(--gold); color: white; transition: all 0.2s;">
                                             <i class="fas fa-paper-plane"></i> Email Us
@@ -70024,7 +70138,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                     <div class="mxlead-row-body">
                                         <div class="mxlead-row-label" data-i18n="bb.nextUp">Next up</div>
                                         <div class="mxlead-row-main">Zurich &middot; Boston &middot; Washington DC</div>
-                                        <div class="mxlead-row-sub">Three city editions are being scheduled for 2026 &mdash; register your interest to hear dates first.</div>
+                                        <div class="mxlead-row-sub" data-i18n="bb.threeCitySub">Three city editions are being scheduled for 2026 &mdash; register your interest to hear dates first.</div>
                                     </div>
                                     <button class="mxlead-btn mxlead-btn-ghost" data-i18n="bb.seeAll" onclick="BuildingBridgesPortal.showTab('upcoming')">See all</button>
                                 </div>
@@ -70032,27 +70146,27 @@ button,input,select,textarea{font-family:var(--sans);}
                         </div>
                         <div class="bb-overview-grid">
                             <div class="bb-overview-card">
-                                <h3><i class="fas fa-bullseye" style="color: #9b1b22; margin-right: 8px;"></i>Our Mission</h3>
-                                <p>Building Bridges connects Croatian biomedical professionals across the globe with leading institutions in their local cities. Through intimate networking events of 40-50 attendees, we create meaningful connections that advance careers and foster international collaboration.</p>
+                                <h3 data-i18n="bb.ourMission"><i class="fas fa-bullseye" style="color: #9b1b22; margin-right: 8px;"></i>Our Mission</h3>
+                                <p data-i18n="bb.ourMissionBody">Building Bridges connects Croatian biomedical professionals across the globe with leading institutions in their local cities. Through intimate networking events of 40-50 attendees, we create meaningful connections that advance careers and foster international collaboration.</p>
                             </div>
                             <div class="bb-overview-card">
-                                <h3><i class="fas fa-map-marked-alt" style="color: #9b1b22; margin-right: 8px;"></i>Event Cities</h3>
-                                <p>We host events in strategic locations where Croatian diaspora meets world-leading institutions.</p>
+                                <h3 data-i18n="bb.eventCities"><i class="fas fa-map-marked-alt" style="color: #9b1b22; margin-right: 8px;"></i>Event Cities</h3>
+                                <p data-i18n="bb.eventCitiesBody">We host events in strategic locations where Croatian diaspora meets world-leading institutions.</p>
                                 <div class="bb-cities-list">
-                                    <span class="bb-city-tag" style="background: rgba(155, 27, 34, 0.15); border-color: #9b1b22;"><span>&#127464;&#127469;</span> Zurich <small style="opacity: 0.7;">(upcoming)</small></span>
-                                    <span class="bb-city-tag" style="background: rgba(155, 27, 34, 0.15); border-color: #9b1b22;"><span>&#127482;&#127480;</span> Boston <small style="opacity: 0.7;">(upcoming)</small></span>
-                                    <span class="bb-city-tag" style="background: rgba(155, 27, 34, 0.15); border-color: #9b1b22;"><span>&#127482;&#127480;</span> Washington DC <small style="opacity: 0.7;">(upcoming)</small></span>
-                                    <span class="bb-city-tag" style="background: rgba(155, 27, 34, 0.15); border-color: #9b1b22;"><span>&#127468;&#127463;</span> London <small style="opacity: 0.7;">(past)</small></span>
-                                    <span class="bb-city-tag" style="background: rgba(155, 27, 34, 0.15); border-color: #9b1b22;"><span>&#127482;&#127480;</span> New York <small style="opacity: 0.7;">(past)</small></span>
+                                    <span class="bb-city-tag" style="background: rgba(155, 27, 34, 0.15); border-color: #9b1b22;"><span>&#127464;&#127469;</span> Zurich <small style="opacity: 0.7;" data-i18n="bb.cityUpcoming">(upcoming)</small></span>
+                                    <span class="bb-city-tag" style="background: rgba(155, 27, 34, 0.15); border-color: #9b1b22;"><span>&#127482;&#127480;</span> Boston <small style="opacity: 0.7;" data-i18n="bb.cityUpcoming">(upcoming)</small></span>
+                                    <span class="bb-city-tag" style="background: rgba(155, 27, 34, 0.15); border-color: #9b1b22;"><span>&#127482;&#127480;</span> Washington DC <small style="opacity: 0.7;" data-i18n="bb.cityUpcoming">(upcoming)</small></span>
+                                    <span class="bb-city-tag" style="background: rgba(155, 27, 34, 0.15); border-color: #9b1b22;"><span>&#127468;&#127463;</span> London <small style="opacity: 0.7;" data-i18n="bb.cityPast">(past)</small></span>
+                                    <span class="bb-city-tag" style="background: rgba(155, 27, 34, 0.15); border-color: #9b1b22;"><span>&#127482;&#127480;</span> New York <small style="opacity: 0.7;" data-i18n="bb.cityPast">(past)</small></span>
                                 </div>
                             </div>
                             <div class="bb-overview-card">
                                 <h3 data-i18n="bb.whoCanApply"><i class="fas fa-user-check" style="color: #9b1b22; margin-right: 8px;"></i>Who Can Apply</h3>
-                                <p>Applications are open to Croatian biomedical professionals worldwide - researchers, physicians, industry professionals, and students pursuing advanced degrees at recognized institutions.</p>
+                                <p data-i18n="bb.whoCanApplyBody">Applications are open to Croatian biomedical professionals worldwide - researchers, physicians, industry professionals, and students pursuing advanced degrees at recognized institutions.</p>
                             </div>
                             <div class="bb-overview-card">
-                                <h3><i class="fas fa-clipboard-list" style="color: #9b1b22; margin-right: 8px;"></i>Event Format</h3>
-                                <p>Each event features keynote speakers from local institutions, structured networking sessions, and social activities. Events are typically held at prestigious venues with catering and professional facilitation.</p>
+                                <h3 data-i18n="bb.eventFormat"><i class="fas fa-clipboard-list" style="color: #9b1b22; margin-right: 8px;"></i>Event Format</h3>
+                                <p data-i18n="bb.eventFormatBody">Each event features keynote speakers from local institutions, structured networking sessions, and social activities. Events are typically held at prestigious venues with catering and professional facilitation.</p>
                             </div>
                         </div>
 
@@ -70247,7 +70361,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                                 <div class="bb-network-stat">
                                     <div class="bb-network-stat-value">200+</div>
-                                    <div class="bb-network-stat-label">Connections Made</div>
+                                    <div class="bb-network-stat-label" data-i18n="bb.statConnections">Connections Made</div>
                                 </div>
                                 <div class="bb-network-stat">
                                     <div class="bb-network-stat-value">3</div>
@@ -70297,7 +70411,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                                 <div class="bb-contact-content">
                                     <h3 data-i18n="bb.questions">Questions about Building Bridges?</h3>
-                                    <p>Whether you're interested in attending, speaking, or partnering with us, we'd love to hear from you.</p>
+                                    <p data-i18n="bb.questionsBody">Whether you're interested in attending, speaking, or partnering with us, we'd love to hear from you.</p>
                                     <div class="bb-contact-actions">
                                         <a href="mailto:bridges@medx.hr" class="bb-contact-btn primary" data-i18n="contact.emailUs">
                                             <i class="fas fa-paper-plane"></i> Email Us
@@ -70406,6 +70520,7 @@ button,input,select,textarea{font-family:var(--sans);}
 
                     <!-- My Events Panel -->
                     <div class="bb-panel" id="bb-panel-myevents">
+                        <div id="bbGuestPasses" style="margin-bottom: 20px;"><!-- GuestPass.renderEventCard() --></div>
                         <div id="bbMyEventsContent">
                             <div class="bb-my-events-empty">
                                 <i class="fas fa-calendar-times"></i>
@@ -71005,6 +71120,12 @@ button,input,select,textarea{font-family:var(--sans);}
                     <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0 0 12px; padding-left: 4px;" data-i18n="mmx.myWallet">My Wallet</h3>
                     <div id="mymedxQRCodes" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 24px;">
                         <!-- Populated by MyMedXPortal.renderQRCodes() -->
+                    </div>
+
+                    <!-- Bring a colleague (member-initiated guest passes) -->
+                    <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0 0 12px; padding-left: 4px;" data-i18n="gp.hubTitle">Bring a colleague</h3>
+                    <div id="mymedxGuestPasses" style="margin-bottom: 24px;">
+                        <!-- Populated by GuestPass.renderHub() -->
                     </div>
 
                     <!-- Past purchases (orders + refund / ask-the-team, via the messages inbox) -->
@@ -78892,7 +79013,11 @@ You can use variables like {first_name} that will be personalized for each recip
                 this.renderInterests();
                 this.renderNetworkStats();
                 this.renderRecord();
+                this.renderGuestPasses();
             },
+
+            // Member-initiated guest passes ("Bring a colleague") — renders the plexus + bridges hub.
+            renderGuestPasses() { try { if (window.GuestPass) GuestPass.renderHub('mymedxGuestPasses'); } catch(e){} },
 
             // ===== Member data (single fetch → Recognition + Wallet) =====
             renderTierCard() { this._loadMemberData(); },
@@ -79806,7 +79931,7 @@ You can use variables like {first_name} that will be personalized for each recip
 
             _isHR(){ try{ return !!(window.MedXI18n && MedXI18n.get && MedXI18n.get()==='hr'); }catch(e){ return false; } },
             _plural(n, en1, enN, hr1, hr234, hr5){ if(this._isHR()){ var mm=n%100, dd=n%10; if(dd===1&&mm!==11) return hr1; if(dd>=2&&dd<=4&&!(mm>=12&&mm<=14)) return hr234; return hr5; } return n===1?en1:enN; },
-            relocalize(){ try{ this.renderPrograms(); this.renderInterests(); this.renderNetworkStats(); if(this._regs){ this.renderRecognition(this._regs); this._renderWalletCards(this._regs); this.renderPurchases(this._regs); } if(this._record!==undefined){ this._renderRecordHtml(this._record); } this.loadPoints(); this.renderMembershipCardVisual(); }catch(e){} }
+            relocalize(){ try{ this.renderPrograms(); this.renderInterests(); this.renderNetworkStats(); if(this._regs){ this.renderRecognition(this._regs); this._renderWalletCards(this._regs); this.renderPurchases(this._regs); } if(this._record!==undefined){ this._renderRecordHtml(this._record); } this.loadPoints(); this.renderMembershipCardVisual(); this.renderGuestPasses(); }catch(e){} }
         };
 
         document.addEventListener('medx:localechange', function(){ try{ if(typeof MyMedXPortal!=='undefined' && MyMedXPortal.relocalize) MyMedXPortal.relocalize(); }catch(e){} });
@@ -87539,9 +87664,9 @@ You can use variables like {first_name} that will be personalized for each recip
                         <!-- My Schedule / Agenda Builder -->
                         <div class="up-card" style="margin-top: 24px;">
                             <div class="up-card-header">
-                                <h3 class="up-card-title"><i class="fas fa-bookmark" style="margin-right: 8px; color: var(--up-gold);"></i> My Schedule</h3>
+                                <h3 class="up-card-title" data-i18n="px.mySchedule"><i class="fas fa-bookmark" style="margin-right: 8px; color: var(--up-gold);"></i> My Schedule</h3>
                                 <div class="calendar-dropdown" id="calendarDropdown">
-                                    <button class="calendar-dropdown-btn" onclick="EventCalendar.toggleDropdown()">
+                                    <button class="calendar-dropdown-btn" data-i18n="px.addToCalendar" onclick="EventCalendar.toggleDropdown()">
                                         <i class="fas fa-calendar-plus"></i> Add to Calendar
                                     </button>
                                     <div class="calendar-dropdown-menu">
@@ -94118,6 +94243,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 }
                 if (tabId === 'myevents') {
                     this.updateMyEventsPanel();
+                    try { if (window.GuestPass) GuestPass.renderEventCard('bbGuestPasses', 'bridges'); } catch(e){}
                 }
                 if (tabId === 'upcoming') {
                     this.renderUpcomingEvents();
@@ -128730,6 +128856,178 @@ By applying to this program, I give the following consents:
                 m.onclick = function (e) { if (e.target === m || e.target.id === 'medxIosClose') m.remove(); };
             }
         } catch (e) { /* never let the install banner break the app */ }
+    })();
+    </script>
+
+    <!-- ============================================================================
+         GuestPass — member-initiated "Bring a colleague" guest passes (bilingual).
+         Renders on the My Med&X hub (both eligible events) and the Building Bridges
+         "My Events" panel (bridges only). Talks to /api/guest-passes; the guest's QR
+         ticket is issued server-side through the existing per-event registration path
+         so the frozen scanner validates it unchanged.
+         ============================================================================ -->
+    <script>
+    window.GuestPass = (function(){
+        function api(path, opts){ return (typeof UserPortal !== 'undefined' && UserPortal.api) ? UserPortal.api(path, opts) : fetch(path, opts).then(function(r){ return r.json(); }); }
+        function t(k, v){ try{ return (window.MedXI18n && MedXI18n.t) ? MedXI18n.t(k, v) : k; }catch(e){ return k; } }
+        function esc(x){ return String(x==null?'':x).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+        function toast(kind, msg){ try{ if(typeof Toast !== 'undefined' && Toast[kind]) Toast[kind](msg); else console.log(msg); }catch(e){} }
+
+        var EVENT_META = {
+            plexus:  { icon:'fa-microscope', nameKey:'gp.eventPlexus' },
+            bridges: { icon:'fa-handshake',  nameKey:'gp.eventBridges' }
+        };
+        // Registry of mounted surfaces so create/revoke can re-render every one of them.
+        var mounts = [];
+        function register(containerId, eventKey){
+            if (!mounts.some(function(m){ return m.containerId === containerId && m.eventKey === eventKey; })) mounts.push({ containerId: containerId, eventKey: eventKey });
+        }
+        function refresh(){ mounts.forEach(function(m){ if (m.eventKey === 'hub') renderHub(m.containerId, true); else renderEventCard(m.containerId, m.eventKey, true); }); }
+
+        function statusChip(p){
+            var label, color, bg;
+            if (p.status === 'revoked') { label = t('gp.statusRevoked'); color = 'var(--muted,#6b6258)'; bg = 'var(--paper-2,#f3efe9)'; }
+            else if (p.status === 'checked_in' || p.checked_in) { label = t('gp.statusCheckedIn'); color = '#2f6b3a'; bg = 'rgba(47,107,58,.12)'; }
+            else { label = t('gp.statusInvited'); color = '#8a6d1f'; bg = 'rgba(201,169,98,.16)'; }
+            return '<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:'+color+';background:'+bg+';border-radius:999px;padding:3px 9px;white-space:nowrap;">'+esc(label)+'</span>';
+        }
+
+        function passRow(p){
+            var revokeBtn = (p.status !== 'revoked')
+                ? '<button onclick="GuestPass.revoke(\''+p.id+'\')" style="background:transparent;border:1px solid var(--line-strong,#d8d1c6);color:var(--ink,#15110f);border-radius:8px;padding:5px 10px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;">'+esc(t('gp.revoke'))+'</button>'
+                : '';
+            var strike = (p.status === 'revoked') ? 'text-decoration:line-through;opacity:.6;' : '';
+            return '<div style="display:flex;align-items:center;gap:10px;justify-content:space-between;padding:9px 0;border-top:1px solid var(--line,#e2dcd3);">'
+                + '<div style="min-width:0;'+strike+'"><div style="font-size:13px;font-weight:600;color:var(--ink,#15110f);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.guest_name)+'</div>'
+                + '<div style="font-size:11.5px;color:var(--muted,#6b6258);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.guest_email)+'</div></div>'
+                + '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">'+statusChip(p)+revokeBtn+'</div>'
+                + '</div>';
+        }
+
+        function cardHtml(eventKey, d){
+            var meta = EVENT_META[eventKey] || EVENT_META.plexus;
+            var name = (d && d.event_name) ? d.event_name : t(meta.nameKey);
+            var limit = (d && d.limit != null) ? d.limit : 2;
+            var remaining = (d && d.remaining != null) ? d.remaining : limit;
+            var passes = (d && Array.isArray(d.passes)) ? d.passes : [];
+            var full = remaining <= 0;
+            var btn = '<button onclick="GuestPass.open(\''+eventKey+'\')"'+(full?' disabled':'')+' style="display:inline-flex;align-items:center;gap:8px;background:'+(full?'var(--paper-2,#eee)':'var(--crimson,#9b1b22)')+';color:'+(full?'var(--muted,#6b6258)':'#fff')+';border:none;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:700;cursor:'+(full?'not-allowed':'pointer')+';font-family:inherit;flex-shrink:0;"><i class="fas fa-user-plus"></i> '+esc(t('gp.cta'))+'</button>';
+            var counter = full
+                ? '<div style="font-size:12px;color:var(--crimson,#9b1b22);margin-top:12px;font-weight:600;"><i class="fas fa-circle-info"></i> '+esc(t('gp.limitReached'))+'</div>'
+                : '<div style="font-size:12px;color:var(--muted,#6b6258);margin-top:12px;">'+esc(t('gp.remaining', { n: remaining, limit: limit }))+'</div>';
+            var list = '';
+            if (passes.length){
+                list = '<div style="margin-top:14px;"><div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted,#6b6258);margin-bottom:2px;">'+esc(t('gp.yourPasses'))+'</div>'
+                    + passes.map(passRow).join('') + '</div>';
+            }
+            return '<div style="background:var(--surface,#fff);border:1px solid var(--line,#e2dcd3);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow-sm,0 1px 2px rgba(21,17,15,.04));">'
+                + '<div style="display:flex;align-items:flex-start;gap:14px;justify-content:space-between;flex-wrap:wrap;">'
+                    + '<div style="display:flex;gap:12px;align-items:center;min-width:0;flex:1;">'
+                        + '<span style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--crimson,#9b1b22),var(--crimson-deep,#7d161c));color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;"><i class="fas '+meta.icon+'"></i></span>'
+                        + '<div style="min-width:0;"><div style="font-size:15px;font-weight:700;color:var(--ink,#15110f);font-family:var(--serif,\'Fraunces\',serif);line-height:1.15;">'+esc(name)+'</div>'
+                        + '<div style="font-size:12.5px;color:var(--muted,#6b6258);margin-top:3px;line-height:1.5;">'+esc(t('gp.cardDesc'))+'</div></div>'
+                    + '</div>'
+                    + btn
+                + '</div>'
+                + counter
+                + list
+                + '</div>';
+        }
+
+        function renderEventCard(containerId, eventKey, skipRegister){
+            var el = document.getElementById(containerId);
+            if (!el) return;
+            if (!skipRegister) register(containerId, eventKey);
+            api('/api/guest-passes?event=' + encodeURIComponent(eventKey))
+                .then(function(d){ if (document.getElementById(containerId)) el.innerHTML = cardHtml(eventKey, d); })
+                .catch(function(){ if (document.getElementById(containerId)) el.innerHTML = '<div style="font-size:12.5px;color:var(--muted,#6b6258);padding:12px;">'+esc(t('gp.loadError'))+'</div>'; });
+        }
+
+        function renderHub(containerId, skipRegister){
+            var el = document.getElementById(containerId);
+            if (!el) return;
+            if (!skipRegister) register(containerId, 'hub');
+            el.innerHTML = '<div id="'+containerId+'_plexus" style="margin-bottom:12px;"></div><div id="'+containerId+'_bridges"></div>';
+            renderEventCard(containerId + '_plexus', 'plexus', true);
+            renderEventCard(containerId + '_bridges', 'bridges', true);
+        }
+
+        function close(){ var m = document.getElementById('gpModal'); if (m) m.remove(); }
+
+        function renderModal(eventKey, d){
+            close();
+            var meta = EVENT_META[eventKey] || EVENT_META.plexus;
+            var name = (d && d.event_name) ? d.event_name : t(meta.nameKey);
+            var limit = (d && d.limit != null) ? d.limit : 2;
+            var remaining = (d && d.remaining != null) ? d.remaining : limit;
+            var full = remaining <= 0;
+            var overlay = document.createElement('div');
+            overlay.id = 'gpModal';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(21,17,15,.55);z-index:100000;display:flex;align-items:center;justify-content:center;padding:18px;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);';
+            overlay.onclick = function(e){ if (e.target === overlay) close(); };
+            var sendDisabled = full ? ' disabled' : '';
+            overlay.innerHTML =
+                '<div role="dialog" aria-modal="true" style="background:var(--surface,#fff);border:1px solid var(--line,#e2dcd3);border-radius:20px;max-width:460px;width:100%;overflow:hidden;box-shadow:0 24px 60px rgba(21,17,15,.28);">'
+                + '<div style="background:linear-gradient(135deg,var(--crimson,#9b1b22),var(--crimson-deep,#7d161c));padding:20px 24px;color:#fff;">'
+                    + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">'
+                        + '<div><div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.82;font-weight:700;">'+esc(name)+'</div>'
+                        + '<h2 style="margin:4px 0 0;font-size:20px;font-weight:700;font-family:var(--serif,\'Fraunces\',serif);">'+esc(t('gp.modalTitle'))+'</h2></div>'
+                        + '<button onclick="GuestPass.close()" aria-label="Close" style="background:rgba(255,255,255,.16);border:none;width:30px;height:30px;border-radius:50%;color:#fff;font-size:13px;cursor:pointer;flex-shrink:0;"><i class="fas fa-times"></i></button>'
+                    + '</div>'
+                + '</div>'
+                + '<div style="padding:20px 24px;">'
+                    + '<div style="display:flex;gap:9px;align-items:flex-start;background:rgba(201,169,98,.12);border:1px solid rgba(201,169,98,.4);border-radius:11px;padding:11px 13px;margin-bottom:16px;">'
+                        + '<i class="fas fa-user-shield" style="color:var(--gold,#c9a962);margin-top:2px;"></i>'
+                        + '<div style="font-size:12.5px;color:var(--ink,#15110f);line-height:1.5;">'+esc(t('gp.attendsUnder', { limit: limit }))+'</div>'
+                    + '</div>'
+                    + (full ? '<div style="font-size:13px;color:var(--crimson,#9b1b22);font-weight:600;margin-bottom:14px;">'+esc(t('gp.limitReached'))+'</div>' : '')
+                    + '<label style="display:block;font-size:12px;font-weight:700;color:var(--ink,#15110f);margin:0 0 5px;">'+esc(t('gp.guestName'))+'</label>'
+                    + '<input id="gpName" type="text" maxlength="100" placeholder="'+esc(t('gp.guestNamePh'))+'" style="width:100%;box-sizing:border-box;border:1px solid var(--line-strong,#d8d1c6);border-radius:10px;padding:11px 13px;font-size:14px;font-family:inherit;margin-bottom:13px;background:var(--paper,#fbf9f6);color:var(--ink,#15110f);">'
+                    + '<label style="display:block;font-size:12px;font-weight:700;color:var(--ink,#15110f);margin:0 0 5px;">'+esc(t('gp.guestEmail'))+'</label>'
+                    + '<input id="gpEmail" type="email" maxlength="254" placeholder="'+esc(t('gp.guestEmailPh'))+'" style="width:100%;box-sizing:border-box;border:1px solid var(--line-strong,#d8d1c6);border-radius:10px;padding:11px 13px;font-size:14px;font-family:inherit;margin-bottom:13px;background:var(--paper,#fbf9f6);color:var(--ink,#15110f);">'
+                    + '<label style="display:block;font-size:12px;font-weight:700;color:var(--ink,#15110f);margin:0 0 5px;">'+esc(t('gp.note'))+'</label>'
+                    + '<textarea id="gpNote" maxlength="280" rows="2" placeholder="'+esc(t('gp.notePh'))+'" style="width:100%;box-sizing:border-box;border:1px solid var(--line-strong,#d8d1c6);border-radius:10px;padding:11px 13px;font-size:14px;font-family:inherit;margin-bottom:18px;resize:vertical;background:var(--paper,#fbf9f6);color:var(--ink,#15110f);"></textarea>'
+                    + '<div style="display:flex;gap:10px;justify-content:flex-end;">'
+                        + '<button onclick="GuestPass.close()" style="background:transparent;border:1px solid var(--line-strong,#d8d1c6);color:var(--ink,#15110f);border-radius:10px;padding:11px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">'+esc(t('gp.cancel'))+'</button>'
+                        + '<button id="gpSendBtn" onclick="GuestPass.submit(\''+eventKey+'\')"'+sendDisabled+' style="background:var(--crimson,#9b1b22);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;"><i class="fas fa-paper-plane"></i> '+esc(t('gp.send'))+'</button>'
+                    + '</div>'
+                + '</div>'
+                + '</div>';
+            document.body.appendChild(overlay);
+            var nameEl = document.getElementById('gpName'); if (nameEl && !full) nameEl.focus();
+        }
+
+        function open(eventKey){
+            api('/api/guest-passes?event=' + encodeURIComponent(eventKey))
+                .then(function(d){ renderModal(eventKey, d); })
+                .catch(function(){ renderModal(eventKey, { limit: 2, remaining: 2, passes: [] }); });
+        }
+
+        function submit(eventKey){
+            var name = (document.getElementById('gpName') || {}).value; name = (name || '').trim();
+            var email = (document.getElementById('gpEmail') || {}).value; email = (email || '').trim();
+            var note = (document.getElementById('gpNote') || {}).value; note = (note || '').trim();
+            if (!name) { toast('error', t('gp.errName')); return; }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('error', t('gp.errEmail')); return; }
+            var btn = document.getElementById('gpSendBtn');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + esc(t('gp.sending')); }
+            api('/api/guest-passes', { method: 'POST', body: JSON.stringify({ event: eventKey, guest_name: name, guest_email: email, note: note }) })
+                .then(function(){ toast('success', t('gp.sentToast', { name: name })); close(); refresh(); })
+                .catch(function(err){
+                    var msg = (err && err.body && err.body.error) || t('gp.loadError');
+                    toast('error', msg);
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> ' + esc(t('gp.send')); }
+                });
+        }
+
+        function revoke(id){
+            if (!window.confirm(t('gp.confirmRevoke'))) return;
+            api('/api/guest-passes/' + encodeURIComponent(id) + '/revoke', { method: 'POST' })
+                .then(function(){ toast('success', t('gp.revokedToast')); refresh(); })
+                .catch(function(err){ toast('error', (err && err.body && err.body.error) || t('gp.loadError')); });
+        }
+
+        return { renderHub: renderHub, renderEventCard: renderEventCard, open: open, close: close, submit: submit, revoke: revoke, refresh: refresh };
     })();
     </script>
 
