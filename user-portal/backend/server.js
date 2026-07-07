@@ -10024,6 +10024,106 @@ async function submitReset(e){
         } catch (e) { console.error(e); res.status(500).json({ error: 'Failed to load record' }); }
     });
 
+    // The member's passport (queue 5a5l) — one gold seal per real Med&X participation. Playful
+    // keepsake, so quiet gala/forum-only profiles are FAIL-CLOSED (no stamps). Sources: conference
+    // registrations + check-ins, and Building Bridges city participation (bridges_registrations).
+    app.get('/api/member/passport', auth, (req, res) => {
+        try {
+            const user = query.get('SELECT id, email, is_admin FROM users WHERE id = ?', [req.user.id]);
+            if (!user) return res.status(404).json({ error: 'User not found' });
+            let quiet = false;
+            try { quiet = quietFlagFor(user); } catch (e) { quiet = false; }
+            if (quiet) return res.json({ quiet: true, stamps: [] });
+            const yr = (d) => { const m = String(d || '').match(/(\d{4})/); return m ? m[1] : ''; };
+            const sealLabel = (name, type) => {
+                const n = String(name || '').toLowerCase();
+                if (type === 'gala' || n.includes('gala')) return 'GALA';
+                if (n.includes('plexus')) return 'PLEXUS';
+                if (n.includes('forum')) return 'FORUM';
+                if (n.includes('donor')) return 'DONOR';
+                if (n.includes('accelerator')) return 'ACCEL';
+                if (n.includes('bridge')) return 'BRIDGES';
+                const w = (String(name || 'MEDX').trim().split(/\s+/)[0] || 'MEDX').toUpperCase().slice(0, 8);
+                return w || 'MEDX';
+            };
+            const stamps = [];
+            try {
+                query.all(`SELECT c.name, c.start_date, c.venue_city, r.checked_in, r.registration_type, r.created_at
+                           FROM registrations r JOIN conferences c ON r.conference_id = c.id
+                           WHERE r.user_id = ? ORDER BY c.start_date ASC, r.created_at ASC`, [user.id]).forEach(r => {
+                    stamps.push({ kind: 'event', label: sealLabel(r.name, r.registration_type), name: r.name || 'Med&X event', city: r.venue_city || '', year: yr(r.start_date || r.created_at), attended: !!r.checked_in });
+                });
+            } catch (e) { /* registrations optional */ }
+            try {
+                query.all(`SELECT e.name, e.city, e.event_date, br.checked_in
+                           FROM bridges_registrations br JOIN bridges_events e ON br.event_id = e.id
+                           WHERE LOWER(br.email) = LOWER(?) ORDER BY e.event_date ASC`, [user.email || '']).forEach(e => {
+                    stamps.push({ kind: 'bridge', label: 'BRIDGES', name: e.name || 'Building Bridges', city: e.city || '', year: yr(e.event_date), attended: !!e.checked_in });
+                });
+            } catch (e) { /* bridges optional */ }
+            res.json({ quiet: false, stamps });
+        } catch (e) { console.error('passport failed:', e); res.status(500).json({ error: 'Failed to load passport' }); }
+    });
+
+    // Google Wallet "Save to Wallet" link (queue 5a5l) — a signed generic-pass JWT built server-side.
+    // The pass barcode carries the SAME membership identity payload the on-screen card + scanner use
+    // (keyed on userId). If the issuer secrets are absent (e.g. local/dev), it returns a clean
+    // unconfigured gate naming the owner action instead of a broken link — implemented to the boundary.
+    app.get('/api/member/wallet/google', auth, (req, res) => {
+        try {
+            const issuerId = process.env.GOOGLE_WALLET_ISSUER_ID;
+            const saKeyRaw = process.env.GOOGLE_WALLET_SA_KEY;
+            const classId = process.env.GOOGLE_WALLET_CLASS_ID || (issuerId ? (issuerId + '.medx_membership') : '');
+            if (!issuerId || !saKeyRaw) {
+                return res.json({
+                    configured: false,
+                    owner_action: 'Set GOOGLE_WALLET_ISSUER_ID and GOOGLE_WALLET_SA_KEY (a Google Wallet API service-account JSON) in the server environment. Create the issuer at pay.google.com/business/console and the service account in Google Cloud, then grant it Wallet access.',
+                    message_en: 'Google Wallet is not set up yet. Your team can enable it shortly.',
+                    message_hr: 'Google Wallet još nije postavljen. Vaš ga tim može uskoro omogućiti.'
+                });
+            }
+            let sa;
+            try { sa = typeof saKeyRaw === 'string' ? JSON.parse(saKeyRaw) : saKeyRaw; }
+            catch (e) { return res.status(500).json({ error: 'Google Wallet service account key is not valid JSON.' }); }
+            const user = query.get('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [req.user.id]);
+            if (!user) return res.status(404).json({ error: 'User not found' });
+            const meta = getOrCreateMemberMeta(user);
+            const name = ((user.first_name || '') + ' ' + (user.last_name || '')).trim() || 'Med&X Member';
+            const memberId = String(user.id).slice(0, 8).toUpperCase();
+            const standingLabel = MEMBER_STANDING_LABELS[meta.standing] || 'Member in good standing';
+            const typeLabel = MEMBER_TYPE_LABELS[meta.member_type] || 'Member';
+            const sinceYear = meta.member_since ? String(meta.member_since).slice(0, 4) : '';
+            const origin = (process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+            const latestReg = query.get('SELECT id FROM registrations WHERE user_id = ? ORDER BY created_at DESC LIMIT 1', [user.id]);
+            const regId = (latestReg && latestReg.id) ? latestReg.id : 'MX-2026';
+            const qrValue = JSON.stringify({ type: 'PLEXUS2026', userId: user.id || '', regId: regId, name: name });
+            const genericObject = {
+                id: `${issuerId}.medx-${String(user.id).replace(/[^a-zA-Z0-9]/g, '')}`,
+                classId: classId,
+                genericType: 'GENERIC_TYPE_UNSPECIFIED',
+                hexBackgroundColor: '#0f1830',
+                logo: { sourceUri: { uri: origin + '/assets/images/medx-logo.png' } },
+                cardTitle: { defaultValue: { language: 'en', value: 'Med&X Membership' } },
+                subheader: { defaultValue: { language: 'en', value: typeLabel } },
+                header: { defaultValue: { language: 'en', value: name } },
+                barcode: { type: 'QR_CODE', value: qrValue, alternateText: memberId },
+                textModulesData: [
+                    { id: 'member_id', header: 'Member ID', body: memberId },
+                    { id: 'standing', header: 'Standing', body: standingLabel }
+                ].concat(sinceYear ? [{ id: 'since', header: 'Member since', body: sinceYear }] : [])
+            };
+            const claims = {
+                iss: sa.client_email,
+                aud: 'google',
+                typ: 'savetowallet',
+                origins: [origin],
+                payload: { genericObjects: [genericObject] }
+            };
+            const token = jwt.sign(claims, sa.private_key, { algorithm: 'RS256' });
+            res.json({ configured: true, save_url: 'https://pay.google.com/gp/v/save/' + token });
+        } catch (e) { console.error('google wallet failed:', e); res.status(500).json({ error: 'Failed to build Google Wallet pass' }); }
+    });
+
     // ========== GLOBAL MEMBER SEARCH + PROFILE NUDGE (additive, read-mostly) ==========
     // GET /api/member/search?q= — one spotlight query across events, members, talks, and the
     // caller's own tickets/registrations. Read-only, auth required, no schema change. (The

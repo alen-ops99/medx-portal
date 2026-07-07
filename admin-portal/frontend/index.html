@@ -12602,6 +12602,30 @@ President, Med&amp;X</textarea>
                     #section-year-calendar .yc-field input[type=color]{padding:3px;height:38px;cursor:pointer;}
                     #section-year-calendar .yc-field.full{grid-column:1 / -1;}
                     #section-year-calendar .yc-formacts{display:flex;gap:8px;margin-top:16px;align-items:center;flex-wrap:wrap;}
+                    /* SEASON ARC — where the year stands (read-only header strip above the board) */
+                    #section-year-calendar .yc-arc{border:1px solid var(--border);border-radius:14px;background:var(--bg-secondary);padding:14px 20px 11px;margin:0 0 16px;}
+                    #section-year-calendar .yc-arc-head{display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap;margin:0 0 2px;}
+                    #section-year-calendar .yc-arc-eyebrow{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--text-muted);}
+                    #section-year-calendar .yc-arc-chip{font-size:12px;color:var(--text-secondary);border:1px solid var(--border);background:var(--bg-primary);border-radius:999px;padding:5px 13px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
+                    #section-year-calendar .yc-arc-chip b{color:#9b1b22;font-weight:600;}
+                    #section-year-calendar .yc-arc-line{position:relative;height:118px;}
+                    #section-year-calendar .yc-arc-base{position:absolute;left:0;right:0;top:58px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--border-light),var(--border));}
+                    #section-year-calendar .yc-arc-m{position:absolute;top:69px;transform:translateX(-50%);font-size:9px;font-weight:700;letter-spacing:.12em;color:var(--text-muted);opacity:.7;}
+                    #section-year-calendar .yc-arc-ms{position:absolute;top:59px;transform:translate(-50%,-50%);width:12px;height:12px;border-radius:50%;box-sizing:border-box;z-index:2;cursor:default;}
+                    #section-year-calendar .yc-arc-ms.solid{border:2px solid;}
+                    #section-year-calendar .yc-arc-ms.outline{background:var(--bg-secondary);border:2px dashed;}
+                    #section-year-calendar .yc-arc-lb{position:absolute;transform:translateX(-50%);width:150px;text-align:center;font-size:10.5px;line-height:1.25;color:var(--text-secondary);}
+                    #section-year-calendar .yc-arc-lb .t{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+                    #section-year-calendar .yc-arc-lb .d{display:block;font-size:9.5px;font-weight:600;color:#a07d2c;letter-spacing:.04em;margin-top:1px;}
+                    #section-year-calendar .yc-arc-lb.above{top:8px;}
+                    #section-year-calendar .yc-arc-lb.below{top:84px;}
+                    #section-year-calendar .yc-arc-today{position:absolute;top:40px;height:38px;width:2px;border-radius:2px;background:#9b1b22;transform:translateX(-50%);z-index:3;}
+                    #section-year-calendar .yc-arc-today::after{content:"";position:absolute;left:50%;top:-6px;transform:translateX(-50%);width:8px;height:8px;border-radius:50%;background:#9b1b22;animation:ycArcBreath 3.2s ease-in-out infinite;}
+                    @keyframes ycArcBreath{0%,100%{box-shadow:0 0 0 0 rgba(155,27,34,.35);}50%{box-shadow:0 0 0 7px rgba(155,27,34,0);}}
+                    #section-year-calendar .yc-arc-tlab{position:absolute;transform:translateX(-50%);font-family:'Fraunces',serif;font-style:italic;font-size:11.5px;color:#9b1b22;white-space:nowrap;z-index:3;}
+                    #section-year-calendar .yc-arc-phase{margin-top:6px;padding-top:9px;border-top:1px solid var(--border-light);font-size:12.5px;line-height:1.5;color:var(--text-secondary);}
+                    #section-year-calendar .yc-arc-phase b{color:var(--text-primary);font-weight:600;}
+                    @media (prefers-reduced-motion:reduce){#section-year-calendar .yc-arc-today::after{animation:none;}}
                     #section-year-calendar .yc-print-title{display:none;}
                     @media (max-width:760px){
                         #section-year-calendar .yc-months,#section-year-calendar .yc-row{grid-template-columns:104px 1fr;}
@@ -12610,6 +12634,14 @@ President, Med&amp;X</textarea>
                         #section-year-calendar .yc-rlabel .yc-t{font-size:11.5px;}
                         #section-year-calendar .yc-year{padding:12px 11px 15px;}
                         #section-year-calendar .yc-grid2{grid-template-columns:1fr;}
+                        #section-year-calendar .yc-arc{padding:12px 12px 9px;}
+                        #section-year-calendar .yc-arc-line{height:64px;}
+                        #section-year-calendar .yc-arc-base{top:32px;}
+                        #section-year-calendar .yc-arc-ms{top:33px;}
+                        #section-year-calendar .yc-arc-m{top:42px;}
+                        #section-year-calendar .yc-arc-m.odd{display:none;}
+                        #section-year-calendar .yc-arc-lb,#section-year-calendar .yc-arc-tlab{display:none;}
+                        #section-year-calendar .yc-arc-today{top:16px;height:32px;}
                     }
                     @media print{
                         @page{size:A4 landscape;margin:9mm;}
@@ -12620,6 +12652,9 @@ President, Med&amp;X</textarea>
                         body.yc-print-mode .yc-year,body.yc-print-mode .yc-legend,body.yc-print-mode .yc-bar,body.yc-print-mode .yc-dot{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
                         body.yc-print-mode .yc-year{break-inside:avoid;border-color:#ccc;}
                         body.yc-print-mode .yc-row:hover{background:none;}
+                        body.yc-print-mode .yc-arc{break-inside:avoid;border-color:#ccc;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+                        body.yc-print-mode .yc-arc-today::after{animation:none!important;box-shadow:none!important;}
+                        body.yc-print-mode .yc-arc-chip{border-color:#ccc;}
                     }
                     </style>
                     <div class="yc-print-title">Med&amp;X — Year Calendar</div>
@@ -12635,6 +12670,7 @@ President, Med&amp;X</textarea>
                             <button class="btn btn-primary" onclick="CalendarApp.openForm()"><i class="fas fa-plus"></i> Add entry</button>
                         </div>
                     </div>
+                    <div class="yc-arc" id="ycArc" style="display:none;"></div>
                     <div class="yc-formwrap yc-no-print" id="ycFormWrap" style="display:none;"></div>
                     <div class="yc-legend" id="ycLegend"></div>
                     <div id="ycTimeline"><div class="yc-empty"><i class="fas fa-spinner fa-spin"></i></div></div>
@@ -38531,9 +38567,105 @@ By applying to this program, I give the following consents:
                     if (host) host.innerHTML = '<div class="yc-empty">Could not load the calendar. '+this.esc(e.message)+'</div>';
                     return;
                 }
+                this.renderArc();
                 this.renderLegend();
                 this.renderTimeline();
                 this.renderLive();
+            },
+            // ---- SEASON ARC: where the year stands — pure read-only derivation of the same entries ----
+            msOf(dateStr){ const p = dateStr.split('-').map(Number); return new Date(p[0], p[1]-1, p[2]).getTime(); },
+            ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); },
+            daysBetween(a,b){ return Math.round((this.msOf(b)-this.msOf(a))/86400000); },
+            renderArc(){
+                const host = document.getElementById('ycArc'); if(!host) return;
+                if(!this.entries.length){ host.style.display='none'; host.innerHTML=''; return; }
+                const todayStr = this.ymd(new Date());
+                const year = Number(todayStr.slice(0,4));
+                const y0 = new Date(year,0,1).getTime(), y1 = new Date(year+1,0,1).getTime();
+                const pctOf = (ms) => Math.min(100, Math.max(0, (ms-y0)/(y1-y0)*100));
+                const byStart = (a,b) => a.starts_on.localeCompare(b.starts_on);
+                const confirmedFirst = (a,b) => (a.status===b.status) ? 0 : (a.status==='confirmed' ? -1 : 1);
+                const inYear = this.entries.filter(e => e.starts_on && e.starts_on.slice(0,4) === String(year)).sort((a,b)=> byStart(a,b) || confirmedFirst(a,b));
+
+                // cluster milestones that would overlap on the strip (within ~2.4% of the year, about nine days)
+                const clusters = [];
+                inYear.forEach(e => {
+                    const p = pctOf(this.msOf(e.starts_on));
+                    const last = clusters[clusters.length-1];
+                    if(last && (p - last.pct) < 2.4){ last.items.push(e); }
+                    else clusters.push({ pct:p, items:[e] });
+                });
+
+                let line = '<div class="yc-arc-base"></div>';
+                for(let m=0;m<12;m++){
+                    line += '<div class="yc-arc-m'+(m%2?' odd':'')+'" style="left:'+pctOf(new Date(year,m,15).getTime()).toFixed(2)+'%">'+this.MONTHS[m].toUpperCase()+'</div>';
+                }
+                clusters.forEach((c,i) => {
+                    c.items.sort(confirmedFirst);
+                    const lead = c.items[0];
+                    const allPotential = c.items.every(e => e.status === 'potential');
+                    const color = this.esc(this.colorOf(lead));
+                    const tip = c.items.map(e => e.title+' · '+this.rangeLabel(e)+(e.status==='potential'?' (potential)':'')).join('\n');
+                    line += '<div class="yc-arc-ms '+(allPotential?'outline':'solid')+'" data-ids="'+this.esc(c.items.map(e=>e.id).join(','))+'" style="left:'+c.pct.toFixed(2)+'%;'+(allPotential?('border-color:'+color+';'):('background:'+color+';border-color:'+color+';'))+'" title="'+this.esc(tip)+'"></div>';
+                    line += '<div class="yc-arc-lb '+(i%2?'below':'above')+'" style="left:'+Math.min(95,Math.max(5,c.pct)).toFixed(2)+'%">'
+                        + '<span class="t">'+this.esc(lead.title)+(c.items.length>1?' +'+(c.items.length-1):'')+'</span>'
+                        + '<span class="d">'+this.esc(this.dayLabel(lead.starts_on))+(allPotential?' · potential':'')+'</span></div>';
+                });
+
+                // breathing TODAY marker — its label dodges any nearby below-row milestone label
+                const tPct = pctOf(this.msOf(todayStr));
+                const belowNear = clusters.some((c,i) => i%2===1 && Math.abs(c.pct - tPct) < 11);
+                line += '<div class="yc-arc-today" style="left:'+tPct.toFixed(2)+'%" title="'+this.esc('Today · '+this.fullDate(todayStr))+'"></div>';
+                line += '<div class="yc-arc-tlab" style="left:'+Math.min(92,Math.max(8,tPct)).toFixed(2)+'%;top:'+(belowNear?0:84)+'px;">Today · '+this.esc(this.dayLabel(todayStr))+'</div>';
+
+                // next-milestone chip + phase caption, both derived from the rows alone
+                const running = this.entries.filter(e => e.starts_on && e.ends_on && e.starts_on <= todayStr && e.ends_on >= todayStr).sort(byStart);
+                const future = this.entries.filter(e => e.starts_on && e.starts_on >= todayStr).sort((a,b)=> byStart(a,b) || confirmedFirst(a,b));
+                const inWords = (n) => n===0 ? 'today' : (n===1 ? 'tomorrow' : 'in '+n+' days');
+                let chip;
+                if(running.length){
+                    const r = running[0];
+                    chip = 'Happening now · <b>'+this.esc(r.title)+'</b> · day '+(this.daysBetween(r.starts_on,todayStr)+1)+' of '+(this.daysBetween(r.starts_on,r.ends_on)+1);
+                } else if(future.length){
+                    const n = future[0];
+                    const when = n.starts_on.slice(0,4) === String(year) ? this.dayLabel(n.starts_on) : this.fullDate(n.starts_on);
+                    chip = 'Next · <b>'+this.esc(n.title)+'</b> · '+this.esc(when)+' · '+inWords(this.daysBetween(todayStr,n.starts_on));
+                } else {
+                    chip = 'Every marker on the board is behind us';
+                }
+
+                const MONTH_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+                const past = inYear.filter(e => e.starts_on < todayStr);
+                const futureInYear = inYear.filter(e => e.starts_on >= todayStr);
+                const confirmedInYear = inYear.filter(e => e.status === 'confirmed');
+                const finale = confirmedInYear.length ? confirmedInYear[confirmedInYear.length-1] : (inYear.length ? inYear[inYear.length-1] : null);
+                let phase;
+                if(running.length){
+                    const r = running[0];
+                    phase = '<b>'+this.esc(r.title)+'</b> is underway · day '+(this.daysBetween(r.starts_on,todayStr)+1)+' of '+(this.daysBetween(r.starts_on,r.ends_on)+1)+'.';
+                } else if(futureInYear.length){
+                    const n = futureInYear[0];
+                    const gap = this.daysBetween(todayStr, n.starts_on);
+                    if(gap > 45){
+                        const anchor = (finale && finale.starts_on > todayStr) ? finale : n;
+                        phase = 'The long build toward '+MONTH_FULL[Number(anchor.starts_on.split('-')[1])-1]+' · the next marker is <b>'+this.esc(n.title)+'</b>, '+gap+' days out.';
+                    } else {
+                        phase = 'Closing in on <b>'+this.esc(n.title)+'</b> · '+(gap===0?'it lands today':(gap===1?'it lands tomorrow':gap+' days to go'))+'.';
+                    }
+                } else if(past.length){
+                    const last = past[past.length-1];
+                    phase = 'This year\'s markers are all behind · the last was <b>'+this.esc(last.title)+'</b> on '+this.esc(this.dayLabel(last.starts_on))+'.';
+                    if(future.length) phase += ' Next on the board · <b>'+this.esc(future[0].title)+'</b>, '+this.esc(this.fullDate(future[0].starts_on))+'.';
+                } else {
+                    phase = 'Nothing dated on this year\'s board yet · the first entry you add will appear here.';
+                }
+
+                host.innerHTML = '<div class="yc-arc-head">'
+                    + '<span class="yc-arc-eyebrow">Where the year stands · '+year+'</span>'
+                    + '<span class="yc-arc-chip" id="ycArcChip">'+chip+'</span></div>'
+                    + '<div class="yc-arc-line" id="ycArcLine">'+line+'</div>'
+                    + '<div class="yc-arc-phase" id="ycArcPhase">'+phase+'</div>';
+                host.style.display = 'block';
             },
             renderLegend(){
                 const el = document.getElementById('ycLegend'); if(!el) return;
@@ -39999,6 +40131,12 @@ By applying to this program, I give the following consents:
                             <p>Branded post graphics — announcement, countdown, speaker card, quote, program card — styled as siblings of the Plexus event invitations (gold frame, serif display, editorial rules). Every element stays editable. Export a PNG or a simple PDF.</p>
                             <span class="cs-go">Design a graphic <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
                         </button>
+                        <button class="cs-surface" onclick="VideoStudio.start()">
+                            <div class="cs-surface-ic" style="background:rgba(15,28,46,.12);color:#0f1c2e;"><i class="fas fa-clapperboard"></i></div>
+                            <h3>Video studio</h3>
+                            <p>Motion graphics from your event data &mdash; a teaser, a speaker reveal, a countdown or registration stinger, or a by-the-numbers recap. Prefilled from real speakers, dates and photos. Plays live, downloads as a video.</p>
+                            <span class="cs-go">Make a motion video <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
+                        </button>
                     </div>
                     <div id="csRecent" style="margin-top:32px;"></div>
                     <div class="cs-manage">
@@ -41045,6 +41183,668 @@ By applying to this program, I give the following consents:
             }
         };
         window.ContentCreator = ContentCreator;
+
+        // ==================== VIDEO STUDIO — code-driven MOTION GRAPHICS ====================
+        // A sibling of ContentCreator. Five deterministic, frame-index-driven templates (event teaser,
+        // speaker reveal, countdown + registration stingers, by-the-numbers recap) render on a <canvas>.
+        // The whole animation is a function of time, so LIVE PREVIEW is free (it just plays). EXPORT
+        // renders every frame deterministically and encodes them with WebCodecs (VP9/VP8) into a WebM
+        // muxed in-browser — the server has no GPU, so nothing renders server-side. Real portal data
+        // (speakers, dates, venues, prices, photos) prefills each template. Files ride the same
+        // /api/admin/content/asset + /schedule path graphics use, and land in the Recent creations gallery.
+        const VideoStudio = {
+            DIMS: { landscape: [1280, 720], square: [1080, 1080], portrait: [720, 1280] },
+            FORMATS: [{ v: 'landscape', l: '16:9' }, { v: 'square', l: '1:1' }, { v: 'portrait', l: '9:16' }],
+            PAL: { navy: '#0f1c2e', navy2: '#091320', gold: '#D4A84B', goldLight: '#e8c97a', burgundy: '#A31D3A', cream: '#FAF8F5', ink: '#141414' },
+            SERIF: "'Cormorant Garamond','Fraunces',Georgia,serif",
+            DISPLAY: "'Fraunces',Georgia,serif",
+            SANS: "'Inter',system-ui,sans-serif",
+            LOGO_URL: '/assets/email-logo.png',
+            TEMPLATES: [
+                { v: 'teaser', l: 'Event teaser', ic: 'fa-clapperboard' },
+                { v: 'speaker', l: 'Speaker reveal', ic: 'fa-user-tie' },
+                { v: 'countdown', l: 'Countdown', ic: 'fa-hourglass-half' },
+                { v: 'registration', l: 'Registration open', ic: 'fa-bullhorn' },
+                { v: 'recap', l: 'Recap by numbers', ic: 'fa-chart-simple' }
+            ],
+            bundle: null, events: [], aiEnabled: false,
+            template: 'teaser', format: 'landscape', duration: 20, accent: 'navy',
+            cfg: {}, photos: [], speakerIdx: 0,
+            _imgs: {}, _built: false, _styled: false, _fontsReady: false,
+            _raf: 0, _playing: false, _t0: 0, _scrubT: 0, _exporting: false,
+            _lastBlob: null, _lastUrl: null, _lastId: null,
+
+            // ---------- math + easing ----------
+            clamp(x, a, b) { return Math.max(a, Math.min(b, x)); },
+            lerp(a, b, t) { return a + (b - a) * t; },
+            easeOutCubic(t) { t = this.clamp(t, 0, 1); return 1 - Math.pow(1 - t, 3); },
+            easeInOutCubic(t) { t = this.clamp(t, 0, 1); return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; },
+            easeOutBack(t) { t = this.clamp(t, 0, 1); const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); },
+            appear(t, start, dur) { return this.clamp((t - start) / (dur || 0.001), 0, 1); },
+            accentInk() { return this.accent === 'gold' ? this.PAL.goldLight : this.accent === 'crimson' ? this.PAL.burgundy : this.PAL.gold; },
+
+            // ---------- styles + shell ----------
+            ensureStyle() {
+                if (this._styled) return; this._styled = true;
+                const css = `
+                .vs-overlay { position: fixed; inset: 0; z-index: 4200; background: rgba(15,20,30,0.6); backdrop-filter: blur(3px); display: none; }
+                .vs-overlay.active { display: block; }
+                .vs-shell { position: absolute; inset: 2.2vh 2.2vw; background: var(--bg-primary,#fbf9f6); border-radius: 18px; box-shadow: 0 30px 90px rgba(0,0,0,0.4); display: flex; flex-direction: column; overflow: hidden; }
+                .vs-top { display: flex; align-items: center; justify-content: space-between; padding: 13px 22px; border-bottom: 1px solid var(--border); background: linear-gradient(135deg, rgba(15,28,46,0.06), transparent); flex-shrink: 0; }
+                .vs-brand { font-family: 'Fraunces',Georgia,serif; font-size: 19px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
+                .vs-brand i { color: var(--gold); }
+                .vs-badge { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 3px 9px; border-radius: 20px; background: rgba(212,168,75,.16); color: #8a6d1f; }
+                .vs-x { background: none; border: none; font-size: 26px; line-height: 1; color: var(--text-muted); cursor: pointer; padding: 0 4px; }
+                .vs-body { flex: 1; display: grid; grid-template-columns: 356px minmax(0,1fr); min-height: 0; }
+                .vs-rail { border-right: 1px solid var(--border); overflow-y: auto; padding: 16px 18px 40px; background: var(--bg-secondary); }
+                .vs-stage { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; padding: 18px 22px 22px; }
+                .vs-canvas-wrap { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
+                #vsCanvas { max-width: 100%; max-height: 54vh; border-radius: 10px; box-shadow: 0 16px 46px rgba(15,20,30,.3); background: #0f1c2e; }
+                .vs-transport { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+                .vs-play { width: 42px; height: 42px; border-radius: 50%; border: none; background: var(--gold); color: #15110f; cursor: pointer; font-size: 15px; flex-shrink: 0; }
+                .vs-scrub { flex: 1; accent-color: var(--gold); cursor: pointer; }
+                .vs-time { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--text-muted); width: 74px; text-align: right; }
+                .vs-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 16px; }
+                .vs-btn { border: none; border-radius: 9px; padding: 11px 18px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-family: inherit; }
+                .vs-btn.primary { background: #0f1c2e; color: #fff; }
+                .vs-btn.gold { background: linear-gradient(135deg,#1f7a44,#155e33); color: #fff; }
+                .vs-btn.sec { background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border); }
+                .vs-btn:disabled { opacity: .5; cursor: default; }
+                .vs-prog { height: 6px; border-radius: 4px; background: var(--border); overflow: hidden; margin-top: 12px; display: none; }
+                .vs-prog > div { height: 100%; width: 0%; background: var(--gold); transition: width .08s; }
+                .vs-sec { margin-bottom: 15px; }
+                .vs-sec > label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 7px; }
+                .vs-sec input[type=text], .vs-sec textarea, .vs-sec select { width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary); font-size: 13px; font-family: inherit; }
+                .vs-sec textarea { resize: vertical; line-height: 1.45; }
+                .vs-seg { display: flex; gap: 6px; flex-wrap: wrap; }
+                .vs-seg button { flex: 1; min-width: 54px; padding: 8px 6px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-secondary); border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; font-family: inherit; }
+                .vs-seg button.on { background: #0f1c2e; color: #fff; border-color: #0f1c2e; }
+                .vs-tgrid { display: grid; grid-template-columns: repeat(2,1fr); gap: 7px; }
+                .vs-tcard { display: flex; align-items: center; gap: 9px; padding: 10px 11px; border: 1px solid var(--border); background: var(--bg-primary); border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); font-family: inherit; text-align: left; }
+                .vs-tcard i { color: var(--gold); width: 16px; }
+                .vs-tcard.on { border-color: #0f1c2e; background: #0f1c2e; color: #fff; }
+                .vs-tcard.on i { color: var(--goldLight,#e8c97a); }
+                .vs-row2 { display: flex; gap: 10px; } .vs-row2 > * { flex: 1; }
+                .vs-photos { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; max-height: 190px; overflow-y: auto; padding: 2px; }
+                .vs-photo { position: relative; aspect-ratio: 1/1; border-radius: 7px; overflow: hidden; cursor: pointer; border: 2px solid transparent; }
+                .vs-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+                .vs-photo.sel { border-color: #0f1c2e; }
+                .vs-photo .vs-order { position: absolute; top: 3px; left: 3px; background: #0f1c2e; color: #fff; font-size: 10px; font-weight: 700; width: 17px; height: 17px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+                .vs-spk { display: flex; gap: 7px; flex-wrap: wrap; }
+                .vs-spk button { padding: 7px 10px; border: 1px solid var(--border); background: var(--bg-primary); border-radius: 8px; cursor: pointer; font-size: 12px; font-family: inherit; color: var(--text-secondary); }
+                .vs-spk button.on { border-color: #0f1c2e; background: #0f1c2e; color: #fff; }
+                .vs-compose { border: 1px solid var(--border); border-radius: 12px; background: var(--bg-primary); padding: 12px; margin-bottom: 16px; }
+                .vs-compose textarea { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; font-size: 13px; font-family: inherit; resize: vertical; background: var(--bg-secondary); color: var(--text-primary); }
+                .vs-compose .vs-crow { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+                .vs-note { font-size: 11.5px; color: var(--text-muted); line-height: 1.5; margin-top: 6px; }
+                .vs-gate { padding: 30px; text-align: center; color: var(--text-secondary); }
+                .vs-gate i { font-size: 34px; color: var(--gold); margin-bottom: 12px; }
+                .vs-modal { position: fixed; inset: 0; z-index: 4300; background: rgba(15,20,30,0.5); display: none; align-items: center; justify-content: center; }
+                .vs-modal.active { display: flex; }
+                .vs-modal-card { background: var(--bg-primary); border-radius: 16px; width: min(440px,92vw); padding: 24px; box-shadow: 0 30px 80px rgba(0,0,0,.3); max-height: 90vh; overflow-y: auto; }
+                @media (max-width: 900px) { .vs-body { grid-template-columns: 1fr; } .vs-rail { border-right: none; border-bottom: 1px solid var(--border); max-height: 42vh; } #vsCanvas { max-height: 40vh; } }
+                `;
+                const st = document.createElement('style'); st.id = 'vsStyle'; st.textContent = css; document.head.appendChild(st);
+            },
+            ensureBuilt() {
+                if (this._built) return; this.ensureStyle();
+                const ov = document.createElement('div'); ov.className = 'vs-overlay'; ov.id = 'vsOverlay';
+                ov.innerHTML = `
+                    <div class="vs-shell">
+                        <div class="vs-top">
+                            <div class="vs-brand"><i class="fas fa-clapperboard"></i> Video studio <span class="vs-badge" id="vsModeBadge" style="display:none;">Template mode</span></div>
+                            <button class="vs-x" onclick="VideoStudio.close()" aria-label="Close">&times;</button>
+                        </div>
+                        <div class="vs-body">
+                            <div class="vs-rail" id="vsRail"></div>
+                            <div class="vs-stage">
+                                <div class="vs-canvas-wrap"><canvas id="vsCanvas" width="1280" height="720"></canvas></div>
+                                <div class="vs-transport">
+                                    <button class="vs-play" id="vsPlayBtn" onclick="VideoStudio.togglePlay()"><i class="fas fa-pause"></i></button>
+                                    <input class="vs-scrub" id="vsScrub" type="range" min="0" max="1000" value="0" oninput="VideoStudio.onScrub(this.value)">
+                                    <span class="vs-time" id="vsTime">0.0 / 20s</span>
+                                </div>
+                                <div class="vs-prog" id="vsProg"><div></div></div>
+                                <div class="vs-actions" id="vsActions"></div>
+                                <div class="vs-note" id="vsExportNote" style="text-align:center;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="vs-modal" id="vsSchedModal"><div class="vs-modal-card" id="vsSchedCard"></div></div>`;
+                document.body.appendChild(ov); this._built = true;
+            },
+            async ensureFonts() {
+                if (this._fontsReady) return;
+                try { if (typeof ContentCreator !== 'undefined' && ContentCreator.ensureFonts) { await ContentCreator.ensureFonts(); } else { await document.fonts.ready; } } catch (e) {}
+                this._fontsReady = true;
+            },
+
+            // ---------- entry ----------
+            async start() {
+                this.ensureBuilt();
+                document.getElementById('vsOverlay').classList.add('active');
+                document.body.style.overflow = 'hidden';
+                await this.ensureFonts();
+                await this.loadPrefill('plexus');
+                this.template = 'teaser'; this.format = 'landscape'; this.duration = 20; this.accent = this.bundle && this.bundle.accent || 'navy';
+                this.buildConfig();
+                this.renderRail(); this.renderActions(); this.resizeCanvas();
+                this.play();
+            },
+            close() {
+                this.pause();
+                document.getElementById('vsOverlay').classList.remove('active');
+                document.body.style.overflow = '';
+                try { ContentStudio.init(); } catch (e) {}
+            },
+
+            async loadPrefill(event) {
+                try {
+                    const r = await fetch('/api/admin/content/video/prefill?event=' + encodeURIComponent(event || 'plexus'), { headers: { 'Authorization': 'Bearer ' + App.token } });
+                    const j = await r.json();
+                    this.bundle = j.bundle; this.events = j.events || []; this.aiEnabled = !!j.aiEnabled;
+                    this.speakerIdx = 0;
+                    const badge = document.getElementById('vsModeBadge'); if (badge) badge.style.display = this.aiEnabled ? 'none' : 'inline-block';
+                } catch (e) { this.bundle = this.bundle || { eventName: 'Med&X', facts: {}, speakers: [], photos: [], accent: 'navy' }; }
+            },
+
+            // ---------- config (prefill from real data) ----------
+            buildConfig() {
+                const b = this.bundle || { facts: {}, speakers: [], photos: [], eventName: 'Med&X' };
+                const f = b.facts || {}; const name = b.eventName || 'Med&X';
+                const venue = f.venue || f.city || 'Zagreb';
+                const sp = (b.speakers && b.speakers[this.speakerIdx]) || (b.speakers && b.speakers[0]) || null;
+                const t = this.template;
+                if (t === 'teaser') this.cfg = { eyebrow: name, headline: (b.event === 'gala' ? 'An evening to remember' : name + ' is coming'), line1: f.dateLine || '', line2: venue, line3: f.priceLine || '', cta: 'Register at medx.hr' };
+                else if (t === 'speaker') this.cfg = { eyebrow: 'Speaking at ' + name, name: sp ? sp.name : 'Your speaker', institution: sp ? (sp.institution || sp.title || '') : 'Institution', date: f.dateLine || '', portrait: sp ? sp.portrait : '' };
+                else if (t === 'countdown') this.cfg = { eyebrow: 'Countdown to ' + name, days: (f.days != null ? String(f.days) : '30'), unit: 'days to go', sub: f.dateLine || '', venue: venue, cta: 'medx.hr' };
+                else if (t === 'registration') this.cfg = { badge: 'Registration open', headline: name, line1: f.dateLine || '', line2: f.priceLine || venue, cta: 'Register at medx.hr' };
+                else if (t === 'recap') this.cfg = { title: name + ' — by the numbers', s1v: '2500+', s1l: 'participants', s2v: '11', s2l: 'Nobel laureates', s3v: '40+', s3l: 'speakers', s4v: '', s4l: '', closing: 'Join us in Zagreb' };
+                this.photos = (b.photos || []).slice(0, t === 'recap' ? 4 : 3).map(p => p.url);
+            },
+
+            // ---------- rail ----------
+            esc(s) { return (typeof escapeHtml === 'function') ? escapeHtml(s == null ? '' : String(s)) : String(s == null ? '' : s); },
+            renderRail() {
+                const seg = (opts, cur, fn) => `<div class="vs-seg">${opts.map(o => `<button class="${o.v === cur ? 'on' : ''}" onclick="VideoStudio.${fn}('${o.v}')">${o.l}</button>`).join('')}</div>`;
+                const field = (label, key, val, ph) => `<div class="vs-sec"><label>${label}</label><input type="text" value="${this.esc(val)}" placeholder="${ph || ''}" oninput="VideoStudio.setText('${key}',this.value)"></div>`;
+                const events = (this.events || []).map(e => `<option value="${e.key}" ${e.key === (this.bundle && this.bundle.event) ? 'selected' : ''}>${this.esc(e.name)}</option>`).join('');
+                const tcards = this.TEMPLATES.map(t => `<button class="vs-tcard ${t.v === this.template ? 'on' : ''}" onclick="VideoStudio.setTemplate('${t.v}')"><i class="fas ${t.ic}"></i>${t.l}</button>`).join('');
+                const composeBadge = this.aiEnabled ? '' : `<span class="vs-badge" style="margin-left:6px;">Template mode</span>`;
+                const composeNote = this.aiEnabled
+                    ? 'Describe it in a sentence and the studio fills the form below.'
+                    : 'Your words pick the template, format and length. Add an AI key for on-the-fly copywriting.';
+                let tmplFields = '';
+                const c = this.cfg;
+                if (this.template === 'teaser') {
+                    tmplFields = field('Eyebrow', 'eyebrow', c.eyebrow) + field('Headline', 'headline', c.headline) + field('Date line', 'line1', c.line1) + field('Venue line', 'line2', c.line2) + field('Price / detail', 'line3', c.line3) + field('Closing line', 'cta', c.cta) + this.photoPickerHtml('Photos (in order)');
+                } else if (this.template === 'speaker') {
+                    const spk = (this.bundle && this.bundle.speakers) || [];
+                    const spkPick = spk.length ? `<div class="vs-sec"><label>From confirmed speakers</label><div class="vs-spk">${spk.map((s, i) => `<button class="${i === this.speakerIdx ? 'on' : ''}" onclick="VideoStudio.pickSpeaker(${i})">${this.esc(s.name)}</button>`).join('')}</div></div>` : `<div class="vs-note" style="margin-bottom:12px;">No confirmed speakers yet — type the name and pick a portrait below.</div>`;
+                    tmplFields = spkPick + field('Eyebrow', 'eyebrow', c.eyebrow) + field('Name', 'name', c.name) + field('Institution / title', 'institution', c.institution) + field('Date line', 'date', c.date) + this.photoPickerHtml('Portrait (pick one)', true);
+                } else if (this.template === 'countdown') {
+                    tmplFields = field('Eyebrow', 'eyebrow', c.eyebrow) + `<div class="vs-row2">${field('Days', 'days', c.days)}${field('Unit', 'unit', c.unit)}</div>` + field('Date line', 'sub', c.sub) + field('Venue', 'venue', c.venue) + field('Closing line', 'cta', c.cta);
+                } else if (this.template === 'registration') {
+                    tmplFields = field('Badge', 'badge', c.badge) + field('Headline', 'headline', c.headline) + field('Date line', 'line1', c.line1) + field('Price / detail', 'line2', c.line2) + field('Closing line', 'cta', c.cta);
+                } else if (this.template === 'recap') {
+                    tmplFields = field('Title', 'title', c.title) +
+                        `<div class="vs-row2">${field('Stat 1', 's1v', c.s1v)}${field('Label 1', 's1l', c.s1l)}</div>` +
+                        `<div class="vs-row2">${field('Stat 2', 's2v', c.s2v)}${field('Label 2', 's2l', c.s2l)}</div>` +
+                        `<div class="vs-row2">${field('Stat 3', 's3v', c.s3v)}${field('Label 3', 's3l', c.s3l)}</div>` +
+                        `<div class="vs-row2">${field('Stat 4 (optional)', 's4v', c.s4v)}${field('Label 4', 's4l', c.s4l)}</div>` +
+                        field('Closing line', 'closing', c.closing) + this.photoPickerHtml('Photos (in order)');
+                }
+                document.getElementById('vsRail').innerHTML = `
+                    <div class="vs-compose">
+                        <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:7px;">Describe it ${composeBadge}</label>
+                        <textarea id="vsComposeInput" rows="2" placeholder="e.g. a 10-second vertical countdown for Plexus"></textarea>
+                        <div class="vs-crow"><button class="vs-btn sec" style="padding:8px 14px;" onclick="VideoStudio.compose()"><i class="fas fa-wand-magic-sparkles"></i> Build from this</button></div>
+                        <div class="vs-note">${composeNote}</div>
+                    </div>
+                    <div class="vs-sec"><label>Event</label><select onchange="VideoStudio.pickEvent(this.value)">${events}</select></div>
+                    <div class="vs-sec"><label>Template</label><div class="vs-tgrid">${tcards}</div></div>
+                    <div class="vs-row2">
+                        <div class="vs-sec"><label>Format</label>${seg(this.FORMATS, this.format, 'setFormat')}</div>
+                        <div class="vs-sec"><label>Length</label>${seg([{ v: '10', l: '10s' }, { v: '20', l: '20s' }, { v: '30', l: '30s' }], String(this.duration), 'setDuration')}</div>
+                    </div>
+                    <div class="vs-sec"><label>Accent</label>${seg([{ v: 'navy', l: 'Gold on navy' }, { v: 'gold', l: 'Warm gold' }, { v: 'crimson', l: 'Burgundy' }], this.accent, 'setAccent')}</div>
+                    ${tmplFields}`;
+            },
+            photoPickerHtml(label, single) {
+                const lib = (this.bundle && this.bundle.photos) || [];
+                if (!lib.length) return `<div class="vs-sec"><label>${label}</label><div class="vs-note">No photos in the library.</div></div>`;
+                const cells = lib.map(p => {
+                    const idx = this.photos.indexOf(p.url);
+                    return `<div class="vs-photo ${idx >= 0 ? 'sel' : ''}" onclick="VideoStudio.togglePhoto('${encodeURIComponent(p.url)}',${single ? 1 : 0})"><img src="${this.esc(p.url)}" alt="" loading="lazy">${idx >= 0 && !single ? `<span class="vs-order">${idx + 1}</span>` : ''}</div>`;
+                }).join('');
+                return `<div class="vs-sec"><label>${label}</label><div class="vs-photos">${cells}</div></div>`;
+            },
+            renderActions() {
+                document.getElementById('vsActions').innerHTML =
+                    `<button class="vs-btn primary" id="vsExportBtn" onclick="VideoStudio.exportVideo()"><i class="fas fa-film"></i> Render &amp; download</button>
+                     <button class="vs-btn gold" onclick="VideoStudio.openSchedule()"><i class="fas fa-calendar-plus"></i> Save to PR schedule</button>`;
+            },
+
+            // ---------- control setters ----------
+            async pickEvent(k) { await this.loadPrefill(k); this.speakerIdx = 0; this.buildConfig(); this.renderRail(); this.restartPreview(); },
+            setTemplate(t) { this.template = t; this.buildConfig(); this.renderRail(); this.restartPreview(); },
+            setFormat(f) { this.format = f; this.resizeCanvas(); this.renderRail(); this.restartPreview(); },
+            setDuration(d) { this.duration = parseInt(d, 10) || 20; this.renderRail(); this.restartPreview(); },
+            setAccent(a) { this.accent = a; this.renderRail(); this.renderStatic(); },
+            setText(k, v) { this.cfg[k] = v; this.renderStatic(); },
+            pickSpeaker(i) { this.speakerIdx = i; const sp = this.bundle.speakers[i]; if (sp) { this.cfg.name = sp.name; this.cfg.institution = sp.institution || sp.title || ''; this.cfg.portrait = sp.portrait; } this.renderRail(); this.renderStatic(); },
+            togglePhoto(enc, single) {
+                const url = decodeURIComponent(enc);
+                if (single) { this.cfg.portrait = url; this.photos = [url]; }
+                else { const i = this.photos.indexOf(url); if (i >= 0) this.photos.splice(i, 1); else this.photos.push(url); }
+                this.renderRail(); this.renderStatic();
+            },
+
+            // ---------- conversational compose ----------
+            async compose() {
+                const el = document.getElementById('vsComposeInput'); const desc = (el && el.value || '').trim();
+                if (!desc) { if (window.Toast) Toast.info('Describe the video first.'); return; }
+                try {
+                    const r = await fetch('/api/admin/content/video/compose', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + App.token }, body: JSON.stringify({ description: desc, event: this.bundle && this.bundle.event }) });
+                    const j = await r.json();
+                    if (j.bundle) { this.bundle = j.bundle; }
+                    this.template = j.template || this.template;
+                    this.format = j.format || this.format;
+                    this.duration = j.duration || this.duration;
+                    this.accent = j.accent || this.accent;
+                    this.speakerIdx = 0;
+                    this.buildConfig();
+                    if (j.overrides && j.overrides.headline) { if ('headline' in this.cfg) this.cfg.headline = j.overrides.headline; else if ('title' in this.cfg) this.cfg.title = j.overrides.headline; }
+                    this.resizeCanvas(); this.renderRail(); this.restartPreview();
+                    if (window.Toast) Toast.success(j.mock ? 'Built from your words (template mode).' : 'Built and copywritten.');
+                } catch (e) { if (window.Toast) Toast.error('Could not build that.'); }
+            },
+
+            // ---------- canvas + preview loop ----------
+            canvas() { return document.getElementById('vsCanvas'); },
+            ctx() { return this.canvas().getContext('2d'); },
+            resizeCanvas() { const [W, H] = this.DIMS[this.format]; const cv = this.canvas(); if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; } },
+            restartPreview() { this._t0 = performance.now(); if (!this._playing) this.renderStatic(); },
+            togglePlay() { if (this._playing) this.pause(); else this.play(); },
+            play() {
+                if (this._playing) return; this._playing = true; this._t0 = performance.now() - this._scrubT * 1000;
+                const btn = document.getElementById('vsPlayBtn'); if (btn) btn.innerHTML = '<i class="fas fa-pause"></i>';
+                const loop = async () => {
+                    if (!this._playing) return;
+                    const el = (performance.now() - this._t0) / 1000; const t = el % this.duration;
+                    this._scrubT = t;
+                    const [W, H] = this.DIMS[this.format];
+                    await this.renderFrame(this.ctx(), W, H, t);
+                    this.updateTransport(t);
+                    if (this._playing) this._raf = requestAnimationFrame(loop);
+                };
+                this._raf = requestAnimationFrame(loop);
+            },
+            pause() { this._playing = false; if (this._raf) cancelAnimationFrame(this._raf); const btn = document.getElementById('vsPlayBtn'); if (btn) btn.innerHTML = '<i class="fas fa-play"></i>'; },
+            async renderStatic() { const [W, H] = this.DIMS[this.format]; await this.renderFrame(this.ctx(), W, H, this._scrubT || 0); this.updateTransport(this._scrubT || 0); },
+            onScrub(v) { this.pause(); this._scrubT = (parseFloat(v) / 1000) * this.duration; this.renderStatic(); },
+            updateTransport(t) {
+                const s = document.getElementById('vsScrub'); if (s) s.value = Math.round((t / this.duration) * 1000);
+                const tm = document.getElementById('vsTime'); if (tm) tm.textContent = t.toFixed(1) + ' / ' + this.duration + 's';
+            },
+
+            // ---------- image + draw helpers ----------
+            loadImg(url) {
+                if (!url) return Promise.resolve(null);
+                if (this._imgs[url]) return Promise.resolve(this._imgs[url]);
+                return new Promise((resolve) => { const img = new Image(); img.crossOrigin = 'anonymous'; img.onload = () => { this._imgs[url] = img; resolve(img); }; img.onerror = () => resolve(null); img.src = url; });
+            },
+            drawCover(ctx, img, dx, dy, dw, dh, scale, ox, oy) {
+                if (!img) { ctx.fillStyle = this.PAL.navy2; ctx.fillRect(dx, dy, dw, dh); return; }
+                scale = scale || 1; ox = (ox == null ? 0.5 : ox); oy = (oy == null ? 0.45 : oy);
+                const ir = img.width / img.height, dr = dw / dh; let sw, sh;
+                if (ir > dr) { sh = img.height; sw = sh * dr; } else { sw = img.width; sh = sw / dr; }
+                sw /= scale; sh /= scale;
+                const sx = (img.width - sw) * ox, sy = (img.height - sh) * oy;
+                ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+            },
+            roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); },
+            wrapLines(ctx, text, maxW) {
+                const words = String(text || '').split(/\s+/).filter(Boolean); const lines = []; let line = '';
+                for (const w of words) { const test = line ? line + ' ' + w : w; if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = w; } else line = test; }
+                if (line) lines.push(line); return lines.length ? lines : [''];
+            },
+            bg(ctx, W, H) {
+                const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, this.PAL.navy); g.addColorStop(1, this.PAL.navy2);
+                ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+                const rg = ctx.createRadialGradient(W * 0.5, H * 0.26, 0, W * 0.5, H * 0.26, Math.max(W, H) * 0.62);
+                rg.addColorStop(0, 'rgba(212,168,75,0.10)'); rg.addColorStop(1, 'rgba(212,168,75,0)');
+                ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+            },
+            scrim(ctx, W, H, mode) {
+                let g;
+                if (mode === 'full') { g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, 'rgba(9,19,32,0.42)'); g.addColorStop(0.5, 'rgba(9,19,32,0.38)'); g.addColorStop(1, 'rgba(9,19,32,0.82)'); }
+                else { g = ctx.createLinearGradient(0, H * 0.4, 0, H); g.addColorStop(0, 'rgba(9,19,32,0)'); g.addColorStop(0.6, 'rgba(9,19,32,0.6)'); g.addColorStop(1, 'rgba(9,19,32,0.92)'); }
+                ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+            },
+            async logo(ctx, W, H, cx, cy, scale) {
+                const img = await this.loadImg(this.LOGO_URL); const h = W * 0.05 * (scale || 1);
+                if (img) { const w = h * (img.width / img.height); ctx.save(); ctx.globalAlpha = ctx.globalAlpha; ctx.filter = 'brightness(0) invert(1)'; ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h); ctx.filter = 'none'; ctx.restore(); }
+                else { ctx.save(); ctx.fillStyle = this.PAL.cream; ctx.font = `700 ${h}px ${this.DISPLAY}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('med&X', cx, cy); ctx.restore(); }
+            },
+            // rise + fade reveal of a single line
+            rline(ctx, text, x, y, px, font, color, ap, align, ls) {
+                const e = this.easeOutCubic(ap); if (e <= 0.001) return;
+                ctx.save(); ctx.globalAlpha = e; ctx.font = font; ctx.fillStyle = color; ctx.textAlign = align || 'left'; ctx.textBaseline = 'alphabetic';
+                if (ls) ctx.letterSpacing = ls + 'px';
+                ctx.fillText(text, x, y + (1 - e) * px * 0.5);
+                if (ls) ctx.letterSpacing = '0px'; ctx.restore();
+            },
+            countUp(target, ap) {
+                const m = String(target).match(/^(\D*)(\d[\d,]*)(.*)$/); if (!m) return String(target);
+                const n = parseInt(m[2].replace(/,/g, ''), 10); const cur = Math.round(this.easeOutCubic(this.clamp(ap, 0, 1)) * n);
+                return m[1] + cur.toLocaleString('en-US') + m[3];
+            },
+
+            // ---------- master dispatch ----------
+            async renderFrame(ctx, W, H, t) {
+                const D = this.duration; ctx.save();
+                if (this.template === 'teaser') await this.rTeaser(ctx, W, H, t, D);
+                else if (this.template === 'speaker') await this.rSpeaker(ctx, W, H, t, D);
+                else if (this.template === 'countdown') await this.rCountdown(ctx, W, H, t, D);
+                else if (this.template === 'registration') await this.rRegistration(ctx, W, H, t, D);
+                else if (this.template === 'recap') await this.rRecap(ctx, W, H, t, D);
+                ctx.restore();
+                // fade in / out at the very ends for a clean loop + export
+                if (t < 0.25) { ctx.fillStyle = 'rgba(9,19,32,' + (1 - t / 0.25) + ')'; ctx.fillRect(0, 0, W, H); }
+                if (t > D - 0.25) { ctx.fillStyle = 'rgba(9,19,32,' + ((t - (D - 0.25)) / 0.25) + ')'; ctx.fillRect(0, 0, W, H); }
+            },
+
+            // ---------- TEASER ----------
+            async rTeaser(ctx, W, H, t, D) {
+                const c = this.cfg, ink = this.accentInk(), mx = W * 0.08;
+                const photos = this.photos;
+                // beat windows
+                const b1 = 0.30, b2 = 0.60, b3 = 0.82;
+                if (t < b1 * D) {
+                    this.bg(ctx, W, H);
+                    this.rline(ctx, (c.eyebrow || '').toUpperCase(), mx, H * 0.34, W * 0.026, `700 ${W * 0.026}px ${this.SANS}`, ink, this.appear(t, 0.15, 0.5), 'left', W * 0.006);
+                    const lines = this.wrapLines(Object.assign(ctx, { font: `700 ${W * 0.078}px ${this.DISPLAY}` }) && ctx, c.headline, W - mx * 2);
+                    lines.forEach((ln, i) => this.rline(ctx, ln, mx, H * 0.44 + i * W * 0.088, W * 0.078, `700 ${W * 0.078}px ${this.DISPLAY}`, this.PAL.cream, this.appear(t, 0.4 + i * 0.18, 0.55), 'left'));
+                    const ul = this.appear(t, 0.9, 0.5); if (ul > 0) { ctx.fillStyle = ink; ctx.fillRect(mx, H * 0.46 + lines.length * W * 0.088, this.easeOutCubic(ul) * W * 0.16, Math.max(3, W * 0.006)); }
+                } else if (t < b2 * D) {
+                    const lt = (t - b1 * D) / ((b2 - b1) * D);
+                    const img = await this.loadImg(photos[0]); this.drawCover(ctx, img, 0, 0, W, H, 1.06 + 0.1 * lt, 0.5, 0.45); this.scrim(ctx, W, H, 'band');
+                    this.rline(ctx, (c.eyebrow || '').toUpperCase(), mx, H * 0.66, W * 0.024, `700 ${W * 0.024}px ${this.SANS}`, ink, this.appear(lt, 0.05, 0.3), 'left', W * 0.006);
+                    this.rline(ctx, c.line1 || '', mx, H * 0.74, W * 0.05, `600 ${W * 0.05}px ${this.DISPLAY}`, this.PAL.cream, this.appear(lt, 0.14, 0.4), 'left');
+                    this.rline(ctx, c.line2 || '', mx, H * 0.82, W * 0.036, `500 ${W * 0.036}px ${this.SANS}`, '#e7ddcb', this.appear(lt, 0.28, 0.4), 'left');
+                } else if (t < b3 * D) {
+                    const lt = (t - b2 * D) / ((b3 - b2) * D);
+                    const img = await this.loadImg(photos[1] || photos[0]); this.drawCover(ctx, img, 0, 0, W, H, 1.06 + 0.1 * lt, 0.5, 0.45); this.scrim(ctx, W, H, 'band');
+                    this.rline(ctx, c.line3 ? c.line3.toUpperCase() : 'SAVE THE DATE', mx, H * 0.72, W * 0.03, `700 ${W * 0.03}px ${this.SANS}`, ink, this.appear(lt, 0.1, 0.4), 'left', W * 0.005);
+                    this.rline(ctx, c.headline || '', mx, H * 0.8, W * 0.05, `700 ${W * 0.05}px ${this.DISPLAY}`, this.PAL.cream, this.appear(lt, 0.22, 0.45), 'left');
+                } else {
+                    this.bg(ctx, W, H);
+                    const e = this.appear(t, b3 * D + 0.2, 0.6);
+                    // gold frame draws
+                    ctx.save(); ctx.globalAlpha = this.easeOutCubic(e); ctx.strokeStyle = ink; ctx.lineWidth = Math.max(2, W * 0.004);
+                    const pd = W * 0.07; this.roundRect(ctx, pd, pd, W - pd * 2, H - pd * 2, W * 0.02); ctx.stroke(); ctx.restore();
+                    ctx.globalAlpha = this.easeOutCubic(e);
+                    await this.logo(ctx, W, H, W * 0.5, H * 0.42, 1.5);
+                    ctx.globalAlpha = 1;
+                    this.rline(ctx, c.cta || 'Register at medx.hr', W * 0.5, H * 0.58, W * 0.04, `600 ${W * 0.04}px ${this.DISPLAY}`, this.PAL.cream, this.appear(t, b3 * D + 0.5, 0.5), 'center');
+                    this.rline(ctx, (c.eyebrow || '').toUpperCase(), W * 0.5, H * 0.66, W * 0.022, `700 ${W * 0.022}px ${this.SANS}`, ink, this.appear(t, b3 * D + 0.7, 0.5), 'center', W * 0.006);
+                }
+            },
+
+            // ---------- SPEAKER ----------
+            async rSpeaker(ctx, W, H, t, D) {
+                const c = this.cfg, ink = this.accentInk(); this.bg(ctx, W, H);
+                const land = this.format === 'landscape';
+                const box = land ? { x: W * 0.09, y: H * 0.18, w: W * 0.34, h: H * 0.64 } : { x: W * 0.28, y: H * 0.1, w: W * 0.44, h: H * 0.44 };
+                const rev = this.easeOutCubic(this.appear(t, 0.2, 0.6));
+                // portrait
+                ctx.save(); const sc = 0.92 + 0.08 * rev; ctx.globalAlpha = rev;
+                const cx = box.x + box.w / 2, cy = box.y + box.h / 2, bw = box.w * sc, bh = box.h * sc;
+                this.roundRect(ctx, cx - bw / 2, cy - bh / 2, bw, bh, W * 0.02); ctx.save(); ctx.clip();
+                const img = await this.loadImg(c.portrait);
+                if (img) this.drawCover(ctx, img, cx - bw / 2, cy - bh / 2, bw, bh, 1.02, 0.5, 0.35);
+                else { const g = ctx.createLinearGradient(cx - bw / 2, cy - bh / 2, cx + bw / 2, cy + bh / 2); g.addColorStop(0, '#16263d'); g.addColorStop(1, '#0c1725'); ctx.fillStyle = g; ctx.fillRect(cx - bw / 2, cy - bh / 2, bw, bh); ctx.fillStyle = ink; ctx.font = `700 ${box.w * 0.42}px ${this.DISPLAY}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText((c.name || 'M').trim().charAt(0).toUpperCase(), cx, cy); }
+                ctx.restore(); ctx.strokeStyle = ink; ctx.lineWidth = Math.max(2, W * 0.003); this.roundRect(ctx, cx - bw / 2, cy - bh / 2, bw, bh, W * 0.02); ctx.stroke(); ctx.restore();
+                // text block
+                const tx = land ? W * 0.48 : W * 0.5, align = land ? 'left' : 'center';
+                const ty = land ? H * 0.34 : H * 0.62;
+                this.rline(ctx, (c.eyebrow || '').toUpperCase(), tx, ty, W * 0.024, `700 ${W * 0.024}px ${this.SANS}`, ink, this.appear(t, 0.1, 0.5), align, W * 0.005);
+                const nameLines = this.wrapLines(Object.assign(ctx, { font: `700 ${W * 0.06}px ${this.DISPLAY}` }) && ctx, c.name, land ? W * 0.44 : W * 0.84);
+                nameLines.forEach((ln, i) => this.rline(ctx, ln, tx, ty + W * 0.075 + i * W * 0.066, W * 0.06, `700 ${W * 0.06}px ${this.DISPLAY}`, this.PAL.cream, this.appear(t, 0.45 + i * 0.15, 0.5), align));
+                const divY = ty + W * 0.075 + nameLines.length * W * 0.066 + W * 0.01;
+                const dv = this.appear(t, 0.7, 0.5); if (dv > 0) { ctx.fillStyle = ink; const dw = this.easeOutCubic(dv) * W * 0.12; ctx.fillRect(align === 'center' ? tx - dw / 2 : tx, divY, dw, Math.max(2, W * 0.005)); }
+                this.rline(ctx, c.institution || '', tx, divY + W * 0.05, W * 0.03, `italic 500 ${W * 0.03}px ${this.SERIF}`, '#e7ddcb', this.appear(t, 0.85, 0.5), align);
+                // footer
+                await this.logo(ctx, W, H, W * 0.5, H * 0.93, 0.9);
+                this.rline(ctx, c.date || '', W * 0.5, H * 0.885, W * 0.02, `600 ${W * 0.02}px ${this.SANS}`, ink, this.appear(t, 1.0, 0.6), 'center', W * 0.004);
+            },
+
+            // ---------- COUNTDOWN ----------
+            async rCountdown(ctx, W, H, t, D) {
+                const c = this.cfg, ink = this.accentInk(); this.bg(ctx, W, H);
+                const cx = W * 0.5, cy = H * 0.44, R = Math.min(W, H) * 0.3;
+                this.rline(ctx, (c.eyebrow || '').toUpperCase(), cx, H * 0.16, W * 0.026, `700 ${W * 0.026}px ${this.SANS}`, ink, this.appear(t, 0.12, 0.5), 'center', W * 0.006);
+                // gold ring sweep
+                const ring = this.easeInOutCubic(this.appear(t, 0.25, 0.55));
+                ctx.save(); ctx.strokeStyle = 'rgba(212,168,75,0.18)'; ctx.lineWidth = Math.max(3, W * 0.008); ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+                ctx.strokeStyle = ink; ctx.lineWidth = Math.max(3, W * 0.01); ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(cx, cy, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ring); ctx.stroke(); ctx.restore();
+                // number pop + count up
+                const pop = this.easeOutBack(this.appear(t, 0.28, 0.5));
+                ctx.save(); ctx.globalAlpha = this.clamp(this.appear(t, 0.28, 0.3), 0, 1); ctx.translate(cx, cy); ctx.scale(0.6 + 0.4 * this.clamp(pop, 0, 1.2), 0.6 + 0.4 * this.clamp(pop, 0, 1.2));
+                ctx.fillStyle = this.PAL.cream; ctx.font = `700 ${R * 0.95}px ${this.DISPLAY}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(this.countUp(c.days || '0', this.appear(t, 0.28, 0.45)), 0, -R * 0.02); ctx.restore();
+                this.rline(ctx, (c.unit || 'days to go').toUpperCase(), cx, cy + R * 0.62, W * 0.028, `700 ${W * 0.028}px ${this.SANS}`, ink, this.appear(t, 0.5, 0.5), 'center', W * 0.006);
+                // sub facts
+                this.rline(ctx, c.sub || '', cx, H * 0.82, W * 0.038, `600 ${W * 0.038}px ${this.DISPLAY}`, this.PAL.cream, this.appear(t, 0.72, 0.5), 'center');
+                this.rline(ctx, c.venue || '', cx, H * 0.88, W * 0.026, `500 ${W * 0.026}px ${this.SANS}`, '#e7ddcb', this.appear(t, 0.82, 0.5), 'center');
+                await this.logo(ctx, W, H, W * 0.5, H * 0.95, 0.8);
+            },
+
+            // ---------- REGISTRATION ----------
+            async rRegistration(ctx, W, H, t, D) {
+                const c = this.cfg, ink = this.accentInk(); this.bg(ctx, W, H);
+                const cx = W * 0.5;
+                // pill
+                const pop = this.easeOutBack(this.appear(t, 0.1, 0.5));
+                ctx.save(); ctx.globalAlpha = this.clamp(this.appear(t, 0.1, 0.3), 0, 1); ctx.translate(cx, H * 0.26); ctx.scale(this.clamp(pop, 0, 1.15), this.clamp(pop, 0, 1.15));
+                ctx.font = `700 ${W * 0.032}px ${this.SANS}`; const pw = ctx.measureText((c.badge || 'Registration open').toUpperCase()).width + W * 0.08, ph = W * 0.075;
+                ctx.fillStyle = ink; this.roundRect(ctx, -pw / 2, -ph / 2, pw, ph, ph / 2); ctx.fill();
+                ctx.fillStyle = this.accent === 'crimson' ? '#fff' : '#15110f'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.letterSpacing = W * 0.004 + 'px'; ctx.fillText((c.badge || 'Registration open').toUpperCase(), 0, W * 0.002); ctx.letterSpacing = '0px'; ctx.restore();
+                // headline
+                const hLines = this.wrapLines(Object.assign(ctx, { font: `700 ${W * 0.072}px ${this.DISPLAY}` }) && ctx, c.headline, W * 0.84);
+                hLines.forEach((ln, i) => this.rline(ctx, ln, cx, H * 0.46 + i * W * 0.08, W * 0.072, `700 ${W * 0.072}px ${this.DISPLAY}`, this.PAL.cream, this.appear(t, 0.28 + i * 0.15, 0.5), 'center'));
+                // facts with ticks
+                const fy = H * 0.46 + hLines.length * W * 0.08 + W * 0.05;
+                const tick = (txt, y, ap) => { const e = this.easeOutCubic(ap); if (e <= 0.001 || !txt) return; ctx.save(); ctx.globalAlpha = e; ctx.fillStyle = ink; ctx.font = `${W * 0.032}px ${this.SANS}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('◆', cx - ctx.measureText(txt).width / 2 - W * 0.03, y + (1 - e) * W * 0.02); ctx.fillStyle = this.PAL.cream; ctx.fillText(txt, cx, y + (1 - e) * W * 0.02); ctx.restore(); };
+                tick(c.line1, fy, this.appear(t, 0.55, 0.4));
+                tick(c.line2, fy + W * 0.055, this.appear(t, 0.66, 0.4));
+                // cta + logo
+                this.rline(ctx, c.cta || 'Register at medx.hr', cx, H * 0.86, W * 0.036, `600 ${W * 0.036}px ${this.DISPLAY}`, ink, this.appear(t, 0.82, 0.5), 'center');
+                await this.logo(ctx, W, H, W * 0.5, H * 0.94, 0.8);
+            },
+
+            // ---------- RECAP ----------
+            async rRecap(ctx, W, H, t, D) {
+                const c = this.cfg, ink = this.accentInk();
+                const stats = [[c.s1v, c.s1l], [c.s2v, c.s2l], [c.s3v, c.s3l], [c.s4v, c.s4l]].filter(s => (s[0] || '').toString().trim());
+                const n = stats.length || 1;
+                const intro = 0.14, outro = 0.86;
+                if (t < intro * D) {
+                    this.bg(ctx, W, H);
+                    const tl = this.wrapLines(Object.assign(ctx, { font: `700 ${W * 0.06}px ${this.DISPLAY}` }) && ctx, c.title, W * 0.82);
+                    tl.forEach((ln, i) => this.rline(ctx, ln, W * 0.5, H * 0.44 + i * W * 0.07, W * 0.06, `700 ${W * 0.06}px ${this.DISPLAY}`, this.PAL.cream, this.appear(t, 0.12 + i * 0.12, 0.5), 'center'));
+                } else if (t < outro * D) {
+                    const span = (outro - intro) * D, per = span / n; const idx = Math.min(n - 1, Math.floor((t - intro * D) / per));
+                    const lt = ((t - intro * D) - idx * per) / per; const st = stats[idx];
+                    const img = await this.loadImg(this.photos[idx % Math.max(1, this.photos.length)]);
+                    this.drawCover(ctx, img, 0, 0, W, H, 1.06 + 0.1 * lt, 0.5, 0.45); this.scrim(ctx, W, H, 'full');
+                    const ap = this.clamp(lt / 0.5, 0, 1) * this.clamp((1 - lt) / 0.2 + 1, 0, 1);
+                    ctx.save(); ctx.globalAlpha = this.clamp(lt < 0.85 ? this.easeOutCubic(lt / 0.35) : (1 - lt) / 0.15, 0, 1);
+                    ctx.fillStyle = this.PAL.cream; ctx.font = `700 ${Math.min(W, H) * 0.24}px ${this.DISPLAY}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText(this.countUp(st[0], lt / 0.5), W * 0.5, H * 0.44);
+                    ctx.fillStyle = ink; ctx.font = `700 ${W * 0.034}px ${this.SANS}`; ctx.letterSpacing = W * 0.006 + 'px';
+                    ctx.fillText((st[1] || '').toUpperCase(), W * 0.5, H * 0.6); ctx.letterSpacing = '0px'; ctx.restore();
+                } else {
+                    this.bg(ctx, W, H);
+                    const e = this.appear(t, outro * D + 0.1, 0.5); ctx.globalAlpha = this.easeOutCubic(e);
+                    await this.logo(ctx, W, H, W * 0.5, H * 0.42, 1.5); ctx.globalAlpha = 1;
+                    this.rline(ctx, c.closing || 'Thank you', W * 0.5, H * 0.6, W * 0.044, `600 ${W * 0.044}px ${this.DISPLAY}`, this.PAL.cream, this.appear(t, outro * D + 0.4, 0.5), 'center');
+                }
+            },
+
+            // ================= WebCodecs EXPORT (VP9/VP8 -> in-browser WebM) =================
+            supported() { return typeof VideoEncoder !== 'undefined' && typeof VideoFrame !== 'undefined'; },
+            async pickCodec(W, H) {
+                const cands = [['vp09.00.10.08', 'V_VP9'], ['vp8', 'V_VP8']];
+                for (const [codec, id] of cands) {
+                    try { const s = await VideoEncoder.isConfigSupported({ codec, width: W, height: H, bitrate: 4000000, framerate: 30 }); if (s && s.supported) return { codec, id }; } catch (e) {}
+                }
+                return null;
+            },
+            async exportVideo() {
+                if (this._exporting) return;
+                const note = document.getElementById('vsExportNote');
+                if (!this.supported()) {
+                    note.innerHTML = '<i class="fas fa-circle-info"></i> Video export needs Chrome or Edge (WebCodecs). Your browser cannot encode here — open the studio in Chrome or Edge to download.';
+                    if (window.Toast) Toast.error('This browser cannot export video. Use Chrome or Edge.');
+                    return;
+                }
+                this.pause();
+                const [W, H] = this.DIMS[this.format];
+                const codec = await this.pickCodec(W, H);
+                if (!codec) { note.innerHTML = '<i class="fas fa-circle-info"></i> No supported video codec (VP9/VP8) in this browser. Use Chrome or Edge.'; if (window.Toast) Toast.error('No supported codec. Use Chrome or Edge.'); return; }
+                this._exporting = true;
+                const btn = document.getElementById('vsExportBtn'); if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rendering…'; }
+                const prog = document.getElementById('vsProg'); const bar = prog ? prog.firstElementChild : null; if (prog) prog.style.display = 'block';
+                const cv = this.canvas(); cv.width = W; cv.height = H; const ctx = cv.getContext('2d');
+                const fps = 30, total = Math.round(this.duration * fps);
+                // preload every image used so no frame stalls
+                await Promise.all((this.photos || []).concat([this.cfg.portrait, this.LOGO_URL]).filter(Boolean).map(u => this.loadImg(u)));
+                await this.ensureFonts();
+                const frames = []; let encErr = null;
+                const encoder = new VideoEncoder({
+                    output: (chunk) => { const buf = new Uint8Array(chunk.byteLength); chunk.copyTo(buf); frames.push({ ts: Math.max(0, Math.round(chunk.timestamp / 1000)), key: chunk.type === 'key', data: buf }); },
+                    error: (e) => { encErr = e; }
+                });
+                encoder.configure({ codec: codec.codec, width: W, height: H, bitrate: 4000000, framerate: fps, latencyMode: 'quality' });
+                try {
+                    for (let i = 0; i < total; i++) {
+                        const t = i / fps;
+                        await this.renderFrame(ctx, W, H, t);
+                        const vf = new VideoFrame(cv, { timestamp: Math.round(i * 1e6 / fps), duration: Math.round(1e6 / fps) });
+                        encoder.encode(vf, { keyFrame: i % fps === 0 });
+                        vf.close();
+                        if (bar) bar.style.width = Math.round((i / total) * 92) + '%';
+                        if (encoder.encodeQueueSize > 12) { while (encoder.encodeQueueSize > 4) { await new Promise(r => setTimeout(r, 4)); if (encErr) throw encErr; } }
+                        if (encErr) throw encErr;
+                    }
+                    await encoder.flush(); encoder.close();
+                    if (encErr) throw encErr;
+                    frames.sort((a, b) => a.ts - b.ts);
+                    const durMs = Math.round(this.duration * 1000);
+                    const webm = this.muxWebM(frames, W, H, codec.id, durMs);
+                    if (bar) bar.style.width = '100%';
+                    const blob = new Blob([webm], { type: 'video/webm' });
+                    this._lastBlob = blob; this._lastUrl = null; this._lastId = null;
+                    this.download(blob, this.slug() + '.webm');
+                    note.innerHTML = 'Downloaded ' + this.template + ' — ' + Math.round(blob.size / 1024) + ' KB, ' + this.duration + 's, ' + this.FORMATS.find(f => f.v === this.format).l + '.';
+                    if (window.Toast) Toast.success('Video rendered (' + Math.round(blob.size / 1024) + ' KB).');
+                } catch (e) {
+                    console.error('[video] export', e);
+                    note.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Render failed: ' + (e && e.message || e);
+                    if (window.Toast) Toast.error('Render failed.');
+                } finally {
+                    try { if (encoder.state !== 'closed') encoder.close(); } catch (e) {}
+                    this._exporting = false;
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-film"></i> Render &amp; download'; }
+                    if (prog) setTimeout(() => { prog.style.display = 'none'; if (bar) bar.style.width = '0%'; }, 400);
+                    this.play();
+                }
+            },
+            slug() { return 'medx-' + (this.bundle && this.bundle.event || 'video') + '-' + this.template + '-' + Date.now(); },
+            download(blob, filename) { const a = document.createElement('a'); const url = URL.createObjectURL(blob); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500); },
+
+            // ---- minimal in-browser WebM (Matroska) muxer for VP9/VP8 chunks ----
+            muxWebM(frames, W, H, codecId, durMs) {
+                const enc = (s) => new TextEncoder().encode(s);
+                const cat = (arrs) => { let n = 0; for (const a of arrs) n += a.length; const o = new Uint8Array(n); let p = 0; for (const a of arrs) { o.set(a, p); p += a.length; } return o; };
+                const vint = (v) => { let len = 1; while (v >= Math.pow(2, 7 * len) - 1 && len < 8) len++; const b = new Uint8Array(len); let x = v; for (let i = len - 1; i >= 0; i--) { b[i] = x % 256; x = Math.floor(x / 256); } b[0] |= (1 << (8 - len)); return b; };
+                const uint = (n) => { if (n === 0) return new Uint8Array([0]); const b = []; let v = n; while (v > 0) { b.unshift(v % 256); v = Math.floor(v / 256); } return new Uint8Array(b); };
+                const dbl = (x) => { const b = new Uint8Array(8); new DataView(b.buffer).setFloat64(0, x, false); return b; };
+                const el = (id, data) => cat([new Uint8Array(id), vint(data.length), data]);
+                const I = { EBML: [0x1A, 0x45, 0xDF, 0xA3], EBMLVersion: [0x42, 0x86], EBMLReadVersion: [0x42, 0xF7], EBMLMaxIDLength: [0x42, 0xF2], EBMLMaxSizeLength: [0x42, 0xF3], DocType: [0x42, 0x82], DocTypeVersion: [0x42, 0x87], DocTypeReadVersion: [0x42, 0x85], Segment: [0x18, 0x53, 0x80, 0x67], Info: [0x15, 0x49, 0xA9, 0x66], TimestampScale: [0x2A, 0xD7, 0xB1], Duration: [0x44, 0x89], MuxingApp: [0x4D, 0x80], WritingApp: [0x57, 0x41], Tracks: [0x16, 0x54, 0xAE, 0x6B], TrackEntry: [0xAE], TrackNumber: [0xD7], TrackUID: [0x73, 0xC5], TrackType: [0x83], FlagLacing: [0x9C], CodecID: [0x86], Video: [0xE0], PixelWidth: [0xB0], PixelHeight: [0xBA], Cluster: [0x1F, 0x43, 0xB6, 0x75], Timestamp: [0xE7], SimpleBlock: [0xA3] };
+                const header = el(I.EBML, cat([
+                    el(I.EBMLVersion, uint(1)), el(I.EBMLReadVersion, uint(1)), el(I.EBMLMaxIDLength, uint(4)), el(I.EBMLMaxSizeLength, uint(8)),
+                    el(I.DocType, enc('webm')), el(I.DocTypeVersion, uint(2)), el(I.DocTypeReadVersion, uint(2))
+                ]));
+                const info = el(I.Info, cat([el(I.TimestampScale, uint(1000000)), el(I.Duration, dbl(durMs)), el(I.MuxingApp, enc('MedXVideoStudio')), el(I.WritingApp, enc('MedXVideoStudio'))]));
+                const track = el(I.Tracks, el(I.TrackEntry, cat([
+                    el(I.TrackNumber, uint(1)), el(I.TrackUID, uint(1)), el(I.FlagLacing, uint(0)), el(I.TrackType, uint(1)),
+                    el(I.CodecID, enc(codecId)), el(I.Video, cat([el(I.PixelWidth, uint(W)), el(I.PixelHeight, uint(H))]))
+                ])));
+                // clusters: start a new one at every keyframe
+                const clusters = []; let cur = null, curTs = 0;
+                const int16 = (v) => { const b = new Uint8Array(2); new DataView(b.buffer).setInt16(0, v, false); return b; };
+                const flush = () => { if (cur) clusters.push(el(I.Cluster, cat([el(I.Timestamp, uint(curTs))].concat(cur)))); };
+                for (const f of frames) {
+                    if (!cur || f.key) { flush(); cur = []; curTs = f.ts; }
+                    const rel = f.ts - curTs;
+                    const block = cat([vint(1), int16(rel), new Uint8Array([f.key ? 0x80 : 0x00]), f.data]);
+                    cur.push(el(I.SimpleBlock, block));
+                }
+                flush();
+                const segment = el(I.Segment, cat([info, track].concat(clusters)));
+                return cat([header, segment]);
+            },
+
+            // ---------- schedule (reuse content asset + schedule) ----------
+            async ensureAsset() {
+                if (!this._lastBlob) { await this.exportVideo(); }
+                if (!this._lastBlob) throw new Error('Render the video first.');
+                if (this._lastUrl && this._lastId) return { id: this._lastId, url: this._lastUrl };
+                const b = this.bundle || {};
+                const qs = new URLSearchParams({ ext: 'webm', mime: 'video/webm', kind: 'video', template: this.template, aspect: this.format, project: b.event || 'medx', title: (this.cfg.headline || this.cfg.name || this.cfg.title || '').slice(0, 120), caption: '' }).toString();
+                const res = await fetch('/api/admin/content/asset?' + qs, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'Authorization': 'Bearer ' + App.token }, body: this._lastBlob });
+                if (!res.ok) throw new Error('Upload failed (' + res.status + ')');
+                const j = await res.json(); this._lastUrl = j.url; this._lastId = j.id; return j;
+            },
+            openSchedule() {
+                const b = this.bundle || {}; const projects = ['plexus', 'gala', 'accelerator', 'forum', 'bridges', 'medx'];
+                const platforms = ['instagram', 'facebook', 'linkedin', 'twitter'];
+                const d = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+                const cap = (this.cfg.headline || this.cfg.name || this.cfg.title || b.eventName || '') + '. ' + (this.cfg.line1 || this.cfg.sub || this.cfg.date || '');
+                document.getElementById('vsSchedCard').innerHTML = `
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                        <div style="font-family:'Fraunces',Georgia,serif;font-size:20px;font-weight:700;">Save to PR schedule</div>
+                        <button class="vs-x" onclick="document.getElementById('vsSchedModal').classList.remove('active')">&times;</button>
+                    </div>
+                    <p style="color:var(--text-muted);font-size:13px;line-height:1.5;margin:0 0 16px;">This renders the video if needed, attaches it to the PR content calendar, and hands it to Publer through the mock-safe boundary. Nothing posts for real until a Publer key is added.</p>
+                    <div class="vs-sec"><label>Project</label><select id="vsSchedProject">${projects.map(p => `<option value="${p}" ${p === (b.event || 'plexus') ? 'selected' : ''}>${p.charAt(0).toUpperCase() + p.slice(1)}</option>`).join('')}</select></div>
+                    <div class="vs-sec"><label>Platform</label><select id="vsSchedPlatform">${platforms.map(p => `<option value="${p}">${p.charAt(0).toUpperCase() + p.slice(1)}</option>`).join('')}</select></div>
+                    <div class="vs-row2"><div class="vs-sec"><label>Date</label><input type="text" id="vsSchedDate" value="${d}" placeholder="YYYY-MM-DD"></div><div class="vs-sec" style="max-width:120px;"><label>Time</label><input type="text" id="vsSchedTime" value="10:00" placeholder="HH:MM"></div></div>
+                    <div class="vs-sec"><label>Caption</label><textarea id="vsSchedCaption" rows="4">${this.esc(cap)}</textarea></div>
+                    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px;">
+                        <button class="vs-btn sec" onclick="document.getElementById('vsSchedModal').classList.remove('active')">Cancel</button>
+                        <button class="vs-btn gold" id="vsSchedGo" onclick="VideoStudio.doSchedule()"><i class="fas fa-calendar-plus"></i> Stage it</button>
+                    </div>`;
+                document.getElementById('vsSchedModal').classList.add('active');
+            },
+            async doSchedule() {
+                const go = document.getElementById('vsSchedGo'); if (go) { go.disabled = true; go.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Working…'; }
+                try {
+                    const asset = await this.ensureAsset();
+                    const body = { asset_id: asset.id, asset_url: asset.url, project: document.getElementById('vsSchedProject').value, platform: document.getElementById('vsSchedPlatform').value, title: (this.cfg.headline || this.cfg.name || this.cfg.title || '').slice(0, 120), caption: document.getElementById('vsSchedCaption').value, scheduled_date: document.getElementById('vsSchedDate').value, scheduled_time: document.getElementById('vsSchedTime').value, kind: 'video' };
+                    const r = await fetch('/api/admin/content/schedule', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + App.token }, body: JSON.stringify(body) }).then(x => x.json());
+                    document.getElementById('vsSchedModal').classList.remove('active');
+                    if (window.Toast) Toast.success(r.mock ? 'Staged in the calendar (Publer mock — nothing sent).' : ('Scheduled — ' + r.status + '.'));
+                    try { PRApp.loadDashboard(); } catch (e) {}
+                } catch (e) { if (window.Toast) Toast.error(e.message || 'Could not schedule.'); }
+                finally { if (go) { go.disabled = false; go.innerHTML = '<i class="fas fa-calendar-plus"></i> Stage it'; } }
+            }
+        };
+        window.VideoStudio = VideoStudio;
+
 
         // ==================== EMAIL (OUTLOOK) — staff @medx.hr inbox in Messages ====================
         // Reads the staff Microsoft 365 inbox and drafts AI replies. Until Graph keys + owner consent

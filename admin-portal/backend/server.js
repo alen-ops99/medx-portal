@@ -28307,6 +28307,137 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         } catch (e) { console.error('[content] schedule', e.message); res.status(500).json({ error: e.message }); }
     });
 
+
+    // ============================ VIDEO STUDIO (motion graphics) ============================
+    // The Video Studio extends Content Studio with deterministic, code-driven MOTION GRAPHICS:
+    // event teasers, speaker reveals, countdown + registration stingers, and by-the-numbers recaps.
+    // Rendering + WebCodecs encoding happen entirely client-side (the server has no GPU). The backend
+    // only: (1) PREFILLS a template config from REAL portal data (speakers with portraits, dates,
+    // venues, prices, deadlines, the shared photo library), and (2) drives an OPTIONAL conversational
+    // compose that fills the config — aiDraft-authored when a key is set, a first-class deterministic
+    // parse when not. Finished files ride the SAME /api/admin/content/asset + /schedule path as graphics.
+
+    // Format a date (and optional end date) into an editorial line, e.g. "December 4–5, 2026".
+    function vsFormatDateRange(startISO, endISO) {
+        if (!startISO) return '';
+        const M = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const s = new Date(startISO + 'T00:00:00Z');
+        const sM = s.getUTCMonth(), sD = s.getUTCDate(), sY = s.getUTCFullYear();
+        if (endISO) {
+            const e = new Date(endISO + 'T00:00:00Z');
+            const eM = e.getUTCMonth(), eD = e.getUTCDate(), eY = e.getUTCFullYear();
+            if (sY === eY && sM === eM && sD !== eD) return `${M[sM]} ${sD}–${eD}, ${sY}`;
+            if (sY === eY && sM !== eM) return `${M[sM]} ${sD} – ${M[eM]} ${eD}, ${sY}`;
+        }
+        return `${M[sM]} ${sD}, ${sY}`;
+    }
+    function vsResolveUrl(base, u) {
+        if (!u) return '';
+        if (/^https?:\/\//i.test(u)) return u;
+        return u.startsWith('/') ? base + u : base + '/' + u;
+    }
+
+    // Assemble a REAL-data bundle for one event: facts, confirmed speakers (with portraits), photos, logo.
+    function videoStudioBundle(req, eventKey) {
+        const base = seatPublicBase(req);
+        const key = String(eventKey || 'plexus').toLowerCase();
+        const name = plannerProjectName(key);
+        const facts = { dateLine: '', venue: '', city: 'Zagreb', priceLine: '', deadlineLine: '', statusLabel: '', statusDetail: '', days: null };
+        try { const st = query.get('SELECT status_label, status_kind, detail_line FROM project_status WHERE project_key = ?', [key]); if (st) { facts.statusLabel = st.status_label || ''; facts.statusDetail = st.detail_line || ''; } } catch (e) {}
+        let eventISO = null, endISO = null;
+        if (key === 'gala') {
+            try { const g = query.get("SELECT title, date, time, venue, price_gala_only, price_bundle FROM gala_settings WHERE id = 'default'"); if (g) { eventISO = plannerParseISO(g.date); facts.venue = g.venue || ''; if (g.price_gala_only) facts.priceLine = 'EUR ' + Math.round(g.price_gala_only); } } catch (e) {}
+        } else {
+            try { const ps = query.get('SELECT event_date, end_date, venue, location FROM project_settings WHERE project = ?', [key]); if (ps) { eventISO = plannerParseISO(ps.event_date); endISO = plannerParseISO(ps.end_date); facts.venue = ps.venue || ps.location || ''; } } catch (e) {}
+        }
+        facts.dateLine = vsFormatDateRange(eventISO, endISO) || '';
+        if (!/[–-]/.test(facts.dateLine) && facts.statusDetail) { const rm = facts.statusDetail.match(/([A-Z][a-z]+\s+\d{1,2})\s*[-–]\s*(\d{1,2}),?\s*(\d{4})/); if (rm) facts.dateLine = `${rm[1]}\u2013${rm[2]}, ${rm[3]}`; }
+        if (!facts.venue && facts.statusDetail) { const m = facts.statusDetail.match(/(Hotel Esplanade|Novinarski dom|Westin[^\-–,]*|Harvard[^\-–,]*|Esplanade[^\-–,]*)/i); if (m) facts.venue = m[1].trim(); }
+        if (!facts.priceLine && facts.statusDetail) { const pm = facts.statusDetail.match(/(free entry|complimentary|EUR\s?\d+[^\-–]*)/i); if (pm) facts.priceLine = pm[1].trim().replace(/\s+$/, ''); }
+        const dm = facts.statusDetail && facts.statusDetail.match(/through\s+([0-9]{1,2}\s+\w+|\w+\s+[0-9]{1,2})/i); if (dm) facts.deadlineLine = 'Through ' + dm[1];
+        if (eventISO) { const today = new Date(plannerTodayISO() + 'T00:00:00Z'); const ev = new Date(eventISO + 'T00:00:00Z'); const d = Math.round((ev - today) / 86400000); if (d >= 0 && d <= 999) facts.days = d; }
+        let speakers = [];
+        try {
+            const sp = query.all("SELECT name, title, institution, photo_url, is_keynote FROM speakers WHERE is_confirmed = 1 AND is_published = 1 ORDER BY is_keynote DESC, sort_order LIMIT 24");
+            speakers = sp.map(s => ({ name: s.name || '', title: s.title || '', institution: s.institution || '', portrait: vsResolveUrl(base, s.photo_url), keynote: !!s.is_keynote })).filter(s => s.name);
+        } catch (e) {}
+        const photos = contentPickPhotos(req, key, 10).map(p => ({ url: p.url, file: p.file, label: p.label }));
+        return { event: key, eventName: name, facts, speakers, photos, logo: base + '/assets/email-logo.png', accent: key === 'gala' ? 'gold' : 'navy' };
+    }
+
+    // Lightweight list of buildable events for the picker (one bundle each — cheap, all local reads).
+    function videoStudioEvents(req) {
+        return ['plexus', 'gala', 'accelerator', 'forum', 'bridges'].map(k => {
+            const b = videoStudioBundle(req, k);
+            return { key: k, name: b.eventName, dateLine: b.facts.dateLine, venue: b.facts.venue, speakers: b.speakers.length, photos: b.photos.length, days: b.facts.days };
+        });
+    }
+
+    // Deterministic parse of a free-text request -> which template, format, duration, accent, event.
+    function videoStudioParse(desc) {
+        const all = String(desc || '').toLowerCase();
+        let template = 'teaser';
+        if (/\b(speaker|keynote|reveal|professor|prof\.?|dr\.?|presenting|portrait|meet our)\b/.test(all)) template = 'speaker';
+        else if (/\b(countdown|days? (to go|left|until|away)|one week|almost here)\b/.test(all)) template = 'countdown';
+        else if (/\b(registration|register|sign ?up|tickets? (are )?(open|live|on sale)|open now|enrol|early.?bird)\b/.test(all)) template = 'registration';
+        else if (/\b(recap|by the numbers|highlights|aftermovie|last year|wrap.?up|the numbers|looking back)\b/.test(all)) template = 'recap';
+        else if (/\b(teaser|trailer|promo|announce|save the date|coming|is here)\b/.test(all)) template = 'teaser';
+        let format = 'landscape';
+        if (/\b(story|stories|vertical|reel|9:16|tall|portrait|tiktok)\b/.test(all)) format = 'portrait';
+        else if (/\b(square|1:1|feed post|instagram post)\b/.test(all)) format = 'square';
+        else if (/\b(wide|landscape|16:9|youtube|banner|horizontal)\b/.test(all)) format = 'landscape';
+        let duration = 20;
+        const dm = all.match(/(\d{1,3})\s*(?:s\b|sec|second)/);
+        if (dm) { const n = parseInt(dm[1], 10); duration = n <= 12 ? 10 : n <= 25 ? 20 : 30; }
+        else if (/\b(short|quick|snappy|stinger|sting)\b/.test(all)) duration = 10;
+        else if (/\b(long|full|detailed|extended)\b/.test(all)) duration = 30;
+        let accent = null;
+        if (/\bgold\b/.test(all)) accent = 'gold';
+        else if (/\b(crimson|red|burgundy)\b/.test(all)) accent = 'crimson';
+        else if (/\b(navy|blue|ink|dark)\b/.test(all)) accent = 'navy';
+        const projMap = [['gala', /\bgala\b/], ['plexus', /\bplexus\b/], ['bridges', /\b(building )?bridges?\b/], ['accelerator', /\baccelerat/], ['forum', /\bforum\b/]];
+        let event = null; for (const [k, re] of projMap) { if (re.test(all)) { event = k; break; } }
+        let headline = ''; const hm = String(desc || '').match(/["“](.+?)["”]/); if (hm) headline = hm[1].trim();
+        return { template, format, duration, accent, event, headline };
+    }
+
+    // PREFILL. GET ?event=plexus -> { bundle, events, aiEnabled }. Real data, no key needed.
+    app.get('/api/admin/content/video/prefill', auth, adminOnly, (req, res) => {
+        try {
+            const event = String(req.query.event || 'plexus').slice(0, 24);
+            res.json({ bundle: videoStudioBundle(req, event), events: videoStudioEvents(req), aiEnabled: !!process.env.ANTHROPIC_API_KEY });
+        } catch (e) { console.error('[content] video prefill', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // CONVERSATIONAL COMPOSE (aiDraft boundary). POST { description, event } -> a filled config. The
+    // deterministic parse is first-class and always runs. When a key is set, aiDraft polishes ONE headline
+    // line; on no key it returns mock:true so the UI badges template mode and keeps every control working.
+    app.post('/api/admin/content/video/compose', assistantLimiter, auth, adminOnly, async (req, res) => {
+        try {
+            const desc = String(req.body?.description || '').trim();
+            const parsed = videoStudioParse(desc);
+            const event = parsed.event || String(req.body?.event || 'plexus').slice(0, 24);
+            const bundle = videoStudioBundle(req, event);
+            let ai = null, mock = true, reason = 'no_key';
+            if (desc) {
+                try {
+                    const r = await aiDraft({
+                        purpose: `From this request, write ONE short punchy headline line, at most eight words, for a ${parsed.template} motion-graphics video about ${bundle.eventName}. American English, no emojis, no quotes, no trailing period.`,
+                        context: { request: desc, event: bundle.eventName, date: bundle.facts.dateLine, venue: bundle.facts.venue },
+                        maxTokens: 60
+                    });
+                    mock = !!(r && r.mock); reason = (r && r.mock_reason) || reason;
+                    if (r && r.text && !r.mock && !/^\s*\[Draft\]/.test(r.text)) ai = r.text.trim().replace(/^["'“]+|["'”.]+$/g, '');
+                } catch (e) {}
+            }
+            const overrides = {};
+            const hl = parsed.headline || ai;
+            if (hl) overrides.headline = hl.slice(0, 90);
+            logAudit(req, 'content.video.compose', `${parsed.template}/${event} ${parsed.format} ${parsed.duration}s${mock ? ' (template)' : ' (ai)'}`);
+            res.json({ template: parsed.template, format: parsed.format, duration: parsed.duration, accent: parsed.accent || bundle.accent, event, bundle, overrides, mock, mock_reason: reason });
+        } catch (e) { console.error('[content] video compose', e.message); res.status(500).json({ error: e.message }); }
+    });
+
     // ========== OUTBOX (batch approval + send drainer surface) ==========
     // The drainer (in the app.listen block below) sends scheduled_emails rows whose
     // status='scheduled' and scheduled_for is due, through the sendEmail() mock boundary.

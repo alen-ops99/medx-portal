@@ -57001,7 +57001,7 @@ button,input,select,textarea{font-family:var(--sans);}
             'tk.downloaded': {en:'Ticket downloaded', hr:'Ulaznica preuzeta'},
             'tk.dlMemberCard':{en:'Download membership card', hr:'Preuzmite člansku iskaznicu'},
             'tk.preparingCard':{en:'Preparing your membership card…', hr:'Pripremamo vašu člansku iskaznicu…'},
-            'tk.qrNote':     {en:'Your QR carries your key info for fast check-in at Med&X events. Apple Wallet coming soon.', hr:'Vaš QR nosi ključne podatke za brzu prijavu na Med&X događajima. Apple Wallet uskoro.'},
+            'tk.qrNote':     {en:'Your QR carries your key info for fast check-in at Med&X events.', hr:'Vaš QR nosi ključne podatke za brzu prijavu na Med&X događajima.'},
             // ================= CLUSTER HR-MYMEDX (MyMedX / Rewards / Settings / Notifications) =================
             // --- MyMedX page: section headers + hero ---
             'mmx.title':          {en:'My Med&X', hr:'Moj Med&X'},
@@ -57072,6 +57072,21 @@ button,input,select,textarea{font-family:var(--sans);}
             'mmx.cardMemberFallback':{en:'Med&X Member', hr:'Med&X član'},
             'mmx.cardStanding':   {en:'Member in good standing', hr:'Član u dobrom statusu'},
             'mmx.cardMemberId':   {en:'Member ID', hr:'Broj člana'},
+            // --- MyMedX: living membership card (queue 5a5l) ---
+            'mmx.lcMemberCard':   {en:'Member card', hr:'Članska iskaznica'},
+            'mmx.lcCardAria':     {en:'Membership card. Activate to turn it over.', hr:'Članska iskaznica. Aktivirajte za okretanje.'},
+            'mmx.lcPassport':     {en:'Passport', hr:'Putovnica'},
+            'mmx.lcCardSide':     {en:'Card', hr:'Iskaznica'},
+            'mmx.lcFlipToPassport':{en:'Flip to your passport', hr:'Okrenite na svoju putovnicu'},
+            'mmx.lcFlipToCard':   {en:'Flip to your card', hr:'Okrenite na svoju iskaznicu'},
+            'mmx.lcPassportTitle':{en:'Your <em>passport</em>', hr:'Vaša <em>putovnica</em>'},
+            'mmx.lcPassportSub':  {en:'A seal for every gathering', hr:'Pečat za svaki susret'},
+            'mmx.lcAddGoogleWallet':{en:'Add to Google Wallet', hr:'Dodajte u Google Wallet'},
+            'mmx.lcAddAppleWallet':{en:'Add to Apple Wallet', hr:'Dodajte u Apple Wallet'},
+            'mmx.lcAppleSoon':    {en:'Apple Wallet is coming soon.', hr:'Apple Wallet stiže uskoro.'},
+            'mmx.lcGooglePrep':   {en:'Preparing your Google Wallet pass…', hr:'Pripremamo vašu Google Wallet propusnicu…'},
+            'mmx.lcGoogleSoon':   {en:'Google Wallet is not set up yet. Your team can enable it shortly.', hr:'Google Wallet još nije postavljen. Vaš ga tim može uskoro omogućiti.'},
+            'mmx.lcWalletErr':    {en:'We could not prepare your wallet pass. Please try again in a moment.', hr:'Nismo mogli pripremiti vašu propusnicu za novčanik. Pokušajte ponovno za trenutak.'},
 
             // --- MyMedX: purchases + refund inquiry ---
             'mmx.purchasesEmpty': {en:'Your purchases and receipts appear here after you register for a Med&X event.', hr:'Vaše se kupnje i računi ovdje pojavljuju nakon prijave na Med&X događaj.'},
@@ -71211,12 +71226,73 @@ button,input,select,textarea{font-family:var(--sans);}
                     .mmx-giving-eyebrow i{font-size:13px;}
                     .mmx-giving-title{font-family:var(--serif,'Fraunces',serif);font-size:20px;font-weight:600;color:var(--ink,#15110f);margin:8px 0 8px;}
                     .mmx-giving-body{font-size:13.5px;color:var(--muted,#6b6258);line-height:1.6;margin:0;max-width:640px;}
+                    /* ===== Living membership card (queue 5a5l) — navy/gold, pointer-tracked foil, flip-to-passport ===== */
+                    .mlc-scene{position:relative;width:100%;max-width:400px;perspective:1500px;margin-bottom:2px;background:none;border:none;box-shadow:none;overflow:visible;border-radius:0;}
+                    .mlc{position:relative;width:100%;aspect-ratio:1.586/1;transform-style:preserve-3d;transition:transform 1s cubic-bezier(.16,1,.3,1);transform:rotateX(0deg) rotateY(0deg);will-change:transform;cursor:pointer;outline:none;}
+                    .mlc:focus-visible{box-shadow:0 0 0 3px rgba(201,169,98,.55);border-radius:18px;}
+                    .mlc.flipped{transform:rotateY(180deg);}
+                    .mlc-face{position:absolute;inset:0;border-radius:18px;overflow:hidden;-webkit-backface-visibility:hidden;backface-visibility:hidden;color:#fff;background:radial-gradient(135% 120% at 16% 6%,#16223f 0%,#0f1830 46%,#0a0f1e 100%);box-shadow:0 2px 6px rgba(10,15,30,.3),0 30px 66px rgba(10,15,30,.48),inset 0 0 0 1px rgba(201,169,98,.22);}
+                    .mlc-face.back{transform:rotateY(180deg);}
+                    .mlc-face::before{content:'';position:absolute;inset:13px;border:1px solid rgba(201,169,98,.3);border-radius:11px;pointer-events:none;z-index:4;}
+                    .mlc-face::after{content:'';position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#7d161c,#9b1b22,#c2484e,#9b1b22,#7d161c);z-index:5;}
+                    .mlc-foil{position:absolute;inset:0;z-index:2;pointer-events:none;mix-blend-mode:screen;opacity:.92;background:radial-gradient(230px 230px at var(--mx,62%) var(--my,24%),rgba(230,201,135,.5),rgba(230,201,135,.12) 42%,transparent 62%),linear-gradient(115deg,transparent 32%,rgba(255,247,220,.1) 47%,rgba(230,201,135,.22) 50%,rgba(255,247,220,.1) 53%,transparent 70%);}
+                    .mlc-inner{position:absolute;inset:0;z-index:3;padding:6.4% 6.8%;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box;}
+                    .mlc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+                    .mlc-logochip{display:inline-flex;align-items:center;background:#fbf9f6;border-radius:9px;padding:6px 10px;box-shadow:0 4px 14px rgba(0,0,0,.3);}
+                    .mlc-logochip img{height:17px;width:auto;display:block;}
+                    .mlc-eyebrow{font-size:8.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:rgba(230,201,135,.85);text-align:right;margin-top:4px;white-space:nowrap;}
+                    .mlc-mid{margin-top:auto;display:flex;align-items:flex-end;gap:11px;}
+                    .mlc-portrait{width:44px;height:44px;border-radius:12px;overflow:hidden;flex-shrink:0;background:linear-gradient(135deg,#7d161c,#9b1b22);display:flex;align-items:center;justify-content:center;border:1px solid rgba(201,169,98,.5);}
+                    .mlc-portrait img{width:100%;height:100%;object-fit:cover;display:block;}
+                    .mlc-portrait span{font-family:var(--serif,'Fraunces',serif);font-size:17px;font-weight:600;color:#f7ead1;}
+                    .mlc-idblock{min-width:0;}
+                    .mlc-label{font-size:8px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.45);}
+                    .mlc-name{font-family:var(--serif,'Fraunces',serif);font-size:clamp(15px,4.6vw,21px);font-weight:600;line-height:1.05;margin-top:3px;color:#fff;word-break:break-word;}
+                    .mlc-bot{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:5%;}
+                    .mlc-meta{display:flex;flex-direction:column;gap:7px;min-width:0;}
+                    .mlc-since{font-size:10px;color:rgba(255,255,255,.62);}
+                    .mlc-standing{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;background:rgba(201,169,98,.12);border:1px solid rgba(201,169,98,.4);border-radius:999px;padding:4px 10px 4px 5px;font-size:9.5px;font-weight:600;color:rgba(230,201,135,.95);}
+                    .mlc-standing .dot{width:13px;height:13px;border-radius:50%;background:#e6c987;display:inline-flex;align-items:center;justify-content:center;flex:none;}
+                    .mlc-standing .dot svg{width:8px;height:8px;}
+                    .mlc-qr{width:19%;min-width:52px;aspect-ratio:1;flex:none;border-radius:8px;background:#fff;padding:5px;box-sizing:border-box;box-shadow:0 6px 16px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;}
+                    .mlc-qr canvas,.mlc-qr img,.mlc-qr svg{width:100%!important;height:100%!important;display:block;}
+                    .mlc-qr i{color:#c9bfb0;font-size:24px;}
+                    .mlc-flip{position:absolute;top:11px;right:12px;z-index:6;display:inline-flex;align-items:center;gap:6px;background:rgba(12,19,34,.62);border:1px solid rgba(201,169,98,.45);color:rgba(230,201,135,.95);border-radius:999px;padding:5px 11px;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;font-family:inherit;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);transition:background .2s ease;}
+                    .mlc-flip:hover{background:rgba(155,27,34,.55);}
+                    .mlc-back-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;}
+                    .mlc-back-title{font-family:var(--serif,'Fraunces',serif);font-size:15px;font-weight:600;color:#fff;}
+                    .mlc-back-title em{font-style:italic;color:#e6c987;}
+                    .mlc-back-sub{font-size:7.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.42);text-align:right;}
+                    .mlc-stamps{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:10px;}
+                    .mlc-stamp{aspect-ratio:1;position:relative;display:flex;align-items:center;justify-content:center;}
+                    .mlc-stamp svg{width:100%;height:100%;overflow:visible;}
+                    .mlc-stamp.filled{filter:drop-shadow(0 1px 0 rgba(0,0,0,.5)) drop-shadow(0 0 7px rgba(201,169,98,.28));animation:mlcPress .55s cubic-bezier(.16,1,.3,1) both;}
+                    @keyframes mlcPress{0%{opacity:0;transform:scale(1.4) rotate(-7deg)}60%{opacity:1;transform:scale(.95) rotate(1deg)}100%{opacity:1;transform:none}}
+                    .mlc-foot{margin-top:auto;padding-top:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+                    .mlc-foot .cnt{font-size:9.5px;color:rgba(255,255,255,.6);}
+                    .mlc-foot .cnt b{color:#e6c987;font-family:var(--serif,'Fraunces',serif);font-size:13px;font-weight:600;}
+                    .mlc-foot .num{font-family:var(--serif,'Fraunces',serif);font-size:9.5px;color:rgba(255,255,255,.4);letter-spacing:.04em;}
+                    .mlc-reduced .mlc-foil{display:none;}
+                    .mlc-reduced .mlc-stamp.filled{animation:none;}
+                    @media (prefers-reduced-motion:reduce){.mlc{transition:none;}.mlc-foil{display:none;}.mlc-stamp.filled{animation:none;}}
+                    /* Wallet actions */
+                    .mlc-actions{display:flex;flex-wrap:wrap;gap:9px;align-items:center;}
+                    .mlc-wallet-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#14110f;color:#fff;border:1px solid #14110f;border-radius:12px;padding:12px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:transform .15s ease,box-shadow .15s ease,opacity .15s ease;}
+                    .mlc-wallet-btn:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(21,17,15,.22);}
+                    .mlc-wallet-btn i{font-size:15px;}
+                    .mlc-wallet-btn.google i{color:#e6c987;}
+                    .mlc-wallet-btn.apple.soon{opacity:.55;}
+                    @media(max-width:860px){.mlc-scene{max-width:420px;margin-left:auto;margin-right:auto;}}
                     </style>
                     <div class="mmx-hero">
                         <div class="mmx-hero-cardcol">
-                            <div id="mymedxCardVisual" class="mmx-card"><!-- MyMedXPortal.renderMembershipCardVisual() --></div>
-                            <button class="mmx-card-dl" data-i18n="tk.dlMemberCard" onclick="MyMedXPortal.downloadMembershipCard()"><i class="fas fa-id-card"></i> Download membership card</button>
-                            <div class="mmx-card-note"><i class="fas fa-qrcode"></i><span data-i18n="tk.qrNote">Your QR carries your key info for fast check-in at Med&amp;X events. Apple Wallet coming soon.</span></div>
+                            <div id="mymedxCardVisual" class="mlc-scene"><!-- MyMedXPortal.renderMembershipCardVisual() --></div>
+                            <div class="mlc-actions">
+                                <button class="mmx-card-dl" data-i18n="tk.dlMemberCard" onclick="MyMedXPortal.downloadMembershipCard()"><i class="fas fa-id-card"></i> Download membership card</button>
+                                <button type="button" class="mlc-wallet-btn google" id="mlcGoogleWalletBtn" onclick="MyMedXPortal.addToGoogleWallet()"><i class="fab fa-google"></i> <span data-i18n="mmx.lcAddGoogleWallet">Add to Google Wallet</span></button>
+                                <button type="button" class="mlc-wallet-btn apple soon" id="mlcAppleWalletBtn" onclick="MyMedXPortal.addToAppleWallet()"><i class="fab fa-apple"></i> <span data-i18n="mmx.lcAddAppleWallet">Add to Apple Wallet</span></button>
+                            </div>
+                            <div class="mmx-card-note"><i class="fas fa-qrcode"></i><span data-i18n="tk.qrNote">Your QR carries your key info for fast check-in at Med&amp;X events.</span></div>
                             <div class="mmx-share">
                                 <div class="mmx-share-head"><i class="fas fa-share-nodes"></i><span data-i18n="mmx.shareMembTitle">Share your membership</span></div>
                                 <p class="mmx-share-note" data-i18n="mmx.shareMembNote">Prove your active Med&amp;X membership with a public link, or add it to your LinkedIn profile as a credential.</p>
@@ -79699,31 +79775,36 @@ You can use variables like {first_name} that will be personalized for each recip
                 return el;
             },
 
+            // Downloadable membership card (PNG) — the NEW living-card artwork rendered static at card
+            // ratio (1600x1000). Reuses the existing _rasterize path; only the artwork changed. The QR
+            // is the exact frozen membership payload (built in downloadMembershipCard()).
             _composeMembership(name, meta, qrUrl, memberId) {
                 var memberType = (meta && meta.member_type_label) || 'Med&X Member';
                 var sinceYear = (meta && meta.member_since) ? String(meta.member_since).slice(0, 4) : '';
                 var standing = (meta && meta.standing_label) || 'Member in good standing';
                 var sinceLine = memberType + (sinceYear ? (' &middot; Member since ' + sinceYear) : '');
                 var el = document.createElement('div');
-                el.style.cssText = "position:fixed;left:-10000px;top:0;z-index:-1;pointer-events:none;width:1600px;height:1000px;box-sizing:border-box;overflow:hidden;border-radius:40px;background:linear-gradient(135deg,#fbf9f6,#f3efe9);font-family:'Inter',-apple-system,sans-serif;color:#15110f;border:1.5px solid rgba(201,169,98,.45);";
+                el.style.cssText = "position:fixed;left:-10000px;top:0;z-index:-1;pointer-events:none;width:1600px;height:1000px;box-sizing:border-box;overflow:hidden;border-radius:40px;background:radial-gradient(135% 120% at 16% 6%,#16223f,#0f1830 46%,#0a0f1e 100%);font-family:'Inter',-apple-system,sans-serif;color:#ffffff;";
                 el.innerHTML =
-                    '<div style="position:absolute;top:0;left:0;right:0;height:14px;background:linear-gradient(90deg,#7d161c,#9b1b22,#c2484e,#9b1b22,#7d161c);"></div>'
-                  + '<img src="/assets/images/medx-logo.png" crossorigin="anonymous" style="position:absolute;right:-140px;bottom:-170px;width:760px;opacity:.045;transform:rotate(-8deg);">'
-                  + '<div style="display:flex;height:100%;box-sizing:border-box;">'
-                    + '<div style="flex:1;padding:88px 76px;box-sizing:border-box;display:flex;flex-direction:column;">'
-                      + '<img src="/assets/images/medx-logo.png" crossorigin="anonymous" style="height:56px;width:auto;align-self:flex-start;">'
+                    '<div style="position:absolute;top:0;left:0;right:0;height:12px;background:linear-gradient(90deg,#7d161c,#9b1b22,#c2484e,#9b1b22,#7d161c);"></div>'
+                  + '<div style="position:absolute;inset:0;mix-blend-mode:screen;opacity:.85;background:radial-gradient(560px 560px at 30% 16%,rgba(230,201,135,.35),rgba(230,201,135,.08) 45%,transparent 63%),linear-gradient(115deg,transparent 34%,rgba(255,247,220,.08) 48%,rgba(230,201,135,.16) 50%,rgba(255,247,220,.08) 52%,transparent 66%);"></div>'
+                  + '<div style="position:absolute;inset:34px;border:1.5px solid rgba(201,169,98,.32);border-radius:26px;pointer-events:none;"></div>'
+                  + '<img src="/assets/images/medx-logo.png" crossorigin="anonymous" style="position:absolute;right:-90px;bottom:-120px;width:720px;opacity:.06;transform:rotate(-8deg);">'
+                  + '<div style="position:relative;display:flex;height:100%;box-sizing:border-box;z-index:2;">'
+                    + '<div style="flex:1;padding:96px 80px;box-sizing:border-box;display:flex;flex-direction:column;">'
+                      + '<div style="display:inline-flex;align-items:center;background:#fbf9f6;border-radius:16px;padding:16px 22px;align-self:flex-start;box-shadow:0 12px 30px rgba(0,0,0,.35);"><img src="/assets/images/medx-logo.png" crossorigin="anonymous" style="height:52px;width:auto;display:block;"></div>'
                       + '<div style="flex:1;"></div>'
-                      + '<div style="font-size:20px;letter-spacing:6px;text-transform:uppercase;color:#a38a4f;font-weight:700;margin-bottom:16px;">Member</div>'
-                      + '<div style="font-family:\'Fraunces\',Georgia,serif;font-size:80px;font-weight:600;line-height:1.0;color:#15110f;letter-spacing:-1px;">' + escapeHtml(name) + '</div>'
-                      + '<div style="font-size:29px;color:#6b6258;margin-top:18px;">' + sinceLine + '</div>'
-                      + '<div style="margin-top:28px;display:inline-flex;align-items:center;gap:12px;align-self:flex-start;background:#f3efe9;border:1px solid #e2dcd3;border-radius:999px;padding:13px 24px;">'
-                        + '<span style="display:inline-flex;width:26px;height:26px;border-radius:50%;background:#2f6b3a;color:#fff;align-items:center;justify-content:center;font-size:16px;font-weight:700;">&#10003;</span>'
-                        + '<span style="font-size:23px;font-weight:600;color:#15110f;">' + escapeHtml(standing) + '</span>'
+                      + '<div style="font-size:20px;letter-spacing:6px;text-transform:uppercase;color:#e6c987;font-weight:700;margin-bottom:16px;">Member</div>'
+                      + '<div style="font-family:\'Fraunces\',Georgia,serif;font-size:80px;font-weight:600;line-height:1.0;color:#ffffff;letter-spacing:-1px;">' + escapeHtml(name) + '</div>'
+                      + '<div style="font-size:28px;color:rgba(255,255,255,.66);margin-top:18px;">' + sinceLine + '</div>'
+                      + '<div style="margin-top:28px;display:inline-flex;align-items:center;gap:12px;align-self:flex-start;background:rgba(201,169,98,.12);border:1px solid rgba(201,169,98,.42);border-radius:999px;padding:13px 24px;">'
+                        + '<span style="display:inline-flex;width:26px;height:26px;border-radius:50%;background:#e6c987;color:#0f1830;align-items:center;justify-content:center;font-size:16px;font-weight:700;">&#10003;</span>'
+                        + '<span style="font-size:22px;font-weight:600;color:#f2e3c0;">' + escapeHtml(standing) + '</span>'
                       + '</div>'
-                      + '<div style="flex:0;margin-top:44px;font-size:19px;color:#a39a8d;letter-spacing:1px;">medx.hr &middot; Member ID ' + escapeHtml(memberId || '') + '</div>'
+                      + '<div style="margin-top:44px;font-size:19px;color:rgba(230,201,135,.7);letter-spacing:1px;">medx.hr &middot; Member ID ' + escapeHtml(memberId || '') + '</div>'
                     + '</div>'
-                    + '<div style="width:540px;display:flex;align-items:center;justify-content:center;padding:76px 76px 76px 0;box-sizing:border-box;">'
-                      + '<div style="background:#ffffff;border:1px solid #e2dcd3;border-radius:32px;padding:50px;display:flex;flex-direction:column;align-items:center;box-shadow:0 18px 48px rgba(21,17,15,.12);">'
+                    + '<div style="width:540px;display:flex;align-items:center;justify-content:center;padding:80px 80px 80px 0;box-sizing:border-box;">'
+                      + '<div style="background:#ffffff;border-radius:32px;padding:50px;display:flex;flex-direction:column;align-items:center;box-shadow:0 18px 48px rgba(0,0,0,.4);">'
                         + (qrUrl ? '<img src="' + qrUrl + '" style="width:380px;height:380px;display:block;">' : '<div style="width:380px;height:380px;display:flex;align-items:center;justify-content:center;color:#6b6258;font-size:18px;">QR unavailable</div>')
                         + '<div style="font-size:21px;letter-spacing:3px;text-transform:uppercase;color:#15110f;font-weight:700;margin-top:28px;">Scan to verify</div>'
                         + '<div style="font-size:18px;color:#6b6258;margin-top:8px;">Med&amp;X Membership</div>'
@@ -79850,7 +79931,13 @@ You can use variables like {first_name} that will be personalized for each recip
                 });
             },
 
-            // On-screen membership card (the beautiful hero preview of the downloadable card).
+            // ===== Living membership card (queue 5a5l) =====
+            // The on-screen keepsake: pointer-tracked gold foil + subtle tilt on a navy/gold brand
+            // face, flipping to a passport of real gold seals. The card face itself renders for every
+            // member; the flip + passport are playful, so they are FAIL-CLOSED hidden for quiet
+            // (gala/forum-only) profiles. The QR carries the SAME frozen membership payload as before.
+            _APPLE_WALLET_ENABLED: false, // Apple Wallet needs Apple Developer certs (owner action)
+
             renderMembershipCardVisual() {
                 var el = document.getElementById('mymedxCardVisual');
                 if (!el) return;
@@ -79858,42 +79945,184 @@ You can use variables like {first_name} that will be personalized for each recip
                 var name = (user.name || ((user.first_name || '') + ' ' + (user.last_name || '')).trim()) || 'Med&X Member';
                 var memberId = user.id ? String(user.id).slice(0, 8).toUpperCase() : '';
                 var self = this;
-                el.innerHTML = this._cardVisualHtml(name, null, memberId);
+                var playful = (typeof MedXQuiet === 'undefined') ? true : MedXQuiet.allowPlayful();
+                var reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches);
+                el.classList.toggle('mlc-reduced', reduced);
+                el.innerHTML = self._livingCardHtml(name, null, memberId, playful);
                 self._paintCardQr(user, name);
+                self._applyPortraits();
+                self._wireLivingCard(playful, reduced);
+                if (playful) self.loadPassport();
                 if (typeof MemberState !== 'undefined') {
                     MemberState.loadMeta().then(function(m){
-                        el.innerHTML = self._cardVisualHtml(name, m, memberId);
+                        el.innerHTML = self._livingCardHtml(name, m, memberId, playful);
                         self._paintCardQr(user, name);
+                        self._applyPortraits();
+                        self._wireLivingCard(playful, reduced);
+                        if (playful) self._paintPassport();
                     }).catch(function(){});
                 }
             },
 
-            _cardVisualHtml(name, meta, memberId) {
-                var memberType = MemberState.localType(meta) || t('mmx.cardMemberFallback');
+            _livingCardHtml(name, meta, memberId, playful) {
+                var memberType = (typeof MemberState !== 'undefined' ? MemberState.localType(meta) : '') || t('mmx.cardMemberFallback');
                 var sinceY = (meta && meta.member_since) ? String(meta.member_since).slice(0, 4) : '';
-                var standing = MemberState.localStanding(meta) || t('mmx.cardStanding');
-                var sinceLine = memberType + (sinceY ? (' · ' + t('mmx.memberSince',{y:sinceY})) : '');
-                return ''
-                    + '<div class="mmx-card-top"></div>'
-                    + '<div class="mmx-card-body">'
-                        + '<div class="mmx-card-left">'
-                            + '<img src="/assets/images/medx-logo.png" alt="Med&X" class="mmx-card-logo">'
-                            + '<div class="mmx-card-idrow">'
-                                + '<div class="mmx-card-portrait" id="mymedxCardPortrait">' + this._portraitInnerHtml(name) + '</div>'
-                                + '<div style="min-width:0;">'
-                                    + '<div class="mmx-card-eyebrow">' + t('mmx.cardMember') + '</div>'
-                                    + '<div class="mmx-card-name">' + escapeHtml(name) + '</div>'
-                                + '</div>'
-                            + '</div>'
-                            + '<div class="mmx-card-since">' + escapeHtml(sinceLine) + '</div>'
-                            + '<div class="mmx-card-standing"><span class="mmx-card-check">✓</span>' + escapeHtml(standing) + '</div>'
-                            + (memberId ? '<div class="mmx-card-id">medx.hr · ' + t('mmx.cardMemberId') + ' ' + escapeHtml(memberId) + '</div>' : '')
+                var standing = (typeof MemberState !== 'undefined' ? MemberState.localStanding(meta) : '') || t('mmx.cardStanding');
+                var sinceLine = memberType + (sinceY ? (' · ' + t('mmx.memberSince', { y: sinceY })) : '');
+                var check = '<span class="dot"><svg viewBox="0 0 12 12" fill="none"><path d="M2.6 6.2l2.1 2.1 4.7-4.7" stroke="#0f1830" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+                var flipFront = playful
+                    ? '<button type="button" class="mlc-flip" aria-label="' + escapeHtml(t('mmx.lcFlipToPassport')) + '"><i class="fas fa-passport"></i>' + escapeHtml(t('mmx.lcPassport')) + '</button>'
+                    : '';
+                var front = '<div class="mlc-face front">'
+                    + '<div class="mlc-foil" aria-hidden="true"></div>'
+                    + flipFront
+                    + '<div class="mlc-inner">'
+                        + '<div class="mlc-top">'
+                            + '<span class="mlc-logochip"><img src="/assets/images/medx-logo.png" alt="Med&X" crossorigin="anonymous"></span>'
+                            + '<span class="mlc-eyebrow">' + escapeHtml(t('mmx.lcMemberCard')) + '</span>'
                         + '</div>'
-                        + '<div class="mmx-card-right">'
-                            + '<div id="mymedxCardQr" class="mmx-card-qr"><i class="fas fa-qrcode"></i></div>'
-                            + '<div class="mmx-card-qr-label">' + t('mmx.cardScanVerify') + '</div>'
+                        + '<div class="mlc-mid">'
+                            + '<div class="mlc-portrait" id="mymedxCardPortrait">' + this._portraitInnerHtml(name) + '</div>'
+                            + '<div class="mlc-idblock"><div class="mlc-label">' + escapeHtml(t('mmx.cardMember')) + '</div><div class="mlc-name">' + escapeHtml(name) + '</div></div>'
+                        + '</div>'
+                        + '<div class="mlc-bot">'
+                            + '<div class="mlc-meta">'
+                                + (sinceLine ? '<div class="mlc-since">' + escapeHtml(sinceLine) + '</div>' : '')
+                                + '<div class="mlc-standing">' + check + escapeHtml(standing) + '</div>'
+                            + '</div>'
+                            + '<div id="mymedxCardQr" class="mlc-qr"><i class="fas fa-qrcode"></i></div>'
+                        + '</div>'
+                    + '</div>'
+                + '</div>';
+                var back = '';
+                if (playful) {
+                    back = '<div class="mlc-face back">'
+                        + '<div class="mlc-foil" aria-hidden="true"></div>'
+                        + '<button type="button" class="mlc-flip" aria-label="' + escapeHtml(t('mmx.lcFlipToCard')) + '"><i class="fas fa-id-card"></i>' + escapeHtml(t('mmx.lcCardSide')) + '</button>'
+                        + '<div class="mlc-inner">'
+                            + '<div class="mlc-back-head"><div class="mlc-back-title">' + t('mmx.lcPassportTitle') + '</div><div class="mlc-back-sub">' + escapeHtml(t('mmx.lcPassportSub')) + '</div></div>'
+                            + '<div class="mlc-stamps" id="mymedxPassportStamps"></div>'
+                            + '<div class="mlc-foot"><div class="cnt"><b id="mymedxStampCount">0</b> <span id="mymedxStampCountLabel"></span></div><div class="num">medx.hr</div></div>'
                         + '</div>'
                     + '</div>';
+                }
+                return '<div class="mlc" role="button" tabindex="0" aria-label="' + escapeHtml(t('mmx.lcCardAria')) + '">' + front + back + '</div>';
+            },
+
+            // Pointer-tracked foil + subtle tilt (desktop pointer; on touch the sheen follows the
+            // finger and a tap flips — no gyroscope permission is requested, so mobile degrades
+            // gracefully). Fresh listeners each render because innerHTML is replaced.
+            _wireLivingCard(playful, reduced) {
+                var scene = document.getElementById('mymedxCardVisual');
+                if (!scene) return;
+                var card = scene.querySelector('.mlc');
+                if (!card) return;
+                var self = this;
+                var foils = card.querySelectorAll('.mlc-foil');
+                var flipped = false, rX = 0, rY = 0, tX = 0, tY = 0, raf = null;
+                function apply() { var base = flipped ? 180 : 0; card.style.transform = 'rotateX(' + rY.toFixed(2) + 'deg) rotateY(' + (base + rX).toFixed(2) + 'deg)'; raf = null; }
+                function queue() { if (!raf) raf = requestAnimationFrame(apply); }
+                function ease() { rX += (tX - rX) * 0.12; rY += (tY - rY) * 0.12; queue(); if (Math.abs(tX - rX) > 0.05 || Math.abs(tY - rY) > 0.05) requestAnimationFrame(ease); }
+                if (!reduced) {
+                    card.addEventListener('pointermove', function(e){
+                        var r = card.getBoundingClientRect(); if (!r.width) return;
+                        var cx = (e.clientX - r.left) / r.width, cy = (e.clientY - r.top) / r.height;
+                        tX = (cx - 0.5) * 14; tY = -(cy - 0.5) * 10;
+                        foils.forEach(function(f){ f.style.setProperty('--mx', (cx * 100).toFixed(1) + '%'); f.style.setProperty('--my', (cy * 100).toFixed(1) + '%'); });
+                        ease();
+                    });
+                    card.addEventListener('pointerleave', function(){ tX = 0; tY = 0; foils.forEach(function(f){ f.style.setProperty('--mx', '62%'); f.style.setProperty('--my', '24%'); }); ease(); });
+                }
+                function flip() {
+                    if (!playful) return;
+                    flipped = !flipped;
+                    card.classList.toggle('flipped', flipped);
+                    apply();
+                    if (flipped) self.loadPassport();
+                }
+                if (playful) {
+                    card.addEventListener('click', function(e){ if (e.target.closest('button,a')) return; flip(); });
+                    card.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } });
+                    scene.querySelectorAll('.mlc-flip').forEach(function(b){ b.addEventListener('click', function(e){ e.stopPropagation(); flip(); }); });
+                }
+            },
+
+            // Passport stamps from REAL data (event registrations + check-ins + Building Bridges city
+            // participation) via GET /api/member/passport. The server fail-closes for quiet profiles
+            // (returns no stamps), and the client only ever renders the passport for playful members.
+            loadPassport(force) {
+                var self = this;
+                if (!force && this._passportStamps !== undefined) { this._paintPassport(); return; }
+                var tkn = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
+                var base = (typeof API_BASE !== 'undefined' ? API_BASE : '');
+                fetch(base + '/api/member/passport', { headers: tkn ? { 'Authorization': 'Bearer ' + tkn } : {} })
+                    .then(function(r){ return r.ok ? r.json() : null; })
+                    .then(function(d){ self._passportStamps = (d && !d.quiet && Array.isArray(d.stamps)) ? d.stamps : []; self._paintPassport(); })
+                    .catch(function(){ if (self._passportStamps === undefined) self._passportStamps = []; self._paintPassport(); });
+            },
+
+            _paintPassport() {
+                var grid = document.getElementById('mymedxPassportStamps');
+                if (!grid) return;
+                var stamps = this._passportStamps || [];
+                var n = stamps.length;
+                var slots = Math.max(8, Math.ceil(n / 4) * 4);
+                var html = '';
+                for (var i = 0; i < slots; i++) {
+                    if (i < n) {
+                        var s = stamps[i];
+                        var title = (s.name || '') + (s.year ? (' · ' + s.year) : '') + (s.attended ? (' · ' + t('mmx.stAttended')) : '');
+                        html += '<div class="mlc-stamp filled" title="' + escapeHtml(title) + '">' + this._stampSvg(s, i) + '</div>';
+                    } else {
+                        html += '<div class="mlc-stamp"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="38" fill="none" stroke="rgba(255,255,255,.14)" stroke-dasharray="3 4"/><path d="M50 40v20M40 50h20" stroke="rgba(255,255,255,.22)" stroke-width="1" stroke-linecap="round"/></svg></div>';
+                    }
+                }
+                grid.innerHTML = html;
+                var cnt = document.getElementById('mymedxStampCount'); if (cnt) cnt.textContent = n;
+                var lbl = document.getElementById('mymedxStampCountLabel');
+                if (lbl) lbl.textContent = this._plural(n, 'seal collected', 'seals collected', 'pečat skupljen', 'pečata skupljena', 'pečata skupljeno');
+            },
+
+            _stampSvg(s, uid) {
+                var label = String(s.label || 'MEDX');
+                var yr = String(s.year || '');
+                var arc = String(s.city || '').toUpperCase();
+                var ringO = s.attended ? 'rgba(230,201,135,.95)' : 'rgba(201,169,98,.85)';
+                return '<svg viewBox="0 0 100 100">'
+                    + '<defs><path id="mlcArcT' + uid + '" d="M20 50a30 30 0 0 1 60 0" fill="none"/><path id="mlcArcB' + uid + '" d="M22 58a28 28 0 0 0 56 0" fill="none"/></defs>'
+                    + '<circle cx="50" cy="50" r="38" fill="none" stroke="' + ringO + '" stroke-width="1.5"/>'
+                    + '<circle cx="50" cy="50" r="32" fill="none" stroke="rgba(201,169,98,.5)" stroke-width=".8"/>'
+                    + (s.attended ? '<circle cx="50" cy="50" r="35" fill="none" stroke="rgba(230,201,135,.35)" stroke-width=".6" stroke-dasharray="1.5 2.5"/>' : '')
+                    + '<text font-family="Inter,sans-serif" font-weight="700" font-size="8" letter-spacing=".4" fill="#e6c987" text-anchor="middle"><textPath href="#mlcArcT' + uid + '" startOffset="50%">' + escapeHtml(label) + '</textPath></text>'
+                    + '<text x="50" y="56" font-family="Fraunces,Georgia,serif" font-size="17" fill="#fff" text-anchor="middle">' + escapeHtml(yr) + '</text>'
+                    + (arc ? '<text font-family="Inter,sans-serif" font-weight="600" font-size="6" letter-spacing="1" fill="rgba(230,201,135,.85)" text-anchor="middle"><textPath href="#mlcArcB' + uid + '" startOffset="50%">' + escapeHtml(arc) + '</textPath></text>' : '')
+                    + '</svg>';
+            },
+
+            // Google Wallet — server builds a signed generic-pass "Save to Wallet" JWT link. In dev (no
+            // issuer secrets) the route returns a clean unconfigured gate naming the owner action.
+            addToGoogleWallet() {
+                var self = this;
+                var tkn = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
+                var base = (typeof API_BASE !== 'undefined' ? API_BASE : '');
+                if (typeof Toast !== 'undefined' && Toast.info) Toast.info(t('mmx.lcGooglePrep'));
+                fetch(base + '/api/member/wallet/google', { headers: tkn ? { 'Authorization': 'Bearer ' + tkn } : {} })
+                    .then(function(r){ return r.ok ? r.json() : Promise.reject('err'); })
+                    .then(function(d){
+                        if (d && d.configured && d.save_url) { window.open(d.save_url, '_blank', 'noopener'); }
+                        else if (d && d.configured === false) {
+                            var msg = (self._isHR() ? d.message_hr : d.message_en) || t('mmx.lcGoogleSoon');
+                            if (typeof Toast !== 'undefined' && Toast.info) Toast.info(msg);
+                        } else { if (typeof Toast !== 'undefined' && Toast.error) Toast.error(t('mmx.lcWalletErr')); }
+                    })
+                    .catch(function(){ if (typeof Toast !== 'undefined' && Toast.error) Toast.error(t('mmx.lcWalletErr')); });
+            },
+
+            // Apple Wallet — behind a default-off feature flag (a real .pkpass needs Apple Developer
+            // certs, an owner action). Until then the button shows a clean "coming soon" state.
+            addToAppleWallet() {
+                if (this._APPLE_WALLET_ENABLED) return;
+                if (typeof Toast !== 'undefined' && Toast.info) Toast.info(t('mmx.lcAppleSoon'));
             },
 
             // ===== Member photo (users.photo_url) with an initials monogram fallback =====
