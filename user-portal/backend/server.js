@@ -1655,6 +1655,23 @@ app.get('/donor-night', (req, res) => res.send(renderPublicEventPage('donor-nigh
 // tier. If membership lapses or the account is anonymized/deleted, the page falls back to a
 // neutral "no active record" state — revocation-safe, because the user row is re-checked live on
 // every request. Registered BEFORE express.static so it beats the SPA (like the event pages).
+// Shared cross-portal verify-badge secret. In production each portal service has its OWN generated
+// JWT_SECRET, so the ADMIN portal's Badge Studio cannot sign a verify token with a secret this portal
+// knows. Both portals share the same DB, so we keep a stable secret in the mirrored rewards_settings
+// KV. resolveVerifyBadgeToken accepts BOTH this shared secret AND the legacy JWT_SECRET, so tokens
+// minted by either portal (and anything already printed) all resolve.
+var _uBadgeSecret = null;
+function badgeVerifySecret() {
+    if (_uBadgeSecret) return _uBadgeSecret;
+    try {
+        var row = query.get("SELECT value FROM rewards_settings WHERE key = 'badge_verify_secret'");
+        if (row && row.value) { _uBadgeSecret = String(row.value); return _uBadgeSecret; }
+        var gen = crypto.randomBytes(32).toString('hex');
+        db.run("INSERT OR REPLACE INTO rewards_settings (key, value) VALUES ('badge_verify_secret', ?)", [gen]);
+        try { saveDb(); } catch (e) {}
+        _uBadgeSecret = gen; return gen;
+    } catch (e) { return JWT_SECRET; }
+}
 function verifyBadgeToken(userId) {
     var uid = String(userId || '');
     if (!uid) return '';
@@ -1668,11 +1685,15 @@ function resolveVerifyBadgeToken(token) {
     var uid;
     try { uid = Buffer.from(parts[0], 'base64url').toString('utf8'); } catch (e) { return null; }
     if (!uid) return null;
-    var expect = crypto.createHmac('sha256', JWT_SECRET).update('medx-verify-badge:' + uid).digest('hex').slice(0, 24);
-    var a = Buffer.from(parts[1]); var b = Buffer.from(expect);
-    if (a.length !== b.length) return null;
-    try { if (!crypto.timingSafeEqual(a, b)) return null; } catch (e) { return null; }
-    return uid;
+    var secrets = [JWT_SECRET];
+    try { var shared = badgeVerifySecret(); if (shared && secrets.indexOf(shared) === -1) secrets.push(shared); } catch (e) {}
+    for (var i = 0; i < secrets.length; i++) {
+        var expect = crypto.createHmac('sha256', secrets[i]).update('medx-verify-badge:' + uid).digest('hex').slice(0, 24);
+        var a = Buffer.from(parts[1]); var b = Buffer.from(expect);
+        if (a.length !== b.length) continue;
+        try { if (crypto.timingSafeEqual(a, b)) return uid; } catch (e) {}
+    }
+    return null;
 }
 
 function renderVerifyPage(state) {

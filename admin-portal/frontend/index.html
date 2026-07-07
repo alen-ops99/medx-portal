@@ -12739,9 +12739,11 @@ President, Med&amp;X</textarea>
                             <div class="ei-tabs">
                                 <button class="ei-tab active" id="eiTabBtn-invitees" onclick="EventInvitesApp.showTab('invitees')"><i class="fas fa-users"></i> Invitees</button>
                                 <button class="ei-tab" id="eiTabBtn-discover" onclick="EventInvitesApp.showTab('discover')"><i class="fas fa-wand-magic-sparkles"></i> Discover people</button>
+                                <button class="ei-tab" id="eiTabBtn-autoreply" onclick="EventInvitesApp.showTab('autoreply')"><i class="fas fa-robot"></i> Auto-reply</button>
                             </div>
                             <div id="eiTab-invitees" style="margin-top:16px;"></div>
                             <div id="eiTab-discover" style="margin-top:16px;display:none;"></div>
+                            <div id="eiTab-autoreply" style="margin-top:16px;display:none;"></div>
                         </div>
                     </div>
 
@@ -16838,6 +16840,7 @@ President, Med&amp;X</textarea>
                 if (pl.open_candidate) { this.forumOpenCandidateDeepLink(pl.open_candidate); return; }
                 if (pl.open_project) { this.showProject(pl.open_project); return; }
                 if (pl.open_forum_considerations) { this.showProject('forum'); this.showForumTab('members'); setTimeout(() => { try { this.loadForumConsiderations(); const el=document.getElementById('forumConsiderationsCard'); if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); } catch(e){} }, 350); return; }
+                if (pl.open_section === 'event-invites' && pl.campaign_id) { this.showSection('event-invites'); setTimeout(() => { try { EventInvitesApp.open(pl.campaign_id); } catch(e){} }, 300); return; }
                 this.showSection(pl.open_section || 'dashboard');
             },
 
@@ -40435,6 +40438,12 @@ By applying to this program, I give the following consents:
                             <p>Motion graphics from your event data &mdash; a teaser, a speaker reveal, a countdown or registration stinger, or a by-the-numbers recap. Prefilled from real speakers, dates and photos. Plays live, downloads as a video.</p>
                             <span class="cs-go">Make a motion video <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
                         </button>
+                        <button class="cs-surface" onclick="PrintSuite.start()">
+                            <div class="cs-surface-ic" style="background:rgba(155,27,34,.12);color:#9b1b22;"><i class="fas fa-print"></i></div>
+                            <h3>Print &amp; signage</h3>
+                            <p>The last-day print run &mdash; name badges for everyone registered (with a member verify QR), roll-up banners, a photo-booth backdrop and directional signs. Prefilled from the event, exported as true-size, print-ready PDFs.</p>
+                            <span class="cs-go">Make print files <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
+                        </button>
                     </div>
                     <div id="csRecent" style="margin-top:32px;"></div>
                     <div class="cs-manage">
@@ -42142,6 +42151,277 @@ By applying to this program, I give the following consents:
             }
         };
         window.VideoStudio = VideoStudio;
+
+        // ==================== EVENT PRINT SUITE — badges, banners, signage ====================
+        // A Content Studio sibling of the Video studio. Pick an event; the studio pulls the whole
+        // registered roster automatically and asks only the last-day-panic questions (manual additions,
+        // how many blank badges). Everything renders true-physical-size on the server via the
+        // HTML -> headless-Chrome -> PDF pipeline: 8-up A4 badge sheets (crop marks + bleed), single
+        // badges, roll-up banners (85x200 / 100x200 cm), a step-and-repeat backdrop and an A4 sign.
+        // Per-person QR codes point at the public member verify page (consent-aware) — never a ticket QR.
+        const PrintSuite = {
+            _built: false, _styled: false,
+            event: 'conference', tab: 'badges', ctx: null, engine: { chrome: true, cmyk: true },
+            opts: {
+                badges: { mode: 'sheet', staff: false, speakers: true, extras: '', blanks: 0, cmyk: false },
+                banner: { size: '100x200', cmyk: false, sponsors: true, fields: {} },
+                backdrop: { cmyk: false, fields: {} },
+                sign: { cmyk: false, fields: {} }
+            },
+            _previewTimer: 0, _busy: false,
+
+            esc(s) { return (typeof escapeHtml === 'function') ? escapeHtml(s == null ? '' : String(s)) : String(s == null ? '' : s); },
+            async api(path, opts) {
+                const r = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + App.token } }, opts || {}));
+                let d = null; try { d = await r.json(); } catch (e) {}
+                return { ok: r.ok, status: r.status, d };
+            },
+
+            ensureStyle() {
+                if (this._styled) return; this._styled = true;
+                const css = `
+                .pr-overlay { position: fixed; inset: 0; z-index: 4200; background: rgba(15,20,30,0.6); backdrop-filter: blur(3px); display: none; }
+                .pr-overlay.active { display: block; }
+                .pr-shell { position: absolute; inset: 2.2vh 2.2vw; background: var(--bg-primary,#fbf9f6); border-radius: 18px; box-shadow: 0 30px 90px rgba(0,0,0,0.4); display: flex; flex-direction: column; overflow: hidden; }
+                .pr-top { display: flex; align-items: center; justify-content: space-between; padding: 13px 22px; border-bottom: 1px solid var(--border); background: linear-gradient(135deg, rgba(155,27,34,0.06), transparent); flex-shrink: 0; }
+                .pr-brand { font-family: 'Fraunces',Georgia,serif; font-size: 19px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
+                .pr-brand i { color: var(--gold); }
+                .pr-chip { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 3px 9px; border-radius: 20px; }
+                .pr-chip.ok { background: rgba(31,122,68,.14); color: #1f7a44; }
+                .pr-chip.warn { background: rgba(180,83,9,.14); color: #b45309; }
+                .pr-x { background: none; border: none; font-size: 26px; line-height: 1; color: var(--text-muted); cursor: pointer; padding: 0 4px; }
+                .pr-body { flex: 1; display: grid; grid-template-columns: 368px minmax(0,1fr); min-height: 0; }
+                .pr-rail { border-right: 1px solid var(--border); overflow-y: auto; padding: 16px 18px 40px; background: var(--bg-secondary); }
+                .pr-stage { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; padding: 18px 22px 22px; align-items: center; }
+                .pr-tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+                .pr-tab { flex: 1; min-width: 70px; padding: 9px 6px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-secondary); border-radius: 9px; cursor: pointer; font-size: 12px; font-weight: 700; font-family: inherit; display:flex; flex-direction:column; align-items:center; gap:4px; }
+                .pr-tab i { color: var(--gold); font-size: 14px; }
+                .pr-tab.on { background: #9b1b22; color: #fff; border-color: #9b1b22; }
+                .pr-tab.on i { color: #f0d9a8; }
+                .pr-sec { margin-bottom: 15px; }
+                .pr-sec > label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 7px; }
+                .pr-sec input[type=text], .pr-sec input[type=number], .pr-sec textarea, .pr-sec select { width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary); font-size: 13px; font-family: inherit; }
+                .pr-sec textarea { resize: vertical; line-height: 1.45; }
+                .pr-row2 { display: flex; gap: 10px; } .pr-row2 > * { flex: 1; }
+                .pr-seg { display: flex; gap: 6px; flex-wrap: wrap; }
+                .pr-seg button { flex: 1; min-width: 54px; padding: 8px 6px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-secondary); border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; font-family: inherit; }
+                .pr-seg button.on { background: #0f1c2e; color: #fff; border-color: #0f1c2e; }
+                .pr-toggle { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-primary); cursor: pointer; margin-bottom: 10px; font-size: 13px; color: var(--text-primary); }
+                .pr-toggle input { width: 17px; height: 17px; accent-color: #9b1b22; }
+                .pr-summary { background: linear-gradient(135deg, rgba(155,27,34,.06), rgba(201,169,98,.08)); border: 1px solid var(--border); border-radius: 12px; padding: 14px 15px; margin-bottom: 16px; }
+                .pr-summary .big { font-family: 'Fraunces',Georgia,serif; font-size: 26px; font-weight: 700; color: var(--text-primary); line-height: 1; }
+                .pr-summary .lbl { font-size: 12.5px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+                .pr-rolebar { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+                .pr-rolepill { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; }
+                .pr-note { font-size: 11.5px; color: var(--text-muted); line-height: 1.5; margin-top: 6px; }
+                .pr-gen { width: 100%; border: none; border-radius: 10px; padding: 14px; font-size: 14px; font-weight: 700; cursor: pointer; background: #0f1c2e; color: #fff; font-family: inherit; display:flex; align-items:center; justify-content:center; gap:8px; }
+                .pr-gen:disabled { opacity: .55; cursor: default; }
+                .pr-previewwrap { width: 100%; flex: 1; display: flex; align-items: flex-start; justify-content: center; min-height: 0; background: repeating-conic-gradient(#eee 0% 25%, #f7f7f7 0% 50%) 50% / 22px 22px; border-radius: 10px; overflow: auto; padding: 16px; }
+                .pr-scaler { position: relative; box-shadow: 0 12px 40px rgba(15,20,30,.28); background:#fff; }
+                .pr-scaler iframe { border: 0; display: block; background: #fff; }
+                .pr-result { width: 100%; margin-top: 14px; }
+                .pr-resultcard { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--bg-secondary); }
+                .pr-dl { display:inline-flex; align-items:center; gap:8px; background:#1f7a44; color:#fff; text-decoration:none; padding:10px 16px; border-radius:9px; font-size:13px; font-weight:700; }
+                .pr-warn { display:flex; gap:8px; align-items:flex-start; background: rgba(180,83,9,.08); border:1px solid rgba(180,83,9,.3); border-radius:9px; padding:9px 12px; margin-top:8px; font-size:12px; color:#8a5406; line-height:1.5; }
+                .pr-gate { padding: 40px; text-align: center; color: var(--text-secondary); max-width: 460px; }
+                .pr-gate i { font-size: 34px; color: var(--gold); margin-bottom: 12px; }
+                @media (max-width: 900px) { .pr-body { grid-template-columns: 1fr; } .pr-rail { border-right: none; border-bottom: 1px solid var(--border); max-height: 46vh; } }
+                `;
+                const st = document.createElement('style'); st.id = 'prStyle'; st.textContent = css; document.head.appendChild(st);
+            },
+            ensureBuilt() {
+                if (this._built) return; this.ensureStyle();
+                const ov = document.createElement('div'); ov.className = 'pr-overlay'; ov.id = 'prOverlay';
+                ov.innerHTML =
+                    '<div class="pr-shell">' +
+                    '  <div class="pr-top">' +
+                    '    <div class="pr-brand"><i class="fas fa-print"></i> Print &amp; signage <span class="pr-chip" id="prEngine"></span></div>' +
+                    '    <button class="pr-x" onclick="PrintSuite.close()" aria-label="Close">&times;</button>' +
+                    '  </div>' +
+                    '  <div class="pr-body">' +
+                    '    <div class="pr-rail" id="prRail"></div>' +
+                    '    <div class="pr-stage">' +
+                    '      <div class="pr-previewwrap" id="prPreviewWrap"><div style="color:var(--text-muted);padding:40px;"><i class="fas fa-spinner fa-spin"></i> Preparing preview…</div></div>' +
+                    '      <div class="pr-result" id="prResult"></div>' +
+                    '    </div>' +
+                    '  </div>' +
+                    '</div>';
+                document.body.appendChild(ov); this._built = true;
+            },
+
+            async start() {
+                this.ensureBuilt();
+                document.getElementById('prOverlay').classList.add('active');
+                document.body.style.overflow = 'hidden';
+                await this.loadContext(this.event);
+                this.renderRail(); this.refreshPreview();
+            },
+            close() {
+                const ov = document.getElementById('prOverlay'); if (ov) ov.classList.remove('active');
+                document.body.style.overflow = '';
+                try { ContentStudio.init(); } catch (e) {}
+            },
+
+            async loadContext(eventKey) {
+                const r = await this.api('/api/admin/print/context?event=' + encodeURIComponent(eventKey));
+                if (r.ok && r.d) {
+                    this.ctx = r.d; this.engine = r.d.engine || this.engine;
+                    // prefill banner fields from the event once
+                    this.opts.banner.fields = Object.assign({}, r.d.banner || {});
+                    const f = this.ctx.event || {};
+                    this.opts.backdrop.fields = { headline: f.name || 'Med&X', sub: 'Med&X · Plexus Week 2026', wordmark: 'Med&X' };
+                    this.opts.sign.fields = { eyebrow: f.name || '', destination: 'Registration', sub: '', arrow: 'right' };
+                }
+                const chip = document.getElementById('prEngine');
+                if (chip) { if (this.engine.chrome) { chip.className = 'pr-chip ok'; chip.textContent = 'Print engine ready'; } else { chip.className = 'pr-chip warn'; chip.textContent = 'Print engine off'; } }
+            },
+
+            setEvent(k) { this.event = k; this.loadContext(k).then(() => { this.renderRail(); this.refreshPreview(); }); },
+            setTab(t) { this.tab = t; this.renderRail(); this.refreshPreview(); document.getElementById('prResult').innerHTML = ''; },
+            setBadgeMode(m) { this.opts.badges.mode = m; this.renderRail(); },
+            setBannerSize(s) { this.opts.banner.size = s; this.renderRail(); this.debouncePreview(); },
+            setArrow(a) { this.opts.sign.fields.arrow = a; this.renderRail(); this.debouncePreview(); },
+            toggle(tab, key, el) { this.opts[tab][key] = !!el.checked; if (key === 'staff' || key === 'speakers' || key === 'sponsors') this.debouncePreview(); },
+            setField(tab, key, val) { this.opts[tab].fields[key] = val; this.debouncePreview(); },
+            setOpt(tab, key, val) { this.opts[tab][key] = val; },
+
+            renderRail() {
+                const c = this.ctx || { events: [], counts: {}, event: {} };
+                const events = (c.events || []).map(e => `<option value="${e.key}" ${e.key === this.event ? 'selected' : ''}>${this.esc(e.name)}</option>`).join('');
+                const tabs = [['badges', 'fa-id-badge', 'Badges'], ['banner', 'fa-flag', 'Roll-up'], ['backdrop', 'fa-camera-retro', 'Backdrop'], ['sign', 'fa-diamond-turn-right', 'Sign']]
+                    .map(t => `<button class="pr-tab ${this.tab === t[0] ? 'on' : ''}" onclick="PrintSuite.setTab('${t[0]}')"><i class="fas ${t[1]}"></i>${t[2]}</button>`).join('');
+                let controls = '';
+                if (this.tab === 'badges') controls = this.railBadges();
+                else if (this.tab === 'banner') controls = this.railBanner();
+                else if (this.tab === 'backdrop') controls = this.railBackdrop();
+                else controls = this.railSign();
+                const genLabel = this.tab === 'badges'
+                    ? (this.opts.badges.mode === 'single' ? 'Generate single badges' : 'Generate badge sheets')
+                    : (this.tab === 'banner' ? 'Generate roll-up PDF' : this.tab === 'backdrop' ? 'Generate backdrop PDF' : 'Generate sign PDF');
+                const cmyk = this.opts[this.tab].cmyk;
+                const cmykToggle = `<label class="pr-toggle" title="Convert colours to CMYK for offset print"><input type="checkbox" ${cmyk ? 'checked' : ''} ${this.engine.cmyk ? '' : 'disabled'} onchange="PrintSuite.setOpt('${this.tab}','cmyk',this.checked)"><span>Convert to CMYK for the print shop${this.engine.cmyk ? '' : ' (unavailable)'}</span></label>`;
+                document.getElementById('prRail').innerHTML =
+                    `<div class="pr-sec"><label>Event</label><select onchange="PrintSuite.setEvent(this.value)">${events}</select></div>
+                     <div class="pr-tabs">${tabs}</div>
+                     ${controls}
+                     ${cmykToggle}
+                     <button class="pr-gen" id="prGenBtn" onclick="PrintSuite.generate()"><i class="fas fa-file-pdf"></i> ${genLabel}</button>
+                     <div class="pr-note">Print-ready vector PDF at true physical size, with 3&nbsp;mm bleed and crop marks. Photos under ~120&nbsp;DPI are flagged, never blocked.</div>`;
+            },
+            railBadges() {
+                const co = (this.ctx && this.ctx.counts) || {};
+                const b = this.opts.badges;
+                const roleColors = { speaker: '#9b1b22', staff: '#0f1c2e', attendee: '#9a7b2f', guest: '#9a7b2f' };
+                const pills = ['speaker', 'staff', 'attendee', 'guest'].filter(r => co[r]).map(r => `<span class="pr-rolepill" style="background:${roleColors[r]}1a;color:${roleColors[r]};">${co[r]} ${r}${co[r] === 1 ? '' : 's'}</span>`).join('');
+                const evName = this.esc((this.ctx && this.ctx.event && this.ctx.event.name) || 'this event');
+                return `
+                    <div class="pr-summary">
+                        <div class="big">${co.total || 0}</div>
+                        <div class="lbl">name${co.total === 1 ? '' : 's'} pulled automatically from ${evName}. ${co.withQr || 0} ${co.withQr === 1 ? 'is a Med&amp;X member and carries' : 'are Med&amp;X members and carry'} a verify QR${co.quiet ? ' · ' + co.quiet + ' quiet profile' + (co.quiet === 1 ? '' : 's') + ' (name &amp; role only)' : ''}.</div>
+                        <div class="pr-rolebar">${pills}</div>
+                    </div>
+                    <div class="pr-sec"><label>1 · Anyone to add by hand?</label>
+                        <textarea rows="3" placeholder="One per line — Name, role, institution&#10;e.g. Ana Marić, speaker, Karolinska" oninput="PrintSuite.setOpt('badges','extras',this.value)">${this.esc(b.extras)}</textarea>
+                        <div class="pr-note">role is optional (attendee, speaker, staff, guest). No QR for hand-added names.</div>
+                    </div>
+                    <div class="pr-sec"><label>2 · How many blank badges?</label>
+                        <input type="number" min="0" max="200" value="${b.blanks}" oninput="PrintSuite.setOpt('badges','blanks',parseInt(this.value||'0',10))">
+                        <div class="pr-note">Blank write-on badges for walk-ins.</div>
+                    </div>
+                    <div class="pr-sec"><label>Layout</label>
+                        <div class="pr-seg">
+                            <button class="${b.mode === 'sheet' ? 'on' : ''}" onclick="PrintSuite.setBadgeMode('sheet')">A4 sheet · 8-up</button>
+                            <button class="${b.mode === 'single' ? 'on' : ''}" onclick="PrintSuite.setBadgeMode('single')">One per page</button>
+                        </div>
+                    </div>
+                    <label class="pr-toggle"><input type="checkbox" ${b.speakers ? 'checked' : ''} onchange="PrintSuite.toggle('badges','speakers',this)"><span>Include confirmed speakers</span></label>
+                    <label class="pr-toggle"><input type="checkbox" ${b.staff ? 'checked' : ''} onchange="PrintSuite.toggle('badges','staff',this)"><span>Include team (staff) badges</span></label>`;
+            },
+            railBanner() {
+                const f = this.opts.banner.fields || {}; const b = this.opts.banner;
+                const fld = (label, key) => `<div class="pr-sec"><label>${label}</label><input type="text" value="${this.esc(f[key] || '')}" oninput="PrintSuite.setField('banner','${key}',this.value)"></div>`;
+                return `
+                    <div class="pr-sec"><label>Size</label>
+                        <div class="pr-seg">
+                            <button class="${b.size === '85x200' ? 'on' : ''}" onclick="PrintSuite.setBannerSize('85x200')">85 × 200 cm</button>
+                            <button class="${b.size === '100x200' ? 'on' : ''}" onclick="PrintSuite.setBannerSize('100x200')">100 × 200 cm</button>
+                        </div>
+                    </div>
+                    ${fld('Eyebrow', 'eyebrow')}${fld('Headline', 'headline')}${fld('Date line', 'dateLine')}${fld('Venue line', 'venueLine')}${fld('Sub-line', 'sub')}${fld('Footer / URL', 'cta')}
+                    <label class="pr-toggle"><input type="checkbox" ${b.sponsors ? 'checked' : ''} onchange="PrintSuite.toggle('banner','sponsors',this)"><span>Include published sponsor logos</span></label>`;
+            },
+            railBackdrop() {
+                const f = this.opts.backdrop.fields || {};
+                const fld = (label, key) => `<div class="pr-sec"><label>${label}</label><input type="text" value="${this.esc(f[key] || '')}" oninput="PrintSuite.setField('backdrop','${key}',this.value)"></div>`;
+                return `<div class="pr-note" style="margin-bottom:12px;">A 240 × 240 cm step-and-repeat wall for the photo booth.</div>
+                    ${fld('Centre headline', 'headline')}${fld('Centre sub-line', 'sub')}${fld('Repeat wordmark', 'wordmark')}`;
+            },
+            railSign() {
+                const f = this.opts.sign.fields || {};
+                const fld = (label, key) => `<div class="pr-sec"><label>${label}</label><input type="text" value="${this.esc(f[key] || '')}" oninput="PrintSuite.setField('sign','${key}',this.value)"></div>`;
+                const arrows = [['left', 'fa-arrow-left'], ['up', 'fa-arrow-up'], ['right', 'fa-arrow-right'], ['down', 'fa-arrow-down']];
+                const seg = arrows.map(a => `<button class="${(f.arrow || 'right') === a[0] ? 'on' : ''}" onclick="PrintSuite.setArrow('${a[0]}')"><i class="fas ${a[1]}"></i></button>`).join('');
+                return `<div class="pr-note" style="margin-bottom:12px;">An A4 directional sign.</div>
+                    ${fld('Eyebrow', 'eyebrow')}${fld('Destination', 'destination')}${fld('Sub-line', 'sub')}
+                    <div class="pr-sec"><label>Arrow</label><div class="pr-seg">${seg}</div></div>`;
+            },
+
+            previewBody() {
+                const t = this.tab;
+                if (t === 'badges') return { kind: this.opts.badges.mode === 'single' ? 'badges-single' : 'badges-sheet', event: this.event, staff: this.opts.badges.staff, speakers: this.opts.badges.speakers };
+                if (t === 'banner') return { kind: 'banner', event: this.event, size: this.opts.banner.size, fields: this.opts.banner.fields };
+                if (t === 'backdrop') return { kind: 'backdrop', event: this.event, fields: this.opts.backdrop.fields };
+                return { kind: 'sign', event: this.event, fields: this.opts.sign.fields };
+            },
+            debouncePreview() { clearTimeout(this._previewTimer); this._previewTimer = setTimeout(() => this.refreshPreview(), 500); },
+            async refreshPreview() {
+                const wrap = document.getElementById('prPreviewWrap'); if (!wrap) return;
+                wrap.innerHTML = '<div style="color:var(--text-muted);padding:40px;"><i class="fas fa-spinner fa-spin"></i> Rendering preview…</div>';
+                const r = await this.api('/api/admin/print/preview', { method: 'POST', body: JSON.stringify(this.previewBody()) });
+                if (!r.ok || !r.d || !r.d.html) { wrap.innerHTML = '<div style="color:var(--text-muted);padding:40px;">Preview unavailable.</div>'; return; }
+                const pxW = r.d.pageW * 96 / 25.4, pxH = r.d.pageH * 96 / 25.4;
+                const availW = wrap.clientWidth - 34, availH = wrap.clientHeight - 34;
+                const scale = Math.min(availW / pxW, availH / pxH, 1.2);
+                wrap.innerHTML = `<div class="pr-scaler" style="width:${Math.round(pxW * scale)}px;height:${Math.round(pxH * scale)}px;"><iframe id="prPreviewFrame" style="width:${pxW}px;height:${pxH}px;transform:scale(${scale});transform-origin:top left;" scrolling="no"></iframe></div>`;
+                const fr = document.getElementById('prPreviewFrame'); if (fr) fr.srcdoc = r.d.html;
+            },
+
+            async generate() {
+                if (this._busy) return; this._busy = true;
+                const btn = document.getElementById('prGenBtn'); const res = document.getElementById('prResult');
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rendering print-ready PDF…'; }
+                const body = this.previewBody();
+                body.cmyk = !!this.opts[this.tab].cmyk;
+                if (this.tab === 'badges') {
+                    body.blanks = this.opts.badges.blanks || 0;
+                    body.extras = String(this.opts.badges.extras || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => { const p = l.split(',').map(x => x.trim()); return { name: p[0], role: (p[1] || 'attendee').toLowerCase(), institution: p[2] || '' }; }).filter(x => x.name);
+                }
+                if (this.tab === 'banner') body.sponsors = this.opts.banner.sponsors;
+                const r = await this.api('/api/admin/print/render', { method: 'POST', body: JSON.stringify(body) });
+                this._busy = false;
+                this.renderRail();
+                if (!r.ok || !r.d || !r.d.success) {
+                    const msg = (r.d && (r.d.message || r.d.error)) || 'Could not generate the PDF.';
+                    res.innerHTML = `<div class="pr-resultcard" style="border-color:rgba(155,27,34,.4);"><div style="color:#9b1b22;font-weight:700;"><i class="fas fa-triangle-exclamation"></i> ${this.esc(msg)}</div></div>`;
+                    return;
+                }
+                const d = r.d;
+                const sizeCm = (Math.round(d.pageW / 10 * 10) / 10) + ' × ' + (Math.round(d.pageH / 10 * 10) / 10) + ' cm';
+                const warns = (d.warnings || []).map(w => `<div class="pr-warn"><i class="fas fa-triangle-exclamation" style="margin-top:1px;"></i><span>${this.esc(w.note)}</span></div>`).join('');
+                res.innerHTML = `<div class="pr-resultcard">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                        <div><div style="font-weight:700;color:var(--text-primary);"><i class="fas fa-circle-check" style="color:#1f7a44;"></i> Print-ready PDF</div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${d.pages} page${d.pages === 1 ? '' : 's'} · ${sizeCm} · ${(d.bytes / 1024).toFixed(0)} KB${d.cmyk ? ' · CMYK' : ''}</div></div>
+                        <a class="pr-dl" href="${this.esc(d.url)}" download target="_blank" rel="noopener"><i class="fas fa-download"></i> Download PDF</a>
+                    </div>
+                    ${d.cmykRequested && !d.cmyk ? '<div class="pr-warn"><i class="fas fa-triangle-exclamation"></i><span>CMYK conversion was requested but is unavailable on this server — the RGB PDF was kept.</span></div>' : ''}
+                    ${warns}
+                    <div style="margin-top:12px;"><iframe src="${this.esc(d.url)}" style="width:100%;height:320px;border:1px solid var(--border);border-radius:8px;"></iframe></div>
+                </div>`;
+            }
+        };
+        window.PrintSuite = PrintSuite;
+
 
 
         // ==================== EMAIL (OUTLOOK) — staff @medx.hr inbox in Messages ====================
@@ -43962,13 +44242,14 @@ By applying to this program, I give the following consents:
             },
 
             showTab(tab){
-                ['invitees','discover'].forEach(t=>{
+                ['invitees','discover','autoreply'].forEach(t=>{
                     const btn=document.getElementById('eiTabBtn-'+t), pane=document.getElementById('eiTab-'+t);
                     if(btn) btn.classList.toggle('active', t===tab);
                     if(pane) pane.style.display = t===tab ? '' : 'none';
                 });
                 if (tab==='invitees') this.loadInvitees();
                 if (tab==='discover') this.renderDiscover();
+                if (tab==='autoreply') this.loadAutoReply();
             },
 
             // ---- Invitees ----
@@ -44201,6 +44482,153 @@ By applying to this program, I give the following consents:
                     this.toast(r.added+' added to the campaign.'+(r.duplicates&&r.duplicates.length?(' '+r.duplicates.length+' already known.'):''),'success');
                     this.showTab('invitees');
                 } catch(e){ this.toast(e.message||'Could not add.','error'); btn.disabled=false; }
+            },
+
+            // ---- Auto-reply (queue 5a7): approve category templates once, arm per campaign ----
+            autoReply: null,
+            arCatMeta(cat){
+                return {
+                    coming:{ label:'Confirmed attendance', hint:'When someone replies that they will attend, send a warm confirmation.', icon:'fa-circle-check', tone:'#166534' },
+                    declining:{ label:'Gracious regrets', hint:'When someone cannot make it, send a gracious thanks and an open door for next time.', icon:'fa-hand-peace', tone:'#b45309' },
+                    question:{ label:'Logistics question', hint:'When someone asks about the date, venue, cost or programme, answer from the portal facts. The real date, venue and attendance are added automatically.', icon:'fa-circle-question', tone:'#1d4ed8' }
+                }[cat] || { label:cat, hint:'', icon:'fa-envelope', tone:'#475569' };
+            },
+            async loadAutoReply(){
+                const pane=document.getElementById('eiTab-autoreply');
+                if(!this.current){ return; }
+                pane.innerHTML='<div style="color:var(--text-muted);padding:18px;">Loading&hellip;</div>';
+                try {
+                    this.autoReply = await this.api('/api/admin/event-invites/campaigns/'+this.current.id+'/auto-reply');
+                } catch(e){ pane.innerHTML='<div style="color:#b91c1c;padding:18px;">'+this.esc(e.message)+'</div>'; return; }
+                this.renderAutoReply();
+            },
+            renderAutoReply(){
+                const pane=document.getElementById('eiTab-autoreply'); const d=this.autoReply||{};
+                const s=d.settings||{enabled:false}; const rd=d.readiness||{}; const tpls=d.templates||[]; const log=d.log||[];
+                const armed=!!s.enabled;
+                const notApproved = ['coming','declining','question'].filter(c=>!(rd[c]&&rd[c].approved));
+                // Kill-switch card
+                const toggleCard = `<div class="card" style="padding:18px 20px;border-left:4px solid ${armed?'#166534':'#9b1b22'};">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:260px;">
+                            <div style="font-size:16px;font-weight:800;font-family:'Fraunces',Georgia,serif;"><i class="fas fa-robot" style="color:${armed?'#166534':'#9b1b22'};"></i> Auto-reply is ${armed?'<span style="color:#166534;">ARMED</span>':'<span style="color:#9b1b22;">off</span>'}</div>
+                            <p style="font-size:13px;color:var(--text-muted);margin:8px 0 0;max-width:640px;">While armed, a clear reply that is a confirmation, a decline, or a plain logistics question is answered automatically from an approved template &mdash; every message still flows through the one approval outbox, and each inbound message is answered at most once. Anything ambiguous or delicate is never auto-sent: it is escalated to the president and Laura and appears in the Action Center. Turning this off stops the next auto-reply instantly.</p>
+                            ${armed&&notApproved.length?`<div style="margin-top:10px;font-size:12px;color:#92400e;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;"><i class="fas fa-triangle-exclamation"></i> ${notApproved.length} categor${notApproved.length===1?'y is':'ies are'} not approved yet (${notApproved.join(', ')}). Replies in ${notApproved.length===1?'that category':'those categories'} are escalated for a human until you approve the template below.</div>`:''}
+                            ${s.enabled_by?`<div style="font-size:11px;color:var(--text-muted);margin-top:8px;">Armed by ${this.esc(s.enabled_by)}${s.enabled_at?' &middot; '+this.esc((s.enabled_at||'').replace('T',' ').slice(0,16)):''}</div>`:''}
+                        </div>
+                        <div>${armed
+                            ? `<button class="btn btn-secondary" style="color:#b45309;white-space:nowrap;" onclick="EventInvitesApp.toggleAutoReply(false,this)"><i class="fas fa-power-off"></i> Turn off (kill switch)</button>`
+                            : `<button class="btn btn-primary" style="background:#166534;border:none;white-space:nowrap;" onclick="EventInvitesApp.toggleAutoReply(true,this)"><i class="fas fa-bolt"></i> Arm auto-reply</button>`}</div>
+                    </div>
+                </div>`;
+                // Template editor cards
+                const tplCards = ['coming','declining','question'].map(cat=>{
+                    const t = tpls.find(x=>x.category===cat) || {category:cat};
+                    const m = this.arCatMeta(cat); const approved = !!(rd[cat]&&rd[cat].approved);
+                    return `<div class="card" style="padding:16px 18px;margin-top:14px;">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+                            <div>
+                                <div style="font-weight:700;font-size:15px;"><i class="fas ${m.icon}" style="color:${m.tone};margin-right:6px;"></i> ${this.esc(m.label)}
+                                    ${approved?'<span class="ei-chip registered" style="margin-left:6px;">approved</span>':'<span class="ei-chip" style="margin-left:6px;background:#fef3c7;color:#92400e;">draft</span>'}</div>
+                                <div style="font-size:12px;color:var(--text-muted);margin-top:4px;max-width:640px;">${this.esc(m.hint)}</div>
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px;">
+                            <div>
+                                <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700;margin-bottom:6px;">English (international)</div>
+                                <div class="form-group"><label>Subject</label><input type="text" id="arSub-${cat}" class="search-input" style="width:100%;" maxlength="200" value="${this.esc(t.subject||'')}"></div>
+                                <div class="form-group"><label>Message</label><textarea id="arBody-${cat}" rows="4" class="search-input" style="width:100%;" maxlength="6000">${this.esc(t.body_html||'')}</textarea></div>
+                            </div>
+                            <div>
+                                <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700;margin-bottom:6px;">Hrvatski (formalno)</div>
+                                <div class="form-group"><label>Naslov</label><input type="text" id="arSubHr-${cat}" class="search-input" style="width:100%;" maxlength="200" value="${this.esc(t.subject_hr||'')}"></div>
+                                <div class="form-group"><label>Poruka</label><textarea id="arBodyHr-${cat}" rows="4" class="search-input" style="width:100%;" maxlength="6000">${this.esc(t.body_html_hr||'')}</textarea></div>
+                            </div>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px;">
+                            <div style="font-size:11px;color:var(--text-muted);">${approved?('Approved'+(t.approved_by?' by '+this.esc(t.approved_by):'')):'Editing resets approval &mdash; re-approve after any change.'}</div>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button class="btn btn-secondary btn-sm" onclick="EventInvitesApp.previewReplyTemplate('${cat}',false)"><i class="fas fa-eye"></i> Preview EN</button>
+                                <button class="btn btn-secondary btn-sm" onclick="EventInvitesApp.previewReplyTemplate('${cat}',true)"><i class="fas fa-eye"></i> Pregled HR</button>
+                                <button class="btn btn-secondary btn-sm" onclick="EventInvitesApp.saveReplyTemplate('${cat}',this)"><i class="fas fa-floppy-disk"></i> Save</button>
+                                ${approved
+                                    ? `<button class="btn btn-secondary btn-sm" style="color:#b45309;" onclick="EventInvitesApp.unapproveReplyTemplate('${cat}',this)"><i class="fas fa-lock-open"></i> Unapprove</button>`
+                                    : `<button class="btn btn-primary btn-sm" style="background:#166534;border:none;" onclick="EventInvitesApp.approveReplyTemplate('${cat}',this)"><i class="fas fa-circle-check"></i> Save &amp; approve</button>`}
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+                // Audit list
+                const decMeta={ auto_sent:{l:'Auto-sent',c:'#166534',b:'#dcfce7'}, escalated:{l:'Escalated',c:'#991b1b',b:'#fee2e2'}, skipped_unapproved:{l:'Skipped (not approved)',c:'#92400e',b:'#fef3c7'}, duplicate:{l:'Duplicate (blocked)',c:'#475569',b:'#eef1f6'} };
+                let audit;
+                if(!log.length){ audit='<div style="padding:20px 12px;text-align:center;color:var(--text-muted);">No auto-reply activity yet. Once armed, every decision &mdash; sent or escalated &mdash; is recorded here.</div>'; }
+                else {
+                    audit='<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="text-align:left;color:var(--text-muted);border-bottom:1px solid var(--border);">'
+                        +['When','Decision','Category','Confidence','To','Why'].map(h=>`<th style="padding:8px 10px;font-weight:600;white-space:nowrap;">${h}</th>`).join('')
+                        +'</tr></thead><tbody>'
+                        +log.map(r=>{ const dm=decMeta[r.decision]||{l:r.decision,c:'#475569',b:'#eef1f6'};
+                            return `<tr style="border-bottom:1px solid var(--border);">
+                                <td style="padding:8px 10px;white-space:nowrap;color:var(--text-muted);">${this.esc((r.created_at||'').replace('T',' ').slice(0,16))}</td>
+                                <td style="padding:8px 10px;"><span style="background:${dm.b};color:${dm.c};padding:2px 9px;border-radius:20px;font-weight:600;font-size:11px;white-space:nowrap;">${this.esc(dm.l)}</span></td>
+                                <td style="padding:8px 10px;white-space:nowrap;">${this.esc(r.category||'')}</td>
+                                <td style="padding:8px 10px;white-space:nowrap;">${r.confidence==null?'&mdash;':(Math.round(r.confidence*100)+'%')}</td>
+                                <td style="padding:8px 10px;">${this.esc(r.recipient_email||'&mdash;')}</td>
+                                <td style="padding:8px 10px;color:var(--text-muted);">${this.esc(r.reason||'')}</td>
+                            </tr>`; }).join('')
+                        +'</tbody></table></div>';
+                }
+                pane.innerHTML = toggleCard
+                    + `<div style="margin-top:22px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700;">Category templates <span style="text-transform:none;letter-spacing:0;font-weight:400;">&mdash; approved once, shared across every campaign. Croatian invitees receive the Hrvatski version.</span></div>`
+                    + tplCards
+                    + `<div style="margin-top:26px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700;">Auto-reply audit</div>`
+                    + `<div class="card" style="padding:6px 6px;margin-top:10px;">${audit}</div>`;
+            },
+            async toggleAutoReply(enable,btn){
+                if(btn) btn.disabled=true;
+                try {
+                    await this.api('/api/admin/event-invites/campaigns/'+this.current.id+'/auto-reply/toggle',{ method:'POST', body: JSON.stringify({ enabled: !!enable }) });
+                    this.toast(enable?'Auto-reply armed for this campaign.':'Auto-reply turned off. No further messages will be auto-sent.', enable?'success':'info');
+                    this.loadAutoReply();
+                } catch(e){ this.toast(e.message||'Could not change the setting.','error'); if(btn) btn.disabled=false; }
+            },
+            _arTplPayload(cat){
+                const g=(id)=>{ const el=document.getElementById(id); return el?el.value:''; };
+                return { subject:g('arSub-'+cat), subject_hr:g('arSubHr-'+cat), body_html:g('arBody-'+cat), body_html_hr:g('arBodyHr-'+cat) };
+            },
+            async saveReplyTemplate(cat,btn){
+                if(btn) btn.disabled=true;
+                try {
+                    await this.api('/api/admin/event-invites/reply-templates/'+cat,{ method:'PUT', body: JSON.stringify(this._arTplPayload(cat)) });
+                    this.toast('Saved. Approve it to let it auto-send.','success');
+                    this.loadAutoReply();
+                } catch(e){ this.toast(e.message||'Could not save.','error'); if(btn) btn.disabled=false; }
+            },
+            async approveReplyTemplate(cat,btn){
+                if(btn) btn.disabled=true;
+                try {
+                    await this.api('/api/admin/event-invites/reply-templates/'+cat,{ method:'PUT', body: JSON.stringify(this._arTplPayload(cat)) });
+                    await this.api('/api/admin/event-invites/reply-templates/'+cat+'/approve',{ method:'POST', body: JSON.stringify({}) });
+                    this.toast('Approved. This category can now auto-send on armed campaigns.','success');
+                    this.loadAutoReply();
+                } catch(e){ this.toast(e.message||'Could not approve.','error'); if(btn) btn.disabled=false; }
+            },
+            async unapproveReplyTemplate(cat,btn){
+                if(btn) btn.disabled=true;
+                try {
+                    await this.api('/api/admin/event-invites/reply-templates/'+cat+'/unapprove',{ method:'POST', body: JSON.stringify({}) });
+                    this.toast('Unapproved. Replies in this category will be escalated until you approve it again.','info');
+                    this.loadAutoReply();
+                } catch(e){ this.toast(e.message||'Could not update.','error'); if(btn) btn.disabled=false; }
+            },
+            async previewReplyTemplate(cat,hr){
+                try {
+                    const body = Object.assign({ hr, event_key:(this.current&&this.current.event_key)||'gala' }, this._arTplPayload(cat));
+                    const r = await this.api('/api/admin/event-invites/reply-templates/'+cat+'/preview',{ method:'POST', body: JSON.stringify(body) });
+                    document.getElementById('eiPreviewTitle').textContent = 'Auto-reply preview '+(hr?'(HR)':'(EN)');
+                    document.getElementById('eiPreviewSubject').textContent = 'Subject: '+r.subject;
+                    document.getElementById('eiPreviewFrame').srcdoc = r.html;
+                    App.openModal('eiPreviewModal');
+                } catch(e){ this.toast(e.message||'Could not build preview.','error'); }
             }
         };
         window.EventInvitesApp = EventInvitesApp;

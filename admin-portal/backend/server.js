@@ -1334,6 +1334,22 @@ function nagCollectDesired() {
         }
     } catch (e) { /* table may not exist on an older schema */ }
 
+    // Event invitations — invitees escalated by a complex/delicate reply (or one below the auto-
+    // reply confidence gate). Each becomes an Action Center item (area: Event invitations) that
+    // opens the campaign. Auto-resolves when the invitee leaves 'escalated'. Admin-only table;
+    // guard for older schemas.
+    try {
+        const rows = query.all("SELECT i.id, i.name, i.email, i.campaign_id, c.event_key FROM event_campaign_invitees i LEFT JOIN event_campaigns c ON i.campaign_id = c.id WHERE i.status = 'escalated'");
+        for (const r of rows) {
+            push({
+                kind: 'event_invite_escalated', subject_id: r.id,
+                title: `Event reply needs your eye: ${r.name || r.email}`, assignee: null,
+                action_kind: 'open_link',
+                action_payload: { who: r.name || r.email, invitee_id: r.id, campaign_id: r.campaign_id, open_section: 'event-invites' }
+            });
+        }
+    } catch (e) { /* table may not exist on an older schema */ }
+
     return desired;
 }
 
@@ -4235,6 +4251,90 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_event_campaign_replies_inv ON event_campaign_replies(invitee_id)`);
+
+    // ============ AUTO-REPLY ENGINE (queue 5a7) — ADMIN-ONLY ============
+    // Extends the event-invitation reply classification (event_campaign_replies) with an
+    // APPROVE-ONCE auto-responder. The admin approves a bilingual template per clear-cut category
+    // ('coming' | 'declining' | 'question') exactly once; a per-campaign kill switch
+    // (auto_reply_settings.enabled, default OFF) then ARMS auto-send for that campaign. When BOTH
+    // are true, a clear-cut inbound reply above the confidence gate is answered automatically
+    // through the ONE approval outbox (scheduled_emails, source_engine='auto-reply', staged as
+    // 'scheduled' so the existing 60s drainer sends it) — deduped one-per-inbound-message by
+    // drip_log ('auto_reply_msg:<id>'). Anything ambiguous/complex/delicate or below the gate is
+    // NEVER auto-sent: it falls through to the existing pending-draft / escalation path and lands
+    // in the Action Center. auto_reply_log is the full audit surface (what was auto-sent or why it
+    // was not). All three tables live OUTSIDE the SCHEMA-MIRROR block by design — admin-only, the
+    // user portal never reads or writes them (nothing to mirror, check-schema-sync stays green).
+    // Every statement is idempotent.
+    db.run(`CREATE TABLE IF NOT EXISTS reply_templates (
+        id TEXT PRIMARY KEY,
+        category TEXT UNIQUE NOT NULL,
+        label TEXT,
+        subject TEXT,
+        subject_hr TEXT,
+        body_html TEXT,
+        body_html_hr TEXT,
+        status TEXT DEFAULT 'draft',
+        approved_by TEXT,
+        approved_at TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS auto_reply_settings (
+        id TEXT PRIMARY KEY,
+        campaign_id TEXT UNIQUE NOT NULL,
+        enabled INTEGER DEFAULT 0,
+        confidence_threshold REAL DEFAULT 0.75,
+        enabled_by TEXT,
+        enabled_at TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS auto_reply_log (
+        id TEXT PRIMARY KEY,
+        campaign_id TEXT,
+        invitee_id TEXT,
+        reply_id TEXT,
+        category TEXT,
+        confidence REAL,
+        lang TEXT,
+        template_id TEXT,
+        recipient_email TEXT,
+        subject TEXT,
+        scheduled_email_id TEXT,
+        decision TEXT,
+        reason TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_auto_reply_log_camp ON auto_reply_log(campaign_id)`);
+    // Seed the three clear-cut category templates as DRAFTS the owner approves by clicking (the
+    // approve-once content gate). Bilingual, formal Croatian (Vi). No salutation/signature here —
+    // the composer adds a personal greeting and the president's signature, exactly like the
+    // invitation builder. Idempotent via UNIQUE(category): a re-seed never clobbers owner edits.
+    try {
+        const _seedReplyTpl = [
+            ['coming', 'Confirmed attendance',
+                'We are delighted you will join us',
+                'Radujemo se Vašem dolasku',
+                'Thank you for confirming, and it is a genuine pleasure to know you will be joining us. We will keep your place with care and look forward to welcoming you in person. If anything changes, a short note to this address is all it takes.',
+                'Hvala Vam na potvrdi, i iskreno nam je zadovoljstvo znati da ćete nam se pridružiti. Vaše mjesto čuvamo s pažnjom i radujemo se što ćemo Vas ugostiti uživo. Ako se nešto promijeni, dovoljna je kratka poruka na ovu adresu.'],
+            ['declining', 'Gracious regrets',
+                'Thank you, and we hope to welcome you another time',
+                'Hvala Vam, nadamo se drugoj prilici',
+                'Thank you for letting us know, and please do not give it another thought. We are grateful you considered joining us, and we very much hope our paths cross at a future gathering. You remain most welcome whenever the timing suits you.',
+                'Hvala Vam što ste nam javili, i molimo Vas da o tome više ne razmišljate. Zahvalni smo što ste razmotrili svoj dolazak i iskreno se nadamo da ćemo se susresti na nekom od budućih okupljanja. Uvijek ste dobrodošli, kad god Vam to bude odgovaralo.'],
+            ['question', 'Logistics question answered',
+                'The details you asked for',
+                'Pojedinosti koje ste zatražili',
+                'Thank you for writing back, and with pleasure. Here are the essentials, and you will find everything else, including the registration form, on our pages. It would be a privilege to welcome you.',
+                'Hvala Vam na odgovoru, i vrlo rado. U nastavku su ključne pojedinosti, a sve ostalo, uključujući obrazac za prijavu, pronaći ćete na našim stranicama. Bila bi nam čast ugostiti Vas.']
+        ];
+        for (const t of _seedReplyTpl) {
+            db.run(`INSERT OR IGNORE INTO reply_templates (id, category, label, subject, subject_hr, body_html, body_html_hr, status, created_at, updated_at)
+                    VALUES (?,?,?,?,?,?,?, 'draft', datetime('now'), datetime('now'))`,
+                [require('crypto').randomUUID(), t[0], t[1], t[2], t[3], t[4], t[5]]);
+        }
+    } catch (e) { console.error('[auto-reply] seed templates', e.message); }
 
     // ============ AUTOMATED EVENT REMINDERS (queue 5a5) — ADMIN-ONLY ============
     // Per-event reminder SEQUENCES for people who have already REGISTERED. Generalizes the Forum
@@ -28564,6 +28664,598 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         } catch (e) { console.error('[content] video compose', e.message); res.status(500).json({ error: e.message }); }
     });
 
+    // ============================ EVENT PRINT SUITE (Content Studio) ============================
+    // Print-ready, true-physical-size VECTOR PDFs for the last-day print run: name badges, roll-up
+    // banners, a step-and-repeat backdrop and A4 signage — all in the Med&X event design language
+    // (siblings of the invitation emails: navy / gold / burgundy, Georgia display). The crux is the
+    // proven HTML -> headless-Chrome -> PDF pipeline: we build the artwork as HTML/CSS sized in
+    // millimetres (@page size == the physical trim + bleed), let Chrome emit a vector PDF (text stays
+    // selectable, QR codes are inline SVG so they stay vector), then optionally convert to CMYK with
+    // ghostscript. Per-person URL QR codes point at the PUBLIC member verify page (reused, consent-aware)
+    // — NEVER the frozen ticket QR payload. Nothing here touches checkout, calculateTotal, the ticket
+    // QR/scanner, or payment links.
+
+    const PS_PT_PER_MM = 72 / 25.4;
+    const psMmToPt = (mm) => mm * PS_PT_PER_MM;
+    const PS_PAL = { navy: '#0f1c2e', navy2: '#091320', gold: '#C9A962', goldLight: '#e8c97a', burgundy: '#9b1b22', cream: '#faf7f2', ink: '#141414', paper: '#ffffff', muted: '#8a7f6f', line: '#ece5da' };
+    // Role colour coding for badges (speaker / staff / attendee, plus a gala guest alias).
+    const PS_ROLES = {
+        attendee: { label: 'Attendee', band: PS_PAL.navy, bandInk: PS_PAL.goldLight, chipBg: PS_PAL.gold, chipInk: '#15110f' },
+        speaker: { label: 'Speaker', band: PS_PAL.burgundy, bandInk: '#f6e6d8', chipBg: PS_PAL.burgundy, chipInk: '#ffffff' },
+        staff: { label: 'Team', band: '#15110f', bandInk: PS_PAL.gold, chipBg: PS_PAL.navy, chipInk: PS_PAL.goldLight },
+        guest: { label: 'Guest', band: '#2b2016', bandInk: PS_PAL.goldLight, chipBg: PS_PAL.gold, chipInk: '#15110f' }
+    };
+    const psRole = (r) => PS_ROLES[String(r || 'attendee').toLowerCase()] || PS_ROLES.attendee;
+    const psEsc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    // --- headless-Chrome locator + render ----------------------------------------------------------
+    let _psChromeChecked = false, _psChromePath = null;
+    function psChromeBinary() {
+        if (_psChromeChecked) return _psChromePath;
+        _psChromeChecked = true;
+        const cands = [process.env.CHROME_PATH, process.env.PUPPETEER_EXECUTABLE_PATH,
+            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+            '/Applications/Chromium.app/Contents/MacOS/Chromium',
+            '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser',
+            '/snap/bin/chromium'].filter(Boolean);
+        for (const c of cands) { try { if (fs.existsSync(c)) { _psChromePath = c; return _psChromePath; } } catch (e) {} }
+        // fall back to a PATH scan
+        const dirs = String(process.env.PATH || '').split(':');
+        for (const n of ['google-chrome', 'chromium', 'chromium-browser', 'chrome']) {
+            for (const d of dirs) { try { const p = path.join(d, n); if (d && fs.existsSync(p)) { _psChromePath = p; return _psChromePath; } } catch (e) {} }
+        }
+        return _psChromePath;
+    }
+    function psRenderPdf(html, outPath) {
+        return new Promise((resolve, reject) => {
+            const chrome = psChromeBinary();
+            if (!chrome) return reject(new Error('print_engine_unavailable'));
+            const os = require('os');
+            const stem = outPath.replace(/\.pdf$/i, '');
+            const tmpHtml = stem + '.src.html';
+            const udd = path.join(os.tmpdir(), 'ps-chrome-' + uuidv4());
+            try { fs.writeFileSync(tmpHtml, html); } catch (e) { return reject(e); }
+            const args = ['--headless=new', '--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage',
+                '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--disable-background-networking',
+                '--no-pdf-header-footer', '--print-to-pdf-no-header', '--run-all-compositor-stages-before-draw',
+                '--virtual-time-budget=15000', '--hide-scrollbars', '--force-color-profile=srgb',
+                '--user-data-dir=' + udd, '--print-to-pdf=' + outPath, 'file://' + tmpHtml];
+            // headless Chrome does not always self-exit after --print-to-pdf, so we spawn it, poll for a
+            // stable output file, then kill the process and resolve — fast, and never hangs the request.
+            const child = require('child_process').spawn(chrome, args, { stdio: 'ignore' });
+            let done = false, lastSize = -1, stable = 0;
+            const cleanup = () => { try { fs.unlinkSync(tmpHtml); } catch (e) {} try { fs.rmSync(udd, { recursive: true, force: true }); } catch (e) {} };
+            const finish = (err) => {
+                if (done) return; done = true;
+                clearInterval(poll); clearTimeout(hard);
+                try { child.kill('SIGKILL'); } catch (e) {}
+                cleanup();
+                let ok = false; try { ok = fs.existsSync(outPath) && fs.statSync(outPath).size > 0; } catch (e) {}
+                if (ok) resolve(outPath); else reject(err || new Error('pdf_not_written'));
+            };
+            const poll = setInterval(() => {
+                try { if (fs.existsSync(outPath)) { const s = fs.statSync(outPath).size; if (s > 0 && s === lastSize) { stable++; if (stable >= 2) return finish(); } else { stable = 0; } lastSize = s; } } catch (e) {}
+            }, 350);
+            child.on('error', (e) => finish(e));
+            child.on('exit', () => { setTimeout(() => finish(), 250); });
+            const hard = setTimeout(() => finish(new Error('render_timeout')), 60000);
+        });
+    }
+    let _psGsChecked = false, _psGsPath = null;
+    function psGsBinary() {
+        if (_psGsChecked) return _psGsPath;
+        _psGsChecked = true;
+        const cands = [process.env.GHOSTSCRIPT_PATH, '/opt/homebrew/bin/gs', '/usr/local/bin/gs', '/usr/bin/gs'].filter(Boolean);
+        for (const c of cands) { try { if (fs.existsSync(c)) { _psGsPath = c; return _psGsPath; } } catch (e) {} }
+        return _psGsPath;
+    }
+    function psToCmyk(inPath, outPath) {
+        return new Promise((resolve, reject) => {
+            const gs = psGsBinary();
+            if (!gs) return reject(new Error('cmyk_unavailable'));
+            const args = ['-dSAFER', '-dBATCH', '-dNOPAUSE', '-sDEVICE=pdfwrite',
+                '-dProcessColorModel=/DeviceCMYK', '-sColorConversionStrategy=CMYK', '-sColorConversionStrategyForImages=CMYK',
+                '-dEmbedAllFonts=true', '-dAutoRotatePages=/None', '-sOutputFile=' + outPath, inPath];
+            require('child_process').execFile(gs, args, { timeout: 90000, maxBuffer: 8 * 1024 * 1024 }, (err) => {
+                if (!fs.existsSync(outPath)) return reject(err || new Error('cmyk_not_written'));
+                resolve(outPath);
+            });
+        });
+    }
+
+    // --- image helpers (DPI preflight + inline embedding) ------------------------------------------
+    // Read intrinsic pixel dimensions from a PNG or JPEG header without any dependency.
+    function psImageSizePx(filePath) {
+        try {
+            const fd = fs.openSync(filePath, 'r');
+            const buf = Buffer.alloc(131072);
+            const n = fs.readSync(fd, buf, 0, 131072, 0); fs.closeSync(fd);
+            if (n >= 24 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47)
+                return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+            if (n >= 4 && buf[0] === 0xff && buf[1] === 0xd8) {
+                let o = 2;
+                while (o < n - 9) {
+                    if (buf[o] !== 0xff) { o++; continue; }
+                    const m = buf[o + 1];
+                    if (m === 0xd8 || m === 0xd9 || (m >= 0xd0 && m <= 0xd7) || m === 0x01) { o += 2; continue; }
+                    if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc)
+                        return { h: buf.readUInt16BE(o + 5), w: buf.readUInt16BE(o + 7) };
+                    const len = buf.readUInt16BE(o + 2); if (len < 2) break; o += 2 + len;
+                }
+            }
+        } catch (e) {}
+        return null;
+    }
+    // Map a public asset URL back to a file on disk so we can embed + measure it.
+    function psLocalPathForUrl(u) {
+        if (!u) return null;
+        try {
+            let p = String(u);
+            const base = /^https?:\/\//i.test(p) ? p.replace(/^https?:\/\/[^/]+/i, '') : p;
+            if (base.startsWith('/uploads/')) return path.join(uploadsDir, base.slice('/uploads/'.length));
+            if (base.startsWith('/assets/')) return path.join(__dirname, '../frontend/assets', base.slice('/assets/'.length));
+            if (base.startsWith('/photo-library/')) return path.join(__dirname, '../../user-portal/frontend/assets', base.slice('/photo-library/'.length));
+            if (base.startsWith('/resources/')) return path.join(__dirname, '../frontend/resources', base.slice('/resources/'.length));
+        } catch (e) {}
+        return null;
+    }
+    function psDataUri(filePath) {
+        try {
+            const ext = path.extname(filePath).slice(1).toLowerCase();
+            const mime = ext === 'png' ? 'image/png' : (ext === 'webp' ? 'image/webp' : (ext === 'svg' ? 'image/svg+xml' : 'image/jpeg'));
+            return 'data:' + mime + ';base64,' + fs.readFileSync(filePath).toString('base64');
+        } catch (e) { return null; }
+    }
+    // Resolve an image URL/path to { src (embeddable), path, px }. Prefers a local file so we can embed
+    // + measure DPI; otherwise leaves the URL for Chrome to fetch (no DPI measurement possible).
+    function psImage(u) {
+        const out = { src: u || '', path: null, px: null };
+        const local = psLocalPathForUrl(u);
+        if (local && fs.existsSync(local)) { out.path = local; out.px = psImageSizePx(local); const d = psDataUri(local); if (d) out.src = d; }
+        return out;
+    }
+    // Given a list of placed images ({label, px, printWmm}) return DPI warnings for anything < 120 DPI.
+    function psDpiWarnings(images) {
+        const warns = [];
+        for (const im of images) {
+            if (!im || !im.px || !im.printWmm) continue;
+            const dpi = Math.round(im.px.w / (im.printWmm / 25.4));
+            if (dpi < 120) warns.push({ label: im.label || 'image', dpi, minInches: +(im.printWmm / 25.4).toFixed(1), note: `${im.label || 'Image'} is ~${dpi} DPI at ${(im.printWmm / 10).toFixed(1)} cm wide — below 120 DPI, it may look soft in print.` });
+        }
+        return warns;
+    }
+
+    // --- shared verify-badge secret (cross-portal stable) + token ----------------------------------
+    // In production each portal service gets its OWN generated JWT_SECRET, so an admin-minted verify
+    // token would not resolve on the user portal. We keep a shared secret in the mirrored
+    // rewards_settings KV (both portals read the same Turso DB). The user portal's resolveVerifyBadgeToken
+    // accepts BOTH this secret and its legacy JWT_SECRET, so nothing already printed breaks.
+    let _psBadgeSecret = null;
+    function badgeVerifySecret() {
+        if (_psBadgeSecret) return _psBadgeSecret;
+        try {
+            const row = query.get("SELECT value FROM rewards_settings WHERE key = 'badge_verify_secret'");
+            if (row && row.value) { _psBadgeSecret = String(row.value); return _psBadgeSecret; }
+            const gen = require('crypto').randomBytes(32).toString('hex');
+            db.run("INSERT OR REPLACE INTO rewards_settings (key, value) VALUES ('badge_verify_secret', ?)", [gen]);
+            saveDb();
+            _psBadgeSecret = gen; return gen;
+        } catch (e) { return process.env.JWT_SECRET || 'medx-badge'; }
+    }
+    function psBadgeToken(userId) {
+        const uid = String(userId || ''); if (!uid) return '';
+        const sig = require('crypto').createHmac('sha256', badgeVerifySecret()).update('medx-verify-badge:' + uid).digest('hex').slice(0, 24);
+        return Buffer.from(uid, 'utf8').toString('base64url') + '.' + sig;
+    }
+    function psVerifyBase(req) {
+        if (process.env.USER_PORTAL_URL) return process.env.USER_PORTAL_URL.replace(/\/+$/, '');
+        const host = String((req && req.headers && req.headers.host) || '');
+        if (/localhost|127\.0\.0\.1/.test(host)) return 'http://localhost:3001';
+        return userPortalBase();
+    }
+    // Compact copy of the user portal's quiet-flag rule (senior-only affiliation, no general one).
+    function psQuietFlag(userId, email) {
+        try {
+            const em = email ? String(email).trim().toLowerCase() : '';
+            let seniorOnly = false, general = false;
+            if (userId) seniorOnly = !!query.get('SELECT 1 FROM gala_registrations WHERE user_id = ? LIMIT 1', [userId]);
+            if (!seniorOnly && em) seniorOnly = !!query.get('SELECT 1 FROM gala_registrations WHERE lower(email) = ? LIMIT 1', [em]);
+            if (!seniorOnly && userId) { try { seniorOnly = !!query.get("SELECT 1 FROM forum_members WHERE user_id = ? AND COALESCE(membership_status,'') <> 'rejected' LIMIT 1", [userId]); } catch (e) {} }
+            if (userId) general = !!query.get('SELECT 1 FROM registrations WHERE user_id = ? LIMIT 1', [userId]);
+            if (!general && em) { try { general = !!query.get('SELECT 1 FROM bridges_registrations WHERE lower(email) = ? LIMIT 1', [em]); } catch (e) {} }
+            return !!(seniorOnly && !general);
+        } catch (e) { return false; }
+    }
+    // Decide whether a badge person may carry a member-verify QR, and if so mint it. Consent-aware:
+    // requires a linked member who is public, not deleted, and in good standing. Quiet members still
+    // get a QR (the verify page itself renders a dignified, gamification-free card for them).
+    function psMemberQr(req, userId, email) {
+        let user = null;
+        try {
+            if (userId) user = query.get('SELECT id, first_name, last_name, is_public_profile, deleted_at FROM users WHERE id = ?', [userId]);
+            if (!user && email) user = query.get('SELECT id, first_name, last_name, is_public_profile, deleted_at FROM users WHERE lower(email) = ? LIMIT 1', [String(email).trim().toLowerCase()]);
+        } catch (e) { user = null; }
+        if (!user || user.deleted_at || !user.is_public_profile) return { qr: null, quiet: false, member: false };
+        let standing = 'good_standing';
+        try { const m = query.get('SELECT standing FROM member_meta WHERE user_id = ?', [user.id]); if (m && m.standing) standing = String(m.standing); } catch (e) {}
+        if (standing !== 'good_standing') return { qr: null, quiet: false, member: false };
+        const nm = ((user.first_name || '') + ' ' + (user.last_name || '')).trim();
+        if (!nm || /^deleted user$/i.test(nm)) return { qr: null, quiet: false, member: false };
+        return { qr: psVerifyBase(req) + '/verify/' + psBadgeToken(user.id), quiet: psQuietFlag(user.id, email), member: true };
+    }
+
+    // --- event facts + people ----------------------------------------------------------------------
+    // Buildable events for the picker (name/date/venue), reusing the invitation engine's live facts.
+    function psEvents() {
+        let facts = {}; try { facts = eiEventFacts(); } catch (e) { facts = {}; }
+        const order = ['conference', 'gala', 'bridges', 'donor'];
+        return order.map(k => { const f = facts[k] || { key: k, name: k }; return { key: k, name: f.name || k, date: f.date || '', venue: f.venue || '' }; });
+    }
+    function psEventFacts(key) {
+        let facts = {}; try { facts = eiEventFacts(); } catch (e) { facts = {}; }
+        const f = facts[key] || {};
+        return { key, name: f.name || 'Med&X Event', date: f.date || '', venue: f.venue || 'Zagreb, Croatia' };
+    }
+    // Confirmed + published speakers (used both for speaker badges and the banner speaker list).
+    function psSpeakers(limit) {
+        try { return query.all("SELECT name, title, institution, photo_url FROM speakers WHERE is_confirmed = 1 AND is_published = 1 ORDER BY is_keynote DESC, sort_order LIMIT ?", [limit || 40]).filter(s => s.name); } catch (e) { return []; }
+    }
+    function psSponsors() {
+        try { return query.all("SELECT name, logo_url FROM sponsors WHERE COALESCE(is_published,0) = 1 AND logo_url IS NOT NULL AND TRIM(logo_url) <> '' ORDER BY tier, name"); } catch (e) { return []; }
+    }
+    // Pull the whole badge roster for an event: registrants (role attendee/guest), confirmed speakers,
+    // and optionally staff. Each row carries its consent-aware QR (or none). Deduped by lower(email).
+    function psEventPeople(req, eventKey, opts) {
+        opts = opts || {};
+        const key = String(eventKey || 'conference');
+        const seen = new Set(); const people = [];
+        const staffEmails = new Set();
+        try { query.all("SELECT lower(email) e FROM users WHERE COALESCE(is_staff,0)=1 OR COALESCE(is_admin,0)=1").forEach(r => { if (r.e) staffEmails.add(r.e); }); } catch (e) {}
+        const push = (row) => {
+            const email = String(row.email || '').trim().toLowerCase();
+            const nm = String(row.name || '').trim();
+            if (!nm && !email) return;
+            const dk = email || ('n:' + nm.toLowerCase());
+            if (seen.has(dk)) return; seen.add(dk);
+            let role = row.role || 'attendee';
+            if (role === 'attendee' && email && staffEmails.has(email)) role = 'staff';
+            const mq = psMemberQr(req, row.user_id, email);
+            people.push({ name: nm || email, institution: String(row.institution || '').trim(), role, qr: mq.qr, quiet: mq.quiet, member: mq.member, source: row.source || key });
+        };
+        // Confirmed speakers first (so a registrant who is also a speaker keeps the speaker badge).
+        if (opts.speakers !== false) {
+            psSpeakers(60).forEach(s => push({ name: s.name, institution: s.institution || s.title || '', role: 'speaker', email: '', user_id: null, source: 'speaker' }));
+        }
+        // Registrants for this event. LEFT JOIN users so a registration with a blank name still shows
+        // the linked member's real name/email (and keeps its QR eligibility).
+        try {
+            let rows = [];
+            if (key === 'conference') rows = query.all("SELECT COALESCE(NULLIF(TRIM(r.first_name||' '||r.last_name),''), NULLIF(TRIM(u.first_name||' '||u.last_name),''), NULLIF(r.email,''), u.email) name, COALESCE(NULLIF(r.email,''), u.email) email, COALESCE(NULLIF(r.institution,''), u.institution) institution, r.user_id, 'attendee' role FROM registrations r LEFT JOIN users u ON u.id = r.user_id WHERE COALESCE(r.status,'') NOT IN ('cancelled','refunded')");
+            else if (key === 'gala') rows = query.all("SELECT COALESCE(NULLIF(TRIM(r.first_name||' '||r.last_name),''), NULLIF(TRIM(u.first_name||' '||u.last_name),''), NULLIF(r.email,''), u.email) name, COALESCE(NULLIF(r.email,''), u.email) email, COALESCE(NULLIF(r.institution,''), u.institution) institution, r.user_id, 'guest' role FROM gala_registrations r LEFT JOIN users u ON u.id = r.user_id WHERE COALESCE(r.status,'') NOT IN ('cancelled','refunded')");
+            else rows = query.all("SELECT COALESCE(NULLIF(TRIM(br.first_name||' '||br.last_name),''), NULLIF(TRIM(u.first_name||' '||u.last_name),''), NULLIF(br.email,''), u.email) name, COALESCE(NULLIF(br.email,''), u.email) email, COALESCE(NULLIF(br.institution,''), u.institution) institution, br.user_id, 'attendee' role FROM bridges_registrations br LEFT JOIN bridges_events be ON br.event_id = be.id LEFT JOIN users u ON u.id = br.user_id WHERE COALESCE(br.status,'') NOT IN ('cancelled','refunded') AND " + (key === 'donor' ? "be.slug = 'donor-night'" : "COALESCE(be.slug,'') <> 'donor-night'"));
+            rows.forEach(r => push({ name: r.name, email: r.email, institution: r.institution, user_id: r.user_id, role: r.role, source: key }));
+        } catch (e) {}
+        // Optional: team badges for staff/admins.
+        if (opts.staff) {
+            try { query.all("SELECT id, first_name, last_name, email, institution FROM users WHERE COALESCE(is_staff,0)=1 OR COALESCE(is_admin,0)=1").forEach(u => push({ name: ((u.first_name || '') + ' ' + (u.last_name || '')).trim(), email: u.email, institution: u.institution, user_id: u.id, role: 'staff', source: 'staff' })); } catch (e) {}
+        }
+        return people;
+    }
+
+    // --- HTML building blocks (mm-accurate, 3mm bleed + crop marks) ---------------------------------
+    const PS_BLEED = 3; // mm
+    function psCropMarks() {
+        const L = 4, off = PS_BLEED, t = '0.2mm solid #000';
+        const v = (css) => `<div style="position:absolute;width:0;height:${L}mm;border-left:${t};${css}"></div>`;
+        const h = (css) => `<div style="position:absolute;height:0;width:${L}mm;border-top:${t};${css}"></div>`;
+        return v(`left:0;top:-${off + L}mm`) + h(`top:0;left:-${off + L}mm`) +
+            v(`right:0;top:-${off + L}mm`) + h(`top:0;right:-${off + L}mm`) +
+            v(`left:0;bottom:-${off + L}mm`) + h(`bottom:0;left:-${off + L}mm`) +
+            v(`right:0;bottom:-${off + L}mm`) + h(`bottom:0;right:-${off + L}mm`);
+    }
+    // Crop marks for a LARGE-FORMAT page whose size == the ordered finished size (e.g. 100x200cm). The
+    // 3mm bleed is drawn INWARD: the trim box is inset PS_BLEED from every page edge, the artwork bleeds
+    // out to the page edge, and these marks sit in that bleed margin at the trim corners.
+    function psTrimMarksInset() {
+        const b = PS_BLEED, t = '0.2mm solid #000';
+        const v = (css) => `<div style="position:absolute;width:0;height:${b}mm;border-left:${t};${css}"></div>`;
+        const h = (css) => `<div style="position:absolute;height:0;width:${b}mm;border-top:${t};${css}"></div>`;
+        return v(`left:${b}mm;top:0`) + h(`top:${b}mm;left:0`) +
+            v(`right:${b}mm;top:0`) + h(`top:${b}mm;right:0`) +
+            v(`left:${b}mm;bottom:0`) + h(`bottom:${b}mm;left:0`) +
+            v(`right:${b}mm;bottom:0`) + h(`bottom:${b}mm;right:0`);
+    }
+    // Full HTML document sized to one physical page. bodyPages = one or more `.ps-page` blocks.
+    function psDoc(pageWmm, pageHmm, bodyPages, extraCss) {
+        return `<!doctype html><html><head><meta charset="utf-8"><style>
+@page { size: ${pageWmm}mm ${pageHmm}mm; margin: 0; }
+* { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+html, body { margin: 0; padding: 0; background: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; color: ${PS_PAL.ink}; }
+.ps-serif { font-family: Georgia, 'Times New Roman', serif; }
+.ps-page { position: relative; width: ${pageWmm}mm; height: ${pageHmm}mm; overflow: hidden; page-break-after: always; background: #fff; }
+.ps-page:last-child { page-break-after: auto; }
+${extraCss || ''}
+</style></head><body>${bodyPages}</body></html>`;
+    }
+
+    // One badge face at trim size (90 x 55 mm, landscape). `images` collects placed rasters for DPI.
+    const PS_BADGE_W = 90, PS_BADGE_H = 55;
+    function psBadgeFace(person, facts, logoSrc, images) {
+        const role = psRole(person.role);
+        const nm = psEsc(person.name || '');
+        const inst = psEsc(person.institution || '');
+        const evName = psEsc(facts.name || '');
+        const nameSize = nm.length > 22 ? 15 : (nm.length > 16 ? 18 : 21);
+        let qrHtml = '';
+        if (person._qrSvg) {
+            qrHtml = `<div style="position:absolute;right:4mm;bottom:4mm;width:18mm;height:18mm;padding:1.4mm;background:#fff;border:0.2mm solid ${PS_PAL.line};border-radius:1mm;">${person._qrSvg}</div>
+                      <div style="position:absolute;right:22mm;bottom:5.4mm;width:34mm;text-align:right;font-size:6pt;letter-spacing:.04em;color:${PS_PAL.muted};text-transform:uppercase;">Scan to verify<br>membership</div>`;
+        } else {
+            qrHtml = `<div style="position:absolute;right:4mm;bottom:4.5mm;text-align:right;"><div class="ps-serif" style="font-size:12pt;font-weight:700;color:${PS_PAL.navy};">Med&amp;X</div><div style="font-size:5.6pt;letter-spacing:.14em;text-transform:uppercase;color:${PS_PAL.muted};">Building bridges</div></div>`;
+        }
+        let logoTag = '';
+        if (logoSrc) { logoTag = `<img src="${logoSrc}" style="position:absolute;right:4mm;top:3.6mm;height:5.4mm;width:auto;" alt="">`; if (images) images.push({ label: 'Badge logo', px: (person._logoPx || null), printWmm: 22 }); }
+        return `
+        <div style="position:absolute;inset:-${PS_BLEED}mm;background:${PS_PAL.cream};"></div>
+        <div style="position:absolute;left:-${PS_BLEED}mm;top:-${PS_BLEED}mm;bottom:-${PS_BLEED}mm;width:${6 + PS_BLEED}mm;background:${role.band};"></div>
+        <div style="position:absolute;left:9mm;top:3.6mm;font-size:7pt;letter-spacing:.16em;text-transform:uppercase;color:${PS_PAL.muted};max-width:56mm;overflow:hidden;white-space:nowrap;">${evName}</div>
+        ${logoTag}
+        <div class="ps-serif" style="position:absolute;left:9mm;top:16mm;right:4mm;font-size:${nameSize}pt;font-weight:700;line-height:1.05;color:${PS_PAL.ink};">${nm || '&nbsp;'}</div>
+        ${inst ? `<div style="position:absolute;left:9mm;top:30mm;right:22mm;font-size:8.5pt;color:${PS_PAL.muted};line-height:1.25;">${inst}</div>` : ''}
+        <div style="position:absolute;left:9mm;bottom:4.5mm;display:inline-block;background:${role.chipBg};color:${role.chipInk};font-size:7.5pt;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:1.4mm 3mm;border-radius:1mm;">${psEsc(role.label)}</div>
+        ${qrHtml}`;
+    }
+    // A blank write-on badge (role band + rule + Med&X mark), for the "how many blanks" count.
+    function psBlankBadge(facts, logoSrc) {
+        const evName = psEsc(facts.name || '');
+        return `
+        <div style="position:absolute;inset:-${PS_BLEED}mm;background:${PS_PAL.cream};"></div>
+        <div style="position:absolute;left:-${PS_BLEED}mm;top:-${PS_BLEED}mm;bottom:-${PS_BLEED}mm;width:${6 + PS_BLEED}mm;background:${PS_PAL.navy};"></div>
+        <div style="position:absolute;left:9mm;top:3.6mm;font-size:7pt;letter-spacing:.16em;text-transform:uppercase;color:${PS_PAL.muted};">${evName}</div>
+        ${logoSrc ? `<img src="${logoSrc}" style="position:absolute;right:4mm;top:3.6mm;height:5.4mm;" alt="">` : ''}
+        <div style="position:absolute;left:9mm;right:6mm;top:26mm;border-bottom:0.3mm solid ${PS_PAL.muted};"></div>
+        <div style="position:absolute;left:9mm;top:27mm;font-size:6.5pt;letter-spacing:.1em;text-transform:uppercase;color:${PS_PAL.muted};">Name</div>
+        <div style="position:absolute;left:9mm;bottom:4.5mm;font-size:7pt;letter-spacing:.1em;text-transform:uppercase;color:${PS_PAL.muted};">Med&amp;X</div>`;
+    }
+
+    // Build a crisp, VECTOR QR as filled 1x1 module rects with a 4-module quiet zone. The qrcode
+    // library's own SVG is stroke-based and renders faint / undecodable at high module counts, so we
+    // draw the modules ourselves from the matrix — solid, shape-rendering:crispEdges, reliably scannable.
+    function psQrSvg(text) {
+        const qr = QRCode.create(String(text), { errorCorrectionLevel: 'M' });
+        const n = qr.modules.size, data = qr.modules.data, q = 4, dim = n + q * 2;
+        let d = '';
+        for (let y = 0; y < n; y++) { for (let x = 0; x < n; x++) { if (data[y * n + x]) d += `M${x + q} ${y + q}h1v1h-1z`; } }
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${dim} ${dim}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block;shape-rendering:crispEdges;"><rect width="${dim}" height="${dim}" fill="#ffffff"/><path fill="#000000" d="${d}"/></svg>`;
+    }
+    // Attach a vector QR to each person that carries one.
+    async function psAttachQr(people) {
+        for (const p of people) {
+            if (p.qr) { try { p._qrSvg = psQrSvg(p.qr); } catch (e) { p._qrSvg = null; } }
+        }
+    }
+
+    // 8-up imposition on A4 portrait (2 cols x 4 rows) with per-badge bleed + crop marks.
+    function psBadgeSheetPages(cells) {
+        const perPage = 8, cols = 2, rows = 4;
+        const A4W = 210, A4H = 297, gut = 14;
+        const gridW = cols * PS_BADGE_W + (cols - 1) * gut, gridH = rows * PS_BADGE_H + (rows - 1) * gut;
+        const mL = (A4W - gridW) / 2, mT = (A4H - gridH) / 2;
+        const pages = [];
+        for (let i = 0; i < cells.length; i += perPage) {
+            const slice = cells.slice(i, i + perPage);
+            let inner = '';
+            slice.forEach((cell, j) => {
+                const c = j % cols, r = Math.floor(j / cols);
+                const x = mL + c * (PS_BADGE_W + gut), y = mT + r * (PS_BADGE_H + gut);
+                inner += `<div style="position:absolute;left:${x}mm;top:${y}mm;width:${PS_BADGE_W}mm;height:${PS_BADGE_H}mm;">${cell}${psCropMarks()}</div>`;
+            });
+            pages.push(`<div class="ps-page">${inner}</div>`);
+        }
+        return { pages, pageW: A4W, pageH: A4H };
+    }
+    // Single-badge pages: one badge per page, page = trim + generous margin so bleed + crop marks show.
+    function psBadgeSinglePages(cells) {
+        const m = 10, pageW = PS_BADGE_W + m * 2, pageH = PS_BADGE_H + m * 2;
+        const pages = cells.map(cell => `<div class="ps-page"><div style="position:absolute;left:${m}mm;top:${m}mm;width:${PS_BADGE_W}mm;height:${PS_BADGE_H}mm;">${cell}${psCropMarks()}</div></div>`);
+        return { pages, pageW, pageH };
+    }
+
+    // Roll-up banner (85x200 or 100x200 cm). Prefilled + editable; full-bleed navy with gold rules.
+    function psBannerDoc(sizeKey, fields, logoSrc, sponsors, images) {
+        const dims = sizeKey === '85x200' ? { w: 850, h: 2000 } : { w: 1000, h: 2000 };
+        const f = fields || {};
+        const speakers = Array.isArray(f.speakers) ? f.speakers.filter(Boolean).slice(0, 8) : [];
+        let logoTag = '';
+        if (logoSrc) { logoTag = `<img src="${logoSrc}" style="height:90mm;width:auto;" alt="Med&X">`; if (images) images.push({ label: 'Banner logo', px: f._logoPx || null, printWmm: 300 }); }
+        let sponsorRow = '';
+        if (sponsors && sponsors.length) {
+            const cells = sponsors.slice(0, 6).map((s, i) => {
+                if (s.src) { if (images) images.push({ label: 'Sponsor logo ' + (i + 1) + (s.name ? ' (' + s.name + ')' : ''), px: s.px || null, printWmm: 120 }); return `<img src="${s.src}" style="max-height:55mm;max-width:150mm;object-fit:contain;filter:brightness(0) invert(1);opacity:.92;" alt="${psEsc(s.name || '')}">`; }
+                return `<div class="ps-serif" style="font-size:26pt;color:${PS_PAL.goldLight};">${psEsc(s.name || '')}</div>`;
+            }).join('');
+            sponsorRow = `<div style="margin-top:34mm;"><div style="font-size:16pt;letter-spacing:.26em;text-transform:uppercase;color:${PS_PAL.muted};text-align:center;margin-bottom:14mm;">${psEsc(f.sponsorLabel || 'With the support of')}</div><div style="display:flex;flex-wrap:wrap;gap:26mm;align-items:center;justify-content:center;">${cells}</div></div>`;
+        }
+        const detailBlock = `${speakers.length ? `<div style="margin-bottom:26mm;"><div style="font-size:15pt;letter-spacing:.26em;text-transform:uppercase;color:${PS_PAL.muted};margin-bottom:12mm;">Featuring</div>${speakers.map(s => `<div class="ps-serif" style="font-size:26pt;color:#eef2f7;margin-bottom:6mm;">${psEsc(s)}</div>`).join('')}</div>` : ''}${sponsorRow}`;
+        const body = `<div class="ps-page"><div style="position:absolute;inset:0;background:linear-gradient(180deg,${PS_PAL.navy},${PS_PAL.navy2});"></div>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-90deg);white-space:nowrap;opacity:.055;"><div class="ps-serif" style="font-size:170pt;font-weight:700;color:#ffffff;letter-spacing:.14em;">Med&amp;X</div></div>
+            <div style="position:absolute;inset:${PS_BLEED}mm;padding:60mm 55mm;display:flex;flex-direction:column;align-items:center;text-align:center;color:#fff;">
+                <div style="margin-bottom:18mm;">${logoTag}</div>
+                <div style="width:60mm;border-top:0.6mm solid ${PS_PAL.gold};margin-bottom:24mm;"></div>
+                ${f.eyebrow ? `<div style="font-size:20pt;letter-spacing:.3em;text-transform:uppercase;color:${PS_PAL.gold};margin-bottom:18mm;">${psEsc(f.eyebrow)}</div>` : ''}
+                <div class="ps-serif" style="font-size:84pt;font-weight:700;line-height:1.03;margin-bottom:22mm;">${psEsc(f.headline || 'Med&X')}</div>
+                ${f.dateLine ? `<div class="ps-serif" style="font-size:40pt;color:${PS_PAL.goldLight};margin-bottom:8mm;">${psEsc(f.dateLine)}</div>` : ''}
+                ${f.venueLine ? `<div style="font-size:26pt;color:#dfe6ef;margin-bottom:10mm;">${psEsc(f.venueLine)}</div>` : ''}
+                ${f.sub ? `<div style="font-size:22pt;color:#c7d0dc;max-width:640mm;line-height:1.4;margin-top:6mm;">${psEsc(f.sub)}</div>` : ''}
+                <div style="flex:1;"></div>
+                ${detailBlock}
+                <div style="padding-top:14mm;border-top:0.4mm solid rgba(201,169,98,.4);width:120mm;font-size:24pt;letter-spacing:.14em;color:${PS_PAL.gold};margin-top:8mm;">${psEsc(f.cta || 'medx.hr')}</div>
+            </div>
+            ${psTrimMarksInset()}</div>`;
+        return { html: psDoc(dims.w, dims.h, body), pageW: dims.w, pageH: dims.h };
+    }
+
+    // Step-and-repeat photo-booth backdrop (240 x 240 cm) — a diagonal Med&X monogram grid + center lockup.
+    function psBackdropDoc(fields, logoSrc, images) {
+        const W = 2400, H = 2400;
+        const f = fields || {};
+        if (logoSrc && images) images.push({ label: 'Backdrop logo', px: f._logoPx || null, printWmm: 500 });
+        const tile = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300mm;color:${PS_PAL.goldLight};opacity:.5;">
+            ${logoSrc ? `<img src="${logoSrc}" style="height:60mm;filter:brightness(0) invert(1);opacity:.5;" alt="">` : `<div class="ps-serif" style="font-size:40pt;font-weight:700;">Med&amp;X</div>`}
+            <div class="ps-serif" style="font-size:34pt;font-weight:700;margin-top:8mm;">${psEsc(f.wordmark || 'Med&X')}</div></div>`;
+        const cols = 6, rows = 8;
+        let grid = '';
+        for (let r = 0; r < rows; r++) { let row = ''; for (let c = 0; c < cols; c++) row += `<div style="flex:1;">${tile}</div>`; grid += `<div style="display:flex;transform:translateX(${(r % 2 ? -80 : 0)}mm);">${row}</div>`; }
+        const centerLockup = `<div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;background:rgba(9,19,32,.86);padding:80mm 110mm;border:0.8mm solid ${PS_PAL.gold};">
+            ${logoSrc ? `<img src="${logoSrc}" style="height:90mm;filter:brightness(0) invert(1);margin-bottom:26mm;" alt="">` : ''}
+            <div class="ps-serif" style="font-size:78pt;font-weight:700;color:#fff;">${psEsc(f.headline || 'Med&X')}</div>
+            ${f.sub ? `<div style="font-size:30pt;color:${PS_PAL.goldLight};margin-top:16mm;letter-spacing:.12em;">${psEsc(f.sub)}</div>` : ''}</div>`;
+        const body = `<div class="ps-page"><div style="position:absolute;inset:0;background:${PS_PAL.navy2};"></div>
+            <div style="position:absolute;left:-40mm;top:0;right:-40mm;bottom:0;overflow:hidden;">${grid}</div>
+            ${centerLockup}${psTrimMarksInset()}</div>`;
+        return { html: psDoc(W, H, body), pageW: W, pageH: H };
+    }
+
+    // A4 directional sign (portrait) — big arrow + destination.
+    function psSignDoc(fields, logoSrc, images) {
+        const W = 210, H = 297;
+        const f = fields || {};
+        if (logoSrc && images) images.push({ label: 'Sign logo', px: f._logoPx || null, printWmm: 60 });
+        const dir = String(f.arrow || 'right').toLowerCase();
+        const rot = dir === 'up' ? -90 : dir === 'down' ? 90 : dir === 'left' ? 180 : 0;
+        const body = `<div class="ps-page"><div style="position:absolute;inset:0;background:${PS_PAL.cream};"></div>
+            <div style="position:absolute;inset:${PS_BLEED}mm;padding:19mm 15mm;display:flex;flex-direction:column;align-items:center;text-align:center;">
+                ${logoSrc ? `<img src="${logoSrc}" style="height:16mm;margin-bottom:8mm;" alt="Med&X">` : `<div class="ps-serif" style="font-size:22pt;font-weight:700;color:${PS_PAL.navy};margin-bottom:8mm;">Med&amp;X</div>`}
+                ${f.eyebrow ? `<div style="font-size:12pt;letter-spacing:.24em;text-transform:uppercase;color:${PS_PAL.muted};margin-bottom:6mm;">${psEsc(f.eyebrow)}</div>` : ''}
+                <div class="ps-serif" style="font-size:40pt;font-weight:700;color:${PS_PAL.ink};line-height:1.05;margin-bottom:14mm;">${psEsc(f.destination || 'Registration')}</div>
+                <div style="flex:1;display:flex;align-items:center;justify-content:center;"><svg width="150mm" height="110mm" viewBox="0 0 150 110" style="transform:rotate(${rot}deg);"><g fill="${PS_PAL.burgundy}"><rect x="8" y="42" width="86" height="26" rx="4"/><path d="M86 20 L142 55 L86 90 Z"/></g></svg></div>
+                ${f.sub ? `<div style="font-size:15pt;color:${PS_PAL.muted};margin-top:10mm;">${psEsc(f.sub)}</div>` : ''}
+                <div style="margin-top:auto;font-size:10pt;letter-spacing:.16em;text-transform:uppercase;color:${PS_PAL.muted};">${psEsc(f.footer || 'Med&X · Building bridges in biomedicine')}</div>
+            </div>${psTrimMarksInset()}</div>`;
+        return { html: psDoc(W, H, body), pageW: W, pageH: H };
+    }
+
+    // Resolve the Med&X logo (light-on-dark uses the white mark where available).
+    function psLogo(dark) {
+        const cand = dark ? ['../frontend/resources/assets/logo-white.png', '../frontend/assets/logo.png'] : ['../frontend/assets/logo.png', '../frontend/assets/email-logo.png'];
+        for (const rel of cand) { const p = path.join(__dirname, rel); if (fs.existsSync(p)) { const px = psImageSizePx(p); const src = psDataUri(p); if (src) return { src, px }; } }
+        return { src: '', px: null };
+    }
+
+    // Persist a rendered PDF as a content-studio asset and return its public URL.
+    function psSaveAsset(req, buf, meta) {
+        const id = uuidv4(); const fname = id + '.pdf';
+        const dir = path.join(uploadsDir, 'content-studio');
+        try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); } catch (e) {}
+        fs.writeFileSync(path.join(dir, fname), buf);
+        const url = `${seatPublicBase(req)}/uploads/content-studio/${fname}`;
+        try {
+            db.run(`INSERT INTO content_studio_assets (id, kind, template, aspect, project, title, caption, asset_url, mime, bytes, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?, datetime('now'))`,
+                [id, 'print', String(meta.template || '').slice(0, 24), String(meta.aspect || '').slice(0, 16), String(meta.project || '').slice(0, 24), String(meta.title || '').slice(0, 200), String(meta.caption || '').slice(0, 1000), url, 'application/pdf', buf.length, (req.user && req.user.id) || null]);
+            saveDb();
+        } catch (e) {}
+        return { id, url, bytes: buf.length };
+    }
+
+    // GET context for the picker: events, roster counts, speakers, sponsors, banner prefill, engine health.
+    app.get('/api/admin/print/context', auth, adminOnly, asyncHandler(async (req, res) => {
+        const eventKey = String(req.query.event || 'conference');
+        const facts = psEventFacts(eventKey);
+        const people = psEventPeople(req, eventKey, { staff: false });
+        const counts = { total: people.length, speaker: 0, staff: 0, attendee: 0, guest: 0, withQr: 0, quiet: 0 };
+        people.forEach(p => { counts[p.role] = (counts[p.role] || 0) + 1; if (p.qr) counts.withQr++; if (p.quiet) counts.quiet++; });
+        const sponsors = psSponsors().map(s => ({ name: s.name, hasLogo: !!psLocalPathForUrl(s.logo_url) }));
+        const speakers = psSpeakers(20).map(s => s.name);
+        res.json({
+            event: facts, events: psEvents(),
+            counts, sample: people.slice(0, 60).map(p => ({ name: p.name, role: p.role, institution: p.institution, qr: !!p.qr, quiet: p.quiet })),
+            speakers, sponsors,
+            banner: { headline: facts.name, eyebrow: 'Med&X presents', dateLine: facts.date, venueLine: facts.venue, sub: '', cta: 'medx.hr', speakers: speakers.slice(0, 6) },
+            engine: { chrome: !!psChromeBinary(), cmyk: !!psGsBinary() }
+        });
+    }));
+
+    // POST preview: returns the exact artwork HTML (for an in-page iframe). Same builders as the PDF.
+    app.post('/api/admin/print/preview', auth, adminOnly, asyncHandler(async (req, res) => {
+        const b = req.body || {};
+        const kind = String(b.kind || 'badges-sheet');
+        const eventKey = String(b.event || 'conference');
+        const facts = psEventFacts(eventKey);
+        if (kind === 'banner') { const logo = psLogo(true); const out = psBannerDoc(b.size === '85x200' ? '85x200' : '100x200', { ...b.fields, _logoPx: logo.px }, logo.src, [], []); return res.json({ html: out.html, pageW: out.pageW, pageH: out.pageH }); }
+        if (kind === 'backdrop') { const logo = psLogo(true); const out = psBackdropDoc({ ...b.fields, _logoPx: logo.px }, logo.src, []); return res.json({ html: out.html, pageW: out.pageW, pageH: out.pageH }); }
+        if (kind === 'sign') { const logo = psLogo(false); const out = psSignDoc({ ...b.fields, _logoPx: logo.px }, logo.src, []); return res.json({ html: out.html, pageW: out.pageW, pageH: out.pageH }); }
+        // badges: preview shows up to 8 real badges on one A4 sheet (or singles laid out the same).
+        const logo = psLogo(false);
+        let people = psEventPeople(req, eventKey, { staff: !!b.staff, speakers: b.speakers !== false }).slice(0, 8);
+        await psAttachQr(people);
+        const cells = people.map(p => psBadgeFace(p, facts, logo.src, []));
+        while (cells.length < 4) cells.push(psBlankBadge(facts, logo.src));
+        const built = psBadgeSheetPages(cells);
+        res.json({ html: psDoc(built.pageW, built.pageH, built.pages.join('')), pageW: built.pageW, pageH: built.pageH });
+    }));
+
+    // POST render: build -> Chrome PDF -> optional CMYK -> save asset. Returns url + DPI warnings.
+    app.post('/api/admin/print/render', auth, adminOnly, asyncHandler(async (req, res) => {
+        if (!psChromeBinary()) return res.status(503).json({ error: 'print_engine_unavailable', message: 'The print engine (headless Chrome) is not available on this server. Set CHROME_PATH to a Chrome/Chromium binary to enable print-ready PDF export.' });
+        const b = req.body || {};
+        const kind = String(b.kind || 'badges-sheet');
+        const eventKey = String(b.event || 'conference');
+        const facts = psEventFacts(eventKey);
+        const wantCmyk = !!b.cmyk;
+        const images = [];
+        let html, pageW, pageH, title, aspect, pages = 1;
+
+        if (kind === 'banner') {
+            const logo = psLogo(true);
+            const sponsors = (b.sponsors === false) ? [] : psSponsors().map(s => { const im = psImage(s.logo_url); return { name: s.name, src: im.path ? im.src : '', px: im.px }; });
+            const out = psBannerDoc(b.size === '85x200' ? '85x200' : '100x200', { ...b.fields, _logoPx: logo.px }, logo.src, sponsors, images);
+            html = out.html; pageW = out.pageW; pageH = out.pageH; aspect = (b.size === '85x200' ? '85x200' : '100x200'); title = (facts.name + ' banner ' + aspect);
+        } else if (kind === 'backdrop') {
+            const logo = psLogo(true); const out = psBackdropDoc({ ...b.fields, _logoPx: logo.px }, logo.src, images);
+            html = out.html; pageW = out.pageW; pageH = out.pageH; aspect = '240x240'; title = (facts.name + ' backdrop');
+        } else if (kind === 'sign') {
+            const logo = psLogo(false); const out = psSignDoc({ ...b.fields, _logoPx: logo.px }, logo.src, images);
+            html = out.html; pageW = out.pageW; pageH = out.pageH; aspect = 'A4'; title = (facts.name + ' sign');
+        } else {
+            // badges-sheet | badges-single
+            const single = kind === 'badges-single';
+            const logo = psLogo(false);
+            let people = psEventPeople(req, eventKey, { staff: !!b.staff, speakers: b.speakers !== false });
+            // manual additions (non-members, no QR): [{name, role, institution}]
+            const extras = Array.isArray(b.extras) ? b.extras : [];
+            extras.forEach(x => { const nm = String(x && x.name || '').trim(); if (nm) people.push({ name: nm, institution: String(x.institution || '').trim(), role: String(x.role || 'attendee'), qr: null, quiet: false, member: false }); });
+            await psAttachQr(people);
+            if (logo.px) people.forEach(p => { p._logoPx = logo.px; });
+            const cells = people.map(p => psBadgeFace(p, facts, logo.src, images));
+            const blanks = Math.max(0, Math.min(200, parseInt(b.blanks, 10) || 0));
+            for (let i = 0; i < blanks; i++) cells.push(psBlankBadge(facts, logo.src));
+            if (!cells.length) cells.push(psBlankBadge(facts, logo.src));
+            const built = single ? psBadgeSinglePages(cells) : psBadgeSheetPages(cells);
+            html = psDoc(built.pageW, built.pageH, built.pages.join('')); pageW = built.pageW; pageH = built.pageH; pages = built.pages.length;
+            aspect = single ? 'single' : 'A4-8up'; title = (facts.name + ' badges (' + cells.length + ')');
+        }
+
+        const warnings = psDpiWarnings(images);
+        const id = uuidv4();
+        const rawPath = path.join(uploadsDir, 'content-studio', 'ps-' + id + '.pdf');
+        try { if (!fs.existsSync(path.dirname(rawPath))) fs.mkdirSync(path.dirname(rawPath), { recursive: true }); } catch (e) {}
+        try { await psRenderPdf(html, rawPath); }
+        catch (e) { return res.status(500).json({ error: 'render_failed', message: 'Could not render the PDF: ' + e.message }); }
+        let finalBuf = fs.readFileSync(rawPath); let cmykApplied = false;
+        if (wantCmyk && psGsBinary()) {
+            const cmykPath = rawPath.replace(/\.pdf$/, '.cmyk.pdf');
+            try { await psToCmyk(rawPath, cmykPath); finalBuf = fs.readFileSync(cmykPath); cmykApplied = true; try { fs.unlinkSync(cmykPath); } catch (e) {} }
+            catch (e) { /* keep RGB */ }
+        }
+        try { fs.unlinkSync(rawPath); } catch (e) {}
+        const saved = psSaveAsset(req, finalBuf, { template: kind, aspect, project: eventKey, title, caption: '' });
+        try { logAudit(req, 'print.render', `${kind}/${eventKey} ${pageW}x${pageH}mm ${pages}p${cmykApplied ? ' CMYK' : ''} -> ${saved.bytes}b`); } catch (e) {}
+        res.json({ success: true, id: saved.id, url: saved.url, bytes: saved.bytes, pages, pageW, pageH, cmyk: cmykApplied, cmykRequested: wantCmyk, warnings });
+    }));
+
+    // ============================ /EVENT PRINT SUITE ============================
+
+
     // ========== OUTBOX (batch approval + send drainer surface) ==========
     // The drainer (in the app.listen block below) sends scheduled_emails rows whose
     // status='scheduled' and scheduled_for is due, through the sendEmail() mock boundary.
@@ -30405,6 +31097,170 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         return fallback;
     }
 
+    // ============ AUTO-REPLY ENGINE (queue 5a7) — approve-once auto-responder helpers ============
+    // Categories that may EVER auto-send. Anything else is escalated, never auto-answered.
+    const AR_CATEGORIES = ['coming', 'declining', 'question'];
+    function arGetTemplate(cat) { try { return query.get("SELECT * FROM reply_templates WHERE category = ?", [cat]) || null; } catch (e) { return null; } }
+    function arGetSettings(campaignId) {
+        try { const s = query.get("SELECT * FROM auto_reply_settings WHERE campaign_id = ?", [campaignId]); if (s) return s; } catch (e) {}
+        return { campaign_id: campaignId, enabled: 0, confidence_threshold: 0.75 };
+    }
+    function arTemplateReadiness() {
+        const out = {};
+        AR_CATEGORIES.forEach(c => { const t = arGetTemplate(c); out[c] = { exists: !!t, approved: !!(t && t.status === 'approved'), approved_at: t ? t.approved_at : null }; });
+        out.all_approved = AR_CATEGORIES.every(c => out[c].approved);
+        return out;
+    }
+    // Detect the language the invitee actually WROTE their reply in (Croatian vs English),
+    // independent of their stored country — an auto-reply must mirror the inbound message, not the
+    // passport. Deterministic and auditable (no external key): Croatian diacritics and function
+    // words weighed against English function words. Returns 'hr', 'en', or null when the text is too
+    // short or ambiguous to tell, in which case the caller falls back to the invitee's country.
+    function arDetectLang(text) {
+        const t = ' ' + String(text || '').toLowerCase().replace(/\s+/g, ' ').trim() + ' ';
+        if (t.trim().length < 2) return null;
+        const count = (arr) => arr.reduce((n, s) => n + (t.includes(s) ? 1 : 0), 0);
+        let hr = 0, en = 0;
+        if (/[čćžšđ]/.test(t)) hr += 2;   // Croatian diacritics are a strong, near-unambiguous signal
+        hr += count([
+            ' je ', ' su ', ' se ', ' na ', ' da ', ' li ', ' za ', ' od ', ' sam ', ' ću ', ' ćete ',
+            ' što ', ' sto ', ' gdje ', ' kada ', ' koji ', ' koja ', ' koje ', ' cijena ', ' cijenu ', ' hvala ',
+            ' molim ', ' pozdrav ', ' vas ', ' vam ', ' vaše ', ' mogu ', ' dolazim ', ' poštovani ', ' rado ',
+            ' održava ', ' mjesto ', ' trošak ', ' kotizacija ', ' prijava ', ' dolazak ', ' neću ', ' nažalost '
+        ]);
+        en += count([
+            ' the ', ' is ', ' are ', ' and ', ' will ', ' you ', ' your ', ' where ', ' when ', ' what ',
+            ' how ', ' why ', ' price ', ' cost ', ' thank ', ' thanks ', ' please ', ' regards ', ' can ',
+            ' could ', ' would ', ' attend ', ' dear ', ' venue ', ' held ', ' place ', ' more ', ' about ',
+            ' looking forward ', ' see you ', ' unable ', ' unfortunately ', ' decline '
+        ]);
+        // MARGIN GUARD: only override the country fallback when the signal is DECISIVE. A Croatian
+        // diacritic (weighted +2 above) is itself decisive, and a >= 2-token lead in either language
+        // is decisive; anything weaker returns null so the eiIsCroatian(country) fallback decides.
+        // (' i ' was removed from the Croatian list above: after lowercasing it matched the English
+        // pronoun 'I' and mislabeled short English replies like "I accept." as Croatian.)
+        if (hr - en >= 2) return 'hr';
+        if (en - hr >= 2) return 'en';
+        return null;
+    }
+    // Deterministic bilingual (EN/HR) intent classifier. Returns { category, confidence }. Kept
+    // deterministic on purpose: an AUTO-send decision must be auditable and reproducible with no
+    // external key. A message that hits MORE THAN ONE intent (e.g. an acceptance that also
+    // negotiates), that is long/involved, or that hits none, is 'complex' with low confidence — it
+    // is escalated, never auto-answered.
+    function arClassify(text) {
+        const t = ' ' + String(text || '').toLowerCase().replace(/\s+/g, ' ').trim() + ' ';
+        const has = (arr) => arr.reduce((n, sig) => n + (t.includes(sig) ? 1 : 0), 0);
+        const lang = arDetectLang(text);   // the language they WROTE in — drives the reply language
+        const accept = has([
+            ' i will attend', ' i will be there', ' i will come', " i'll be there", " i'll come", " i'll attend",
+            ' count me in', ' happy to attend', ' glad to attend', ' delighted to attend', ' would be delighted',
+            ' love to attend', ' would love to attend', ' i accept', ' i can attend', ' i can come', ' i will join',
+            ' looking forward to attending', ' see you there', ' yes i will', ' i would be honoured', ' i would be honored',
+            ' rado dolazim', ' dolazim', ' doći ću', ' sudjelovat ću', ' potvrđujem dolazak',
+            ' potvrđujem svoj dolazak', ' vidimo se', ' pridružit ću se', ' rado ću doći',
+            ' bit ću tamo', ' biti ću tamo', ' prihvaćam poziv', ' veseli me dolazak'
+        ]);
+        const decline = has([
+            " can't make it", ' cannot make it', " won't be able", ' will not be able', ' unable to attend',
+            " can't attend", ' cannot attend', " won't be attending", ' not be able to attend', ' have to decline',
+            ' must decline', ' regret that i', " i'm afraid i can", ' sadly i can', ' not able to join', " won't be joining",
+            ' unfortunately i can', ' unfortunately i will not', " unfortunately i won't", ' will be unable',
+            ' ne mogu doći', ' nažalost ne mogu', ' neću moći', ' ne mogu prisustvovati',
+            ' ne mogu sudjelovati', ' moram odbiti', ' nažalost neću', ' ne mogu se pridružiti',
+            ' spriječen sam', ' spriječena sam', ' žao mi je ali ne mogu'
+        ]);
+        const question = has([
+            ' when ', ' what date', ' which date', ' what time', ' time of year', ' where ', ' location', ' venue',
+            ' address', ' held in', ' take place', ' takes place', ' parking', ' cost', ' price', ' fee ', ' fees',
+            ' how much', ' free of charge', ' is it free', ' any charge', ' ticket', ' dress code', ' what is the',
+            ' tell me more', ' more about', ' more info', ' programme', ' program', ' agenda', ' schedule',
+            ' kada', ' koji datum', ' gdje', ' lokacij', ' mjesto', ' adresa', ' cijena', ' trošak', ' kotizacij',
+            ' besplat', ' što je', ' više o', ' raspored', ' kod odijevanja', ' u koliko sati'
+        ]);
+        const hits = [['coming', accept], ['declining', decline], ['question', question]].filter(h => h[1] > 0);
+        const len = t.length;
+        if (hits.length !== 1) {
+            return { category: 'complex', confidence: hits.length > 1 ? 0.3 : 0.2, lang };
+        }
+        const category = hits[0][0];
+        let conf = category === 'question' ? 0.85 : 0.9;
+        if (hits[0][1] >= 2) conf = Math.min(0.97, conf + 0.05);
+        if (len > 600) conf -= 0.35;            // a long, involved message likely carries nuance -> escalate
+        else if (len > 380) conf -= 0.15;
+        conf = Math.max(0, Math.min(1, conf));
+        return { category, confidence: conf, lang };
+    }
+    // Compose the auto-reply from an APPROVED category template. Mirrors the invitation builder: a
+    // personal greeting is prepended and the president's signature appended, so the template body
+    // holds only the message. 'question' also carries the deterministic bilingual facts block
+    // (eiFactsHtml — the same real date/venue/attendance the invitation uses) and a register CTA.
+    function arComposeReply(inv, camp, facts, category, tpl, lang) {
+        const hr = (lang === 'hr') ? true : (lang === 'en') ? false : eiIsCroatian(inv);
+        const nm = String((inv && inv.name) || '').trim();
+        const salut = nm ? nagEscape(nm) : (hr ? 'poštovani kolega' : 'esteemed colleague');
+        const subject = (hr ? (tpl.subject_hr || tpl.subject) : (tpl.subject || tpl.subject_hr)) || (hr ? 'Odgovor' : 'A note from Med&X');
+        const bodyText = (hr ? (tpl.body_html_hr || tpl.body_html) : (tpl.body_html || tpl.body_html_hr)) || '';
+        const greeting = hr ? `<p>Poštovani/poštovana ${salut},</p>` : `<p>Dear ${salut},</p>`;
+        let inner = greeting + eiTextToHtml(bodyText);
+        if (category === 'question') {
+            inner += eiFactsHtml(facts, hr);
+            const cta = String((camp && camp.cta_url) || facts.url || userPortalBase()).trim();
+            const ctaLabel = hr ? 'Saznajte više i prijavite se' : 'Learn more and register';
+            inner += `<div style="text-align:center;margin:26px 0;"><a href="${nagEscape(cta)}" style="${eiBtn()}">${ctaLabel}</a></div>`;
+        }
+        inner += forumPresidentSignatureHtml(hr);
+        return { subject, html: buildEmailTemplate(subject, inner) };
+    }
+    function arLogAuto(row) {
+        try {
+            db.run(`INSERT INTO auto_reply_log (id, campaign_id, invitee_id, reply_id, category, confidence, lang, template_id, recipient_email, subject, scheduled_email_id, decision, reason, created_by, created_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, datetime('now'))`,
+                [require('crypto').randomUUID(), row.campaign_id || null, row.invitee_id || null, row.reply_id || null, row.category || null, (row.confidence == null ? null : row.confidence), row.lang || null, row.template_id || null, row.recipient_email || null, row.subject || null, row.scheduled_email_id || null, row.decision || null, row.reason || null, row.created_by || 'auto-reply']);
+        } catch (e) { /* audit must never break the flow */ }
+    }
+    // THE GATE. Auto-send ONLY when the campaign is armed (kill switch ON) AND the reply is a
+    // clear-cut category above the confidence threshold AND that category's template is approved.
+    // Stages into the ONE outbox (status 'scheduled' — the 60s drainer sends it), dedupes one auto-
+    // reply per inbound message via drip_log, and audits every decision. Returns { autoSent:true }
+    // when it fired; otherwise { autoSent:false } and the caller keeps the existing escalation path.
+    async function arMaybeAutoReply(o) {
+        const { inv, camp, facts, text, replyId, actor, messageId } = o;
+        if (!camp || !inv || !inv.email) return { autoSent: false };
+        const settings = arGetSettings(camp.id);
+        if (!settings || !Number(settings.enabled)) return { autoSent: false };   // kill switch OFF -> unchanged behavior, no audit noise
+        const cls = arClassify(text);
+        const threshold = Number(settings.confidence_threshold) || 0.75;
+        const hr = cls.lang ? (cls.lang === 'hr') : eiIsCroatian(inv);   // follow the inbound message language, not the stored country
+        const base = { campaign_id: camp.id, invitee_id: inv.id, reply_id: replyId, category: cls.category, confidence: cls.confidence, lang: hr ? 'hr' : 'en', created_by: actor || 'auto-reply' };
+        if (!AR_CATEGORIES.includes(cls.category)) { arLogAuto({ ...base, decision: 'escalated', reason: 'not a clear-cut category (ambiguous, complex, or delicate)' }); return { autoSent: false }; }
+        if (cls.confidence < threshold) { arLogAuto({ ...base, decision: 'escalated', reason: 'below the confidence gate (' + cls.confidence.toFixed(2) + ' < ' + threshold + ')' }); return { autoSent: false }; }
+        const tpl = arGetTemplate(cls.category);
+        if (!tpl || tpl.status !== 'approved') { arLogAuto({ ...base, template_id: tpl ? tpl.id : null, decision: 'skipped_unapproved', reason: 'the "' + cls.category + '" template is not approved yet' }); return { autoSent: false }; }
+        const autoKey = 'auto_reply_msg:' + (messageId || replyId);
+        if (query.get("SELECT 1 x FROM drip_log WHERE user_id = 'event-invite' AND kind = ?", [autoKey])) { arLogAuto({ ...base, template_id: tpl.id, decision: 'duplicate', reason: 'an auto-reply was already sent for this message' }); return { autoSent: true, duplicate: true, category: cls.category, confidence: cls.confidence }; }
+        const mail = arComposeReply(inv, camp, facts, cls.category, tpl, cls.lang);
+        const schedId = require('crypto').randomUUID();
+        const batchId = 'autoreply-' + camp.id.slice(0, 8) + '-' + require('crypto').randomUUID().slice(0, 8);
+        db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, approved_by, created_by, created_at)
+                VALUES (?, 'scheduled', ?, 'auto-reply', ?, ?, ?, ?, 'auto-reply (approved template + campaign armed)', ?, datetime('now'))`,
+            [schedId, batchId, 'auto_reply_' + cls.category, JSON.stringify({ to: inv.email, subject: mail.subject, html: mail.html, from: camp.sender_from || 'president@medx.hr', reply_to: camp.reply_to || 'alen_juginovic@hms.harvard.edu' }), inv.email, mail.subject, actor || 'auto-reply']);
+        try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'event-invite', ?, ?)", [require('crypto').randomUUID(), inv.email || null, autoKey]); } catch (e) {}
+        try {
+            db.run("INSERT INTO event_campaign_replies (id, campaign_id, invitee_id, direction, body, classification, source, created_by) VALUES (?,?,?, 'outbound_auto', ?, ?, 'auto-reply', ?)",
+                [require('crypto').randomUUID(), camp.id, inv.id, String(mail.html).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 4000), 'auto:' + cls.category, actor || 'auto-reply']);
+        } catch (e) {}
+        const statusMap = { coming: 'replied', declining: 'declined', question: 'replied' };
+        const noteMap = {
+            coming: 'Confirmed attendance — warm confirmation auto-sent',
+            declining: 'Sent regrets — gracious note auto-sent',
+            question: 'Logistics question — answered automatically from portal facts'
+        };
+        try { eiAppendStatus(inv.id, statusMap[cls.category], noteMap[cls.category], { replied_at: 'NOW' }); } catch (e) {}
+        arLogAuto({ ...base, template_id: tpl.id, recipient_email: inv.email, subject: mail.subject, scheduled_email_id: schedId, decision: 'auto_sent', reason: 'clear-cut ' + cls.category + ', confidence ' + cls.confidence.toFixed(2) });
+        return { autoSent: true, category: cls.category, confidence: cls.confidence, scheduled_email_id: schedId };
+    }
+
     // The ONE entry point for an inbound reply to an event invitation. Manual "Log reply" calls it
     // (source='manual'); a future Outlook/Graph connector calls the same function via the ingest
     // route (source='graph' + a stable message_id for idempotency). Simple -> a president-voice
@@ -30429,6 +31285,16 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         const replyId = require('crypto').randomUUID();
         db.run("INSERT INTO event_campaign_replies (id, campaign_id, invitee_id, direction, body, classification, source, created_by) VALUES (?,?,?, 'inbound', ?, NULL, ?, ?)",
             [replyId, inv.campaign_id, inv.id, text.slice(0, 4000), source, opts.actor || 'admin']);
+        // ===== AUTO-REPLY ENGINE (queue 5a7): try an approve-once auto-send FIRST. Only fires when
+        // the campaign is armed AND the reply is clear-cut above the gate AND the template is
+        // approved; otherwise it returns false and we fall through to the existing pending-draft /
+        // escalation path below (so nothing auto-sends unless every condition is met). =====
+        const auto = await arMaybeAutoReply({ inv, camp, facts, text, replyId, source, actor: opts.actor, messageId: opts.messageId });
+        if (auto && auto.autoSent) {
+            db.run("UPDATE event_campaign_replies SET classification = ? WHERE id = ?", ['auto:' + auto.category, replyId]);
+            saveDb();
+            return { ok: true, auto_sent: true, duplicate: !!auto.duplicate, classification: 'auto:' + auto.category, category: auto.category, confidence: auto.confidence, staged: auto.duplicate ? 0 : 1, invitee: eiShape(query.get("SELECT * FROM event_campaign_invitees WHERE id = ?", [inv.id])) };
+        }
         const classification = await eiClassifyReply(text);
         db.run("UPDATE event_campaign_replies SET classification = ? WHERE id = ?", [classification, replyId]);
         let staged = 0; let escalated = false; let draftId = null;
@@ -30802,6 +31668,113 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         try {
             const b = req.body || {};
             const r = await ingestEventInviteReply({ inviteeId: b.invitee_id || null, campaignId: b.campaign_id || null, email: b.email || b.from || null, body: b.body || b.text || '', source: b.source || 'graph', messageId: b.message_id || b.messageId || null, actor: 'graph-connector' });
+            res.json({ success: !!r.ok, ...r });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ============ AUTO-REPLY ENGINE (queue 5a7) — templates, per-campaign kill switch, audit ============
+    const AR_CAT_LABELS = { coming: 'Confirmed attendance ("I am coming")', declining: 'Regrets ("I cannot come")', question: 'Logistics question (date, venue, cost, programme)' };
+    function arTemplateShape(t) { return t ? { ...t, category_label: AR_CAT_LABELS[t.category] || t.category } : t; }
+    app.get('/api/admin/event-invites/reply-templates', auth, adminOnly, (req, res) => {
+        try {
+            const templates = AR_CATEGORIES.map(c => arTemplateShape(arGetTemplate(c))).filter(Boolean);
+            res.json({ templates, readiness: arTemplateReadiness() });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.put('/api/admin/event-invites/reply-templates/:category', auth, adminOnly, (req, res) => {
+        try {
+            const cat = String(req.params.category || '');
+            if (!AR_CATEGORIES.includes(cat)) return res.status(404).json({ error: 'Unknown category' });
+            const tpl = arGetTemplate(cat);
+            if (!tpl) return res.status(404).json({ error: 'Template not found' });
+            const b = req.body || {};
+            const sets = []; const vals = [];
+            const fields = { subject: 200, subject_hr: 200, body_html: 6000, body_html_hr: 6000 };
+            for (const [ff, max] of Object.entries(fields)) { if (b[ff] !== undefined) { sets.push(ff + ' = ?'); vals.push(String(b[ff] == null ? '' : b[ff]).slice(0, max)); } }
+            if (!sets.length) return res.json({ success: true, template: arTemplateShape(tpl) });
+            // Any content edit RESETS approval — changed text must be re-approved before it can ever
+            // auto-send (the approve-once content gate survives edits).
+            sets.push("status = 'draft'", 'approved_by = NULL', 'approved_at = NULL', "updated_at = datetime('now')");
+            vals.push(cat);
+            db.run(`UPDATE reply_templates SET ${sets.join(', ')} WHERE category = ?`, vals);
+            saveDb();
+            logAudit(req, 'auto-reply.template.save', cat + ' (reset to draft, needs re-approval)');
+            res.json({ success: true, template: arTemplateShape(arGetTemplate(cat)), readiness: arTemplateReadiness() });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-invites/reply-templates/:category/approve', auth, adminOnly, (req, res) => {
+        try {
+            const cat = String(req.params.category || '');
+            if (!AR_CATEGORIES.includes(cat)) return res.status(404).json({ error: 'Unknown category' });
+            if (!arGetTemplate(cat)) return res.status(404).json({ error: 'Template not found' });
+            db.run("UPDATE reply_templates SET status = 'approved', approved_by = ?, approved_at = datetime('now'), updated_at = datetime('now') WHERE category = ?", [req.user?.email || 'admin', cat]);
+            saveDb();
+            logAudit(req, 'auto-reply.template.approve', cat);
+            res.json({ success: true, template: arTemplateShape(arGetTemplate(cat)), readiness: arTemplateReadiness() });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-invites/reply-templates/:category/unapprove', auth, adminOnly, (req, res) => {
+        try {
+            const cat = String(req.params.category || '');
+            if (!AR_CATEGORIES.includes(cat)) return res.status(404).json({ error: 'Unknown category' });
+            if (!arGetTemplate(cat)) return res.status(404).json({ error: 'Template not found' });
+            db.run("UPDATE reply_templates SET status = 'draft', approved_by = NULL, approved_at = NULL, updated_at = datetime('now') WHERE category = ?", [cat]);
+            saveDb();
+            logAudit(req, 'auto-reply.template.unapprove', cat);
+            res.json({ success: true, template: arTemplateShape(arGetTemplate(cat)), readiness: arTemplateReadiness() });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-invites/reply-templates/:category/preview', auth, adminOnly, (req, res) => {
+        try {
+            const cat = String(req.params.category || '');
+            if (!AR_CATEGORIES.includes(cat)) return res.status(404).json({ error: 'Unknown category' });
+            const tpl = arGetTemplate(cat);
+            if (!tpl) return res.status(404).json({ error: 'Template not found' });
+            const hr = !!(req.body && req.body.hr);
+            const eventKey = (req.body && req.body.event_key) || 'gala';
+            const facts = eiEventFacts()[eventKey] || { key: eventKey, name: eventKey };
+            const sample = { name: hr ? 'dr. sc. Ivana Kovačević' : 'Dr. Jane Whitfield', email: 'sample@example.org', country: hr ? 'Croatia' : 'United Kingdom' };
+            const draftTpl = { ...tpl };
+            ['subject', 'subject_hr', 'body_html', 'body_html_hr'].forEach(ff => { if (req.body && req.body[ff] !== undefined) draftTpl[ff] = req.body[ff]; });
+            const mail = arComposeReply(sample, { cta_url: facts.url }, facts, cat, draftTpl, hr ? 'hr' : 'en');
+            res.json({ success: true, subject: mail.subject, html: mail.html, hr, category: cat });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    function arSettingsShape(campId) { const s = arGetSettings(campId); return { campaign_id: campId, enabled: !!Number(s.enabled), confidence_threshold: Number(s.confidence_threshold) || 0.75, enabled_by: s.enabled_by || null, enabled_at: s.enabled_at || null }; }
+    app.get('/api/admin/event-invites/campaigns/:id/auto-reply', auth, adminOnly, (req, res) => {
+        try {
+            const camp = eiCampaign(req.params.id);
+            if (!camp) return res.status(404).json({ error: 'Campaign not found' });
+            const log = query.all("SELECT * FROM auto_reply_log WHERE campaign_id = ? ORDER BY created_at DESC LIMIT 100", [camp.id]);
+            res.json({ settings: arSettingsShape(camp.id), readiness: arTemplateReadiness(), templates: AR_CATEGORIES.map(c => arTemplateShape(arGetTemplate(c))).filter(Boolean), log, event: eiEventFacts()[camp.event_key] || { key: camp.event_key, name: camp.event_key } });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-invites/campaigns/:id/auto-reply/toggle', auth, adminOnly, (req, res) => {
+        try {
+            const camp = eiCampaign(req.params.id);
+            if (!camp) return res.status(404).json({ error: 'Campaign not found' });
+            const enabled = (req.body && req.body.enabled) ? 1 : 0;
+            const existing = query.get("SELECT id FROM auto_reply_settings WHERE campaign_id = ?", [camp.id]);
+            if (existing) db.run("UPDATE auto_reply_settings SET enabled = ?, enabled_by = ?, enabled_at = CASE WHEN ? = 1 THEN datetime('now') ELSE enabled_at END, updated_at = datetime('now') WHERE campaign_id = ?", [enabled, req.user?.email || 'admin', enabled, camp.id]);
+            else db.run("INSERT INTO auto_reply_settings (id, campaign_id, enabled, confidence_threshold, enabled_by, enabled_at, updated_at) VALUES (?,?,?,?,?,?, datetime('now'))", [require('crypto').randomUUID(), camp.id, enabled, 0.75, req.user?.email || 'admin', enabled ? new Date().toISOString() : null]);
+            saveDb();
+            logAudit(req, 'auto-reply.toggle', (camp.name || camp.event_key) + ' -> ' + (enabled ? 'ARMED' : 'OFF (kill switch)'));
+            res.json({ success: true, settings: arSettingsShape(camp.id), readiness: arTemplateReadiness() });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.get('/api/admin/event-invites/campaigns/:id/auto-reply/log', auth, adminOnly, (req, res) => {
+        try {
+            const camp = eiCampaign(req.params.id);
+            if (!camp) return res.status(404).json({ error: 'Campaign not found' });
+            res.json({ log: query.all("SELECT * FROM auto_reply_log WHERE campaign_id = ? ORDER BY created_at DESC LIMIT 200", [camp.id]) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    // VERIFICATION HOOK — inject a mock inbound reply to exercise the auto-reply path end to end
+    // without a live Outlook/Graph connector. Same entry point as the real ingest; source='mock'.
+    app.post('/api/admin/event-invites/replies/mock-inbound', auth, adminOnly, async (req, res) => {
+        try {
+            const b = req.body || {};
+            const r = await ingestEventInviteReply({ inviteeId: b.invitee_id || null, campaignId: b.campaign_id || null, email: b.email || null, body: b.body || b.text || '', source: 'mock', messageId: b.message_id || b.messageId || null, actor: (req.user && req.user.email) || 'mock-inbound' });
             res.json({ success: !!r.ok, ...r });
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
