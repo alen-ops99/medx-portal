@@ -6997,6 +6997,16 @@
                     <span id="galaPendingCount" style="background: #b45309; color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
                 </a>
 
+                <a class="nav-item" data-section="event-invites" onclick="App.showSection('event-invites', this)">
+                    <i class="fas fa-paper-plane" style="color: #9b1b22;"></i>
+                    <span>Event invitations</span>
+                </a>
+
+                <a class="nav-item" data-section="event-reminders" onclick="App.showSection('event-reminders', this)">
+                    <i class="fas fa-bell" style="color: #b45309;"></i>
+                    <span>Event reminders</span>
+                </a>
+
                 <a class="nav-item" data-section="croatians-abroad" onclick="App.showSection('croatians-abroad', this)">
                     <i class="fas fa-globe-europe" style="color: #ef4444;"></i>
                     <span>Croatians Abroad</span>
@@ -12677,6 +12687,292 @@ President, Med&amp;X</textarea>
                     <div class="yc-live yc-no-print" id="ycLive"></div>
                 </div>
 
+                <!-- ============ EVENT INVITATION ENGINE (admin-only, queue 5a4) ============ -->
+                <div class="section" id="section-event-invites">
+                    <style>
+                        #section-event-invites .ei-wrap{max-width:1180px;}
+                        #section-event-invites .ei-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:18px;}
+                        #section-event-invites .ei-card{background:var(--card-bg,#fff);border:1px solid var(--border);border-radius:12px;padding:18px 18px 16px 22px;cursor:pointer;transition:box-shadow .15s,transform .15s;position:relative;overflow:hidden;}
+                        #section-event-invites .ei-card:hover{box-shadow:0 10px 26px rgba(0,0,0,.08);transform:translateY(-2px);}
+                        #section-event-invites .ei-card .ei-accent{position:absolute;left:0;top:0;bottom:0;width:4px;background:#9b1b22;}
+                        #section-event-invites .ei-pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 10px;border-radius:20px;}
+                        #section-event-invites .ei-pill.draft{background:#eef1f6;color:#475569;}
+                        #section-event-invites .ei-pill.approved{background:#dcfce7;color:#166534;}
+                        #section-event-invites .ei-pill.paused{background:#fef3c7;color:#92400e;}
+                        #section-event-invites .ei-funnel{display:flex;background:var(--card-bg,#fff);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:16px;flex-wrap:wrap;}
+                        #section-event-invites .ei-fstep{flex:1;min-width:96px;text-align:center;padding:14px 8px;border-right:1px solid var(--border);}
+                        #section-event-invites .ei-fstep:last-child{border-right:none;}
+                        #section-event-invites .ei-fstep .n{font-size:26px;font-weight:800;color:#1f2937;font-family:'Fraunces',Georgia,serif;line-height:1;}
+                        #section-event-invites .ei-fstep .l{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-top:6px;}
+                        #section-event-invites .ei-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-top:20px;flex-wrap:wrap;}
+                        #section-event-invites .ei-tab{background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-weight:600;font-size:14px;padding:10px 16px;cursor:pointer;white-space:nowrap;}
+                        #section-event-invites .ei-tab.active{color:#9b1b22;border-bottom-color:#9b1b22;}
+                        #section-event-invites .ei-chip{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;background:#eef1f6;color:#475569;text-transform:capitalize;}
+                        #section-event-invites .ei-chip.invited{background:#e0e7ff;color:#3730a3;}
+                        #section-event-invites .ei-chip.replied{background:#dbeafe;color:#1e40af;}
+                        #section-event-invites .ei-chip.registered{background:#dcfce7;color:#166534;}
+                        #section-event-invites .ei-chip.declined{background:#f1f5f9;color:#64748b;}
+                        #section-event-invites .ei-chip.escalated{background:#fee2e2;color:#991b1b;}
+                        #section-event-invites .ei-chip.followed_up{background:#ede9fe;color:#6d28d9;}
+                        #section-event-invites .ei-inv-row{display:flex;align-items:center;gap:12px;padding:11px 8px;border-bottom:1px solid var(--border);}
+                        #section-event-invites .ei-fact{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted);margin-right:18px;}
+                        #section-event-invites .ei-fact b{color:var(--text-primary);font-weight:600;}
+                        @media(max-width:640px){#section-event-invites .ei-grid{grid-template-columns:1fr;}#section-event-invites .ei-fstep{min-width:33%;}}
+                    </style>
+                    <div class="ei-wrap">
+                        <!-- LIST VIEW -->
+                        <div id="eiListView">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+                                <div>
+                                    <h1 class="welcome-title" style="margin:0;">Event invitations</h1>
+                                    <p style="color:var(--text-muted);margin:6px 0 0;max-width:660px;">Create a campaign for any event, import your invitee list, approve the bilingual invitation once, then let a paced daily drip do the sending. Every message flows through the approval outbox &mdash; nothing sends on its own, and the kill switch stops the next wave the moment you pause.</p>
+                                </div>
+                                <button class="btn btn-primary" style="background:#9b1b22;border:none;white-space:nowrap;" onclick="EventInvitesApp.openCreate()"><i class="fas fa-plus"></i> New campaign</button>
+                            </div>
+                            <div id="eiCampaignGrid" class="ei-grid"><div style="color:var(--text-muted);padding:24px;">Loading&hellip;</div></div>
+                        </div>
+                        <!-- DETAIL VIEW -->
+                        <div id="eiDetailView" style="display:none;">
+                            <div onclick="EventInvitesApp.backToList()" style="cursor:pointer;color:var(--text-muted);margin-bottom:14px;display:inline-flex;align-items:center;gap:8px;font-weight:600;"><i class="fas fa-arrow-left"></i> All campaigns</div>
+                            <div id="eiDetailHeader"></div>
+                            <div id="eiFunnel"></div>
+                            <div class="ei-tabs">
+                                <button class="ei-tab active" id="eiTabBtn-invitees" onclick="EventInvitesApp.showTab('invitees')"><i class="fas fa-users"></i> Invitees</button>
+                                <button class="ei-tab" id="eiTabBtn-discover" onclick="EventInvitesApp.showTab('discover')"><i class="fas fa-wand-magic-sparkles"></i> Discover people</button>
+                            </div>
+                            <div id="eiTab-invitees" style="margin-top:16px;"></div>
+                            <div id="eiTab-discover" style="margin-top:16px;display:none;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Create campaign modal -->
+                    <div class="modal-overlay" id="eiCreateModal" onclick="if(event.target===this) App.closeModal('eiCreateModal')">
+                        <div class="modal" style="max-width:560px;">
+                            <div class="modal-header"><h3><i class="fas fa-plus" style="color:#9b1b22;margin-right:8px;"></i> New event campaign</h3><button class="modal-close" onclick="App.closeModal('eiCreateModal')">&times;</button></div>
+                            <div class="modal-body">
+                                <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Pick the event this campaign invites people to. The invitation template is prefilled with that event&rsquo;s real date, venue, and attendance from the portal &mdash; you can refine it before approving.</p>
+                                <div class="form-group"><label>Event</label><div id="eiCreateEvents" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;"></div></div>
+                                <div class="form-group"><label>Campaign name</label><input type="text" id="eiCreateName" class="search-input" style="width:100%;" maxlength="200" placeholder="e.g. Gala Evening — founding invitations"></div>
+                                <div class="form-group" style="max-width:220px;"><label>Invitations per day</label><input type="number" id="eiCreateRate" class="search-input" style="width:100%;" min="1" max="200" value="15"></div>
+                            </div>
+                            <div class="modal-footer"><button class="btn btn-secondary" onclick="App.closeModal('eiCreateModal')">Cancel</button><button class="btn btn-primary" id="eiCreateBtn" style="background:#9b1b22;border:none;" onclick="EventInvitesApp.createCampaign(this)"><i class="fas fa-check"></i> Create campaign</button></div>
+                        </div>
+                    </div>
+
+                    <!-- Template & settings modal -->
+                    <div class="modal-overlay" id="eiTemplateModal" onclick="if(event.target===this) App.closeModal('eiTemplateModal')">
+                        <div class="modal" style="max-width:820px;max-height:92vh;overflow-y:auto;">
+                            <div class="modal-header"><h3><i class="fas fa-sliders" style="color:#9b1b22;margin-right:8px;"></i> Invitation template &amp; settings</h3><button class="modal-close" onclick="App.closeModal('eiTemplateModal')">&times;</button></div>
+                            <div class="modal-body">
+                                <div id="eiTplFacts" style="background:#faf7f2;border:1px solid #ece5da;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:13px;"></div>
+                                <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                                    <div class="form-group" style="flex:1;min-width:220px;"><label>Sender (from)</label><input type="text" id="eiTplFrom" class="search-input" style="width:100%;" maxlength="160"></div>
+                                    <div class="form-group" style="flex:1;min-width:220px;"><label>Replies go to (reply-to)</label><input type="text" id="eiTplReplyTo" class="search-input" style="width:100%;" maxlength="160"></div>
+                                </div>
+                                <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                                    <div class="form-group" style="flex:2;min-width:220px;"><label>Register / learn-more link</label><input type="text" id="eiTplCta" class="search-input" style="width:100%;" maxlength="400"></div>
+                                    <div class="form-group" style="flex:1;min-width:140px;"><label>Invitations per day</label><input type="number" id="eiTplRate" class="search-input" style="width:100%;" min="1" max="200"></div>
+                                </div>
+                                <hr style="border:none;border-top:1px solid var(--border);margin:8px 0 14px;">
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+                                    <div>
+                                        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700;margin-bottom:8px;">English (international)</div>
+                                        <div class="form-group"><label>Subject</label><input type="text" id="eiTplSubject" class="search-input" style="width:100%;" maxlength="200"></div>
+                                        <div class="form-group"><label>Opening message</label><textarea id="eiTplIntro" rows="5" class="search-input" style="width:100%;" maxlength="4000"></textarea></div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700;margin-bottom:8px;">Hrvatski (formalno)</div>
+                                        <div class="form-group"><label>Naslov</label><input type="text" id="eiTplSubjectHr" class="search-input" style="width:100%;" maxlength="200"></div>
+                                        <div class="form-group"><label>Uvodna poruka</label><textarea id="eiTplIntroHr" rows="5" class="search-input" style="width:100%;" maxlength="4000"></textarea></div>
+                                    </div>
+                                </div>
+                                <hr style="border:none;border-top:1px solid var(--border);margin:6px 0 14px;">
+                                <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700;margin-bottom:8px;">Gentle follow-up (7 days after, if no reply)</div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+                                    <div>
+                                        <div class="form-group"><label>Follow-up subject (EN)</label><input type="text" id="eiTplFuSubject" class="search-input" style="width:100%;" maxlength="200"></div>
+                                        <div class="form-group"><label>Follow-up message (EN)</label><textarea id="eiTplFuBody" rows="3" class="search-input" style="width:100%;" maxlength="4000"></textarea></div>
+                                    </div>
+                                    <div>
+                                        <div class="form-group"><label>Naslov podsjetnika (HR)</label><input type="text" id="eiTplFuSubjectHr" class="search-input" style="width:100%;" maxlength="200"></div>
+                                        <div class="form-group"><label>Poruka podsjetnika (HR)</label><textarea id="eiTplFuBodyHr" rows="3" class="search-input" style="width:100%;" maxlength="4000"></textarea></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer" style="justify-content:space-between;">
+                                <div><button class="btn btn-secondary" onclick="EventInvitesApp.preview('invite',false)"><i class="fas fa-eye"></i> Preview EN</button> <button class="btn btn-secondary" onclick="EventInvitesApp.preview('invite',true)"><i class="fas fa-eye"></i> Pregled HR</button></div>
+                                <div><button class="btn btn-secondary" onclick="App.closeModal('eiTemplateModal')">Cancel</button> <button class="btn btn-primary" style="background:#9b1b22;border:none;" onclick="EventInvitesApp.saveTemplate(this)"><i class="fas fa-floppy-disk"></i> Save</button></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Import modal -->
+                    <div class="modal-overlay" id="eiImportModal" onclick="if(event.target===this) App.closeModal('eiImportModal')">
+                        <div class="modal" style="max-width:760px;max-height:90vh;overflow-y:auto;">
+                            <div class="modal-header"><h3><i class="fas fa-file-import" style="color:#9b1b22;margin-right:8px;"></i> Import invitees</h3><button class="modal-close" onclick="App.closeModal('eiImportModal')">&times;</button></div>
+                            <div class="modal-body">
+                                <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Upload a CSV or Excel (.xlsx) list. Columns match automatically &mdash; adjust the mapping, then import. People already in this campaign, or already registered for the event, are shown and never re-imported. Croatian characters (č ć đ š ž) are preserved.</p>
+                                <div class="form-group"><label>List file</label><input type="file" id="eiImportFile" accept=".csv,.tsv,.txt,.xlsx,.xls" style="color:var(--text-primary);" onchange="EventInvitesApp.previewImport()"></div>
+                                <div id="eiImportPreview"></div>
+                            </div>
+                            <div class="modal-footer"><button class="btn btn-secondary" onclick="App.closeModal('eiImportModal')">Cancel</button><button class="btn btn-primary" id="eiImportCommitBtn" style="background:#9b1b22;border:none;" onclick="EventInvitesApp.commitImport(this)" disabled><i class="fas fa-check"></i> Import invitees</button></div>
+                        </div>
+                    </div>
+
+                    <!-- Log reply modal -->
+                    <div class="modal-overlay" id="eiReplyModal" onclick="if(event.target===this) App.closeModal('eiReplyModal')">
+                        <div class="modal" style="max-width:560px;">
+                            <div class="modal-header"><h3><i class="fas fa-reply" style="color:#9b1b22;margin-right:8px;"></i> Log a reply</h3><button class="modal-close" onclick="App.closeModal('eiReplyModal')">&times;</button></div>
+                            <div class="modal-body">
+                                <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px;" id="eiReplyWho"></p>
+                                <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">A simple logistics question gets a president-voice draft into the outbox. Anything delicate is escalated to the president and Laura for a personal answer.</p>
+                                <textarea id="eiReplyBody" rows="5" class="search-input" style="width:100%;" placeholder="Paste the reply text here…"></textarea>
+                            </div>
+                            <div class="modal-footer"><button class="btn btn-secondary" onclick="App.closeModal('eiReplyModal')">Cancel</button><button class="btn btn-primary" id="eiReplyBtn" style="background:#9b1b22;border:none;" onclick="EventInvitesApp.submitReply(this)"><i class="fas fa-paper-plane"></i> Classify &amp; route</button></div>
+                        </div>
+                    </div>
+
+                    <!-- Preview modal -->
+                    <div class="modal-overlay" id="eiPreviewModal" onclick="if(event.target===this) App.closeModal('eiPreviewModal')">
+                        <div class="modal" style="max-width:720px;max-height:92vh;overflow-y:auto;">
+                            <div class="modal-header"><h3><i class="fas fa-envelope-open-text" style="color:#9b1b22;margin-right:8px;"></i> <span id="eiPreviewTitle">Invitation preview</span></h3><button class="modal-close" onclick="App.closeModal('eiPreviewModal')">&times;</button></div>
+                            <div class="modal-body"><div id="eiPreviewSubject" style="font-weight:700;margin-bottom:10px;"></div><iframe id="eiPreviewFrame" style="width:100%;height:60vh;border:1px solid var(--border);border-radius:8px;background:#fff;"></iframe></div>
+                            <div class="modal-footer"><button class="btn btn-secondary" onclick="App.closeModal('eiPreviewModal')">Close</button></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============ EVENT REMINDERS (queue 5a5) ============ -->
+                <div class="section" id="section-event-reminders">
+                    <style>
+                        #section-event-reminders .rm-wrap{max-width:1120px;}
+                        #section-event-reminders .rm-sub{font-size:14px;color:var(--text-muted);max-width:680px;margin-top:4px;line-height:1.6;}
+                        #section-event-reminders .rm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px;margin-top:20px;}
+                        #section-event-reminders .rm-card{background:var(--card-bg,#fff);border:1px solid var(--border);border-radius:12px;padding:18px 18px 16px 22px;cursor:pointer;transition:box-shadow .15s,transform .15s;position:relative;overflow:hidden;}
+                        #section-event-reminders .rm-card:hover{box-shadow:0 10px 26px rgba(0,0,0,.08);transform:translateY(-2px);}
+                        #section-event-reminders .rm-accent{position:absolute;left:0;top:0;bottom:0;width:4px;background:#b45309;}
+                        #section-event-reminders .rm-pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 10px;border-radius:20px;}
+                        #section-event-reminders .rm-pill.draft{background:#eef1f6;color:#475569;}
+                        #section-event-reminders .rm-pill.approved{background:#dcfce7;color:#166534;}
+                        #section-event-reminders .rm-pill.paused{background:#fef3c7;color:#92400e;}
+                        #section-event-reminders .rm-cadence{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
+                        #section-event-reminders .rm-dot{display:inline-flex;flex-direction:column;align-items:center;gap:2px;border:1px solid var(--border);border-radius:8px;padding:7px 11px;min-width:58px;}
+                        #section-event-reminders .rm-dot .k{font-size:13px;font-weight:800;font-family:'Fraunces',Georgia,serif;color:#1f2937;}
+                        #section-event-reminders .rm-dot .d{font-size:10px;color:var(--text-muted);}
+                        #section-event-reminders .rm-dot.off{opacity:.4;}
+                        #section-event-reminders .rm-back{background:none;border:none;color:var(--text-muted);font-weight:600;font-size:14px;cursor:pointer;padding:4px 0;margin-bottom:12px;}
+                        #section-event-reminders .rm-fact{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted);margin-right:18px;margin-top:6px;}
+                        #section-event-reminders .rm-fact b{color:var(--text-primary);font-weight:600;}
+                        #section-event-reminders .rm-touch{display:flex;align-items:flex-start;gap:14px;padding:15px 16px;border:1px solid var(--border);border-radius:10px;margin-top:12px;background:var(--card-bg,#fff);}
+                        #section-event-reminders .rm-touch .tl{min-width:64px;text-align:center;}
+                        #section-event-reminders .rm-touch .tl .big{font-size:20px;font-weight:800;font-family:'Fraunces',Georgia,serif;line-height:1;color:#b45309;}
+                        #section-event-reminders .rm-touch .tl .sm{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-top:4px;}
+                        #section-event-reminders .rm-touch.off{opacity:.55;}
+                        #section-event-reminders .rm-chip{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;background:#eef1f6;color:#475569;}
+                        #section-event-reminders .rm-chip.due{background:#dcfce7;color:#166534;}
+                        #section-event-reminders .rm-chip.next{background:#e0e7ff;color:#3730a3;}
+                        #section-event-reminders .rm-empty{grid-column:1/-1;text-align:center;padding:46px 20px;color:var(--text-muted);border:1px dashed var(--border);border-radius:12px;}
+                        #section-event-reminders .rm-toggle{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--text-muted);cursor:pointer;}
+                    </style>
+                    <div class="rm-wrap">
+                        <!-- LIST VIEW -->
+                        <div id="rmListView">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+                                <div>
+                                    <h1 style="margin:0;">Event reminders</h1>
+                                    <p class="rm-sub">Warm, automatic reminder sequences for everyone already registered. Approve a sequence once and each touch is sent on its own T-minus date through the approval outbox, in each member&rsquo;s language, with the non-refundable note shown to guests who have paid.</p>
+                                </div>
+                                <button class="btn btn-primary" style="background:#b45309;border:none;" onclick="RemindersApp.openCreate()"><i class="fas fa-plus"></i> New reminder sequence</button>
+                            </div>
+                            <div id="rmSequenceGrid" class="rm-grid"></div>
+                        </div>
+                        <!-- DETAIL VIEW -->
+                        <div id="rmDetailView" style="display:none;">
+                            <button class="rm-back" onclick="RemindersApp.backToList()"><i class="fas fa-arrow-left"></i> All sequences</button>
+                            <div id="rmDetailHeader"></div>
+                            <div id="rmTouches" style="margin-top:22px;"></div>
+                            <div id="rmAudience" style="margin-top:22px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Create modal -->
+                    <div class="modal-overlay" id="rmCreateModal" onclick="if(event.target===this) App.closeModal('rmCreateModal')">
+                        <div class="modal" style="max-width:560px;">
+                            <div class="modal-header"><h3><i class="fas fa-bell" style="color:#b45309;margin-right:8px;"></i> New reminder sequence</h3><button class="modal-close" onclick="App.closeModal('rmCreateModal')">&times;</button></div>
+                            <div class="modal-body">
+                                <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Pick the event to remind registered attendees about. A three-touch cadence (T-30, T-14, T-7) is prefilled with warm, editable bilingual copy and this event&rsquo;s real date and venue &mdash; refine it before approving.</p>
+                                <div class="form-group"><label>Event</label><div id="rmCreateEvents" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;"></div></div>
+                                <div class="form-group"><label>Sequence name</label><input type="text" id="rmCreateName" class="search-input" style="width:100%;" maxlength="200" placeholder="e.g. Plexus Conference — reminders"></div>
+                            </div>
+                            <div class="modal-footer"><button class="btn btn-secondary" onclick="App.closeModal('rmCreateModal')">Cancel</button><button class="btn btn-primary" id="rmCreateBtn" style="background:#b45309;border:none;" onclick="RemindersApp.createSequence(this)"><i class="fas fa-check"></i> Create sequence</button></div>
+                        </div>
+                    </div>
+
+                    <!-- Settings modal (sender / reply-to / link) -->
+                    <div class="modal-overlay" id="rmSettingsModal" onclick="if(event.target===this) App.closeModal('rmSettingsModal')">
+                        <div class="modal" style="max-width:620px;">
+                            <div class="modal-header"><h3><i class="fas fa-sliders" style="color:#b45309;margin-right:8px;"></i> Sequence settings</h3><button class="modal-close" onclick="App.closeModal('rmSettingsModal')">&times;</button></div>
+                            <div class="modal-body">
+                                <div class="form-group"><label>Sequence name</label><input type="text" id="rmSetName" class="search-input" style="width:100%;" maxlength="200"></div>
+                                <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                                    <div class="form-group" style="flex:1;min-width:220px;"><label>Sender (from)</label><input type="text" id="rmSetFrom" class="search-input" style="width:100%;" maxlength="160"></div>
+                                    <div class="form-group" style="flex:1;min-width:220px;"><label>Replies go to (reply-to)</label><input type="text" id="rmSetReplyTo" class="search-input" style="width:100%;" maxlength="160"></div>
+                                </div>
+                                <div class="form-group"><label>Event / register link</label><input type="text" id="rmSetCta" class="search-input" style="width:100%;" maxlength="400"></div>
+                            </div>
+                            <div class="modal-footer"><button class="btn btn-secondary" onclick="App.closeModal('rmSettingsModal')">Cancel</button><button class="btn btn-primary" style="background:#b45309;border:none;" onclick="RemindersApp.saveSettings(this)"><i class="fas fa-check"></i> Save settings</button></div>
+                        </div>
+                    </div>
+
+                    <!-- Touch template modal -->
+                    <div class="modal-overlay" id="rmTouchModal" onclick="if(event.target===this) App.closeModal('rmTouchModal')">
+                        <div class="modal" style="max-width:860px;max-height:92vh;overflow-y:auto;">
+                            <div class="modal-header"><h3 id="rmTouchTitle"><i class="fas fa-envelope-open-text" style="color:#b45309;margin-right:8px;"></i> Edit reminder</h3><button class="modal-close" onclick="App.closeModal('rmTouchModal')">&times;</button></div>
+                            <div class="modal-body">
+                                <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-bottom:6px;">
+                                    <div class="form-group" style="max-width:180px;"><label>Days before event</label><input type="number" id="rmTouchOffset" class="search-input" style="width:100%;" min="0" max="365"></div>
+                                    <label class="rm-toggle" style="margin-bottom:16px;"><input type="checkbox" id="rmTouchEnabled"> This reminder is active</label>
+                                </div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+                                    <div>
+                                        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700;margin-bottom:8px;">English (international)</div>
+                                        <div class="form-group"><label>Subject</label><input type="text" id="rmTouchSubject" class="search-input" style="width:100%;" maxlength="200"></div>
+                                        <div class="form-group"><label>Message</label><textarea id="rmTouchBody" rows="7" class="search-input" style="width:100%;" maxlength="4000"></textarea></div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700;margin-bottom:8px;">Hrvatski (formalno)</div>
+                                        <div class="form-group"><label>Naslov</label><input type="text" id="rmTouchSubjectHr" class="search-input" style="width:100%;" maxlength="200"></div>
+                                        <div class="form-group"><label>Poruka</label><textarea id="rmTouchBodyHr" rows="7" class="search-input" style="width:100%;" maxlength="4000"></textarea></div>
+                                    </div>
+                                </div>
+                                <p style="font-size:12px;color:var(--text-muted);margin:6px 0 0;"><i class="fas fa-circle-info"></i> The venue, date, and times are added automatically to the T-7 reminder, and every reminder ends with the non-refundable note.</p>
+                            </div>
+                            <div class="modal-footer" style="justify-content:space-between;">
+                                <div>
+                                    <button class="btn btn-secondary" onclick="RemindersApp.preview('en')"><i class="fas fa-eye"></i> Preview EN</button>
+                                    <button class="btn btn-secondary" onclick="RemindersApp.preview('hr')"><i class="fas fa-eye"></i> Pregled HR</button>
+                                </div>
+                                <div>
+                                    <button class="btn btn-secondary" onclick="App.closeModal('rmTouchModal')">Cancel</button>
+                                    <button class="btn btn-primary" style="background:#b45309;border:none;" onclick="RemindersApp.saveTouch(this)"><i class="fas fa-check"></i> Save reminder</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Preview modal -->
+                    <div class="modal-overlay" id="rmPreviewModal" onclick="if(event.target===this) App.closeModal('rmPreviewModal')">
+                        <div class="modal" style="max-width:680px;max-height:92vh;overflow-y:auto;">
+                            <div class="modal-header"><h3><i class="fas fa-eye" style="color:#b45309;margin-right:8px;"></i> Reminder preview</h3><button class="modal-close" onclick="App.closeModal('rmPreviewModal')">&times;</button></div>
+                            <div class="modal-body">
+                                <div id="rmPreviewSubject" style="font-weight:700;font-size:15px;margin-bottom:10px;"></div>
+                                <iframe id="rmPreviewFrame" style="width:100%;height:60vh;border:1px solid var(--border);border-radius:8px;background:#fff;"></iframe>
+                            </div>
+                            <div class="modal-footer"><button class="btn btn-secondary" onclick="App.closeModal('rmPreviewModal')">Close</button></div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="section" id="section-conferences">
                     <div class="back-link" onclick="App.showSection('dashboard')">
                         <i class="fas fa-arrow-left"></i> Back to Dashboard
@@ -18108,6 +18404,8 @@ President, Med&amp;X</textarea>
                     'member-ops': 'Member Ops',
                     'messages': 'Messages',
                     'gala': 'Gala Evening',
+                    'event-invites': 'Event invitations',
+                    'event-reminders': 'Event reminders',
                     'conferences': 'Conferences',
                     'email-blast': 'Email Registrants',
                     'audit': 'Audit Log',
@@ -43498,6 +43796,650 @@ By applying to this program, I give the following consents:
             }
         };
 
+        // ============ EVENT INVITATION ENGINE (admin-only, queue 5a4) ============
+        // Per-event invitation campaigns: import invitees, approve a bilingual template once,
+        // then a paced N/day drip stages invitations into the approval outbox (kill switch to
+        // pause). Funnel + reply routing + AI discover-people. All against /api/admin/event-invites.
+        const EventInvitesApp = {
+            catalog: [],
+            campaigns: [],
+            current: null,
+            invitees: [],
+            counts: {},
+            funnel: {},
+            invFilter: 'all',
+            importData: null,
+            discoverResults: [],
+            replyInviteeId: null,
+            esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); },
+            toast(m,t){ if(window.Toast){ (Toast[t]||Toast.info||Toast.success)(m); } },
+            async api(path, opts={}){
+                const token = (window.App && App.token) || localStorage.getItem('medx_token') || localStorage.getItem('token');
+                const res = await fetch(path, { ...opts, headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token, ...(opts.headers||{}) } });
+                let d = {}; try { d = await res.json(); } catch(e) {}
+                if (!res.ok) throw new Error(d.error || ('HTTP '+res.status));
+                return d;
+            },
+            statusMeta(s){
+                return { draft:{c:'draft',l:'Draft'}, approved:{c:'approved',l:'Active'}, paused:{c:'paused',l:'Paused'} }[s] || {c:'draft',l:s};
+            },
+
+            async init(){
+                this.showListView();
+                const grid = document.getElementById('eiCampaignGrid');
+                try {
+                    const [cat, camps] = await Promise.all([
+                        this.api('/api/admin/event-invites/catalog').catch(()=>({events:[]})),
+                        this.api('/api/admin/event-invites/campaigns')
+                    ]);
+                    this.catalog = (cat && cat.events) || [];
+                    this.campaigns = (camps && camps.campaigns) || [];
+                    if ((!this.catalog || !this.catalog.length) && camps && camps.events) this.catalog = camps.events;
+                } catch(e){
+                    if (grid) grid.innerHTML = '<div style="color:#b91c1c;padding:24px;">Could not load campaigns. '+this.esc(e.message)+'</div>';
+                    return;
+                }
+                this.renderList();
+            },
+            showListView(){ const l=document.getElementById('eiListView'), d=document.getElementById('eiDetailView'); if(l)l.style.display=''; if(d)d.style.display='none'; },
+            backToList(){ this.current=null; this.showListView(); this.init(); },
+
+            renderList(){
+                const grid = document.getElementById('eiCampaignGrid');
+                if (!grid) return;
+                if (!this.campaigns.length){
+                    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:46px 20px;color:var(--text-muted);border:1px dashed var(--border);border-radius:12px;"><i class="fas fa-paper-plane" style="font-size:30px;color:#d6c9b8;"></i><p style="margin:14px 0 4px;font-weight:600;color:var(--text-primary);">No campaigns yet</p><p style="margin:0;font-size:14px;">Create one for Plexus, the Gala, Building Bridges, or Donor Night to start inviting people.</p></div>';
+                    return;
+                }
+                grid.innerHTML = this.campaigns.map(c=>{
+                    const f = c.funnel||{}; const ev = c.event||{}; const sm = this.statusMeta(c.status);
+                    return `<div class="ei-card" onclick="EventInvitesApp.open('${c.id}')">
+                        <div class="ei-accent"></div>
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                            <div><div style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#9b1b22;font-weight:700;"><i class="fas ${this.esc(ev.icon||'fa-calendar')}"></i> ${this.esc(ev.name||c.event_key)}</div>
+                            <div style="font-size:17px;font-weight:700;margin-top:3px;font-family:'Fraunces',Georgia,serif;">${this.esc(c.name||'Untitled campaign')}</div></div>
+                            <span class="ei-pill ${sm.c}">${this.esc(sm.l)}</span>
+                        </div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">${this.esc(ev.date||'')}${ev.venue?' &middot; '+this.esc(ev.venue):''}</div>
+                        <div style="display:flex;gap:14px;margin-top:14px;">
+                            ${[['Imported',f.imported],['Sent',f.invited],['Replied',f.replied],['Registered',f.registered]].map(x=>`<div><div style="font-size:20px;font-weight:800;font-family:'Fraunces',Georgia,serif;line-height:1;">${x[1]||0}</div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-top:3px;">${x[0]}</div></div>`).join('')}
+                        </div>
+                        <div style="font-size:11px;color:var(--text-muted);margin-top:12px;"><i class="fas fa-user-tie"></i> ${this.esc(c.sender_from||'president@medx.hr')}</div>
+                    </div>`;
+                }).join('');
+            },
+
+            // ---- Create ----
+            openCreate(){
+                this.createPick = null;
+                const box = document.getElementById('eiCreateEvents');
+                if (box) box.innerHTML = this.catalog.map(ev=>`<div onclick="EventInvitesApp.pickCreateEvent('${ev.key}')" id="eiPick-${ev.key}" style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;"><div style="font-weight:700;font-size:14px;"><i class="fas ${this.esc(ev.icon||'fa-calendar')}" style="color:#9b1b22;margin-right:6px;"></i>${this.esc(ev.name)}</div><div style="font-size:11px;color:var(--text-muted);margin-top:3px;">${this.esc(ev.date||'')}</div></div>`).join('');
+                document.getElementById('eiCreateName').value='';
+                document.getElementById('eiCreateRate').value=15;
+                App.openModal('eiCreateModal');
+            },
+            pickCreateEvent(key){
+                this.createPick = key;
+                (this.catalog||[]).forEach(ev=>{ const el=document.getElementById('eiPick-'+ev.key); if(el){ el.style.borderColor = ev.key===key ? '#9b1b22':'var(--border)'; el.style.background = ev.key===key ? '#fdf2f2':'transparent'; }});
+                const ev = (this.catalog||[]).find(e=>e.key===key);
+                const nameEl = document.getElementById('eiCreateName');
+                if (ev && nameEl && !nameEl.value.trim()) nameEl.value = ev.name + ' — invitations';
+            },
+            async createCampaign(btn){
+                if (!this.createPick){ this.toast('Pick an event first.','error'); return; }
+                const name = document.getElementById('eiCreateName').value.trim();
+                const daily_rate = parseInt(document.getElementById('eiCreateRate').value,10)||15;
+                btn.disabled=true;
+                try {
+                    const r = await this.api('/api/admin/event-invites/campaigns',{ method:'POST', body: JSON.stringify({ event_key:this.createPick, name, daily_rate }) });
+                    App.closeModal('eiCreateModal');
+                    this.toast('Campaign created.','success');
+                    this.open(r.campaign.id);
+                } catch(e){ this.toast(e.message||'Could not create campaign.','error'); }
+                finally { btn.disabled=false; }
+            },
+
+            // ---- Detail ----
+            async open(id){
+                try {
+                    const d = await this.api('/api/admin/event-invites/campaigns/'+id);
+                    this.current = d.campaign; this.counts = d.counts||{};
+                    this.funnel = (d.campaign && d.campaign.funnel) || {};
+                } catch(e){ this.toast(e.message||'Could not open campaign.','error'); return; }
+                document.getElementById('eiListView').style.display='none';
+                document.getElementById('eiDetailView').style.display='';
+                this.renderDetailHeader();
+                this.renderFunnel();
+                this.showTab('invitees');
+            },
+            renderDetailHeader(){
+                const c = this.current; if(!c) return; const ev=c.event||{}; const sm=this.statusMeta(c.status);
+                let actions='';
+                if (c.status==='draft') actions = `<button class="btn btn-primary" style="background:#9b1b22;border:none;" onclick="EventInvitesApp.approve(this)"><i class="fas fa-circle-check"></i> Approve &amp; start</button>`;
+                else if (c.status==='approved') actions = `<button class="btn btn-primary" style="background:#9b1b22;border:none;" onclick="EventInvitesApp.tick(this)"><i class="fas fa-paper-plane"></i> Run today&rsquo;s invitations</button>
+                    <button class="btn btn-secondary" onclick="EventInvitesApp.followupTick(this)"><i class="fas fa-clock-rotate-left"></i> Run follow-ups</button>
+                    <button class="btn btn-secondary" style="color:#b45309;" onclick="EventInvitesApp.pause(this)"><i class="fas fa-pause"></i> Pause (kill switch)</button>`;
+                else if (c.status==='paused') actions = `<button class="btn btn-primary" style="background:#166534;border:none;" onclick="EventInvitesApp.resume(this)"><i class="fas fa-play"></i> Resume</button>`;
+                const host = document.getElementById('eiDetailHeader');
+                host.innerHTML = `<div class="card" style="border-left:4px solid #9b1b22;padding:18px 20px;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+                        <div>
+                            <div style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#9b1b22;font-weight:700;"><i class="fas ${this.esc(ev.icon||'fa-calendar')}"></i> ${this.esc(ev.name||c.event_key)} &nbsp;<span class="ei-pill ${sm.c}">${this.esc(sm.l)}</span></div>
+                            <div style="font-size:22px;font-weight:800;margin-top:4px;font-family:'Fraunces',Georgia,serif;">${this.esc(c.name||'Untitled campaign')}</div>
+                            <div style="margin-top:10px;">
+                                <span class="ei-fact"><i class="fas fa-calendar-day"></i> <b>${this.esc(ev.date||'—')}</b></span>
+                                <span class="ei-fact"><i class="fas fa-location-dot"></i> <b>${this.esc(ev.venue||'—')}</b></span>
+                                <span class="ei-fact"><i class="fas fa-ticket"></i> <b>${this.esc(ev.price||'—')}</b></span>
+                            </div>
+                            <div style="margin-top:8px;">
+                                <span class="ei-fact"><i class="fas fa-user-tie"></i> From <b>${this.esc(c.sender_from||'president@medx.hr')}</b></span>
+                                <span class="ei-fact"><i class="fas fa-reply"></i> Replies to <b>${this.esc(c.reply_to||'alen_juginovic@hms.harvard.edu')}</b></span>
+                                <span class="ei-fact"><i class="fas fa-gauge-high"></i> <b>${this.esc(String(c.daily_rate||15))}</b>/day</span>
+                            </div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">${actions}</div>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+                                <button class="btn btn-secondary btn-sm" onclick="EventInvitesApp.openTemplate()"><i class="fas fa-sliders"></i> Template &amp; settings</button>
+                                <button class="btn btn-secondary btn-sm" onclick="EventInvitesApp.openImport()"><i class="fas fa-file-import"></i> Import invitees</button>
+                                <button class="btn btn-secondary btn-sm" style="color:#b91c1c;" onclick="EventInvitesApp.deleteCampaign()"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            },
+            renderFunnel(){
+                const f = this.funnel||{}; const host=document.getElementById('eiFunnel');
+                const steps = [
+                    ['Imported', f.imported||0, 'fa-file-import'],
+                    ['Sent', f.invited||0, 'fa-paper-plane'],
+                    ['Opened', (f.opened==null?'—':f.opened), 'fa-envelope-open'],
+                    ['Replied', f.replied||0, 'fa-reply'],
+                    ['Registered', f.registered||0, 'fa-circle-check']
+                ];
+                host.innerHTML = `<div class="ei-funnel">${steps.map(s=>`<div class="ei-fstep"><div class="n">${typeof s[1]==='number'?s[1]:this.esc(s[1])}</div><div class="l"><i class="fas ${s[2]}"></i> ${s[0]}</div></div>`).join('')}</div>
+                    ${f.opened==null?'<div style="font-size:11px;color:var(--text-muted);margin-top:6px;padding-left:4px;">Opens are not tracked (no tracking pixel is used) &mdash; Registered is joined live against this event&rsquo;s registrations by email.</div>':''}`;
+            },
+
+            showTab(tab){
+                ['invitees','discover'].forEach(t=>{
+                    const btn=document.getElementById('eiTabBtn-'+t), pane=document.getElementById('eiTab-'+t);
+                    if(btn) btn.classList.toggle('active', t===tab);
+                    if(pane) pane.style.display = t===tab ? '' : 'none';
+                });
+                if (tab==='invitees') this.loadInvitees();
+                if (tab==='discover') this.renderDiscover();
+            },
+
+            // ---- Invitees ----
+            async loadInvitees(){
+                if(!this.current) return;
+                const pane=document.getElementById('eiTab-invitees');
+                pane.innerHTML='<div style="color:var(--text-muted);padding:18px;">Loading&hellip;</div>';
+                try {
+                    const d = await this.api('/api/admin/event-invites/campaigns/'+this.current.id+'/invitees'+(this.invFilter!=='all'?('?status='+this.invFilter):''));
+                    this.invitees=d.invitees||[]; this.counts=d.counts||{}; this.funnel=d.funnel||this.funnel;
+                    this.renderFunnel();
+                } catch(e){ pane.innerHTML='<div style="color:#b91c1c;padding:18px;">'+this.esc(e.message)+'</div>'; return; }
+                this.renderInvitees();
+            },
+            renderInvitees(){
+                const pane=document.getElementById('eiTab-invitees'); const c=this.counts||{};
+                const filters=[['all','All',c.all||0],['imported','Not sent',c.imported||0],['invited','Sent',c.invited||0],['followed_up','Followed up',c.followed_up||0],['replied','Replied',c.replied||0],['escalated','Escalated',c.escalated||0],['declined','Declined',c.declined||0]];
+                const chips = filters.map(f=>`<button onclick="EventInvitesApp.setFilter('${f[0]}')" style="background:${this.invFilter===f[0]?'#9b1b22':'transparent'};color:${this.invFilter===f[0]?'#fff':'var(--text-muted)'};border:1px solid ${this.invFilter===f[0]?'#9b1b22':'var(--border)'};border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;">${f[1]} ${f[2]}</button>`).join(' ');
+                let rows;
+                if (!this.invitees.length){
+                    rows='<div style="padding:30px 12px;text-align:center;color:var(--text-muted);">No invitees here yet. Import a list or discover people with AI.</div>';
+                } else {
+                    rows = this.invitees.map(i=>{
+                        const st=i.status||'imported';
+                        return `<div class="ei-inv-row">
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-weight:600;">${this.esc(i.name||i.email||'(unnamed)')} ${i.registered?'<span class="ei-chip registered" style="margin-left:6px;">registered</span>':''}</div>
+                                <div style="font-size:12px;color:var(--text-muted);">${this.esc([i.field,i.institution,i.country].filter(Boolean).join(' · '))}${i.email?' · '+this.esc(i.email):''}</div>
+                                ${i.notes?'<div style="font-size:11px;color:var(--text-muted);margin-top:2px;font-style:italic;">'+this.esc(i.notes)+'</div>':''}
+                            </div>
+                            <span class="ei-chip ${this.esc(st)}">${this.esc(st.replace('_',' '))}</span>
+                            <button class="btn btn-secondary btn-sm" title="Log a reply" onclick="EventInvitesApp.openReply('${i.id}','${this.esc((i.name||i.email||'').replace(/'/g,''))}')"><i class="fas fa-reply"></i></button>
+                            <button class="btn btn-secondary btn-sm" title="Remove" style="color:#b91c1c;" onclick="EventInvitesApp.deleteInvitee('${i.id}')"><i class="fas fa-times"></i></button>
+                        </div>`;
+                    }).join('');
+                }
+                pane.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">${chips}</div><div class="card" style="padding:6px 12px;">${rows}</div>`;
+            },
+            setFilter(f){ this.invFilter=f; this.loadInvitees(); },
+            async deleteInvitee(id){
+                if(!confirm('Remove this invitee from the campaign?')) return;
+                try { await this.api('/api/admin/event-invites/invitees/'+id,{method:'DELETE'}); this.toast('Removed.','info'); this.loadInvitees(); }
+                catch(e){ this.toast(e.message,'error'); }
+            },
+
+            // ---- Campaign actions ----
+            async _act(path,btn,okMsg){
+                if(btn) btn.disabled=true;
+                try {
+                    const r = await this.api(path,{method:'POST',body:JSON.stringify({})});
+                    if (r.campaign){ this.current=r.campaign; this.funnel=r.campaign.funnel||this.funnel; }
+                    this.renderDetailHeader(); this.renderFunnel();
+                    if (okMsg) this.toast(typeof okMsg==='function'?okMsg(r):okMsg,'success');
+                    return r;
+                } catch(e){ this.toast(e.message||'Action failed.','error'); }
+                finally { if(btn) btn.disabled=false; }
+            },
+            approve(btn){ this._act('/api/admin/event-invites/campaigns/'+this.current.id+'/approve',btn,'Campaign approved — the daily drip is live.'); },
+            pause(btn){ this._act('/api/admin/event-invites/campaigns/'+this.current.id+'/pause',btn,'Paused. The next wave will not go out until you resume.'); },
+            resume(btn){ this._act('/api/admin/event-invites/campaigns/'+this.current.id+'/resume',btn,'Resumed.'); },
+            async tick(btn){
+                const r = await this._act('/api/admin/event-invites/campaigns/'+this.current.id+'/tick',btn,(r)=>{ const res=r.result||{}; return res.ran?(res.invited+' invitation'+(res.invited===1?'':'s')+' staged for today.'):('Nothing to send: '+(res.reason||'').replace(/_/g,' ')+'.'); });
+                this.loadInvitees();
+                return r;
+            },
+            async followupTick(btn){
+                await this._act('/api/admin/event-invites/campaigns/'+this.current.id+'/followup-tick',btn,(r)=>{ const res=r.result||{}; return res.ran?(res.followed+' follow-up'+(res.followed===1?'':'s')+' staged.'):('No follow-ups due: '+(res.reason||'').replace(/_/g,' ')+'.'); });
+                this.loadInvitees();
+            },
+            async deleteCampaign(){
+                if(!confirm('Delete this campaign and its invitees? This cannot be undone.')) return;
+                try { await this.api('/api/admin/event-invites/campaigns/'+this.current.id,{method:'DELETE'}); this.toast('Campaign deleted.','info'); this.backToList(); }
+                catch(e){ this.toast(e.message,'error'); }
+            },
+
+            // ---- Template ----
+            openTemplate(){
+                const c=this.current; const ev=c.event||{};
+                document.getElementById('eiTplFacts').innerHTML = `<b style="color:#9b1b22;">Auto-included facts (live from the portal):</b> ${this.esc(ev.name||'')} &middot; ${this.esc(ev.date||'—')} &middot; ${this.esc(ev.venue||'—')} &middot; ${this.esc(ev.price||'—')}. Croatian invitees receive the Hrvatski version.`;
+                const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=(v==null?'':v); };
+                set('eiTplFrom',c.sender_from); set('eiTplReplyTo',c.reply_to); set('eiTplCta',c.cta_url); set('eiTplRate',c.daily_rate);
+                set('eiTplSubject',c.subject); set('eiTplSubjectHr',c.subject_hr); set('eiTplIntro',c.intro_html); set('eiTplIntroHr',c.intro_html_hr);
+                set('eiTplFuSubject',c.followup_subject); set('eiTplFuSubjectHr',c.followup_subject_hr); set('eiTplFuBody',c.followup_html); set('eiTplFuBodyHr',c.followup_html_hr);
+                App.openModal('eiTemplateModal');
+            },
+            _tplPayload(){
+                const g=(id)=>{ const el=document.getElementById(id); return el?el.value:undefined; };
+                return { sender_from:g('eiTplFrom'), reply_to:g('eiTplReplyTo'), cta_url:g('eiTplCta'), daily_rate:parseInt(g('eiTplRate'),10)||15,
+                    subject:g('eiTplSubject'), subject_hr:g('eiTplSubjectHr'), intro_html:g('eiTplIntro'), intro_html_hr:g('eiTplIntroHr'),
+                    followup_subject:g('eiTplFuSubject'), followup_subject_hr:g('eiTplFuSubjectHr'), followup_html:g('eiTplFuBody'), followup_html_hr:g('eiTplFuBodyHr') };
+            },
+            async saveTemplate(btn){
+                btn.disabled=true;
+                try {
+                    const r = await this.api('/api/admin/event-invites/campaigns/'+this.current.id,{ method:'PUT', body: JSON.stringify(this._tplPayload()) });
+                    this.current=r.campaign; this.funnel=r.campaign.funnel||this.funnel;
+                    App.closeModal('eiTemplateModal'); this.renderDetailHeader(); this.renderFunnel();
+                    this.toast('Saved.','success');
+                } catch(e){ this.toast(e.message||'Could not save.','error'); }
+                finally { btn.disabled=false; }
+            },
+            async preview(kind, hr){
+                try {
+                    // save first so the preview reflects the edits in the open modal
+                    if (document.getElementById('eiTemplateModal').classList.contains('active')) {
+                        await this.api('/api/admin/event-invites/campaigns/'+this.current.id,{ method:'PUT', body: JSON.stringify(this._tplPayload()) });
+                    }
+                    const r = await this.api('/api/admin/event-invites/campaigns/'+this.current.id+'/preview',{ method:'POST', body: JSON.stringify({ kind, hr }) });
+                    document.getElementById('eiPreviewTitle').textContent = (kind==='followup'?'Follow-up':'Invitation')+' preview '+(hr?'(HR)':'(EN)');
+                    document.getElementById('eiPreviewSubject').textContent = 'Subject: '+r.subject;
+                    const frame=document.getElementById('eiPreviewFrame');
+                    frame.srcdoc = r.html;
+                    App.openModal('eiPreviewModal');
+                } catch(e){ this.toast(e.message||'Could not build preview.','error'); }
+            },
+
+            // ---- Import ----
+            openImport(){
+                this.importData=null;
+                const f=document.getElementById('eiImportFile'); if(f) f.value='';
+                const p=document.getElementById('eiImportPreview'); if(p) p.innerHTML='';
+                const b=document.getElementById('eiImportCommitBtn'); if(b) b.disabled=true;
+                App.openModal('eiImportModal');
+            },
+            async previewImport(){
+                const input=document.getElementById('eiImportFile'); const prev=document.getElementById('eiImportPreview'); const commitBtn=document.getElementById('eiImportCommitBtn');
+                if(!input.files||!input.files[0]) return;
+                prev.innerHTML='<div style="color:var(--text-muted);padding:10px;">Reading&hellip;</div>';
+                const fd=new FormData(); fd.append('file', input.files[0]);
+                try {
+                    const token=(window.App&&App.token)||localStorage.getItem('medx_token');
+                    const res=await fetch('/api/admin/event-invites/campaigns/'+this.current.id+'/import',{ method:'POST', headers:{ 'Authorization':'Bearer '+token }, body: fd });
+                    const data=await res.json();
+                    if(!res.ok) throw new Error(data.error||'Could not read the file');
+                    this.importData=data;
+                    this.renderImportMapping();
+                    commitBtn.disabled=false;
+                } catch(e){ prev.innerHTML='<div style="color:#b91c1c;padding:10px;">'+this.esc(e.message)+'</div>'; commitBtn.disabled=true; }
+            },
+            renderImportMapping(){
+                const prev=document.getElementById('eiImportPreview'); const data=this.importData; if(!prev||!data) return;
+                const fieldLabels={ name:'Name', email:'Email', institution:'Institution', country:'Country', field:'Field', source:'Source / note' };
+                const options=(sel)=>['<option value="">— none —</option>'].concat((data.columns||[]).map(c=>`<option value="${this.esc(c)}" ${sel===c?'selected':''}>${this.esc(c)}</option>`)).join('');
+                const rows=(data.fields||Object.keys(fieldLabels)).map(f=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;"><label style="width:120px;font-size:13px;color:var(--text-muted);">${this.esc(fieldLabels[f]||f)}</label><select data-eifield="${this.esc(f)}" class="search-input" style="flex:1;">${options((data.suggested_mapping||{})[f]||'')}</select></div>`).join('');
+                prev.innerHTML=`<div style="margin-top:8px;font-size:13px;color:var(--text-muted);">${data.total} row(s) found. Map the columns:</div><div style="margin-top:10px;">${rows}</div>`;
+            },
+            async commitImport(btn){
+                const data=this.importData; if(!data) return;
+                const mapping={}; document.querySelectorAll('#eiImportPreview select[data-eifield]').forEach(s=>{ if(s.value) mapping[s.getAttribute('data-eifield')]=s.value; });
+                if(!mapping.name && !mapping.email){ this.toast('Map at least a Name or Email column.','error'); return; }
+                btn.disabled=true;
+                try {
+                    const r=await this.api('/api/admin/event-invites/campaigns/'+this.current.id+'/import/commit',{ method:'POST', body: JSON.stringify({ mapping, rows:data.rows, filename:data.filename }) });
+                    const prev=document.getElementById('eiImportPreview');
+                    prev.innerHTML=`<div style="padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;color:#166534;"><b>${r.added}</b> imported.${r.duplicates.length?' <b>'+r.duplicates.length+'</b> already known (skipped).':''}${r.skipped.length?' '+r.skipped.length+' empty row(s) skipped.':''}</div>
+                        ${r.duplicates.length?'<div style="margin-top:10px;font-size:12px;color:var(--text-muted);max-height:160px;overflow:auto;">'+r.duplicates.map(d=>`&bull; ${this.esc(d.who)} <span style="color:#b45309;">(${this.esc(d.where)})</span>`).join('<br>')+'</div>':''}
+                        <div style="text-align:center;margin-top:12px;"><button class="btn btn-secondary btn-sm" onclick="App.closeModal('eiImportModal')">Done</button></div>`;
+                    btn.disabled=true;
+                    this.loadInvitees();
+                    this.toast(r.added+' invitee(s) imported.','success');
+                } catch(e){ this.toast(e.message||'Import failed.','error'); btn.disabled=false; }
+            },
+
+            // ---- Reply ----
+            openReply(id,name){
+                this.replyInviteeId=id;
+                document.getElementById('eiReplyWho').innerHTML='Reply from <b>'+this.esc(name||'this invitee')+'</b>';
+                document.getElementById('eiReplyBody').value='';
+                App.openModal('eiReplyModal');
+            },
+            async submitReply(btn){
+                const body=document.getElementById('eiReplyBody').value.trim();
+                if(!body){ this.toast('Paste the reply text first.','error'); return; }
+                btn.disabled=true;
+                try {
+                    const r=await this.api('/api/admin/event-invites/invitees/'+this.replyInviteeId+'/reply',{ method:'POST', body: JSON.stringify({ body }) });
+                    App.closeModal('eiReplyModal');
+                    if(r.classification==='simple') this.toast('Simple question — a president-voice draft is waiting in the outbox.','success');
+                    else this.toast('Delicate reply — escalated to the president and Laura.','info');
+                    this.loadInvitees();
+                } catch(e){ this.toast(e.message||'Could not log the reply.','error'); }
+                finally { btn.disabled=false; }
+            },
+
+            // ---- Discover people (AI) ----
+            renderDiscover(){
+                const pane=document.getElementById('eiTab-discover');
+                pane.innerHTML=`<div class="card" style="padding:18px 20px;">
+                    <div style="font-weight:700;font-size:16px;font-family:'Fraunces',Georgia,serif;"><i class="fas fa-wand-magic-sparkles" style="color:#9b1b22;"></i> Discover people with AI</div>
+                    <p style="font-size:13px;color:var(--text-muted);margin:6px 0 12px;">Describe who you need for ${this.esc((this.current&&this.current.event&&this.current.event.name)||'this event')}. Candidates come back with a short evidence note and a place to verify them &mdash; review, then add the right ones to the campaign.</p>
+                    <textarea id="eiDiscoverBrief" rows="3" class="search-input" style="width:100%;" maxlength="800" placeholder="e.g. senior Croatian cardiologists working at leading hospitals abroad"></textarea>
+                    <div style="margin-top:10px;"><button class="btn btn-primary" style="background:#9b1b22;border:none;" id="eiDiscoverBtn" onclick="EventInvitesApp.runDiscover(this)"><i class="fas fa-magnifying-glass"></i> Find candidates</button></div>
+                    <div id="eiDiscoverResults" style="margin-top:16px;"></div>
+                </div>`;
+            },
+            async runDiscover(btn){
+                const brief=document.getElementById('eiDiscoverBrief').value.trim();
+                if(!brief){ this.toast('Describe who you are looking for first.','error'); return; }
+                const out=document.getElementById('eiDiscoverResults');
+                btn.disabled=true; out.innerHTML='<div style="color:var(--text-muted);padding:12px;"><i class="fas fa-spinner fa-spin"></i> Searching&hellip;</div>';
+                try {
+                    const r=await this.api('/api/admin/event-invites/discover',{ method:'POST', body: JSON.stringify({ brief }) });
+                    if(r.gated){
+                        out.innerHTML=`<div style="padding:18px;border:1px dashed var(--border);border-radius:10px;background:#fbfaf8;">
+                            <div style="font-weight:700;"><i class="fas fa-key" style="color:#b45309;"></i> ${this.esc(r.title||'AI discovery is off')}</div>
+                            <p style="font-size:13px;color:var(--text-muted);margin:8px 0;">${this.esc(r.message||'')}</p>
+                            <p style="font-size:12px;color:var(--text-muted);margin:0;"><b>To switch it on:</b> ${this.esc(r.owner_action||'')}</p>
+                        </div>`;
+                        return;
+                    }
+                    this.discoverResults=r.candidates||[];
+                    if(!this.discoverResults.length){ out.innerHTML='<div style="color:var(--text-muted);padding:12px;">No candidates came back this time.</div>'; return; }
+                    out.innerHTML=`<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">${this.discoverResults.length} candidate(s) &mdash; tick the ones to add, verify them yourself, then add to the campaign.</div>`+
+                        this.discoverResults.map((c,i)=>`<div style="display:flex;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;">
+                            <input type="checkbox" id="eiDisc-${i}" checked style="margin-top:3px;">
+                            <div style="flex:1;"><div style="font-weight:600;">${this.esc(c.name||'(unnamed)')}</div>
+                            <div style="font-size:12px;color:var(--text-muted);">${this.esc([c.field,c.institution,c.country].filter(Boolean).join(' · '))}</div>
+                            ${c.evidence?'<div style="font-size:12px;color:#475569;margin-top:4px;font-style:italic;">'+this.esc(c.evidence)+'</div>':''}</div>
+                        </div>`).join('')+
+                        `<div style="margin-top:10px;"><button class="btn btn-primary" style="background:#9b1b22;border:none;" onclick="EventInvitesApp.addDiscovered(this)"><i class="fas fa-user-plus"></i> Add selected to campaign</button></div>`;
+                } catch(e){ out.innerHTML='<div style="color:#b91c1c;padding:12px;">'+this.esc(e.message)+'</div>'; }
+                finally { btn.disabled=false; }
+            },
+            async addDiscovered(btn){
+                const picked=this.discoverResults.filter((c,i)=>{ const el=document.getElementById('eiDisc-'+i); return el&&el.checked; });
+                if(!picked.length){ this.toast('Tick at least one candidate.','error'); return; }
+                btn.disabled=true;
+                try {
+                    const r=await this.api('/api/admin/event-invites/campaigns/'+this.current.id+'/discover/add',{ method:'POST', body: JSON.stringify({ candidates: picked }) });
+                    this.toast(r.added+' added to the campaign.'+(r.duplicates&&r.duplicates.length?(' '+r.duplicates.length+' already known.'):''),'success');
+                    this.showTab('invitees');
+                } catch(e){ this.toast(e.message||'Could not add.','error'); btn.disabled=false; }
+            }
+        };
+        window.EventInvitesApp = EventInvitesApp;
+
+        // ============ EVENT REMINDERS (queue 5a5) — per-event reminder sequences for the
+        // already-registered. Approve a sequence ONCE; each touch is staged to the approval
+        // outbox on its own T-minus date, in the member's language, non-refundable note in footer.
+        const RemindersApp = {
+            catalog: [],
+            sequences: [],
+            current: null,
+            createPick: null,
+            editingTouch: null,
+            esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); },
+            toast(m,t){ if(window.Toast){ (Toast[t]||Toast.info||Toast.success)(m); } },
+            async api(path, opts={}){
+                const token = (window.App && App.token) || localStorage.getItem('medx_token') || localStorage.getItem('token');
+                const res = await fetch(path, { ...opts, headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token, ...(opts.headers||{}) } });
+                let d = {}; try { d = await res.json(); } catch(e) {}
+                if (!res.ok) throw new Error(d.error || ('HTTP '+res.status));
+                return d;
+            },
+            statusMeta(s){ return { draft:{c:'draft',l:'Draft'}, approved:{c:'approved',l:'Active'}, paused:{c:'paused',l:'Paused'} }[s] || {c:'draft',l:s}; },
+            fmtDate(iso){ if(!iso) return '—'; try { return new Date(iso+'T00:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'}); } catch(e){ return iso; } },
+
+            async init(){
+                this.showListView();
+                const grid = document.getElementById('rmSequenceGrid');
+                try {
+                    const d = await this.api('/api/admin/event-reminders/sequences');
+                    this.sequences = (d && d.sequences) || [];
+                    this.catalog = (d && d.events) || [];
+                } catch(e){ if (grid) grid.innerHTML = '<div class="rm-empty" style="color:#b91c1c;">Could not load reminders. '+this.esc(e.message)+'</div>'; return; }
+                this.renderList();
+            },
+            showListView(){ const l=document.getElementById('rmListView'), d=document.getElementById('rmDetailView'); if(l)l.style.display=''; if(d)d.style.display='none'; },
+            backToList(){ this.current=null; this.showListView(); this.init(); },
+
+            renderList(){
+                const grid = document.getElementById('rmSequenceGrid');
+                if (!grid) return;
+                if (!this.sequences.length){
+                    grid.innerHTML = '<div class="rm-empty"><i class="fas fa-bell" style="font-size:30px;color:#e3cfa9;"></i><p style="margin:14px 0 4px;font-weight:600;color:var(--text-primary);">No reminder sequences yet</p><p style="margin:0;font-size:14px;">Create one for Plexus, the Gala, Building Bridges, or Donor Night to keep registered guests warm before the day.</p></div>';
+                    return;
+                }
+                grid.innerHTML = this.sequences.map(sq=>{
+                    const ev = sq.event||{}; const sm = this.statusMeta(sq.status);
+                    const cad = (sq.touches||[]).map(t=>`<span class="rm-dot ${t.enabled?'':'off'}"><span class="k">${this.esc(t.label)}</span><span class="d">${t.enabled?(t.sent_count||0)+' sent':'off'}</span></span>`).join('');
+                    const next = sq.next_touch ? (sq.next_touch.when==='due' ? ('Due now &middot; '+this.esc(sq.next_touch.label)) : (this.esc(sq.next_touch.label)+' on '+this.fmtDate(sq.next_touch.send_date))) : (sq.event_date ? 'Cadence complete' : 'Date to be announced');
+                    return `<div class="rm-card" onclick="RemindersApp.open('${sq.id}')">
+                        <div class="rm-accent"></div>
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                            <div><div style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#b45309;font-weight:700;"><i class="fas ${this.esc(ev.icon||'fa-calendar')}"></i> ${this.esc(ev.name||sq.event_key)}</div>
+                            <div style="font-size:17px;font-weight:700;margin-top:3px;font-family:'Fraunces',Georgia,serif;">${this.esc(sq.name||'Untitled sequence')}</div></div>
+                            <span class="rm-pill ${sm.c}">${this.esc(sm.l)}</span>
+                        </div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">${this.esc(ev.date||'')}${ev.venue?' &middot; '+this.esc(ev.venue):''}</div>
+                        <div class="rm-cadence">${cad}</div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px;color:var(--text-muted);">
+                            <span><i class="fas fa-users"></i> ${sq.audience_count||0} registered</span>
+                            <span><i class="fas fa-clock"></i> ${next}</span>
+                        </div>
+                    </div>`;
+                }).join('');
+            },
+
+            // ---- Create ----
+            openCreate(){
+                this.createPick = null;
+                const box = document.getElementById('rmCreateEvents');
+                if (box) box.innerHTML = (this.catalog||[]).map(ev=>`<div onclick="RemindersApp.pickCreateEvent('${ev.key}')" id="rmPick-${ev.key}" style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;"><div style="font-weight:700;font-size:14px;"><i class="fas ${this.esc(ev.icon||'fa-calendar')}" style="color:#b45309;margin-right:6px;"></i>${this.esc(ev.name)}</div><div style="font-size:11px;color:var(--text-muted);margin-top:3px;">${this.esc(ev.date||'')}${ev.event_date?'':' &middot; date TBA'}</div></div>`).join('');
+                const nm=document.getElementById('rmCreateName'); if(nm) nm.value='';
+                App.openModal('rmCreateModal');
+            },
+            pickCreateEvent(key){
+                this.createPick = key;
+                (this.catalog||[]).forEach(ev=>{ const el=document.getElementById('rmPick-'+ev.key); if(el){ el.style.borderColor = ev.key===key ? '#b45309':'var(--border)'; el.style.background = ev.key===key ? '#fff7ed':'transparent'; }});
+                const ev = (this.catalog||[]).find(e=>e.key===key);
+                const nameEl = document.getElementById('rmCreateName');
+                if (ev && nameEl && !nameEl.value.trim()) nameEl.value = ev.name + ' — reminders';
+            },
+            async createSequence(btn){
+                if (!this.createPick){ this.toast('Pick an event first.','error'); return; }
+                const name = document.getElementById('rmCreateName').value.trim();
+                btn.disabled=true;
+                try {
+                    const r = await this.api('/api/admin/event-reminders/sequences',{ method:'POST', body: JSON.stringify({ event_key:this.createPick, name }) });
+                    App.closeModal('rmCreateModal');
+                    this.toast('Reminder sequence created.','success');
+                    this.open(r.sequence.id);
+                } catch(e){ this.toast(e.message||'Could not create sequence.','error'); }
+                finally { btn.disabled=false; }
+            },
+
+            // ---- Detail ----
+            async open(id){
+                try { const d = await this.api('/api/admin/event-reminders/sequences/'+id); this.current = d.sequence; }
+                catch(e){ this.toast(e.message||'Could not open sequence.','error'); return; }
+                document.getElementById('rmListView').style.display='none';
+                document.getElementById('rmDetailView').style.display='';
+                this.renderDetail();
+                this.loadAudience();
+            },
+            async refresh(){ if(this.current){ try { const d=await this.api('/api/admin/event-reminders/sequences/'+this.current.id); this.current=d.sequence; this.renderDetail(); } catch(e){} } },
+            renderDetail(){
+                const sq=this.current; if(!sq) return; const ev=sq.event||{}; const sm=this.statusMeta(sq.status);
+                let actions='';
+                if (sq.status==='draft') actions = `<button class="btn btn-primary" style="background:#166534;border:none;" onclick="RemindersApp.approve(this)"><i class="fas fa-circle-check"></i> Approve &amp; activate</button>`;
+                else if (sq.status==='approved') actions = `<button class="btn btn-primary" style="background:#b45309;border:none;" onclick="RemindersApp.run(this)"><i class="fas fa-paper-plane"></i> Run reminders now</button>
+                    <button class="btn btn-secondary" style="color:#b45309;" onclick="RemindersApp.pause(this)"><i class="fas fa-pause"></i> Pause (kill switch)</button>`;
+                else if (sq.status==='paused') actions = `<button class="btn btn-primary" style="background:#166534;border:none;" onclick="RemindersApp.resume(this)"><i class="fas fa-play"></i> Resume</button>`;
+                const daysLine = sq.event_date ? (sq.days_until>=0 ? (sq.days_until+' days until the event') : 'This event has passed') : 'Date to be announced';
+                const next = sq.next_touch ? (sq.next_touch.when==='due' ? ('<span class="rm-chip due">Due now &middot; '+this.esc(sq.next_touch.label)+'</span>') : ('Next: <b>'+this.esc(sq.next_touch.label)+'</b> on '+this.fmtDate(sq.next_touch.send_date))) : (sq.event_date?'Cadence complete':'—');
+                document.getElementById('rmDetailHeader').innerHTML = `
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+                        <div>
+                            <div style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#b45309;font-weight:700;"><i class="fas ${this.esc(ev.icon||'fa-calendar')}"></i> ${this.esc(ev.name||sq.event_key)}</div>
+                            <h1 style="margin:4px 0 0;">${this.esc(sq.name||'Reminder sequence')} <span class="rm-pill ${sm.c}" style="vertical-align:middle;margin-left:6px;">${this.esc(sm.l)}</span></h1>
+                            <div>
+                                <span class="rm-fact"><i class="fas fa-calendar-day"></i> <b>${this.esc(ev.date||'—')}</b></span>
+                                <span class="rm-fact"><i class="fas fa-location-dot"></i> <b>${this.esc(ev.venue||'—')}</b></span>
+                                <span class="rm-fact"><i class="fas fa-hourglass-half"></i> ${this.esc(daysLine)}</span>
+                            </div>
+                            <div style="margin-top:8px;font-size:13px;color:var(--text-muted);">${next}</div>
+                            <div style="margin-top:6px;font-size:12px;color:var(--text-muted);"><i class="fas fa-user-tie"></i> From ${this.esc(sq.sender_from||'president@medx.hr')} &middot; replies to ${this.esc(sq.reply_to||'alen_juginovic@hms.harvard.edu')}</div>
+                        </div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;">
+                            ${actions}
+                            <button class="btn btn-secondary" onclick="RemindersApp.openSettings()"><i class="fas fa-sliders"></i> Settings</button>
+                            <button class="btn btn-secondary" style="color:#b91c1c;" onclick="RemindersApp.del(this)"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>
+                    ${sq.status==='draft' ? '<div style="margin-top:14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px 14px;font-size:13px;color:#9a3412;"><i class="fas fa-circle-info"></i> Review the three reminders below, then approve once. After approval every touch is sent automatically on its T-minus date &mdash; no further clicks, and a kill switch is always one tap away.</div>' : ''}`;
+                this.renderTouches();
+            },
+            renderTouches(){
+                const sq=this.current; const wrap=document.getElementById('rmTouches'); if(!wrap) return;
+                wrap.innerHTML = '<div style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700;">The cadence</div>' +
+                    (sq.touches||[]).map(t=>{
+                        const isNext = sq.next_touch && sq.next_touch.touch_key===t.touch_key;
+                        const chip = isNext ? (sq.next_touch.when==='due' ? '<span class="rm-chip due">Due now</span>' : '<span class="rm-chip next">Next up</span>') : '';
+                        return `<div class="rm-touch ${t.enabled?'':'off'}">
+                            <div class="tl"><div class="big">${this.esc(t.label)}</div><div class="sm">${t.enabled?'active':'off'}</div></div>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-weight:700;font-size:15px;">${this.esc(t.subject||'(no subject)')} ${chip}</div>
+                                <div style="font-size:12px;color:var(--text-muted);margin-top:3px;"><i class="fas fa-calendar"></i> ${sq.event_date?('Sends around '+this.fmtDate(t.send_date)):'Sends '+t.offset_days+' days before the event'} &middot; <i class="fas fa-paper-plane"></i> ${t.sent_count||0} sent</div>
+                            </div>
+                            <button class="btn btn-secondary" onclick="RemindersApp.editTouch('${t.id}')"><i class="fas fa-pen"></i> Edit</button>
+                        </div>`;
+                    }).join('');
+            },
+            async loadAudience(){
+                const wrap=document.getElementById('rmAudience'); if(!wrap||!this.current) return;
+                wrap.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Loading audience…</div>';
+                try {
+                    const a = await this.api('/api/admin/event-reminders/sequences/'+this.current.id+'/audience');
+                    const sample = (a.sample||[]).map(p=>`<span style="display:inline-block;background:var(--card-bg,#fff);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:12px;margin:3px 4px 0 0;">${this.esc(p.name||p.email)} <span style="color:var(--text-muted);">${this.esc(p.lang)}</span></span>`).join('');
+                    wrap.innerHTML = `<div style="background:var(--card-bg,#fff);border:1px solid var(--border);border-radius:10px;padding:16px 18px;">
+                        <div style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700;margin-bottom:6px;">Who receives these</div>
+                        <div style="font-size:14px;"><b>${a.count||0}</b> registered ${a.count===1?'attendee':'attendees'} in paid or confirmed states &middot; ${a.en||0} in English, ${a.hr||0} in Croatian. Cancelled and refunded registrations are never included, and the list is recomputed at send time.</div>
+                        ${sample?('<div style="margin-top:8px;">'+sample+(a.count>(a.sample||[]).length?(' <span style="color:var(--text-muted);font-size:12px;">and more</span>'):'')+'</div>'):''}
+                    </div>`;
+                } catch(e){ wrap.innerHTML = '<div style="color:#b91c1c;font-size:13px;">Could not load audience.</div>'; }
+            },
+
+            // ---- Lifecycle actions ----
+            async approve(btn){ btn.disabled=true; try { await this.api('/api/admin/event-reminders/sequences/'+this.current.id+'/approve',{method:'POST',body:'{}'}); this.toast('Sequence approved. Reminders will now send automatically on each T-minus date.','success'); await this.refresh(); } catch(e){ this.toast(e.message,'error'); btn.disabled=false; } },
+            async pause(btn){ btn.disabled=true; try { await this.api('/api/admin/event-reminders/sequences/'+this.current.id+'/pause',{method:'POST',body:'{}'}); this.toast('Sequence paused. No further reminders will be sent until you resume.','info'); await this.refresh(); } catch(e){ this.toast(e.message,'error'); btn.disabled=false; } },
+            async resume(btn){ btn.disabled=true; try { await this.api('/api/admin/event-reminders/sequences/'+this.current.id+'/resume',{method:'POST',body:'{}'}); this.toast('Sequence resumed.','success'); await this.refresh(); } catch(e){ this.toast(e.message,'error'); btn.disabled=false; } },
+            async run(btn){
+                btn.disabled=true;
+                try {
+                    const d = await this.api('/api/admin/event-reminders/sequences/'+this.current.id+'/run',{method:'POST',body:'{}'});
+                    const r = d.result||{};
+                    if (r.sent>0) this.toast('Queued '+r.sent+' reminder'+(r.sent===1?'':'s')+' ('+(r.label||r.touch)+') to the approval outbox.','success');
+                    else if (r.reason==='no_active_touch') this.toast('No reminder is due today. The next one is scheduled ahead.','info');
+                    else if (r.reason==='event_passed') this.toast('This event has already taken place.','info');
+                    else if (r.reason==='no_event_date') this.toast('This event has no date yet, so reminders cannot be scheduled.','info');
+                    else if (r.reason==='already_ran_today') this.toast('Today&rsquo;s reminders were already processed.','info');
+                    else this.toast('Nothing new to send right now.','info');
+                    this.current = d.sequence || this.current; this.renderDetail(); this.loadAudience();
+                } catch(e){ this.toast(e.message,'error'); } finally { btn.disabled=false; }
+            },
+            async del(btn){ if(!confirm('Delete this reminder sequence and its templates? Sent history is unaffected.')) return; btn.disabled=true; try { await this.api('/api/admin/event-reminders/sequences/'+this.current.id,{method:'DELETE'}); this.toast('Sequence deleted.','info'); this.backToList(); } catch(e){ this.toast(e.message,'error'); btn.disabled=false; } },
+
+            // ---- Settings ----
+            openSettings(){ const sq=this.current; if(!sq) return;
+                document.getElementById('rmSetName').value = sq.name||'';
+                document.getElementById('rmSetFrom').value = sq.sender_from||'president@medx.hr';
+                document.getElementById('rmSetReplyTo').value = sq.reply_to||'alen_juginovic@hms.harvard.edu';
+                document.getElementById('rmSetCta').value = sq.cta_url||'';
+                App.openModal('rmSettingsModal');
+            },
+            async saveSettings(btn){ btn.disabled=true; try {
+                await this.api('/api/admin/event-reminders/sequences/'+this.current.id,{method:'PUT',body:JSON.stringify({
+                    name:document.getElementById('rmSetName').value, sender_from:document.getElementById('rmSetFrom').value,
+                    reply_to:document.getElementById('rmSetReplyTo').value, cta_url:document.getElementById('rmSetCta').value })});
+                App.closeModal('rmSettingsModal'); this.toast('Settings saved.','success'); await this.refresh();
+            } catch(e){ this.toast(e.message,'error'); } finally { btn.disabled=false; } },
+
+            // ---- Touch editing ----
+            editTouch(touchId){
+                const t=(this.current.touches||[]).find(x=>x.id===touchId); if(!t) return;
+                this.editingTouch=t;
+                document.getElementById('rmTouchTitle').innerHTML='<i class="fas fa-envelope-open-text" style="color:#b45309;margin-right:8px;"></i> Edit reminder '+this.esc(t.label);
+                document.getElementById('rmTouchOffset').value=t.offset_days;
+                document.getElementById('rmTouchEnabled').checked=!!t.enabled;
+                document.getElementById('rmTouchSubject').value=t.subject||'';
+                document.getElementById('rmTouchBody').value=t.body_html||'';
+                document.getElementById('rmTouchSubjectHr').value=t.subject_hr||'';
+                document.getElementById('rmTouchBodyHr').value=t.body_html_hr||'';
+                App.openModal('rmTouchModal');
+            },
+            async saveTouch(btn){ if(!this.editingTouch) return; btn.disabled=true; try {
+                await this.api('/api/admin/event-reminders/sequences/'+this.current.id+'/touches/'+this.editingTouch.id,{method:'PUT',body:JSON.stringify({
+                    offset_days:parseInt(document.getElementById('rmTouchOffset').value,10)||0,
+                    enabled:document.getElementById('rmTouchEnabled').checked,
+                    subject:document.getElementById('rmTouchSubject').value, body_html:document.getElementById('rmTouchBody').value,
+                    subject_hr:document.getElementById('rmTouchSubjectHr').value, body_html_hr:document.getElementById('rmTouchBodyHr').value })});
+                App.closeModal('rmTouchModal'); this.toast('Reminder saved.','success'); await this.refresh();
+            } catch(e){ this.toast(e.message,'error'); } finally { btn.disabled=false; } },
+            async preview(lang){
+                if(!this.editingTouch) return;
+                try {
+                    const d = await this.api('/api/admin/event-reminders/sequences/'+this.current.id+'/preview',{method:'POST',body:JSON.stringify({
+                        touch_key:this.editingTouch.touch_key, lang:lang,
+                        subject:document.getElementById('rmTouchSubject').value, body_html:document.getElementById('rmTouchBody').value,
+                        subject_hr:document.getElementById('rmTouchSubjectHr').value, body_html_hr:document.getElementById('rmTouchBodyHr').value })});
+                    document.getElementById('rmPreviewSubject').textContent = d.subject||'';
+                    document.getElementById('rmPreviewFrame').srcdoc = d.html||'';
+                    App.openModal('rmPreviewModal');
+                } catch(e){ this.toast(e.message,'error'); }
+            }
+        };
+        window.RemindersApp = RemindersApp;
+
+
+
+
         // Initialize FinanceApp when Finances section is shown
         const originalShowSection = App.showSection;
         App.showSection = function(sectionId, navItem, skipHistory) {
@@ -43517,6 +44459,12 @@ By applying to this program, I give the following consents:
             }
             if (sectionId === 'year-calendar') {
                 if (typeof CalendarApp !== 'undefined') CalendarApp.init();
+            }
+            if (sectionId === 'event-invites') {
+                if (typeof EventInvitesApp !== 'undefined') EventInvitesApp.init();
+            }
+            if (sectionId === 'event-reminders') {
+                if (typeof RemindersApp !== 'undefined') RemindersApp.init();
             }
         };
 

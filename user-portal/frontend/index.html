@@ -57013,7 +57013,7 @@ button,input,select,textarea{font-family:var(--sans);}
             'mmx.myProjects':     {en:'My projects', hr:'Moji projekti'},
             'mmx.myWallet':       {en:'My Wallet', hr:'Moj novčanik'},
             'mmx.pastPurchases':  {en:'Past purchases', hr:'Prijašnje kupnje'},
-            'mmx.purchaseIntro':  {en:'We want you fully satisfied with every Med&X purchase. Ask us anything about an order or request a refund right here, and our team will get back to you fast.', hr:'Želimo da budete potpuno zadovoljni svakom Med&X kupnjom. Pitajte nas bilo što o narudžbi ili ovdje zatražite povrat, a naš će vam se tim brzo javiti.'},
+            'mmx.purchaseIntro':  {en:'Every Med&X purchase matters to us. Ask us anything about an order and our team will get back to you quickly.', hr:'Svaka nam je Med&X kupnja važna. Pitajte nas bilo što o narudžbi i naš će Vam se tim brzo javiti.'},
             'mmx.myInterests':    {en:'My Interests', hr:'Moji interesi'},
             'mmx.myNetworkH':     {en:'My Network', hr:'Moja mreža'},
             'mmx.myRecord':       {en:'My Record', hr:'Moja evidencija'},
@@ -57092,19 +57092,19 @@ button,input,select,textarea{font-family:var(--sans);}
             'mmx.purchasesEmpty': {en:'Your purchases and receipts appear here after you register for a Med&X event.', hr:'Vaše se kupnje i računi ovdje pojavljuju nakon prijave na Med&X događaj.'},
             'mmx.invoiceNo':      {en:'Invoice #', hr:'Račun br. '},
             'mmx.askAbout':       {en:'Ask about this', hr:'Postavite pitanje'},
-            'mmx.requestRefund':  {en:'Request a refund', hr:'Zatražite povrat'},
-            'mmx.inqRefundEyebrow':{en:'Refund request', hr:'Zahtjev za povrat'},
+            'mmx.requestRefund':  {en:'Ask the team about this purchase', hr:'Pitajte tim o ovoj kupnji'},
+            'mmx.inqRefundEyebrow':{en:'A note to the team', hr:'Poruka timu'},
             'mmx.inqAskEyebrow':  {en:'Ask about this purchase', hr:'Pitanje o ovoj kupnji'},
-            'mmx.inqRefundLede':  {en:'Tell us briefly why you would like a refund. Our team reviews every request personally and replies fast.', hr:'Ukratko nam recite zašto želite povrat. Naš tim osobno pregledava svaki zahtjev i brzo odgovara.'},
+            'mmx.inqRefundLede':  {en:'Registrations for Med&X events are non-refundable, and your place is held for you. If something has changed, write to us here and the team will look at what can be done, from transferring your place to a colleague to any special circumstance.', hr:'Prijave na Med&X događaje ne podliježu povratu sredstava, a Vaše mjesto ostaje sačuvano za Vas. Ako se nešto promijenilo, pišite nam ovdje i tim će razmotriti što je moguće učiniti, od prijenosa mjesta na kolegu do svake posebne okolnosti.'},
             'mmx.inqAskLede':     {en:'Ask us anything about this purchase. We want you fully satisfied and reply quickly.', hr:'Pitajte nas bilo što o ovoj kupnji. Želimo da budete potpuno zadovoljni i brzo odgovaramo.'},
-            'mmx.inqRefundPh':    {en:'e.g. I can no longer attend and would like a refund.', hr:'npr. Više ne mogu prisustvovati te molim povrat sredstava.'},
+            'mmx.inqRefundPh':    {en:'e.g. I can no longer attend, could my place transfer to a colleague?', hr:'npr. Više ne mogu prisustvovati, može li moje mjesto preuzeti kolega?'},
             'mmx.inqAskPh':       {en:'e.g. Can I transfer my ticket to a colleague?', hr:'npr. Mogu li prenijeti ulaznicu na kolegu?'},
             'mmx.inqCancel':      {en:'Cancel', hr:'Odustanite'},
             'mmx.inqSend':        {en:'Send to the team', hr:'Pošaljite timu'},
             'mmx.inqSending':     {en:'Sending…', hr:'Slanje…'},
             'mmx.inqFoot':        {en:'This files a message with the Med&X team through your inbox. It never charges or cancels anything automatically.', hr:'Ovime se timu Med&X-a šalje poruka putem vašeg sandučića. Ništa se ne naplaćuje niti otkazuje automatski.'},
             'mmx.tAddNote':       {en:'Please add a short note so we can help.', hr:'Dodajte kratku napomenu kako bismo vam mogli pomoći.'},
-            'mmx.tRefundSent':    {en:'Refund request sent. The team will be in touch soon.', hr:'Zahtjev za povrat je poslan. Tim će vam se uskoro javiti.'},
+            'mmx.tRefundSent':    {en:'Your message has been sent to the team. They will be in touch soon.', hr:'Vaša je poruka poslana timu. Uskoro će Vam se javiti.'},
             'mmx.tMsgSent':       {en:'Message sent. The team will reply soon.', hr:'Poruka je poslana. Tim će uskoro odgovoriti.'},
             'mmx.tSendFail':      {en:'Could not send. Please try again.', hr:'Slanje nije uspjelo. Pokušajte ponovno.'},
 
@@ -71344,7 +71344,7 @@ button,input,select,textarea{font-family:var(--sans);}
 
                     <!-- Past purchases (orders + refund / ask-the-team, via the messages inbox) -->
                     <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0 0 8px; padding-left: 4px;" data-i18n="mmx.pastPurchases">Past purchases</h3>
-                    <p class="mmx-purchase-intro" data-i18n="mmx.purchaseIntro">We want you fully satisfied with every Med&amp;X purchase. Ask us anything about an order or request a refund right here, and our team will get back to you fast.</p>
+                    <p class="mmx-purchase-intro" data-i18n="mmx.purchaseIntro">Every Med&amp;X purchase matters to us. Ask us anything about an order and our team will get back to you quickly.</p>
                     <div id="mymedxPurchases" style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">
                         <!-- Populated by MyMedXPortal.renderPurchases() -->
                     </div>
@@ -80234,7 +80234,7 @@ You can use variables like {first_name} that will be personalized for each recip
                             + '<span class="mmx-purchase-status" style="color:' + statusColor + ';">' + statusLabel + '</span>'
                             + '<div class="mmx-purchase-actions">'
                                 + '<button class="mmx-purchase-btn" onclick="MyMedXPortal.openPurchaseInquiry(' + i + ',\'question\')"><i class="fas fa-comment-dots"></i> ' + t('mmx.askAbout') + '</button>'
-                                + '<button class="mmx-purchase-btn refund" onclick="MyMedXPortal.openPurchaseInquiry(' + i + ',\'refund\')"><i class="fas fa-rotate-left"></i> ' + t('mmx.requestRefund') + '</button>'
+                                + '<button class="mmx-purchase-btn refund" onclick="MyMedXPortal.openPurchaseInquiry(' + i + ',\'refund\')"><i class="fas fa-hand-holding-heart"></i> ' + t('mmx.requestRefund') + '</button>'
                             + '</div>'
                         + '</div>'
                     + '</div>';

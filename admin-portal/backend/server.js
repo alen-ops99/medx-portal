@@ -61,8 +61,15 @@ function generateXlsxBuffer(headers, rows, sheetName = 'Sheet1') {
 
 // Email configuration — supports Resend API (recommended for cloud hosting) or SMTP fallback
 // attachments: optional array of { filename, content: Buffer, type? } — converted per provider below
-async function sendEmail(to, subject, htmlContent, attachments, replyTo) {
-    const fromAddress = process.env.EMAIL_FROM || 'Med&X <onboarding@resend.dev>';
+async function sendEmail(to, subject, htmlContent, attachments, replyTo, fromOverride) {
+    // Optional per-message From (additive, backward-compatible — every existing caller passes
+    // <= 5 args). Lets an event-invite campaign send under a selectable sender without a second
+    // send path. A bare address is wrapped as "Med&X <email>" so the provider name/email parse holds.
+    let fromAddress = process.env.EMAIL_FROM || 'Med&X <onboarding@resend.dev>';
+    if (typeof fromOverride === 'string' && fromOverride.trim()) {
+        const fo = fromOverride.trim();
+        fromAddress = /</.test(fo) ? fo : ('Med&X <' + fo + '>');
+    }
     const atts = Array.isArray(attachments) ? attachments.filter(a => a && a.filename && a.content) : [];
     // Optional Reply-To (additive, backward-compatible — every existing caller passes <= 4 args).
     // Lets a campaign route replies back to the president's mailbox without a second send path.
@@ -4153,6 +4160,125 @@ async function initializeApp() {
             console.log('[forum-campaign] seeded default campaign config (draft)');
         }
     } catch (e) { console.error('[forum-campaign] seed', e.message); }
+
+    // ============ EVENT INVITATION ENGINE — per-event campaigns (ADMIN-ONLY) ============
+    // Generalizes the Forum candidate/campaign pipeline to EVERY public event (Plexus
+    // conference, Gala, Building Bridges, Donor Night). An admin creates a campaign FOR an
+    // event, imports invitees (same CSV/XLSX machinery: dedupe + diacritics), edits a
+    // bilingual template prefilled with the event's real facts (date/venue/price from the
+    // DB), approves ONCE, then a paced N/day drip stages invitations into the ONE approval
+    // outbox (scheduled_emails, source_engine='event-invite') with a kill switch. Replies are
+    // classified (simple -> AI draft to outbox, complex -> escalation). These tables live
+    // OUTSIDE the SCHEMA-MIRROR block by design — they are admin-only and the user portal never
+    // reads or writes them (nothing to mirror, check-schema-sync stays green). Every statement
+    // is idempotent. event_campaigns.status walks draft -> approved -> paused (kill switch).
+    // invitee.status walks imported -> queued -> invited -> followed_up -> replied /
+    // registered / declined / escalated. history_json is a compact per-invitee status timeline.
+    db.run(`CREATE TABLE IF NOT EXISTS event_campaigns (
+        id TEXT PRIMARY KEY,
+        event_key TEXT NOT NULL,
+        name TEXT,
+        sender_from TEXT DEFAULT 'president@medx.hr',
+        reply_to TEXT DEFAULT 'alen_juginovic@hms.harvard.edu',
+        cta_url TEXT,
+        subject TEXT,
+        subject_hr TEXT,
+        intro_html TEXT,
+        intro_html_hr TEXT,
+        followup_subject TEXT,
+        followup_subject_hr TEXT,
+        followup_html TEXT,
+        followup_html_hr TEXT,
+        daily_rate INTEGER DEFAULT 15,
+        status TEXT DEFAULT 'draft',
+        approved_by TEXT,
+        approved_at TEXT,
+        last_tick_at TEXT,
+        last_followup_at TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS event_campaign_invitees (
+        id TEXT PRIMARY KEY,
+        campaign_id TEXT NOT NULL,
+        name TEXT,
+        email TEXT,
+        institution TEXT,
+        country TEXT,
+        field TEXT,
+        source TEXT DEFAULT 'import',
+        status TEXT DEFAULT 'imported',
+        history_json TEXT,
+        invited_at TEXT,
+        replied_at TEXT,
+        notes TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_event_campaign_invitees_camp ON event_campaign_invitees(campaign_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_event_campaign_invitees_email ON event_campaign_invitees(email)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_event_campaign_invitees_status ON event_campaign_invitees(status)`);
+    // The correspondence thread for each invitee (inbound replies + AI outbound drafts), so a
+    // logged reply — manual now, an auto-ingested Outlook/Graph reply later — can be classified
+    // and answered through the ONE approval outbox. There is no second send path.
+    db.run(`CREATE TABLE IF NOT EXISTS event_campaign_replies (
+        id TEXT PRIMARY KEY,
+        campaign_id TEXT,
+        invitee_id TEXT,
+        direction TEXT DEFAULT 'inbound',
+        body TEXT,
+        classification TEXT,
+        source TEXT DEFAULT 'manual',
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_event_campaign_replies_inv ON event_campaign_replies(invitee_id)`);
+
+    // ============ AUTOMATED EVENT REMINDERS (queue 5a5) — ADMIN-ONLY ============
+    // Per-event reminder SEQUENCES for people who have already REGISTERED. Generalizes the Forum
+    // acquisition + event-invitation drip (commit 0c931f9) to a TIME-ANCHORED cadence: T-30 warm
+    // welcome, T-14 latest info, T-7 see-you-there with practical details. The admin approves the
+    // SEQUENCE once; the daily auto-runner then stages each touch into the ONE approval outbox
+    // (scheduled_emails) as the event's real T-minus date is reached, deduped per attendee+touch by
+    // drip_log (kind 'reminder:<eventKey>:<touch>:<email>'). status walks draft -> approved ->
+    // paused (kill switch). Lives OUTSIDE the SCHEMA-MIRROR block by design — admin-only, the user
+    // portal never reads or writes these, so nothing to mirror (check-schema-sync stays green).
+    // Every statement is idempotent.
+    db.run(`CREATE TABLE IF NOT EXISTS reminder_sequences (
+        id TEXT PRIMARY KEY,
+        event_key TEXT NOT NULL,
+        name TEXT,
+        sender_from TEXT DEFAULT 'president@medx.hr',
+        reply_to TEXT DEFAULT 'alen_juginovic@hms.harvard.edu',
+        cta_url TEXT,
+        status TEXT DEFAULT 'draft',
+        approved_by TEXT,
+        approved_at TEXT,
+        last_tick_at TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    // One row per touch in the cadence (default T-30 / T-14 / T-7). offset_days is the number of
+    // days BEFORE the event this touch fires; each touch is a fully editable bilingual template.
+    db.run(`CREATE TABLE IF NOT EXISTS reminder_touches (
+        id TEXT PRIMARY KEY,
+        sequence_id TEXT NOT NULL,
+        touch_key TEXT NOT NULL,
+        offset_days INTEGER DEFAULT 7,
+        sort_order INTEGER DEFAULT 0,
+        enabled INTEGER DEFAULT 1,
+        subject TEXT,
+        subject_hr TEXT,
+        body_html TEXT,
+        body_html_hr TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_reminder_sequences_event ON reminder_sequences(event_key)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_reminder_touches_seq ON reminder_touches(sequence_id)`);
 
     // ============ ACCELERATOR / ABSTRACT SUBMISSION-AND-SCORING PIPELINE (SHARED) ============
     // Generic intake + review pipeline. The applicant surface (user portal) writes drafts and
@@ -30073,6 +30199,1130 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         } catch (e) { console.error('[forum-campaign] decline', e.message); res.status(500).json({ error: e.message }); }
     });
 
+    // ============ EVENT INVITATION ENGINE (engine + endpoints, ADMIN-ONLY) ============
+    // The Forum candidate/campaign pipeline generalized to EVERY public event. A campaign is
+    // created FOR one event, invitees are imported (same CSV/XLSX dedupe + diacritics), a
+    // bilingual template is prefilled with the event's real facts (date/venue/price from the DB)
+    // and approved ONCE, then a paced N/day drip stages invitations into the ONE approval outbox
+    // (scheduled_emails, source_engine='event-invite') with a kill switch (pause). Replies are
+    // classified (simple -> AI president-voice draft to the outbox, complex -> escalation). Every
+    // send goes through scheduled_emails + the drainer + sendEmail() — never a second path.
+    const EVENT_INVITE_KEYS = ['conference', 'gala', 'bridges', 'donor'];
+    const EI_STATUSES = ['imported', 'queued', 'invited', 'followed_up', 'replied', 'registered', 'declined', 'escalated'];
+    function eiParse(s) { try { return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+    const eiShape = (r) => ({ ...r, history: eiParse(r.history_json) || [] });
+    function eiIsCroatian(inv) {
+        const c = String((inv && inv.country) || '').toLowerCase().trim();
+        return c.includes('croatia') || c.includes('hrvatska') || c === 'hr';
+    }
+    function eiCampaign(id) { try { return query.get("SELECT * FROM event_campaigns WHERE id = ?", [id]) || null; } catch (e) { return null; } }
+
+    // Live event facts (name/date/venue/price/cta) — pulled at render time so an admin's edits to
+    // the gala/bridges/donor tables reach the invitation without a redeploy. Reuses the existing
+    // comboEventCatalog() (date/venue) and reads the live gala price. Falls back to launch copy.
+    function eiEventFacts() {
+        let cat = {}; try { cat = comboEventCatalog(); } catch (e) { cat = {}; }
+        let gs = {}; try { gs = query.get("SELECT price_gala_only FROM gala_settings WHERE id = 'default'") || {}; } catch (e) {}
+        const price = {
+            conference: 'Complimentary',
+            gala: gs.price_gala_only ? ('EUR ' + Math.round(gs.price_gala_only) + ' per seat') : 'EUR 95 per seat',
+            bridges: 'Complimentary',
+            donor: 'By invitation'
+        };
+        const base = userPortalBase();
+        const url = { conference: base + '/', gala: base + '/', bridges: base + '/building-bridges', donor: base + '/donor-night' };
+        const out = {};
+        EVENT_INVITE_KEYS.forEach(k => {
+            const c = cat[k] || {};
+            out[k] = { key: k, name: c.name || k, date: c.date || '', venue: c.venue || '', chip: c.chip || '', desc: c.desc || '', icon: c.icon || 'fa-calendar', price: price[k], url: url[k] };
+        });
+        return out;
+    }
+    // The set of already-registered emails for an event (the funnel's "registered" join).
+    function eiRegisteredEmails(eventKey) {
+        const set = new Set();
+        try {
+            let rows = [];
+            if (eventKey === 'conference') rows = query.all("SELECT LOWER(TRIM(email)) e FROM registrations WHERE email IS NOT NULL AND TRIM(email) <> ''");
+            else if (eventKey === 'gala') rows = query.all("SELECT LOWER(TRIM(email)) e FROM gala_registrations WHERE email IS NOT NULL AND TRIM(email) <> ''");
+            else if (eventKey === 'bridges') rows = query.all("SELECT LOWER(TRIM(br.email)) e FROM bridges_registrations br LEFT JOIN bridges_events be ON br.event_id = be.id WHERE br.email IS NOT NULL AND TRIM(br.email) <> '' AND COALESCE(be.slug,'') <> 'donor-night'");
+            else if (eventKey === 'donor') rows = query.all("SELECT LOWER(TRIM(br.email)) e FROM bridges_registrations br LEFT JOIN bridges_events be ON br.event_id = be.id WHERE br.email IS NOT NULL AND TRIM(br.email) <> '' AND be.slug = 'donor-night'");
+            rows.forEach(r => { if (r.e) set.add(r.e); });
+        } catch (e) {}
+        return set;
+    }
+    function eiAppendStatus(id, status, note, extraSets) {
+        const inv = query.get("SELECT * FROM event_campaign_invitees WHERE id = ?", [id]);
+        if (!inv) return null;
+        let hist = eiParse(inv.history_json); if (!Array.isArray(hist)) hist = [];
+        hist.push({ status, at: new Date().toISOString(), note: note || null });
+        const sets = ['status = ?', 'history_json = ?', "updated_at = datetime('now')"];
+        const vals = [status, JSON.stringify(hist)];
+        if (extraSets) for (const [k, v] of Object.entries(extraSets)) { sets.push(k + ' = ' + (v === 'NOW' ? "datetime('now')" : '?')); if (v !== 'NOW') vals.push(v); }
+        vals.push(id);
+        db.run(`UPDATE event_campaign_invitees SET ${sets.join(', ')} WHERE id = ?`, vals);
+        saveDb();
+        return query.get("SELECT * FROM event_campaign_invitees WHERE id = ?", [id]);
+    }
+
+    // ---- Template defaults (prefilled from the event's real facts) + email builders ----
+    function eiDefaultTemplate(facts) {
+        const nm = facts.name || 'this event';
+        return {
+            subject: `An invitation to ${nm}`,
+            subject_hr: `Poziv na ${nm}`,
+            intro_html: `It is my privilege, on behalf of Med&X, to invite you personally to ${nm}. It brings Croatian and international biomedicine together for exchange, mentorship, and good company, and it would be a pleasure to welcome you among the guests.`,
+            intro_html_hr: `Čast mi je, u ime Med&X-a, osobno Vas pozvati na ${nm}. Riječ je o susretu hrvatske i međunarodne biomedicine, prilici za razmjenu iskustava i dobro društvo, i bilo bi mi zadovoljstvo ugostiti Vas među uzvanicima.`,
+            followup_subject: `A gentle note on your ${nm} invitation`,
+            followup_subject_hr: `Kratka napomena o pozivu na ${nm}`,
+            followup_html: `A short while ago I wrote to you about ${nm}. I know how full a calendar can be, so this is only a gentle note in case my first message was lost among many. The invitation stands, and it would be a privilege to welcome you.`,
+            followup_html_hr: `Nedavno sam Vam pisao o događaju ${nm}. Znam koliko kalendar zna biti ispunjen, pa je ovo tek kratka napomena, za slučaj da se moja prva poruka izgubila među mnogima. Poziv i dalje stoji, i bila bi mi čast ugostiti Vas.`
+        };
+    }
+    function eiBtn() { return 'display:inline-block;background:#9b1b22;color:#ffffff;text-decoration:none;padding:13px 30px;border-radius:3px;font-weight:600;letter-spacing:.04em;font-size:14px;'; }
+    function eiTextToHtml(text) { return String(text || '').trim().split(/\n{2,}/).map(p => `<p>${nagEscape(p).replace(/\n/g, '<br>')}</p>`).join(''); }
+    function eiFactsHtml(facts, hr) {
+        const rows = [
+            [hr ? 'Događaj' : 'Event', facts.name],
+            [hr ? 'Datum' : 'Date', facts.date],
+            [hr ? 'Mjesto' : 'Venue', facts.venue],
+            [hr ? 'Sudjelovanje' : 'Attendance', facts.price]
+        ].filter(r => r[1]);
+        if (!rows.length) return '';
+        return `<table role="presentation" style="width:100%;border-collapse:collapse;margin:18px 0;background:#faf7f2;border:1px solid #ece5da;border-radius:6px;">` +
+            rows.map(r => `<tr><td style="padding:8px 14px;color:#8a7f6f;font-size:12px;letter-spacing:.04em;text-transform:uppercase;width:120px;">${nagEscape(r[0])}</td><td style="padding:8px 14px;color:#2b2b2b;font-size:14px;font-weight:600;">${nagEscape(String(r[1]))}</td></tr>`).join('') +
+            `</table>`;
+    }
+    function eiBuildInvite(inv, camp, facts) {
+        const hr = eiIsCroatian(inv);
+        const nm = String((inv && inv.name) || '').trim();
+        const salut = nm ? nagEscape(nm) : (hr ? 'poštovani kolega' : 'esteemed colleague');
+        const def = eiDefaultTemplate(facts);
+        const subject = (hr ? (camp.subject_hr || camp.subject) : (camp.subject || camp.subject_hr)) || (hr ? def.subject_hr : def.subject);
+        const intro = (hr ? (camp.intro_html_hr || camp.intro_html) : (camp.intro_html || camp.intro_html_hr)) || (hr ? def.intro_html_hr : def.intro_html);
+        const cta = String(camp.cta_url || facts.url || userPortalBase()).trim();
+        const ctaLabel = hr ? 'Saznajte više i prijavite se' : 'Learn more and register';
+        const body = hr
+            ? `<p>Poštovani/poštovana ${salut},</p>${eiTextToHtml(intro)}${eiFactsHtml(facts, true)}<div style="text-align:center;margin:26px 0;"><a href="${nagEscape(cta)}" style="${eiBtn()}">${ctaLabel}</a></div>${forumPresidentSignatureHtml(true)}`
+            : `<p>Dear ${salut},</p>${eiTextToHtml(intro)}${eiFactsHtml(facts, false)}<div style="text-align:center;margin:26px 0;"><a href="${nagEscape(cta)}" style="${eiBtn()}">${ctaLabel}</a></div>${forumPresidentSignatureHtml(false)}`;
+        return { subject, html: buildEmailTemplate(subject, body) };
+    }
+    function eiBuildFollowup(inv, camp, facts) {
+        const hr = eiIsCroatian(inv);
+        const nm = String((inv && inv.name) || '').trim();
+        const salut = nm ? nagEscape(nm) : (hr ? 'poštovani kolega' : 'esteemed colleague');
+        const def = eiDefaultTemplate(facts);
+        const subject = (hr ? (camp.followup_subject_hr || camp.followup_subject) : (camp.followup_subject || camp.followup_subject_hr)) || (hr ? def.followup_subject_hr : def.followup_subject);
+        const fu = (hr ? (camp.followup_html_hr || camp.followup_html) : (camp.followup_html || camp.followup_html_hr)) || (hr ? def.followup_html_hr : def.followup_html);
+        const cta = String(camp.cta_url || facts.url || userPortalBase()).trim();
+        const ctaLabel = hr ? 'Saznajte više i prijavite se' : 'Learn more and register';
+        const body = hr
+            ? `<p>Poštovani/poštovana ${salut},</p>${eiTextToHtml(fu)}<div style="text-align:center;margin:26px 0;"><a href="${nagEscape(cta)}" style="${eiBtn()}">${ctaLabel}</a></div>${forumPresidentSignatureHtml(true)}`
+            : `<p>Dear ${salut},</p>${eiTextToHtml(fu)}<div style="text-align:center;margin:26px 0;"><a href="${nagEscape(cta)}" style="${eiBtn()}">${ctaLabel}</a></div>${forumPresidentSignatureHtml(false)}`;
+        return { subject, html: buildEmailTemplate(subject, body) };
+    }
+
+    // ---- Funnel: imported -> sent -> (opened, not tracked) -> replied -> registered ----
+    function eiCampaignFunnel(camp) {
+        const cid = camp.id;
+        const n = (extra) => { try { return query.get("SELECT COUNT(*) c FROM event_campaign_invitees WHERE campaign_id = ? " + extra, [cid]).c || 0; } catch (e) { return 0; } };
+        const regSet = eiRegisteredEmails(camp.event_key);
+        let registered = 0;
+        try {
+            const emails = query.all("SELECT DISTINCT LOWER(TRIM(email)) e FROM event_campaign_invitees WHERE campaign_id = ? AND email IS NOT NULL AND TRIM(email) <> ''", [cid]);
+            registered = emails.filter(r => r.e && regSet.has(r.e)).length;
+        } catch (e) {}
+        return {
+            imported: n(""),
+            invited: n("AND invited_at IS NOT NULL"),
+            opened: null,
+            replied: n("AND replied_at IS NOT NULL"),
+            registered,
+            declined: n("AND status = 'declined'"),
+            escalated: n("AND status = 'escalated'"),
+            followed_up: n("AND status = 'followed_up'"),
+            pool_ready: n("AND status IN ('imported','queued') AND invited_at IS NULL AND email IS NOT NULL AND TRIM(email) <> ''"),
+            followup_ready: n("AND status = 'invited' AND invited_at IS NOT NULL AND invited_at <= datetime('now','-7 days') AND replied_at IS NULL")
+        };
+    }
+    function eiInviteeCounts(cid) {
+        const counts = {}; EI_STATUSES.forEach(s => counts[s] = 0);
+        try { query.all("SELECT status, COUNT(*) c FROM event_campaign_invitees WHERE campaign_id = ? GROUP BY status", [cid]).forEach(r => { counts[r.status] = r.c; }); } catch (e) {}
+        try { counts.all = query.get("SELECT COUNT(*) c FROM event_campaign_invitees WHERE campaign_id = ?", [cid]).c || 0; } catch (e) { counts.all = 0; }
+        return counts;
+    }
+    function eiCampaignShape(camp) {
+        const facts = eiEventFacts()[camp.event_key] || { key: camp.event_key, name: camp.event_key };
+        return { ...camp, event: facts, funnel: eiCampaignFunnel(camp) };
+    }
+
+    // ---- Reply classification + president-voice simple draft (aiDraft with clean fallbacks) ----
+    function eiReplyClassifyFallback(body) {
+        const t = ' ' + String(body || '').toLowerCase().replace(/\s+/g, ' ') + ' ';
+        const simpleSignals = [
+            'when', 'what date', 'which date', ' dates', 'date of', 'date is', 'time of year', 'what time',
+            'where', 'location', 'venue', 'address', 'held in', 'take place', 'takes place', 'parking',
+            'cost', 'price', 'fee', 'how much', 'free of charge', 'is it free', 'any charge', 'ticket', 'dress code',
+            'what is', 'tell me more', 'more about', 'more info', 'programme', 'program', 'agenda', 'schedule',
+            'kada', 'koji datum', 'gdje', 'lokacij', 'mjesto', 'adresa', 'cijena', 'trošak', 'kotizacij', 'besplat', 'što je', 'više o', 'program', 'raspored', 'kod odijevanja'
+        ];
+        return simpleSignals.some(s => t.includes(s)) ? 'simple' : 'complex';
+    }
+    async function eiClassifyReply(body) {
+        const fb = eiReplyClassifyFallback(body);
+        try {
+            const r = await aiDraft({
+                purpose: 'Classify a reply to an event invitation as exactly one word: "simple" or "complex". simple = the reply only asks about dates, location, venue, cost, dress code, programme, or what the event is. complex = anything else (conditions, negotiation, personal circumstances, a decline with questions, sensitive or delicate matters). Answer with only the single word simple or complex.',
+                context: { reply: String(body || '').slice(0, 1200) },
+                maxTokens: 8
+            });
+            if (r && r.text && !r.mock && !/^\[Draft\]/.test(r.text)) {
+                const m = /\b(simple|complex)\b/i.exec(r.text);
+                if (m) return m[1].toLowerCase();
+            }
+        } catch (e) {}
+        return fb;
+    }
+    function eiSimpleReplyFallback(inv, facts) {
+        const hr = eiIsCroatian(inv);
+        const nm = String((inv && inv.name) || '').trim();
+        const salut = nm ? nm : (hr ? 'poštovani kolega' : 'esteemed colleague');
+        const bits = [facts.date, facts.venue, facts.price].filter(Boolean);
+        const line = bits.length ? (hr ? `Održava se ${facts.date ? facts.date + '. ' : ''}${facts.venue ? 'u ' + facts.venue + '. ' : ''}${facts.price ? 'Sudjelovanje: ' + facts.price + '. ' : ''}` : `It takes place ${facts.date ? 'on ' + facts.date + '. ' : ''}${facts.venue ? 'at ' + facts.venue + '. ' : ''}${facts.price ? 'Attendance: ' + facts.price + '. ' : ''}`) : '';
+        if (hr) return `Poštovani/poštovana ${salut},\n\nHvala Vam na odgovoru, i rado ću pojasniti. ${line}Sve pojedinosti i obrazac za prijavu nalaze se na našim stranicama.\n\nBilo bi mi zadovoljstvo ugostiti Vas.`;
+        return `Dear ${salut},\n\nThank you for writing back, and with pleasure. ${line}You will find every detail, and the registration form, on our pages.\n\nIt would be a privilege to welcome you.`;
+    }
+    async function eiDraftSimpleReply(inv, replyBody, facts) {
+        const fallback = eiSimpleReplyFallback(inv, facts);
+        try {
+            const r = await aiDraft({
+                purpose: 'Write a warm, concise reply in the voice of prof. dr. sc. Alen Juginović, President of Med&X, to a colleague who replied to an event invitation with a logistics question (dates, location, venue, cost, dress code, or what the event is). Answer plainly and warmly using the facts provided and invite them to register. Use Croatian formal register if their reply is in Croatian, otherwise English. Do NOT invent facts beyond those given. Start with a salutation. Do NOT add a closing signature — it will be appended. No emojis. No semicolons.',
+                context: { event_name: facts.name || '', event_date: facts.date || '', event_venue: facts.venue || '', event_attendance: facts.price || '', invitee_name: (inv && inv.name) || '', their_reply: String(replyBody || '').slice(0, 1500) },
+                maxTokens: 420
+            });
+            if (r && r.text && !r.mock && !/^\[Draft\]/.test(r.text)) return r.text.trim();
+        } catch (e) {}
+        return fallback;
+    }
+
+    // The ONE entry point for an inbound reply to an event invitation. Manual "Log reply" calls it
+    // (source='manual'); a future Outlook/Graph connector calls the same function via the ingest
+    // route (source='graph' + a stable message_id for idempotency). Simple -> a president-voice
+    // draft into the outbox; complex -> escalation to the president + Laura (+ Action Center).
+    async function ingestEventInviteReply(opts) {
+        opts = opts || {};
+        const source = opts.source || 'manual';
+        const text = String(opts.body || '').trim();
+        let inv = null;
+        if (opts.inviteeId) inv = query.get("SELECT * FROM event_campaign_invitees WHERE id = ?", [opts.inviteeId]);
+        if (!inv && opts.email && opts.campaignId) inv = query.get("SELECT * FROM event_campaign_invitees WHERE campaign_id = ? AND LOWER(email) = LOWER(?) ORDER BY (status='invited') DESC, (status='followed_up') DESC, updated_at DESC LIMIT 1", [opts.campaignId, String(opts.email).trim()]);
+        if (!inv && opts.email) inv = query.get("SELECT * FROM event_campaign_invitees WHERE LOWER(email) = LOWER(?) ORDER BY (status='invited') DESC, (status='followed_up') DESC, updated_at DESC LIMIT 1", [String(opts.email).trim()]);
+        if (!inv) return { ok: false, reason: 'no_invitee' };
+        if (!text) return { ok: false, reason: 'empty_body' };
+        const camp = eiCampaign(inv.campaign_id);
+        const facts = (eiEventFacts()[(camp && camp.event_key) || ''] ) || {};
+        if (opts.messageId) {
+            const dk = 'event_reply_msg:' + opts.messageId;
+            if (query.get("SELECT 1 x FROM drip_log WHERE user_id = 'event-invite' AND kind = ?", [dk])) return { ok: true, duplicate: true, invitee: eiShape(inv) };
+            try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'event-invite', ?, ?)", [require('crypto').randomUUID(), inv.email || null, dk]); } catch (e) {}
+        }
+        const replyId = require('crypto').randomUUID();
+        db.run("INSERT INTO event_campaign_replies (id, campaign_id, invitee_id, direction, body, classification, source, created_by) VALUES (?,?,?, 'inbound', ?, NULL, ?, ?)",
+            [replyId, inv.campaign_id, inv.id, text.slice(0, 4000), source, opts.actor || 'admin']);
+        const classification = await eiClassifyReply(text);
+        db.run("UPDATE event_campaign_replies SET classification = ? WHERE id = ?", [classification, replyId]);
+        let staged = 0; let escalated = false; let draftId = null;
+        if (classification === 'simple') {
+            const draft = await eiDraftSimpleReply(inv, text, facts);
+            draftId = require('crypto').randomUUID();
+            db.run("INSERT INTO event_campaign_replies (id, campaign_id, invitee_id, direction, body, classification, source, created_by) VALUES (?,?,?, 'outbound_draft', ?, 'simple', 'ai', ?)",
+                [draftId, inv.campaign_id, inv.id, draft.slice(0, 4000), opts.actor || 'system']);
+            const hr = eiIsCroatian(inv);
+            const subject = 'Re: ' + ((camp && (hr ? (camp.subject_hr || camp.subject) : camp.subject)) || ('An invitation to ' + (facts.name || 'the event')));
+            const html = buildEmailTemplate(subject, eiTextToHtml(draft) + forumPresidentSignatureHtml(hr));
+            const batchId = 'eventreply-' + inv.id.slice(0, 8) + '-' + require('crypto').randomUUID().slice(0, 8);
+            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                    VALUES (?, 'pending_approval', ?, 'event-invite-reply', 'event_invite_reply', ?, ?, ?, ?, datetime('now'))`,
+                [require('crypto').randomUUID(), batchId, JSON.stringify({ to: inv.email, subject, html, from: (camp && camp.sender_from) || 'president@medx.hr', reply_to: (camp && camp.reply_to) || 'alen_juginovic@hms.harvard.edu' }), inv.email, subject, opts.actor || 'system']);
+            staged = 1;
+            eiAppendStatus(inv.id, 'replied', 'Reply received (simple) — a president-voice draft is waiting in the outbox', { replied_at: 'NOW' });
+        } else {
+            eiAppendStatus(inv.id, 'escalated', 'Reply received (complex) — escalated to the president and Laura', { replied_at: 'NOW' });
+            escalated = true;
+            const dripKey = 'event_reply_escalate:' + replyId;
+            if (!query.get("SELECT 1 x FROM drip_log WHERE user_id = 'event-invite' AND kind = ?", [dripKey])) {
+                const batchId = 'eventreplyesc-' + require('crypto').randomUUID();
+                const subject = `An event reply needs your eye — ${inv.name || inv.email || 'invitee'} (${facts.name || (camp && camp.event_key) || 'event'})`;
+                const html = buildEmailTemplate('An event reply for your decision', `
+                    <p>An invitee replied to their ${nagEscape(facts.name || 'event')} invitation, and the reply needs a personal answer rather than a standard one.</p>
+                    <p><strong>${nagEscape(inv.name || inv.email || 'Invitee')}</strong><br>
+                    <span style="color:#6a625a;">${nagEscape([inv.field, inv.institution, inv.country].filter(Boolean).join(' · '))}</span><br>
+                    <span style="color:#6a625a;">${nagEscape(inv.email || '')}</span></p>
+                    <div style="background:#f4efe4;border-left:3px solid #9b1b22;padding:12px 14px;margin:14px 0;color:#4a453e;font-size:14px;white-space:pre-wrap;">${nagEscape(text.slice(0, 2000))}</div>
+                    <p style="color:#6a625a;font-size:13px;">Open the Event invitations area and find ${nagEscape(inv.name || inv.email || 'this invitee')} in the ${nagEscape(facts.name || 'event')} campaign.</p>
+                `);
+                for (const rcpt of candidateEscalationRecipients()) {
+                    db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                            VALUES (?, 'pending_approval', ?, 'event-invite-reply-escalation', 'event_reply_escalation', ?, ?, ?, ?, datetime('now'))`,
+                        [require('crypto').randomUUID(), batchId, JSON.stringify({ to: rcpt, subject, html }), rcpt, subject, opts.actor || 'system']);
+                    staged++;
+                }
+                try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'event-invite', NULL, ?)", [require('crypto').randomUUID(), dripKey]); } catch (e) {}
+            }
+            try { runNagScan(); } catch (e) {}
+        }
+        saveDb();
+        return { ok: true, classification, escalated, staged, draft_id: draftId, invitee: eiShape(query.get("SELECT * FROM event_campaign_invitees WHERE id = ?", [inv.id])) };
+    }
+
+    // ---- Daily invite tick: stage up to daily_rate invitations for one approved campaign ----
+    async function runEventCampaignTick(campaignId, opts) {
+        opts = opts || {};
+        const actor = opts.actor || 'scheduler';
+        const camp = eiCampaign(campaignId);
+        if (!camp) return { ran: false, reason: 'no_campaign', invited: 0 };
+        if (camp.status !== 'approved') return { ran: false, reason: 'not_approved', status: camp.status, invited: 0 };
+        const today = new Date().toISOString().slice(0, 10);
+        const dayKey = 'event_campaign_tick:' + camp.id + ':' + today;
+        if (!opts.force && query.get("SELECT 1 x FROM drip_log WHERE user_id = 'event-invite' AND kind = ?", [dayKey])) return { ran: false, reason: 'already_ran_today', invited: 0 };
+        const rate = Math.max(1, Math.min(Number(camp.daily_rate) || 15, 200));
+        const facts = eiEventFacts()[camp.event_key] || { key: camp.event_key, name: camp.event_key };
+        const pool = query.all("SELECT * FROM event_campaign_invitees WHERE campaign_id = ? AND status IN ('imported','queued') AND invited_at IS NULL AND email IS NOT NULL AND TRIM(email) <> '' ORDER BY (status='queued') DESC, created_at ASC", [camp.id]);
+        const batchId = 'eventcampaign-' + camp.id.slice(0, 8) + '-' + today + '-' + require('crypto').randomUUID().slice(0, 6);
+        let invited = 0; const names = [];
+        for (const inv of pool) {
+            if (invited >= rate) break;
+            const inviteKey = 'event_invite:' + camp.id + ':' + inv.id;
+            if (query.get("SELECT 1 x FROM drip_log WHERE user_id = 'event-invite' AND kind = ?", [inviteKey])) continue;
+            const mail = eiBuildInvite(inv, camp, facts);
+            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, approved_by, created_by, created_at)
+                    VALUES (?, 'scheduled', ?, 'event-invite', 'event_invite', ?, ?, ?, 'event-invite (auto)', ?, datetime('now'))`,
+                [require('crypto').randomUUID(), batchId, JSON.stringify({ to: inv.email, subject: mail.subject, html: mail.html, from: camp.sender_from || 'president@medx.hr', reply_to: camp.reply_to || 'alen_juginovic@hms.harvard.edu' }), inv.email, mail.subject, actor]);
+            eiAppendStatus(inv.id, 'invited', "Selected for today's batch and invited by the campaign", { invited_at: 'NOW' });
+            try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'event-invite', ?, ?)", [require('crypto').randomUUID(), inv.email || null, inviteKey]); } catch (e) {}
+            invited++; names.push(inv.name || inv.email);
+        }
+        try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'event-invite', NULL, ?)", [require('crypto').randomUUID(), dayKey]); } catch (e) {}
+        db.run("UPDATE event_campaigns SET last_tick_at = datetime('now'), updated_at = datetime('now') WHERE id = ?", [camp.id]);
+        saveDb();
+        return { ran: true, invited, batch_id: invited ? batchId : null, names, pool: pool.length, rate };
+    }
+    // ---- Daily follow-up tick: one gentle nudge 7 days after invite when there is still no reply ----
+    async function runEventFollowupTick(campaignId, opts) {
+        opts = opts || {};
+        const actor = opts.actor || 'scheduler';
+        const camp = eiCampaign(campaignId);
+        if (!camp) return { ran: false, reason: 'no_campaign', followed: 0 };
+        if (camp.status !== 'approved') return { ran: false, reason: 'not_approved', status: camp.status, followed: 0 };
+        const today = new Date().toISOString().slice(0, 10);
+        const dayKey = 'event_followup_tick:' + camp.id + ':' + today;
+        if (!opts.force && query.get("SELECT 1 x FROM drip_log WHERE user_id = 'event-invite' AND kind = ?", [dayKey])) return { ran: false, reason: 'already_ran_today', followed: 0 };
+        const facts = eiEventFacts()[camp.event_key] || { key: camp.event_key, name: camp.event_key };
+        const cutoff = opts.force ? "datetime('now','+1 day')" : "datetime('now','-7 days')";
+        const pool = query.all("SELECT * FROM event_campaign_invitees WHERE campaign_id = ? AND status = 'invited' AND invited_at IS NOT NULL AND invited_at <= " + cutoff + " AND replied_at IS NULL AND email IS NOT NULL AND TRIM(email) <> '' ORDER BY invited_at ASC", [camp.id]);
+        const batchId = 'eventfollowup-' + camp.id.slice(0, 8) + '-' + today + '-' + require('crypto').randomUUID().slice(0, 6);
+        let followed = 0; const names = [];
+        for (const inv of pool) {
+            const key = 'event_invite_followup:' + camp.id + ':' + inv.id;
+            if (query.get("SELECT 1 x FROM drip_log WHERE user_id = 'event-invite' AND kind = ?", [key])) continue;
+            const mail = eiBuildFollowup(inv, camp, facts);
+            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, approved_by, created_by, created_at)
+                    VALUES (?, 'scheduled', ?, 'event-invite-followup', 'event_followup', ?, ?, ?, 'event-invite (auto)', ?, datetime('now'))`,
+                [require('crypto').randomUUID(), batchId, JSON.stringify({ to: inv.email, subject: mail.subject, html: mail.html, from: camp.sender_from || 'president@medx.hr', reply_to: camp.reply_to || 'alen_juginovic@hms.harvard.edu' }), inv.email, mail.subject, actor]);
+            eiAppendStatus(inv.id, 'followed_up', 'Gentle follow-up queued by the campaign (no reply after 7 days)');
+            try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'event-invite', ?, ?)", [require('crypto').randomUUID(), inv.email || null, key]); } catch (e) {}
+            followed++; names.push(inv.name || inv.email);
+        }
+        try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'event-invite', NULL, ?)", [require('crypto').randomUUID(), dayKey]); } catch (e) {}
+        db.run("UPDATE event_campaigns SET last_followup_at = datetime('now'), updated_at = datetime('now') WHERE id = ?", [camp.id]);
+        saveDb();
+        return { ran: true, followed, batch_id: followed ? batchId : null, names, pool: pool.length };
+    }
+    // Daily auto-runner for every APPROVED campaign (idempotent per calendar day via drip_log).
+    async function runDueEventCampaigns() {
+        let camps = []; try { camps = query.all("SELECT id FROM event_campaigns WHERE status = 'approved'"); } catch (e) { return; }
+        for (const c of camps) {
+            try { await runEventCampaignTick(c.id, { actor: 'scheduler' }); } catch (e) {}
+            try { await runEventFollowupTick(c.id, { actor: 'scheduler' }); } catch (e) {}
+        }
+    }
+    setInterval(() => { runDueEventCampaigns().catch(() => {}); }, 24 * 60 * 60 * 1000);
+
+    // ================================ ENDPOINTS ================================
+    app.get('/api/admin/event-invites/catalog', auth, adminOnly, (req, res) => {
+        try {
+            const facts = eiEventFacts();
+            res.json({ events: EVENT_INVITE_KEYS.map(k => facts[k]), sender_default: 'president@medx.hr', reply_to_default: 'alen_juginovic@hms.harvard.edu' });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.get('/api/admin/event-invites/campaigns', auth, adminOnly, (req, res) => {
+        try {
+            const rows = query.all("SELECT * FROM event_campaigns ORDER BY created_at DESC");
+            res.json({ campaigns: rows.map(eiCampaignShape), events: EVENT_INVITE_KEYS.map(k => eiEventFacts()[k]) });
+        } catch (e) { console.error('[event-invite] list', e.message); res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-invites/campaigns', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const eventKey = EVENT_INVITE_KEYS.includes(b.event_key) ? b.event_key : null;
+            if (!eventKey) return res.status(400).json({ error: 'Pick a valid event.' });
+            const facts = eiEventFacts()[eventKey];
+            const def = eiDefaultTemplate(facts);
+            const id = require('crypto').randomUUID();
+            const name = String(b.name || (facts.name + ' — invitations')).trim().slice(0, 200);
+            const rate = Math.max(1, Math.min(parseInt(b.daily_rate, 10) || 15, 200));
+            db.run(`INSERT INTO event_campaigns (id, event_key, name, sender_from, reply_to, cta_url, subject, subject_hr, intro_html, intro_html_hr, followup_subject, followup_subject_hr, followup_html, followup_html_hr, daily_rate, status, created_by)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'draft', ?)`,
+                [id, eventKey, name, 'president@medx.hr', 'alen_juginovic@hms.harvard.edu', facts.url,
+                 def.subject, def.subject_hr, def.intro_html, def.intro_html_hr, def.followup_subject, def.followup_subject_hr, def.followup_html, def.followup_html_hr, rate, req.user?.email || 'admin']);
+            saveDb();
+            logAudit(req, 'event-invite.campaign.create', `${name} (${eventKey})`);
+            res.json({ success: true, campaign: eiCampaignShape(eiCampaign(id)) });
+        } catch (e) { console.error('[event-invite] create', e.message); res.status(500).json({ error: e.message }); }
+    });
+    app.get('/api/admin/event-invites/campaigns/:id', auth, adminOnly, (req, res) => {
+        try {
+            const camp = eiCampaign(req.params.id);
+            if (!camp) return res.status(404).json({ error: 'Campaign not found' });
+            res.json({ campaign: eiCampaignShape(camp), counts: eiInviteeCounts(camp.id) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.put('/api/admin/event-invites/campaigns/:id', auth, adminOnly, (req, res) => {
+        try {
+            const camp = eiCampaign(req.params.id);
+            if (!camp) return res.status(404).json({ error: 'Campaign not found' });
+            const b = req.body || {};
+            const sets = []; const vals = [];
+            const strFields = { name: 200, sender_from: 160, reply_to: 160, cta_url: 400, subject: 200, subject_hr: 200, intro_html: 4000, intro_html_hr: 4000, followup_subject: 200, followup_subject_hr: 200, followup_html: 4000, followup_html_hr: 4000 };
+            for (const [f, max] of Object.entries(strFields)) {
+                if (b[f] !== undefined) { sets.push(f + ' = ?'); vals.push(String(b[f] == null ? '' : b[f]).slice(0, max)); }
+            }
+            if (b.daily_rate !== undefined) { sets.push('daily_rate = ?'); vals.push(Math.max(1, Math.min(parseInt(b.daily_rate, 10) || 15, 200))); }
+            if (!sets.length) return res.json({ success: true, campaign: eiCampaignShape(camp) });
+            vals.push(req.params.id);
+            db.run(`UPDATE event_campaigns SET ${sets.join(', ')}, updated_at = datetime('now') WHERE id = ?`, vals);
+            saveDb();
+            logAudit(req, 'event-invite.campaign.save', camp.name || camp.event_key);
+            res.json({ success: true, campaign: eiCampaignShape(eiCampaign(req.params.id)) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.delete('/api/admin/event-invites/campaigns/:id', auth, adminOnly, (req, res) => {
+        try {
+            const camp = eiCampaign(req.params.id);
+            if (!camp) return res.status(404).json({ error: 'Campaign not found' });
+            db.run("DELETE FROM event_campaign_replies WHERE campaign_id = ?", [req.params.id]);
+            db.run("DELETE FROM event_campaign_invitees WHERE campaign_id = ?", [req.params.id]);
+            db.run("DELETE FROM event_campaigns WHERE id = ?", [req.params.id]);
+            saveDb();
+            logAudit(req, 'event-invite.campaign.delete', camp.name || camp.event_key);
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-invites/campaigns/:id/approve', auth, adminOnly, (req, res) => {
+        try {
+            const camp = eiCampaign(req.params.id);
+            if (!camp) return res.status(404).json({ error: 'Campaign not found' });
+            db.run("UPDATE event_campaigns SET status = 'approved', approved_by = ?, approved_at = datetime('now'), updated_at = datetime('now') WHERE id = ?", [req.user?.email || 'admin', req.params.id]);
+            saveDb();
+            logAudit(req, 'event-invite.campaign.approve', camp.name || camp.event_key);
+            res.json({ success: true, campaign: eiCampaignShape(eiCampaign(req.params.id)) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-invites/campaigns/:id/pause', auth, adminOnly, (req, res) => {
+        try {
+            const camp = eiCampaign(req.params.id);
+            if (!camp) return res.status(404).json({ error: 'Campaign not found' });
+            db.run("UPDATE event_campaigns SET status = 'paused', updated_at = datetime('now') WHERE id = ?", [req.params.id]);
+            saveDb();
+            logAudit(req, 'event-invite.campaign.pause', (camp.name || camp.event_key) + ' (kill switch)');
+            res.json({ success: true, campaign: eiCampaignShape(eiCampaign(req.params.id)) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-invites/campaigns/:id/resume', auth, adminOnly, (req, res) => {
+        try {
+            const camp = eiCampaign(req.params.id);
+            if (!camp) return res.status(404).json({ error: 'Campaign not found' });
+            const nextStatus = camp.approved_at ? 'approved' : 'draft';
+            db.run("UPDATE event_campaigns SET status = ?, updated_at = datetime('now') WHERE id = ?", [nextStatus, req.params.id]);
+            saveDb();
+            logAudit(req, 'event-invite.campaign.resume', camp.name || camp.event_key);
+            res.json({ success: true, campaign: eiCampaignShape(eiCampaign(req.params.id)) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-invites/campaigns/:id/tick', auth, adminOnly, async (req, res) => {
+        try {
+            const r = await runEventCampaignTick(req.params.id, { actor: req.user?.email || 'admin', force: !!(req.body && req.body.force) });
+            logAudit(req, 'event-invite.campaign.tick', r.ran ? `${r.invited} invited` : ('skipped: ' + (r.reason || 'n/a')));
+            const camp = eiCampaign(req.params.id);
+            res.json({ success: true, result: r, campaign: camp ? eiCampaignShape(camp) : null });
+        } catch (e) { console.error('[event-invite] tick', e.message); res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-invites/campaigns/:id/followup-tick', auth, adminOnly, async (req, res) => {
+        try {
+            const r = await runEventFollowupTick(req.params.id, { actor: req.user?.email || 'admin', force: !!(req.body && req.body.force) });
+            logAudit(req, 'event-invite.campaign.followup', r.ran ? `${r.followed} followed up` : ('skipped: ' + (r.reason || 'n/a')));
+            const camp = eiCampaign(req.params.id);
+            res.json({ success: true, result: r, campaign: camp ? eiCampaignShape(camp) : null });
+        } catch (e) { console.error('[event-invite] followup', e.message); res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-invites/campaigns/:id/preview', auth, adminOnly, (req, res) => {
+        try {
+            const camp = eiCampaign(req.params.id);
+            if (!camp) return res.status(404).json({ error: 'Campaign not found' });
+            const facts = eiEventFacts()[camp.event_key] || { key: camp.event_key, name: camp.event_key };
+            const kind = (req.body && req.body.kind) === 'followup' ? 'followup' : 'invite';
+            const hr = !!(req.body && req.body.hr);
+            const sample = { name: hr ? 'dr. sc. Ivana Kovačević' : 'Dr. Jane Whitfield', email: 'sample@example.org', institution: hr ? 'KBC Zagreb' : 'University of Oxford', country: hr ? 'Croatia' : 'United Kingdom', field: 'Biomedicine' };
+            const mail = kind === 'followup' ? eiBuildFollowup(sample, camp, facts) : eiBuildInvite(sample, camp, facts);
+            res.json({ success: true, subject: mail.subject, html: mail.html, hr, kind });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ---- Import (reuses the Forum candidate CSV/XLSX machinery: dedupe + diacritics) ----
+    app.post('/api/admin/event-invites/campaigns/:id/import', auth, adminOnly, candidateImportUpload.single('file'), (req, res) => {
+        try {
+            if (!eiCampaign(req.params.id)) return res.status(404).json({ error: 'Campaign not found' });
+            if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+            let aoa;
+            try { aoa = contactFileToAoa(req.file); }
+            catch (e) { return res.status(400).json({ error: 'Could not read that file. Please upload a CSV or XLSX with a header row.' }); }
+            let { columns, rows } = aoaToTable(aoa);
+            if (!columns.length) return res.status(400).json({ error: 'The file appears to be empty.' });
+            const hasNameCol = columns.some(c => CANDIDATE_FIELD_SYNONYMS.name.includes(normHeader(c)));
+            if (!hasNameCol) {
+                const firstCol = columns.find(c => CANDIDATE_FIRST_SYN.includes(normHeader(c)));
+                const lastCol = columns.find(c => CANDIDATE_LAST_SYN.includes(normHeader(c)));
+                if (firstCol || lastCol) {
+                    columns = ['Name', ...columns];
+                    rows = rows.map(r => Object.assign({ Name: [firstCol ? r[firstCol] : '', lastCol ? r[lastCol] : ''].filter(Boolean).join(' ').trim() }, r));
+                }
+            }
+            const suggested_mapping = suggestCandidateMapping(columns);
+            res.json({ columns, rows, total: rows.length, sample: rows.slice(0, 8), suggested_mapping, fields: Object.keys(CANDIDATE_FIELD_SYNONYMS), filename: req.file.originalname });
+        } catch (e) { console.error('[event-invite] import.preview', e.message); res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-invites/campaigns/:id/import/commit', auth, adminOnly, (req, res) => {
+        try {
+            const camp = eiCampaign(req.params.id);
+            if (!camp) return res.status(404).json({ error: 'Campaign not found' });
+            const mapping = (req.body && req.body.mapping) || {};
+            const rows = Array.isArray(req.body && req.body.rows) ? req.body.rows : [];
+            const filename = String((req.body && req.body.filename) || '').slice(0, 180);
+            if (!rows.length) return res.status(400).json({ error: 'No rows to import' });
+            const val = (row, field) => (mapping[field] && row[mapping[field]] != null) ? String(row[mapping[field]]).trim() : '';
+            const nowIso = () => new Date().toISOString();
+            const regSet = eiRegisteredEmails(camp.event_key);
+            const seenEmails = new Set(); const seenNames = new Set();
+            let added = 0; const duplicates = []; const skipped = [];
+            for (const row of rows) {
+                const name = val(row, 'name');
+                const email = val(row, 'email');
+                const emailKey = email.toLowerCase();
+                const institution = val(row, 'institution');
+                const country = val(row, 'country');
+                const field = val(row, 'field');
+                const source = val(row, 'source') || (filename ? ('Imported from ' + filename) : 'import');
+                const display = name || email || '(unnamed)';
+                if (!name && !email) { skipped.push({ who: '(empty row)', reason: 'no name or email' }); continue; }
+                if (emailKey && seenEmails.has(emailKey)) { duplicates.push({ who: display, email, where: 'this file', status: 'duplicate row' }); continue; }
+                const nameKey = (name + '|' + institution).toLowerCase();
+                if (!emailKey && seenNames.has(nameKey)) { duplicates.push({ who: display, email: '', where: 'this file', status: 'duplicate row' }); continue; }
+                if (emailKey) seenEmails.add(emailKey); else seenNames.add(nameKey);
+                let known = null;
+                if (emailKey) {
+                    if (regSet.has(emailKey)) known = { where: 'already registered', status: 'registered' };
+                    if (!known) { const cc = query.get("SELECT status FROM event_campaign_invitees WHERE campaign_id = ? AND LOWER(email) = ? LIMIT 1", [camp.id, emailKey]); if (cc) known = { where: 'this campaign', status: cc.status || 'imported' }; }
+                } else {
+                    const cc = query.get("SELECT status FROM event_campaign_invitees WHERE campaign_id = ? AND LOWER(name) = ? AND LOWER(IFNULL(institution,'')) = ? LIMIT 1", [camp.id, name.toLowerCase(), institution.toLowerCase()]);
+                    if (cc) known = { where: 'this campaign', status: cc.status || 'imported' };
+                }
+                if (known) { duplicates.push({ who: display, email, where: known.where, status: known.status }); continue; }
+                const id = require('crypto').randomUUID();
+                const hist = JSON.stringify([{ status: 'imported', at: nowIso(), note: source }]);
+                db.run(`INSERT INTO event_campaign_invitees (id, campaign_id, name, email, institution, country, field, source, status, history_json, created_by, created_at, updated_at)
+                        VALUES (?,?,?,?,?,?,?,?, 'imported', ?, ?, datetime('now'), datetime('now'))`,
+                    [id, camp.id, name, email, institution, country, field, source, hist, req.user?.email || 'admin']);
+                added++;
+            }
+            saveDb();
+            logAudit(req, 'event-invite.import', `${added} added, ${duplicates.length} already known, ${skipped.length} skipped (${camp.name || camp.event_key})`);
+            res.json({ success: true, added, duplicates, skipped, total: rows.length });
+        } catch (e) { console.error('[event-invite] import.commit', e.message); res.status(500).json({ error: e.message }); }
+    });
+    app.get('/api/admin/event-invites/campaigns/:id/invitees', auth, adminOnly, (req, res) => {
+        try {
+            const camp = eiCampaign(req.params.id);
+            if (!camp) return res.status(404).json({ error: 'Campaign not found' });
+            const status = String(req.query.status || 'all');
+            const q = String(req.query.q || '').trim().toLowerCase();
+            let rows = query.all("SELECT * FROM event_campaign_invitees WHERE campaign_id = ? ORDER BY (status='escalated') DESC, created_at DESC, name ASC", [camp.id]);
+            if (status !== 'all') rows = rows.filter(r => r.status === status);
+            if (q) rows = rows.filter(r => [r.name, r.email, r.institution, r.country, r.field, r.source].some(v => String(v || '').toLowerCase().includes(q)));
+            const regSet = eiRegisteredEmails(camp.event_key);
+            const shaped = rows.map(r => { const s = eiShape(r); s.registered = !!(r.email && regSet.has(String(r.email).toLowerCase().trim())); return s; });
+            res.json({ invitees: shaped, counts: eiInviteeCounts(camp.id), funnel: eiCampaignFunnel(camp) });
+        } catch (e) { console.error('[event-invite] invitees', e.message); res.status(500).json({ error: e.message }); }
+    });
+    app.delete('/api/admin/event-invites/invitees/:id', auth, adminOnly, (req, res) => {
+        try {
+            const inv = query.get("SELECT name, email FROM event_campaign_invitees WHERE id = ?", [req.params.id]);
+            if (!inv) return res.status(404).json({ error: 'Invitee not found' });
+            db.run("DELETE FROM event_campaign_invitees WHERE id = ?", [req.params.id]);
+            saveDb();
+            logAudit(req, 'event-invite.invitee.delete', inv.name || inv.email || req.params.id);
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-invites/invitees/:id/decline', auth, adminOnly, (req, res) => {
+        try {
+            const inv = query.get("SELECT * FROM event_campaign_invitees WHERE id = ?", [req.params.id]);
+            if (!inv) return res.status(404).json({ error: 'Invitee not found' });
+            const note = String((req.body && req.body.note) || '').slice(0, 500);
+            const nu = eiAppendStatus(inv.id, 'declined', note || 'Declined');
+            logAudit(req, 'event-invite.invitee.decline', inv.name || inv.email);
+            res.json({ success: true, invitee: eiShape(nu) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-invites/invitees/:id/reply', auth, adminOnly, async (req, res) => {
+        try {
+            const body = String((req.body && req.body.body) || '').trim();
+            if (!body) return res.status(400).json({ error: 'Paste the reply text first.' });
+            const r = await ingestEventInviteReply({ inviteeId: req.params.id, body, source: 'manual', actor: req.user?.email || 'admin' });
+            if (!r.ok) return res.status(r.reason === 'no_invitee' ? 404 : 400).json({ error: r.reason === 'no_invitee' ? 'Invitee not found' : 'Could not log the reply.' });
+            logAudit(req, 'event-invite.invitee.reply', `${(r.invitee && (r.invitee.name || r.invitee.email)) || req.params.id} -> ${r.classification}`);
+            res.json({ success: true, ...r });
+        } catch (e) { console.error('[event-invite] reply', e.message); res.status(500).json({ error: e.message }); }
+    });
+    app.get('/api/admin/event-invites/invitees/:id/replies', auth, adminOnly, (req, res) => {
+        try { res.json({ replies: query.all("SELECT * FROM event_campaign_replies WHERE invitee_id = ? ORDER BY created_at ASC", [req.params.id]) }); }
+        catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    // GRAPH HOOK target — the Outlook/Graph connector POSTs { campaign_id, email, body, message_id }.
+    app.post('/api/admin/event-invites/replies/ingest', auth, adminOnly, async (req, res) => {
+        try {
+            const b = req.body || {};
+            const r = await ingestEventInviteReply({ inviteeId: b.invitee_id || null, campaignId: b.campaign_id || null, email: b.email || b.from || null, body: b.body || b.text || '', source: b.source || 'graph', messageId: b.message_id || b.messageId || null, actor: 'graph-connector' });
+            res.json({ success: !!r.ok, ...r });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ---- Discover people (AI search) — genuinely key-gated. NO fake candidates without a key. ----
+    app.post('/api/admin/event-invites/discover', auth, adminOnly, async (req, res) => {
+        try {
+            const brief = String((req.body && req.body.brief) || '').trim().slice(0, 800);
+            if (!brief) return res.status(400).json({ error: 'Describe who you are looking for first.' });
+            if (!process.env.ANTHROPIC_API_KEY) {
+                return res.json({
+                    gated: true, key: 'ANTHROPIC_API_KEY',
+                    title: 'Discover people with AI',
+                    message: 'This feature searches for candidate invitees from a short description and needs an AI key to run. It is switched off until one is set, so it never invents names.',
+                    owner_action: 'Set ANTHROPIC_API_KEY in the admin environment to switch AI discovery on. Import and everything else already work without it.'
+                });
+            }
+            const r = await aiDraft({
+                purpose: 'You are helping build an invitation list for a Croatian biomedical event. From the description, propose up to 8 real, plausible people who fit (senior figures in Croatian or international biomedicine — medicine, biomedical science, pharma, public health). Return ONLY a JSON array. Each element: {"name","institution","country","field","evidence"} where evidence is one short sentence on why they fit and where to verify them. No commentary before or after the JSON.',
+                context: { description: brief },
+                maxTokens: 1500
+            });
+            if (!r || r.mock || !r.text) {
+                return res.json({ gated: true, key: 'ANTHROPIC_API_KEY', title: 'Discover people with AI', message: 'The AI service did not return any suggestions this time. No names are shown rather than inventing them. Please try again in a moment.', owner_action: 'If this keeps happening, confirm ANTHROPIC_API_KEY is valid in the admin environment.' });
+            }
+            let candidates = [];
+            try {
+                const m = r.text.match(/\[[\s\S]*\]/);
+                if (m) candidates = JSON.parse(m[0]);
+            } catch (e) { candidates = []; }
+            candidates = (Array.isArray(candidates) ? candidates : []).filter(c => c && (c.name || c.institution)).slice(0, 8).map(c => ({
+                name: String(c.name || '').slice(0, 200),
+                institution: String(c.institution || '').slice(0, 200),
+                country: String(c.country || '').slice(0, 100),
+                field: String(c.field || '').slice(0, 120),
+                evidence: String(c.evidence || c.reason || '').slice(0, 400)
+            }));
+            if (!candidates.length) return res.json({ gated: true, key: 'ANTHROPIC_API_KEY', title: 'Discover people with AI', message: 'The AI reply could not be read as a candidate list this time. No names are shown rather than guessing. Please try again.', owner_action: 'If this keeps happening, confirm ANTHROPIC_API_KEY is valid in the admin environment.' });
+            logAudit(req, 'event-invite.discover', `${candidates.length} candidate(s) suggested`);
+            res.json({ gated: false, candidates });
+        } catch (e) { console.error('[event-invite] discover', e.message); res.status(500).json({ error: e.message }); }
+    });
+    // Add the reviewed discovered candidates into the campaign (this IS the verification-queue -> campaign
+    // step: the admin has looked at the evidence and chosen which to keep). Same dedupe as import.
+    app.post('/api/admin/event-invites/campaigns/:id/discover/add', auth, adminOnly, (req, res) => {
+        try {
+            const camp = eiCampaign(req.params.id);
+            if (!camp) return res.status(404).json({ error: 'Campaign not found' });
+            const list = Array.isArray(req.body && req.body.candidates) ? req.body.candidates : [];
+            if (!list.length) return res.status(400).json({ error: 'No candidates selected.' });
+            const regSet = eiRegisteredEmails(camp.event_key);
+            let added = 0; const duplicates = [];
+            for (const c of list) {
+                const name = String((c && c.name) || '').trim();
+                const email = String((c && c.email) || '').trim();
+                const institution = String((c && c.institution) || '').trim();
+                const country = String((c && c.country) || '').trim();
+                const field = String((c && c.field) || '').trim();
+                const evidence = String((c && c.evidence) || '').trim().slice(0, 400);
+                if (!name && !email) continue;
+                const emailKey = email.toLowerCase();
+                if (emailKey && regSet.has(emailKey)) { duplicates.push({ who: name || email, where: 'already registered' }); continue; }
+                let dup = null;
+                if (emailKey) dup = query.get("SELECT 1 x FROM event_campaign_invitees WHERE campaign_id = ? AND LOWER(email) = ? LIMIT 1", [camp.id, emailKey]);
+                else dup = query.get("SELECT 1 x FROM event_campaign_invitees WHERE campaign_id = ? AND LOWER(name) = ? AND LOWER(IFNULL(institution,'')) = ? LIMIT 1", [camp.id, name.toLowerCase(), institution.toLowerCase()]);
+                if (dup) { duplicates.push({ who: name || email, where: 'this campaign' }); continue; }
+                const id = require('crypto').randomUUID();
+                const hist = JSON.stringify([{ status: 'imported', at: new Date().toISOString(), note: 'Added from AI discovery' + (evidence ? ' — ' + evidence : '') }]);
+                db.run(`INSERT INTO event_campaign_invitees (id, campaign_id, name, email, institution, country, field, source, status, history_json, notes, created_by, created_at, updated_at)
+                        VALUES (?,?,?,?,?,?,?, 'AI discovery', 'imported', ?, ?, ?, datetime('now'), datetime('now'))`,
+                    [id, camp.id, name, email, institution, country, field, hist, evidence || null, req.user?.email || 'admin']);
+                added++;
+            }
+            saveDb();
+            logAudit(req, 'event-invite.discover.add', `${added} added to ${camp.name || camp.event_key}`);
+            res.json({ success: true, added, duplicates });
+        } catch (e) { console.error('[event-invite] discover.add', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+
+    // ============ AUTOMATED EVENT REMINDERS (queue 5a5) — engine + routes ============
+    // Reuses the event-invite helpers already in this closure (eiEventFacts / eiFactsHtml /
+    // eiTextToHtml / eiBtn / forumPresidentSignatureHtml / buildEmailTemplate). Reminders differ
+    // from invitations in one way that matters: the audience is not an imported list but the LIVE
+    // set of already-REGISTERED attendees (paid/confirmed states, cancelled/refunded excluded),
+    // computed at SEND time, and each touch fires against the event's real T-minus date.
+    const REMINDER_EVENT_KEYS = ['conference', 'gala', 'bridges', 'donor'];
+    const REMINDER_DEFAULT_TOUCHES = [
+        { touch_key: 't30', offset_days: 30 },
+        { touch_key: 't14', offset_days: 14 },
+        { touch_key: 't7',  offset_days: 7 }
+    ];
+    function remSequence(id){ try { return query.get("SELECT * FROM reminder_sequences WHERE id = ?", [id]) || null; } catch (e) { return null; } }
+    function remTouches(seqId){ try { return query.all("SELECT * FROM reminder_touches WHERE sequence_id = ? ORDER BY offset_days DESC, sort_order ASC", [seqId]); } catch (e) { return []; } }
+    function remIsCroatian(person){ return !!(person && person.hr); }
+    // The event's real anchor date (ISO) for the T-minus cadence. Null = cannot compute yet (e.g.
+    // Building Bridges is still "to be announced") -> the tick stages nothing and says so.
+    function reminderEventDate(eventKey){
+        const ok = (v) => /^\d{4}-\d{2}-\d{2}/.test(String(v || '')) ? String(v).slice(0, 10) : null;
+        try {
+            if (eventKey === 'conference') { const c = query.get("SELECT start_date FROM conferences WHERE slug = 'plexus-2026'") || {}; return ok(c.start_date); }
+            if (eventKey === 'gala')       { const g = query.get("SELECT date FROM gala_settings WHERE id = 'default'") || {}; return ok(g.date); }
+            if (eventKey === 'bridges')    { const b = query.get("SELECT event_date FROM bridges_events WHERE slug = 'building-bridges'") || {}; return ok(b.event_date); }
+            if (eventKey === 'donor')      { const d = query.get("SELECT event_date FROM bridges_events WHERE slug = 'donor-night'") || {}; return ok(d.event_date); }
+        } catch (e) {}
+        return null;
+    }
+    function remCountryHr(c){ c = String(c || '').toLowerCase(); return c.includes('croatia') || c.includes('hrvatska') || c === 'hr'; }
+    // Locale hint from the member's own users row (locale, then country). null = unknown.
+    function remHrByEmail(email){
+        try {
+            const u = query.get("SELECT country, locale FROM users WHERE LOWER(email) = LOWER(?)", [email]);
+            if (u) {
+                if (String(u.locale || '').toLowerCase().startsWith('hr')) return true;
+                if (remCountryHr(u.country)) return true;
+                if (u.country) return false;
+            }
+        } catch (e) {}
+        return null;
+    }
+    // Audience = REGISTERED attendees in paid/confirmed states (cancelled/refunded/rejected
+    // excluded), deduped by email, computed AT SEND TIME. Locale: the member's users row first,
+    // then the registration's country, else English.
+    function reminderAudience(eventKey){
+        const seen = new Set(); const out = [];
+        const add = (email, first, last, country, paid) => {
+            const e = String(email || '').trim(); const key = e.toLowerCase();
+            if (!key || key.endsWith('@medx.local') || seen.has(key)) return;
+            seen.add(key);
+            let hr = remHrByEmail(e); if (hr === null) hr = remCountryHr(country);
+            out.push({ email: e, name: [first, last].filter(Boolean).join(' ').trim(), hr: !!hr, paid: !!paid });
+        };
+        try {
+            if (eventKey === 'conference') {
+                // LEFT JOIN users so member-portal registrations (the frozen POST /api/registrations
+                // stores user_id and leaves registrations.email NULL) are reached via the member's own
+                // account email/name/country. COALESCE preserves admin/import rows that already carry them.
+                query.all(`SELECT COALESCE(r.email, u.email) AS email,
+                             COALESCE(r.first_name, u.first_name) AS first_name,
+                             COALESCE(r.last_name, u.last_name) AS last_name,
+                             COALESCE(r.country, u.country) AS country,
+                             r.status AS status, r.payment_status AS payment_status
+                    FROM registrations r LEFT JOIN users u ON r.user_id = u.id
+                    WHERE COALESCE(r.email, u.email) IS NOT NULL AND TRIM(COALESCE(r.email, u.email)) <> '' AND COALESCE(r.email, u.email) NOT LIKE '%@medx.local'
+                      AND COALESCE(LOWER(r.status),'') NOT IN ('cancelled','canceled','refunded','rejected','declined','void')
+                      AND COALESCE(LOWER(r.payment_status),'') NOT IN ('refunded','cancelled','canceled','chargeback','voided')
+                      AND (COALESCE(LOWER(r.payment_status),'') IN ('paid','comp','free','confirmed','waived','complimentary')
+                           OR COALESCE(LOWER(r.status),'') IN ('confirmed','approved','paid','comp','free','registered'))`)
+                    .forEach(r => add(r.email, r.first_name, r.last_name, r.country, String(r.payment_status || '').toLowerCase() === 'paid'));
+            } else if (eventKey === 'gala') {
+                query.all(`SELECT email, first_name, last_name, status, payment_status FROM gala_registrations
+                    WHERE email IS NOT NULL AND TRIM(email) <> '' AND email NOT LIKE '%@medx.local'
+                      AND COALESCE(LOWER(status),'') IN ('confirmed','approved','paid')
+                      AND COALESCE(LOWER(payment_status),'') NOT IN ('refunded','cancelled','canceled','chargeback','voided')`)
+                    .forEach(r => add(r.email, r.first_name, r.last_name, null, String(r.payment_status || '').toLowerCase() === 'paid'));
+            } else if (eventKey === 'bridges' || eventKey === 'donor') {
+                const slug = eventKey === 'donor' ? 'donor-night' : 'building-bridges';
+                query.all(`SELECT br.email AS email, br.first_name AS first_name, br.last_name AS last_name FROM bridges_registrations br
+                    LEFT JOIN bridges_events be ON br.event_id = be.id
+                    WHERE br.email IS NOT NULL AND TRIM(br.email) <> '' AND br.email NOT LIKE '%@medx.local'
+                      AND COALESCE(be.slug,'') = ?
+                      AND COALESCE(LOWER(br.status),'') NOT IN ('cancelled','canceled','refunded','rejected','declined','void')`, [slug])
+                    .forEach(r => add(r.email, r.first_name, r.last_name, null, false));
+            }
+        } catch (e) {}
+        return out;
+    }
+    // Default bilingual copy per touch (formal Vi, no semicolons in member-facing strings).
+    function remDefaultTouchContent(touchKey, facts){
+        const nm = (facts && facts.name) || 'the event';
+        const map = {
+            t30: {
+                subject: `We are excited to welcome you to ${nm}`,
+                subject_hr: `Radujemo se što ćemo Vas ugostiti na ${nm}`,
+                body: `We are so glad you will be with us at ${nm}. A warm welcome is waiting for you, and over the coming weeks we will share everything you need so the day feels effortless. For now, simply save the date and know that your place is reserved.`,
+                body_hr: `Veliko nam je zadovoljstvo što ćete biti s nama na ${nm}. Čeka Vas srdačna dobrodošlica, a u nadolazećim tjednima poslat ćemo Vam sve potrebno kako bi Vam dan protekao bez ijedne brige. Za sada samo zabilježite datum, Vaše je mjesto rezervirano.`
+            },
+            t14: {
+                subject: `The latest on ${nm}`,
+                subject_hr: `Najnovije o događaju ${nm}`,
+                body: `${nm} is drawing near, and we wanted to share the latest with you. The programme is taking its final shape and a few moments are well worth looking forward to. Do keep an eye on your inbox over the coming days, as we will send the practical details for the day itself.`,
+                body_hr: `${nm} se približava, pa smo Vam željeli prenijeti najnovije. Program dobiva svoj konačni oblik, a nekoliko se trenutaka posebno isplati iščekivati. Pratite svoj sandučić idućih dana jer ćemo Vam poslati praktične pojedinosti za sam dan.`
+            },
+            t7: {
+                subject: `See you very soon at ${nm}`,
+                subject_hr: `Vidimo se uskoro na događaju ${nm}`,
+                body: `Only a few days remain until ${nm}, and we cannot wait to see you. Below you will find the practical details for the day, the venue, the date, and the times, so you arrive with everything in hand. If something quite extraordinary means you can no longer attend, please tell us, so we may hold your place with care or offer it to someone on our list.`,
+                body_hr: `Do događaja ${nm} ostalo je još samo nekoliko dana i jedva čekamo da Vas vidimo. U nastavku se nalaze praktične pojedinosti za taj dan, mjesto, datum i vremena, kako biste stigli posve spremni. Ako Vas nešto posve izvanredno spriječi da nam se pridružite, molimo da nam to javite, kako bismo Vaše mjesto sačuvali s pažnjom ili ga ponudili nekome s naše liste.`
+            }
+        };
+        return map[touchKey] || map.t7;
+    }
+    // The dignified non-refundable small-print, in each reminder footer.
+    function remFineprint(hr){
+        const txt = hr
+            ? 'Kratka napomena: prijave na Med&X događaje ne podliježu povratu sredstava. Ako se Vaši planovi promijene, slobodno nam pišite i pomoći ćemo koliko god možemo.'
+            : 'A gentle note: registrations for Med&X events are non-refundable. Should your plans change, do write to us and we will help however we can.';
+        return `<p style="margin-top:26px;padding-top:14px;border-top:1px solid #ece5da;color:#8a7f6f;font-size:12px;line-height:1.6;">${nagEscape(txt)}</p>`;
+    }
+    // Reminders present a slimmer facts block than invitations. The recipient has already registered
+    // (often paid), so the invitation's Attendance/price row is dropped entirely, and the date is
+    // rendered in the recipient's language — Croatian in the genitive case via the same formatter the
+    // offline composer uses. Event name and venue are proper nouns and pass through unchanged.
+    function remFactsDate(eventKey, hr, enFallback){
+        if (!hr) return enFallback || '';
+        try {
+            if (eventKey === 'conference') {
+                const c = query.get("SELECT start_date, end_date FROM conferences WHERE slug = 'plexus-2026'") || {};
+                if (c.start_date) return aiInboxFmtDateRange(c.start_date, c.end_date || c.start_date, true);
+            } else {
+                const iso = reminderEventDate(eventKey);
+                if (iso) return aiInboxFmtDate(iso, true);
+            }
+        } catch (e) {}
+        return '';
+    }
+    function remFactsHtml(facts, hr){
+        const rows = [
+            [hr ? 'Događaj' : 'Event', facts.name],
+            [hr ? 'Datum' : 'Date', remFactsDate(facts.key, hr, facts.date)],
+            [hr ? 'Mjesto' : 'Venue', facts.venue]
+        ].filter(r => r[1]);
+        if (!rows.length) return '';
+        return `<table role="presentation" style="width:100%;border-collapse:collapse;margin:18px 0;background:#faf7f2;border:1px solid #ece5da;border-radius:6px;">` +
+            rows.map(r => `<tr><td style="padding:8px 14px;color:#8a7f6f;font-size:12px;letter-spacing:.04em;text-transform:uppercase;width:120px;">${nagEscape(r[0])}</td><td style="padding:8px 14px;color:#2b2b2b;font-size:14px;font-weight:600;">${nagEscape(String(r[1]))}</td></tr>`).join('') +
+            `</table>`;
+    }
+    function remTouchSubjectBody(touch, hr, facts){
+        const def = remDefaultTouchContent(touch.touch_key, facts);
+        const subject = (hr ? (touch.subject_hr || touch.subject) : (touch.subject || touch.subject_hr)) || (hr ? def.subject_hr : def.subject);
+        const bodyText = (hr ? (touch.body_html_hr || touch.body_html) : (touch.body_html || touch.body_html_hr)) || (hr ? def.body_hr : def.body);
+        return { subject, bodyText };
+    }
+    function remBuildTouch(person, seq, touch, facts){
+        const hr = remIsCroatian(person);
+        const nm = String((person && person.name) || '').trim();
+        const sb = remTouchSubjectBody(touch, hr, facts);
+        const cta = String(seq.cta_url || (facts && facts.url) || userPortalBase()).trim();
+        const ctaLabel = hr ? 'Otvorite pojedinosti događaja' : 'Open the event details';
+        // Reminders carry their OWN facts block (remFactsHtml): the registrant has already paid, so it
+        // drops the invitation's Attendance/price row and renders the date in the recipient's language.
+        const factsHtml = (touch.touch_key === 't7') ? remFactsHtml(facts, hr) : '';
+        // A named recipient is greeted personally; a nameless one gets the full collegial greeting with
+        // no doubled honorific prefix ("Poštovani kolega," / "Dear colleague,").
+        const greeting = nm
+            ? (hr ? `<p>Poštovani/poštovana ${nagEscape(nm)},</p>` : `<p>Dear ${nagEscape(nm)},</p>`)
+            : (hr ? `<p>Poštovani kolega,</p>` : `<p>Dear colleague,</p>`);
+        // The non-refundable small-print applies only to a registrant who has actually paid — a held
+        // (approved/confirmed but unpaid), comp, free, or free-event seat has nothing non-refundable.
+        const fineprint = (person && person.paid) ? remFineprint(hr) : '';
+        const body = `${greeting}${eiTextToHtml(sb.bodyText)}${factsHtml}<div style="text-align:center;margin:26px 0;"><a href="${nagEscape(cta)}" style="${eiBtn()}">${ctaLabel}</a></div>${forumPresidentSignatureHtml(hr)}${fineprint}`;
+        return { subject: sb.subject, html: buildEmailTemplate(sb.subject, body) };
+    }
+    // Choose the ONE touch whose T-minus window currently contains daysUntil, so a late-approved
+    // sequence never blasts all three at once and each attendee only ever gets the timely touch.
+    // Windows (touches sorted 30/14/7): T-30 = (14,30], T-14 = (7,14], T-7 = [0,7].
+    function remActiveTouch(touches, daysUntil){
+        const ts = touches.slice().sort((a, b) => Number(b.offset_days) - Number(a.offset_days));
+        for (let i = 0; i < ts.length; i++) {
+            const upper = Number(ts[i].offset_days);
+            const lower = (i + 1 < ts.length) ? Number(ts[i + 1].offset_days) : -1;
+            if (daysUntil <= upper && daysUntil > lower) return ts[i];
+        }
+        return null;
+    }
+    function remTouchSentCount(eventKey, touchKey){ try { return query.get("SELECT COUNT(*) c FROM drip_log WHERE user_id = 'event-reminder' AND kind LIKE ?", ['reminder:' + eventKey + ':' + touchKey + ':%']).c || 0; } catch (e) { return 0; } }
+    // Seed the default 3-touch cadence for a new sequence (idempotent — never re-seeds).
+    function remEnsureTouches(seqId, facts){
+        const existing = remTouches(seqId);
+        if (existing.length) return existing;
+        REMINDER_DEFAULT_TOUCHES.forEach((d) => {
+            const def = remDefaultTouchContent(d.touch_key, facts || {});
+            db.run(`INSERT INTO reminder_touches (id, sequence_id, touch_key, offset_days, sort_order, enabled, subject, subject_hr, body_html, body_html_hr, created_at, updated_at)
+                    VALUES (?,?,?,?,?,1,?,?,?,?, datetime('now'), datetime('now'))`,
+                [require('crypto').randomUUID(), seqId, d.touch_key, d.offset_days, d.offset_days, def.subject, def.subject_hr, def.body, def.body_hr]);
+        });
+        saveDb();
+        return remTouches(seqId);
+    }
+    function remTouchLabel(touchKey, offset){ const n = Number(offset); return 'T-' + (isFinite(n) ? n : String(touchKey).replace(/^t/, '')); }
+    function remSequenceShape(seq){
+        const facts = eiEventFacts()[seq.event_key] || { key: seq.event_key, name: seq.event_key };
+        const eventDate = reminderEventDate(seq.event_key);
+        const today = new Date().toISOString().slice(0, 10);
+        const daysUntil = eventDate ? Math.round((Date.parse(eventDate + 'T00:00:00Z') - Date.parse(today + 'T00:00:00Z')) / 86400000) : null;
+        const enabledTouches = [];
+        const touches = remTouches(seq.id).map(t => {
+            const sendDate = eventDate ? new Date(Date.parse(eventDate + 'T00:00:00Z') - Number(t.offset_days) * 86400000).toISOString().slice(0, 10) : null;
+            const shaped = {
+                id: t.id, touch_key: t.touch_key, label: remTouchLabel(t.touch_key, t.offset_days), offset_days: t.offset_days,
+                enabled: !!t.enabled, subject: t.subject, subject_hr: t.subject_hr, body_html: t.body_html, body_html_hr: t.body_html_hr,
+                send_date: sendDate, sent_count: remTouchSentCount(seq.event_key, t.touch_key)
+            };
+            if (shaped.enabled) enabledTouches.push({ offset_days: t.offset_days, touch_key: t.touch_key, send_date: sendDate });
+            return shaped;
+        });
+        const active = (daysUntil == null) ? null : remActiveTouch(enabledTouches, daysUntil);
+        const upcoming = enabledTouches.filter(t => t.send_date && t.send_date >= today).sort((a, b) => a.send_date < b.send_date ? -1 : 1);
+        let nextTouch = null;
+        if (active) nextTouch = { touch_key: active.touch_key, label: remTouchLabel(active.touch_key, active.offset_days), send_date: active.send_date, when: 'due' };
+        else if (upcoming.length) nextTouch = { touch_key: upcoming[0].touch_key, label: remTouchLabel(upcoming[0].touch_key, upcoming[0].offset_days), send_date: upcoming[0].send_date, when: 'scheduled' };
+        return { ...seq, event: facts, event_date: eventDate, days_until: daysUntil, audience_count: reminderAudience(seq.event_key).length, sent_total: touches.reduce((s, t) => s + (t.sent_count || 0), 0), touches, active_touch: active ? active.touch_key : null, next_touch: nextTouch };
+    }
+    // ---- The daily tick: stage the ONE due touch to the live audience, idempotent per calendar
+    // day (per sequence) and per attendee+touch (drip_log). Kill switch = status !== 'approved'.
+    async function runReminderTick(sequenceId, opts){
+        opts = opts || {};
+        const actor = opts.actor || 'scheduler';
+        const seq = remSequence(sequenceId);
+        if (!seq) return { ran: false, reason: 'no_sequence', sent: 0 };
+        if (seq.status !== 'approved') return { ran: false, reason: 'not_approved', status: seq.status, sent: 0 };
+        const eventDate = reminderEventDate(seq.event_key);
+        if (!eventDate) return { ran: false, reason: 'no_event_date', sent: 0 };
+        const asOf = (opts.asOf && /^\d{4}-\d{2}-\d{2}/.test(String(opts.asOf))) ? String(opts.asOf).slice(0, 10) : new Date().toISOString().slice(0, 10);
+        const daysUntil = Math.round((Date.parse(eventDate + 'T00:00:00Z') - Date.parse(asOf + 'T00:00:00Z')) / 86400000);
+        const dayKey = 'reminder_tick:' + seq.id + ':' + asOf;
+        const markDay = () => { try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'event-reminder', NULL, ?)", [require('crypto').randomUUID(), dayKey]); } catch (e) {} };
+        if (!opts.force && query.get("SELECT 1 x FROM drip_log WHERE user_id = 'event-reminder' AND kind = ?", [dayKey])) return { ran: false, reason: 'already_ran_today', sent: 0, days_until: daysUntil };
+        if (daysUntil < 0) { markDay(); db.run("UPDATE reminder_sequences SET last_tick_at = datetime('now'), updated_at = datetime('now') WHERE id = ?", [seq.id]); saveDb(); return { ran: false, reason: 'event_passed', sent: 0, days_until: daysUntil }; }
+        const touches = remTouches(seq.id).filter(t => !!t.enabled);
+        const active = remActiveTouch(touches, daysUntil);
+        if (!active) { markDay(); db.run("UPDATE reminder_sequences SET last_tick_at = datetime('now'), updated_at = datetime('now') WHERE id = ?", [seq.id]); saveDb(); return { ran: true, sent: 0, reason: 'no_active_touch', touch: null, days_until: daysUntil }; }
+        const facts = eiEventFacts()[seq.event_key] || { key: seq.event_key, name: seq.event_key };
+        const audience = reminderAudience(seq.event_key);
+        const batchId = 'eventreminder-' + seq.id.slice(0, 8) + '-' + active.touch_key + '-' + asOf + '-' + require('crypto').randomUUID().slice(0, 6);
+        let sent = 0; const names = [];
+        for (const person of audience) {
+            const dripKey = 'reminder:' + seq.event_key + ':' + active.touch_key + ':' + person.email.toLowerCase();
+            if (query.get("SELECT 1 x FROM drip_log WHERE user_id = 'event-reminder' AND kind = ?", [dripKey])) continue;
+            const mail = remBuildTouch(person, seq, active, facts);
+            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, approved_by, created_by, created_at)
+                    VALUES (?, 'scheduled', ?, 'event-reminder', 'event_reminder', ?, ?, ?, 'event-reminder (auto)', ?, datetime('now'))`,
+                [require('crypto').randomUUID(), batchId, JSON.stringify({ to: person.email, subject: mail.subject, html: mail.html, from: seq.sender_from || 'president@medx.hr', reply_to: seq.reply_to || 'alen_juginovic@hms.harvard.edu' }), person.email, mail.subject, actor]);
+            try { db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'event-reminder', ?, ?)", [require('crypto').randomUUID(), person.email, dripKey]); } catch (e) {}
+            sent++; names.push(person.name || person.email);
+        }
+        markDay();
+        db.run("UPDATE reminder_sequences SET last_tick_at = datetime('now'), updated_at = datetime('now') WHERE id = ?", [seq.id]);
+        saveDb();
+        return { ran: true, sent, touch: active.touch_key, label: remTouchLabel(active.touch_key, active.offset_days), days_until: daysUntil, audience: audience.length, batch_id: sent ? batchId : null, names };
+    }
+    // Daily auto-runner over every APPROVED sequence (idempotent per calendar day via drip_log).
+    async function runDueReminders(){
+        let seqs = []; try { seqs = query.all("SELECT id FROM reminder_sequences WHERE status = 'approved'"); } catch (e) { return; }
+        for (const s of seqs) { try { await runReminderTick(s.id, { actor: 'scheduler' }); } catch (e) {} }
+    }
+    setInterval(() => { runDueReminders().catch(() => {}); }, 24 * 60 * 60 * 1000);
+
+    // -------------------------------- REMINDER ROUTES --------------------------------
+    app.get('/api/admin/event-reminders/catalog', auth, adminOnly, (req, res) => {
+        try {
+            const facts = eiEventFacts();
+            const events = REMINDER_EVENT_KEYS.map(k => ({ ...facts[k], event_date: reminderEventDate(k) }));
+            res.json({ events, sender_default: 'president@medx.hr', reply_to_default: 'alen_juginovic@hms.harvard.edu', touches: REMINDER_DEFAULT_TOUCHES });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.get('/api/admin/event-reminders/sequences', auth, adminOnly, (req, res) => {
+        try {
+            const rows = query.all("SELECT * FROM reminder_sequences ORDER BY created_at DESC");
+            res.json({ sequences: rows.map(remSequenceShape), events: REMINDER_EVENT_KEYS.map(k => ({ ...eiEventFacts()[k], event_date: reminderEventDate(k) })) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-reminders/sequences', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const eventKey = String(b.event_key || '').trim();
+            if (!REMINDER_EVENT_KEYS.includes(eventKey)) return res.status(400).json({ error: 'Pick a valid event.' });
+            const existing = query.get("SELECT id FROM reminder_sequences WHERE event_key = ?", [eventKey]);
+            if (existing) return res.status(400).json({ error: 'A reminder sequence already exists for this event.', id: existing.id });
+            const facts = eiEventFacts()[eventKey] || { name: eventKey };
+            const id = require('crypto').randomUUID();
+            const name = String(b.name || '').trim() || ((facts.name || eventKey) + ' — reminders');
+            db.run(`INSERT INTO reminder_sequences (id, event_key, name, sender_from, reply_to, cta_url, status, created_by)
+                    VALUES (?,?,?, 'president@medx.hr', 'alen_juginovic@hms.harvard.edu', ?, 'draft', ?)`,
+                [id, eventKey, name, facts.url || null, req.user?.email || 'admin']);
+            remEnsureTouches(id, facts);
+            saveDb();
+            logAudit(req, 'event-reminder.create', `${name} (${eventKey})`);
+            res.json({ success: true, sequence: remSequenceShape(remSequence(id)) });
+        } catch (e) { console.error('[event-reminder] create', e.message); res.status(500).json({ error: e.message }); }
+    });
+    app.get('/api/admin/event-reminders/sequences/:id', auth, adminOnly, (req, res) => {
+        try {
+            const seq = remSequence(req.params.id);
+            if (!seq) return res.status(404).json({ error: 'Sequence not found' });
+            res.json({ sequence: remSequenceShape(seq) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.put('/api/admin/event-reminders/sequences/:id', auth, adminOnly, (req, res) => {
+        try {
+            const seq = remSequence(req.params.id);
+            if (!seq) return res.status(404).json({ error: 'Sequence not found' });
+            const b = req.body || {};
+            const sets = []; const vals = [];
+            const fields = { name: 'name', sender_from: 'sender_from', reply_to: 'reply_to', cta_url: 'cta_url' };
+            for (const [k, col] of Object.entries(fields)) { if (b[k] !== undefined) { sets.push(col + ' = ?'); vals.push(String(b[k]).trim() || null); } }
+            if (!sets.length) return res.json({ success: true, sequence: remSequenceShape(seq) });
+            vals.push(seq.id);
+            db.run(`UPDATE reminder_sequences SET ${sets.join(', ')}, updated_at = datetime('now') WHERE id = ?`, vals);
+            saveDb();
+            res.json({ success: true, sequence: remSequenceShape(remSequence(seq.id)) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.put('/api/admin/event-reminders/sequences/:id/touches/:touchId', auth, adminOnly, (req, res) => {
+        try {
+            const seq = remSequence(req.params.id);
+            if (!seq) return res.status(404).json({ error: 'Sequence not found' });
+            const touch = query.get("SELECT * FROM reminder_touches WHERE id = ? AND sequence_id = ?", [req.params.touchId, seq.id]);
+            if (!touch) return res.status(404).json({ error: 'Touch not found' });
+            const b = req.body || {};
+            const sets = []; const vals = [];
+            if (b.subject !== undefined) { sets.push('subject = ?'); vals.push(String(b.subject).trim() || null); }
+            if (b.subject_hr !== undefined) { sets.push('subject_hr = ?'); vals.push(String(b.subject_hr).trim() || null); }
+            if (b.body_html !== undefined) { sets.push('body_html = ?'); vals.push(String(b.body_html).trim() || null); }
+            if (b.body_html_hr !== undefined) { sets.push('body_html_hr = ?'); vals.push(String(b.body_html_hr).trim() || null); }
+            if (b.enabled !== undefined) { sets.push('enabled = ?'); vals.push(b.enabled ? 1 : 0); }
+            if (b.offset_days !== undefined) { const n = Math.max(0, Math.min(365, parseInt(b.offset_days, 10) || 0)); sets.push('offset_days = ?'); vals.push(n); }
+            if (!sets.length) return res.json({ success: true, sequence: remSequenceShape(seq) });
+            vals.push(touch.id);
+            db.run(`UPDATE reminder_touches SET ${sets.join(', ')}, updated_at = datetime('now') WHERE id = ?`, vals);
+            saveDb();
+            res.json({ success: true, sequence: remSequenceShape(remSequence(seq.id)) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-reminders/sequences/:id/approve', auth, adminOnly, (req, res) => {
+        try {
+            const seq = remSequence(req.params.id);
+            if (!seq) return res.status(404).json({ error: 'Sequence not found' });
+            db.run("UPDATE reminder_sequences SET status = 'approved', approved_by = ?, approved_at = datetime('now'), updated_at = datetime('now') WHERE id = ?", [req.user?.email || 'admin', seq.id]);
+            saveDb();
+            logAudit(req, 'event-reminder.approve', `${seq.name || seq.event_key}`);
+            res.json({ success: true, sequence: remSequenceShape(remSequence(seq.id)) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-reminders/sequences/:id/pause', auth, adminOnly, (req, res) => {
+        try {
+            const seq = remSequence(req.params.id);
+            if (!seq) return res.status(404).json({ error: 'Sequence not found' });
+            db.run("UPDATE reminder_sequences SET status = 'paused', updated_at = datetime('now') WHERE id = ?", [seq.id]);
+            // Kill switch = immediate stop-all: recall this sequence's still-scheduled reminder emails so a
+            // batch staged seconds before the pause never leaves the outbox, and clear their drip marks so a
+            // later resume can cleanly re-stage them (mirrors the accelerator revert precedent above).
+            let recalled = 0;
+            try {
+                const batchPrefix = 'eventreminder-' + seq.id.slice(0, 8) + '-';
+                const staged = query.all("SELECT id, recipient_email, batch_id FROM scheduled_emails WHERE source_engine = 'event-reminder' AND status = 'scheduled' AND batch_id LIKE ?", [batchPrefix + '%']);
+                for (const row of staged) {
+                    const touchKey = String(row.batch_id || '').split('-')[2] || '';
+                    db.run("UPDATE scheduled_emails SET status = 'cancelled' WHERE id = ?", [row.id]);
+                    if (touchKey && row.recipient_email) db.run("DELETE FROM drip_log WHERE user_id = 'event-reminder' AND kind = ?", ['reminder:' + seq.event_key + ':' + touchKey + ':' + String(row.recipient_email).toLowerCase()]);
+                    recalled++;
+                }
+                if (recalled) db.run("DELETE FROM drip_log WHERE user_id = 'event-reminder' AND kind LIKE ?", ['reminder_tick:' + seq.id + ':%']);
+            } catch (e) {}
+            saveDb();
+            logAudit(req, 'event-reminder.pause', `${seq.name || seq.event_key}${recalled ? ' (' + recalled + ' recalled)' : ''}`);
+            res.json({ success: true, recalled, sequence: remSequenceShape(remSequence(seq.id)) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/admin/event-reminders/sequences/:id/resume', auth, adminOnly, (req, res) => {
+        try {
+            const seq = remSequence(req.params.id);
+            if (!seq) return res.status(404).json({ error: 'Sequence not found' });
+            db.run("UPDATE reminder_sequences SET status = 'approved', approved_by = COALESCE(approved_by, ?), approved_at = COALESCE(approved_at, datetime('now')), updated_at = datetime('now') WHERE id = ?", [req.user?.email || 'admin', seq.id]);
+            saveDb();
+            logAudit(req, 'event-reminder.resume', `${seq.name || seq.event_key}`);
+            res.json({ success: true, sequence: remSequenceShape(remSequence(seq.id)) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.delete('/api/admin/event-reminders/sequences/:id', auth, adminOnly, (req, res) => {
+        try {
+            const seq = remSequence(req.params.id);
+            if (!seq) return res.status(404).json({ error: 'Sequence not found' });
+            db.run("DELETE FROM reminder_touches WHERE sequence_id = ?", [seq.id]);
+            db.run("DELETE FROM reminder_sequences WHERE id = ?", [seq.id]);
+            saveDb();
+            logAudit(req, 'event-reminder.delete', `${seq.name || seq.event_key}`);
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    // Run the due touch now. Optional as_of (YYYY-MM-DD) shifts the reference date for a simulated
+    // or catch-up run — every send stays approval-gated, audience-filtered, and drip-idempotent.
+    app.post('/api/admin/event-reminders/sequences/:id/run', auth, adminOnly, async (req, res) => {
+        try {
+            const seq = remSequence(req.params.id);
+            if (!seq) return res.status(404).json({ error: 'Sequence not found' });
+            const b = req.body || {};
+            const result = await runReminderTick(seq.id, { actor: (req.user?.email || 'admin') + ' (manual)', asOf: b.as_of, force: !!b.force });
+            logAudit(req, 'event-reminder.run', `${seq.name || seq.event_key}: ${result.sent || 0} staged (${result.touch || result.reason || '—'})`);
+            res.json({ success: true, result, sequence: remSequenceShape(remSequence(seq.id)) });
+        } catch (e) { console.error('[event-reminder] run', e.message); res.status(500).json({ error: e.message }); }
+    });
+    // Render one touch to HTML for the live preview iframe (no send).
+    app.post('/api/admin/event-reminders/sequences/:id/preview', auth, adminOnly, (req, res) => {
+        try {
+            const seq = remSequence(req.params.id);
+            if (!seq) return res.status(404).json({ error: 'Sequence not found' });
+            const b = req.body || {};
+            const touchKey = String(b.touch_key || 't7');
+            let touch = query.get("SELECT * FROM reminder_touches WHERE sequence_id = ? AND touch_key = ?", [seq.id, touchKey]) || remTouches(seq.id)[0];
+            if (!touch) return res.status(400).json({ error: 'No touch to preview.' });
+            // Live-edit preview: honor unsaved fields from the editor if provided.
+            touch = { ...touch };
+            ['subject', 'subject_hr', 'body_html', 'body_html_hr'].forEach(f => { if (b[f] !== undefined) touch[f] = b[f]; });
+            const hr = String(b.lang || '').toLowerCase() === 'hr';
+            const facts = eiEventFacts()[seq.event_key] || { key: seq.event_key, name: seq.event_key };
+            const person = { name: hr ? 'Ana Marić' : 'Alex Carter', hr, paid: true };
+            const mail = remBuildTouch(person, seq, touch, facts);
+            res.json({ success: true, subject: mail.subject, html: mail.html });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    // A small live sample of the current send audience (for the panel's confidence line).
+    app.get('/api/admin/event-reminders/sequences/:id/audience', auth, adminOnly, (req, res) => {
+        try {
+            const seq = remSequence(req.params.id);
+            if (!seq) return res.status(404).json({ error: 'Sequence not found' });
+            const list = reminderAudience(seq.event_key);
+            res.json({ count: list.length, hr: list.filter(p => p.hr).length, en: list.filter(p => !p.hr).length, sample: list.slice(0, 8).map(p => ({ name: p.name, email: p.email, lang: p.hr ? 'HR' : 'EN' })) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
     // ============ THE BIOMEDICAL FORUM — convening reservations (read-only) ============
     // The visible-in-admin half of the wing's one-click segment reservation flow. These are the
     // Forum's OWN convenings (forum_convenings / forum_reservations), distinct from forum_events and
@@ -30258,8 +31508,8 @@ app.get('*', (req, res) => {
             } catch (e) { return; }
             if (!due || !due.length) return;
             let changed = false;
-            const trySend = async (to, subject, html, atts, replyTo) => {
-                try { return await sendEmail(to, subject, html, atts, replyTo); }
+            const trySend = async (to, subject, html, atts, replyTo, fromOverride) => {
+                try { return await sendEmail(to, subject, html, atts, replyTo, fromOverride); }
                 catch (e) { return { success: false, error: e.message }; }
             };
             for (const row of due) {
@@ -30303,9 +31553,10 @@ app.get('*', (req, res) => {
                         .filter(a => a.filename && a.content && a.content.length);
                 }
                 const _replyTo = payload.reply_to || null;
-                let result = await trySend(to, subject, html, _atts, _replyTo);
+                const _from = payload.from || null;
+                let result = await trySend(to, subject, html, _atts, _replyTo, _from);
                 let attempts = 1;
-                if (!(result && result.success !== false)) { result = await trySend(to, subject, html, _atts, _replyTo); attempts = 2; } // retry once
+                if (!(result && result.success !== false)) { result = await trySend(to, subject, html, _atts, _replyTo, _from); attempts = 2; } // retry once
                 const ok = result && result.success !== false;
                 if (ok) {
                     try {
