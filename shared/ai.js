@@ -3,13 +3,15 @@
 /**
  * shared/ai.js — one AI drafting primitive shared by both MedX portals.
  *
- *   aiDraft({ purpose, context, maxTokens }) -> Promise<{ text, mock }>
+ *   aiDraft({ purpose, context, maxTokens }) -> Promise<{ text, mock, mock_reason }>
  *
  * When ANTHROPIC_API_KEY is set it calls the Anthropic Messages API
  * (claude-haiku-4-5 by default — cheap) via fetch. When the key is absent
  * (dev) OR the call fails/times out OR the in-process rate limit is hit, it
- * returns a deterministic mock draft clearly prefixed '[Draft]', built from the
- * context fields, so downstream flows stay testable with zero live sends.
+ * returns { text: '', mock: true, mock_reason } with an EMPTY body, so every
+ * caller falls through to its own clean deterministic fallback instead of
+ * printing an internal placeholder. mock_reason (no_key, rate_limited,
+ * http_error, timeout, empty) lets a UI badge template mode without a body.
  *
  * Contract for callers: aiDraft NEVER throws and NEVER blocks longer than the
  * 8s timeout — it always resolves to { text, mock }. Drafts are advisory text
@@ -61,20 +63,30 @@ function _contextLines(context) {
     return String(context);
 }
 
-/** Deterministic offline draft. Always prefixed '[Draft]'. */
-function mockDraft(purpose, context) {
-    const head = '[Draft] ' + (purpose ? String(purpose).trim() : 'Draft');
-    const lines = _contextLines(context);
-    return lines ? `${head}\n\n${lines}` : head;
+/**
+ * Offline draft body. Returns an EMPTY string by design: callers pair aiDraft
+ * with their own clean deterministic fallback (an `if (!text)` or `!r.mock`
+ * guard), and a non-empty mock here would shadow that fallback and leak an
+ * internal dump into owner-facing or member-facing text. The mock signal
+ * travels on { mock, mock_reason } instead, so a UI can badge template mode
+ * without ever printing a placeholder body.
+ */
+function mockDraft() {
+    return '';
+}
+
+// Standard mock result: no body text, plus a machine-readable reason for the fallback.
+function _mock(reason) {
+    return { text: '', mock: true, mock_reason: reason };
 }
 
 async function aiDraft({ purpose, context, maxTokens } = {}) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     const max_tokens = Math.max(64, Math.min(Number(maxTokens) || 600, 4096));
 
-    // No key (dev) OR over the rate limit -> deterministic mock, clearly prefixed.
+    // No key (dev) OR over the rate limit -> empty mock so the caller's clean fallback fires.
     if (!apiKey || !_rateOk()) {
-        return { text: mockDraft(purpose, context), mock: true };
+        return _mock(apiKey ? 'rate_limited' : 'no_key');
     }
 
     const controller = new AbortController();
@@ -103,7 +115,7 @@ async function aiDraft({ purpose, context, maxTokens } = {}) {
             signal: controller.signal,
         });
         if (!resp.ok) {
-            return { text: mockDraft(purpose, context), mock: true };
+            return _mock('http_error');
         }
         const data = await resp.json();
         const text = (data && Array.isArray(data.content) ? data.content : [])
@@ -111,11 +123,11 @@ async function aiDraft({ purpose, context, maxTokens } = {}) {
             .map((b) => b.text)
             .join('\n')
             .trim();
-        if (!text) return { text: mockDraft(purpose, context), mock: true };
+        if (!text) return _mock('empty');
         return { text, mock: false };
     } catch (e) {
         // Timeout, network error, bad JSON — anything: fall back, never throw.
-        return { text: mockDraft(purpose, context), mock: true };
+        return _mock(e && e.name === 'AbortError' ? 'timeout' : 'http_error');
     } finally {
         clearTimeout(timer);
     }

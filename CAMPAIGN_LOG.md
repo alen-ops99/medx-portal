@@ -402,3 +402,92 @@ Built one-tap 1-5 star ratings on Talk Library cards plus a "Top rated" sort/sec
 
 ### Gates
 - node --check user-portal/backend/server.js OK. scripts/check-schema-sync.sh exit 0 (435 lines byte-identical — new table is outside the mirror block). No semicolons in user-facing copy, word "honest"/"honestly" absent. No git add/commit.
+
+
+---
+
+## 2026-07-06 — Forum wing member CALENDAR + venue fill (queue 5a2) — USER portal
+
+Added a member-facing save-the-date **Calendar** section to the Biomedical Forum wing (`/forum`), and swept member venue strings. Territory: `user-portal/` only. Backend server.js NOT touched (no schema change) — Part 1 is entirely additive frontend inside the wing's own patterns; Part 2 was a verify-only sweep (venue already filled by the prior `gala_settings` migration).
+
+### Part 1 — Forum wing calendar (user-portal/frontend/forum-wing.html)
+- New nav item + footer link "The calendar" / "Kalendar", and a new `#view-calendar` section, extending the wing's existing view/nav/`Wing.go()`/`relocalize()` pattern (racing-green stately shell reused: `.hero`, `.chap`, `.conv`, `.btn-outline`, `.conv-note` — no redesign, no new CSS beyond an inline calendar glyph).
+- `Wing.calEvents()` holds the **3 real convenings** as static data; `renderCalendar()` paints them; `addToCal(key)` builds and downloads a per-event **.ics** self-contained in the wing (mirrors the wider portal's `medxICS`: all-day `VEVENT`, `DTEND` exclusive, RFC-5545 TEXT escaping, localized `SUMMARY`/`LOCATION`/`DESCRIPTION`).
+  - **Donor Evening** — Fri 4 Dec 2026, Hotel Esplanade Zagreb · a private salon; giving-moment summary + optional-attendance note ("Your presence is warmly welcomed, and entirely a matter of your own wish").
+  - **Plexus Gala Evening** — Sat 5 Dec 2026, Hotel Esplanade Zagreb; carries the dignified line "A limited number of seats is held for members of the Forum."
+  - **Annual Gathering of the Forum** — Fri–Sat 28–29 May 2027; no venue slot shown (not invented), save-the-date framing.
+- i18n: all strings added to the wing's `WD` dictionary in EN + HR (formal Vi, correct diacritics — "Donatorska večer", "Gala večer Plexusa", "Godišnji susret Foruma", "Ograničen broj mjesta rezerviran je za članove Foruma"). Re-renders on `WingI18n.set()` via the calendar branch in `relocalize()`. No semicolons in user copy; word "honest" absent.
+
+### Part 2 — venue fill / sweep (member display surfaces)
+- **Gala**: already reads "Hotel Esplanade Zagreb" everywhere — `gala_settings.venue` (member API `/api/gala/settings` returns it), the forced migration in server.js, hardcoded gala hero strings, and the `/plexus` renderer fallback. No change needed; confirmed live.
+- **Conference → Novinarski dom**: the only real conference venue slot (`conferences.venue_name`) feeds the FROZEN `/plexus` checkout/registration renderer (`eventInfo.venue`), so it was left untouched per the frozen-surface rule. "Conference → Novinarski dom where a venue slot exists" is already satisfied on the member-facing wing (the seeded Autumn Symposium convening reads "Novinarski dom · Zagreb").
+- **No venue-TBD invented/left on target surfaces**: Building Bridges venue is legitimately "To be announced" (Alen has not confirmed the Bridges venue — not invented). The other "TBD"/"to be announced" hits are non-venue (room/spots/dates), gala PERFORMER names, admin-only (af26 management panel), or defensive fallbacks that do not fire.
+
+### Verify (E2E — /tmp/medx-pw harness, member session via magic link)
+- Entered wing as an approved member; **calendar nav visible** for member, `navLinks` **hidden** for non-member and `Wing.go('calendar')` blocked (view stays `access`, `#view-calendar` never `.on`) — gating intact.
+- **EN + HR**, **desktop 1440×900 + mobile 390×844**: all 3 cards render with correct tags/dates/venues/notes; HR renders in Croatian (formal Vi, diacritics). Screenshots read then deleted. **0 console/page errors.**
+- **.ics parsed** for all three (EN) + gala (HR): correct `DTSTART`/`DTEND` (20261204→05, 20261205→06, 20270528→30 exclusive), `LOCATION:Hotel Esplanade Zagreb`, localized `SUMMARY`. Downloads fire under the live Helmet CSP (`script-src-attr 'unsafe-inline'` present → inline handlers allowed, matching the existing wing).
+- Gala surface live: `/api/gala/settings` venue = "Hotel Esplanade Zagreb"; `/plexus` renders it once, no gala/venue TBD.
+- Test magic-token junk deleted (0 remaining); e2e.* rows untouched.
+
+### Gates
+- `node --check` user + admin server.js OK (neither modified). `scripts/check-schema-sync.sh` exit 0 (435 lines byte-identical — no schema touched). No git add/commit.
+
+## 2026-07-06 — NO-API-KEY FALLBACK DEFECT FIXES (admin + shared/ai.js) — COMPLETE + VERIFIED
+Scope = the defects from the 2026-07-06 No-API audit (MedX_NoAPI_Audit_2026-07-06/NO_API_AUDIT.md). Territory: admin-portal/ + shared/ai.js only. Edits via python3 unique-string replace with count==1 asserts (server.js + frontend index.html are giant); shared/ai.js via Edit. node --check clean on both JS files, schema-sync exit 0.
+
+FIX 0 (root cause) — shared/ai.js: mockDraft() now returns EMPTY text and aiDraft() resolves to `{ text:'', mock:true, mock_reason }` on every no-key/failure path (no_key | rate_limited | http_error | timeout | empty). This revives the four Pattern-B `if(!text)` clean fallbacks that a truthy "[Draft] ..." dump used to shadow. mockDraft still exported (returns ''); _contextLines still used by the live path. User-portal home-feed caller already guards on `!draft.mock`, so it is unaffected (no mirror needed).
+
+FIX 1/2/3 (Pattern-B email paths, now bilingual) — sponsorBuildFollowupEmail / sponsorBuildWrapEmail / nagBuildReminderEmail: each now uses `if (r && r.text && !r.mock && !/^\s*\[Draft\]/.test(r.text))` to accept a real model reply, else falls to a clean deterministic EN/HR fallback. Added top-level helper recipientPrefersCroatian({email,name,country,text}) — Croatian by stored country (users + registrations lookup by email), diacritics, -ic/-ovic surname, or Croatian words; defaults EN. HR subjects/bodies are em-dash-free; the 3 EN subjects I restructured had their pre-existing em-dashes normalized to colons.
+
+FIX 4 (generic POST /api/admin/ai/draft) — added composeAdhocDraft(purpose,context,lang): titled paragraph + prose "For reference, x is y, ..." instead of the raw key dump. Model output gated on !mock. Optional lang='hr' mirrors to HR. Returns mock_reason.
+
+FIX 5 (AI Inbox, highest auto-fire volume) — added aiInboxReplyFallback(msg,facts,{hr,firstName}): warm grounded reply keyed off the classified category + fine intents (thanks / cannot-attend / cost / dates) using live FAQ facts (dates, student/professional prices, venue, Gala = Hotel Esplanade Zagreb Dec 5). Bilingual by member language signal. Unclassifiable ('other' with no fine intent) stores NO draft (empty = the clean state, a human replies). aiInboxBuildDraft rewritten to use it on mock; auto-sweep stores clean or empty, never a dump.
+
+FIX 6 (PR AI Studio stub, admin frontend) — generateImage() no longer alerts + saves an empty image record. It now builds a concrete on-brand design brief (buildImageBrief: campaign palette/mood + platform ratio/safe-zone) rendered as text, relabeled "Image Brief / Build image brief", saved as a useful `image_brief` history row, with Copy brief. generateCaption() -> buildCaption() is tone-aware + platform-aware (hashtag count/length) instead of a bare hashtag string.
+
+ITEM 4 (venue) — Gala venue confirmed = Hotel Esplanade Zagreb. All 3 admin `Grand Ballroom, Zagreb` placeholders changed + a guarded value migration (never clobbers an owner-set venue). content_checklist "Plexus venue and partner hotel name" checked off via an idempotent, non-destructive migration (note-append is the one-time marker; never re-clobbers an owner reopen). Checklist now 9 open / 1 done. Cross-portal todo appended for the user-portal gala_settings default mirror + the empty-mock guard rule.
+
+VERIFY (headless /tmp/medx-pw, admin :3002 real API + logged-in session, second libsql connection for seed/inspect):
+- Fix 4: EN + HR composed drafts, no '[Draft]', mock_reason=no_key.
+- Fix 5: EN payment reply, HR dates+prices reply, HR thanks reply all clean/grounded; unclassifiable -> empty draft. 0 console errors.
+- Fix 1/2/3: 6 then 5 staged outbox rows inspected — HAS_[Draft]=false on every one. Croatian recipients (Ivana Peric sponsor, Marko Horvat registrant country=Croatia) got HR subject+body; John Smith got EN. HR wrap benefits phrase localized ("cijeli paket partnerstva pred publikom od N").
+- Fix 6: image brief renders (no alert, no broken image), caption tone/platform aware; desktop 1440x900 + mobile 390x844 screenshots read then deleted; 0 console errors.
+- DB audit after cleanup: 0 stale '[Draft]' in direct_messages.ai_draft or scheduled_emails.payload_json; all e2e.noapi.* rows removed; submission_pipeline (accelerator worked-example) = 3 rows intact.
+Frozen surfaces (Stripe/checkout/calculateTotal/registrations POST/QR gen + /api/admin/checkin/verify) untouched. Copy: no semicolons in new user-facing strings, word "honest" absent, member-facing bilingual EN+HR (formal Vi, correct diacritics), admin surfaces EN. No git add/commit.
+
+
+## 2026-07-06 — AI-INBOX NO-KEY FALLBACK: two verified failures FIXED + E2E VERIFIED
+Scope = ONLY the two reported failures in the offline (no ANTHROPIC key) AI-Inbox composer. Admin territory only (admin-portal/backend/server.js). Edits via python3 unique-string replace, every hunk asserted count==1. node --check OK, schema-sync exit 0. No git add/commit.
+
+ROOT CAUSE (both) — aiInboxFaqFacts() pre-baked English-only fact strings (conference_dates = `${ISO} to ${ISO}`; student_price/professional_price = "student ticket EUR .. early bird / EUR .. late") that aiInboxReplyFallback() interpolated verbatim into the Croatian branch, and had no gala price fact at all while the gala line was gated behind `!dateLine` (always false).
+
+FIX A (Failure 1 — HR leaked English) — aiInboxFaqFacts() now also returns a `raw` struct (confStart/confEnd, venue parts, the four conference prices, gala date/venue/prices) read live from plexus_settings + gala_settings. The composer builds the HR date/price lines from `raw` via two new localized helpers: aiInboxFmtDate() and aiInboxFmtDateRange() (HR months in the genitive — "prosinca"; compact same-month range "4. – 5. prosinca 2026."). HR prices are fully localized ("Kotizacije: za studente 39 EUR (rana prijava) / 59 EUR (kasna prijava), za profesionalce ..."). Country "Croatia" -> "Hrvatska" on the HR side. No ISO date, no English connector, no lowercase mid-sentence start. EN side unchanged in meaning, still clean.
+
+FIX B (Failure 2 — gala answered with conference facts) — added an `asksGala` intent and a dedicated gala branch placed BEFORE the registration/cost branch. A gala question is now answered only with the gala's own date + venue + price (from gala_settings: 5 December 2026, Hotel Esplanade Zagreb, EUR 150 early bird / EUR 175 regular), never the conference EUR 39/59/99/149. Added a `gala_price` fact + venue to the model-facing facts text too, and removed the dead `!dateLine`-gated gala append (galaLine deleted, no dangling ref).
+
+VERIFY (E2E, headless /tmp/medx-pw, admin :3002 restarted on the edited code, NODE_ENV=development dev-auth, NO ANTHROPIC key, shared/medx_portal.db):
+- Seeded 4 direct_messages (HR dates, HR cost, HR gala, EN gala), curl GET /api/admin/messages ran aiInboxTriage, read back direct_messages.ai_draft.
+- Failure 1 GONE: HR dates + HR cost drafts contain zero of {"to","student ticket","professional ticket","early bird","late.","tickets:"} and zero ISO dates (regex-checked); read "4. – 5. prosinca 2026., Hotel Esplanade, Zagreb, Hrvatska" and the fully-Croatian price line.
+- Failure 2 GONE: HR gala draft = gala date+venue+price, no conference prices (39/59/99/149 absent), no conference range; EN gala draft = gala EUR 150/175, no conference prices. EN "ticket for the gala" classifies as registration question yet still hits the gala branch first -> correct gala facts.
+- Live UI: logged into admin, opened both HR conversations; the reply box auto-prefilled the grounded HR draft (banner "AI draft — review before sending"), category chip "Other", admin chrome EN. Desktop 1440x900 + mobile 390x844 screenshots read then deleted.
+- Console: the only message across the flow is an external fonts.gstatic.com Inter woff2 subset fetch that the OFFLINE sandbox blocks (net::ERR_FAILED) the moment Croatian diacritic glyphs first render — environmental, works online/in production, browser falls back to a system font, text renders correctly; not from this backend change. No app/JS errors.
+- Cleanup: e2e.aiinbox.* direct_messages removed (0 remain); submission_pipeline accelerator worked-example rows intact (3). Temp scripts + screenshots deleted.
+Copy: new user-facing strings have no semicolons, word "honest" absent, member drafts bilingual EN+HR (formal Vi, correct diacritics), admin surfaces EN. Frozen surfaces untouched. node --check OK, schema-sync 435 lines byte-identical (exit 0).
+
+
+## 2026-07-06 — ADMIN YEAR CALENDAR (queue 5a3) BUILT + E2E VERIFIED
+Scope = admin-portal ONLY. A printable two-year planning board (this year + next) of every Med&X event/project, color-coded per project, confirmed vs potential, editable inline, print-friendly, CSV export. Edits via python3 unique-string replace (each hunk asserted count==1) on the giant admin server.js (30k lines) + index.html (44k lines). No git add/commit.
+
+BACKEND (admin-portal/backend/server.js only) — new admin-only table `year_calendar_entries` (id, title, project, starts_on, ends_on, status confirmed|potential, color, notes, created_at, updated_at) created guarded + idempotent AFTER the SCHEMA-MIRROR:END marker (the user portal never reads it, so nothing to mirror; check-schema-sync stays green at 435 lines). Seeded ONCE (insert-if-empty on COUNT=0) with the 6 real planning items: Building Bridges — Boston (Sep 2026, POTENTIAL, blue), Plexus early-bird deadline (1 Sep 2026, amber), Plexus Donor Night (4 Dec, Esplanade salon), Plexus Week — Conference (4–5 Dec, Novinarski dom), Plexus Gala (5 Dec, Hotel Esplanade Zagreb), Forum annual gathering (28–29 May 2027) — all Zagreb items CONFIRMED. CRUD API GET/POST/PUT/DELETE /api/admin/year-calendar (auth+adminOnly, ycClean() sanitizes status/color/dates, logAudit on writes) + read-only GET /api/admin/year-calendar/events (active conferences, for the live-event chips). Nothing touches Stripe/checkout/calculateTotal/registrations/QR.
+
+FRONTEND (admin-portal/frontend/index.html only) — new sidebar nav "Year Calendar" (fa-calendar-days) under Organization, new `#section-year-calendar`, wired into showSection (sectionNames + the FinanceApp-style decorator calls CalendarApp.init()). CalendarApp module renders a per-year 12-month horizontal grid: each entry is one lane (left label = title + full date + project·notes, right track = a colored bar positioned by month-fraction). Confirmed = solid fill, potential = dashed outline (matches the legend). Click any bar -> inline edit form (title/project/status/start/end/color-picker auto-set from project/notes) with Save + Delete. Add-entry, Print, Export CSV buttons. Real live events surface as read-only chips below. Print = a body.yc-print-mode class + window.print() with an afterprint cleanup; scoped @media print { @page A4 landscape } strips sidebar/mobile-header/chat/FABs/breadcrumbs/toasts/cmd-palette/modals/yc-no-print and shows only the board with a print title + exact color-adjust. Responsive @media(max-width:760px) tightens the label column + month labels for mobile.
+
+VERIFY (headless /tmp/medx-pw, admin :3002 real API + logged-in session):
+- Seed-once over DOUBLE restart: first boot logged "[year-calendar] seeded 6"; second boot logged nothing (no re-seed) and GET still returned exactly 6 — an admin's later edits/deletes are never clobbered.
+- Timeline: 6 bars across 2026+2027, correct months (Sep/Dec cluster 2026, late-May 2027), potential=outlined, colors per project, 6 legend chips, 1 live-event chip.
+- Add: 6->7, correct project/status persisted. Edit: title updated + persisted (re-fetched by id). Delete: 7->6, row gone. CSV: correct header + one quoted row per entry (\r\n). All via real API round-trips.
+- Print (media:print emulation + screenshot): sidebar/actions/back-link display:none, print-title + section display:block — clean A4 board, no chrome, no stray toasts (added #toastContainer/#cmdPalette/.modal-overlay to the hide list after a first pass showed leftover toasts).
+- Desktop 1440x900 + mobile 390x844 both render, month header legible on mobile after the responsive tweak. Screenshots read then deleted.
+- 0 console/page errors on every flow. DB after cleanup: 6 seed rows, E2E_JUNK=false, accelerator worked-example rows untouched.
+node --check server OK, schema-sync exit 0. Copy: no semicolons in user-facing strings, word "honest" absent, admin surfaces EN. No git add/commit.

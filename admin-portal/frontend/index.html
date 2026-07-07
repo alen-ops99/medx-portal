@@ -6939,6 +6939,11 @@
                 <div class="nav-divider"></div>
                 <div class="nav-label">Organization</div>
 
+                <a class="nav-item" data-section="year-calendar" onclick="App.showSection('year-calendar', this)">
+                    <i class="fas fa-calendar-days" style="color: #0ea5a4;"></i>
+                    <span>Year Calendar</span>
+                </a>
+
                 <a class="nav-item" data-section="finances" onclick="App.showSection('finances', this)">
                     <i class="fas fa-coins" style="color: var(--finances);"></i>
                     <span>Finances</span>
@@ -10805,7 +10810,7 @@ President, Med&amp;X</textarea>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
                             <div class="card">
                                 <div class="card-header">
-                                    <span class="card-title"><i class="fas fa-image" style="color: var(--pr-media); margin-right: 8px;"></i>Generate Image</span>
+                                    <span class="card-title"><i class="fas fa-image" style="color: var(--pr-media); margin-right: 8px;"></i>Image Brief</span>
                                 </div>
                                 <div class="card-body">
                                     <div class="form-group">
@@ -10833,7 +10838,7 @@ President, Med&amp;X</textarea>
                                         <textarea id="prAiImagePrompt" rows="4" placeholder="e.g., A professional social media graphic for Plexus 2026 conference announcement with medical/biomedical theme, modern design..." style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);"></textarea>
                                     </div>
                                     <button class="btn btn-primary" onclick="PRApp.generateImage()" style="width: 100%;">
-                                        <i class="fas fa-magic"></i> Generate Image
+                                        <i class="fas fa-clipboard-list"></i> Build image brief
                                     </button>
                                     <div id="prAiImageResult" style="margin-top: 16px; display: none;">
                                         <img id="prAiGeneratedImage" style="max-width: 100%; border-radius: 8px; border: 1px solid var(--border);">
@@ -12557,6 +12562,85 @@ President, Med&amp;X</textarea>
                 </div>
 
                 <!-- MULTI-YEAR CONFERENCES -->
+                <!-- YEAR CALENDAR — printable two-year planning board (queue 5a3) -->
+                <div class="section" id="section-year-calendar">
+                    <style>
+                    #section-year-calendar .yc-head{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-bottom:14px;}
+                    #section-year-calendar .yc-head h2{margin:0;font-size:22px;display:flex;align-items:center;gap:10px;}
+                    #section-year-calendar .yc-head p{margin:6px 0 0;color:var(--text-muted);font-size:13px;max-width:660px;line-height:1.55;}
+                    #section-year-calendar .yc-actions{display:flex;gap:8px;flex-wrap:wrap;}
+                    #section-year-calendar .yc-legend{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin:0 0 16px;padding:11px 14px;border:1px solid var(--border);border-radius:12px;background:var(--bg-secondary);}
+                    #section-year-calendar .yc-leg{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--text-secondary);}
+                    #section-year-calendar .yc-dot{width:12px;height:12px;border-radius:3px;flex-shrink:0;}
+                    #section-year-calendar .yc-leg-sep{width:1px;height:16px;background:var(--border);}
+                    #section-year-calendar .yc-year{border:1px solid var(--border);border-radius:14px;background:var(--bg-secondary);padding:14px 16px 18px;margin:0 0 18px;}
+                    #section-year-calendar .yc-year-title{font-family:'Fraunces',serif;font-size:19px;font-weight:600;margin:0 0 12px;color:var(--text-primary);}
+                    #section-year-calendar .yc-months{display:grid;grid-template-columns:190px 1fr;align-items:end;margin-bottom:6px;}
+                    #section-year-calendar .yc-months .yc-mlabel{font-size:11px;color:var(--text-muted);font-weight:700;letter-spacing:.05em;text-transform:uppercase;}
+                    #section-year-calendar .yc-mgrid{display:grid;grid-template-columns:repeat(12,1fr);}
+                    #section-year-calendar .yc-mgrid span{font-size:10.5px;color:var(--text-muted);text-align:center;font-weight:600;border-left:1px solid var(--border-light);padding:2px 0;}
+                    #section-year-calendar .yc-mgrid span:first-child{border-left:none;}
+                    #section-year-calendar .yc-row{display:grid;grid-template-columns:190px 1fr;align-items:center;padding:3px 0;border-radius:6px;}
+                    #section-year-calendar .yc-row:hover{background:rgba(14,165,164,.05);}
+                    #section-year-calendar .yc-rlabel{padding-right:10px;min-width:0;}
+                    #section-year-calendar .yc-rlabel .yc-t{font-size:12.5px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+                    #section-year-calendar .yc-rlabel .yc-sub{font-size:10.5px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+                    #section-year-calendar .yc-track{position:relative;height:30px;border-radius:6px;background-color:var(--bg-primary);background-image:repeating-linear-gradient(to right,var(--border-light) 0 1px,transparent 1px calc(100%/12));}
+                    #section-year-calendar .yc-bar{position:absolute;top:4px;bottom:4px;border-radius:5px;display:flex;align-items:center;padding:0 8px;font-size:10.5px;font-weight:700;color:#fff;cursor:pointer;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.12);}
+                    #section-year-calendar .yc-bar:hover{filter:brightness(1.05);box-shadow:0 2px 6px rgba(0,0,0,.18);}
+                    #section-year-calendar .yc-bar.potential{background:transparent!important;border:1.5px dashed;box-shadow:none;}
+                    #section-year-calendar .yc-empty{padding:24px;text-align:center;color:var(--text-muted);font-size:13px;}
+                    #section-year-calendar .yc-live{margin:4px 0 8px;}
+                    #section-year-calendar .yc-live h3{font-size:13px;margin:0 0 8px;color:var(--text-secondary);display:flex;align-items:center;gap:8px;font-weight:600;}
+                    #section-year-calendar .yc-chips{display:flex;flex-wrap:wrap;gap:8px;}
+                    #section-year-calendar .yc-chip{display:inline-flex;align-items:center;gap:8px;font-size:12px;padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-secondary);}
+                    #section-year-calendar .yc-formwrap{border:1px solid var(--border);border-radius:14px;background:var(--bg-secondary);padding:18px;margin:0 0 18px;max-width:720px;}
+                    #section-year-calendar .yc-formwrap h3{margin:0 0 14px;font-size:16px;}
+                    #section-year-calendar .yc-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+                    #section-year-calendar .yc-field label{display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;}
+                    #section-year-calendar .yc-field input,#section-year-calendar .yc-field select,#section-year-calendar .yc-field textarea{width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;box-sizing:border-box;}
+                    #section-year-calendar .yc-field input[type=color]{padding:3px;height:38px;cursor:pointer;}
+                    #section-year-calendar .yc-field.full{grid-column:1 / -1;}
+                    #section-year-calendar .yc-formacts{display:flex;gap:8px;margin-top:16px;align-items:center;flex-wrap:wrap;}
+                    #section-year-calendar .yc-print-title{display:none;}
+                    @media (max-width:760px){
+                        #section-year-calendar .yc-months,#section-year-calendar .yc-row{grid-template-columns:104px 1fr;}
+                        #section-year-calendar .yc-mgrid span{font-size:8.5px;letter-spacing:-.02em;padding:2px 0;}
+                        #section-year-calendar .yc-rlabel{padding-right:7px;}
+                        #section-year-calendar .yc-rlabel .yc-t{font-size:11.5px;}
+                        #section-year-calendar .yc-year{padding:12px 11px 15px;}
+                        #section-year-calendar .yc-grid2{grid-template-columns:1fr;}
+                    }
+                    @media print{
+                        @page{size:A4 landscape;margin:9mm;}
+                        body.yc-print-mode .mobile-header,body.yc-print-mode .sidebar,body.yc-print-mode .sidebar-overlay,body.yc-print-mode #chatPanel,body.yc-print-mode #chatShowBtn,body.yc-print-mode #globalQRBtn,body.yc-print-mode #assistantFab,body.yc-print-mode #breadcrumbs,body.yc-print-mode #toastContainer,body.yc-print-mode #cmdPalette,body.yc-print-mode .modal-overlay,body.yc-print-mode .yc-no-print{display:none!important;}
+                        body.yc-print-mode .main-wrapper,body.yc-print-mode main.main{display:block!important;margin:0!important;padding:0!important;width:100%!important;max-width:100%!important;}
+                        body.yc-print-mode #section-year-calendar{display:block!important;}
+                        body.yc-print-mode #section-year-calendar .yc-print-title{display:block;font-family:'Fraunces',serif;font-size:20px;margin:0 0 12px;color:#15110f;}
+                        body.yc-print-mode .yc-year,body.yc-print-mode .yc-legend,body.yc-print-mode .yc-bar,body.yc-print-mode .yc-dot{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+                        body.yc-print-mode .yc-year{break-inside:avoid;border-color:#ccc;}
+                        body.yc-print-mode .yc-row:hover{background:none;}
+                    }
+                    </style>
+                    <div class="yc-print-title">Med&amp;X — Year Calendar</div>
+                    <div class="back-link yc-no-print" onclick="App.showSection('dashboard')"><i class="fas fa-arrow-left"></i> Back to Dashboard</div>
+                    <div class="yc-head">
+                        <div>
+                            <h2><i class="fas fa-calendar-days" style="color:#0ea5a4;"></i> Year Calendar</h2>
+                            <p>Everything Med&amp;X is running this year and next, color-coded by project. Confirmed dates are solid, potential ones are outlined. Click any bar to edit it inline, print the board for the wall, or export it to CSV.</p>
+                        </div>
+                        <div class="yc-actions yc-no-print">
+                            <button class="btn btn-secondary" onclick="CalendarApp.exportCsv()"><i class="fas fa-file-csv"></i> Export CSV</button>
+                            <button class="btn btn-secondary" onclick="CalendarApp.print()"><i class="fas fa-print"></i> Print</button>
+                            <button class="btn btn-primary" onclick="CalendarApp.openForm()"><i class="fas fa-plus"></i> Add entry</button>
+                        </div>
+                    </div>
+                    <div class="yc-formwrap yc-no-print" id="ycFormWrap" style="display:none;"></div>
+                    <div class="yc-legend" id="ycLegend"></div>
+                    <div id="ycTimeline"><div class="yc-empty"><i class="fas fa-spinner fa-spin"></i></div></div>
+                    <div class="yc-live yc-no-print" id="ycLive"></div>
+                </div>
+
                 <div class="section" id="section-conferences">
                     <div class="back-link" onclick="App.showSection('dashboard')">
                         <i class="fas fa-arrow-left"></i> Back to Dashboard
@@ -17977,6 +18061,7 @@ President, Med&amp;X</textarea>
                     'forum': 'Biomedical Forum',
                     'bridges': 'Building Bridges',
                     'finances': 'Finances',
+                    'year-calendar': 'Year Calendar',
                     'pr-media': 'PR & Media',
                     'user-notifications': 'Message members',
                     'newsletter': 'Newsletter',
@@ -34513,7 +34598,7 @@ By applying to this program, I give the following consents:
                     <div style="display: flex; gap: 12px; padding: 12px; border-bottom: 1px solid var(--border);">
                         ${h.result_image_path ? `<img src="${h.result_image_path}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px;">` : '<div style="width: 60px; height: 60px; background: var(--bg-secondary); border-radius: 6px; display: flex; align-items: center; justify-content: center;"><i class="fas fa-align-left" style="color: var(--text-muted);"></i></div>'}
                         <div style="flex: 1;">
-                            <div style="font-weight: 500; margin-bottom: 4px;">${h.type === 'image' ? 'Image' : 'Caption'} - ${h.project || 'General'}</div>
+                            <div style="font-weight: 500; margin-bottom: 4px;">${h.type === 'image' ? 'Image' : (h.type === 'image_brief' ? 'Image brief' : 'Caption')} - ${h.project || 'General'}</div>
                             <div style="font-size: 12px; color: var(--text-muted);">${h.prompt?.substring(0, 80)}...</div>
                             <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">${h.created_at?.split('T')[0]}</div>
                         </div>
@@ -34525,40 +34610,82 @@ By applying to this program, I give the following consents:
             },
 
             async generateImage() {
-                const prompt = document.getElementById('prAiImagePrompt').value;
-                if (!prompt) { Toast.warning('Please enter a prompt'); return; }
+                const prompt = document.getElementById('prAiImagePrompt').value.trim();
+                if (!prompt) { Toast.warning('Please describe the image first'); return; }
 
                 const project = document.getElementById('prAiProject').value;
                 const platform = document.getElementById('prAiPlatform').value;
 
-                // Show loading
-                document.getElementById('prAiImageResult').style.display = 'block';
-                document.getElementById('prAiGeneratedImage').src = '';
-                document.getElementById('prAiGeneratedImage').alt = 'Generating...';
+                // Template-first: compose a concrete, on-brand design brief the team can act on now.
+                // Real art generation is enabled by adding an AI image key.
+                const brief = this.buildImageBrief(project, platform, prompt);
+                this._lastImageBrief = brief;
 
-                alert('AI image generation would be triggered here. This requires the nano-banana MCP server to be running.');
+                const box = document.getElementById('prAiImageResult');
+                box.style.display = 'block';
+                box.innerHTML = `
+                    <div style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+                        <div style="font-weight: 600; margin-bottom: 8px;"><i class="fas fa-clipboard-list" style="color: var(--pr-media); margin-right: 6px;"></i>Design brief (template mode)</div>
+                        <div id="prAiBriefText" style="white-space: pre-wrap; font-size: 13px; color: var(--text-secondary); line-height: 1.6;"></div>
+                        <p style="font-size: 12px; color: var(--text-muted); margin: 12px 0 0;">Hand this brief to a designer, or build the graphic in Content Studio. Add an AI image key to generate art here.</p>
+                        <div style="margin-top: 12px; display: flex; gap: 8px;">
+                            <button class="btn btn-primary" onclick="PRApp.copyImageBrief()"><i class="fas fa-copy"></i> Copy brief</button>
+                            <button class="btn btn-secondary" onclick="PRApp.generateImage()"><i class="fas fa-redo"></i> Rebuild</button>
+                        </div>
+                    </div>`;
+                document.getElementById('prAiBriefText').textContent = brief;
 
-                // Save to history
+                // Save the useful brief to history (not an empty image record).
                 await this.api('/api/pr/ai-generations', {
                     method: 'POST',
-                    body: JSON.stringify({ type: 'image', prompt, project, platform, model: 'nano-banana' })
+                    body: JSON.stringify({ type: 'image_brief', prompt, result_text: brief, project, platform })
                 });
+                this.loadAiHistory();
+            },
+
+            buildImageBrief(project, platform, prompt) {
+                const projects = {
+                    plexus: { name: 'Plexus Conference 2026', palette: 'deep burgundy and warm cream with gold accents', vibe: 'prestigious, scholarly, forward-looking' },
+                    accelerator: { name: 'Med&X Accelerator', palette: 'clinical teal and white with one bold accent', vibe: 'hands-on, hopeful, career-building' },
+                    forum: { name: 'Biomedical Forum', palette: 'forest green and ivory with restrained gold', vibe: 'senior, dignified, collegial' },
+                    bridges: { name: 'Building Bridges', palette: 'warm blue and sand with human tones', vibe: 'connective, cross-border, warm' },
+                    medx: { name: 'Med&X', palette: 'brand crimson and charcoal on cream', vibe: 'trusted, human, biomedical' }
+                };
+                const platforms = {
+                    instagram: { label: 'Instagram post', ratio: '1080 x 1080 (1:1)', note: 'keep text in the centre safe zone' },
+                    'instagram-story': { label: 'Instagram story', ratio: '1080 x 1920 (9:16)', note: 'leave the top and bottom 250px clear for the app UI' },
+                    linkedin: { label: 'LinkedIn', ratio: '1200 x 627 (1.91:1)', note: 'headline top-left, logo bottom-right' },
+                    twitter: { label: 'Twitter / X', ratio: '1600 x 900 (16:9)', note: 'one short line of text, high contrast' },
+                    facebook: { label: 'Facebook', ratio: '1200 x 630 (1.91:1)', note: 'keep faces and text away from the edges' }
+                };
+                const pr = projects[project] || projects.medx;
+                const pl = platforms[platform] || platforms.instagram;
+                return [
+                    `Subject: ${prompt}`,
+                    `Campaign: ${pr.name}`,
+                    `Format: ${pl.label}, ${pl.ratio}`,
+                    `Palette: ${pr.palette}`,
+                    `Mood: ${pr.vibe}`,
+                    `Layout: ${pl.note}. Include the Med&X wordmark and one clear call to action.`,
+                    `Avoid: stock-photo cliches, tiny text, more than two typefaces.`
+                ].join('\n');
+            },
+
+            copyImageBrief() {
+                if (!this._lastImageBrief) { Toast.warning('Build a brief first'); return; }
+                navigator.clipboard.writeText(this._lastImageBrief);
+                Toast.success('Brief copied to clipboard');
             },
 
             async generateCaption() {
-                const topic = document.getElementById('prAiCaptionTopic').value;
+                const topic = document.getElementById('prAiCaptionTopic').value.trim();
                 if (!topic) { Toast.warning('Please enter a topic'); return; }
 
                 const tone = document.getElementById('prAiCaptionTone').value;
                 const platform = document.getElementById('prAiCaptionPlatform').value;
 
-                // Generate caption based on parameters
-                let caption = '';
-                if (platform === 'twitter') {
-                    caption = `${topic.substring(0, 200)}\n\n#MedX #Healthcare`;
-                } else {
-                    caption = `${topic}\n\nJoin us on this journey! Link in bio.\n\n#MedX #Plexus2026 #Healthcare #Science`;
-                }
+                // Compose from the real post fields (topic + tone + platform), not a bare hashtag string.
+                const caption = this.buildCaption(topic, tone, platform);
 
                 document.getElementById('prAiCaptionResult').style.display = 'block';
                 document.getElementById('prAiGeneratedCaption').textContent = caption;
@@ -34568,6 +34695,35 @@ By applying to this program, I give the following consents:
                     method: 'POST',
                     body: JSON.stringify({ type: 'caption', prompt: topic, result_text: caption, platform })
                 });
+                this.loadAiHistory();
+            },
+
+            buildCaption(topic, tone, platform) {
+                const clean = String(topic).replace(/\s+/g, ' ').trim();
+                const first = clean.charAt(0).toUpperCase() + clean.slice(1);
+                const opener = ({
+                    professional: '',
+                    excited: 'Big news. ',
+                    informative: 'In brief. ',
+                    casual: 'Hey everyone. ',
+                    inspiring: 'Every breakthrough starts somewhere. '
+                })[tone] || '';
+                const cta = ({
+                    professional: 'Details and registration are on our site.',
+                    excited: 'Do not miss it. Link in bio.',
+                    informative: 'Full details are on our website.',
+                    casual: 'Come join us. Link in bio.',
+                    inspiring: 'Be part of it. Link in bio.'
+                })[tone] || 'Details are on our website.';
+                const tagBank = ['#MedX', '#Plexus2026', '#Biomedicine', '#Healthcare', '#Science', '#Research', '#Zagreb', '#Medicine'];
+                if (platform === 'twitter') {
+                    const body = (opener + first).slice(0, 230);
+                    return `${body}\n\n${tagBank.slice(0, 2).join(' ')}`;
+                }
+                if (platform === 'linkedin') {
+                    return `${opener}${first}\n\n${cta}\n\n${tagBank.slice(0, 4).join(' ')}`;
+                }
+                return `${opener}${first}\n\n${cta}\n\n${tagBank.join(' ')}`;
             },
 
             useGeneratedImage() {
@@ -38319,6 +38475,210 @@ By applying to this program, I give the following consents:
                         </div>`;
                     }).join('') + '</div>';
                 } catch (e) { el.innerHTML = '<div class="card" style="padding:16px;">Failed to load the audit log.</div>'; }
+            }
+        };
+
+        // ==================== YEAR CALENDAR (admin planning board, queue 5a3) ====================
+        // Printable two-year overview of every Med&X event/project. Editable source = year_calendar_entries
+        // (CRUD via /api/admin/year-calendar). Also surfaces the portal's real live events as read-only chips.
+        const CalendarApp = {
+            entries: [],
+            events: [],
+            editingId: null,
+            PROJECTS: {
+                plexus:      { label: 'Plexus',            color: '#9b1b22' },
+                gala:        { label: 'Gala Evening',      color: '#c9a962' },
+                bridges:     { label: 'Building Bridges',  color: '#2563eb' },
+                forum:       { label: 'Biomedical Forum',  color: '#7c3aed' },
+                accelerator: { label: 'Accelerator',       color: '#0ea5a4' },
+                af26:        { label: 'Croatians Abroad',  color: '#ef4444' },
+                milestone:   { label: 'Milestone',         color: '#b45309' },
+                general:     { label: 'General',           color: '#64748b' }
+            },
+            MONTHS: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+            esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); },
+            async api(path, opts={}){
+                const token = (window.App && App.token) || localStorage.getItem('medx_token') || localStorage.getItem('token');
+                const res = await fetch(path, { ...opts, headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token, ...(opts.headers||{}) } });
+                let d = {}; try { d = await res.json(); } catch(e) {}
+                if (!res.ok) throw new Error(d.error || ('HTTP '+res.status));
+                return d;
+            },
+            projMeta(key){ return this.PROJECTS[key] || this.PROJECTS.general; },
+            colorOf(e){ return e.color || this.projMeta(e.project).color; },
+            years(){ const y = new Date().getFullYear(); return [y, y+1]; },
+            // fraction 0..1 across the 12 equal month columns of a year; edge 'end' lands on end-of-day
+            frac(dateStr, edge){
+                const p = dateStr.split('-').map(Number); const m = p[1], d = p[2];
+                const dim = new Date(p[0], m, 0).getDate();
+                const day = (d-1) + (edge==='end' ? 1 : 0);
+                return ((m-1) + day/dim) / 12;
+            },
+            dayLabel(dateStr){ const p = dateStr.split('-').map(Number); return p[2]+' '+this.MONTHS[p[1]-1]; },
+            fullDate(dateStr){ const p = dateStr.split('-').map(Number); return p[2]+' '+this.MONTHS[p[1]-1]+' '+p[0]; },
+            rangeLabel(e){ return (!e.ends_on || e.ends_on===e.starts_on) ? this.fullDate(e.starts_on) : (this.fullDate(e.starts_on)+' – '+this.fullDate(e.ends_on)); },
+
+            async init(){
+                const host = document.getElementById('ycTimeline');
+                try {
+                    const [entries, events] = await Promise.all([
+                        this.api('/api/admin/year-calendar'),
+                        this.api('/api/admin/year-calendar/events').catch(()=>[])
+                    ]);
+                    this.entries = Array.isArray(entries) ? entries : [];
+                    this.events = Array.isArray(events) ? events : [];
+                } catch(e) {
+                    if (host) host.innerHTML = '<div class="yc-empty">Could not load the calendar. '+this.esc(e.message)+'</div>';
+                    return;
+                }
+                this.renderLegend();
+                this.renderTimeline();
+                this.renderLive();
+            },
+            renderLegend(){
+                const el = document.getElementById('ycLegend'); if(!el) return;
+                const used = {};
+                this.entries.forEach(e => { const k = this.PROJECTS[e.project] ? e.project : 'general'; used[k] = this.colorOf(e); });
+                const keys = Object.keys(used).length ? Object.keys(used) : ['plexus','gala','bridges','forum'];
+                const proj = keys.map(k => '<span class="yc-leg"><span class="yc-dot" style="background:'+(used[k]||this.projMeta(k).color)+'"></span>'+this.esc(this.projMeta(k).label)+'</span>').join('');
+                el.innerHTML = proj
+                    + '<span class="yc-leg-sep"></span>'
+                    + '<span class="yc-leg"><span class="yc-dot" style="background:#64748b"></span>Confirmed</span>'
+                    + '<span class="yc-leg"><span class="yc-dot" style="background:transparent;border:1.5px dashed #64748b"></span>Potential</span>';
+            },
+            renderTimeline(){
+                const host = document.getElementById('ycTimeline'); if(!host) return;
+                if(!this.entries.length){ host.innerHTML = '<div class="yc-year"><div class="yc-empty">No entries yet. Add your first event or deadline with the button above.</div></div>'; return; }
+                host.innerHTML = this.years().map(y => this.renderYear(y)).join('');
+            },
+            renderYear(year){
+                const y0 = year+'-01-01', y1 = year+'-12-31';
+                const inYear = this.entries.filter(e => {
+                    const s = e.starts_on, en = e.ends_on || e.starts_on;
+                    return s && s <= y1 && en >= y0;
+                }).sort((a,b)=> (a.starts_on||'').localeCompare(b.starts_on||''));
+                const monthsHdr = this.MONTHS.map(m => '<span>'+m+'</span>').join('');
+                let rows;
+                if(!inYear.length){
+                    rows = '<div class="yc-empty">Nothing scheduled in '+year+' yet.</div>';
+                } else {
+                    rows = inYear.map(e => {
+                        const s = e.starts_on < y0 ? y0 : e.starts_on;
+                        const enRaw = e.ends_on || e.starts_on;
+                        const en = enRaw > y1 ? y1 : enRaw;
+                        let left = this.frac(s,'start')*100;
+                        let width = this.frac(en,'end')*100 - left;
+                        const single = !e.ends_on || e.starts_on === e.ends_on;
+                        if(width < 2.4){ width = 2.4; if(left > 97.6) left = 97.6; }
+                        const color = this.colorOf(e);
+                        const potential = e.status === 'potential';
+                        const style = potential
+                            ? 'left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%;border-color:'+color+';color:'+color+';'
+                            : 'left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%;background:'+color+';';
+                        const barText = single ? this.dayLabel(e.starts_on) : (this.dayLabel(e.starts_on)+'–'+this.dayLabel(en));
+                        const sub = [this.projMeta(e.project).label, e.notes].filter(Boolean).join(' · ');
+                        return '<div class="yc-row">'
+                            + '<div class="yc-rlabel">'
+                            +   '<div class="yc-t" title="'+this.esc(e.title)+'">'+this.esc(e.title)+'</div>'
+                            +   '<div class="yc-sub" title="'+this.esc(sub)+'">'+this.esc(this.rangeLabel(e))+(sub?' — '+this.esc(sub):'')+'</div>'
+                            + '</div>'
+                            + '<div class="yc-track">'
+                            +   '<div class="yc-bar '+(potential?'potential':'')+'" style="'+style+'" onclick="CalendarApp.editEntry(\''+e.id+'\')" title="'+this.esc(e.title)+' — click to edit">'
+                            +     '<span class="yc-barlabel">'+this.esc(barText)+'</span>'
+                            +   '</div>'
+                            + '</div>'
+                            + '</div>';
+                    }).join('');
+                }
+                return '<div class="yc-year">'
+                    + '<div class="yc-year-title">'+year+'</div>'
+                    + '<div class="yc-months"><div class="yc-mlabel">Project</div><div class="yc-mgrid">'+monthsHdr+'</div></div>'
+                    + rows
+                    + '</div>';
+            },
+            renderLive(){
+                const el = document.getElementById('ycLive'); if(!el) return;
+                if(!this.events.length){ el.innerHTML = ''; return; }
+                const chips = this.events.map(ev => {
+                    const dr = ev.start_date
+                        ? ((!ev.end_date || ev.end_date===ev.start_date) ? this.fullDate(ev.start_date) : (this.fullDate(ev.start_date)+' – '+this.fullDate(ev.end_date)))
+                        : 'Dates to be confirmed';
+                    const loc = [ev.venue_city, ev.venue_country].filter(Boolean).join(', ');
+                    return '<span class="yc-chip"><i class="fas fa-circle-check" style="color:#0ea5a4;"></i>'+this.esc(ev.name)+' — '+this.esc(dr)+(loc?' · '+this.esc(loc):'')+'</span>';
+                }).join('');
+                el.innerHTML = '<h3><i class="fas fa-database" style="color:#0ea5a4;"></i> From your live events (read-only)</h3><div class="yc-chips">'+chips+'</div>';
+            },
+            openForm(entry){
+                this.editingId = entry ? entry.id : null;
+                const e = entry || { title:'', project:'plexus', starts_on:'', ends_on:'', status:'confirmed', color:'', notes:'' };
+                const opts = Object.keys(this.PROJECTS).map(k => '<option value="'+k+'"'+(e.project===k?' selected':'')+'>'+this.esc(this.PROJECTS[k].label)+'</option>').join('');
+                const color = e.color || this.projMeta(e.project).color;
+                const wrap = document.getElementById('ycFormWrap');
+                wrap.innerHTML = ''
+                    + '<h3>'+(entry?'Edit entry':'Add entry')+'</h3>'
+                    + '<div class="yc-grid2">'
+                    +   '<div class="yc-field full"><label>Title</label><input id="ycfTitle" value="'+this.esc(e.title)+'" placeholder="e.g. Building Bridges — Boston"></div>'
+                    +   '<div class="yc-field"><label>Project</label><select id="ycfProject" onchange="CalendarApp.onProjectChange()">'+opts+'</select></div>'
+                    +   '<div class="yc-field"><label>Status</label><select id="ycfStatus"><option value="confirmed"'+(e.status==='confirmed'?' selected':'')+'>Confirmed</option><option value="potential"'+(e.status==='potential'?' selected':'')+'>Potential</option></select></div>'
+                    +   '<div class="yc-field"><label>Start date</label><input id="ycfStart" type="date" value="'+this.esc(e.starts_on||'')+'"></div>'
+                    +   '<div class="yc-field"><label>End date (optional)</label><input id="ycfEnd" type="date" value="'+this.esc(e.ends_on||'')+'"></div>'
+                    +   '<div class="yc-field"><label>Color</label><input id="ycfColor" type="color" value="'+this.esc(color)+'"></div>'
+                    +   '<div class="yc-field full"><label>Notes</label><textarea id="ycfNotes" rows="2" placeholder="Venue, city, or anything worth noting">'+this.esc(e.notes||'')+'</textarea></div>'
+                    + '</div>'
+                    + '<div class="yc-formacts">'
+                    +   '<button class="btn btn-primary" onclick="CalendarApp.save()"><i class="fas fa-check"></i> '+(entry?'Save changes':'Add to calendar')+'</button>'
+                    +   '<button class="btn btn-secondary" onclick="CalendarApp.closeForm()">Cancel</button>'
+                    +   (entry?'<button class="btn btn-secondary" style="margin-left:auto;color:#c14b52;" onclick="CalendarApp.remove(\''+e.id+'\')"><i class="fas fa-trash"></i> Delete</button>':'')
+                    + '</div>';
+                wrap.style.display = 'block';
+                try { wrap.scrollIntoView({ behavior:'smooth', block:'nearest' }); } catch(x){}
+            },
+            onProjectChange(){
+                const sel = document.getElementById('ycfProject'); const ci = document.getElementById('ycfColor');
+                if(sel && ci) ci.value = this.projMeta(sel.value).color;
+            },
+            closeForm(){ const w = document.getElementById('ycFormWrap'); if(w){ w.style.display='none'; w.innerHTML=''; } this.editingId = null; },
+            editEntry(id){ const e = this.entries.find(x => x.id === id); if(e) this.openForm(e); },
+            async save(){
+                const body = {
+                    title: document.getElementById('ycfTitle').value.trim(),
+                    project: document.getElementById('ycfProject').value,
+                    status: document.getElementById('ycfStatus').value,
+                    starts_on: document.getElementById('ycfStart').value,
+                    ends_on: document.getElementById('ycfEnd').value || null,
+                    color: document.getElementById('ycfColor').value,
+                    notes: document.getElementById('ycfNotes').value.trim()
+                };
+                if(!body.title){ Toast.warning('Please add a title'); return; }
+                if(!body.starts_on){ Toast.warning('Please set a start date'); return; }
+                if(body.ends_on && body.ends_on < body.starts_on){ Toast.warning('The end date is before the start date'); return; }
+                try {
+                    if(this.editingId){ await this.api('/api/admin/year-calendar/'+this.editingId, { method:'PUT', body: JSON.stringify(body) }); Toast.success('Entry updated'); }
+                    else { await this.api('/api/admin/year-calendar', { method:'POST', body: JSON.stringify(body) }); Toast.success('Added to the calendar'); }
+                    this.closeForm();
+                    await this.init();
+                } catch(e){ Toast.error(e.message || 'Could not save'); }
+            },
+            async remove(id){
+                if(!confirm('Delete this entry from the calendar?')) return;
+                try { await this.api('/api/admin/year-calendar/'+id, { method:'DELETE' }); Toast.success('Entry deleted'); this.closeForm(); await this.init(); }
+                catch(e){ Toast.error(e.message || 'Could not delete'); }
+            },
+            print(){
+                document.body.classList.add('yc-print-mode');
+                const cleanup = () => { document.body.classList.remove('yc-print-mode'); window.removeEventListener('afterprint', cleanup); };
+                window.addEventListener('afterprint', cleanup);
+                setTimeout(() => { window.print(); setTimeout(cleanup, 800); }, 60);
+            },
+            exportCsv(){
+                const headers = ['Title','Project','Status','Start','End','Notes'];
+                const rows = this.entries.map(e => [ e.title, this.projMeta(e.project).label, e.status, e.starts_on||'', e.ends_on||'', e.notes||'' ]);
+                const csv = [headers.join(','), ...rows.map(r => r.map(c => '"'+String(c==null?'':c).replace(/"/g,'""')+'"').join(','))].join('\r\n');
+                const blob = new Blob([csv], { type:'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = 'medx-year-calendar-'+new Date().toISOString().split('T')[0]+'.csv';
+                a.click(); URL.revokeObjectURL(url);
             }
         };
 
@@ -42354,6 +42714,9 @@ By applying to this program, I give the following consents:
             }
             if (sectionId === 'tech') {
                 TechApp.init();
+            }
+            if (sectionId === 'year-calendar') {
+                if (typeof CalendarApp !== 'undefined') CalendarApp.init();
             }
         };
 

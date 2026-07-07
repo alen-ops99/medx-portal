@@ -954,6 +954,31 @@ function sponsorEventStats() {
     try { sponsors = query.get("SELECT COUNT(*) AS c FROM sponsors WHERE LOWER(COALESCE(status,'')) IN ('confirmed','committed','fulfilled')")?.c || 0; } catch (e) { /* skip */ }
     return { attendees, sponsors };
 }
+// Best-effort recipient-language signal for bilingual fallbacks. Croatian when the stored
+// country says so, or the name or inbound text carries Croatian diacritics, a -ic/-ovic style
+// surname, or common Croatian words. Defaults to English. Never throws.
+function recipientPrefersCroatian(sig) {
+    const s2 = sig || {};
+    const norm = (v) => String(v == null ? '' : v).toLowerCase();
+    const looksHrCountry = (v) => { const c = norm(v); return c.includes('croatia') || c.includes('hrvatska') || c === 'hr'; };
+    if (looksHrCountry(s2.country)) return true;
+    if (s2.email) {
+        try {
+            const u = query.get('SELECT country FROM users WHERE LOWER(email) = LOWER(?)', [String(s2.email)]);
+            if (u && looksHrCountry(u.country)) return true;
+        } catch (e) { /* best-effort */ }
+        try {
+            const rg = query.get("SELECT country FROM registrations WHERE LOWER(email) = LOWER(?) AND COALESCE(country,'') != '' LIMIT 1", [String(s2.email)]);
+            if (rg && looksHrCountry(rg.country)) return true;
+        } catch (e) { /* best-effort */ }
+    }
+    const name = String(s2.name || '');
+    const text = String(s2.text || '');
+    if (/[\u010d\u0107\u0111\u0161\u017e]/i.test(name + ' ' + text)) return true;
+    if (/(i\u0107|ovi\u0107|evi\u0107|\u010di\u0107)\b/i.test(name)) return true;
+    if (text && /\b(po\u0161tovani|po\u0161tovana|hvala|molim|lijep pozdrav|srda\u010dan pozdrav|trebam|pitanje|mo\u017eete|dolazim|ne mogu|prijav|kotizacij|uplat)\w*/i.test(text)) return true;
+    return false;
+}
 // Grounded follow-up draft for a quiet prospect. Returns { subject, html }. Never throws.
 async function sponsorBuildFollowupEmail(sponsor, payload) {
     const facts = sponsorEventFacts();
@@ -968,15 +993,24 @@ async function sponsorBuildFollowupEmail(sponsor, payload) {
         amount_discussed_eur: sponsor.amount_pledged ? sponsor.amount_pledged : '',
         event: facts.event, event_date: facts.date, sender: 'Med&X Partnerships Team',
     };
+    const hr = recipientPrefersCroatian({ email: sponsor.contact_email || payload.to || payload.email, name: contactName });
     let text = '';
-    try { const r = await aiDraft({ purpose, context, maxTokens: 350 }); text = (r && r.text) || ''; } catch (e) { text = ''; }
+    try { const r = await aiDraft({ purpose, context, maxTokens: 350 }); if (r && r.text && !r.mock && !/^\s*\[Draft\]/.test(r.text)) text = r.text.trim(); } catch (e) { text = ''; }
     if (!text) {
-        text = `Hi ${contactName || 'there'}, I wanted to follow up on our note about partnering with Med&X`
-            + (tierLabel ? ` at the ${tierLabel} level` : '') + '. '
-            + (tpl ? `It would include ${tpl.benefits.slice(0, 2).map((b) => b.benefit).join(' and ')}. ` : '')
-            + 'Would a short call this week work to walk through the details?';
+        const hrSalut = contactName ? `Poštovani ${contactName},` : 'Poštovani,';
+        text = hr
+            ? `${hrSalut} javljam se povodom našeg ranijeg upita o partnerstvu s udrugom Med&X`
+                + (tierLabel ? ` na razini ${tierLabel}` : '') + '. '
+                + 'Rado bismo s Vama prošli konkretne pogodnosti i moguću suradnju. '
+                + 'Biste li ovaj tjedan imali nekoliko minuta za kratak razgovor?'
+            : `Hi ${contactName || 'there'}, I wanted to follow up on our note about partnering with Med&X`
+                + (tierLabel ? ` at the ${tierLabel} level` : '') + '. '
+                + (tpl ? `It would include ${tpl.benefits.slice(0, 2).map((b) => b.benefit).join(' and ')}. ` : '')
+                + 'Would a short call this week work to walk through the details?';
     }
-    const subject = `Following up — ${sponsor.name || 'partnering with Med&X'}`;
+    const subject = hr
+        ? `Nastavno na naš upit o partnerstvu s Med&X`
+        : `Following up: ${sponsor.name || 'partnering with Med&X'}`;
     const html = `<div style="font-family:Georgia,serif;color:#2b2622;line-height:1.6;">${nagEscape(text).replace(/\n/g, '<br>')}<br><br>— Med&amp;X Partnerships</div>`;
     return { subject, html };
 }
@@ -994,14 +1028,22 @@ async function sponsorBuildWrapEmail(sponsor, delivered) {
         event: facts.event, paid_attendees: stats.attendees, active_sponsors: stats.sponsors,
         sender: 'Med&X Partnerships Team',
     };
+    const hr = recipientPrefersCroatian({ email: sponsor.contact_email, name: contactName || sponsor.name });
     let text = '';
-    try { const r = await aiDraft({ purpose, context, maxTokens: 400 }); text = (r && r.text) || ''; } catch (e) { text = ''; }
+    try { const r = await aiDraft({ purpose, context, maxTokens: 400 }); if (r && r.text && !r.mock && !/^\s*\[Draft\]/.test(r.text)) text = r.text.trim(); } catch (e) { text = ''; }
     if (!text) {
-        text = `Dear ${contactName || sponsor.name || 'partner'}, thank you for partnering with Med&X. `
-            + `We delivered ${context.benefits_delivered}, in front of ${stats.attendees} attendees. `
-            + 'We would love to have you back next year — may I send over the renewal options?';
+        const hrSalut = (contactName || sponsor.name) ? `Poštovani ${contactName || sponsor.name},` : 'Poštovani,';
+        text = hr
+            ? `${hrSalut} od srca Vam zahvaljujemo na partnerstvu s udrugom Med&X. `
+                + `Isporučili smo ${(delivered && delivered.length) ? context.benefits_delivered : 'cijeli paket partnerstva'} pred publikom od ${stats.attendees}. `
+                + 'Rado bismo Vas ugostili i sljedeće godine, pa Vas pitam mogu li Vam poslati mogućnosti obnove partnerstva.'
+            : `Dear ${contactName || sponsor.name || 'partner'}, thank you for partnering with Med&X. `
+                + `We delivered ${context.benefits_delivered}, in front of ${stats.attendees} attendees. `
+                + 'We would love to have you back next year — may I send over the renewal options?';
     }
-    const subject = `Thank you from Med&X — ${sponsor.name || 'partnership'} wrap-up`;
+    const subject = hr
+        ? `Hvala Vam od Med&X na partnerstvu${sponsor.name ? ', ' + sponsor.name : ''}`
+        : `Thank you from Med&X: ${sponsor.name || 'partnership'} wrap-up`;
     const html = `<div style="font-family:Georgia,serif;color:#2b2622;line-height:1.6;">${nagEscape(text).replace(/\n/g, '<br>')}<br><br>— Med&amp;X Partnerships</div>`;
     return { subject, html };
 }
@@ -1330,17 +1372,24 @@ async function nagBuildReminderEmail(item, payload) {
     const purpose = isDiet
         ? 'Write a short, warm reminder asking a Med&X Gala guest to share their dietary requirements so catering can plan.'
         : 'Write a short, warm reminder that a Med&X registration payment is still pending, gently inviting the guest to complete it.';
+    const hr = recipientPrefersCroatian({ email: payload.to || payload.email, name: payload.name });
     let text = '';
     try {
         const r = await aiDraft({ purpose, context: { recipient_name: payload.name || '', event: payload.event || 'Med&X' }, maxTokens: 300 });
-        text = (r && r.text) || '';
+        if (r && r.text && !r.mock && !/^\s*\[Draft\]/.test(r.text)) text = r.text.trim();
     } catch (e) { text = ''; }
-    if (!text) text = isDiet
-        ? `Hi ${payload.name || 'there'}, could you share your dietary requirements for the ${payload.event || 'Med&X Gala'}? It helps our catering team plan.`
-        : `Hi ${payload.name || 'there'}, your ${payload.event || 'Med&X'} registration payment is still pending. You can complete it any time.`;
-    const subject = isDiet
-        ? 'Your dietary preferences for the Med&X Gala'
-        : `Your ${payload.event || 'Med&X'} registration — payment pending`;
+    if (!text) {
+        const hrName = payload.name ? `Poštovani ${payload.name},` : 'Poštovani,';
+        if (hr) text = isDiet
+            ? `${hrName} možete li nam javiti svoje prehrambene potrebe za ${payload.event || 'Med&X Gala'}? Time pomažete našem ugostiteljskom timu u planiranju.`
+            : `${hrName} Vaša uplata za ${payload.event || 'Med&X'} još je u tijeku. Prijavu možete dovršiti u bilo kojem trenutku.`;
+        else text = isDiet
+            ? `Hi ${payload.name || 'there'}, could you share your dietary requirements for the ${payload.event || 'Med&X Gala'}? It helps our catering team plan.`
+            : `Hi ${payload.name || 'there'}, your ${payload.event || 'Med&X'} registration payment is still pending. You can complete it any time.`;
+    }
+    const subject = hr
+        ? (isDiet ? 'Vaše prehrambene potrebe za Med&X Gala' : `Vaša prijava za ${payload.event || 'Med&X'}: uplata u tijeku`)
+        : (isDiet ? 'Your dietary preferences for the Med&X Gala' : `Your ${payload.event || 'Med&X'} registration: payment pending`);
     const html = `<div style="font-family:Georgia,serif;color:#2b2622;line-height:1.6;">${nagEscape(text).replace(/\n/g, '<br>')}<br><br>— Med&amp;X</div>`;
     return { subject, html };
 }
@@ -4463,6 +4512,19 @@ async function initializeApp() {
             console.log('[content-checklist] seeded ' + ccSeeds.length + ' owed content items');
         }
     } catch (e) { console.error('[content-checklist] seed', e.message); }
+    // Venue confirmed (Hotel Esplanade Zagreb) — check off the venue checklist item once. Idempotent
+    // and non-destructive: only closes it while still open and not yet annotated, so an owner reopen is
+    // never re-clobbered (the note append is the one-time marker).
+    try {
+        db.run(`UPDATE content_checklist
+                SET status = 'done', done_at = CURRENT_TIMESTAMP, done_by = 'system:venue-confirmed',
+                    notes = TRIM(COALESCE(NULLIF(notes, ''), '') || ' Venue confirmed: Hotel Esplanade Zagreb.'),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE title = 'Plexus venue and partner hotel name'
+                  AND status = 'open'
+                  AND (notes IS NULL OR notes NOT LIKE '%Hotel Esplanade Zagreb%')`);
+        saveDb();
+    } catch (e) { console.error('[content-checklist] venue check-off', e.message); }
     // ====================== END CONTENT COMPLETION CHECKLIST schema ======================
 
     // ====================== ADMIN TEAM CHAT (cluster) schema ======================
@@ -6402,7 +6464,7 @@ async function initializeApp() {
         tagline TEXT DEFAULT 'The Pinnacle of Biomedical Excellence',
         date TEXT DEFAULT '2026-12-05',
         time TEXT DEFAULT '18:00',
-        venue TEXT DEFAULT 'Grand Ballroom, Zagreb',
+        venue TEXT DEFAULT 'Hotel Esplanade Zagreb',
         dress_code TEXT DEFAULT 'Black Tie / Formal Evening Attire',
         description TEXT DEFAULT 'The Gala Evening is the crown jewel of Plexus 2026.',
         capacity INTEGER DEFAULT 150,
@@ -6413,6 +6475,9 @@ async function initializeApp() {
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
     try { db.run("INSERT OR IGNORE INTO gala_settings (id) VALUES ('default')"); } catch(e) {}
+    // Venue confirmed as Hotel Esplanade Zagreb — correct a lingering placeholder value without
+    // ever overwriting an owner-set venue (guarded on the exact stale string).
+    try { db.run("UPDATE gala_settings SET venue = 'Hotel Esplanade Zagreb' WHERE id = 'default' AND venue = 'Grand Ballroom, Zagreb'"); } catch(e) {}
     // Mirror of the user-portal early-bird Gala pricing columns so the admin can read/edit them
     // and so the shared DB schema is consistent regardless of which service boots first.
     try { db.run("ALTER TABLE gala_settings ADD COLUMN price_gala_early_bird REAL DEFAULT 150"); } catch(e) {}
@@ -6732,6 +6797,47 @@ async function initializeApp() {
         sent_at TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+
+    // ======================= YEAR CALENDAR (admin-only planning board) =======================
+    // A printable two-year overview of every Med&X event and project, color-coded per project, with
+    // a potential-vs-confirmed status. Admin-only planning surface: it lives in THIS server.js alone,
+    // OUTSIDE the SCHEMA-MIRROR block (the user portal never reads or writes it, so nothing to mirror
+    // and check-schema-sync stays green). Idempotent CREATE; the seed below runs ONCE (insert-if-empty)
+    // so an admin's later edits/deletes are never clobbered on the next boot.
+    db.run(`CREATE TABLE IF NOT EXISTS year_calendar_entries (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        project TEXT,
+        starts_on TEXT,
+        ends_on TEXT,
+        status TEXT NOT NULL DEFAULT 'confirmed',
+        color TEXT,
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_year_calendar_starts ON year_calendar_entries(starts_on)`);
+    // Seed ONCE: only when the table is completely empty. A single admin delete leaves at least the
+    // others, so an emptied-on-purpose board would re-seed — that is the intended "reset to defaults".
+    try {
+        const _yc = query.get('SELECT COUNT(*) AS n FROM year_calendar_entries');
+        if (!_yc || _yc.n === 0) {
+            const seed = [
+                ['Building Bridges — Boston',       'bridges', '2026-09-01', null,         'potential', '#2563eb', 'Boston edition — date to be confirmed'],
+                ['Plexus early-bird deadline',      'plexus',  '2026-09-01', null,         'confirmed', '#b45309', 'Early-bird registration closes'],
+                ['Plexus Donor Night',              'plexus',  '2026-12-04', null,         'confirmed', '#9b1b22', 'Esplanade salon, Zagreb'],
+                ['Plexus Week — Conference',        'plexus',  '2026-12-04', '2026-12-05', 'confirmed', '#9b1b22', 'Novinarski dom, Zagreb'],
+                ['Plexus Gala',                     'gala',    '2026-12-05', null,         'confirmed', '#c9a962', 'Hotel Esplanade, Zagreb'],
+                ['Forum — annual gathering',        'forum',   '2027-05-28', '2027-05-29', 'confirmed', '#7c3aed', 'Biomedical Forum annual gathering']
+            ];
+            seed.forEach(r => {
+                db.run(`INSERT INTO year_calendar_entries (id, title, project, starts_on, ends_on, status, color, notes)
+                        VALUES (?,?,?,?,?,?,?,?)`, [uuidv4(), r[0], r[1], r[2], r[3], r[4], r[5], r[6]]);
+            });
+            saveDb();
+            console.log('[year-calendar] seeded ' + seed.length + ' default planning entries');
+        }
+    } catch (e) { console.error('[year-calendar] seed', e.message); }
 
     // === Performance indexes ===
     db.run(`CREATE INDEX IF NOT EXISTS idx_registrations_user ON registrations(user_id)`);
@@ -10001,6 +10107,67 @@ async function initializeApp() {
         db.run('DELETE FROM accelerator_sites WHERE id = ?', [req.params.id]);
         saveDb();
         logAudit(req, 'accelerator_site.delete', req.params.id);
+        res.json({ success: true });
+    });
+
+    // ======================= YEAR CALENDAR API (admin-only) =======================
+    // CRUD over the editable planning board, plus a read-only feed of the real events the portal
+    // already knows about (live conferences) so the calendar can surface them as chips alongside the
+    // editable entries. Nothing here touches registrations, payments, QR, or any frozen flow.
+    const YC_STATUSES = ['confirmed', 'potential'];
+    function ycClean(b) {
+        const title = String((b && b.title) || '').trim();
+        const project = (b && b.project != null) ? String(b.project).trim() : '';
+        const starts_on = (b && b.starts_on) ? String(b.starts_on).slice(0, 10) : null;
+        const ends_on = (b && b.ends_on) ? String(b.ends_on).slice(0, 10) : null;
+        let status = (b && b.status) ? String(b.status).trim().toLowerCase() : 'confirmed';
+        if (!YC_STATUSES.includes(status)) status = 'confirmed';
+        const color = (b && b.color) ? String(b.color).trim().slice(0, 24) : null;
+        const notes = (b && b.notes != null) ? String(b.notes).trim() : null;
+        return { title, project, starts_on, ends_on, status, color, notes };
+    }
+    app.get('/api/admin/year-calendar', auth, adminOnly, (req, res) => {
+        res.json(query.all('SELECT * FROM year_calendar_entries ORDER BY (starts_on IS NULL), starts_on, title'));
+    });
+    // Read-only: the live events the portal already has (active conferences), for surfacing as chips.
+    app.get('/api/admin/year-calendar/events', auth, adminOnly, (req, res) => {
+        try {
+            const rows = query.all(`SELECT id, name, year, start_date, end_date, venue_city, venue_country, early_bird_deadline
+                                    FROM conferences WHERE is_active = 1 ORDER BY (start_date IS NULL), start_date`);
+            res.json(rows);
+        } catch (e) { res.json([]); }
+    });
+    app.post('/api/admin/year-calendar', auth, adminOnly, (req, res) => {
+        const c = ycClean(req.body || {});
+        if (!c.title) return res.status(400).json({ error: 'Title is required' });
+        if (!c.starts_on) return res.status(400).json({ error: 'A start date is required' });
+        const id = uuidv4();
+        db.run(`INSERT INTO year_calendar_entries (id, title, project, starts_on, ends_on, status, color, notes)
+                VALUES (?,?,?,?,?,?,?,?)`,
+            [id, c.title, c.project || null, c.starts_on, c.ends_on, c.status, c.color, c.notes]);
+        saveDb();
+        logAudit(req, 'year_calendar.create', c.title);
+        res.json({ success: true, id });
+    });
+    app.put('/api/admin/year-calendar/:id', auth, adminOnly, (req, res) => {
+        const existing = query.get('SELECT * FROM year_calendar_entries WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Entry not found' });
+        const b = req.body || {};
+        const c = ycClean({ ...existing, ...b });
+        if (!c.title) return res.status(400).json({ error: 'Title is required' });
+        if (!c.starts_on) return res.status(400).json({ error: 'A start date is required' });
+        db.run(`UPDATE year_calendar_entries SET title=?, project=?, starts_on=?, ends_on=?, status=?, color=?, notes=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+            [c.title, c.project || null, c.starts_on, c.ends_on, c.status, c.color, c.notes, req.params.id]);
+        saveDb();
+        logAudit(req, 'year_calendar.update', c.title);
+        res.json({ success: true });
+    });
+    app.delete('/api/admin/year-calendar/:id', auth, adminOnly, (req, res) => {
+        const existing = query.get('SELECT title FROM year_calendar_entries WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Entry not found' });
+        db.run('DELETE FROM year_calendar_entries WHERE id = ?', [req.params.id]);
+        saveDb();
+        logAudit(req, 'year_calendar.delete', existing.title);
         res.json({ success: true });
     });
 
@@ -23611,7 +23778,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
                     tagline TEXT DEFAULT 'The Pinnacle of Biomedical Excellence',
                     date TEXT DEFAULT '2026-12-05',
                     time TEXT DEFAULT '18:00',
-                    venue TEXT DEFAULT 'Grand Ballroom, Zagreb',
+                    venue TEXT DEFAULT 'Hotel Esplanade Zagreb',
                     dress_code TEXT DEFAULT 'Black Tie / Formal Evening Attire',
                     description TEXT,
                     capacity INTEGER DEFAULT 150,
@@ -23634,7 +23801,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         }
         res.json(settings || {
             title: 'Gala Evening 2026', tagline: 'The Pinnacle of Biomedical Excellence',
-            date: '2026-12-05', time: '18:00', venue: 'Grand Ballroom, Zagreb',
+            date: '2026-12-05', time: '18:00', venue: 'Hotel Esplanade Zagreb',
             dress_code: 'Black Tie / Formal Evening Attire', capacity: 150,
             price_gala_only: 95, price_bundle: 174, price_bundle_original: 194,
             is_registration_open: 1, speakers: [], schedule: []
@@ -25376,16 +25543,62 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     // Canonical facts a reply can lean on, read live from plexus_settings so a price
     // or date edit in the admin panel flows straight into the drafts. Falls back to the
     // seeded defaults if the row is missing. Returns a compact { text, obj } pair.
+    // Localized date formatting for the offline reply composer (EN + HR, formal). HR month names are
+    // in the genitive case ("prosinca"), matching how Croatian writes a calendar date.
+    const AI_INBOX_MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const AI_INBOX_MONTHS_HR = ['siječnja', 'veljače', 'ožujka', 'travnja', 'svibnja', 'lipnja', 'srpnja', 'kolovoza', 'rujna', 'listopada', 'studenoga', 'prosinca'];
+    function aiInboxFmtDate(iso, hr) {
+        const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) return String(iso || '');
+        const y = +m[1], mo = +m[2], d = +m[3];
+        if (mo < 1 || mo > 12) return String(iso);
+        return hr ? `${d}. ${AI_INBOX_MONTHS_HR[mo - 1]} ${y}.` : `${d} ${AI_INBOX_MONTHS_EN[mo - 1]} ${y}`;
+    }
+    function aiInboxFmtDateRange(startIso, endIso, hr) {
+        const a = String(startIso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        const b = String(endIso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!a) return '';
+        if (!b || (a[1] === b[1] && a[2] === b[2] && a[3] === b[3])) return aiInboxFmtDate(startIso, hr);
+        const mo = +a[2];
+        if (a[1] === b[1] && a[2] === b[2] && mo >= 1 && mo <= 12) {
+            return hr ? `${+a[3]}. – ${+b[3]}. ${AI_INBOX_MONTHS_HR[mo - 1]} ${a[1]}.`
+                      : `${+a[3]}–${+b[3]} ${AI_INBOX_MONTHS_EN[mo - 1]} ${a[1]}`;
+        }
+        return hr ? `${aiInboxFmtDate(startIso, true)} – ${aiInboxFmtDate(endIso, true)}`
+                  : `${aiInboxFmtDate(startIso, false)} – ${aiInboxFmtDate(endIso, false)}`;
+    }
+
     function aiInboxFaqFacts() {
         let s = null;
         try { s = query.get("SELECT * FROM plexus_settings WHERE id = 'default'"); } catch (e) { s = null; }
+        let g = null;
+        try { g = query.get("SELECT * FROM gala_settings WHERE id = 'default'"); } catch (e) { g = null; }
+        // Raw values so the offline composer can build proper localized (EN + HR) phrases instead
+        // of interpolating pre-formatted English (ISO dates, "student ticket ... early bird") into
+        // a Croatian reply. Prices/dates still flow live from the admin settings rows.
+        const raw = {
+            confStart: (s && s.conference_start_date) || '2026-12-04',
+            confEnd: (s && s.conference_end_date) || '2026-12-05',
+            venueName: (s && s.venue_name) || 'Zagreb',
+            venueCity: (s && s.venue_city) || '',
+            venueCountry: (s && s.venue_country) || 'Croatia',
+            studentEarly: (s && s.price_student_early) || 39,
+            studentLate: (s && s.price_student_late) || 59,
+            professionalEarly: (s && s.price_professional_early) || 99,
+            professionalLate: (s && s.price_professional_late) || 149,
+            galaDate: (g && g.date) || '2026-12-05',
+            galaVenue: (g && g.venue) || 'Hotel Esplanade Zagreb',
+            galaEarly: (g && (g.price_gala_early_bird != null ? g.price_gala_early_bird : g.price_gala_only)) || 150,
+            galaRegular: (g && (g.price_gala_regular != null ? g.price_gala_regular : g.price_bundle)) || 175
+        };
         const f = {
             conference: (s && s.conference_name) || 'Plexus Conference',
-            conference_dates: `${(s && s.conference_start_date) || '2026-12-04'} to ${(s && s.conference_end_date) || '2026-12-05'}`,
-            venue: [(s && s.venue_name) || 'Zagreb', (s && s.venue_city) || '', (s && s.venue_country) || 'Croatia'].filter(Boolean).join(', '),
-            gala_evening: 'Plexus Gala Evening, 2026-12-05, Zagreb',
-            student_price: `student ticket EUR ${(s && s.price_student_early) || 39} early bird / EUR ${(s && s.price_student_late) || 59} late`,
-            professional_price: `professional ticket EUR ${(s && s.price_professional_early) || 99} early bird / EUR ${(s && s.price_professional_late) || 149} late`,
+            conference_dates: `${raw.confStart} to ${raw.confEnd}`,
+            venue: [raw.venueName, raw.venueCity, raw.venueCountry].filter(Boolean).join(', '),
+            gala_evening: `Plexus Gala Evening, ${raw.galaDate}, ${raw.galaVenue}`,
+            student_price: `student ticket EUR ${raw.studentEarly} early bird / EUR ${raw.studentLate} late`,
+            professional_price: `professional ticket EUR ${raw.professionalEarly} early bird / EUR ${raw.professionalLate} late`,
+            gala_price: `gala ticket EUR ${raw.galaEarly} early bird / EUR ${raw.galaRegular} regular`,
             early_bird_deadline: (s && s.early_bird_deadline) || '2026-09-30',
             abstract_deadline: (s && s.abstract_deadline) || '2026-10-15',
             registration_open: (s && s.is_registration_open === 0) ? 'registration is currently closed' : 'registration is open',
@@ -25393,7 +25606,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             support_contact: 'president@medx.hr'
         };
         const text = Object.entries(f).map(([k, v]) => `- ${k.replace(/_/g, ' ')}: ${v}`).join('\n');
-        return { obj: f, text };
+        return { obj: f, raw, text };
     }
 
     // Deterministic keyword classifier. This is the offline source of truth (dev has no
@@ -25440,12 +25653,119 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         return ctx;
     }
 
-    // Build a grounded reply draft for one inbound message. Returns { text, mock }.
+    // Deterministic, grounded reply composer for the offline (no-key) path. Warm reply built
+    // from the classified category, the member first name, and the live FAQ facts (dates, prices,
+    // venues). Returns '' for anything it cannot ground, which is the clean state: no draft is
+    // stored and a human writes the reply. Bilingual EN + HR by the member language signal.
+    function aiInboxReplyFallback(msg, facts, opts) {
+        const o = opts || {};
+        const hr = !!o.hr;
+        const f = (facts && facts.obj) || {};
+        const raw = (facts && facts.raw) || {};
+        const support = f.support_contact || 'president@medx.hr';
+        const conf = f.conference || 'Plexus Conference';
+        const low = `${msg.title || ''} ${msg.content || ''}`.toLowerCase();
+        const has = (arr) => arr.some((w) => low.includes(w));
+        const cat = msg.ai_category || 'other';
+
+        const greet = o.firstName
+            ? (hr ? `Poštovani ${o.firstName},` : `Hi ${o.firstName},`)
+            : (hr ? 'Poštovani,' : 'Hello,');
+        const signoff = hr ? '\n\nSrdačan pozdrav,\nTim Med&X' : '\n\nWarm regards,\nThe Med&X Team';
+
+        // Fine intents that refine the stored category.
+        const isThanks = has(['thank you', 'thanks', 'hvala', 'zahvaljujem'])
+            && !has(['?', 'question', 'how ', 'when ', 'koliko', 'kada', 'kako', 'cost', 'price', 'cijena', 'refund']);
+        const cannotAttend = has(["can't attend", 'cannot attend', "won't be able", 'unable to attend', 'not able to attend', "won't make it", 'ne mogu doći', 'ne mogu prisustvovati', 'nažalost ne mogu', 'moram otkazati']);
+        const asksCost = has(['cost', 'how much', 'price', 'ticket price', ' fee', 'cijena', 'koliko košta', 'kotizacij']);
+        const asksDates = has(['what date', 'which date', 'when is', 'what day', 'dates', 'schedule', 'koji datum', 'kada je', 'kada se', 'raspored']);
+        const asksGala = has(['gala', 'gala evening', 'gala večer', 'gala vecer', 'gala večeru', 'gala dinner', 'galu']);
+
+        // Conference date + venue built from raw settings, so a Croatian reply never carries a raw
+        // ISO date or an English connector word ("to"). Country name localized for the HR side.
+        const confDates = raw.confStart ? aiInboxFmtDateRange(raw.confStart, raw.confEnd, hr) : '';
+        const venueCountry = hr && String(raw.venueCountry || '').toLowerCase() === 'croatia' ? 'Hrvatska' : (raw.venueCountry || '');
+        const venueStr = [raw.venueName, raw.venueCity, venueCountry].filter(Boolean).join(', ');
+        const dateLine = confDates
+            ? (hr ? `${conf} održava se ${confDates}${venueStr ? `, ${venueStr}` : ''}.`
+                  : `The ${conf} runs ${confDates}${venueStr ? ` at ${venueStr}` : ''}.`)
+            : '';
+        // Conference prices composed per language — no pre-baked English string reused in HR text.
+        const priceLine = (raw.studentEarly != null)
+            ? (hr ? `Kotizacije: za studente ${raw.studentEarly} EUR (rana prijava) / ${raw.studentLate} EUR (kasna prijava), za profesionalce ${raw.professionalEarly} EUR (rana prijava) / ${raw.professionalLate} EUR (kasna prijava).`
+                  : `Tickets: student EUR ${raw.studentEarly} early bird / EUR ${raw.studentLate} late, professional EUR ${raw.professionalEarly} early bird / EUR ${raw.professionalLate} late.`)
+            : '';
+        // Gala facts stand on their own — its own date, venue and price, never the conference figures.
+        const galaDateFmt = raw.galaDate ? aiInboxFmtDate(raw.galaDate, hr) : (hr ? '5. prosinca 2026.' : '5 December 2026');
+        const galaVenue = raw.galaVenue || 'Hotel Esplanade Zagreb';
+        const galaDateLine = hr ? `Gala večer održava se ${galaDateFmt} u ${galaVenue}.`
+                                : `The Gala Evening takes place on ${galaDateFmt} at ${galaVenue}.`;
+        const galaPriceLine = (raw.galaEarly != null)
+            ? (hr ? `Ulaznica za gala večer: ${raw.galaEarly} EUR (rana prijava) / ${raw.galaRegular} EUR (redovna).`
+                  : `Gala ticket: EUR ${raw.galaEarly} early bird / EUR ${raw.galaRegular} regular.`)
+            : '';
+
+        let mid = '';
+        if (isThanks) {
+            mid = hr ? 'Hvala Vam na lijepoj poruci. Drago nam je što ste nam se javili i tu smo za sve što Vam još zatreba.'
+                     : 'Thank you for the kind note. We are glad to hear from you and are here for anything else you need.';
+        } else if (cannotAttend) {
+            mid = hr ? `Hvala što ste nas obavijestili. Potpuno razumijemo i nadamo se da ćemo Vas ugostiti neki drugi put. Ako želite prenijeti ili otkazati prijavu, rado ćemo pomoći. Za pojedinosti pišite na ${support}.`
+                     : `Thank you for letting us know. We completely understand and hope to welcome you another time. If you would like to transfer or cancel your registration, we are happy to help. For details, write to ${support}.`;
+        } else if (cat === 'payment issue') {
+            mid = hr ? `Pogledat ćemo Vaš upit o plaćanju. Ako imate broj računa ili potvrde o uplati, priložite ih i riješit ćemo to što prije. Za izravnu pomoć pišite na ${support}.`
+                     : `We will look into your payment question right away. If you have an invoice or receipt number, please share it and we will sort it out quickly. For direct help, write to ${support}.`;
+        } else if (asksGala) {
+            // A gala-specific question is answered with the gala's own date, venue and price —
+            // never the conference registration prices, which are a different event.
+            const bits = [galaDateLine];
+            if (galaPriceLine) bits.push(galaPriceLine);
+            bits.push(hr ? `Ako Vam treba još pojedinosti, javite se na ${support}.`
+                         : `If you need anything else, reach us at ${support}.`);
+            mid = bits.join(' ');
+        } else if (cat === 'registration question' || asksCost || asksDates) {
+            const bits = [];
+            if (dateLine) bits.push(dateLine);
+            if ((asksCost || cat === 'registration question') && priceLine) bits.push(priceLine);
+            if (!bits.length) bits.push(hr ? `Rado ćemo Vam pomoći s prijavom. Za sve pojedinosti javite se na ${support}.`
+                                            : `We are happy to help with your registration. For any details, reach us at ${support}.`);
+            else bits.push(hr ? `Ako Vam treba još pojedinosti, javite se na ${support}.` : `If you need anything else, reach us at ${support}.`);
+            mid = bits.join(' ');
+        } else if (cat === 'sponsorship') {
+            mid = hr ? `Hvala na interesu za partnerstvo s Med&X. Rado ćemo Vam poslati pakete partnerstva i dogovoriti kratak razgovor. Javite se na ${support}.`
+                     : `Thank you for your interest in partnering with Med&X. We would be glad to send the partnership packages and set up a short call. Reach us at ${support}.`;
+        } else if (cat === 'speaker') {
+            mid = hr ? `Hvala na Vašem interesu za sudjelovanje u programu. Proslijedit ćemo Vašu poruku programskom odboru i javiti se s idućim koracima. Za pitanja pišite na ${support}.`
+                     : `Thank you for your interest in taking part in the program. We will pass your message to the program committee and follow up with next steps. For questions, write to ${support}.`;
+        } else if (cat === 'accelerator question') {
+            mid = hr ? `${f.accelerator || 'Med&X Accelerator povezuje članove s istraživačkim laboratorijima i klinikama.'} Za pojedinosti prijave javite se na ${support}.`
+                     : `${f.accelerator || 'The Med&X Accelerator places members in research labs and clinics.'} For application details, reach us at ${support}.`;
+        } else if (cat === 'technical') {
+            mid = hr ? `Žao nam je zbog poteškoće. Možete li nam opisati što ste pokušali i, ako je moguće, poslati snimku zaslona? Pomoći ćemo Vam što prije. Pišite na ${support}.`
+                     : `We are sorry for the trouble. Could you tell us what you were trying to do and, if possible, send a screenshot? We will help you as soon as we can. Write to ${support}.`;
+        } else {
+            return '';
+        }
+
+        return `${greet}\n\n${mid}${signoff}`;
+    }
+
+    // Build a grounded reply draft for one inbound message. Returns { text, mock, mock_reason }.
+    // A real model reply is used only when the key is present, otherwise the deterministic
+    // aiInboxReplyFallback composes the offline reply (or '' -> no draft, human replies).
     async function aiInboxBuildDraft(msg, faq) {
         const facts = faq || aiInboxFaqFacts();
         const memberEmail = msg.sender_id || '';
         const member = aiInboxMemberContext(memberEmail);
         const cls = { category: msg.ai_category, urgency: msg.ai_urgency };
+        // Resolve the member first name + language for the deterministic fallback (best-effort).
+        let firstName = '', userCountry = '';
+        try {
+            const u = memberEmail ? query.get('SELECT first_name, country FROM users WHERE LOWER(email) = LOWER(?)', [memberEmail]) : null;
+            if (u) { firstName = String(u.first_name || '').trim().split(' ')[0]; userCountry = u.country || ''; }
+        } catch (e) { /* best-effort */ }
+        const hr = recipientPrefersCroatian({ email: memberEmail, name: firstName, country: userCountry, text: `${msg.title || ''} ${msg.content || ''}` });
+
         const out = await aiDraft({
             purpose: 'Write a warm, specific reply from the Med&X team to this member message. '
                 + 'Open with a greeting, answer their question directly using only the facts below, '
@@ -25459,7 +25779,10 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             },
             maxTokens: 400
         });
-        return out;
+        // Live model reply only when it is real (key present, not the empty or [Draft] mock).
+        if (out && out.text && !out.mock && !/^\s*\[Draft\]/.test(out.text)) return out;
+        const text = aiInboxReplyFallback(msg, facts, { hr, firstName, registrations: member.registrations });
+        return { text, mock: true, mock_reason: (out && out.mock_reason) || 'no_key' };
     }
 
     // Full-auto triage sweep: label + draft every inbound (member->admin) message that has
@@ -27627,12 +27950,43 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     // directly; this endpoint exposes it for ad-hoc "draft this for me" use in the admin UI.
     // In dev (no ANTHROPIC_API_KEY) it returns a deterministic mock prefixed '[Draft]', so the
     // flow is testable without a live send. Advisory text only — nothing is sent here.
+    // Deterministic composer for the ad-hoc "draft this for me" tool: turns { purpose, context }
+    // into a readable titled paragraph instead of a raw key dump. EN baseline, mirrors to HR when
+    // lang starts with 'hr'. Used whenever aiDraft is in the no-key mock mode.
+    function composeAdhocDraft(purpose, context, lang) {
+        const hr = String(lang || '').toLowerCase().startsWith('hr');
+        const humanize = (k) => String(k).replace(/[_\-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        const p = String(purpose == null ? '' : purpose).trim();
+        const parts = [];
+        if (p) parts.push(hr ? `Nacrt za sljedeći zadatak: ${p}` : `Here is a working draft for: ${p}`);
+        const pairs = [];
+        if (context && typeof context === 'object' && !Array.isArray(context)) {
+            for (const [k, v] of Object.entries(context)) {
+                if (v === undefined || v === null || String(v).trim() === '') continue;
+                pairs.push([humanize(k), typeof v === 'object' ? JSON.stringify(v) : String(v)]);
+            }
+        } else if (Array.isArray(context)) {
+            context.forEach((v, i) => { if (v !== undefined && v !== null && String(v).trim() !== '') pairs.push([hr ? `Stavka ${i + 1}` : `Item ${i + 1}`, typeof v === 'object' ? JSON.stringify(v) : String(v)]); });
+        } else if (context !== undefined && context !== null && String(context).trim() !== '') {
+            parts.push(String(context).trim());
+        }
+        if (pairs.length) {
+            const clause = pairs.map(([k, v]) => `${k.toLowerCase()} is ${v}`).join(', ');
+            const clauseHr = pairs.map(([k, v]) => `${k.toLowerCase()} je ${v}`).join(', ');
+            parts.push(hr ? `Za referencu, ${clauseHr}.` : `For reference, ${clause}.`);
+        }
+        if (!parts.length) return hr ? 'Nema dovoljno podataka za nacrt.' : 'Not enough detail to draft from yet.';
+        return parts.join('\n\n');
+    }
+
     app.post('/api/admin/ai/draft', assistantLimiter, auth, adminOnly, async (req, res) => {
         try {
-            const { purpose, context, maxTokens } = req.body || {};
+            const { purpose, context, maxTokens, lang } = req.body || {};
             if (!purpose && !context) return res.status(400).json({ error: 'Provide a purpose or context to draft from.' });
             const out = await aiDraft({ purpose, context, maxTokens });
-            res.json(out);
+            if (out && out.text && !out.mock && !/^\s*\[Draft\]/.test(out.text)) return res.json(out);
+            const text = composeAdhocDraft(purpose, context, lang);
+            res.json({ text, mock: true, mock_reason: (out && out.mock_reason) || 'no_key' });
         } catch (e) { console.error('[ai/draft] error', e.message); res.status(500).json({ error: 'Draft failed' }); }
     });
 
