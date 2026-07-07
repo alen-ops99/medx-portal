@@ -7617,6 +7617,76 @@ async function initializeApp() {
     db.run(`CREATE INDEX IF NOT EXISTS idx_forum_considerations_status ON forum_considerations(status)`);
     // ====================== END FORUM WING schema ======================
 
+    // ============ POST-EVENT ENGINE + TICKET TRANSFERS (queue 5a5g) — shared tables ============
+    // Added IDENTICALLY to BOTH portal server.js files (shared Turso DB in prod), OUTSIDE the
+    // SCHEMA-MIRROR block by design, so scripts/check-schema-sync.sh stays green while both portals
+    // still agree on these shared tables. Idempotent CREATE/ALTER — whichever portal boots first wins.
+
+    // --- Ticket NAME TRANSFERS -------------------------------------------------------------------
+    // The user portal creates a transfer request ("transfer my ticket to a colleague"); the admin
+    // portal approves it, reassigning the registration's DENORMALIZED name/email IN PLACE. The ticket
+    // QR payload IS the registration id and is NEVER regenerated, so the SAME QR checks in the new
+    // person (the scanner resolves by id, then shows the denormalized name/email). orig_* snapshots the
+    // pre-transfer identity for the audit trail + a possible reversal.
+    try { db.run("ALTER TABLE registration_transfers ADD COLUMN orig_user_id TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE registration_transfers ADD COLUMN orig_first_name TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE registration_transfers ADD COLUMN orig_last_name TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE registration_transfers ADD COLUMN orig_email TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE registration_transfers ADD COLUMN recipient_first_name TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE registration_transfers ADD COLUMN recipient_last_name TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE registration_transfers ADD COLUMN reassigned_at TEXT"); } catch(e) {}
+    // Append-only audit of every lifecycle event (requested | approved | reassigned | rejected).
+    db.run(`CREATE TABLE IF NOT EXISTS ticket_transfer_audit (
+        id TEXT PRIMARY KEY,
+        transfer_id TEXT NOT NULL,
+        registration_id TEXT,
+        event TEXT NOT NULL,
+        detail TEXT,
+        actor TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // --- GROUP DISCOUNTS (owner: BUILD, do NOT apply) — shipped DORMANT ---------------------------
+    // The config table + a global feature flag, both OFF. enabled defaults 0 and there is deliberately
+    // NO admin UI to switch it on; checkout is FROZEN and never reads this. It exists so a future
+    // edition can offer "N+ tickets -> discount" without a migration.
+    db.run(`CREATE TABLE IF NOT EXISTS group_discounts (
+        id TEXT PRIMARY KEY,
+        edition_key TEXT,
+        conference_id TEXT,
+        label TEXT,
+        min_group_size INTEGER DEFAULT 3,
+        discount_type TEXT DEFAULT 'percent',
+        discount_value REAL DEFAULT 0,
+        enabled INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    try { db.run("INSERT OR IGNORE INTO automation_config (key, value) VALUES ('group_discounts_enabled','0')"); } catch(e) {}
+
+    // --- TESTIMONIAL HARVESTING ------------------------------------------------------------------
+    // A high-rating post-event survey response triggers a consent ask (staged in the approval outbox).
+    // The member taps a public consent link (yes-with-name / no); a consented quote lands here for the
+    // admin to approve/edit/export, then feeds the website-testimonials checklist. status walks
+    // invited -> consented -> approved (or declined). token backs the public consent GET.
+    db.run(`CREATE TABLE IF NOT EXISTS testimonials (
+        id TEXT PRIMARY KEY,
+        event_key TEXT,
+        reg_id TEXT,
+        author_name TEXT,
+        author_email TEXT,
+        author_role TEXT,
+        quote TEXT,
+        rating INTEGER,
+        consent_name INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'invited',
+        token TEXT UNIQUE,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        consented_at TEXT,
+        approved_at TEXT,
+        approved_by TEXT
+    )`);
+    // ============ END POST-EVENT ENGINE + TICKET TRANSFERS shared tables ============
+
     // ====================== GUEST PASSES — member-initiated colleague invites ======================
     // Shared table (both portals touch it): the user portal creates + revokes a member's own passes
     // and stages the guest email, while the admin portal lists passes in the event guest lists,
@@ -18019,17 +18089,38 @@ By applying to this program, I provide the following consents:
 
     // Request registration transfer
     app.post('/api/plexus/registration/:regId/transfer', auth, (req, res) => {
-        const { new_user_email, new_user_name, reason } = req.body;
-        const reg = query.get('SELECT * FROM registrations WHERE id = ? AND user_id = ?', [req.params.regId, req.user.id]);
-
+        const { new_user_email, new_user_name, reason } = req.body || {};
+        const reg = query.get('SELECT r.*, u.first_name AS u_first, u.last_name AS u_last, u.email AS u_email FROM registrations r JOIN users u ON r.user_id = u.id WHERE r.id = ? AND r.user_id = ?', [req.params.regId, req.user.id]);
         if (!reg) return res.status(404).json({ error: 'Registration not found' });
 
-        const id = uuidv4();
-        db.run('INSERT INTO registration_transfers (id, registration_id, original_user_id, new_user_email, new_user_name, reason) VALUES (?, ?, ?, ?, ?, ?)',
-            [id, reg.id, req.user.id, new_user_email, new_user_name, reason]);
-        saveDb();
+        // Validate the recipient before anything is written.
+        const email = String(new_user_email || '').trim().toLowerCase();
+        const fullName = String(new_user_name || '').trim();
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'A valid recipient email is required.' });
+        if (fullName.length < 2) return res.status(400).json({ error: "Please enter the colleague's full name." });
+        if (email === String(reg.u_email || '').toLowerCase()) return res.status(400).json({ error: 'That is already the ticket holder.' });
 
-        res.json({ success: true, transfer_id: id });
+        // One open request at a time, and never once the ticket has already been used at the door.
+        const openReq = query.get("SELECT id FROM registration_transfers WHERE registration_id = ? AND status = 'pending'", [reg.id]);
+        if (openReq) return res.status(409).json({ error: 'A transfer request for this ticket is already awaiting approval.' });
+        if (reg.checked_in) return res.status(409).json({ error: 'This ticket has already been used to check in and cannot be transferred.' });
+
+        const parts = fullName.split(/\s+/);
+        const rFirst = parts.shift() || '';
+        const rLast = parts.join(' ');
+        const id = uuidv4();
+        // Snapshot the current holder's identity (orig_*) so the audit trail + a possible reversal are exact.
+        db.run(`INSERT INTO registration_transfers
+            (id, registration_id, original_user_id, orig_user_id, orig_first_name, orig_last_name, orig_email,
+             new_user_email, new_user_name, recipient_first_name, recipient_last_name, reason, status)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'pending')`,
+            [id, reg.id, req.user.id, req.user.id, reg.u_first, reg.u_last, reg.u_email,
+             email, fullName, rFirst, rLast, String(reason || '').slice(0, 500)]);
+        db.run(`INSERT INTO ticket_transfer_audit (id, transfer_id, registration_id, event, detail, actor)
+            VALUES (?,?,?, 'requested', ?, ?)`,
+            [uuidv4(), id, reg.id, `${reg.u_email} -> ${email} (${fullName})`, reg.u_email || req.user.id]);
+        saveDb();
+        res.json({ success: true, transfer_id: id, status: 'pending' });
     });
 
     // Request refund
@@ -18612,6 +18703,45 @@ By applying to this program, I provide the following consents:
         const conf = activePlexusConf();
         const resources = query.all('SELECT * FROM resources WHERE conference_id = ? ORDER BY category, title', [conf.id]);
         res.json(resources);
+    });
+
+    // PUBLIC certificate verification page — the share target for the member certificate-sharing module
+    // (LinkedIn add-to-profile certUrl, X / Facebook / WhatsApp, copy-link). Read-only, no auth: it
+    // confirms a certificate NUMBER is genuine and shows only what is already printed on the certificate
+    // (recipient name, event, issue date). A number must be supplied — it never lists or enumerates.
+    app.get('/verify-certificate', (req, res) => {
+        const number = String(req.query.n || req.query.number || '').trim();
+        const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+        let cert = null;
+        if (number) { try { cert = query.get('SELECT recipient_name, conference_name, certificate_number, certificate_type, issue_date FROM certificates WHERE certificate_number = ?', [number]); } catch (e) {} }
+        const head = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Certificate verification — Med&amp;X</title>`
+          + `<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">`
+          + `<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Inter,system-ui,sans-serif;background:#f5f2ec;color:#15110f;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}`
+          + `.card{background:#fff;max-width:520px;width:100%;border:1px solid #e6e0d6;border-radius:18px;padding:40px;box-shadow:0 20px 60px rgba(0,0,0,.08);text-align:center}`
+          + `.brand{font-family:Fraunces,serif;font-size:24px;font-weight:600;color:#9b1b22;letter-spacing:.03em}`
+          + `.badge{display:inline-flex;align-items:center;gap:7px;margin:18px 0 6px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:6px 14px;border-radius:999px}`
+          + `.ok{background:#ecfdf3;color:#087443;border:1px solid #b6ecc9}.bad{background:#fef2f2;color:#b42318;border:1px solid #fbcfcf}`
+          + `.name{font-family:Fraunces,serif;font-size:30px;font-weight:600;margin:14px 0 6px}.evt{font-size:15px;color:#403a36;line-height:1.6}`
+          + `.meta{margin-top:22px;font-size:12px;color:#6b6258;line-height:1.9}.meta b{color:#403a36}`
+          + `.hr{font-size:12px;color:#6b6258;margin-top:22px;border-top:1px solid #eee7db;padding-top:16px;line-height:1.7}</style></head><body>`;
+        if (!cert) {
+            res.status(404).send(head
+              + `<div class="card"><div class="brand">Med&amp;X</div>`
+              + `<div class="badge bad">Not verified</div>`
+              + `<p class="evt">We could not find a certificate with that number. Please check the number and try again.</p>`
+              + `<p class="hr">Nismo pronašli potvrdu s tim brojem. Provjerite broj i pokušajte ponovno.</p>`
+              + `</div></body></html>`);
+            return;
+        }
+        const issued = cert.issue_date ? new Date(cert.issue_date).toLocaleDateString('en-GB', { year:'numeric', month:'long', day:'numeric' }) : '';
+        res.send(head
+          + `<div class="card"><div class="brand">Med&amp;X</div>`
+          + `<div class="badge ok"><span>&#10003;</span> Verified certificate</div>`
+          + `<div class="name">${esc(cert.recipient_name || '')}</div>`
+          + `<p class="evt">Certificate of ${esc(cert.certificate_type || 'attendance')} &middot; <b>${esc(cert.conference_name || '')}</b></p>`
+          + `<div class="meta">Certificate number: <b>${esc(cert.certificate_number || '')}</b>${issued ? `<br>Issued: <b>${esc(issued)}</b>` : ''}</div>`
+          + `<p class="hr">Ova je potvrda izdana i ovjerena od strane Med&amp;X-a. &middot; This certificate was issued and verified by Med&amp;X.</p>`
+          + `</div></body></html>`);
     });
 
     // Download certificate

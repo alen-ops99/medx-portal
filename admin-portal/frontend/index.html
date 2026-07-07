@@ -6633,6 +6633,9 @@
     <!-- Self-hosted (was CDN) so ad-blockers / restricted networks can't block the scanner libs -->
     <script src="/vendor/html5-qrcode.min.js"></script>
     <script src="/vendor/jsqr.min.js"></script>
+    <!-- Leaflet (vendored locally — free OSM tiles, no key) for the Live Ops Map -->
+    <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+    <script src="/vendor/leaflet/leaflet.js"></script>
     <style id="medx-admin-brand-v2">
       /* Sidebar section icons: one restrained neutral, crimson only on the active row */
       .sidebar .nav-item > i { color: #a89e92 !important; }
@@ -6811,6 +6814,35 @@
         <button id="assistantFab" class="assist-fab" onclick="App.openAssistant()" title="Ask the Med&X assistant">
             <i class="fas fa-robot"></i>
         </button>
+
+        <!-- EVENT-DAY STAFF LOCATION SHARING (queue 5a5j) — staff-side control; is_admin/is_staff only -->
+        <button id="staffShareBtn" class="share-fab" onclick="StaffShare.openPanel()" title="Event-day location sharing" style="display:none;">
+            <i class="fas fa-location-arrow"></i>
+        </button>
+        <div id="staffShareIndicator" class="share-indicator" onclick="StaffShare.openPanel()" style="display:none;" role="status">
+            <span class="share-dot"></span><span id="staffShareIndicatorText">Sharing location</span>
+        </div>
+        <div id="staffSharePanel" class="share-panel-overlay">
+          <div class="share-panel" role="dialog" aria-label="Event-day location sharing">
+            <div class="share-panel-head">
+              <div>
+                <div class="share-panel-title">Event-day location sharing</div>
+                <div class="share-panel-sub" id="staffShareEvent">No event day is active right now</div>
+              </div>
+              <button class="share-x" onclick="StaffShare.closePanel()" aria-label="Close"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="share-toggle-row">
+              <div>
+                <div class="share-toggle-label">Share my live location</div>
+                <div class="share-toggle-help" id="staffShareState">Off — nothing is shared</div>
+              </div>
+              <button id="staffShareToggle" class="share-switch" role="switch" aria-checked="false" onclick="StaffShare.toggle()"><span class="share-knob"></span></button>
+            </div>
+            <div class="share-consent">Your location is visible only to the Med&X admin team, only during the event day, and every point is deleted when the day ends. You can turn this off at any time.</div>
+            <div class="share-status-line" id="staffShareStatus"></div>
+            <div id="staffSharePairings"></div>
+          </div>
+        </div>
 
         <!-- Mobile Header -->
         <header class="mobile-header">
@@ -7027,6 +7059,11 @@
                 <a class="nav-item" data-section="auctions" onclick="App.showSection('auctions', this)">
                     <i class="fas fa-gavel" style="color: #C9A962;"></i>
                     <span>Auctions</span>
+                </a>
+
+                <a class="nav-item" data-section="event-tracking" onclick="App.showSection('event-tracking', this)">
+                    <i class="fas fa-location-dot" style="color: #ef4444;"></i>
+                    <span>Live Ops Map</span>
                 </a>
 
                 <a class="nav-item" data-section="event-invites" onclick="App.showSection('event-invites', this)">
@@ -7393,6 +7430,30 @@
                     <!-- Dynamic Dashboard Cards -->
                     <div id="homeDashboardCards" style="margin-top: 16px;"></div>
 
+                </div>
+
+                <!-- EVENT-DAY STAFF TRACKING — Live Ops Map (queue 5a5j) -->
+                <div class="section" id="section-event-tracking">
+                    <div class="page-header">
+                        <div>
+                            <h1>Live Ops Map</h1>
+                            <p>See where the team is on the event day and who is escorting whom</p>
+                        </div>
+                    </div>
+                    <div id="trk-settingsbar" class="trk-settingsbar"></div>
+                    <div class="trk-grid">
+                        <div class="trk-mapwrap"><div id="trk-map"></div><div id="trk-mapnote" class="trk-mapnote"></div></div>
+                        <div class="trk-side">
+                            <div class="trk-panel">
+                                <div class="trk-panel-h"><span>On the map</span><span id="trk-count" class="trk-muted"></span></div>
+                                <div id="trk-roster"><div class="trk-muted">Loading…</div></div>
+                            </div>
+                            <div class="trk-panel">
+                                <div class="trk-panel-h"><span>Escort pairings</span><button class="btn btn-secondary" style="padding:5px 12px;font-size:12px;" onclick="StaffTracking.openPairingForm()">Add pairing</button></div>
+                                <div id="trk-pairings"><div class="trk-muted">Loading…</div></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- PLEXUS CONFERENCE MANAGEMENT -->
@@ -8099,6 +8160,13 @@ President, Med&amp;X</textarea>
                         <div class="card">
                             <div class="card-header"><span class="card-title">Speaker Applications</span></div>
                             <div class="card-body" id="pxPendingSpeakersList"></div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header"><span class="card-title">Ticket Name Transfers</span></div>
+                            <div class="card-body">
+                                <p style="font-size:11px;color:var(--text-muted);margin:0 0 12px;line-height:1.5;">Approving reassigns the ticket to the colleague in place &mdash; the QR code never changes, so the same ticket checks in the new person. Both sides are notified through the approval outbox.</p>
+                                <div id="pxPendingTransfersList"></div>
+                            </div>
                         </div>
                     </div>
 
@@ -18523,6 +18591,7 @@ President, Med&amp;X</textarea>
                     'messages': 'Messages',
                     'gala': 'Gala Evening',
                     'auctions': 'Auctions',
+                    'event-tracking': 'Live Ops Map',
                     'event-invites': 'Event invitations',
                     'event-reminders': 'Event reminders',
                     'conferences': 'Conferences',
@@ -25379,6 +25448,7 @@ President, Med&amp;X</textarea>
                     this.renderPendingList('pxPendingVisasList', pending.visas || [], 'visa');
                     this.renderPendingList('pxPendingScholarshipsList', pending.scholarships || [], 'scholarship');
                     this.renderPendingList('pxPendingSpeakersList', pending.speaker_apps || [], 'speaker');
+                    this.renderPendingList('pxPendingTransfersList', pending.transfers || [], 'transfer');
                 } catch (err) {
                     console.error('Failed to load pending items:', err);
                 }
@@ -25393,18 +25463,25 @@ President, Med&amp;X</textarea>
                     return;
                 }
 
-                container.innerHTML = items.map(item => `
+                container.innerHTML = items.map(item => {
+                    const holder = (type === 'transfer')
+                        ? this.escapeHtml([item.first_name, item.last_name].filter(Boolean).join(' ') || item.email || 'Ticket holder')
+                        : this.escapeHtml(item.name || item.email || 'Unknown');
+                    const subtitle = (type === 'transfer')
+                        ? `<i class="fas fa-arrow-right" style="margin:0 4px;"></i> ${this.escapeHtml(item.new_user_name || '')} <span style="opacity:.7;">(${this.escapeHtml(item.new_user_email || '')})</span>${item.reason ? ` &middot; ${this.escapeHtml(item.reason)}` : ''}`
+                        : (this.escapeHtml(item.reason || item.details || ''));
+                    return `
                     <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-tertiary); border-radius: 8px; margin-bottom: 8px;">
                         <div>
-                            <div style="font-weight: 500;">${this.escapeHtml(item.name || item.email || 'Unknown')}</div>
-                            <div style="font-size: 12px; color: var(--text-muted);">${item.reason || item.details || ''}</div>
+                            <div style="font-weight: 500;">${holder}</div>
+                            <div style="font-size: 12px; color: var(--text-muted);">${subtitle}</div>
                         </div>
                         <div class="actions">
                             <button class="btn btn-primary" style="padding: 6px 12px;" onclick="App.approvePendingItem('${type}', '${item.id}')">Approve</button>
                             <button class="btn btn-secondary" style="padding: 6px 12px;" onclick="App.rejectPendingItem('${type}', '${item.id}')">Reject</button>
                         </div>
                     </div>
-                `).join('');
+                `; }).join('');
             },
 
             async approvePendingItem(type, id) {
@@ -47164,6 +47241,441 @@ By applying to this program, I give the following consents:
 
     };
     window.ReviewEngine = ReviewEngine;
+    </script>
+
+    <!-- ================= EVENT-DAY STAFF TRACKING (queue 5a5j) — styles + modules ================= -->
+    <style id="staff-tracking-styles">
+      /* ---- staff-side sharing FAB + indicator + panel ---- */
+      .share-fab { position: fixed; bottom: 224px; right: 28px; width: 56px; height: 56px; border-radius: 50%;
+        background: #0f766e; color: #fff; border: none; font-size: 20px; cursor: pointer;
+        box-shadow: 0 4px 14px rgba(15,118,110,.4); z-index: 900; display: none; align-items: center; justify-content: center;
+        transition: transform .2s, box-shadow .2s; }
+      .share-fab:hover { transform: scale(1.08); }
+      .share-fab.sharing { background: #dc2626; box-shadow: 0 0 0 0 rgba(220,38,38,.6); animation: sharePulse 1.8s infinite; }
+      @keyframes sharePulse { 0% { box-shadow: 0 0 0 0 rgba(220,38,38,.55); } 70% { box-shadow: 0 0 0 16px rgba(220,38,38,0); } 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); } }
+      .share-indicator { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 1200;
+        background: #dc2626; color: #fff; padding: 7px 16px; border-radius: 999px; font-size: 13px; font-weight: 600;
+        display: none; align-items: center; gap: 9px; cursor: pointer; box-shadow: 0 6px 20px rgba(220,38,38,.35); }
+      .share-dot { width: 9px; height: 9px; border-radius: 50%; background: #fff; animation: sharePulseDot 1.4s infinite; }
+      @keyframes sharePulseDot { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+      .share-panel-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 2400; display: none;
+        align-items: flex-end; justify-content: center; }
+      .share-panel-overlay.open { display: flex; }
+      .share-panel { background: var(--bg-primary,#fff); width: 100%; max-width: 460px; border-radius: 18px 18px 0 0;
+        padding: 20px 20px 26px; box-shadow: 0 -10px 40px rgba(0,0,0,.25); }
+      @media (min-width: 620px) { .share-panel-overlay { align-items: center; } .share-panel { border-radius: 18px; } }
+      .share-panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+      .share-panel-title { font-size: 18px; font-weight: 700; color: var(--text-primary,#0f172a); }
+      .share-panel-sub { font-size: 12.5px; color: var(--text-muted,#64748b); margin-top: 3px; }
+      .share-x { background: transparent; border: none; font-size: 18px; color: var(--text-muted,#64748b); cursor: pointer; padding: 4px; }
+      .share-toggle-row { display: flex; justify-content: space-between; align-items: center; gap: 14px;
+        padding: 14px; border: 1px solid var(--border,#e2e8f0); border-radius: 12px; }
+      .share-toggle-label { font-size: 15px; font-weight: 600; color: var(--text-primary,#0f172a); }
+      .share-toggle-help { font-size: 12.5px; color: var(--text-muted,#64748b); margin-top: 2px; }
+      .share-switch { position: relative; width: 52px; height: 30px; border-radius: 999px; border: none; background: #cbd5e1; cursor: pointer; flex: 0 0 auto; transition: background .2s; }
+      .share-switch[aria-checked="true"] { background: #16a34a; }
+      .share-knob { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: left .2s; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+      .share-switch[aria-checked="true"] .share-knob { left: 25px; }
+      .share-consent { font-size: 12px; color: var(--text-muted,#64748b); line-height: 1.5; margin: 12px 2px; }
+      .share-status-line { font-size: 13px; color: var(--text-secondary,#475569); margin: 6px 2px 2px; min-height: 18px; }
+      .share-pairing { border: 1px solid var(--border,#e2e8f0); border-radius: 12px; padding: 12px; margin-top: 10px; }
+      .share-pairing-name { font-size: 14px; font-weight: 600; color: var(--text-primary,#0f172a); }
+      .share-pairing-note { font-size: 12px; color: var(--text-muted,#64748b); margin-top: 2px; }
+      .share-pairing-btns { display: flex; gap: 8px; margin-top: 10px; }
+      .share-pill { border: 1px solid var(--border,#e2e8f0); background: var(--bg-primary,#fff); color: var(--text-primary,#0f172a);
+        border-radius: 999px; padding: 7px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+      .share-pill.yes { background: #16a34a; color: #fff; border-color: #16a34a; }
+      .share-pill.active { outline: 2px solid rgba(22,163,74,.4); }
+      @media (max-width: 768px) {
+        .share-fab { bottom: 130px !important; right: 16px !important; width: 46px !important; height: 46px !important; font-size: 18px !important; }
+      }
+
+      /* ---- admin Live Ops Map ---- */
+      .trk-settingsbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; padding: 14px 16px;
+        border: 1px solid var(--border,#e2e8f0); border-radius: 12px; background: var(--bg-primary,#fff); margin-bottom: 16px; }
+      .trk-field { display: flex; flex-direction: column; gap: 4px; }
+      .trk-field label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted,#64748b); }
+      .trk-field input, .trk-field select { padding: 8px 10px; border: 1px solid var(--border,#e2e8f0); border-radius: 8px; background: var(--bg-primary,#fff); color: var(--text-primary,#0f172a); font-size: 13px; }
+      .trk-eventstate { font-size: 12.5px; font-weight: 600; padding: 5px 12px; border-radius: 999px; }
+      .trk-eventstate.on { background: #dcfce7; color: #166534; }
+      .trk-eventstate.off { background: #f1f5f9; color: #475569; }
+      .trk-grid { display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start; }
+      @media (max-width: 980px) { .trk-grid { grid-template-columns: 1fr; } }
+      .trk-mapwrap { position: relative; border: 1px solid var(--border,#e2e8f0); border-radius: 12px; overflow: hidden; }
+      #trk-map { height: 560px; width: 100%; background: #e5e7eb; }
+      @media (max-width: 980px) { #trk-map { height: 380px; } }
+      .trk-mapnote { position: absolute; bottom: 8px; left: 8px; z-index: 500; background: rgba(255,255,255,.9);
+        border-radius: 8px; padding: 4px 9px; font-size: 11px; color: #475569; display: none; }
+      .trk-side { display: flex; flex-direction: column; gap: 16px; }
+      .trk-panel { border: 1px solid var(--border,#e2e8f0); border-radius: 12px; background: var(--bg-primary,#fff); padding: 14px; }
+      .trk-panel-h { display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 700; color: var(--text-primary,#0f172a); margin-bottom: 10px; }
+      .trk-muted { font-size: 12px; color: var(--text-muted,#64748b); font-weight: 500; }
+      .trk-roster-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border,#eef2f7); }
+      .trk-roster-row:first-child { border-top: none; }
+      .trk-avatar { width: 30px; height: 30px; border-radius: 50%; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 700; }
+      .trk-rr-main { flex: 1; min-width: 0; }
+      .trk-rr-name { font-size: 13.5px; font-weight: 600; color: var(--text-primary,#0f172a); display: flex; align-items: center; gap: 7px; }
+      .trk-rr-sub { font-size: 11.5px; color: var(--text-muted,#64748b); margin-top: 1px; }
+      .trk-fdot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+      .trk-fdot.fresh { background: #22c55e; } .trk-fdot.aging { background: #f59e0b; }
+      .trk-fdot.stale { background: #ef4444; } .trk-fdot.none { background: #94a3b8; }
+      .trk-chip { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #eef2ff; color: #3730a3; }
+      .trk-mv { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #f1f5f9; color: #475569; }
+      .trk-pairing-row { padding: 10px 0; border-top: 1px solid var(--border,#eef2f7); }
+      .trk-pairing-row:first-child { border-top: none; }
+      .trk-pr-top { display: flex; justify-content: space-between; gap: 8px; }
+      .trk-pr-name { font-size: 13px; font-weight: 600; color: var(--text-primary,#0f172a); }
+      .trk-pr-status { font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+      .trk-pr-status.assigned { background: #f1f5f9; color: #475569; }
+      .trk-pr-status.with { background: #dcfce7; color: #166534; }
+      .trk-pr-status.en_route { background: #fef3c7; color: #92400e; }
+      .trk-pr-actions { display: flex; gap: 8px; margin-top: 7px; }
+      .trk-linkbtn { background: none; border: none; color: #6366f1; font-size: 11.5px; font-weight: 600; cursor: pointer; padding: 0; }
+      .trk-linkbtn.danger { color: #dc2626; }
+      /* Leaflet divIcon pins with staleness rings */
+      .trk-pin { position: relative; }
+      .trk-pin .trk-pin-dot { display: block; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
+      .trk-pin::before { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid #94a3b8; }
+      .trk-pin.fresh::before { border-color: #22c55e; }
+      .trk-pin.aging::before { border-color: #f59e0b; }
+      .trk-pin.stale::before { border-color: #ef4444; animation: trkPulse 1.5s infinite; }
+      .trk-pin.none::before { border-style: dashed; }
+      @keyframes trkPulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.25); opacity: .5; } }
+    </style>
+    <script>
+    (function(){
+      const _tok = () => localStorage.getItem('medx_token') || localStorage.getItem('token') || 'auto-login';
+      async function api(path, method, body) {
+        const o = { method: method || 'GET', headers: { 'Authorization': 'Bearer ' + _tok() } };
+        if (body !== undefined) { o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(body); }
+        const r = await fetch(path, o);
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+        return d;
+      }
+      const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+      const toast = (m, k) => { try { if (typeof Toast !== 'undefined') Toast[k === 'error' ? 'error' : (k === 'success' ? 'success' : 'info')](m); else console.log('[trk]', m); } catch (e) { console.log('[trk]', m); } };
+      const ago = (sec) => { if (sec == null) return 'no location yet'; if (sec < 60) return sec + 's ago'; const m = Math.round(sec / 60); if (m < 60) return m + ' min ago'; return Math.round(m / 60) + ' h ago'; };
+
+      // ============================ STAFF SIDE (share my own location) ============================
+      const StaffShare = {
+        state: { enabled: false, windowOpen: false, staleMinutes: 10, eventLabel: null, endsAt: null, pairings: [], streaming: false, lastRecordedAt: null },
+        _watchId: null, _lastCoords: null, _lastPingAt: 0, _hb: null, _booted: false,
+        PING_MIN_MS: 15000,
+
+        boot() {
+          const app = document.getElementById('mainApp');
+          const u = (typeof App !== 'undefined') && App.user;
+          if (!app || !app.classList.contains('active') || !u) return;
+          const isStaff = !!(u.is_admin || u.is_staff);
+          const fab = document.getElementById('staffShareBtn');
+          if (fab) fab.style.display = isStaff ? 'flex' : 'none';
+          if (!isStaff || this._booted) return;
+          this._booted = true;
+          this.refreshMe().then(() => {
+            if (this.state.enabled && this.state.windowOpen) this.startStreaming();
+            this.renderIndicator();
+            const q = new URLSearchParams(location.search);
+            if (q.get('track')) { this.openPanel(); try { history.replaceState({}, '', location.pathname + location.hash); } catch (e) {} }
+          }).catch(() => {});
+          // Keep-alive hooks that legitimately help while the tab is alive. Browsers block true
+          // background geolocation for web apps — we never claim otherwise.
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState !== 'visible' || !this.state.enabled) return;
+            if (this.state.windowOpen && !this.state.streaming) this.startStreaming();
+            else if (this._lastCoords) this.sendPing(this._lastCoords, false);
+          });
+          window.addEventListener('pagehide', () => { if (this.state.streaming && this._lastCoords) this.sendPing(this._lastCoords, true); });
+        },
+
+        async refreshMe() {
+          try {
+            const d = await api('/api/staff-tracking/me');
+            this.state.enabled = !!d.enabled; this.state.windowOpen = !!d.window_open;
+            this.state.staleMinutes = d.stale_minutes; this.state.eventLabel = d.event_label; this.state.endsAt = d.ends_at;
+            this.state.pairings = d.pairings || []; this.state.lastRecordedAt = d.last_recorded_at;
+            this.renderPanel(); this.renderIndicator();
+          } catch (e) { /* not staff / not reachable */ }
+        },
+
+        openPanel() { document.getElementById('staffSharePanel').classList.add('open'); this.refreshMe(); },
+        closePanel() { document.getElementById('staffSharePanel').classList.remove('open'); },
+
+        renderPanel() {
+          const evEl = document.getElementById('staffShareEvent');
+          const stEl = document.getElementById('staffShareState');
+          const sw = document.getElementById('staffShareToggle');
+          const status = document.getElementById('staffShareStatus');
+          if (evEl) evEl.textContent = this.state.windowOpen ? ('Active — ' + (this.state.eventLabel || 'event day')) : 'No event day is active right now';
+          if (sw) sw.setAttribute('aria-checked', this.state.enabled ? 'true' : 'false');
+          if (stEl) stEl.textContent = this.state.enabled ? (this.state.streaming ? 'On — sharing your live location' : (this.state.windowOpen ? 'On — starting…' : 'On — will start when the event day opens')) : 'Off — nothing is shared';
+          if (status) {
+            if (!this.state.enabled) status.textContent = '';
+            else if (this.state.lastRecordedAt) { const s = Math.round((Date.now() - Date.parse(this.state.lastRecordedAt)) / 1000); status.textContent = 'Last update ' + ago(s) + '.'; }
+            else status.textContent = this.state.windowOpen ? 'Waiting for your first location fix…' : 'Sharing is on and will begin when the event day opens.';
+          }
+          const wrap = document.getElementById('staffSharePairings');
+          if (wrap) {
+            if (!this.state.pairings.length) { wrap.innerHTML = ''; }
+            else {
+              wrap.innerHTML = '<div class="share-consent" style="margin-bottom:2px;">Your escort assignments</div>' + this.state.pairings.map(p => {
+                const active = (s) => p.status === s ? ' active' : '';
+                return '<div class="share-pairing"><div class="share-pairing-name">' + esc(p.with_name || 'Guest') + '</div>'
+                  + (p.note ? '<div class="share-pairing-note">' + esc(p.note) + '</div>' : '')
+                  + '<div class="share-pairing-btns">'
+                  + '<button class="share-pill yes' + active('with') + '" onclick="StaffShare.confirm(\'' + p.id + '\',\'with\')">Still with them</button>'
+                  + '<button class="share-pill' + active('en_route') + '" onclick="StaffShare.confirm(\'' + p.id + '\',\'en_route\')">En route</button>'
+                  + '<button class="share-pill' + active('done') + '" onclick="StaffShare.confirm(\'' + p.id + '\',\'done\')">Done</button>'
+                  + '</div></div>';
+              }).join('');
+            }
+          }
+        },
+
+        renderIndicator() {
+          const ind = document.getElementById('staffShareIndicator');
+          const fab = document.getElementById('staffShareBtn');
+          const sharing = this.state.enabled && this.state.streaming;
+          if (ind) { ind.style.display = sharing ? 'flex' : 'none';
+            const t = document.getElementById('staffShareIndicatorText'); if (t) t.textContent = 'Sharing location' + (this.state.eventLabel ? ' — ' + this.state.eventLabel : ''); }
+          if (fab) fab.classList.toggle('sharing', sharing);
+        },
+
+        toggle() { if (this.state.enabled) this.disable(); else this.enable(); },
+
+        async enable() {
+          try { await api('/api/staff-tracking/consent', 'POST', { enabled: true }); this.state.enabled = true; this.renderPanel(); this.startStreaming(); toast('Location sharing on', 'success'); }
+          catch (e) { toast(e.message, 'error'); }
+        },
+        async disable() {
+          this.stopStreaming();
+          try { await api('/api/staff-tracking/consent', 'POST', { enabled: false }); } catch (e) {}
+          this.state.enabled = false; this.state.lastRecordedAt = null; this.renderPanel(); this.renderIndicator(); toast('Location sharing off', 'info');
+        },
+
+        startStreaming() {
+          if (this._watchId != null) return;
+          if (!navigator.geolocation) { toast('This device has no location support', 'error'); return; }
+          this.state.streaming = true; this.renderIndicator(); this.renderPanel();
+          const opts = { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 };
+          try {
+            this._watchId = navigator.geolocation.watchPosition(
+              (pos) => { this._lastCoords = pos.coords; this.maybePing(pos.coords); },
+              (err) => { this.renderPanel(); if (err && err.code === 1) { toast('Location permission is needed to share', 'error'); this.stopStreaming(); } },
+              opts
+            );
+          } catch (e) { this.state.streaming = false; }
+          navigator.geolocation.getCurrentPosition((pos) => { this._lastCoords = pos.coords; this.sendPing(pos.coords, false); }, () => {}, opts);
+          if (this._hb) clearInterval(this._hb);
+          this._hb = setInterval(() => { if (this.state.streaming && this._lastCoords) this.sendPing(this._lastCoords, false); }, this.PING_MIN_MS);
+        },
+        stopStreaming() {
+          if (this._watchId != null) { try { navigator.geolocation.clearWatch(this._watchId); } catch (e) {} this._watchId = null; }
+          if (this._hb) { clearInterval(this._hb); this._hb = null; }
+          this.state.streaming = false; this.renderIndicator(); this.renderPanel();
+        },
+        maybePing(coords) { const now = Date.now(); if (now - this._lastPingAt >= this.PING_MIN_MS) this.sendPing(coords, false); },
+
+        sendPing(coords, keepalive) {
+          this._lastPingAt = Date.now();
+          const payload = JSON.stringify({ lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy, heading: coords.heading, speed: coords.speed, client_ts: new Date().toISOString() });
+          const o = { method: 'POST', headers: { 'Authorization': 'Bearer ' + _tok(), 'Content-Type': 'application/json' }, body: payload };
+          if (keepalive) o.keepalive = true;
+          fetch('/api/staff-tracking/ping', o).then(r => r.json()).then(d => {
+            if (!d) return;
+            if (d.streaming === false) {
+              if (d.enabled === false) { this.state.enabled = false; this.stopStreaming(); }
+              this.state.windowOpen = !!d.window_open;
+              this.renderPanel(); this.renderIndicator();
+            } else { this.state.windowOpen = true; this.state.lastRecordedAt = new Date().toISOString(); this.renderPanel(); }
+          }).catch(() => {});
+        },
+
+        async confirm(id, status) {
+          try { const d = await api('/api/staff-tracking/pairing-confirm', 'POST', { pairing_id: id, status });
+            const p = this.state.pairings.find(x => x.id === id); if (p) p.status = d.status;
+            this.renderPanel(); toast('Thanks — noted', 'success');
+            if (this._lastCoords) this.sendPing(this._lastCoords, false);
+          } catch (e) { toast(e.message, 'error'); }
+        }
+      };
+      window.StaffShare = StaffShare;
+
+      // ============================ ADMIN SIDE (Live Ops Map) ============================
+      const StaffTracking = {
+        _map: null, _markers: {}, _acc: {}, _poll: null, _active: false, _roster: { staff: [], speakers: [] }, _settings: null, _fitted: false,
+
+        open() {
+          this._active = true;
+          try { document.title = 'Live Ops Map — Med&X Admin'; } catch (e) {}
+          this.initMap();
+          this.loadRoster();
+          this.loadSettings();
+          this.refresh();
+          this.loadPairings();
+          if (this._poll) clearInterval(this._poll);
+          this._poll = setInterval(() => { if (this._active) this.refresh(); }, 4000);
+        },
+        onLeave() { this._active = false; if (this._poll) { clearInterval(this._poll); this._poll = null; } },
+
+        initMap() {
+          if (this._map || typeof L === 'undefined') { if (this._map) setTimeout(() => { try { this._map.invalidateSize(); } catch (e) {} }, 120); return; }
+          try {
+            L.Icon.Default.imagePath = '/vendor/leaflet/images/';
+            this._map = L.map('trk-map', { zoomControl: true }).setView([45.815, 15.9819], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(this._map);
+            setTimeout(() => { try { this._map.invalidateSize(); } catch (e) {} }, 150);
+          } catch (e) { console.error('map init', e); }
+        },
+
+        async loadRoster() { try { this._roster = await api('/api/admin/staff-tracking/roster'); } catch (e) {} },
+        async loadSettings() { try { this._settings = await api('/api/admin/staff-tracking/settings'); this.renderSettingsBar(); } catch (e) {} },
+
+        renderSettingsBar() {
+          const el = document.getElementById('trk-settingsbar'); if (!el || !this._settings) return;
+          const s = this._settings;
+          const endsLocal = s.ends_at ? new Date(s.ends_at) : null;
+          const endsVal = endsLocal ? new Date(endsLocal.getTime() - endsLocal.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '';
+          const on = Number(s.active) === 1;
+          el.innerHTML =
+            '<div class="trk-field"><label>Event day</label><span class="trk-eventstate ' + (on ? 'on' : 'off') + '">' + (on ? 'Tracking on' : 'Tracking off') + '</span></div>'
+            + '<div class="trk-field" style="flex:1;min-width:180px;"><label>Event label</label><input id="trk-label" type="text" value="' + esc(s.event_label || '') + '" placeholder="Plexus 2026 — Day 1"></div>'
+            + '<div class="trk-field"><label>Ends at</label><input id="trk-ends" type="datetime-local" value="' + endsVal + '"></div>'
+            + '<div class="trk-field"><label>Stale after (min)</label><input id="trk-stale" type="number" min="1" max="120" value="' + (s.stale_minutes || 10) + '" style="width:90px;"></div>'
+            + '<div class="trk-field"><label>&nbsp;</label><button class="btn btn-primary" style="padding:8px 14px;" onclick="StaffTracking.saveSettings(' + (on ? 'false' : 'true') + ')">' + (on ? 'Turn off' : 'Turn on') + '</button></div>'
+            + '<div class="trk-field"><label>&nbsp;</label><button class="btn btn-secondary" style="padding:8px 14px;" onclick="StaffTracking.saveSettings()">Save</button></div>'
+            + '<div class="trk-field"><label>&nbsp;</label><button class="btn btn-secondary" style="padding:8px 14px;" onclick="StaffTracking.runScan()">Send check-in prompts now</button></div>'
+            + '<div class="trk-field"><label>&nbsp;</label><button class="btn btn-secondary" style="padding:8px 14px;color:#dc2626;border-color:#fecaca;" onclick="StaffTracking.purge()">Purge all positions</button></div>';
+        },
+
+        _readSettings() {
+          const label = (document.getElementById('trk-label') || {}).value || '';
+          const ends = (document.getElementById('trk-ends') || {}).value || '';
+          const stale = (document.getElementById('trk-stale') || {}).value || 10;
+          return { event_label: label, ends_at: ends ? new Date(ends).toISOString() : null, stale_minutes: parseInt(stale, 10) || 10 };
+        },
+        async saveSettings(forceActive) {
+          const body = this._readSettings();
+          body.active = (forceActive === undefined) ? (Number(this._settings && this._settings.active) === 1) : forceActive;
+          try { this._settings = await api('/api/admin/staff-tracking/settings', 'POST', body); this.renderSettingsBar(); this.refresh(); toast('Saved', 'success'); }
+          catch (e) { toast(e.message, 'error'); }
+        },
+        async runScan() { try { const d = await api('/api/admin/staff-tracking/run-scan', 'POST', {}); toast(d.prompted ? ('Sent ' + d.prompted + ' check-in prompt' + (d.prompted === 1 ? '' : 's')) : 'Nobody is stale right now', 'info'); } catch (e) { toast(e.message, 'error'); } },
+        async purge() {
+          if (!confirm('Delete every shared location now and switch tracking off? This cannot be undone.')) return;
+          try { const d = await api('/api/admin/staff-tracking/purge', 'POST', {}); toast('Purged ' + d.deleted + ' position' + (d.deleted === 1 ? '' : 's'), 'success'); this.loadSettings(); this.refresh(); }
+          catch (e) { toast(e.message, 'error'); }
+        },
+
+        async refresh() {
+          let d;
+          try { d = await api('/api/admin/staff-tracking/live'); } catch (e) { return; }
+          this._settings = Object.assign(this._settings || {}, { active: d.settings.active ? 1 : 0, event_label: d.settings.event_label, ends_at: d.settings.ends_at, stale_minutes: d.settings.stale_minutes });
+          this.renderMarkers(d.people || []);
+          this.renderRoster(d.people || [], d.settings);
+        },
+
+        renderMarkers(people) {
+          if (!this._map || typeof L === 'undefined') return;
+          const seen = {};
+          const withPos = [];
+          people.forEach(p => {
+            if (p.lat == null || p.lng == null) return;
+            seen[p.user_id] = true; withPos.push([p.lat, p.lng]);
+            const icon = L.divIcon({ className: 'trk-pin ' + (p.freshness || 'none'), html: '<span class="trk-pin-dot" style="background:' + (p.color || '#C9A962') + '"></span>', iconSize: [16, 16], iconAnchor: [8, 8] });
+            const popup = '<b>' + esc(p.name) + '</b><br>' + (p.chip ? esc(p.chip) + '<br>' : '') + esc((p.movement || 'unknown')) + (p.speed_kmh != null ? ' · ' + p.speed_kmh + ' km/h' : '') + '<br><span style="color:#64748b">' + esc(ago(p.age_sec)) + '</span>';
+            if (this._markers[p.user_id]) { this._markers[p.user_id].setLatLng([p.lat, p.lng]).setIcon(icon).setPopupContent(popup); }
+            else { this._markers[p.user_id] = L.marker([p.lat, p.lng], { icon }).addTo(this._map).bindPopup(popup); }
+            if (p.accuracy && p.accuracy > 0) {
+              if (this._acc[p.user_id]) this._acc[p.user_id].setLatLng([p.lat, p.lng]).setRadius(Math.min(p.accuracy, 300));
+              else this._acc[p.user_id] = L.circle([p.lat, p.lng], { radius: Math.min(p.accuracy, 300), color: p.color || '#C9A962', weight: 1, opacity: .35, fillOpacity: .08 }).addTo(this._map);
+            }
+          });
+          Object.keys(this._markers).forEach(uid => { if (!seen[uid]) { try { this._map.removeLayer(this._markers[uid]); } catch (e) {} delete this._markers[uid]; if (this._acc[uid]) { try { this._map.removeLayer(this._acc[uid]); } catch (e) {} delete this._acc[uid]; } } });
+          if (!this._fitted && withPos.length) { try { this._map.fitBounds(withPos, { padding: [50, 50], maxZoom: 15 }); this._fitted = true; } catch (e) {} }
+        },
+
+        renderRoster(people, settings) {
+          const el = document.getElementById('trk-roster'); const cnt = document.getElementById('trk-count');
+          const note = document.getElementById('trk-mapnote');
+          if (cnt) cnt.textContent = people.length ? (people.length + ' sharing') : '';
+          if (note) { const off = settings && !settings.window_open; note.style.display = off ? 'block' : 'none'; note.textContent = off ? 'No event day is active — turn tracking on to collect live locations.' : ''; }
+          if (!el) return;
+          if (!people.length) { el.innerHTML = '<div class="trk-muted">No one is sharing their location yet. Staff opt in from the sharing button in their app.</div>'; return; }
+          el.innerHTML = people.map(p => {
+            const initials = (p.name || 'S').split(/\s+/).map(x => x[0]).slice(0, 2).join('').toUpperCase();
+            const mv = p.lat != null ? '<span class="trk-mv">' + esc(p.movement || 'unknown') + (p.speed_kmh != null ? ' · ' + p.speed_kmh + ' km/h' : '') + '</span>' : '<span class="trk-mv">no location yet</span>';
+            return '<div class="trk-roster-row">'
+              + '<div class="trk-avatar" style="background:' + esc(p.color || '#C9A962') + '">' + esc(initials) + '</div>'
+              + '<div class="trk-rr-main"><div class="trk-rr-name"><span class="trk-fdot ' + (p.freshness || 'none') + '"></span>' + esc(p.name) + (p.chip ? ' <span class="trk-chip">' + esc(p.chip) + '</span>' : '') + '</div>'
+              + '<div class="trk-rr-sub">' + mv + ' · ' + esc(ago(p.age_sec)) + '</div></div></div>';
+          }).join('');
+        },
+
+        async loadPairings() {
+          const el = document.getElementById('trk-pairings'); if (!el) return;
+          let rows;
+          try { rows = await api('/api/admin/staff-tracking/pairings'); } catch (e) { el.innerHTML = '<div class="trk-muted">Could not load</div>'; return; }
+          if (!rows.length) { el.innerHTML = '<div class="trk-muted">No escort assignments yet.</div>'; return; }
+          el.innerHTML = rows.map(p => {
+            const st = (p.status || 'assigned');
+            return '<div class="trk-pairing-row"><div class="trk-pr-top"><div class="trk-pr-name">' + esc(p.staff_name) + ' &rarr; ' + esc(p.with_name || 'Guest') + '</div>'
+              + '<span class="trk-pr-status ' + st + '">' + esc(st.replace('_', ' ')) + '</span></div>'
+              + (p.note ? '<div class="trk-rr-sub">' + esc(p.note) + '</div>' : '')
+              + '<div class="trk-pr-actions"><button class="trk-linkbtn" onclick="StaffTracking.setPairStatus(\'' + p.id + '\',\'with\')">Mark with</button>'
+              + '<button class="trk-linkbtn" onclick="StaffTracking.setPairStatus(\'' + p.id + '\',\'en_route\')">En route</button>'
+              + '<button class="trk-linkbtn" onclick="StaffTracking.setPairStatus(\'' + p.id + '\',\'done\')">Done</button>'
+              + '<button class="trk-linkbtn danger" onclick="StaffTracking.deletePairing(\'' + p.id + '\')">Remove</button></div></div>';
+          }).join('');
+        },
+        async setPairStatus(id, status) { try { await api('/api/admin/staff-tracking/pairings/' + id, 'PATCH', { status }); this.loadPairings(); this.refresh(); } catch (e) { toast(e.message, 'error'); } },
+        async deletePairing(id) { if (!confirm('Remove this pairing?')) return; try { await api('/api/admin/staff-tracking/pairings/' + id, 'DELETE'); this.loadPairings(); this.refresh(); } catch (e) { toast(e.message, 'error'); } },
+
+        openPairingForm() {
+          const staffOpts = (this._roster.staff || []).map(u => '<option value="' + esc(u.id) + '">' + esc(u.name) + '</option>').join('');
+          const spkOpts = '<option value="">— none —</option>' + (this._roster.speakers || []).map(sp => '<option value="' + esc(sp.id) + '">' + esc(sp.name) + (sp.institution ? ' (' + esc(sp.institution) + ')' : '') + '</option>').join('');
+          const ov = document.createElement('div'); ov.className = 'share-panel-overlay open'; ov.id = 'trk-pairform';
+          ov.innerHTML = '<div class="share-panel"><div class="share-panel-head"><div class="share-panel-title">New escort pairing</div>'
+            + '<button class="share-x" onclick="document.getElementById(\'trk-pairform\').remove()"><i class="fas fa-times"></i></button></div>'
+            + '<div class="trk-field" style="margin-bottom:12px;"><label>Staff escort</label><select id="pf-staff">' + (staffOpts || '<option value="">No staff found</option>') + '</select></div>'
+            + '<div class="trk-field" style="margin-bottom:12px;"><label>Speaker</label><select id="pf-speaker">' + spkOpts + '</select></div>'
+            + '<div class="trk-field" style="margin-bottom:12px;"><label>Or guest name</label><input id="pf-guest" type="text" placeholder="Prof. Ivan Horvat"></div>'
+            + '<div class="trk-field" style="margin-bottom:16px;"><label>Note</label><input id="pf-note" type="text" placeholder="Airport pickup 14:30"></div>'
+            + '<button class="btn btn-primary" style="width:100%;padding:10px;" onclick="StaffTracking.submitPairing()">Create pairing</button></div>';
+          document.body.appendChild(ov);
+        },
+        async submitPairing() {
+          const staff = (document.getElementById('pf-staff') || {}).value;
+          const speaker = (document.getElementById('pf-speaker') || {}).value;
+          const guest = (document.getElementById('pf-guest') || {}).value;
+          const note = (document.getElementById('pf-note') || {}).value;
+          if (!staff) { toast('Pick a staff escort', 'error'); return; }
+          if (!speaker && !(guest && guest.trim())) { toast('Pick a speaker or type a guest name', 'error'); return; }
+          try { await api('/api/admin/staff-tracking/pairings', 'POST', { staff_user_id: staff, speaker_id: speaker || null, guest_name: guest, note }); const f = document.getElementById('trk-pairform'); if (f) f.remove(); this.loadPairings(); this.refresh(); toast('Pairing created', 'success'); }
+          catch (e) { toast(e.message, 'error'); }
+        }
+      };
+      window.StaffTracking = StaffTracking;
+
+      // ---- wire into the existing App without touching its giant definition ----
+      function wire() {
+        if (typeof App === 'undefined' || !App.showSection) { setTimeout(wire, 200); return; }
+        if (App.__trkWired) return; App.__trkWired = true;
+        const _prevShow = App.showSection.bind(App);
+        App.showSection = function(sectionId, navItem, skip) {
+          const r = _prevShow(sectionId, navItem, skip);
+          try { if (sectionId === 'event-tracking') StaffTracking.open(); else StaffTracking.onLeave(); } catch (e) { console.error(e); }
+          return r;
+        };
+        if (App.showApp) {
+          const _prevApp = App.showApp.bind(App);
+          App.showApp = async function() { const r = await _prevApp(); try { StaffShare.boot(); } catch (e) {} return r; };
+        }
+      }
+      wire();
+      // Cover the case where the app is already shown before this script wired in.
+      const _bt = setInterval(() => { try { StaffShare.boot(); } catch (e) {} if (StaffShare._booted) clearInterval(_bt); }, 1000);
+    })();
     </script>
 
 </body>

@@ -56820,6 +56820,17 @@ button,input,select,textarea{font-family:var(--sans);}
 
             // --- Plexus: request modals (refund / scholarship / visa) ---
             'px.refundTitle':{en:'Request Refund', hr:'Zahtjev za povrat'},
+            // Ticket name transfer (member-initiated, admin-approved) — QR payload stays the same.
+            'px.transferBtn':{en:'Transfer to a colleague', hr:'Prenesi na kolegu'},
+            'px.transferTitle':{en:'Transfer ticket to a colleague', hr:'Prijenos ulaznice na kolegu'},
+            'px.transferLede':{en:'Cannot make it? Pass your place to a colleague. Enter their details and our team will confirm the transfer. Your QR code stays the same.', hr:'Ne možete doći? Prepustite svoje mjesto kolegi. Unesite njegove podatke i naš tim će potvrditi prijenos. Vaš QR kôd ostaje isti.'},
+            'px.transferName':{en:'Colleague full name', hr:'Ime i prezime kolege'},
+            'px.transferEmail':{en:'Colleague email', hr:'E-adresa kolege'},
+            'px.transferReason':{en:'Reason (optional)', hr:'Razlog (nije obavezno)'},
+            'px.transferSent':{en:'Transfer request sent. Our team will review it and both of you will be notified by email.', hr:'Zahtjev za prijenos je poslan. Naš tim će ga pregledati, a obje strane bit će obaviještene e-poštom.'},
+            'px.transferPending':{en:'A transfer request for this ticket is already awaiting approval.', hr:'Zahtjev za prijenos ove ulaznice već čeka odobrenje.'},
+            'px.transferInvalid':{en:"Please enter your colleague's full name and a valid email.", hr:'Unesite ime i prezime kolege te ispravnu e-adresu.'},
+            'px.transferFail':{en:'Could not send the transfer request. Please try again or contact info@medx.hr.', hr:'Slanje zahtjeva za prijenos nije uspjelo. Pokušajte ponovno ili pišite na info@medx.hr.'},
             'px.reasonRefund':{en:'Reason for Refund', hr:'Razlog povrata'},
             'px.selectReason':{en:'Select reason...', hr:'Odaberite razlog...'},
             'px.rr1':{en:'Schedule Conflict', hr:'Preklapanje obveza'},
@@ -57149,6 +57160,18 @@ button,input,select,textarea{font-family:var(--sans);}
             'mmx.example':        {en:'Example', hr:'Primjer'},
             'mmx.certsEmpty':     {en:'Certificates appear here after events you attend.', hr:'Potvrde se ovdje pojavljuju nakon događaja na kojima sudjelujete.'},
             'mmx.download':       {en:'Download', hr:'Preuzmite'},
+            // Certificate sharing (channel-agnostic share module)
+            'mmx.share':          {en:'Share', hr:'Podijelite'},
+            'mmx.shareCertTitle': {en:'Share your certificate', hr:'Podijelite svoju potvrdu'},
+            'mmx.shareCertLede':  {en:'Add it to your LinkedIn profile or share the verified link anywhere.', hr:'Dodajte je na svoj LinkedIn profil ili podijelite ovjerenu poveznicu bilo gdje.'},
+            'mmx.shareLinkedIn':  {en:'Add to LinkedIn profile', hr:'Dodajte na LinkedIn profil'},
+            'mmx.shareX':         {en:'Share on X', hr:'Podijelite na X-u'},
+            'mmx.shareFacebook':  {en:'Share on Facebook', hr:'Podijelite na Facebooku'},
+            'mmx.shareWhatsApp':  {en:'Share on WhatsApp', hr:'Podijelite na WhatsAppu'},
+            'mmx.copyLink':       {en:'Copy verified link', hr:'Kopirajte ovjerenu poveznicu'},
+            'mmx.linkCopied':     {en:'Link copied to clipboard', hr:'Poveznica je kopirana'},
+            'mmx.shareText':      {en:'I earned a certificate from Med&X', hr:'Osvojio sam potvrdu Med&X-a'},
+            'mmx.close':          {en:'Close', hr:'Zatvorite'},
             'mmx.badge':          {en:'Badge', hr:'Značka'},
             'mmx.bFirstConf':     {en:'First conference', hr:'Prva konferencija'},
             'mmx.bPresenter':     {en:'Presenter', hr:'Izlagač'},
@@ -64262,6 +64285,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                         <button onclick="document.getElementById('refundRequestModal').style.display='flex'" style="padding: 6px 12px; border: 1px solid var(--up-border, var(--line)); border-radius: 6px; background: transparent; cursor: pointer; font-size: 13px; color: var(--up-text, var(--emph-bg-2));"><i class="fas fa-undo" style="margin-right: 4px;"></i> Request Refund</button>
                                         <button onclick="document.getElementById('scholarshipModal').style.display='flex'" style="padding: 6px 12px; border: 1px solid var(--up-border, var(--line)); border-radius: 6px; background: transparent; cursor: pointer; font-size: 13px; color: var(--up-text, var(--emph-bg-2));"><i class="fas fa-graduation-cap" style="margin-right: 4px;"></i> Apply for Scholarship</button>
                                         <button onclick="document.getElementById('visaRequestModal').style.display='flex'" style="padding: 6px 12px; border: 1px solid var(--up-border, var(--line)); border-radius: 6px; background: transparent; cursor: pointer; font-size: 13px; color: var(--up-text, var(--emph-bg-2));"><i class="fas fa-passport" style="margin-right: 4px;"></i> Request Visa Letter</button>
+                                        <button onclick="document.getElementById('ticketTransferModal').style.display='flex'" style="padding: 6px 12px; border: 1px solid var(--up-border, var(--line)); border-radius: 6px; background: transparent; cursor: pointer; font-size: 13px; color: var(--up-text, var(--emph-bg-2));"><i class="fas fa-people-arrows" style="margin-right: 4px;"></i> <span data-i18n="px.transferBtn">Transfer to a colleague</span></button>
                                     </div>
                                 </div>
                             </div>
@@ -64777,6 +64801,33 @@ button,input,select,textarea{font-family:var(--sans);}
                 </div>
 
                 <!-- Refund Request Modal -->
+                <div class="modal-overlay" id="ticketTransferModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;" onclick="if(event.target===this) this.style.display='none'">
+                    <div style="background: var(--up-card-bg, #fff); border-radius: 16px; max-width: 480px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--up-border, var(--line));">
+                            <h3 data-i18n="px.transferTitle" style="margin: 0; font-size: 18px; color: var(--up-text, var(--emph-bg-2));">Transfer ticket to a colleague</h3>
+                            <button onclick="document.getElementById('ticketTransferModal').style.display='none'" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--up-text-muted, var(--muted)); line-height: 1;">&times;</button>
+                        </div>
+                        <div style="padding: 24px;">
+                            <p data-i18n="px.transferLede" style="margin:0 0 16px;font-size:13px;color:var(--up-text-muted,var(--muted));line-height:1.6;">Cannot make it? Pass your place to a colleague. Enter their details and our team will confirm the transfer. Your QR code stays the same.</p>
+                            <div style="margin-bottom: 16px;">
+                                <label style="display:block;margin-bottom:6px;font-size:14px;font-weight:500;color:var(--up-text,var(--emph-bg-2));" data-i18n="px.transferName">Colleague full name<span> *</span></label>
+                                <input id="transferName" type="text" style="width:100%;padding:10px 12px;border:1px solid var(--up-border,var(--line));border-radius:8px;background:var(--up-card-bg,#fff);color:var(--up-text,var(--emph-bg-2));font-size:14px;">
+                            </div>
+                            <div style="margin-bottom: 16px;">
+                                <label style="display:block;margin-bottom:6px;font-size:14px;font-weight:500;color:var(--up-text,var(--emph-bg-2));" data-i18n="px.transferEmail">Colleague email<span> *</span></label>
+                                <input id="transferEmail" type="email" style="width:100%;padding:10px 12px;border:1px solid var(--up-border,var(--line));border-radius:8px;background:var(--up-card-bg,#fff);color:var(--up-text,var(--emph-bg-2));font-size:14px;">
+                            </div>
+                            <div style="margin-bottom: 4px;">
+                                <label style="display:block;margin-bottom:6px;font-size:14px;font-weight:500;color:var(--up-text,var(--emph-bg-2));" data-i18n="px.transferReason">Reason (optional)</label>
+                                <textarea id="transferReason" rows="3" style="width:100%;padding:10px 12px;border:1px solid var(--up-border,var(--line));border-radius:8px;resize:vertical;background:var(--up-card-bg,#fff);color:var(--up-text,var(--emph-bg-2));font-size:14px;font-family:inherit;"></textarea>
+                            </div>
+                        </div>
+                        <div style="display: flex; justify-content: flex-end; gap: 8px; padding: 16px 24px; border-top: 1px solid var(--up-border, var(--line));">
+                            <button data-i18n="px.cancel" onclick="document.getElementById('ticketTransferModal').style.display='none'" style="padding:10px 20px;border:1px solid var(--up-border,var(--line));border-radius:8px;background:transparent;cursor:pointer;font-size:14px;color:var(--up-text,var(--emph-bg-2));">Cancel</button>
+                            <button data-i18n="px.submitRequest" onclick="PlexusPortal.submitTicketTransfer()" style="padding:10px 20px;background:var(--up-gold,#C9A962);color:#0f172a;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;">Submit Request</button>
+                        </div>
+                    </div>
+                </div>
                 <div class="modal-overlay" id="refundRequestModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;" onclick="if(event.target===this) this.style.display='none'">
                     <div style="background: var(--up-card-bg, #fff); border-radius: 16px; max-width: 480px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
                         <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--up-border, var(--line));">
@@ -79482,6 +79533,7 @@ You can use variables like {first_name} that will be personalized for each recip
                             + '<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;color:var(--ink);">' + escapeHtml(c.title) + '</div>'
                             + '<div style="font-size:12px;color:var(--muted);">' + (c.number ? escapeHtml(c.number) : t('mmx.certificate')) + (y ? (' · ' + y) : '') + '</div></div>'
                             + '<button onclick="MyMedXPortal.downloadCertificate(\'' + escapeHtml(c.id) + '\')" style="white-space:nowrap;background:transparent;border:1px solid var(--line-strong, var(--line));color:var(--ink);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-download" style="margin-right:5px;"></i>' + t('mmx.download') + '</button>'
+                            + '<button onclick="MyMedXPortal.shareCertificate(\'' + escapeHtml(c.id) + '\')" style="white-space:nowrap;background:transparent;border:1px solid var(--line-strong, var(--line));color:var(--ink);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;margin-left:6px;"><i class="fas fa-share-nodes" style="margin-right:5px;"></i>' + t('mmx.share') + '</button>'
                         + '</div>';
                     }).join('');
                 } else {
@@ -79510,6 +79562,51 @@ You can use variables like {first_name} that will be personalized for each recip
                     card(sectionTitle('fa-calendar-check', t('mmx.secEvents')) + eventsHtml)
                   + card(sectionTitle('fa-certificate', t('mmx.secCerts')) + certsHtml)
                   + card(sectionTitle('fa-medal', t('mmx.secBadges')) + badgesHtml);
+            },
+
+            // Channel-agnostic certificate sharing — LinkedIn add-to-profile (certification-URL pattern),
+            // X / Facebook / WhatsApp share links, and copy-link. One surface, multiple destinations. The
+            // shared target is the PUBLIC /verify-certificate page (proves the number is genuine).
+            shareCertificate(certId) {
+                var cert = ((this._record && this._record.certificates) || []).filter(function(c){ return c.id === certId; })[0];
+                if (!cert) { if (typeof Toast !== 'undefined') Toast.error(t('toast.certNotFound')); return; }
+                var number = cert.number || cert.certificate_number || '';
+                var certName = cert.title || 'Med&X Certificate';
+                var verifyUrl = location.origin + '/verify-certificate?n=' + encodeURIComponent(number);
+                var dd = cert.issue_date ? new Date(cert.issue_date) : null;
+                var y = dd ? dd.getFullYear() : '';
+                var m = dd ? (dd.getMonth() + 1) : '';
+                var shareText = t('mmx.shareText') + ' — ' + certName;
+                var enc = encodeURIComponent;
+                var links = {
+                    linkedin: 'https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=' + enc(certName) + '&organizationName=' + enc('Med&X') + (y ? ('&issueYear=' + y) : '') + (m ? ('&issueMonth=' + m) : '') + (number ? ('&certId=' + enc(number)) : '') + '&certUrl=' + enc(verifyUrl),
+                    x: 'https://twitter.com/intent/tweet?text=' + enc(shareText) + '&url=' + enc(verifyUrl),
+                    facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + enc(verifyUrl),
+                    whatsapp: 'https://wa.me/?text=' + enc(shareText + ' ' + verifyUrl)
+                };
+                var ov = document.createElement('div');
+                ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10050;display:flex;align-items:center;justify-content:center;padding:16px;';
+                var row = function(id, icon, label, color){ return '<button data-act="' + id + '" style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:12px 14px;border:1px solid var(--line, #e6e0d6);border-radius:10px;background:var(--paper, #fff);color:var(--ink, #15110f);font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px;"><i class="fab ' + icon + '" style="width:18px;color:' + color + ';"></i>' + label + '</button>'; };
+                ov.innerHTML = '<div style="background:var(--paper, #fff);border-radius:16px;max-width:400px;width:100%;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.3);">'
+                    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><h3 style="margin:0;font-size:17px;color:var(--ink, #15110f);">' + t('mmx.shareCertTitle') + '</h3>'
+                    + '<button data-act="close" aria-label="' + t('mmx.close') + '" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted, #6b6258);line-height:1;">&times;</button></div>'
+                    + '<p style="margin:0 0 16px;font-size:13px;color:var(--muted, #6b6258);line-height:1.6;">' + t('mmx.shareCertLede') + '</p>'
+                    + row('linkedin', 'fa-linkedin', t('mmx.shareLinkedIn'), '#0a66c2')
+                    + row('x', 'fa-x-twitter', t('mmx.shareX'), '#111')
+                    + row('facebook', 'fa-facebook', t('mmx.shareFacebook'), '#1877f2')
+                    + row('whatsapp', 'fa-whatsapp', t('mmx.shareWhatsApp'), '#25d366')
+                    + '<button data-act="copy" style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:12px 14px;border:1px solid var(--line, #e6e0d6);border-radius:10px;background:var(--paper-2, #f5f2ec);color:var(--ink, #15110f);font-size:14px;font-weight:600;cursor:pointer;"><i class="fas fa-link" style="width:18px;color:var(--gold-dim, #c9a962);"></i>' + t('mmx.copyLink') + '</button>'
+                    + '</div>';
+                var close = function(){ try { document.body.removeChild(ov); } catch(e){} };
+                ov.addEventListener('click', function(e){
+                    if (e.target === ov) return close();
+                    var btn = e.target.closest('[data-act]'); if (!btn) return;
+                    var act = btn.getAttribute('data-act');
+                    if (act === 'close') return close();
+                    if (act === 'copy') { try { navigator.clipboard.writeText(verifyUrl); if (typeof Toast !== 'undefined') Toast.success(t('mmx.linkCopied')); } catch(err){ window.prompt('', verifyUrl); } return close(); }
+                    if (links[act]) { window.open(links[act], '_blank', 'noopener,width=680,height=640'); return close(); }
+                });
+                document.body.appendChild(ov);
             },
 
             // Client-side certificate render — printable page from the stored cert data.
@@ -88596,6 +88693,36 @@ You can use variables like {first_name} that will be personalized for each recip
             },
 
             // ===== REFUND / SCHOLARSHIP / VISA REQUESTS =====
+
+            async submitTicketTransfer() {
+                var tr = function(k, en){ try { if (window.MedXI18n && MedXI18n.t){ var v = MedXI18n.t(k); if (v && v !== k) return v; } } catch(e){} return en; };
+                const name = document.getElementById('transferName').value.trim();
+                const email = document.getElementById('transferEmail').value.trim();
+                const reason = document.getElementById('transferReason').value.trim();
+                if (name.length < 2 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+                    Toast.warning(tr('px.transferInvalid', "Please enter your colleague's full name and a valid email.")); return;
+                }
+                const regId = localStorage.getItem('plexus_registration_id');
+                try {
+                    const response = await fetch(`/api/plexus/registration/${regId || 'current'}/transfer`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+                        body: JSON.stringify({ new_user_name: name, new_user_email: email, reason })
+                    });
+                    const data = await response.json().catch(function(){ return {}; });
+                    if (!response.ok) {
+                        if (response.status === 409) { Toast.warning(tr('px.transferPending', data.error || 'A transfer request for this ticket is already awaiting approval.')); return; }
+                        throw new Error(data.error || 'Request failed');
+                    }
+                    document.getElementById('ticketTransferModal').style.display = 'none';
+                    document.getElementById('transferName').value = '';
+                    document.getElementById('transferEmail').value = '';
+                    document.getElementById('transferReason').value = '';
+                    Toast.success(tr('px.transferSent', 'Transfer request sent. Our team will review it and both of you will be notified by email.'));
+                } catch (err) {
+                    Toast.error(tr('px.transferFail', 'Could not send the transfer request. Please try again or contact info@medx.hr.'));
+                }
+            },
 
             async submitRefundRequest() {
                 const reason = document.getElementById('refundReason').value;

@@ -3986,6 +3986,61 @@ async function initializeApp() {
     )`);
     // ====================== SCHEMA-MIRROR:END ======================
 
+    // ========================================================================
+    // EVENT-DAY STAFF TRACKING (queue 5a5j) — ADMIN-ONLY, OUTSIDE the SCHEMA-MIRROR block.
+    // Live, event-day-scoped location sharing for the ops team. Every tracked person is a
+    // portal user with is_admin OR is_staff (speakers/guests are never users here, so they can
+    // never opt in — they appear on the map only indirectly, as the subject of a pairing chip).
+    // Only the admin portal reads/writes these tables; the shared Turso DB gets them on admin
+    // boot. The one cross-portal hop is the stale check-in PUSH, which rides the EXISTING shared
+    // push_outbox (the user portal, which holds VAPID, drains + sends it). Positions are
+    // LIVE-ONLY: hard-deleted when the event day ends (auto) or an admin taps Purge.
+    db.run(`CREATE TABLE IF NOT EXISTS staff_tracking_settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        active INTEGER DEFAULT 0,
+        event_label TEXT,
+        ends_at TEXT,
+        stale_minutes INTEGER DEFAULT 10,
+        updated_by TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run("INSERT OR IGNORE INTO staff_tracking_settings (id, active, stale_minutes) VALUES (1, 0, 10)");
+
+    db.run(`CREATE TABLE IF NOT EXISTS staff_tracking_consent (
+        user_id TEXT PRIMARY KEY,
+        enabled INTEGER DEFAULT 0,
+        consent_at TEXT,
+        display_name TEXT,
+        last_prompt_at TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS staff_positions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        lat REAL NOT NULL,
+        lng REAL NOT NULL,
+        accuracy REAL,
+        heading REAL,
+        speed REAL,
+        recorded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        client_ts TEXT
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_staff_positions_user ON staff_positions(user_id, recorded_at)`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS staff_pairings (
+        id TEXT PRIMARY KEY,
+        staff_user_id TEXT NOT NULL,
+        speaker_id TEXT,
+        guest_name TEXT,
+        note TEXT,
+        status TEXT DEFAULT 'assigned',
+        confirmed_at TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
     // ADMIN-ONLY: Content studio — a log of pieces made in the creation studio (graphics, slideshow
     // videos, PDFs). Not shared with the user portal. The generated file lives under
     // /uploads/content-studio; this row records it for the "recent creations" gallery and links a piece
@@ -4719,6 +4774,112 @@ async function initializeApp() {
     db.run(`CREATE INDEX IF NOT EXISTS idx_forum_magic_tokens_token ON forum_magic_tokens(token)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_forum_considerations_status ON forum_considerations(status)`);
     // ====================== END FORUM WING schema ======================
+
+    // ============ POST-EVENT ENGINE + TICKET TRANSFERS (queue 5a5g) — shared tables ============
+    // Added IDENTICALLY to BOTH portal server.js files (shared Turso DB in prod), OUTSIDE the
+    // SCHEMA-MIRROR block by design, so scripts/check-schema-sync.sh stays green while both portals
+    // still agree on these shared tables. Idempotent CREATE/ALTER — whichever portal boots first wins.
+
+    // --- Ticket NAME TRANSFERS -------------------------------------------------------------------
+    // The user portal creates a transfer request ("transfer my ticket to a colleague"); the admin
+    // portal approves it, reassigning the registration's DENORMALIZED name/email IN PLACE. The ticket
+    // QR payload IS the registration id and is NEVER regenerated, so the SAME QR checks in the new
+    // person (the scanner resolves by id, then shows the denormalized name/email). orig_* snapshots the
+    // pre-transfer identity for the audit trail + a possible reversal.
+    try { db.run("ALTER TABLE registration_transfers ADD COLUMN orig_user_id TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE registration_transfers ADD COLUMN orig_first_name TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE registration_transfers ADD COLUMN orig_last_name TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE registration_transfers ADD COLUMN orig_email TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE registration_transfers ADD COLUMN recipient_first_name TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE registration_transfers ADD COLUMN recipient_last_name TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE registration_transfers ADD COLUMN reassigned_at TEXT"); } catch(e) {}
+    // Append-only audit of every lifecycle event (requested | approved | reassigned | rejected).
+    db.run(`CREATE TABLE IF NOT EXISTS ticket_transfer_audit (
+        id TEXT PRIMARY KEY,
+        transfer_id TEXT NOT NULL,
+        registration_id TEXT,
+        event TEXT NOT NULL,
+        detail TEXT,
+        actor TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // --- GROUP DISCOUNTS (owner: BUILD, do NOT apply) — shipped DORMANT ---------------------------
+    // The config table + a global feature flag, both OFF. enabled defaults 0 and there is deliberately
+    // NO admin UI to switch it on; checkout is FROZEN and never reads this. It exists so a future
+    // edition can offer "N+ tickets -> discount" without a migration.
+    db.run(`CREATE TABLE IF NOT EXISTS group_discounts (
+        id TEXT PRIMARY KEY,
+        edition_key TEXT,
+        conference_id TEXT,
+        label TEXT,
+        min_group_size INTEGER DEFAULT 3,
+        discount_type TEXT DEFAULT 'percent',
+        discount_value REAL DEFAULT 0,
+        enabled INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    try { db.run("INSERT OR IGNORE INTO automation_config (key, value) VALUES ('group_discounts_enabled','0')"); } catch(e) {}
+
+    // --- TESTIMONIAL HARVESTING ------------------------------------------------------------------
+    // A high-rating post-event survey response triggers a consent ask (staged in the approval outbox).
+    // The member taps a public consent link (yes-with-name / no); a consented quote lands here for the
+    // admin to approve/edit/export, then feeds the website-testimonials checklist. status walks
+    // invited -> consented -> approved (or declined). token backs the public consent GET.
+    db.run(`CREATE TABLE IF NOT EXISTS testimonials (
+        id TEXT PRIMARY KEY,
+        event_key TEXT,
+        reg_id TEXT,
+        author_name TEXT,
+        author_email TEXT,
+        author_role TEXT,
+        quote TEXT,
+        rating INTEGER,
+        consent_name INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'invited',
+        token TEXT UNIQUE,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        consented_at TEXT,
+        approved_at TEXT,
+        approved_by TEXT
+    )`);
+    // ============ END POST-EVENT ENGINE + TICKET TRANSFERS shared tables ============
+
+    // ============ EARLY-BIRD BRIDGE (queue 5a5g piece 5) — ADMIN-ONLY schema ============
+    // Admin sets a discount for the NEXT edition (editable), generates a code batch into the EXISTING
+    // promo_codes machinery, then MUST APPROVE the bridge before any thank-you email is allowed to carry
+    // a code. status: draft -> approved. Codes are real promo_codes rows tagged early_bird_bridge_id, so
+    // redemption uses the SAME frozen promo flow (checkout is never touched). This table lives ONLY in the
+    // admin server.js (the user portal never reads or writes it) and OUTSIDE the SCHEMA-MIRROR block.
+    db.run(`CREATE TABLE IF NOT EXISTS early_bird_bridges (
+        id TEXT PRIMARY KEY,
+        edition_key TEXT,
+        conference_id TEXT,
+        label TEXT,
+        discount_type TEXT DEFAULT 'fixed',
+        discount_value REAL DEFAULT 0,
+        terms TEXT,
+        code_prefix TEXT DEFAULT 'EARLYBIRD',
+        quantity INTEGER DEFAULT 0,
+        valid_until TEXT,
+        status TEXT DEFAULT 'draft',
+        codes_generated INTEGER DEFAULT 0,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        approved_by TEXT,
+        approved_at TEXT
+    )`);
+    // Tag promo_codes rows minted by a bridge so the batch can be listed/counted without a join table.
+    try { db.run('ALTER TABLE promo_codes ADD COLUMN early_bird_bridge_id TEXT'); } catch(e) {}
+    // One row per code handed to a specific attendee, so no two attendees get the same unredeemed code.
+    db.run(`CREATE TABLE IF NOT EXISTS early_bird_assignments (
+        id TEXT PRIMARY KEY,
+        bridge_id TEXT NOT NULL,
+        reg_id TEXT,
+        ref TEXT,
+        email TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
 
     // ====================== GUEST PASSES — member-initiated colleague invites ======================
     // Shared table (both portals touch it): the user portal creates + revokes a member's own passes
@@ -18508,18 +18669,737 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
+    // Approve a ticket name transfer: reassign the registration IN PLACE (the ticket id + QR are never
+    // regenerated, so the SAME QR checks in the new person), notify both sides through the approval
+    // outbox, and write the audit trail. Idempotent — a non-pending request is a no-op.
     app.post('/api/admin/plexus/transfer/:id/approve', auth, adminOnly, (req, res) => {
-        db.run("UPDATE registration_transfers SET status = 'approved', approved_by = ?, approved_at = datetime('now') WHERE id = ?",
-            [req.user.id, req.params.id]);
+        const t = query.get("SELECT * FROM registration_transfers WHERE id = ?", [req.params.id]);
+        if (!t) return res.status(404).json({ error: 'Transfer request not found' });
+        if (t.status !== 'pending') return res.json({ success: true, already: true, status: t.status, message: 'This transfer was already processed.' });
+        const reg = query.get("SELECT * FROM registrations WHERE id = ?", [t.registration_id]);
+        if (!reg) return res.status(404).json({ error: 'Underlying registration no longer exists' });
+
+        const rEmail = String(t.new_user_email || '').trim().toLowerCase();
+        let rFirst = t.recipient_first_name, rLast = t.recipient_last_name;
+        if (!rFirst && t.new_user_name) { const p = String(t.new_user_name).trim().split(/\s+/); rFirst = p.shift() || ''; rLast = p.join(' '); }
+
+        // If the recipient already has a portal account, hand them ownership so the ticket shows in their
+        // My Med&X; otherwise DETACH from the original holder (user_id NULL) — the door still resolves the
+        // seat by the frozen QR id, and the denormalized name/email now carry the recipient's identity.
+        let newUserId = null;
+        try { const existing = query.get('SELECT id FROM users WHERE LOWER(email) = ?', [rEmail]); if (existing) newUserId = existing.id; } catch(e) {}
+
+        // *** REASSIGN IN PLACE — id + ticket_qr_code untouched. Same QR now admits the new person. ***
+        db.run("UPDATE registrations SET first_name = ?, last_name = ?, email = ?, user_id = ? WHERE id = ?",
+            [rFirst || null, rLast || null, rEmail, newUserId, reg.id]);
+        db.run("UPDATE registration_transfers SET status = 'approved', approved_by = ?, approved_at = datetime('now'), reassigned_at = datetime('now') WHERE id = ?",
+            [req.user.id, t.id]);
+
+        db.run("INSERT INTO ticket_transfer_audit (id, transfer_id, registration_id, event, detail, actor) VALUES (?,?,?, 'approved', ?, ?)",
+            [require('crypto').randomUUID(), t.id, reg.id, 'approved by admin', req.user.email || req.user.id]);
+        db.run("INSERT INTO ticket_transfer_audit (id, transfer_id, registration_id, event, detail, actor) VALUES (?,?,?, 'reassigned', ?, ?)",
+            [require('crypto').randomUUID(), t.id, reg.id, `${t.orig_email || ''} -> ${rEmail}; QR/id ${reg.id} unchanged`, req.user.email || req.user.id]);
+        logAudit(req, 'ticket_transfer_approve', `Ticket ${reg.id} transferred ${t.orig_email || ''} -> ${rEmail} (QR unchanged)`);
+
+        // Notify BOTH sides through the ONE approval outbox (pending_approval — owner approves the send).
+        const portal = userPortalBase();
+        const batchId = 'ticket-transfer-' + t.id;
+        const origName = seatEsc(String(t.orig_first_name || 'there').split(' ')[0]);
+        const recFirst = seatEsc(rFirst || 'there');
+        const recFull = seatEsc([rFirst, rLast].filter(Boolean).join(' ') || t.new_user_name || 'your colleague');
+        const origMail = {
+            subject: 'Your Plexus ticket transfer is complete',
+            html: buildEmailTemplate('Ticket transfer complete', `
+                <p>Hi ${origName},</p>
+                <p>Your Plexus Conference ticket has been transferred to <strong>${recFull}</strong> as you requested. It is no longer active on your account.</p>
+                <p>Thank you for letting us know in advance — it keeps the check-in desk running smoothly.</p>
+                <hr style="border:none;border-top:1px solid #e2e8f0;margin:22px 0;">
+                <p style="color:#64748b;">Prijenos Vaše ulaznice za Plexus konferenciju dovršen je i predana je kolegi <strong>${recFull}</strong>. Ulaznica više nije aktivna na Vašem računu. Zahvaljujemo Vam na pravovremenoj obavijesti.</p>
+                <p style="color:#64748b;font-size:13px;margin-top:22px;">Med&amp;X tim</p>
+            `),
+        };
+        const recMail = {
+            subject: 'A Plexus Conference ticket is now yours',
+            html: buildEmailTemplate('Your Plexus ticket is ready', `
+                <p>Hi ${recFirst},</p>
+                <p>Good news — a colleague has transferred their <strong>Plexus Conference</strong> ticket to you, and our team has confirmed it.</p>
+                <p>Sign in to <a href="${portal}" style="color:#0f172a;font-weight:700;">My Med&amp;X</a> with this email address (${seatEsc(rEmail)}) to see your ticket and QR code. If you do not have an account yet, create one with this same email and your ticket will be waiting.</p>
+                <hr style="border:none;border-top:1px solid #e2e8f0;margin:22px 0;">
+                <p style="color:#64748b;">Kolega Vam je prepisao svoju ulaznicu za <strong>Plexus</strong> konferenciju, a naš tim ju je potvrdio. Prijavite se u <a href="${portal}" style="color:#0f172a;font-weight:700;">My Med&amp;X</a> ovom e-adresom (${seatEsc(rEmail)}) kako biste vidjeli ulaznicu i QR kôd.</p>
+                <p style="color:#64748b;font-size:13px;margin-top:22px;">Radujemo se Vašem dolasku,<br>Med&amp;X tim</p>
+            `),
+        };
+        for (const pair of [[t.orig_email, origMail], [rEmail, recMail]]) {
+            const to = pair[0], mail = pair[1];
+            if (!to) continue;
+            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                    VALUES (?, 'pending_approval', ?, 'ticket-transfer', 'ticket_transfer', ?, ?, ?, 'ticket-transfer-engine', datetime('now'))`,
+                [require('crypto').randomUUID(), batchId, JSON.stringify({ to, subject: mail.subject, html: mail.html }), to, mail.subject]);
+        }
+        saveDb();
+        res.json({ success: true, reassigned: true, registration_id: reg.id, recipient_email: rEmail, recipient_has_account: !!newUserId, outbox_batch: batchId });
+    });
+
+    app.post('/api/admin/plexus/transfer/:id/reject', auth, adminOnly, (req, res) => {
+        const t = query.get("SELECT * FROM registration_transfers WHERE id = ?", [req.params.id]);
+        if (!t) return res.status(404).json({ error: 'Transfer request not found' });
+        if (t.status !== 'pending') return res.json({ success: true, already: true, status: t.status });
+        db.run("UPDATE registration_transfers SET status = 'rejected', approved_by = ?, approved_at = datetime('now') WHERE id = ?",
+            [req.user.id, t.id]);
+        db.run("INSERT INTO ticket_transfer_audit (id, transfer_id, registration_id, event, detail, actor) VALUES (?,?,?, 'rejected', ?, ?)",
+            [require('crypto').randomUUID(), t.id, t.registration_id, String((req.body && req.body.note) || '').slice(0, 300), req.user.email || req.user.id]);
+        logAudit(req, 'ticket_transfer_reject', `Transfer ${t.id} rejected`);
         saveDb();
         res.json({ success: true });
     });
 
-    app.post('/api/admin/plexus/transfer/:id/reject', auth, adminOnly, (req, res) => {
-        db.run("UPDATE registration_transfers SET status = 'rejected', approved_by = ?, approved_at = datetime('now') WHERE id = ?",
-            [req.user.id, req.params.id]);
+    // ===================== EARLY-BIRD BRIDGE (queue 5a5g piece 5) =====================
+    // Flow: create/edit a bridge (draft) -> generate a code batch into promo_codes -> APPROVE (gate) ->
+    // stage code-carrying thank-you emails into the approval outbox. Sending codes is IMPOSSIBLE until
+    // the bridge is approved (stage-thankyou returns 403 on a draft). Codes are real promo_codes rows, so
+    // redemption rides the EXISTING frozen promo flow — checkout is never touched.
+    function earlyBirdMintCode(prefix) {
+        const aln = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let tail = '';
+        for (let i = 0; i < 6; i++) tail += aln[Math.floor(Math.random() * aln.length)];
+        return `${(prefix || 'EARLYBIRD').toUpperCase().replace(/[^A-Z0-9]/g, '')}-${tail}`;
+    }
+    app.get('/api/admin/early-bird', auth, adminOnly, (req, res) => {
+        const rows = query.all('SELECT * FROM early_bird_bridges ORDER BY created_at DESC') || [];
+        const out = rows.map((b) => {
+            let minted = 0, used = 0;
+            try { minted = query.get('SELECT COUNT(*) AS c FROM promo_codes WHERE early_bird_bridge_id = ?', [b.id])?.c || 0; } catch (e) {}
+            try { used = query.get('SELECT COUNT(*) AS c FROM promo_codes WHERE early_bird_bridge_id = ? AND used_count > 0', [b.id])?.c || 0; } catch (e) {}
+            return { ...b, codes_minted: minted, codes_used: used };
+        });
+        res.json(out);
+    });
+    // Create or edit a bridge config (editable form). Always lands as draft; editing an approved bridge
+    // returns it to draft so a changed discount can never ride out on an already-approved batch.
+    app.post('/api/admin/early-bird', auth, adminOnly, (req, res) => {
+        const b = req.body || {};
+        const id = b.id || require('crypto').randomUUID();
+        const exists = b.id ? query.get('SELECT id FROM early_bird_bridges WHERE id = ?', [b.id]) : null;
+        const fields = {
+            edition_key: b.edition_key || null,
+            conference_id: b.conference_id || null,
+            label: (b.label || 'Early-bird for the next edition').slice(0, 160),
+            discount_type: (b.discount_type === 'percentage' ? 'percentage' : 'fixed'),
+            discount_value: Number(b.discount_value) || 0,
+            terms: (b.terms || '').slice(0, 600),
+            code_prefix: (b.code_prefix || 'EARLYBIRD').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20) || 'EARLYBIRD',
+            quantity: Math.max(0, Math.min(5000, parseInt(b.quantity, 10) || 0)),
+            valid_until: b.valid_until || null,
+        };
+        if (exists) {
+            db.run(`UPDATE early_bird_bridges SET edition_key=?, conference_id=?, label=?, discount_type=?, discount_value=?, terms=?, code_prefix=?, quantity=?, valid_until=?, status='draft', approved_by=NULL, approved_at=NULL WHERE id=?`,
+                [fields.edition_key, fields.conference_id, fields.label, fields.discount_type, fields.discount_value, fields.terms, fields.code_prefix, fields.quantity, fields.valid_until, id]);
+        } else {
+            db.run(`INSERT INTO early_bird_bridges (id, edition_key, conference_id, label, discount_type, discount_value, terms, code_prefix, quantity, valid_until, status, created_by)
+                    VALUES (?,?,?,?,?,?,?,?,?,?, 'draft', ?)`,
+                [id, fields.edition_key, fields.conference_id, fields.label, fields.discount_type, fields.discount_value, fields.terms, fields.code_prefix, fields.quantity, fields.valid_until, req.user.email || req.user.id]);
+        }
+        logAudit(req, 'early_bird_save', `Bridge ${id} (${fields.label})`);
+        saveDb();
+        res.json({ success: true, id, status: 'draft' });
+    });
+    // Generate the code batch into promo_codes (real, redeemable via the existing frozen promo flow).
+    // Idempotent-ish: tops up to `quantity` total minted for this bridge, never duplicates.
+    app.post('/api/admin/early-bird/:id/generate', auth, adminOnly, (req, res) => {
+        const b = query.get('SELECT * FROM early_bird_bridges WHERE id = ?', [req.params.id]);
+        if (!b) return res.status(404).json({ error: 'Bridge not found' });
+        const already = query.get('SELECT COUNT(*) AS c FROM promo_codes WHERE early_bird_bridge_id = ?', [b.id])?.c || 0;
+        const want = Math.max(0, (b.quantity || 0) - already);
+        let minted = 0;
+        for (let i = 0; i < want; i++) {
+            let code = earlyBirdMintCode(b.code_prefix);
+            let guard = 0;
+            while (query.get('SELECT id FROM promo_codes WHERE code = ?', [code]) && guard < 5) { code = earlyBirdMintCode(b.code_prefix); guard++; }
+            db.run(`INSERT INTO promo_codes (id, conference_id, code, discount_type, discount_value, max_uses, used_count, valid_until, is_active, early_bird_bridge_id)
+                    VALUES (?,?,?,?,?,?,0,?,1,?)`,
+                [require('crypto').randomUUID(), b.conference_id, code, b.discount_type, b.discount_value, 1, b.valid_until, b.id]);
+            minted++;
+        }
+        db.run('UPDATE early_bird_bridges SET codes_generated = 1 WHERE id = ?', [b.id]);
+        logAudit(req, 'early_bird_generate', `Bridge ${b.id}: minted ${minted} codes`);
+        saveDb();
+        res.json({ success: true, minted, total: already + minted });
+    });
+    // APPROVAL GATE. A bridge cannot be approved until it has codes; only an approved bridge may send.
+    app.post('/api/admin/early-bird/:id/approve', auth, adminOnly, (req, res) => {
+        const b = query.get('SELECT * FROM early_bird_bridges WHERE id = ?', [req.params.id]);
+        if (!b) return res.status(404).json({ error: 'Bridge not found' });
+        const minted = query.get('SELECT COUNT(*) AS c FROM promo_codes WHERE early_bird_bridge_id = ?', [b.id])?.c || 0;
+        if (!minted) return res.status(400).json({ error: 'Generate the code batch before approving.' });
+        db.run("UPDATE early_bird_bridges SET status = 'approved', approved_by = ?, approved_at = datetime('now') WHERE id = ?", [req.user.email || req.user.id, b.id]);
+        logAudit(req, 'early_bird_approve', `Bridge ${b.id} approved (${minted} codes)`);
+        saveDb();
+        res.json({ success: true, status: 'approved', codes: minted });
+    });
+    // Stage code-carrying thank-you emails into the approval outbox for the checked-in attendees of a
+    // finished event. HARD GATE: refuses unless the bridge is approved. One unused code per recipient,
+    // idempotent per (bridge, reg) via drip_log. Emails stay pending_approval — the owner still approves
+    // the send, so a code reaches an inbox only after TWO approvals (bridge + outbox batch).
+    app.post('/api/admin/early-bird/:id/stage-thankyou', auth, adminOnly, (req, res) => {
+        const b = query.get('SELECT * FROM early_bird_bridges WHERE id = ?', [req.params.id]);
+        if (!b) return res.status(404).json({ error: 'Bridge not found' });
+        if (b.status !== 'approved') {
+            return res.status(403).json({ error: 'This early-bird bridge is not approved yet. Codes cannot be sent until it is approved.' });
+        }
+        const sourceKey = (req.body && req.body.source_event_key) || 'plexus';
+        const recipients = (typeof postEventCheckedIn === 'function') ? postEventCheckedIn(sourceKey) : [];
+        if (!recipients.length) return res.json({ success: true, staged: 0, message: 'No checked-in attendees to email yet.' });
+        const portal = userPortalBase();
+        const batchId = 'early-bird-' + b.id;
+        const discountLabel = b.discount_type === 'percentage' ? `${b.discount_value}%` : `${b.discount_value} EUR`;
+        let staged = 0;
+        for (const r of recipients) {
+            const marker = `early_bird:${b.id}:${r.id}`;
+            const dup = query.get("SELECT 1 AS x FROM drip_log WHERE user_id = 'early-bird' AND kind = ?", [marker]);
+            if (dup) continue;
+            // Claim one unused code for this recipient.
+            const code = query.get('SELECT id, code FROM promo_codes WHERE early_bird_bridge_id = ? AND used_count = 0 AND (id NOT IN (SELECT ref FROM early_bird_assignments)) ORDER BY rowid LIMIT 1', [b.id])
+                       || query.get('SELECT id, code FROM promo_codes WHERE early_bird_bridge_id = ? AND used_count = 0 ORDER BY rowid LIMIT 1', [b.id]);
+            if (!code) break; // out of codes
+            const first = seatEsc(((r.first_name || 'there').trim().split(' ')[0]) || 'there');
+            const mail = {
+                subject: 'A thank-you — and an early-bird code for next year',
+                html: buildEmailTemplate('Thank you — here is your early-bird code', `
+                    <p>Hi ${first},</p>
+                    <p>Thank you for being with us. As a thank-you, here is an <strong>early-bird code</strong> for the next edition, worth <strong>${seatEsc(discountLabel)}</strong> off your registration:</p>
+                    <div style="text-align:center;margin:26px 0;"><span style="display:inline-block;font-size:22px;font-weight:800;letter-spacing:2px;color:#0f172a;background:#f8f4e9;border:2px dashed #C9A962;border-radius:10px;padding:14px 26px;">${seatEsc(code.code)}</span></div>
+                    ${b.terms ? `<p style="color:#64748b;font-size:13px;">${seatEsc(b.terms)}</p>` : ''}
+                    <p>When registration opens, enter this code at checkout. We would love to see you again.</p>
+                    <hr style="border:none;border-top:1px solid #e2e8f0;margin:22px 0;">
+                    <p style="color:#64748b;">Hvala Vam što ste bili s nama. Na poklon Vam šaljemo <strong>early-bird kôd</strong> za sljedeće izdanje, uz popust od <strong>${seatEsc(discountLabel)}</strong> na kotizaciju. Kôd unesite pri prijavi kada se otvori. Radujemo se ponovnom susretu.</p>
+                    <p style="color:#64748b;font-size:13px;margin-top:22px;">Med&amp;X tim &middot; <a href="${portal}" style="color:#0f172a;font-weight:700;">medx.hr</a></p>
+                `),
+            };
+            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                    VALUES (?, 'pending_approval', ?, 'early-bird', 'early_bird_code', ?, ?, ?, 'early-bird-engine', datetime('now'))`,
+                [require('crypto').randomUUID(), batchId, JSON.stringify({ to: r.email, subject: mail.subject, html: mail.html }), r.email, mail.subject]);
+            db.run("INSERT INTO early_bird_assignments (id, bridge_id, reg_id, ref, email) VALUES (?,?,?,?,?)", [require('crypto').randomUUID(), b.id, r.id, code.id, r.email]);
+            db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'early-bird', ?, ?)", [require('crypto').randomUUID(), r.email, marker]);
+            staged++;
+        }
+        logAudit(req, 'early_bird_stage', `Bridge ${b.id}: staged ${staged} code emails (pending approval)`);
+        saveDb();
+        res.json({ success: true, staged, outbox_batch: batchId });
+    });
+
+    // ===================== TESTIMONIAL HARVESTING (queue 5a5g piece 2) =====================
+    // High-rating post-event survey responses trigger a CONSENT ASK ("may we quote you, with your
+    // name?") staged in the approval outbox. The member taps a public link, writes a short quote and
+    // chooses whether their name may be used -> the quote lands in the testimonials bank (status
+    // consented). The admin approves/edits/exports; approving feeds the website-testimonials checklist.
+    const _esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+
+    // Scan for high-rating survey responses not yet asked, create testimonials(invited) rows, and stage a
+    // bilingual consent-ask email into the outbox (pending_approval). Idempotent per (event_key, reg_id).
+    app.post('/api/admin/testimonials/harvest', auth, adminOnly, (req, res) => {
+        const eventKey = (req.body && req.body.event_key) || 'plexus';
+        const minRating = Math.max(1, Math.min(5, parseInt((req.body && req.body.min_rating), 10) || 4));
+        let rows = [];
+        try { rows = query.all('SELECT * FROM event_survey_responses WHERE event_key = ? AND rating IS NOT NULL AND rating >= ?', [eventKey, minRating]); } catch (e) { rows = []; }
+        const base = seatPublicBase(req);
+        const batchId = 'testimonial-consent-' + eventKey;
+        let staged = 0;
+        for (const r of rows) {
+            if (!r.email) continue;
+            const existing = query.get('SELECT id FROM testimonials WHERE event_key = ? AND reg_id = ?', [eventKey, r.reg_id]);
+            if (existing) continue; // already asked
+            const id = require('crypto').randomUUID();
+            const token = seatToken(20);
+            let author = '';
+            try { const u = r.user_id ? query.get('SELECT first_name, last_name FROM users WHERE id = ?', [r.user_id]) : null; if (u) author = [u.first_name, u.last_name].filter(Boolean).join(' '); } catch (e) {}
+            db.run(`INSERT INTO testimonials (id, event_key, reg_id, author_name, author_email, rating, status, token) VALUES (?,?,?,?,?,?, 'invited', ?)`,
+                [id, eventKey, r.reg_id, author || null, r.email, r.rating, token]);
+            const first = _esc(((author || 'there').trim().split(' ')[0]) || 'there');
+            const link = `${base}/api/public/testimonial?token=${token}`;
+            const mail = {
+                subject: 'May we share your words about the event?',
+                html: buildEmailTemplate('Thank you — may we quote you?', `
+                    <p>Hi ${first},</p>
+                    <p>Thank you for the kind rating you left. Would you allow us to share a short line from you as a testimonial, with your name?</p>
+                    <div style="text-align:center;margin:26px 0;"><a href="${link}" style="display:inline-block;background:#0f172a;color:#C9A962;text-decoration:none;padding:14px 34px;border-radius:8px;font-weight:700;">Share a few words</a></div>
+                    <p style="color:#64748b;font-size:13px;">It takes ten seconds, and you decide whether your name is used.</p>
+                    <hr style="border:none;border-top:1px solid #e2e8f0;margin:22px 0;">
+                    <p style="color:#64748b;">Hvala Vam na lijepoj ocjeni. Dopuštate li nam da podijelimo Vašu kratku izjavu kao preporuku, uz Vaše ime? Vi odlučujete hoće li Vaše ime biti navedeno.</p>
+                    <p style="color:#64748b;font-size:13px;margin-top:18px;">Med&amp;X tim</p>
+                `),
+            };
+            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                    VALUES (?, 'pending_approval', ?, 'testimonial', 'testimonial_consent', ?, ?, ?, 'testimonial-engine', datetime('now'))`,
+                [require('crypto').randomUUID(), batchId, JSON.stringify({ to: r.email, subject: mail.subject, html: mail.html }), r.email, mail.subject]);
+            staged++;
+        }
+        logAudit(req, 'testimonial_harvest', `${eventKey}: staged ${staged} consent asks (>= ${minRating} stars)`);
+        saveDb();
+        res.json({ success: true, staged, outbox_batch: batchId });
+    });
+
+    // PUBLIC consent landing — a plain GET form (no inline JS, CSP-safe) that submits via GET.
+    app.get('/api/public/testimonial', publicLimiter, (req, res) => {
+        const t = query.get('SELECT * FROM testimonials WHERE token = ?', [String(req.query.token || '')]);
+        const head = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Med&amp;X</title>`
+          + `<style>body{font-family:system-ui,sans-serif;background:#f5f2ec;color:#15110f;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;margin:0}`
+          + `.card{background:#fff;max-width:520px;width:100%;border:1px solid #e6e0d6;border-radius:18px;padding:32px;box-shadow:0 20px 60px rgba(0,0,0,.08)}`
+          + `h1{font-size:20px;margin:0 0 6px}p{color:#524b43;line-height:1.6;font-size:14px}textarea{width:100%;box-sizing:border-box;padding:12px;border:1px solid #e6e0d6;border-radius:10px;font:inherit;margin-top:14px;min-height:90px}`
+          + `label.chk{display:flex;gap:8px;align-items:center;margin:14px 0;font-size:14px}.btn{border:none;border-radius:9px;padding:12px 18px;font-weight:700;font-size:14px;cursor:pointer;margin-right:8px}`
+          + `.yes{background:#0f172a;color:#C9A962}.no{background:#f0ece4;color:#524b43}</style></head><body><div class="card">`;
+        if (!t) { res.status(404).send(head + `<h1>Link not found</h1><p>This link is no longer valid. / Ova poveznica više nije važeća.</p></div></body></html>`); return; }
+        if (t.status === 'consented' || t.status === 'approved') { res.send(head + `<h1>Thank you</h1><p>We already have your note — thank you. / Već imamo Vašu poruku, hvala Vam.</p></div></body></html>`); return; }
+        res.send(head
+          + `<h1>May we quote you?</h1>`
+          + `<p>Share a short line about your experience. You choose whether your name is used.<br><span style="color:#8a8178;">Podijelite kratku rečenicu o svojem iskustvu. Vi odlučujete hoće li Vaše ime biti navedeno.</span></p>`
+          + `<form method="GET" action="/api/public/testimonial/submit">`
+          + `<input type="hidden" name="token" value="${_esc(t.token)}">`
+          + `<textarea name="quote" maxlength="400" placeholder="e.g. An inspiring few days — I left with new collaborators and ideas."></textarea>`
+          + `<label class="chk"><input type="checkbox" name="use_name" value="1" checked> You may use my name / Smijete navesti moje ime${t.author_name ? ` (${_esc(t.author_name)})` : ''}</label>`
+          + `<button class="btn yes" name="consent" value="yes" type="submit">Yes, share this / Da, podijelite</button>`
+          + `<button class="btn no" name="consent" value="no" type="submit">No thank you / Ne, hvala</button>`
+          + `</form></div></body></html>`);
+    });
+    // PUBLIC consent submit (GET, single-use token). Records the quote + name choice into the bank.
+    app.get('/api/public/testimonial/submit', publicLimiter, (req, res) => {
+        const t = query.get('SELECT * FROM testimonials WHERE token = ?', [String(req.query.token || '')]);
+        const wrap = (msg) => `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font-family:system-ui,sans-serif;background:#f5f2ec;color:#15110f;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;margin:0}.card{background:#fff;max-width:480px;border:1px solid #e6e0d6;border-radius:18px;padding:32px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.08)}</style></head><body><div class="card">${msg}</div></body></html>`;
+        if (!t) { res.status(404).send(wrap('<h2>Link not found</h2>')); return; }
+        if (t.status === 'consented' || t.status === 'approved' || t.status === 'declined') { res.send(wrap('<h2>Thank you</h2><p>Your response is already recorded. / Vaš je odgovor već zabilježen.</p>')); return; }
+        if (String(req.query.consent) === 'no') {
+            db.run("UPDATE testimonials SET status = 'declined', consented_at = datetime('now') WHERE id = ?", [t.id]);
+            saveDb();
+            res.send(wrap('<h2>Understood</h2><p>We will not share anything. Thank you. / Nećemo ništa podijeliti. Hvala Vam.</p>'));
+            return;
+        }
+        const quote = String(req.query.quote || '').trim().slice(0, 400);
+        const useName = String(req.query.use_name || '') === '1' ? 1 : 0;
+        db.run("UPDATE testimonials SET quote = ?, consent_name = ?, status = 'consented', consented_at = datetime('now') WHERE id = ?", [quote, useName, t.id]);
+        saveDb();
+        res.send(wrap('<h2>Thank you</h2><p>Your words mean a great deal. / Vaše riječi mnogo nam znače.</p>'));
+    });
+
+    // ADMIN testimonials bank — list / approve / edit / export.
+    app.get('/api/admin/testimonials', auth, adminOnly, (req, res) => {
+        const status = req.query.status;
+        let rows = [];
+        try {
+            rows = status
+                ? query.all('SELECT * FROM testimonials WHERE status = ? ORDER BY created_at DESC', [status])
+                : query.all('SELECT * FROM testimonials ORDER BY created_at DESC');
+        } catch (e) { rows = []; }
+        res.json(rows);
+    });
+    app.post('/api/admin/testimonials/:id/approve', auth, adminOnly, (req, res) => {
+        const t = query.get('SELECT * FROM testimonials WHERE id = ?', [req.params.id]);
+        if (!t) return res.status(404).json({ error: 'Testimonial not found' });
+        db.run("UPDATE testimonials SET status = 'approved', approved_by = ?, approved_at = datetime('now') WHERE id = ?", [req.user.email || req.user.id, t.id]);
+        // Feed the website-testimonials checklist: flip its item to done when at least one is approved.
+        try {
+            const n = query.get("SELECT COUNT(*) AS c FROM testimonials WHERE status = 'approved'")?.c || 0;
+            db.run("UPDATE content_checklist SET status = 'done', notes = ?, done_at = datetime('now') WHERE LOWER(title) LIKE '%testimonial%'", [`${n} approved testimonial(s) ready to publish`]);
+        } catch (e) {}
+        logAudit(req, 'testimonial_approve', `Testimonial ${t.id} approved`);
         saveDb();
         res.json({ success: true });
+    });
+    app.post('/api/admin/testimonials/:id', auth, adminOnly, (req, res) => {
+        const t = query.get('SELECT * FROM testimonials WHERE id = ?', [req.params.id]);
+        if (!t) return res.status(404).json({ error: 'Testimonial not found' });
+        const b = req.body || {};
+        db.run('UPDATE testimonials SET quote = COALESCE(?, quote), author_name = COALESCE(?, author_name), author_role = COALESCE(?, author_role), consent_name = COALESCE(?, consent_name), status = COALESCE(?, status) WHERE id = ?',
+            [b.quote != null ? String(b.quote).slice(0, 500) : null, b.author_name != null ? String(b.author_name).slice(0, 160) : null, b.author_role != null ? String(b.author_role).slice(0, 120) : null, b.consent_name != null ? (b.consent_name ? 1 : 0) : null, b.status || null, t.id]);
+        logAudit(req, 'testimonial_edit', `Testimonial ${t.id} edited`);
+        saveDb();
+        res.json({ success: true });
+    });
+    app.get('/api/admin/testimonials/export', auth, adminOnly, (req, res) => {
+        const rows = query.all("SELECT * FROM testimonials WHERE status = 'approved' ORDER BY created_at DESC") || [];
+        if (req.query.format === 'csv') {
+            const head = 'name,role,rating,quote,event\n';
+            const body = rows.map((r) => [r.consent_name ? (r.author_name || '') : 'Anonymous', r.author_role || '', r.rating || '', r.quote || '', r.event_key || ''].map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n');
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename="testimonials.csv"');
+            res.send(head + body);
+            return;
+        }
+        res.json(rows.map((r) => ({ name: r.consent_name ? (r.author_name || '') : 'Anonymous', role: r.author_role || '', rating: r.rating, quote: r.quote, event: r.event_key })));
+    });
+
+    // ===================== 48H CONTENT ASSEMBLY (queue 5a5g piece 1) =====================
+    // Within 48h of an event end date (or admin "assemble now" = force), auto-DRAFT from REAL event data:
+    // a recap article, a thank-you photo post, and a by-the-numbers graphic config. All land as DRAFTS in
+    // the content calendar (pr_content_calendar, status='draft') for ONE approval. Deterministic assembly
+    // is the baseline; aiDraft may enrich later. Idempotent per (project, title) so a re-run never dupes.
+    function postEventAssemblyFacts(eventKey) {
+        const cfg = postEventCfg(eventKey); if (!cfg) return null;
+        let conf = null; try { conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'"); } catch (e) {}
+        const confId = conf ? conf.id : '';
+        const attendees = (typeof postEventCheckedIn === 'function') ? postEventCheckedIn(eventKey).length : 0;
+        let registered = 0; try { registered = query.get(`SELECT COUNT(*) AS c FROM ${cfg.table}`)?.c || 0; } catch (e) {}
+        let speakers = []; try { speakers = (query.all('SELECT name FROM speakers WHERE conference_id = ?', [confId]) || []).map((s) => s.name).filter(Boolean); } catch (e) {}
+        let sessions = []; try { sessions = (query.all('SELECT title FROM sessions WHERE conference_id = ? LIMIT 6', [confId]) || []).map((s) => s.title).filter(Boolean); } catch (e) {}
+        let photos = 0, photoUrl = null;
+        try { photos = query.get('SELECT COUNT(*) AS c FROM conference_photos WHERE COALESCE(is_public,1)=1')?.c || 0; } catch (e) {}
+        try { const p = query.get('SELECT file_path FROM conference_photos WHERE COALESCE(is_public,1)=1 ORDER BY uploaded_at DESC LIMIT 1'); photoUrl = p ? p.file_path : null; } catch (e) {}
+        return { label: cfg.label, attendees, registered, speakers, sessions, photos, photoUrl, end_date: conf ? conf.end_date : null };
+    }
+    app.get('/api/admin/post-event/assemble/facts', auth, adminOnly, (req, res) => {
+        const facts = postEventAssemblyFacts((req.query.event_key) || 'plexus');
+        if (!facts) return res.status(400).json({ error: 'Unsupported event' });
+        res.json({ ...facts, speakers_count: facts.speakers.length, sessions_count: facts.sessions.length });
+    });
+    app.post('/api/admin/post-event/assemble', auth, adminOnly, (req, res) => {
+        const eventKey = (req.body && req.body.event_key) || 'plexus';
+        const force = !!(req.body && req.body.force);
+        const facts = postEventAssemblyFacts(eventKey);
+        if (!facts) return res.status(400).json({ error: 'Unsupported event' });
+        let eligible = force, reason = force ? 'assemble-now' : 'auto';
+        if (!force) {
+            if (!facts.end_date) { eligible = false; reason = 'no-end-date'; }
+            else {
+                const end = new Date(facts.end_date + 'T23:59:59Z');
+                const hrs = (Date.now() - end.getTime()) / 36e5;
+                eligible = hrs >= 0 && hrs <= 48;
+                reason = eligible ? 'within-48h' : 'outside-window';
+            }
+        }
+        if (!eligible) {
+            return res.json({ success: false, eligible: false, reason, message: 'The event has not ended within the last 48 hours. Use "assemble now" to draft anyway.' });
+        }
+        const project = 'plexus';
+        const today = new Date().toISOString().slice(0, 10);
+        const drafts = [];
+        const mkDraft = (platform, title, text, image_url, hashtags) => {
+            const exists = query.get("SELECT id FROM pr_content_calendar WHERE project = ? AND title = ? AND status = 'draft'", [project, title]);
+            if (exists) { drafts.push({ id: exists.id, title, status: 'exists' }); return; }
+            const id = require('crypto').randomUUID();
+            db.run(`INSERT INTO pr_content_calendar (id, project, platform, scheduled_date, status, title, content_text, image_url, hashtags, created_by)
+                    VALUES (?,?,?,?, 'draft', ?,?,?,?, 'post-event-assembly')`,
+                [id, project, platform, today, title, text, image_url || null, hashtags || null]);
+            drafts.push({ id, title, platform, status: 'draft' });
+        };
+        const participants = facts.attendees || facts.registered;
+        const highlights = facts.sessions.length ? facts.sessions.slice(0, 4).join(', ') : 'a full program of talks and networking';
+        const spk = facts.speakers.length ? (facts.speakers.length + ' speakers including ' + facts.speakers.slice(0, 3).join(', ')) : 'our invited speakers';
+        mkDraft('blog', `${facts.label} - Recap`,
+            `${facts.label} has come to a close. ${participants} participants joined us for ${highlights}. With ${spk}, it was a day of ideas and new connections. Thank you to everyone who took part.`,
+            facts.photoUrl, '#MedX #Plexus');
+        mkDraft('instagram', `${facts.label} - Thank you`,
+            `Thank you for being part of ${facts.label}. ${facts.photos ? 'Swipe through moments from the day.' : 'Photos coming soon.'} We cannot wait to see you at the next edition.`,
+            facts.photoUrl, '#MedX #Plexus #ThankYou');
+        const numbers = { participants, speakers: facts.speakers.length, sessions: facts.sessions.length, photos: facts.photos };
+        mkDraft('instagram', `${facts.label} - By the numbers`,
+            'By the numbers: ' + Object.entries(numbers).map(([k, v]) => `${v} ${k}`).join('  -  ') + '\n\n[graphic config] ' + JSON.stringify({ template: 'by-the-numbers', numbers }),
+            null, '#MedX #Plexus #ByTheNumbers');
+        logAudit(req, 'post_event_assemble', `${eventKey}: ${drafts.length} content drafts (${reason})`);
+        saveDb();
+        res.json({ success: true, eligible: true, reason, facts: { participants, speakers: facts.speakers.length, sessions: facts.sessions.length, photos: facts.photos }, drafts });
+    });
+
+    // ===================== SPONSOR FULFILMENT REPORTS (queue 5a5g piece 6) =====================
+    // Per-sponsor auto-draft of what they received (logo placements, mentions, tagged photos, attendance
+    // numbers) from REAL data -> editable -> export PDF via the print-suite pipeline (psRenderPdf, gated
+    // when headless Chrome is absent) -> outbox send to the sponsor contact (approval-gated). One row per
+    // (sponsor, event) in sponsor_reports (admin-only, outside the SCHEMA-MIRROR block).
+    db.run(`CREATE TABLE IF NOT EXISTS sponsor_reports (
+        id TEXT PRIMARY KEY,
+        sponsor_id TEXT,
+        event_key TEXT,
+        title TEXT,
+        report_json TEXT,
+        html TEXT,
+        status TEXT DEFAULT 'draft',
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT,
+        sent_at TEXT,
+        approved_by TEXT,
+        approved_at TEXT,
+        UNIQUE(sponsor_id, event_key)
+    )`);
+    function sponsorDeliverables(sp, eventKey) {
+        const facts = (typeof postEventAssemblyFacts === 'function') ? postEventAssemblyFacts(eventKey) : null;
+        const participants = facts ? (facts.attendees || facts.registered) : 0;
+        const tier = (sp.tier || 'partner');
+        const items = [];
+        if (sp.logo_url) items.push(`Logo displayed on the event website and on-site signage (${tier} tier).`);
+        else items.push(`Named recognition on the event website and on-site signage (${tier} tier).`);
+        items.push('Verbal acknowledgement in the opening and closing remarks.');
+        items.push(`Brand presence before an audience of ${participants} registered participants.`);
+        if (sp.booth_location) items.push(`Exhibition presence at ${sp.booth_location}.`);
+        if (sp.included_passes) items.push(`${sp.included_passes} complimentary delegate pass(es).`);
+        let photos = 0; try { photos = query.get('SELECT COUNT(*) AS c FROM conference_photos WHERE COALESCE(is_public,1)=1')?.c || 0; } catch (e) {}
+        return { tier, participants, photos, items, amount_pledged: sp.amount_pledged || 0, amount_received: sp.amount_received || 0 };
+    }
+    function sponsorReportHtml(sp, eventKey, deliv) {
+        const e = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+        const cfg = postEventCfg(eventKey);
+        const li = deliv.items.map((x) => `<li>${e(x)}</li>`).join('');
+        return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+          @page{size:A4;margin:20mm}*{box-sizing:border-box}body{font-family:Inter,Arial,sans-serif;color:#15110f;margin:0}
+          .h{border-bottom:3px solid #C9A962;padding-bottom:14px;margin-bottom:22px}.brand{font-size:24px;font-weight:800;color:#9b1b22}
+          .k{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#8a8178;margin-top:6px}
+          h1{font-size:22px;margin:18px 0 4px}.sub{color:#524b43;font-size:14px}
+          ul{line-height:1.9;color:#2b2620;font-size:14px;padding-left:18px}
+          .nums{display:flex;gap:14px;margin:20px 0}.num{flex:1;border:1px solid #e6e0d6;border-radius:12px;padding:14px;text-align:center}
+          .num b{display:block;font-size:26px;color:#9b1b22}.num span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#8a8178}
+          .foot{margin-top:26px;border-top:1px solid #e6e0d6;padding-top:14px;color:#8a8178;font-size:12px}</style></head><body>
+          <div class="h"><div class="brand">Med&amp;X</div><div class="k">Sponsor fulfilment report</div></div>
+          <h1>${e(sp.name || 'Sponsor')}</h1>
+          <div class="sub">${e((cfg && cfg.label) || eventKey)} &middot; ${e(deliv.tier)} tier</div>
+          <div class="nums">
+            <div class="num"><b>${deliv.participants}</b><span>Participants reached</span></div>
+            <div class="num"><b>${deliv.photos}</b><span>Event photos</span></div>
+            <div class="num"><b>${deliv.amount_received ? (deliv.amount_received + ' EUR') : '&mdash;'}</b><span>Contribution</span></div>
+          </div>
+          <h3>What your support delivered</h3><ul>${li}</ul>
+          <div class="foot">Prepared for ${e(sp.contact_name || sp.name || '')}. Thank you for partnering with Med&amp;X.</div>
+        </body></html>`;
+    }
+    app.post('/api/admin/sponsor-reports/generate', auth, adminOnly, (req, res) => {
+        const eventKey = (req.body && req.body.event_key) || 'plexus';
+        let sponsors = [];
+        try {
+            sponsors = (req.body && req.body.sponsor_id)
+                ? query.all('SELECT * FROM sponsors WHERE id = ?', [req.body.sponsor_id])
+                : query.all("SELECT * FROM sponsors WHERE LOWER(COALESCE(status,'')) IN ('confirmed','committed','fulfilled')");
+        } catch (e) { sponsors = []; }
+        let made = 0; const out = [];
+        for (const sp of sponsors) {
+            const deliv = sponsorDeliverables(sp, eventKey);
+            const html = sponsorReportHtml(sp, eventKey, deliv);
+            const existing = query.get('SELECT id, status FROM sponsor_reports WHERE sponsor_id = ? AND event_key = ?', [sp.id, eventKey]);
+            if (existing) {
+                if (existing.status !== 'sent') { db.run('UPDATE sponsor_reports SET report_json = ?, html = ?, updated_at = datetime(\'now\') WHERE id = ?', [JSON.stringify(deliv), html, existing.id]); }
+                out.push({ id: existing.id, sponsor: sp.name, status: existing.status === 'sent' ? 'sent' : 'updated' });
+            } else {
+                const id = require('crypto').randomUUID();
+                db.run(`INSERT INTO sponsor_reports (id, sponsor_id, event_key, title, report_json, html, status, created_by) VALUES (?,?,?,?,?,?, 'draft', ?)`,
+                    [id, sp.id, eventKey, `${sp.name} - sponsor report`, JSON.stringify(deliv), html, req.user.email || req.user.id]);
+                out.push({ id, sponsor: sp.name, status: 'draft' }); made++;
+            }
+        }
+        logAudit(req, 'sponsor_report_generate', `${eventKey}: ${out.length} report(s), ${made} new`);
+        saveDb();
+        res.json({ success: true, count: out.length, created: made, reports: out });
+    });
+    app.get('/api/admin/sponsor-reports', auth, adminOnly, (req, res) => {
+        let rows = [];
+        try {
+            rows = query.all(`SELECT sr.id, sr.sponsor_id, sr.event_key, sr.title, sr.status, sr.updated_at, sr.sent_at, s.name AS sponsor_name, s.contact_email
+                              FROM sponsor_reports sr LEFT JOIN sponsors s ON sr.sponsor_id = s.id ORDER BY sr.created_at DESC`);
+        } catch (e) { rows = []; }
+        res.json(rows);
+    });
+    app.get('/api/admin/sponsor-reports/:id', auth, adminOnly, (req, res) => {
+        const r = query.get('SELECT * FROM sponsor_reports WHERE id = ?', [req.params.id]);
+        if (!r) return res.status(404).json({ error: 'Report not found' });
+        res.json(r);
+    });
+    app.post('/api/admin/sponsor-reports/:id', auth, adminOnly, (req, res) => {
+        const r = query.get('SELECT * FROM sponsor_reports WHERE id = ?', [req.params.id]);
+        if (!r) return res.status(404).json({ error: 'Report not found' });
+        const b = req.body || {};
+        db.run("UPDATE sponsor_reports SET title = COALESCE(?, title), html = COALESCE(?, html), status = COALESCE(?, status), updated_at = datetime('now') WHERE id = ?",
+            [b.title != null ? String(b.title).slice(0, 200) : null, b.html != null ? String(b.html) : null, b.status || null, r.id]);
+        logAudit(req, 'sponsor_report_edit', `Report ${r.id} edited`);
+        saveDb();
+        res.json({ success: true });
+    });
+    // Export PDF through the SAME print-suite pipeline (psRenderPdf). Cleanly gated when Chrome is absent.
+    app.get('/api/admin/sponsor-reports/:id/pdf', auth, adminOnly, async (req, res) => {
+        const r = query.get('SELECT * FROM sponsor_reports WHERE id = ?', [req.params.id]);
+        if (!r) return res.status(404).json({ error: 'Report not found' });
+        if (typeof psChromeBinary === 'function' && !psChromeBinary()) {
+            return res.status(503).json({ error: 'print_engine_unavailable', message: 'The print engine (headless Chrome) is not available here. Set CHROME_PATH to enable PDF export; the report HTML is still available.' });
+        }
+        try {
+            const os = require('os'); const pathMod = require('path');
+            const outPath = pathMod.join(os.tmpdir(), 'sponsor-report-' + r.id + '.pdf');
+            await psRenderPdf(r.html || '<html><body>Empty report</body></html>', outPath);
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="sponsor-report-${r.id}.pdf"`);
+            require('fs').createReadStream(outPath).pipe(res);
+        } catch (e) {
+            res.status(503).json({ error: 'print_engine_unavailable', message: String(e && e.message || e) });
+        }
+    });
+    // Send the report to the sponsor contact through the approval outbox (pending_approval).
+    app.post('/api/admin/sponsor-reports/:id/send', auth, adminOnly, (req, res) => {
+        const r = query.get('SELECT * FROM sponsor_reports WHERE id = ?', [req.params.id]);
+        if (!r) return res.status(404).json({ error: 'Report not found' });
+        const sp = query.get('SELECT * FROM sponsors WHERE id = ?', [r.sponsor_id]);
+        const to = sp && sp.contact_email;
+        if (!to) return res.status(400).json({ error: 'This sponsor has no contact email on file.' });
+        const first = seatEsc(((sp.contact_name || sp.name || 'there').trim().split(' ')[0]) || 'there');
+        const cfg = postEventCfg(r.event_key);
+        const mail = {
+            subject: `Your ${cfg ? cfg.label : 'event'} sponsorship report`,
+            html: buildEmailTemplate('Thank you for your partnership', `
+                <p>Dear ${first},</p>
+                <p>Thank you for supporting <strong>${seatEsc(cfg ? cfg.label : r.event_key)}</strong>. Please find your fulfilment report summarising the visibility and reach your partnership delivered.</p>
+                <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin:18px 0;">${r.html || ''}</div>
+                <p>We would be glad to partner again next year — thank you.</p>
+                <p style="color:#64748b;font-size:13px;margin-top:18px;">The Med&amp;X team</p>
+            `),
+        };
+        const batchId = 'sponsor-report-' + r.id;
+        db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                VALUES (?, 'pending_approval', ?, 'sponsor-report', 'sponsor_report', ?, ?, ?, 'sponsor-report-engine', datetime('now'))`,
+            [require('crypto').randomUUID(), batchId, JSON.stringify({ to, subject: mail.subject, html: mail.html }), to, mail.subject]);
+        db.run("UPDATE sponsor_reports SET status = 'sent', sent_at = datetime('now') WHERE id = ?", [r.id]);
+        logAudit(req, 'sponsor_report_send', `Report ${r.id} staged to ${to} (pending approval)`);
+        saveDb();
+        res.json({ success: true, outbox_batch: batchId, recipient: to });
+    });
+
+    // ===================== THANK-YOU KITS: SPEAKERS + ATTENDEES (queue 5a5g piece 4) =====================
+    // Per-SPEAKER kit: session photo (if available), attendance stats, star-rating summary from the
+    // U-ratings (session_ratings, event-survey fallback), and a shareable thank-you card config. Per
+    // ATTENDEE: a warm bilingual thank-you with their certificate link + a share nudge. Both go out
+    // through the ONE approval outbox as approve-once batches. speaker_kits is admin-only (outside mirror).
+    db.run(`CREATE TABLE IF NOT EXISTS speaker_kits (
+        id TEXT PRIMARY KEY,
+        speaker_id TEXT,
+        event_key TEXT,
+        kit_json TEXT,
+        status TEXT DEFAULT 'draft',
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT,
+        sent_at TEXT,
+        UNIQUE(speaker_id, event_key)
+    )`);
+    function speakerStarSummary(sp, eventKey, confId) {
+        let sessionIds = [];
+        try { sessionIds = (query.all('SELECT id FROM sessions WHERE conference_id = ? AND speaker_ids LIKE ?', [confId, '%' + sp.id + '%']) || []).map((s) => s.id); } catch (e) {}
+        if (sessionIds.length) {
+            try {
+                const ph = sessionIds.map(() => '?').join(',');
+                const row = query.get(`SELECT COUNT(*) AS c, AVG(rating) AS a FROM session_ratings WHERE session_id IN (${ph})`, sessionIds);
+                if (row && row.c) return { source: 'session', count: row.c, avg: Math.round(row.a * 10) / 10 };
+            } catch (e) {}
+        }
+        try { const r = query.get('SELECT COUNT(rating) AS c, AVG(rating) AS a FROM event_survey_responses WHERE event_key = ? AND rating IS NOT NULL', [eventKey]); if (r && r.c) return { source: 'event', count: r.c, avg: Math.round(r.a * 10) / 10 }; } catch (e) {}
+        return { source: 'none', count: 0, avg: null };
+    }
+    function speakerKitData(sp, eventKey) {
+        let conf = null; try { conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'"); } catch (e) {}
+        const confId = conf ? conf.id : '';
+        const facts = (typeof postEventAssemblyFacts === 'function') ? postEventAssemblyFacts(eventKey) : null;
+        const participants = facts ? (facts.attendees || facts.registered) : 0;
+        const stars = speakerStarSummary(sp, eventKey, confId);
+        let photo = sp.photo_url || (facts ? facts.photoUrl : null) || null;
+        const cfg = postEventCfg(eventKey);
+        return {
+            speaker: sp.name, talk_title: sp.talk_title || '', institution: sp.institution || '',
+            session_photo: photo, participants, stars,
+            card: { template: 'speaker-thankyou', speaker: sp.name, event: (cfg ? cfg.label : eventKey), talk: sp.talk_title || '', rating: stars.avg, ratings_count: stars.count, participants },
+        };
+    }
+    app.post('/api/admin/speaker-kits/generate', auth, adminOnly, (req, res) => {
+        const eventKey = (req.body && req.body.event_key) || 'plexus';
+        let conf = null; try { conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'"); } catch (e) {}
+        let speakers = [];
+        try {
+            speakers = (req.body && req.body.speaker_id)
+                ? query.all('SELECT * FROM speakers WHERE id = ?', [req.body.speaker_id])
+                : query.all('SELECT * FROM speakers WHERE conference_id = ?', [conf ? conf.id : '']);
+        } catch (e) { speakers = []; }
+        let made = 0; const out = [];
+        for (const sp of speakers) {
+            const kit = speakerKitData(sp, eventKey);
+            const existing = query.get('SELECT id, status FROM speaker_kits WHERE speaker_id = ? AND event_key = ?', [sp.id, eventKey]);
+            if (existing) {
+                if (existing.status !== 'sent') db.run("UPDATE speaker_kits SET kit_json = ?, updated_at = datetime('now') WHERE id = ?", [JSON.stringify(kit), existing.id]);
+                out.push({ id: existing.id, speaker: sp.name, status: existing.status });
+            } else {
+                const id = require('crypto').randomUUID();
+                db.run("INSERT INTO speaker_kits (id, speaker_id, event_key, kit_json, status, created_by) VALUES (?,?,?,?, 'draft', ?)", [id, sp.id, eventKey, JSON.stringify(kit), req.user.email || req.user.id]);
+                out.push({ id, speaker: sp.name, status: 'draft' }); made++;
+            }
+        }
+        logAudit(req, 'speaker_kits_generate', `${eventKey}: ${out.length} kit(s), ${made} new`);
+        saveDb();
+        res.json({ success: true, count: out.length, created: made, kits: out });
+    });
+    app.get('/api/admin/speaker-kits', auth, adminOnly, (req, res) => {
+        let rows = [];
+        try { rows = query.all(`SELECT sk.id, sk.speaker_id, sk.event_key, sk.status, sk.kit_json, s.name AS speaker_name, s.email FROM speaker_kits sk LEFT JOIN speakers s ON sk.speaker_id = s.id ORDER BY sk.created_at DESC`); } catch (e) { rows = []; }
+        res.json(rows);
+    });
+    // Stage the speaker thank-you kits as an approve-once outbox batch (one email per speaker w/ email).
+    app.post('/api/admin/speaker-kits/send', auth, adminOnly, (req, res) => {
+        const eventKey = (req.body && req.body.event_key) || 'plexus';
+        const cfg = postEventCfg(eventKey);
+        const kits = query.all('SELECT sk.*, s.name AS speaker_name, s.email FROM speaker_kits sk LEFT JOIN speakers s ON sk.speaker_id = s.id WHERE sk.event_key = ?', [eventKey]) || [];
+        const batchId = 'speaker-kit-' + eventKey;
+        let staged = 0;
+        for (const k of kits) {
+            if (!k.email) continue;
+            const marker = `speaker_kit:${eventKey}:${k.speaker_id}`;
+            if (query.get("SELECT 1 AS x FROM drip_log WHERE user_id = 'speaker-kit' AND kind = ?", [marker])) continue;
+            let kit = {}; try { kit = JSON.parse(k.kit_json || '{}'); } catch (e) {}
+            const first = seatEsc(((k.speaker_name || 'there').trim().split(' ')[0]) || 'there');
+            const starLine = (kit.stars && kit.stars.avg != null) ? `Your session drew an average rating of <strong>${kit.stars.avg}/5</strong> across ${kit.stars.count} responses.` : '';
+            const mail = {
+                subject: `Thank you for speaking at ${cfg ? cfg.label : 'our event'}`,
+                html: buildEmailTemplate('Thank you for speaking', `
+                    <p>Dear ${first},</p>
+                    <p>Thank you for speaking at <strong>${seatEsc(cfg ? cfg.label : eventKey)}</strong>. Your contribution made the program.</p>
+                    <p>A few notes for you: your talk reached an audience of <strong>${kit.participants || 0}</strong> participants. ${starLine}</p>
+                    <p>We have prepared a shareable thank-you card for you — reply if you would like the image file.</p>
+                    <hr style="border:none;border-top:1px solid #e2e8f0;margin:22px 0;">
+                    <p style="color:#64748b;">Zahvaljujemo Vam na izlaganju na skupu <strong>${seatEsc(cfg ? cfg.label : eventKey)}</strong>. Vaše je izlaganje pratilo <strong>${kit.participants || 0}</strong> sudionika. Pripremili smo Vam zahvalnicu za dijeljenje.</p>
+                    <p style="color:#64748b;font-size:13px;margin-top:18px;">Med&amp;X tim</p>
+                `),
+            };
+            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                    VALUES (?, 'pending_approval', ?, 'speaker-kit', 'speaker_kit', ?, ?, ?, 'speaker-kit-engine', datetime('now'))`,
+                [require('crypto').randomUUID(), batchId, JSON.stringify({ to: k.email, subject: mail.subject, html: mail.html }), k.email, mail.subject]);
+            db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'speaker-kit', ?, ?)", [require('crypto').randomUUID(), k.email, marker]);
+            db.run("UPDATE speaker_kits SET status = 'sent', sent_at = datetime('now') WHERE id = ?", [k.id]);
+            staged++;
+        }
+        logAudit(req, 'speaker_kits_send', `${eventKey}: staged ${staged} speaker thank-you kit(s)`);
+        saveDb();
+        res.json({ success: true, staged, outbox_batch: batchId });
+    });
+    // Per-ATTENDEE warm bilingual thank-you with certificate link + share nudge (approve-once batch).
+    app.post('/api/admin/post-event/attendee-thankyou', auth, adminOnly, (req, res) => {
+        const eventKey = (req.body && req.body.event_key) || 'plexus';
+        const cfg = postEventCfg(eventKey);
+        const recipients = (typeof postEventCheckedIn === 'function') ? postEventCheckedIn(eventKey) : [];
+        const portal = userPortalBase();
+        const batchId = 'attendee-thankyou-' + eventKey;
+        let staged = 0;
+        for (const r of recipients) {
+            if (!r.email) continue;
+            const marker = `attendee_ty:${eventKey}:${r.id}`;
+            if (query.get("SELECT 1 AS x FROM drip_log WHERE user_id = 'attendee-ty' AND kind = ?", [marker])) continue;
+            const first = seatEsc(((r.first_name || 'there').trim().split(' ')[0]) || 'there');
+            const myRecord = `${portal}/#mymedx`;
+            const mail = {
+                subject: `Thank you for joining ${cfg ? cfg.label : 'us'}`,
+                html: buildEmailTemplate('Thank you for coming', `
+                    <p>Hi ${first},</p>
+                    <p>Thank you for being part of <strong>${seatEsc(cfg ? cfg.label : eventKey)}</strong>. It was a pleasure to have you with us.</p>
+                    <p>Your <strong>certificate of attendance</strong> is ready in <a href="${myRecord}" style="color:#0f172a;font-weight:700;">My Med&amp;X</a> — and from there you can share it to LinkedIn in one tap. If it meant something to you, we would love for you to pass it on.</p>
+                    <hr style="border:none;border-top:1px solid #e2e8f0;margin:22px 0;">
+                    <p style="color:#64748b;">Hvala Vam što ste bili dio skupa <strong>${seatEsc(cfg ? cfg.label : eventKey)}</strong>. Vaša potvrda o sudjelovanju čeka Vas u <a href="${myRecord}" style="color:#0f172a;font-weight:700;">My Med&amp;X</a>, odakle je jednim dodirom možete podijeliti na LinkedInu.</p>
+                    <p style="color:#64748b;font-size:13px;margin-top:18px;">Med&amp;X tim</p>
+                `),
+            };
+            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                    VALUES (?, 'pending_approval', ?, 'attendee-thankyou', 'attendee_thankyou', ?, ?, ?, 'attendee-thankyou-engine', datetime('now'))`,
+                [require('crypto').randomUUID(), batchId, JSON.stringify({ to: r.email, subject: mail.subject, html: mail.html }), r.email, mail.subject]);
+            db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'attendee-ty', ?, ?)", [require('crypto').randomUUID(), r.email, marker]);
+            staged++;
+        }
+        logAudit(req, 'attendee_thankyou', `${eventKey}: staged ${staged} attendee thank-you(s)`);
+        saveDb();
+        res.json({ success: true, staged, outbox_batch: batchId });
     });
 
     app.post('/api/admin/plexus/speaker/:id/approve', auth, adminOnly, (req, res) => {
@@ -33873,6 +34753,284 @@ ${extraCss || ''}
         } catch(e) { res.status(500).json({ error: e.message }); }
     });
 
+    // ==========================================================================================
+    // EVENT-DAY STAFF TRACKING (queue 5a5j) — routes + helpers.
+    // Staff share live location FROM THIS admin app (they are admins/volunteers). Admins see
+    // everyone on a live map + escort pairings. Positions are event-day-scoped and hard-deleted
+    // at event end / on purge. Speakers are never users here, so they can never share — they only
+    // appear as the subject of a pairing chip. GDPR: explicit per-person opt-in with a timestamp,
+    // positions visible to admins only, the sharing person always sees their own status.
+    const _trkNum = (v) => { const n = Number(v); return isFinite(n) ? n : null; };
+    const _trkHaversine = (a, b, c, d) => {
+        const R = 6371000, toRad = (x) => x * Math.PI / 180;
+        const dLat = toRad(c - a), dLng = toRad(d - b);
+        const s1 = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a)) * Math.cos(toRad(c)) * Math.sin(dLng / 2) ** 2;
+        return 2 * R * Math.asin(Math.min(1, Math.sqrt(s1)));
+    };
+    function trackingSettings() {
+        let row = query.get("SELECT * FROM staff_tracking_settings WHERE id = 1");
+        if (!row) { try { db.run("INSERT OR IGNORE INTO staff_tracking_settings (id, active, stale_minutes) VALUES (1,0,10)"); } catch (e) {} row = query.get("SELECT * FROM staff_tracking_settings WHERE id = 1"); }
+        return row || { id: 1, active: 0, stale_minutes: 10, ends_at: null, event_label: null };
+    }
+    // True while an admin has an event day switched on and its end time has not passed.
+    function trackingWindowOpen(s) {
+        s = s || trackingSettings();
+        if (!Number(s.active)) return false;
+        if (s.ends_at) { const t = Date.parse(s.ends_at); if (!isNaN(t) && Date.now() >= t) return false; }
+        return true;
+    }
+    function trackingSpeakerName(id) { if (!id) return null; try { const sp = query.get("SELECT name FROM speakers WHERE id = ?", [id]); return sp ? sp.name : null; } catch (e) { return null; } }
+    function trackingDisplayName(userId) {
+        try { const tm = query.get("SELECT name FROM team_members WHERE user_id = ?", [userId]); if (tm && tm.name) return tm.name; } catch (e) {}
+        try { const u = query.get("SELECT first_name, last_name, email FROM users WHERE id = ?", [userId]); if (u) return `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email; } catch (e) {}
+        return 'Staff';
+    }
+    // Wipe ALL live position rows, disable every opt-in, and switch the event day off. Used by the
+    // manual Purge button and the automatic end-of-event-day sweep. Returns the row count removed.
+    function purgeStaffPositions(actorEmail) {
+        let n = 0;
+        try { const c = query.get("SELECT COUNT(*) AS n FROM staff_positions"); n = c ? Number(c.n) : 0; } catch (e) {}
+        try { db.run("DELETE FROM staff_positions"); } catch (e) {}
+        const now = new Date().toISOString();
+        try { db.run("UPDATE staff_tracking_consent SET enabled = 0, last_prompt_at = NULL, updated_at = ?", [now]); } catch (e) {}
+        try { db.run("UPDATE staff_tracking_settings SET active = 0, updated_by = ?, updated_at = ? WHERE id = 1", [actorEmail || 'system', now]); } catch (e) {}
+        try { saveDb(); } catch (e) {}
+        return n;
+    }
+    // Event-day stale sweep: auto-purge when the day has ended, else PUSH a one-tap check-in to any
+    // opted-in staffer whose latest position is older than stale_minutes (throttled to one prompt
+    // per stale window). The push rides the shared push_outbox → the user portal sends it.
+    function runStaffStaleScan() {
+        const s = trackingSettings();
+        if (Number(s.active) && s.ends_at) {
+            const t = Date.parse(s.ends_at);
+            if (!isNaN(t) && Date.now() >= t) {
+                const n = purgeStaffPositions('system (event end)');
+                console.log(`[Tracking] Event day ended — purged ${n} position row(s), tracking disabled.`);
+                return { purged: n, prompted: 0 };
+            }
+        }
+        if (!trackingWindowOpen(s)) return { purged: 0, prompted: 0 };
+        const staleMs = Math.max(1, Number(s.stale_minutes) || 10) * 60000;
+        const now = Date.now();
+        let prompted = 0;
+        let people = [];
+        try { people = query.all("SELECT * FROM staff_tracking_consent WHERE enabled = 1"); } catch (e) { return { purged: 0, prompted: 0 }; }
+        for (const p of people) {
+            const last = query.get("SELECT recorded_at FROM staff_positions WHERE user_id = ? ORDER BY recorded_at DESC LIMIT 1", [p.user_id]);
+            const isStale = !last || (now - Date.parse(last.recorded_at)) > staleMs;
+            if (!isStale) continue;
+            if (p.last_prompt_at && (now - Date.parse(p.last_prompt_at)) < staleMs) continue;
+            const u = query.get("SELECT email FROM users WHERE id = ?", [p.user_id]);
+            if (!u || !u.email) continue;
+            const pairing = query.get("SELECT * FROM staff_pairings WHERE staff_user_id = ? AND status != 'done' ORDER BY created_at DESC LIMIT 1", [p.user_id]);
+            const withName = pairing ? (pairing.guest_name || trackingSpeakerName(pairing.speaker_id)) : null;
+            const title = 'Med&X — quick check-in';
+            const body = withName ? `Are you still with ${withName}? Tap to confirm and refresh your location.` : 'Where are you? Tap to refresh your location on the ops map.';
+            const url = (process.env.ADMIN_PORTAL_URL || 'https://medx-admin-portal.onrender.com') + '/?track=1';
+            try {
+                db.run("INSERT INTO push_outbox (id, title, body, url, target_email, created_by, created_at) VALUES (?,?,?,?,?,?,?)",
+                    [require('crypto').randomUUID(), title, body, url, u.email, 'staff-tracking', new Date().toISOString()]);
+                db.run("UPDATE staff_tracking_consent SET last_prompt_at = ? WHERE user_id = ?", [new Date().toISOString(), p.user_id]);
+                prompted++;
+            } catch (e) { /* skip one bad row */ }
+        }
+        if (prompted) { try { saveDb(); } catch (e) {} }
+        return { purged: 0, prompted };
+    }
+    // Expose the sweep to the boot scheduler below.
+    global.__runStaffStaleScan = runStaffStaleScan;
+
+    // ---- STAFF SIDE (a staffer sharing their own location; is_admin OR is_staff) ----
+    // My tracking state: opt-in flag, whether the event-day window is open, my last ping, my
+    // pairings. Never exposes anyone else's data — a staffer only ever sees themself here.
+    app.get('/api/staff-tracking/me', auth, staffOrAdmin, (req, res) => {
+        const s = trackingSettings();
+        const c = query.get("SELECT * FROM staff_tracking_consent WHERE user_id = ?", [req.user.id]);
+        const last = query.get("SELECT recorded_at FROM staff_positions WHERE user_id = ? ORDER BY recorded_at DESC LIMIT 1", [req.user.id]);
+        const pairings = query.all("SELECT * FROM staff_pairings WHERE staff_user_id = ? AND status != 'done' ORDER BY created_at DESC", [req.user.id])
+            .map(p => ({ id: p.id, status: p.status, note: p.note, with_name: p.guest_name || trackingSpeakerName(p.speaker_id) }));
+        res.json({
+            enabled: !!(c && c.enabled),
+            consent_at: c ? c.consent_at : null,
+            window_open: trackingWindowOpen(s),
+            event_label: s.event_label || null,
+            ends_at: s.ends_at || null,
+            stale_minutes: s.stale_minutes,
+            last_recorded_at: last ? last.recorded_at : null,
+            pairings
+        });
+    });
+    // Explicit per-person opt-in / opt-out. Enabling stamps a fresh GDPR consent timestamp;
+    // disabling stops streaming AND immediately deletes this person's live trail.
+    app.post('/api/staff-tracking/consent', auth, staffOrAdmin, (req, res) => {
+        const b = req.body || {};
+        const enabled = (b.enabled === true || b.enabled === 1 || b.enabled === 'true') ? 1 : 0;
+        const now = new Date().toISOString();
+        const name = trackingDisplayName(req.user.id);
+        const existing = query.get("SELECT user_id FROM staff_tracking_consent WHERE user_id = ?", [req.user.id]);
+        if (existing) {
+            if (enabled) db.run("UPDATE staff_tracking_consent SET enabled = 1, consent_at = ?, display_name = ?, updated_at = ? WHERE user_id = ?", [now, name, now, req.user.id]);
+            else db.run("UPDATE staff_tracking_consent SET enabled = 0, last_prompt_at = NULL, updated_at = ? WHERE user_id = ?", [now, req.user.id]);
+        } else {
+            db.run("INSERT INTO staff_tracking_consent (user_id, enabled, consent_at, display_name, updated_at) VALUES (?,?,?,?,?)", [req.user.id, enabled, enabled ? now : null, name, now]);
+        }
+        if (!enabled) { try { db.run("DELETE FROM staff_positions WHERE user_id = ?", [req.user.id]); } catch (e) {} }
+        try { saveDb(); } catch (e) {}
+        logAudit(req, enabled ? 'staff_tracking_enable' : 'staff_tracking_disable', name);
+        res.json({ ok: true, enabled: !!enabled });
+    });
+    // Record one live position. Fail-closed: nothing is stored unless the person opted in AND the
+    // event-day window is open. Returns streaming:false so the client stops immediately otherwise.
+    app.post('/api/staff-tracking/ping', auth, staffOrAdmin, (req, res) => {
+        const s = trackingSettings();
+        const c = query.get("SELECT enabled FROM staff_tracking_consent WHERE user_id = ?", [req.user.id]);
+        const open = trackingWindowOpen(s);
+        if (!c || !c.enabled || !open) return res.json({ ok: true, streaming: false, window_open: open, enabled: !!(c && c.enabled) });
+        const b = req.body || {};
+        const lat = Number(b.lat), lng = Number(b.lng);
+        if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return res.status(400).json({ error: 'Invalid coordinates' });
+        db.run("INSERT INTO staff_positions (id, user_id, lat, lng, accuracy, heading, speed, recorded_at, client_ts) VALUES (?,?,?,?,?,?,?,?,?)",
+            [require('crypto').randomUUID(), req.user.id, lat, lng, _trkNum(b.accuracy), _trkNum(b.heading), _trkNum(b.speed), new Date().toISOString(), b.client_ts || null]);
+        // Keep the live trail bounded — the map + movement inference only need recent points.
+        try { db.run("DELETE FROM staff_positions WHERE user_id = ? AND id NOT IN (SELECT id FROM staff_positions WHERE user_id = ? ORDER BY recorded_at DESC LIMIT 40)", [req.user.id, req.user.id]); } catch (e) {}
+        try { saveDb(); } catch (e) {}
+        res.json({ ok: true, streaming: true });
+    });
+    // One-tap check-in answer from a push prompt — updates the staffer's own pairing status.
+    app.post('/api/staff-tracking/pairing-confirm', auth, staffOrAdmin, (req, res) => {
+        const b = req.body || {};
+        const p = query.get("SELECT * FROM staff_pairings WHERE id = ?", [b.pairing_id]);
+        if (!p) return res.status(404).json({ error: 'Pairing not found' });
+        if (p.staff_user_id !== req.user.id) return res.status(403).json({ error: 'Not your assignment' });
+        const st = ['with', 'en_route', 'done', 'assigned'].includes(b.status) ? b.status : 'with';
+        db.run("UPDATE staff_pairings SET status = ?, confirmed_at = ? WHERE id = ?", [st, new Date().toISOString(), b.pairing_id]);
+        try { saveDb(); } catch (e) {}
+        res.json({ ok: true, status: st });
+    });
+
+    // ---- ADMIN MAP (positions visible to admins ONLY) ----
+    app.get('/api/admin/staff-tracking/live', auth, adminOnly, (req, res) => {
+        const s = trackingSettings();
+        const staleSec = Math.max(1, Number(s.stale_minutes) || 10) * 60;
+        const now = Date.now();
+        let consented = [];
+        try { consented = query.all("SELECT * FROM staff_tracking_consent WHERE enabled = 1"); } catch (e) {}
+        const people = [];
+        for (const c of consented) {
+            const pts = query.all("SELECT lat,lng,accuracy,heading,speed,recorded_at FROM staff_positions WHERE user_id = ? ORDER BY recorded_at DESC LIMIT 2", [c.user_id]);
+            const tm = query.get("SELECT name, avatar_color, photo_url FROM team_members WHERE user_id = ?", [c.user_id]);
+            const latest = pts[0] || null;
+            let ageSec = null, freshness = 'none', movement = 'unknown', speedKmh = null;
+            if (latest) {
+                ageSec = Math.round((now - Date.parse(latest.recorded_at)) / 1000);
+                freshness = ageSec <= staleSec ? 'fresh' : (ageSec <= 2 * staleSec ? 'aging' : 'stale');
+                let mps = (latest.speed != null && isFinite(latest.speed)) ? Number(latest.speed) : null;
+                if (mps == null && pts[1]) {
+                    const dist = _trkHaversine(latest.lat, latest.lng, pts[1].lat, pts[1].lng);
+                    const dt = (Date.parse(latest.recorded_at) - Date.parse(pts[1].recorded_at)) / 1000;
+                    if (dt > 0) mps = dist / dt;
+                }
+                if (mps != null && isFinite(mps)) { speedKmh = Math.round(mps * 3.6); movement = mps < 0.7 ? 'stationary' : (mps < 8.3 ? 'moving' : 'driving'); }
+            }
+            const pairing = query.get("SELECT * FROM staff_pairings WHERE staff_user_id = ? AND status != 'done' ORDER BY created_at DESC LIMIT 1", [c.user_id]);
+            let chip = null;
+            if (pairing) {
+                const withName = pairing.guest_name || trackingSpeakerName(pairing.speaker_id) || 'guest';
+                chip = pairing.status === 'with' ? `With ${withName}` : (pairing.status === 'en_route' ? `En route — ${withName}` : `Escort: ${withName}`);
+            }
+            people.push({
+                user_id: c.user_id,
+                name: (tm && tm.name) || c.display_name || 'Staff',
+                color: (tm && tm.avatar_color) || '#C9A962',
+                photo_url: (tm && tm.photo_url) || null,
+                lat: latest ? latest.lat : null,
+                lng: latest ? latest.lng : null,
+                accuracy: latest ? latest.accuracy : null,
+                heading: latest ? latest.heading : null,
+                age_sec: ageSec,
+                freshness,
+                movement,
+                speed_kmh: speedKmh,
+                recorded_at: latest ? latest.recorded_at : null,
+                chip,
+                pairing_status: pairing ? pairing.status : null
+            });
+        }
+        res.json({
+            settings: { active: !!Number(s.active), window_open: trackingWindowOpen(s), event_label: s.event_label, ends_at: s.ends_at, stale_minutes: s.stale_minutes },
+            server_now: new Date().toISOString(),
+            people
+        });
+    });
+    app.get('/api/admin/staff-tracking/pairings', auth, adminOnly, (req, res) => {
+        const rows = query.all("SELECT * FROM staff_pairings ORDER BY created_at DESC");
+        res.json(rows.map(p => ({ ...p, staff_name: trackingDisplayName(p.staff_user_id), speaker_name: trackingSpeakerName(p.speaker_id), with_name: p.guest_name || trackingSpeakerName(p.speaker_id) })));
+    });
+    app.post('/api/admin/staff-tracking/pairings', auth, adminOnly, (req, res) => {
+        const b = req.body || {};
+        if (!b.staff_user_id) return res.status(400).json({ error: 'Pick a staff member' });
+        if (!b.speaker_id && !(b.guest_name && String(b.guest_name).trim())) return res.status(400).json({ error: 'Pick a speaker or enter a guest name' });
+        const id = require('crypto').randomUUID();
+        db.run("INSERT INTO staff_pairings (id, staff_user_id, speaker_id, guest_name, note, status, created_by, created_at) VALUES (?,?,?,?,?,?,?,?)",
+            [id, b.staff_user_id, b.speaker_id || null, (b.guest_name || '').trim() || null, (b.note || '').trim() || null, 'assigned', req.user.email, new Date().toISOString()]);
+        try { saveDb(); } catch (e) {}
+        logAudit(req, 'staff_pairing_create', `${trackingDisplayName(b.staff_user_id)} <-> ${b.guest_name || trackingSpeakerName(b.speaker_id) || ''}`);
+        res.json({ ok: true, id });
+    });
+    app.patch('/api/admin/staff-tracking/pairings/:id', auth, adminOnly, (req, res) => {
+        const b = req.body || {};
+        const p = query.get("SELECT * FROM staff_pairings WHERE id = ?", [req.params.id]);
+        if (!p) return res.status(404).json({ error: 'Pairing not found' });
+        const staff = b.staff_user_id !== undefined ? b.staff_user_id : p.staff_user_id;
+        const speaker = b.speaker_id !== undefined ? (b.speaker_id || null) : p.speaker_id;
+        const guest = b.guest_name !== undefined ? ((b.guest_name || '').trim() || null) : p.guest_name;
+        const note = b.note !== undefined ? ((b.note || '').trim() || null) : p.note;
+        const status = (b.status !== undefined && ['assigned', 'with', 'en_route', 'done'].includes(b.status)) ? b.status : p.status;
+        db.run("UPDATE staff_pairings SET staff_user_id = ?, speaker_id = ?, guest_name = ?, note = ?, status = ? WHERE id = ?", [staff, speaker, guest, note, status, req.params.id]);
+        try { saveDb(); } catch (e) {}
+        res.json({ ok: true });
+    });
+    app.delete('/api/admin/staff-tracking/pairings/:id', auth, adminOnly, (req, res) => {
+        db.run("DELETE FROM staff_pairings WHERE id = ?", [req.params.id]);
+        try { saveDb(); } catch (e) {}
+        logAudit(req, 'staff_pairing_delete', req.params.id);
+        res.json({ ok: true });
+    });
+    app.get('/api/admin/staff-tracking/settings', auth, adminOnly, (req, res) => res.json(trackingSettings()));
+    app.post('/api/admin/staff-tracking/settings', auth, adminOnly, (req, res) => {
+        const b = req.body || {};
+        const active = (b.active === true || b.active === 1 || b.active === 'true') ? 1 : 0;
+        const stale = Math.max(1, Math.min(120, parseInt(b.stale_minutes, 10) || 10));
+        const label = (b.event_label ? String(b.event_label).slice(0, 120) : '') || null;
+        let ends = null;
+        if (b.ends_at) { const d = new Date(b.ends_at); if (!isNaN(d.getTime())) ends = d.toISOString(); }
+        db.run("UPDATE staff_tracking_settings SET active = ?, event_label = ?, ends_at = ?, stale_minutes = ?, updated_by = ?, updated_at = ? WHERE id = 1",
+            [active, label, ends, stale, req.user.email, new Date().toISOString()]);
+        try { saveDb(); } catch (e) {}
+        logAudit(req, 'staff_tracking_settings', `active=${active} stale=${stale} ends=${ends || '-'}`);
+        res.json(trackingSettings());
+    });
+    // Manual Purge button — hard-delete EVERY position row, disable all opt-ins, event day off.
+    app.post('/api/admin/staff-tracking/purge', auth, adminOnly, (req, res) => {
+        const n = purgeStaffPositions(req.user.email);
+        logAudit(req, 'staff_tracking_purge', `deleted ${n} position row(s)`);
+        res.json({ ok: true, deleted: n });
+    });
+    // Roster for the pairing form: trackable staff (is_admin OR is_staff) + the speaker list.
+    app.get('/api/admin/staff-tracking/roster', auth, adminOnly, (req, res) => {
+        let staff = [], speakers = [];
+        try { staff = query.all("SELECT u.id, u.email, COALESCE(tm.name, NULLIF(TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')), ''), u.email) AS name FROM users u LEFT JOIN team_members tm ON tm.user_id = u.id WHERE u.is_admin = 1 OR u.is_staff = 1 ORDER BY name"); } catch (e) {}
+        try { speakers = query.all("SELECT id, name, COALESCE(institution, '') AS institution FROM speakers WHERE name IS NOT NULL AND TRIM(name) <> '' ORDER BY name"); } catch (e) {}
+        res.json({ staff, speakers });
+    });
+    // Force a check-in sweep now (also lets an admin nudge everyone stale on demand).
+    app.post('/api/admin/staff-tracking/run-scan', auth, adminOnly, (req, res) => {
+        const r = runStaffStaleScan();
+        logAudit(req, 'staff_tracking_scan', `prompted ${r.prompted}`);
+        res.json({ ok: true, ...r });
+    });
+
     // API 404 handler — prevent unmatched API routes from returning HTML
     app.use('/api', (req, res) => {
         res.status(404).json({ error: 'API endpoint not found' });
@@ -34129,6 +35287,14 @@ app.get('*', (req, res) => {
         try { maybeGenerateWeeklyPulseDaily(); } catch (e) { /* skip */ }
         setInterval(() => { try { maybeGenerateWeeklyPulseDaily(); } catch (e) {} }, 24 * 60 * 60 * 1000);
         console.log('[Pulse] Weekly team pulse daily check active');
+
+        // EVENT-DAY STAFF TRACKING (queue 5a5j) — stale check-in sweep + end-of-day auto-purge.
+        // Runs every 60s: while an event day is on it PUSHES a one-tap check-in to any opted-in
+        // staffer whose location has gone stale, and when the event day's end time passes it hard-
+        // deletes every position row and switches tracking off. A no-op whenever no event day is on.
+        try { runStaffStaleScan(); } catch (e) { /* skip */ }
+        setInterval(() => { try { runStaffStaleScan(); } catch (e) {} }, 60 * 1000);
+        console.log('[Tracking] Event-day stale check-in sweep active (60s)');
     });
 }
 
