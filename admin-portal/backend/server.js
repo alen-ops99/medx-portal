@@ -23523,7 +23523,254 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     // 'data'/'notice' are only used when no key is present; null means "not for me,
     // hand off to the live agent (or a clean key-free notice)."
     // ============================================================================
-    const ASSIST_PRECISE_KINDS = ['unpaid-reminder', 'contact-search'];
+    // ========================================================================
+    // ADMIN ASSISTANT — grounded retrieval core (NO AI key needed).
+    // A how-to KB (the Operations Handbook + Runbook + the live feature set) and
+    // a live-data layer. Answers come ONLY from this corpus and the real DB — the
+    // assistant never invents a fact. Every article carries a DEEP LINK that opens
+    // the right admin section (the Cmd+K palette precedent).
+    // ========================================================================
+    const ASSIST_STOP = new Set(['the','and','for','you','how','can','does','with','what','are','from','this','that','our','out','get','use','all','any','who','why','when','into','your','they','them','has','have','will','would','should','could','about','there','their','then','than','was','were','been','being','which','where','while','some','more','most','many','much','not','but','one','two','see','let','its','make','made','need','want','like','just','also','per','via','off','yet','now','way','ways','the','a','an','of','to','in','on','at','it','is','do','i','we','my','me','so','up']);
+    function assistTok(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2 && !ASSIST_STOP.has(w)); }
+
+    const ASSIST_KB = [
+        { id:'newsletter', source:'handbook', title:'Send a newsletter', lead:'send a newsletter',
+          where:'Newsletter in the sidebar', deepLink:{ label:'Open Newsletter', target:'newsletter' },
+          kws:'newsletter newsletters email members announcement announce update monthly broadcast mass email everyone message members send email blast',
+          steps:['Open Newsletter in the sidebar.',"Write a subject line and a short, warm body. The portal adds each member's first name for you.",'Use the Preview panel to read it exactly as a member will.','Click Send or Schedule. It is queued for approval, not sent yet.','Open the Outbox and approve it. That is the moment it mails out.'],
+          watch:'A newsletter can look sent while it waits unapproved in the Outbox. Always finish in the Outbox.' },
+        { id:'outbox', source:'handbook', title:'Approve outgoing email', lead:'approve outgoing email',
+          where:'the Outbox panel', deepLink:{ label:'Open the Outbox', target:'outbox' },
+          kws:'outbox approve approval send sending outgoing email queue pending review discard mail door safety gate approve all',
+          steps:['Open the Outbox to see every email waiting, each with its recipient and a preview.','Click one to read the full message. Check the name, greeting, dates and prices.','Click Approve to send it, or Discard to stop it and fix the source.','For a batch, skim each recipient first, then use Approve all.'],
+          watch:'Approve all sends every draft, including half-written ones. Skim each recipient first.' },
+        { id:'action-center', source:'handbook', title:'Use the Action Center', lead:'use the Action Center',
+          where:'the top of the Dashboard', deepLink:{ label:'Open the Dashboard', target:'dashboard' },
+          kws:'action center dashboard todo worklist tasks needs attention today home overview what needs doing to do list',
+          steps:['Open the Dashboard. The Action Center sits at the top with a count badge.','Read each item. It says what happened and what to do.',"Click the item's button to jump straight to the screen that fixes it.",'Finish the task and the item clears itself.'],
+          watch:'Ignoring it leaves paid attendees marked unpaid and members waiting for replies. Clear it daily in event season.' },
+        { id:'publer', source:'handbook', title:'Post to social media', lead:'post to social media',
+          where:'PR & Media in the sidebar', deepLink:{ label:'Open PR & Media', target:'pr-media' },
+          kws:'social publer instagram linkedin facebook post posts caption schedule share media pr twitter channels',
+          steps:['Open PR & Media and pick the post you want, or draft a new one.','Check the caption and image, and fix anything before it goes out.','Click Approve and send to Publer. The post moves into Publer schedule.','Finish the timing in Publer itself, picking the day, time and channels there.'],
+          watch:'Approving here is not the same as being live. The post still needs a day and time set in Publer.' },
+        { id:'ai-content', source:'handbook', title:'Plan content with AI', lead:'plan content with AI',
+          where:'Content studio in the sidebar', deepLink:{ label:'Open Content studio', target:'content-studio' },
+          kws:'content studio ai draft write generate newsletter caption reply assistant writing plan text copy',
+          steps:['Open Content studio and say what you need, like a warm 150-word Gala announcement.','Let it draft, then read carefully and edit the tone, facts, dates and names.','Send the draft into a newsletter, a social post, or a reply.','It still passes the normal gate. Email waits in the Outbox and social waits for Publer.'],
+          watch:'AI can invent a date, price or name. Never approve a draft you have not fact-checked.' },
+        { id:'event-day', source:'handbook', title:'Check people in at the door', lead:'check people in at the door',
+          where:'the round QR button, bottom-right on every screen', deepLink:{ label:'Open the QR scanner', target:'scanner' },
+          kws:'check in checkin door scan scanner qr ticket arrival attendee entry admission badge scanning register arrivals people in',
+          steps:['Sign in on your phone and tap the QR scanner button in the bottom-right corner.',"Point the camera at the attendee ticket QR. Green means they are in, red means already used or wrong event.",'No QR? Tap Search, type their name or email, and check them in by hand.','Watch the live checked-in count for the room total.'],
+          watch:'A red screen usually means the ticket was already scanned. Check the name before waving someone through twice.' },
+        { id:'post-event', source:'handbook', title:'Run the post-event round', lead:'run the post-event round',
+          where:"the event's page, then the Outbox", deepLink:{ label:'Open the Outbox', target:'outbox' },
+          kws:'post event after event thank you follow up feedback no show survey close out recap thanks attendees',
+          steps:['Open the event and start the post-event round.','The portal drafts a thank-you for attendees, a note to no-shows, and a feedback ask.','Every draft is staged in the Outbox. Read and edit if needed.','Approve in the Outbox to send. Nothing goes out until you do.'],
+          watch:'Thank-yous go to attendees and nudges go to no-shows. Confirm the door scans were clean first.' },
+        { id:'bank', source:'handbook', title:'Upload the bank statement', lead:'upload the bank statement and reconcile payments',
+          where:'Finances, then the Reconcile Payments tab', deepLink:{ label:'Open Reconcile Payments', target:'finances-reconcile' },
+          kws:'bank statement reconcile payment transfer csv import match paid unpaid finances invoice matching wire deposit',
+          steps:['Export a CSV statement from the bank.','Go to Finances, then Reconcile Payments, and click Choose file. Croatian exports are detected automatically.','Check the column mapping of Date, Amount, Payer and Reference in the preview table.','Click Import and Match, then confirm each match to mark the person paid.'],
+          watch:'If the Amount column is mapped wrong, matches fail or attach to the wrong person. Eyeball the preview first.' },
+        { id:'member-ops', source:'handbook', title:'Edit what members see', lead:'edit what members see',
+          where:'Member Ops and Content studio', deepLink:{ label:'Open Member Ops', target:'member-ops' },
+          kws:'member ops members approve account edit portal content cards pages what members see manage member experience profile',
+          steps:['Open Member Ops to approve pending sign-ups and fix a name or email.','Open Content studio or Portal Content to edit the pages and cards members see.','Make your change and Save. Members see it next time they open the page.','Open the member portal yourself to check it looks right.'],
+          watch:'Member content is live. A typo shows to everyone at once, so re-read before you save.' },
+        { id:'teammate', source:'handbook', title:'Add a teammate', lead:'add a teammate',
+          where:'Team Access in the sidebar', deepLink:{ label:'Open Team Access', target:'team' },
+          kws:'teammate team access colleague volunteer staff admin add person invite give access role scanner staff full admin revoke permission new user coworker',
+          steps:['Open Team Access in the sidebar.','Enter their email and first name.','Pick a role. Scanner staff for door volunteers, or Full admin for a co-organiser who needs everything.','Set a starter password of 6 or more characters, then click Save member.','When someone leaves, click Revoke next to their name to remove all access.'],
+          watch:'A new member needs a password of 6 or more characters, or the save fails. You cannot revoke your own account.' },
+        { id:'forum-pipeline', source:'handbook', title:'Grow the Biomedical Forum', lead:'grow the Biomedical Forum',
+          where:'Biomedical Forum, then the Candidate pipeline tab', deepLink:{ label:'Open the candidate pipeline', target:'forum-pipeline' },
+          kws:'forum biomedical grow pipeline candidate invitation invite verify import list campaign founding members outreach senior colleagues prospects',
+          steps:['In Candidate pipeline, click Import list and upload the Excel or CSV of names. Known people are never added twice.','Open Needs review and mark each name Verified or Rejected. Verified names join the invitation queue.','In Forum growth, check the daily rate and wording, then click Approve and start.','Watch the funnel of imported, verified, invited, replied and accepted, and Pause or Resume anytime.','Handle replies from the Outbox, and open Needs the president eye for the personal ones.'],
+          watch:'Invitations only flow while the campaign says Running, not Paused. A red needs-you badge means a colleague is waiting on a human answer.' },
+        { id:'accelerator-run', source:'handbook', title:'Run the Med&X Accelerator', lead:'run the Med&X Accelerator',
+          where:'Accelerator, then the Review tab, plus the Outbox', deepLink:{ label:'Open the Accelerator', target:'accelerator' },
+          kws:'accelerator applications review rubric reviewers score decisions accept waitlist decline letters cycle intake committee applicants',
+          steps:['Set the open and close dates so members see the application form during the window.','In Review, open Rubric, set the criteria and weights to total one hundred, then set the cycle Active.','Add reviewers, then use Auto-assign to spread applications across them.','In Decisions, record Accept, Waitlist or Decline for each application.','Draft each letter, edit the wording, and approve it in the Outbox to send.'],
+          watch:'No applicant hears the outcome before you approve the letter. An approved or sent letter locks the decision on purpose.' },
+        { id:'status', source:'runbook', title:'Check the portal is up', lead:'check that the portal is up',
+          where:'the admin portal, then System Health', deepLink:{ label:'Open System Health', target:'health' },
+          kws:'health status up down check working online uptime system health slow waking render live reachable healthy',
+          steps:['Open the member portal. If the login screen loads, the app is up. The first hit after a quiet spell can take about 30 seconds.','Add /health to a portal address for a quick server-and-database check.','In the admin portal, open System Health for database, email, payments and recent errors in one screen.','Open the Render dashboard. A green Live badge on each service is the source of truth.'],
+          watch:'A slow first load is usually the free tier waking up, not a fault.' },
+        { id:'down', source:'runbook', title:'Handle the portal being down', lead:'handle the portal being down',
+          where:'System Health, then the Render dashboard', deepLink:{ label:'Open System Health', target:'health' },
+          kws:'down outage broken not working offline error crash deploy failed rollback restart fix emergency dead stopped',
+          steps:['Wait 30 seconds and reload. The free tier sleeps after 15 minutes idle and the first visitor wakes it.','Check Render. If it says Deploy failed, a recent change broke the boot.','Read the logs. The error at the bottom usually names the problem.','Roll back to the last working version if a deploy caused it. Do not push new code under pressure.','Still down? Check the database is reachable, then contact Alen with a screenshot of the log.'],
+          watch:'Roll back first to calm the fire, then fix properly. A push to main redeploys both portals.' },
+        { id:'access', source:'runbook', title:'See who has access', lead:'see who has access',
+          where:'Team Access in the admin portal', deepLink:{ label:'Open Team Access', target:'team' },
+          kws:'access accounts logins render turso github stripe fira owner permissions who has access keys credentials',
+          steps:['Full admins and Scanner staff are managed in Team Access.','Hosting, code and database accounts belong to Alen.','Payments live in Stripe and FIRA under the Med&X account.','One person, one login. Revoke someone the day they leave.'],
+          watch:'Never share a password. Use Team Access to grant or revoke.' },
+        { id:'backups', source:'runbook', title:'Back up or restore the database', lead:'back up or restore the database',
+          where:'the Runbook, with the Turso CLI', deepLink:{ label:'Open the Runbook', target:'resources' },
+          kws:'backup restore database turso dump recover data loss snapshot save copy export reset',
+          steps:['All real data lives in the Turso database. A backup is a saved copy of it.','Install the Turso CLI and log in, then run turso db list to confirm the name.','Dump the live database to a timestamped file before anything risky.','To restore, load the dump into a new database, verify it, then point the portals at it in Render.'],
+          watch:'Never overwrite the live database to fix it. Always restore into a new database first, and call Alen if unsure.' },
+        { id:'event-invites', source:'feature', title:'Send event invitations', lead:'send event invitations',
+          where:'Event invitations in the sidebar', deepLink:{ label:'Open Event invitations', target:'event-invites' },
+          kws:'invitation invite invites send invite rsvp guest list personalised outreach auto reply invitees ask people',
+          steps:['Open Event invitations and choose the event.','Bring in your guest list, or add names by hand.','Review the personalised invitation wording.','Send. Each invitation is staged in the Outbox for your approval, and replies can be auto-drafted for you to approve.'],
+          watch:'Like every email, invitations wait in the Outbox until you approve them.' },
+        { id:'event-reminders', source:'feature', title:'Set up automatic event reminders', lead:'set up automatic event reminders',
+          where:'Event reminders in the sidebar', deepLink:{ label:'Open Event reminders', target:'event-reminders' },
+          kws:'reminder reminders automate automatic automated schedule nudge before event upcoming remind follow up recurring auto',
+          steps:['Open Event reminders and pick the event.','Choose when reminders go out, for example a week before and a day before.','Review the wording for each reminder.','Turn it on. The portal drafts each reminder into the Outbox at the right time for your approval.'],
+          watch:'Reminders are prepared automatically, but they still wait in the Outbox for a human approval before sending.' },
+        { id:'network', source:'feature', title:'Manage your contacts', lead:'manage your contacts',
+          where:'My Network', deepLink:{ label:'Open My Network', target:'network' },
+          kws:'network contacts contact address book people organisation sponsor outreach import search find directory rolodex',
+          steps:['Open My Network to see all your contacts.','Search by name, organisation, email or tag to find anyone fast.','Add or import contacts, and mark the important ones as favourites.','Use outreach to draft a personalised email that lands in the Outbox for approval.'],
+          watch:'Outreach emails are staged in the Outbox, never sent automatically.' }
+    ];
+    ASSIST_KB.forEach(a => { a.kwset = new Set(assistTok((a.kws || '') + ' ' + (a.title || ''))); a.titleTok = assistTok(a.title || ''); });
+
+    const assistCount = (sql, p = []) => { try { const r = query.get(sql, p); return r ? (r.c || 0) : 0; } catch (e) { return 0; } };
+    const assistSumEur = (sql, p = []) => { try { const r = query.get(sql, p); return Math.round((((r && r.s) || 0)) * 100) / 100; } catch (e) { return 0; } };
+
+    // Capabilities the portal deliberately does NOT have — return a clear "no" plus the real alternative.
+    function assistNotSupported(lc) {
+        const has = (...ws) => ws.some((w) => lc.includes(w));
+        if (has('sms', 'text message', 'text them', 'send a text', 'whatsapp', 'viber'))
+            return { kind:'canbuild', pending:[], answer:'No — the portal does not send SMS or WhatsApp. It reaches members two ways. Email through the approval Outbox, and web-push notifications to people who installed the portal. For a quick heads-up, use a Direct notification.', deepLink:{ label:'Open Direct notification', target:'user-notifications' } };
+        if ((has('post', 'publish', 'schedule', 'share')) && has('instagram', 'linkedin', 'facebook', 'social', 'twitter'))
+            return { kind:'canbuild', pending:[], answer:'Not directly — the portal never posts to social on its own. You write and approve the post here, then it is handed to Publer, which schedules it onto Instagram, LinkedIn and the rest. Open PR & Media to draft and approve, then set the time in Publer.', deepLink:{ label:'Open PR & Media', target:'pr-media' } };
+        if (has('charge', 'auto-charge', 'automatically charge', 'take payment', 'bill the', 'bill them', 'collect payment') && !has('how much', 'revenue'))
+            return { kind:'canbuild', pending:[], answer:'No — the portal never charges a card by itself. A guest completes their own payment through Stripe checkout, or pays by bank transfer that you match in Finances. That keeps every payment guest-approved. Open Finances to reconcile bank transfers.', deepLink:{ label:'Open Finances', target:'finances-reconcile' } };
+        if ((has('delete', 'wipe', 'erase', 'remove all', 'clear all', 'bulk delete')) && has('all', 'everyone', 'database', 'registrations', 'registrants', 'members'))
+            return { kind:'canbuild', pending:[], answer:'No — there is no bulk wipe of registrations or members, on purpose, so live data is never lost in one click. You can manage records one at a time. If you truly need to reset data, the Runbook covers a safe database restore, and Alen can help.', deepLink:{ label:'Open the Runbook', target:'resources' } };
+        if (has('marketing website', 'public website', 'landing page', 'edit the website') && !has('portal', 'member'))
+            return { kind:'canbuild', pending:[], answer:'Not from here — the public marketing website lives on Netlify, separate from the portals. What you can edit here is what members see once they log in, through Portal Content. Open Portal Content for the member-facing pages.', deepLink:{ label:'Open Portal Content', target:'portal-content' } };
+        return null;
+    }
+
+    // LIVE DATA — grounded counts from the real DB. Returns a {kind:'data'} answer or null.
+    function assistDataMatch(lc) {
+        const has = (...ws) => ws.some((w) => lc.includes(w));
+        // How-to phrasing belongs to the KB, not the data layer.
+        if (has('how do', 'how can', 'how to', 'how would', 'where do', 'where can', 'walk me', 'guide me', 'show me how', 'instructions', 'tutorial', 'step by step')) return null;
+        const wantsNumber = has('how many', 'how much', 'number', 'count', 'total', 'left', 'remain', 'revenue', 'earned', 'collected', 'income', 'balance', 'status', 'progress', 'seats', 'guest', 'guests', 'paid', 'unpaid', 'checked in', 'checked-in', 'attendance', 'so far', 'do we have', 'are there', 'sold');
+        if (!wantsNumber) return null;
+
+        // Gala — seats remaining (checked before the guests count so "seats left" wins).
+        if (has('gala') && has('seat', 'seats', 'space', 'spaces', 'spot', 'spots', 'capacity', 'left', 'remain', 'available', 'fit', 'sold out', 'room for')) {
+            const cap = assistCount("SELECT capacity c FROM gala_settings WHERE id='default'");
+            const confirmed = assistCount("SELECT COUNT(*) c FROM gala_registrations WHERE payment_status IN ('paid','vip-comp')");
+            const registered = assistCount('SELECT COUNT(*) c FROM gala_registrations');
+            const hold = Math.max(0, registered - confirmed);
+            const remain = Math.max(0, (cap || 0) - confirmed);
+            let a = `The Gala has ${cap} seats. ${confirmed} ${confirmed === 1 ? 'guest is' : 'guests are'} confirmed`;
+            a += hold ? ` and ${hold} more ${hold === 1 ? 'is' : 'are'} registered but not yet paid. ` : '. ';
+            a += `Counting confirmed guests, ${remain} ${remain === 1 ? 'seat remains' : 'seats remain'}.`;
+            return { kind:'data', pending:[], answer:a, deepLink:{ label:'Open the Gala', target:'gala' } };
+        }
+        // Gala — guests / paid.
+        if (has('gala')) {
+            const paid = assistCount("SELECT COUNT(*) c FROM gala_registrations WHERE payment_status='paid'");
+            const total = assistCount('SELECT COUNT(*) c FROM gala_registrations');
+            const ci = assistCount('SELECT COUNT(*) c FROM gala_registrations WHERE checked_in=1');
+            let a = `There ${paid === 1 ? 'is' : 'are'} ${paid} paid gala ${paid === 1 ? 'guest' : 'guests'} so far, out of ${total} total ${total === 1 ? 'registration' : 'registrations'}`;
+            a += ci ? `, and ${ci} already checked in.` : '.';
+            return { kind:'data', pending:[], answer:a, deepLink:{ label:'Open the Gala', target:'gala' } };
+        }
+        // Biomedical Forum invitation campaign — status + funnel.
+        if (has('campaign') || (has('forum') && has('candidate', 'candidates', 'pipeline', 'invitation', 'invitations', 'invited', 'accepted', 'funnel', 'growth'))) {
+            let camp = null; try { camp = query.get('SELECT status, daily_rate FROM forum_campaign LIMIT 1'); } catch (e) {}
+            const st = (camp && camp.status) ? camp.status : 'not started yet';
+            const rate = (camp && camp.daily_rate) ? camp.daily_rate : 0;
+            const total = assistCount('SELECT COUNT(*) c FROM forum_candidates');
+            const invited = assistCount("SELECT COUNT(*) c FROM forum_candidates WHERE status='invited'");
+            const replied = assistCount("SELECT COUNT(*) c FROM forum_candidates WHERE status='replied'");
+            const accepted = assistCount("SELECT COUNT(*) c FROM forum_candidates WHERE status='accepted'");
+            const escalated = assistCount("SELECT COUNT(*) c FROM forum_candidates WHERE status='escalated'");
+            let a = `The Biomedical Forum invitation campaign is ${st}`;
+            a += rate ? `, sending up to ${rate} invitations a day when active. ` : '. ';
+            a += `Of ${total} ${total === 1 ? 'candidate' : 'candidates'}, ${invited} invited, ${replied} replied, ${accepted} accepted`;
+            a += escalated ? `, and ${escalated} waiting for the president.` : '.';
+            return { kind:'data', pending:[], answer:a, deepLink:{ label:'Open the candidate pipeline', target:'forum-pipeline' } };
+        }
+        // Building Bridges registrations.
+        if (has('bridges')) {
+            const total = assistCount('SELECT COUNT(*) c FROM bridges_registrations');
+            const paid = assistCount("SELECT COUNT(*) c FROM bridges_registrations WHERE payment_status IN ('paid','comp')");
+            return { kind:'data', pending:[], answer:`Building Bridges has ${total} ${total === 1 ? 'registration' : 'registrations'} so far, ${paid} confirmed.`, deepLink:{ label:'Open Building Bridges', target:'bridges' } };
+        }
+        // Checked-in / attendance.
+        if (has('checked in', 'checked-in', 'attendance', 'arrived', 'at the door', 'turned up', 'showed up')) {
+            const c = assistCount('SELECT COUNT(*) c FROM registrations WHERE checked_in=1');
+            const g = assistCount('SELECT COUNT(*) c FROM gala_registrations WHERE checked_in=1');
+            return { kind:'data', pending:[], answer:`${c} Plexus ${c === 1 ? 'registrant has' : 'registrants have'} checked in, and ${g} at the Gala.`, deepLink:{ label:'Open Plexus registrations', target:'plexus' } };
+        }
+        // Unpaid registrants (count only — the draft path is handled earlier).
+        if (has('unpaid', 'not paid', 'outstanding', 'owe', 'pending payment', "haven't paid", 'havent paid')) {
+            const unpaid = assistCount("SELECT COUNT(*) c FROM registrations WHERE (payment_status IS NULL OR payment_status NOT IN ('paid','waived'))");
+            return { kind:'data', pending:[], answer:`There ${unpaid === 1 ? 'is' : 'are'} ${unpaid} ${unpaid === 1 ? 'registrant' : 'registrants'} with an outstanding payment. Ask me to draft a reminder to unpaid registrants and I will stage it in the outbox.`, deepLink:{ label:'Open Plexus registrations', target:'plexus' } };
+        }
+        // Revenue.
+        if (has('revenue', 'earned', 'collected', 'income', 'made', 'turnover', 'how much money', 'total paid')) {
+            const plexus = assistSumEur("SELECT SUM(amount_paid) s FROM registrations WHERE payment_status='paid'");
+            const gala = assistSumEur("SELECT SUM(amount_paid) s FROM gala_registrations WHERE payment_status='paid'");
+            const bridges = assistSumEur("SELECT SUM(amount_paid) s FROM bridges_registrations WHERE payment_status='paid'");
+            const total = Math.round((plexus + gala + bridges) * 100) / 100;
+            return { kind:'data', pending:[], answer:`Paid revenue so far is about EUR ${total} in total — EUR ${plexus} from Plexus, EUR ${gala} from the Gala, and EUR ${bridges} from Building Bridges. Open Finances for the full picture.`, deepLink:{ label:'Open Finances', target:'finances' } };
+        }
+        // Members / users.
+        if (has('member', 'members', 'user', 'users', 'account', 'accounts')) {
+            const c = assistCount('SELECT COUNT(*) c FROM users');
+            return { kind:'data', pending:[], answer:`There ${c === 1 ? 'is' : 'are'} ${c} member ${c === 1 ? 'account' : 'accounts'} in the portal.`, deepLink:{ label:'Open Member Ops', target:'member-ops' } };
+        }
+        // Contacts / My Network.
+        if (has('contact', 'contacts', 'network')) {
+            const c = assistCount('SELECT COUNT(*) c FROM contacts');
+            return { kind:'data', pending:[], answer:`You have ${c} ${c === 1 ? 'contact' : 'contacts'} in My Network.`, deepLink:{ label:'Open My Network', target:'network' } };
+        }
+        // Plexus Conference registrations (the general fallback for a registration count).
+        if (has('plexus', 'conference', 'registration', 'registrations', 'registered', 'sign up', 'signed up', 'signup', 'signups', 'attendee', 'attendees')) {
+            const total = assistCount('SELECT COUNT(*) c FROM registrations');
+            const paid = assistCount("SELECT COUNT(*) c FROM registrations WHERE payment_status='paid'");
+            const ci = assistCount('SELECT COUNT(*) c FROM registrations WHERE checked_in=1');
+            let a = `There ${total === 1 ? 'is' : 'are'} ${total} Plexus Conference ${total === 1 ? 'registration' : 'registrations'}, ${paid} of them paid`;
+            a += ci ? `, and ${ci} checked in.` : '.';
+            return { kind:'data', pending:[], answer:a, deepLink:{ label:'Open Plexus registrations', target:'plexus' } };
+        }
+        return null;
+    }
+
+    // HOW-TO and CAN-I-BUILD — retrieval over the KB. Returns {kind:'howto'|'canbuild'} or null.
+    function assistKbMatch(lc) {
+        const has = (...ws) => ws.some((w) => lc.includes(w));
+        const howto = has('how do', 'how can', 'how to', 'how would', 'how does', 'where do', 'where can', 'where is', 'where are', 'walk me', 'show me how', 'steps to', 'step by step', 'guide me', 'instructions', 'tutorial', 'set up', 'what is the way', 'help me');
+        const canbuild = has('can i', 'can we', 'can you', 'could i', 'could we', 'is it possible', 'is there a way', 'are we able', 'am i able', 'able to', 'does the portal', 'can the portal', 'do you support', 'do we have a way');
+        if (!howto && !canbuild) return null;
+        // Deliberately-unsupported asks answer "no" with the real alternative.
+        if (canbuild) { const no = assistNotSupported(lc); if (no) return no; }
+        // Score the corpus.
+        const qtok = assistTok(lc);
+        let best = null, bestScore = 0;
+        for (const art of ASSIST_KB) {
+            let s = 0;
+            for (const t of qtok) if (art.kwset.has(t)) s += 2;
+            for (const t of art.titleTok) if (lc.includes(t)) s += 1;
+            if (s > bestScore) { bestScore = s; best = art; }
+        }
+        if (!best || bestScore < 3) return null; // no confident match — do not guess
+        const lead = canbuild ? 'Yes — the portal already does that. Here is how:' : `Here is how to ${best.lead}:`;
+        const lines = [lead];
+        if (best.where) lines.push(`Where: ${best.where}`);
+        lines.push('');
+        best.steps.forEach((st, i) => lines.push(`${i + 1}. ${st}`));
+        if (best.watch) { lines.push(''); lines.push(`Watch out: ${best.watch}`); }
+        return { kind: canbuild ? 'canbuild' : 'howto', pending:[], answer: lines.join('\n'), deepLink: best.deepLink };
+    }
+
+    const ASSIST_PRECISE_KINDS = ['unpaid-reminder', 'contact-search', 'howto', 'canbuild', 'data'];
     async function assistDeterministicAnswer(rawQ, req) {
         try {
             const q = String(rawQ || '').trim();
@@ -23600,35 +23847,19 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
                 return { kind: 'contact-search', pending: [], answer: `I could not find a contact matching "${needle || q}" in My Network. Try a different name or organization, or import your contacts.`, data: { query: needle, matches: [] } };
             }
 
-            // 3) DATA (no-key only): paid gala guests.
-            if (has('gala') && has('how many', 'count', 'number', 'guests', 'paid', 'confirmed')) {
-                const paid = num("SELECT COUNT(*) c FROM gala_registrations WHERE payment_status = 'paid'");
-                const total = num('SELECT COUNT(*) c FROM gala_registrations');
-                const checkedIn = num('SELECT COUNT(*) c FROM gala_registrations WHERE checked_in = 1');
-                return { kind: 'data', pending: [], answer: `There ${paid === 1 ? 'is' : 'are'} ${paid} paid gala guest${paid === 1 ? '' : 's'} so far, out of ${total} total registration${total === 1 ? '' : 's'}${checkedIn ? `, and ${checkedIn} already checked in` : ''}.` };
-            }
+            // 3) LIVE DATA — grounded counts from the DB (both modes, never invents).
+            const dataAns = assistDataMatch(lc);
+            if (dataAns) return dataAns;
 
-            // 4) DATA (no-key only): unpaid registrants (count, no draft asked).
-            if (aboutUnpaid && has('how many', 'count', 'number', 'registr', 'who')) {
-                const unpaid = num("SELECT COUNT(*) c FROM registrations WHERE (payment_status IS NULL OR payment_status NOT IN ('paid','waived'))");
-                return { kind: 'data', pending: [], answer: `There ${unpaid === 1 ? 'is' : 'are'} ${unpaid} registrant${unpaid === 1 ? '' : 's'} with an outstanding payment. Ask me to "draft a reminder to unpaid registrants" and I will stage it in the outbox.` };
-            }
+            // 4) HOW-TO and CAN-I-BUILD — retrieval over the handbook + feature registry.
+            const kbAns = assistKbMatch(lc);
+            if (kbAns) return kbAns;
 
-            // 5) DATA (no-key only): broad counts.
-            if (has('how many', 'count', 'number', 'total')) {
-                if (has('contact', 'network')) { const c = num('SELECT COUNT(*) c FROM contacts'); return { kind: 'data', pending: [], answer: `You have ${c} contact${c === 1 ? '' : 's'} in My Network.` }; }
-                if (has('member', 'user')) { const c = num('SELECT COUNT(*) c FROM users'); return { kind: 'data', pending: [], answer: `There ${c === 1 ? 'is' : 'are'} ${c} member account${c === 1 ? '' : 's'} in the portal.` }; }
-                if (has('checked in', 'checked-in', 'attendance')) { const c = num('SELECT COUNT(*) c FROM registrations WHERE checked_in = 1'); return { kind: 'data', pending: [], answer: `${c} registrant${c === 1 ? '' : 's'} have checked in.` }; }
-                const reg = num('SELECT COUNT(*) c FROM registrations');
-                const paid = num("SELECT COUNT(*) c FROM registrations WHERE payment_status = 'paid'");
-                return { kind: 'data', pending: [], answer: `There are ${reg} Plexus registration${reg === 1 ? '' : 's'}, ${paid} of them paid.` };
-            }
-
-            // 6) Draft with no clear audience: guide the user (no-key only; the live agent can draft).
+            // 5) Draft with no clear audience: guide the user (no-key only; the live agent can draft with a key).
             if (wantsDraft) {
-                return { kind: 'notice', pending: [], answer: 'Tell me who it is for and I will stage it in the approval outbox — for example "draft a reminder to unpaid registrants". I can also answer data questions like "how many paid gala guests" or "find the contact from Pliva".' };
+                return { kind: 'notice', pending: [], answer: 'Tell me who it is for and I will stage it in the approval outbox — for example, draft a reminder to unpaid registrants. I can also tell you how to run any part of the portal, or pull a live number like registrations or gala seats.' };
             }
-            return null; // open-ended -> live agent (with key) or a clean notice (without)
+            return null; // open-ended -> graceful handbook fallback (no key) or the live agent (with key)
         } catch (e) { console.error('[assistant.deterministic]', e.message); return null; }
     }
 
@@ -28116,15 +28347,20 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             }
             msgs.push({ role:'user', content: String(message).slice(0, 2000) });
 
-            // Deterministic layer first. Precise DB actions (contact search, unpaid-reminder
-            // to the outbox) the LLM tools do not cover run in BOTH modes. Data/notice answers
-            // are used only when there is no key; with a key the richer live agent handles them.
+            // Deterministic layer first. The grounded retrieval + live-data + precise-action
+            // answers (contact search, unpaid-reminder to the outbox, how-to, can-I-build,
+            // live numbers) run in BOTH modes — they never invent a fact, so they are always
+            // the better answer. The agentic do-it-for-me mode is key-gated below.
             const det = await assistDeterministicAnswer(String(message), req);
             const precise = det && ASSIST_PRECISE_KINDS.includes(det.kind);
-            if (precise) return res.json({ answer: det.answer, pending: det.pending || [] });
+            if (precise) return res.json({ answer: det.answer, pending: det.pending || [], deepLink: det.deepLink || null });
             if (!process.env.ANTHROPIC_API_KEY) {
-                if (det) return res.json({ answer: det.answer, pending: det.pending || [] });
-                return res.json({ answer: 'I can help with real data and tasks right now — for example: "how many paid gala guests", "how many unpaid registrants", "find the contact from Pliva", or "draft a reminder to unpaid registrants". Open-ended answers and event edits come online once an admin adds an ANTHROPIC_API_KEY (Render → medx-admin-portal → Environment).', pending: [] });
+                if (det) return res.json({ answer: det.answer, pending: det.pending || [], deepLink: det.deepLink || null });
+                // Nothing matched. An action-shaped ask lands on the clean gate card for the
+                // do-it-for-me mode. Anything else gets a graceful handbook hand-off — never a guess.
+                const actiony = /\b(add|creat\w*|new|chang\w*|updat\w*|set|edit|modif\w*|move|renam\w*|delet\w*|remov\w*|make|schedul\w*|reschedul\w*|rais\w*|lower|increas\w*|decreas\w*|adjust\w*|publish|enable|disable|turn\s+(on|off))\b/i.test(String(message));
+                if (actiony) return res.json({ gated: true, deepLink: { label: 'Open the Handbook', target: 'resources' }, pending: [], answer: 'I can make that change for you — an event edit, a new coupon, a scheduled send — once the AI action mode is switched on. That needs an ANTHROPIC_API_KEY in the server settings (ask Alen). Until then I can walk you through doing it yourself, or pull any live number. Try asking how to make the change, and I will give you the steps and a link.' });
+                return res.json({ deepLink: { label: 'Open the Handbook', target: 'resources' }, pending: [], answer: 'I am not sure about that one. I can answer how to run the portal — for example how to send a newsletter, check people in, or approve email — and live numbers like registrations or gala seats. For anything else, the Operations Handbook has the full walkthrough, or you can ask Alen.' });
             }
             res.json(await assistRunAgent(msgs));
         } catch(e) { console.error('[assistant] error', e.message); res.status(500).json({ error:'Assistant error' }); }

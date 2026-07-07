@@ -56106,6 +56106,94 @@ button,input,select,textarea{font-family:var(--sans);}
              (PATCH /api/me {locale}); hydrates from GET /api/me/locale on a fresh device.
              Applies live with no page reload.
              ============================================================================ -->
+        <!-- ============================================================================
+             Plexus LIVE NOW/NEXT board (cluster 5a5b) — premium during-event surface.
+             Display-only. Reads the SAME ConferenceData schedule the program + My
+             Schedule modules use (single source of truth, never forked). No schema,
+             no payment/QR/registration paths touched.
+             ============================================================================ -->
+        <style id="pxlbStyles">
+          .pxlb{ font-family:var(--sans,'Inter',sans-serif); }
+          .pxlb-mount{ display:none; margin-bottom:26px; }
+          .pxlb-card{ background:var(--up-bg,#fff); border:1px solid var(--up-border,#e2dcd3); border-radius:22px; padding:24px; box-shadow:var(--up-shadow-md,0 4px 16px rgba(0,0,0,.06)); }
+          .pxlb-head{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+          .pxlb-head-l{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+          .pxlb-status{ display:inline-flex; align-items:center; gap:8px; font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; padding:6px 12px; border-radius:999px; line-height:1; }
+          .pxlb-status-live{ color:#fff; background:var(--crimson,#9b1b22); }
+          .pxlb-status-preview{ color:var(--emph-bg,#14110f); background:var(--gold,#c9a962); }
+          .pxlb-dot{ width:8px; height:8px; border-radius:50%; background:currentColor; animation:pxlbPulse 1.8s infinite; }
+          @keyframes pxlbPulse{ 0%{box-shadow:0 0 0 0 rgba(255,255,255,.55);} 70%{box-shadow:0 0 0 7px rgba(255,255,255,0);} 100%{box-shadow:0 0 0 0 rgba(255,255,255,0);} }
+          .pxlb-day{ font-size:13px; font-weight:600; color:var(--up-text-muted,#6b6258); }
+          .pxlb-clock{ font-variant-numeric:tabular-nums; font-size:20px; font-weight:700; letter-spacing:.02em; color:var(--up-text,#15110f); }
+          .pxlb-intro{ font-size:12.5px; color:var(--up-text-muted,#6b6258); margin:6px 0 0; }
+          .pxlb-section{ margin-top:22px; }
+          .pxlb-label{ font-size:11px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:var(--gold-dim,#a38a4f); margin-bottom:12px; display:flex; align-items:center; gap:10px; }
+          .pxlb-count{ font-weight:600; letter-spacing:.03em; color:var(--up-text-muted,#6b6258); text-transform:none; }
+          .pxlb-now-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+          .pxlb-now-card{ position:relative; border-radius:18px; padding:22px 22px 20px; color:#f3efe9; background:linear-gradient(150deg,var(--emph-bg,#14110f),var(--emph-bg-2,#211d19)); border:1px solid rgba(201,169,98,.28); overflow:hidden; }
+          .pxlb-now-card::before{ content:''; position:absolute; top:0; bottom:0; left:0; width:4px; background:linear-gradient(var(--gold,#c9a962),var(--crimson,#9b1b22)); }
+          .pxlb-now-live{ display:inline-flex; align-items:center; gap:7px; font-size:10.5px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:#fff; background:rgba(155,27,34,.85); padding:4px 10px; border-radius:999px; margin-bottom:14px; }
+          .pxlb-room{ font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--gold,#c9a962); display:flex; align-items:center; gap:7px; }
+          .pxlb-now-card .pxlb-room{ margin-bottom:8px; }
+          .pxlb-title{ font-family:var(--serif,Georgia,serif); font-size:22px; line-height:1.18; font-weight:600; letter-spacing:-.01em; margin:0 0 6px; color:#fff; }
+          .pxlb-speaker{ font-size:13.5px; color:rgba(243,239,233,.72); }
+          .pxlb-now-card .pxlb-speaker{ margin-bottom:16px; }
+          .pxlb-progress{ height:5px; border-radius:999px; background:rgba(243,239,233,.16); overflow:hidden; margin-bottom:8px; }
+          .pxlb-progress-bar{ height:100%; border-radius:999px; background:linear-gradient(90deg,var(--gold,#c9a962),#e8d5a8); transition:width .6s ease; }
+          .pxlb-meta{ font-size:12px; color:rgba(243,239,233,.62); font-variant-numeric:tabular-nums; }
+          .pxlb-idle{ border-radius:18px; padding:26px 22px; text-align:center; background:var(--up-bg-subtle,#f5f5f7); border:1px dashed var(--up-border,#d2d2d7); }
+          .pxlb-idle .pxlb-title{ color:var(--up-text,#15110f); font-size:18px; margin-bottom:4px; }
+          .pxlb-idle-sub{ font-size:13.5px; color:var(--up-text-muted,#6b6258); }
+          .pxlb-next-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; }
+          .pxlb-next-card{ border-radius:14px; padding:16px 18px; background:var(--up-bg,#fff); border:1px solid var(--up-border,#e2dcd3); box-shadow:0 1px 3px rgba(0,0,0,.04); }
+          .pxlb-next-when{ font-size:12px; font-weight:700; color:var(--crimson,#9b1b22); font-variant-numeric:tabular-nums; margin-bottom:8px; letter-spacing:.02em; }
+          .pxlb-next-card .pxlb-room{ margin-bottom:6px; color:var(--gold-dim,#a38a4f); }
+          .pxlb-title-sm{ font-family:var(--serif,Georgia,serif); font-size:16.5px; line-height:1.22; font-weight:600; margin:0 0 4px; color:var(--up-text,#15110f); }
+          .pxlb-next-card .pxlb-speaker{ color:var(--up-text-muted,#6b6258); }
+          .pxlb-later{ list-style:none; margin:0; padding:0; border-top:1px solid var(--up-border,#e2dcd3); }
+          .pxlb-later-item{ display:flex; align-items:center; gap:14px; padding:11px 2px; border-bottom:1px solid var(--up-border,#e2dcd3); font-size:13.5px; opacity:.72; }
+          .pxlb-later-time{ font-weight:700; color:var(--up-text-muted,#6b6258); font-variant-numeric:tabular-nums; min-width:46px; }
+          .pxlb-later-title{ flex:1; color:var(--up-text,#15110f); }
+          .pxlb-later-room{ color:var(--up-text-muted,#6b6258); font-size:12.5px; }
+          .px-tab.pxlb-tab-live{ position:relative; }
+          .px-tab.pxlb-tab-live::after{ content:''; position:absolute; top:7px; right:7px; width:7px; height:7px; border-radius:50%; background:var(--crimson,#9b1b22); animation:pxlbPulse 1.8s infinite; }
+          @media(max-width:560px){
+            .pxlb-card{ padding:18px; border-radius:18px; }
+            .pxlb-title{ font-size:20px; }
+            .pxlb-clock{ font-size:18px; }
+            .pxlb-now-card{ padding:18px 18px 16px; }
+          }
+          /* ---- Big-screen projector mode (?display=1): huge type, no chrome ---- */
+          html.pxlb-display-lock, html.pxlb-display-lock body{ overflow:hidden !important; }
+          #pxlbDisplay{ position:fixed; inset:0; z-index:2147483000; background:radial-gradient(120% 120% at 50% 0%, #241f1a 0%, #14110f 55%, #0c0a09 100%); color:#f3efe9; font-family:var(--sans,'Inter',sans-serif); padding:4.5vh 5vw; overflow:hidden; display:flex; flex-direction:column; }
+          #pxlbDisplay .pxlbd-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:3vw; border-bottom:1px solid rgba(201,169,98,.30); padding-bottom:2.4vh; }
+          #pxlbDisplay .pxlbd-brand{ font-family:var(--serif,Georgia,serif); font-size:4vw; font-weight:600; letter-spacing:-.01em; line-height:1; }
+          #pxlbDisplay .pxlbd-day{ font-size:1.4vw; color:var(--gold,#c9a962); letter-spacing:.16em; text-transform:uppercase; font-weight:700; margin-top:1vh; }
+          #pxlbDisplay .pxlbd-clockwrap{ text-align:right; }
+          #pxlbDisplay .pxlbd-clock{ font-size:6vw; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; }
+          #pxlbDisplay .pxlbd-clock small{ display:block; font-size:1.2vw; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:rgba(243,239,233,.55); margin-top:1vh; }
+          #pxlbDisplay .pxlbd-mid{ flex:1; display:flex; flex-direction:column; justify-content:center; gap:3.2vh; padding:3vh 0; min-height:0; }
+          #pxlbDisplay .pxlbd-label{ font-size:1.3vw; font-weight:800; letter-spacing:.24em; text-transform:uppercase; color:var(--gold,#c9a962); display:flex; align-items:center; gap:1vw; margin-bottom:.6vh; }
+          #pxlbDisplay .pxlbd-livepill{ display:inline-flex; align-items:center; gap:.7vw; font-size:1.1vw; font-weight:800; letter-spacing:.18em; color:#fff; background:rgba(194,72,78,.92); padding:.5vh 1.1vw; border-radius:999px; }
+          #pxlbDisplay .pxlbd-livepill .pxlb-dot{ width:.8vw; height:.8vw; }
+          #pxlbDisplay .pxlbd-now{ display:grid; grid-template-columns:repeat(auto-fit,minmax(30vw,1fr)); gap:2.4vw 3vw; }
+          #pxlbDisplay .pxlbd-now-card{ border-left:.45vw solid var(--gold,#c9a962); padding:.8vh 0 .8vh 2vw; }
+          #pxlbDisplay .pxlbd-room{ font-size:1.5vw; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--gold,#c9a962); }
+          #pxlbDisplay .pxlbd-title{ font-family:var(--serif,Georgia,serif); font-size:3.4vw; line-height:1.08; font-weight:600; margin:.8vh 0 .5vh; }
+          #pxlbDisplay .pxlbd-speaker{ font-size:1.6vw; color:rgba(243,239,233,.78); }
+          #pxlbDisplay .pxlbd-meta{ font-size:1.25vw; color:rgba(243,239,233,.55); margin-top:.6vh; font-variant-numeric:tabular-nums; }
+          #pxlbDisplay .pxlbd-idle{ text-align:center; }
+          #pxlbDisplay .pxlbd-idle .pxlbd-title{ font-size:3.2vw; }
+          #pxlbDisplay .pxlbd-next{ border-top:1px solid rgba(201,169,98,.30); padding-top:2.4vh; display:flex; gap:4vw; align-items:baseline; flex-wrap:wrap; }
+          #pxlbDisplay .pxlbd-next .pxlbd-label{ margin:0 1.5vw 0 0; }
+          #pxlbDisplay .pxlbd-next-item{ font-size:1.7vw; }
+          #pxlbDisplay .pxlbd-next-item b{ font-weight:600; }
+          #pxlbDisplay .pxlbd-next-when{ color:#e9b9bc; font-weight:800; margin-right:.7vw; font-variant-numeric:tabular-nums; }
+          #pxlbDisplay .pxlbd-next-room{ color:var(--gold,#c9a962); font-weight:700; margin-left:.5vw; }
+          #pxlbDisplay .pxlbd-dots{ display:flex; gap:.8vw; justify-content:center; margin-top:1.4vh; }
+          #pxlbDisplay .pxlbd-dots span{ width:.8vw; height:.8vw; border-radius:50%; background:rgba(243,239,233,.22); }
+          #pxlbDisplay .pxlbd-dots span.on{ background:var(--gold,#c9a962); }
+        </style>
         <style id="medxI18nStyles">
           .up-lang-toggle{display:inline-flex;align-items:center;gap:0;border:1px solid var(--line,#e2dcd3);background:var(--paper,#fbf9f6);border-radius:999px;padding:2px;flex:0 0 auto;}
           .up-lang-opt{appearance:none;border:none;background:transparent;cursor:pointer;font-family:var(--sans,'Inter',sans-serif);font-size:11.5px;font-weight:700;letter-spacing:.04em;color:var(--muted,#8a847b);padding:4px 9px;border-radius:999px;line-height:1;transition:background .16s ease,color .16s ease;}
@@ -63025,6 +63113,8 @@ button,input,select,textarea{font-family:var(--sans);}
 
                     <!-- Schedule Panel -->
                     <div class="px-panel" id="px-panel-schedule">
+                        <!-- LIVE NOW/NEXT board (cluster 5a5b) — surfaces on event day / in preview -->
+                        <div class="pxlb-mount" id="pxLiveBoardMount"></div>
                         <!-- Schedule Builder Header -->
                         <div class="px-schedule-builder-header">
                             <div class="px-schedule-builder-info">
@@ -130702,6 +130792,531 @@ By applying to this program, I give the following consents:
         return { renderHub: renderHub, renderEventCard: renderEventCard, open: open, close: close, submit: submit, revoke: revoke, refresh: refresh };
     })();
     </script>
+
+        <!-- ===================== MEMBER FAQ ASSISTANT (queue 5a6) ===================== -->
+        <!-- Tasteful, grounded member assistant. Retrieval-first answers from the vetted KB with live
+             facts, warm hand-off to the team when unsure, bilingual EN/HR via MedXI18n. Available to all
+             members (a utility) and quiet-safe: it never surfaces points or gamification. -->
+        <style id="mxaStyles">
+          .mxa-fab{position:fixed;right:24px;bottom:152px;z-index:9999;width:56px;height:56px;border-radius:18px;border:none;cursor:pointer;
+            background:linear-gradient(135deg,var(--up-gold,#c9a962) 0%,#d4b876 100%);color:var(--ink,#14110f);
+            box-shadow:0 8px 28px rgba(20,15,12,.22);display:none;align-items:center;justify-content:center;font-size:22px;
+            transition:transform .25s cubic-bezier(.4,0,.2,1),box-shadow .25s;}
+          .mxa-fab:hover{transform:scale(1.07);box-shadow:0 12px 36px rgba(20,15,12,.3);}
+          .mxa-fab:focus-visible{outline:3px solid rgba(201,169,98,.6);outline-offset:3px;}
+          .mxa-fab.mxa-hide-for-panel{opacity:0;pointer-events:none;transform:scale(.6);}
+          .mxa-panel{position:fixed;right:24px;bottom:24px;z-index:10001;width:390px;max-width:calc(100vw - 32px);height:600px;max-height:calc(100vh - 40px);
+            background:#fff;border-radius:20px;box-shadow:0 18px 60px rgba(20,15,12,.28);display:none;flex-direction:column;overflow:hidden;
+            transform:scale(.94) translateY(16px);opacity:0;transition:transform .28s cubic-bezier(.4,0,.2,1),opacity .28s;}
+          .mxa-panel.mxa-open{display:flex;transform:scale(1) translateY(0);opacity:1;}
+          .mxa-head{padding:18px 18px 16px;background:linear-gradient(135deg,var(--up-gold,#c9a962) 0%,#d4b876 100%);display:flex;align-items:center;gap:12px;}
+          .mxa-head-ic{width:42px;height:42px;border-radius:13px;background:rgba(255,255,255,.28);display:flex;align-items:center;justify-content:center;font-size:19px;color:var(--ink,#14110f);flex:0 0 auto;}
+          .mxa-head-txt{flex:1;min-width:0;}
+          .mxa-head-txt h4{margin:0;font-family:var(--serif,Georgia,serif);font-size:16.5px;font-weight:600;color:var(--ink,#14110f);letter-spacing:-.01em;}
+          .mxa-head-txt p{margin:2px 0 0;font-size:11.5px;color:rgba(20,15,12,.68);line-height:1.35;}
+          .mxa-x{width:34px;height:34px;border-radius:50%;border:none;background:rgba(20,15,12,.12);color:var(--ink,#14110f);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;transition:background .2s;flex:0 0 auto;}
+          .mxa-x:hover{background:rgba(20,15,12,.22);}
+          .mxa-body{flex:1;padding:18px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;background:#faf8f4;}
+          .mxa-msg{max-width:86%;padding:11px 14px;border-radius:15px;font-size:13.5px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word;}
+          .mxa-msg.bot{align-self:flex-start;background:#fff;color:#2a241e;border:1px solid rgba(20,15,12,.08);border-bottom-left-radius:5px;box-shadow:0 1px 3px rgba(20,15,12,.05);}
+          .mxa-msg.user{align-self:flex-end;background:var(--emph-bg,#14110f);color:#f3ede1;border-bottom-right-radius:5px;}
+          .mxa-after{align-self:flex-start;max-width:92%;display:flex;flex-direction:column;gap:8px;margin-top:-3px;}
+          .mxa-fbrow{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted,#6b6258);flex-wrap:wrap;}
+          .mxa-chip{border:1px solid rgba(20,15,12,.16);background:#fff;color:#3a322b;border-radius:999px;padding:5px 13px;font-size:12px;cursor:pointer;transition:all .18s;}
+          .mxa-chip:hover{border-color:var(--up-gold,#c9a962);background:rgba(201,169,98,.1);}
+          .mxa-connect{align-self:flex-start;border:none;background:var(--emph-bg,#14110f);color:var(--up-gold,#c9a962);border-radius:12px;padding:9px 15px;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:filter .2s;}
+          .mxa-connect:hover{filter:brightness(1.18);}
+          .mxa-note{align-self:flex-start;font-size:12px;color:var(--muted,#6b6258);font-style:italic;}
+          .mxa-suggest{display:flex;flex-direction:column;gap:8px;margin-top:2px;}
+          .mxa-suggest button{text-align:left;border:1px solid rgba(20,15,12,.1);background:#fff;color:#3a322b;border-radius:12px;padding:10px 13px;font-size:13px;cursor:pointer;transition:all .18s;}
+          .mxa-suggest button:hover{border-color:var(--up-gold,#c9a962);background:rgba(201,169,98,.08);transform:translateX(2px);}
+          .mxa-typing{align-self:flex-start;display:flex;gap:4px;padding:12px 15px;background:#fff;border:1px solid rgba(20,15,12,.08);border-radius:15px;border-bottom-left-radius:5px;}
+          .mxa-typing span{width:7px;height:7px;border-radius:50%;background:var(--up-gold,#c9a962);opacity:.5;animation:mxaBlink 1.2s infinite;}
+          .mxa-typing span:nth-child(2){animation-delay:.2s;}.mxa-typing span:nth-child(3){animation-delay:.4s;}
+          @keyframes mxaBlink{0%,60%,100%{opacity:.3;transform:translateY(0);}30%{opacity:1;transform:translateY(-3px);}}
+          .mxa-foot{padding:12px 14px;border-top:1px solid rgba(20,15,12,.08);background:#fff;display:flex;gap:9px;align-items:flex-end;}
+          .mxa-foot textarea{flex:1;resize:none;border:1px solid rgba(20,15,12,.14);border-radius:13px;padding:10px 13px;font-size:13.5px;font-family:inherit;line-height:1.4;max-height:96px;color:#2a241e;background:#faf8f4;}
+          .mxa-foot textarea:focus{outline:none;border-color:var(--up-gold,#c9a962);background:#fff;}
+          .mxa-foot textarea::placeholder{color:#9a9186;}
+          .mxa-go{flex:0 0 auto;width:40px;height:40px;border-radius:12px;border:none;cursor:pointer;background:linear-gradient(135deg,var(--up-gold,#c9a962) 0%,#d4b876 100%);color:var(--ink,#14110f);font-size:15px;display:flex;align-items:center;justify-content:center;transition:filter .2s,opacity .2s;}
+          .mxa-go:hover{filter:brightness(1.06);}.mxa-go:disabled{opacity:.5;cursor:default;}
+          [data-theme="dark"] .mxa-panel{background:#241f1b;}
+          [data-theme="dark"] .mxa-body{background:#1d1915;}
+          [data-theme="dark"] .mxa-msg.bot{background:#2c2620;color:#ece5d9;border-color:rgba(255,255,255,.08);}
+          [data-theme="dark"] .mxa-suggest button,[data-theme="dark"] .mxa-chip{background:#2c2620;color:#ddd4c6;border-color:rgba(255,255,255,.1);}
+          [data-theme="dark"] .mxa-foot{background:#241f1b;border-color:rgba(255,255,255,.08);}
+          [data-theme="dark"] .mxa-foot textarea{background:#1d1915;color:#ece5d9;border-color:rgba(255,255,255,.12);}
+          [data-theme="dark"] .mxa-typing{background:#2c2620;border-color:rgba(255,255,255,.08);}
+          @media (max-width:640px){
+            .mxa-fab{right:16px;bottom:calc(140px + env(safe-area-inset-bottom,0px));}
+            .mxa-panel{right:8px;left:8px;bottom:8px;width:auto;max-width:none;height:auto;top:8px;max-height:none;}
+          }
+        </style>
+        <button class="mxa-fab" id="mxaFab" type="button" aria-haspopup="dialog" aria-label="Open the Med&amp;X assistant">
+          <i class="fas fa-comment-dots" aria-hidden="true"></i>
+        </button>
+        <div class="mxa-panel" id="mxaPanel" role="dialog" aria-modal="false" aria-labelledby="mxaTitle" aria-hidden="true">
+          <div class="mxa-head">
+            <div class="mxa-head-ic"><i class="fas fa-comment-dots" aria-hidden="true"></i></div>
+            <div class="mxa-head-txt">
+              <h4 id="mxaTitle" data-i18n="asst.title">Med&amp;X Assistant</h4>
+              <p data-i18n="asst.subtitle">Here to help with events and membership</p>
+            </div>
+            <button class="mxa-x" id="mxaClose" type="button" data-i18n-aria-label="asst.close" aria-label="Close"><i class="fas fa-times" aria-hidden="true"></i></button>
+          </div>
+          <div class="mxa-body" id="mxaBody" aria-live="polite"></div>
+          <div class="mxa-foot">
+            <textarea id="mxaInput" rows="1" maxlength="500" data-i18n-placeholder="asst.placeholder" placeholder="Ask about tickets, dates, membership..." aria-label="Message"></textarea>
+            <button class="mxa-go" id="mxaSend" type="button" data-i18n-aria-label="asst.send" aria-label="Send"><i class="fas fa-paper-plane" aria-hidden="true"></i></button>
+          </div>
+        </div>
+        <script>
+        (function(){
+          if(window.MedXAssistant) return;
+          var DICT={
+            'asst.title':{en:'Med&X Assistant',hr:'Med&X asistent'},
+            'asst.subtitle':{en:'Here to help with events and membership',hr:'Tu smo za pitanja o događanjima i članstvu'},
+            'asst.placeholder':{en:'Ask about tickets, dates, membership...',hr:'Pitajte o ulaznicama, datumima, članstvu...'},
+            'asst.close':{en:'Close',hr:'Zatvorite'},
+            'asst.send':{en:'Send',hr:'Pošaljite'},
+            'asst.greeting':{en:'Hello. I can help with Med&X events, tickets, and membership. What would you like to know?',hr:'Dobar dan. Mogu pomoći oko Med&X događanja, ulaznica i članstva. Što Vas zanima?'},
+            'asst.s1':{en:'When is the conference?',hr:'Kada je konferencija?'},
+            'asst.s2':{en:'How much is a ticket?',hr:'Koliko košta ulaznica?'},
+            'asst.s3':{en:'When is the gala?',hr:'Kada je gala?'},
+            'asst.s4':{en:'Is membership free?',hr:'Je li članstvo besplatno?'},
+            'asst.helpfulQ':{en:'Was this helpful?',hr:'Je li ovo bilo od pomoći?'},
+            'asst.yes':{en:'Yes',hr:'Da'},
+            'asst.no':{en:'No',hr:'Ne'},
+            'asst.thanks':{en:'Thank you for the note.',hr:'Hvala Vam na povratnoj informaciji.'},
+            'asst.connect':{en:'Connect me with the team',hr:'Povežite me s timom'},
+            'asst.sent':{en:'Sent. Our team will reply to you by email.',hr:'Poslano. Naš tim javit će Vam se e-poštom.'},
+            'asst.error':{en:'Something went wrong. Please try again in a moment.',hr:'Nešto je pošlo po zlu. Pokušajte ponovno za trenutak.'},
+            'asst.offline':{en:'I could not reach the server. Please try again in a moment.',hr:'Nisam mogao doći do poslužitelja. Pokušajte ponovno za trenutak.'}
+          };
+          try{ if(window.MedXI18n && MedXI18n.extend) MedXI18n.extend(DICT); }catch(e){}
+          function t(k){ try{ if(window.MedXI18n&&MedXI18n.t) return MedXI18n.t(k); }catch(e){} var d=DICT[k]; return d?(d.en):k; }
+          function loc(){ try{ if(window.MedXI18n&&MedXI18n.get){ var l=MedXI18n.get(); return l==='hr'?'hr':'en'; } }catch(e){} return 'en'; }
+          function esc(v){ return (v==null?'':String(v)).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+          function token(){ try{ return (window.UserPortal&&UserPortal.token)||localStorage.getItem('medx_user_token'); }catch(e){ return null; } }
+          function apiBase(){ try{ return (typeof API_BASE!=='undefined')?API_BASE:''; }catch(e){ return ''; } }
+
+          var panel,fab,body,input,sendBtn,started=false,busy=false;
+          function el(id){ return document.getElementById(id); }
+
+          function scrollDown(){ if(body) body.scrollTop=body.scrollHeight; }
+          function addMsg(text,who){
+            var m=document.createElement('div'); m.className='mxa-msg '+who; m.textContent=text; body.appendChild(m); scrollDown(); return m;
+          }
+          function addTyping(){
+            var w=document.createElement('div'); w.className='mxa-typing'; w.id='mxaTyping';
+            w.innerHTML='<span></span><span></span><span></span>'; body.appendChild(w); scrollDown(); return w;
+          }
+          function rmTyping(){ var w=el('mxaTyping'); if(w) w.remove(); }
+
+          function greeting(){
+            body.innerHTML='';
+            addMsg(t('asst.greeting'),'bot');
+            var wrap=document.createElement('div'); wrap.className='mxa-suggest';
+            ['asst.s1','asst.s2','asst.s3','asst.s4'].forEach(function(k){
+              var b=document.createElement('button'); b.type='button'; b.textContent=t(k);
+              b.addEventListener('click',function(){ ask(t(k)); });
+              wrap.appendChild(b);
+            });
+            body.appendChild(wrap); scrollDown();
+          }
+
+          // Render the "was this helpful?" row after a confident answer (no gamification, ever).
+          function feedbackRow(logId){
+            var wrap=document.createElement('div'); wrap.className='mxa-after';
+            var row=document.createElement('div'); row.className='mxa-fbrow';
+            var q=document.createElement('span'); q.textContent=t('asst.helpfulQ'); row.appendChild(q);
+            function vote(v){
+              try{ fetch(apiBase()+'/api/assistant/feedback',{method:'POST',headers:hdr(),body:JSON.stringify({log_id:logId,helpful:v})}).catch(function(){}); }catch(e){}
+              wrap.innerHTML=''; var thx=document.createElement('div'); thx.className='mxa-note'; thx.textContent=t('asst.thanks'); wrap.appendChild(thx);
+            }
+            var yes=document.createElement('button'); yes.className='mxa-chip'; yes.type='button'; yes.textContent=t('asst.yes'); yes.addEventListener('click',function(){ vote(true); });
+            var no=document.createElement('button'); no.className='mxa-chip'; no.type='button'; no.textContent=t('asst.no'); no.addEventListener('click',function(){ vote(false); });
+            row.appendChild(yes); row.appendChild(no); wrap.appendChild(row); body.appendChild(wrap); scrollDown();
+          }
+
+          // Render the warm hand-off action after an escalation / medical / unsure answer.
+          function connectRow(question,route,category,logId){
+            var wrap=document.createElement('div'); wrap.className='mxa-after';
+            var b=document.createElement('button'); b.className='mxa-connect'; b.type='button';
+            b.innerHTML='<i class="fas fa-paper-plane" aria-hidden="true"></i> <span>'+esc(t('asst.connect'))+'</span>';
+            b.addEventListener('click',function(){
+              b.disabled=true;
+              fetch(apiBase()+'/api/assistant/escalate',{method:'POST',headers:hdr(),body:JSON.stringify({question:question,target:route||'team',category:category||'general',log_id:logId||null,locale:loc()})})
+                .then(function(r){ return r&&r.ok?r.json():null; })
+                .then(function(d){ wrap.innerHTML=''; var n=document.createElement('div'); n.className='mxa-note'; n.textContent=t(d&&d.ok?'asst.sent':'asst.error'); wrap.appendChild(n); scrollDown(); })
+                .catch(function(){ wrap.innerHTML=''; var n=document.createElement('div'); n.className='mxa-note'; n.textContent=t('asst.error'); wrap.appendChild(n); });
+            });
+            wrap.appendChild(b); body.appendChild(wrap); scrollDown();
+          }
+
+          function hdr(){ var h={'Content-Type':'application/json'}; var tk=token(); if(tk) h['Authorization']='Bearer '+tk; return h; }
+
+          function ask(question){
+            question=String(question||'').trim(); if(!question||busy) return;
+            var sugg=body.querySelector('.mxa-suggest'); if(sugg) sugg.remove();
+            addMsg(question,'user');
+            input.value=''; autoGrow();
+            busy=true; sendBtn.disabled=true; addTyping();
+            fetch(apiBase()+'/api/assistant/ask',{method:'POST',headers:hdr(),body:JSON.stringify({question:question,locale:loc()})})
+              .then(function(r){ return r&&r.ok?r.json():(r?r.json().then(function(e){throw e;}):null); })
+              .then(function(d){
+                rmTyping(); busy=false; sendBtn.disabled=false;
+                if(!d||!d.ok){ addMsg(t('asst.error'),'bot'); return; }
+                addMsg(d.answer,'bot');
+                if(d.suggest_feedback) feedbackRow(d.log_id);
+                else if(d.can_escalate) connectRow(question,d.escalate_route||'team',d.category||'general',d.log_id);
+              })
+              .catch(function(){ rmTyping(); busy=false; sendBtn.disabled=false; addMsg(t('asst.offline'),'bot'); });
+          }
+
+          function autoGrow(){ if(!input) return; input.style.height='auto'; input.style.height=Math.min(input.scrollHeight,96)+'px'; }
+
+          function open(){
+            if(!token()) return;
+            panel.classList.add('mxa-open'); panel.setAttribute('aria-hidden','false');
+            fab.classList.add('mxa-hide-for-panel');
+            if(!started){ started=true; greeting(); }
+            setTimeout(function(){ try{ input.focus(); }catch(e){} },60);
+          }
+          function close(){ panel.classList.remove('mxa-open'); panel.setAttribute('aria-hidden','true'); fab.classList.remove('mxa-hide-for-panel'); try{ fab.focus(); }catch(e){} }
+          function toggle(){ if(panel.classList.contains('mxa-open')) close(); else open(); }
+
+          // Show the launcher only for a signed-in member (a utility for everyone; hidden when logged out).
+          function reflectAuth(){ if(!fab) return; fab.style.display = token() ? 'flex' : 'none'; if(!token()) close(); }
+
+          function boot(){
+            panel=el('mxaPanel'); fab=el('mxaFab'); body=el('mxaBody'); input=el('mxaInput'); sendBtn=el('mxaSend');
+            if(!panel||!fab) return;
+            fab.addEventListener('click',toggle);
+            el('mxaClose').addEventListener('click',close);
+            sendBtn.addEventListener('click',function(){ ask(input.value); });
+            input.addEventListener('input',autoGrow);
+            input.addEventListener('keydown',function(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); ask(input.value); } });
+            document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&panel.classList.contains('mxa-open')) close(); });
+            // re-localize the live greeting/suggestions when the member switches language
+            document.addEventListener('medx:localechange',function(){ if(started&&panel.classList.contains('mxa-open')&&body.querySelector('.mxa-suggest')) greeting(); });
+            reflectAuth();
+            // catch a fresh login within the first moments without a reload
+            var n=0,iv=setInterval(function(){ reflectAuth(); if(++n>12||token()) clearInterval(iv); },1500);
+            window.addEventListener('storage',reflectAuth);
+          }
+          if(document.readyState!=='loading') boot(); else document.addEventListener('DOMContentLoaded',boot);
+          window.MedXAssistant={ open:open, close:close, toggle:toggle, ask:ask, refresh:reflectAuth };
+        })();
+        </script>
+
+        <!-- Plexus LIVE NOW/NEXT board (cluster 5a5b) — see #pxlbStyles for the design system.
+             Self-contained module: reads ConferenceData (single source of truth), computes a
+             now/next/later/done state machine from each session's start-end vs the clock, ticks
+             every 30s (auto-advances, no reload), gates itself to the event window, and powers a
+             chrome-free ?display=1 projector variant. Bilingual via MedXI18n. No inline handlers. -->
+        <script>
+        (function(){
+          "use strict";
+
+          var TICK_MS = 30000;      // client tick: recompute + auto-advance, no reload
+          var PREROLL_MIN = 60;     // board wakes 60 min before the first session
+          var POSTROLL_MIN = 30;    // and rests 30 min after the last
+          var DEFAULT_DUR_MIN = 60; // assumed length when a session has no endTime
+          var DISPLAY_PAGE = 3;     // NOW cards per projector page before it cycles
+          var DISPLAY_CYCLE_MS = 7000;
+
+          // Event registry — reusable per event. getSchedule() returns the SAME array the
+          // program tab reads (ConferenceData.schedule); dayDates maps the day index to a real
+          // calendar date (the labels already shown on the program), it does NOT fork the data.
+          var EVENTS = {
+            'plexus-2026': {
+              id: 'plexus-2026',
+              title: 'Plexus 2026',
+              dayDates: { 1: '2026-12-04', 2: '2026-12-05' },
+              getSchedule: function(){
+                return (typeof ConferenceData !== 'undefined' && Array.isArray(ConferenceData.schedule)) ? ConferenceData.schedule : [];
+              }
+            }
+          };
+          var ACTIVE_EVENT = 'plexus-2026';
+          function ev(){ return EVENTS[ACTIVE_EVENT]; }
+
+          // ---------- clock (real, or a mock that still advances in real time) ----------
+          var _clockBase = null, _clockRef = 0;
+          function setMockNow(iso){ var tt = Date.parse(iso); if (isNaN(tt)) return false; _clockBase = tt; _clockRef = Date.now(); return true; }
+          function now(){ return _clockBase != null ? new Date(_clockBase + (Date.now() - _clockRef)) : new Date(); }
+
+          function params(){
+            var out = {};
+            try {
+              var qs = new URLSearchParams(location.search); qs.forEach(function(v,k){ out[k]=v; });
+              if (location.hash && location.hash.indexOf('=') >= 0){
+                var hs = new URLSearchParams(location.hash.replace(/^#/,'')); hs.forEach(function(v,k){ if(!(k in out)) out[k]=v; });
+              }
+            } catch(e){}
+            return out;
+          }
+          var _p = params();
+          var _isDisplay = (_p.display === '1' || _p.display === 'true');
+          var _isPreview = _isDisplay || (_p.livepreview === '1' || _p.livepreview === 'true');
+
+          // ---------- i18n ----------
+          function t(k, vars){
+            try { if (window.MedXI18n && MedXI18n.t){ var v = MedXI18n.t(k, vars||{}); if (v && v !== k) return v; } } catch(e){}
+            var fb = _FALLBACK[k] || k; // English fallback if MedXI18n absent
+            if (vars) { for (var kk in vars) fb = fb.replace('{'+kk+'}', vars[kk]); }
+            return fb;
+          }
+          var _FALLBACK = {
+            'plb.live':'Live','plb.preview':'Preview','plb.happeningNow':'Happening now','plb.upNext':'Up next',
+            'plb.laterToday':'Later today','plb.completedCount':'{n} completed','plb.betweenSessions':'Between sessions',
+            'plb.nextAt':'Up next at {time}','plb.startingNow':'starting now','plb.inMin':'in {n} min',
+            'plb.inHrMin':'in {h} h {m} min','plb.inHr':'in {h} h','plb.endsInMin':'ends in {n} min',
+            'plb.endsInHrMin':'ends in {h} h {m} min','plb.endsInHr':'ends in {h} h','plb.endingNow':'ending now',
+            'plb.dayLabel':'Day {n}','plb.noSessions':'No sessions scheduled','plb.allDone':'The program for today has ended',
+            'plb.viewProgram':'View full program','plb.boardHint':'Live during the conference — where to be, right now'
+          };
+          function registerI18n(){
+            if (!window.MedXI18n || !MedXI18n.extend) return;
+            MedXI18n.extend({
+              'plb.live':          {en:'Live',            hr:'Uživo'},
+              'plb.preview':       {en:'Preview',         hr:'Pregled'},
+              'plb.happeningNow':  {en:'Happening now',   hr:'Trenutačno u tijeku'},
+              'plb.upNext':        {en:'Up next',         hr:'Slijedi'},
+              'plb.laterToday':    {en:'Later today',     hr:'Kasnije danas'},
+              'plb.completedCount':{en:'{n} completed',   hr:'Završeno: {n}'},
+              'plb.betweenSessions':{en:'Between sessions',hr:'Pauza između sesija'},
+              'plb.nextAt':        {en:'Up next at {time}',hr:'Slijedi u {time}'},
+              'plb.startingNow':   {en:'starting now',    hr:'počinje sada'},
+              'plb.inMin':         {en:'in {n} min',      hr:'za {n} min'},
+              'plb.inHrMin':       {en:'in {h} h {m} min',hr:'za {h} h {m} min'},
+              'plb.inHr':          {en:'in {h} h',        hr:'za {h} h'},
+              'plb.endsInMin':     {en:'ends in {n} min', hr:'završava za {n} min'},
+              'plb.endsInHrMin':   {en:'ends in {h} h {m} min',hr:'završava za {h} h {m} min'},
+              'plb.endsInHr':      {en:'ends in {h} h',   hr:'završava za {h} h'},
+              'plb.endingNow':     {en:'ending now',      hr:'uskoro završava'},
+              'plb.dayLabel':      {en:'Day {n}',         hr:'{n}. dan'},
+              'plb.noSessions':    {en:'No sessions scheduled', hr:'Nema zakazanih sesija'},
+              'plb.allDone':       {en:'The program for today has ended', hr:'Program za danas je završen'},
+              'plb.viewProgram':   {en:'View full program', hr:'Pogledajte cijeli program'},
+              'plb.boardHint':     {en:'Live during the conference — where to be, right now', hr:'Uživo tijekom konferencije — gdje trebate biti, upravo sada'}
+            });
+          }
+
+          // ---------- datetime helpers ----------
+          function mkDate(day, hhmm){ var d = ev().dayDates[day]; if (!d || !hhmm) return null; var tt = Date.parse(d + 'T' + hhmm + ':00'); return isNaN(tt) ? null : new Date(tt); }
+          function startOf(s){ return mkDate(s.day, s.time); }
+          function endOf(s){ var e = s.endTime ? mkDate(s.day, s.endTime) : null; if (e) return e; var st = startOf(s); return st ? new Date(st.getTime() + DEFAULT_DUR_MIN*60000) : null; }
+          function pad2(n){ return String(n).padStart(2,'0'); }
+          function hhmm(d){ return pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
+          function esc(x){ try { return escapeHtml(String(x==null?'':x)); } catch(e){ return String(x==null?'':x); } }
+
+          function iconFor(s){
+            var ty = s.type || '', ti = (s.title||'').toLowerCase();
+            if (ty === 'break') return ti.indexOf('lunch') >= 0 ? 'fa-utensils' : 'fa-coffee';
+            if (ty === 'networking') return ti.indexOf('gala') >= 0 ? 'fa-glass-cheers' : 'fa-users';
+            if (ty === 'workshop') return 'fa-chalkboard-teacher';
+            if (ty === 'oral') return 'fa-file-alt';
+            return 'fa-star';
+          }
+          function relStart(mins){ if (mins <= 0) return t('plb.startingNow'); if (mins < 60) return t('plb.inMin',{n:mins}); var h=Math.floor(mins/60), m=mins%60; return m>0 ? t('plb.inHrMin',{h:h,m:m}) : t('plb.inHr',{h:h}); }
+          function relEnd(mins){ if (mins <= 0) return t('plb.endingNow'); if (mins < 60) return t('plb.endsInMin',{n:mins}); var h=Math.floor(mins/60), m=mins%60; return m>0 ? t('plb.endsInHrMin',{h:h,m:m}) : t('plb.endsInHr',{h:h}); }
+
+          // ---------- state machine ----------
+          function annotate(nowD){
+            var list = ev().getSchedule().slice().map(function(s){
+              var st = startOf(s), en = endOf(s), state = 'upcoming';
+              if (st && en){ if (nowD >= en) state='done'; else if (nowD >= st) state='now'; else state='upcoming'; }
+              return { s:s, start:st, end:en, state:state };
+            }).filter(function(x){ return x.start && x.end; });
+            list.sort(function(a,b){ return a.start - b.start; });
+            return list;
+          }
+          function windowFor(list){ if (!list.length) return null; var first = list[0].start.getTime(); var last = list.reduce(function(m,x){ return Math.max(m, x.end.getTime()); }, 0); return { open:first - PREROLL_MIN*60000, close:last + POSTROLL_MIN*60000 }; }
+          function inWindow(nowD, list){ var w = windowFor(list); if (!w) return false; var tt = nowD.getTime(); return tt >= w.open && tt <= w.close; }
+          function focusedDay(list, nowD){
+            var nowItems = list.filter(function(x){ return x.state==='now'; });
+            if (nowItems.length) return nowItems[0].s.day;
+            var next = list.filter(function(x){ return x.state==='upcoming'; })[0];
+            if (next) return next.s.day;
+            var last = list[list.length-1];
+            return last ? last.s.day : (parseInt(Object.keys(ev().dayDates)[0],10) || 1);
+          }
+          function model(nowD){
+            var list = annotate(nowD);
+            var day = focusedDay(list, nowD);
+            var dayItems = list.filter(function(x){ return String(x.s.day) === String(day); });
+            var nowItems = dayItems.filter(function(x){ return x.state==='now'; });
+            var upcoming = dayItems.filter(function(x){ return x.state==='upcoming'; });
+            var done = dayItems.filter(function(x){ return x.state==='done'; });
+            var nextStart = upcoming.length ? upcoming[0].start.getTime() : null;
+            var nextItems = nextStart != null ? upcoming.filter(function(x){ return x.start.getTime() === nextStart; }) : [];
+            var laterItems = nextStart != null ? upcoming.filter(function(x){ return x.start.getTime() > nextStart; }) : [];
+            return { list:list, day:day, nowItems:nowItems, nextItems:nextItems, laterItems:laterItems, doneItems:done, inWindow:inWindow(nowD, list), nowD:nowD };
+          }
+
+          function dayLabelText(day){
+            var d = ev().dayDates[day], ds = '';
+            try { if (window.MedXI18n && MedXI18n.formatDate) ds = MedXI18n.formatDate(d + 'T00:00:00', { weekday:'long', day:'numeric', month:'long' }); else ds = new Date(d + 'T00:00:00').toLocaleDateString(); } catch(e){}
+            var dl = t('plb.dayLabel', { n:day });
+            return ds ? (dl + ' · ' + ds) : dl;
+          }
+
+          // ---------- in-page render (Schedule tab) ----------
+          function nowCardHTML(x){
+            var s = x.s, nowD = model._lastNow || now();
+            var total = (x.end - x.start) || 1, elapsed = Math.min(Math.max(nowD - x.start, 0), total);
+            var pct = Math.round((elapsed/total)*100);
+            var minsLeft = Math.max(0, Math.round((x.end - nowD)/60000));
+            return '<div class="pxlb-now-card">'
+              + '<div class="pxlb-now-live"><span class="pxlb-dot"></span> ' + esc(t('plb.live')) + '</div>'
+              + '<div class="pxlb-room"><i class="fas fa-map-marker-alt"></i> ' + esc(s.room||'') + '</div>'
+              + '<h3 class="pxlb-title">' + esc(s.title||'') + '</h3>'
+              + (s.speaker ? '<div class="pxlb-speaker">' + esc(s.speaker) + '</div>' : '<div class="pxlb-speaker" style="margin-bottom:16px;"></div>')
+              + '<div class="pxlb-progress"><div class="pxlb-progress-bar" style="width:' + pct + '%"></div></div>'
+              + '<div class="pxlb-meta">' + esc(s.time) + (s.endTime ? ' – ' + esc(s.endTime) : '') + ' · ' + esc(relEnd(minsLeft)) + '</div>'
+              + '</div>';
+          }
+          function nextCardHTML(x){
+            var s = x.s, nowD = model._lastNow || now();
+            var minsTo = Math.max(0, Math.round((x.start - nowD)/60000));
+            return '<div class="pxlb-next-card">'
+              + '<div class="pxlb-next-when">' + esc(relStart(minsTo)) + ' · ' + esc(s.time) + '</div>'
+              + '<div class="pxlb-room"><i class="fas fa-map-marker-alt"></i> ' + esc(s.room||'') + '</div>'
+              + '<h4 class="pxlb-title-sm">' + esc(s.title||'') + '</h4>'
+              + (s.speaker ? '<div class="pxlb-speaker">' + esc(s.speaker) + '</div>' : '')
+              + '</div>';
+          }
+          function boardHTML(m){
+            model._lastNow = m.nowD;
+            var live = m.inWindow;
+            var statusCls = live ? 'pxlb-status-live' : 'pxlb-status-preview';
+            var statusTxt = live ? t('plb.live') : t('plb.preview');
+            var h = '<div class="pxlb-card"><div class="pxlb">';
+            h += '<div class="pxlb-head"><div class="pxlb-head-l">'
+               + '<span class="pxlb-status ' + statusCls + '"><span class="pxlb-dot"></span> ' + esc(statusTxt) + '</span>'
+               + '<span class="pxlb-day">' + esc(dayLabelText(m.day)) + '</span></div>'
+               + '<div class="pxlb-clock">' + esc(hhmm(m.nowD)) + '</div></div>';
+            h += '<p class="pxlb-intro">' + esc(t('plb.boardHint')) + '</p>';
+
+            // NOW
+            h += '<div class="pxlb-section"><div class="pxlb-label">' + esc(t('plb.happeningNow')) + '</div>';
+            if (m.nowItems.length){ h += '<div class="pxlb-now-grid">' + m.nowItems.map(nowCardHTML).join('') + '</div>'; }
+            else {
+              var sub = m.nextItems.length ? t('plb.nextAt', { time: m.nextItems[0].s.time }) : t('plb.allDone');
+              var head = m.nextItems.length ? t('plb.betweenSessions') : t('plb.allDone');
+              h += '<div class="pxlb-idle"><div class="pxlb-title">' + esc(head) + '</div>'
+                 + (m.nextItems.length ? '<div class="pxlb-idle-sub">' + esc(sub) + '</div>' : '') + '</div>';
+            }
+            h += '</div>';
+
+            // UP NEXT
+            if (m.nextItems.length && m.nowItems.length){
+              h += '<div class="pxlb-section"><div class="pxlb-label">' + esc(t('plb.upNext')) + '</div>'
+                 + '<div class="pxlb-next-grid">' + m.nextItems.map(nextCardHTML).join('') + '</div></div>';
+            } else if (m.nextItems.length && !m.nowItems.length){
+              // between sessions: still surface the next cards for room clarity
+              h += '<div class="pxlb-section"><div class="pxlb-label">' + esc(t('plb.upNext')) + '</div>'
+                 + '<div class="pxlb-next-grid">' + m.nextItems.map(nextCardHTML).join('') + '</div></div>';
+            }
+
+            // LATER + completed count
+            if (m.laterItems.length){
+              var countTxt = m.doneItems.length ? '<span class="pxlb-count">' + esc(t('plb.completedCount', { n:m.doneItems.length })) + '</span>' : '';
+              h += '<div class="pxlb-section"><div class="pxlb-label">' + esc(t('plb.laterToday')) + countTxt + '</div><ul class="pxlb-later">';
+              h += m.laterItems.map(function(x){ var s=x.s; return '<li class="pxlb-later-item"><span class="pxlb-later-time">' + esc(s.time) + '</span><span class="pxlb-later-title">' + esc(s.title||'') + '</span><span class="pxlb-later-room">' + esc(s.room||'') + '</span></li>'; }).join('');
+              h += '</ul></div>';
+            } else if (!m.nowItems.length && !m.nextItems.length){
+              h += '<div class="pxlb-section"><div class="pxlb-idle"><div class="pxlb-title">' + esc(m.list.length ? t('plb.allDone') : t('plb.noSessions')) + '</div></div></div>';
+            }
+
+            h += '</div></div>';
+            return h;
+          }
+
+          function renderPageInto(mountEl, m){
+            var show = m.inWindow || _isPreview;
+            mountEl.style.display = show ? 'block' : 'none';
+            mountEl.innerHTML = show ? boardHTML(m) : '';
+          }
+          function reflectTabIndicator(on){ var tab = document.querySelector('.px-tab[data-tab="schedule"]'); if (tab) tab.classList.toggle('pxlb-tab-live', on); }
+
+          // ---------- projector render (?display=1) ----------
+          var _dispIdx = 0, _dispShell = null;
+          function buildDisplayShell(){
+            if (_dispShell) return;
+            _dispShell = document.createElement('div');
+            _dispShell.id = 'pxlbDisplay';
+            document.body.appendChild(_dispShell);
+            document.documentElement.classList.add('pxlb-display-lock');
+          }
+          function displayHTML(m){
+            model._lastNow = m.nowD;
+            var pages = Math.max(1, Math.ceil(m.nowItems.length / DISPLAY_PAGE));
+            if (_dispIdx >= pages) _dispIdx = 0;
+            var slice = m.nowItems.slice(_dispIdx*DISPLAY_PAGE, _dispIdx*DISPLAY_PAGE + DISPLAY_PAGE);
+            var h = '<div class="pxlbd-top"><div><div class="pxlbd-brand">' + esc(ev().title) + '</div>'
+                  + '<div class="pxlbd-day">' + esc(dayLabelText(m.day)) + '</div></div>'
+                  + '<div class="pxlbd-clockwrap"><div class="pxlbd-clock">' + esc(hhmm(m.nowD)) + '<small>CET</small></div></div></div>';
+            h += '<div class="pxlbd-mid">';
+            h += '<div><div class="pxlbd-label"><span class="pxlbd-livepill"><span class="pxlb-dot"></span> ' + esc(t('plb.live')) + '</span> ' + esc(t('plb.happeningNow')) + '</div>';
+            if (slice.length){
+              h += '<div class="pxlbd-now">' + slice.map(function(x){ var s=x.s, minsLeft=Math.max(0,Math.round((x.end-m.nowD)/60000));
+                return '<div class="pxlbd-now-card"><div class="pxlbd-room">' + esc(s.room||'') + '</div>'
+                  + '<div class="pxlbd-title">' + esc(s.title||'') + '</div>'
+                  + (s.speaker ? '<div class="pxlbd-speaker">' + esc(s.speaker) + '</div>' : '')
+                  + '<div class="pxlbd-meta">' + esc(s.time) + (s.endTime ? ' – ' + esc(s.endTime) : '') + ' · ' + esc(relEnd(minsLeft)) + '</div></div>';
+              }).join('') + '</div>';
+              if (pages > 1){ var dots=''; for (var i=0;i<pages;i++) dots += '<span class="' + (i===_dispIdx?'on':'') + '"></span>'; h += '<div class="pxlbd-dots">' + dots + '</div>'; }
+            } else {
+              var head = m.nextItems.length ? t('plb.betweenSessions') : (m.list.length ? t('plb.allDone') : t('plb.noSessions'));
+              h += '<div class="pxlbd-idle"><div class="pxlbd-title">' + esc(head) + '</div></div>';
+            }
+            h += '</div></div>';
+            if (m.nextItems.length){
+              h += '<div class="pxlbd-next"><div class="pxlbd-label">' + esc(t('plb.upNext')) + '</div>'
+                 + m.nextItems.map(function(x){ var s=x.s, minsTo=Math.max(0,Math.round((x.start-m.nowD)/60000));
+                     return '<div class="pxlbd-next-item"><span class="pxlbd-next-when">' + esc(relStart(minsTo)) + '</span><b>' + esc(s.title||'') + '</b><span class="pxlbd-next-room">' + esc(s.room||'') + '</span></div>'; }).join('')
+                 + '</div>';
+            }
+            return h;
+          }
+          function renderDisplay(m){ buildDisplayShell(); _dispShell.innerHTML = displayHTML(m); }
+
+          // ---------- loop ----------
+          var _started = false, _dispTimer = null;
+          function refresh(){
+            var m = model(now());
+            var mounts = document.querySelectorAll('.pxlb-mount');
+            for (var i=0;i<mounts.length;i++) renderPageInto(mounts[i], m);
+            reflectTabIndicator(m.inWindow || _isPreview);
+            if (_isDisplay) renderDisplay(m);
+          }
+          function start(){
+            if (_started) return; _started = true;
+            if (_p.now) setMockNow(_p.now);
+            try { if (typeof ConferenceData !== 'undefined' && (!ConferenceData.schedule || !ConferenceData.schedule.length)) ConferenceData.init(); } catch(e){}
+            registerI18n();
+            if (_isDisplay) buildDisplayShell();
+            refresh();
+            setInterval(refresh, TICK_MS);
+            if (_isDisplay) _dispTimer = setInterval(function(){ _dispIdx++; renderDisplay(model(now())); }, DISPLAY_CYCLE_MS);
+            document.addEventListener('medx:localechange', refresh);
+            try { if (typeof ConferenceData !== 'undefined' && ConferenceData.onChange) ConferenceData.onChange(refresh); } catch(e){}
+            var tabs = document.getElementById('pxTabs');
+            if (tabs) tabs.addEventListener('click', function(){ setTimeout(refresh, 40); });
+          }
+
+          function boot(){ start(); }
+          if (document.readyState !== 'loading') boot(); else document.addEventListener('DOMContentLoaded', boot);
+
+          window.PlexusLiveBoard = {
+            refresh: refresh, start: start, now: now, setMockNow: function(iso){ var ok=setMockNow(iso); refresh(); return ok; },
+            model: function(){ return model(now()); }, isDisplay: function(){ return _isDisplay; }, isPreview: function(){ return _isPreview; }
+          };
+        })();
+        </script>
 
 </body>
 

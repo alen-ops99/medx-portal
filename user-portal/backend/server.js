@@ -12,6 +12,7 @@ const fs = require('fs');
 const Database = require('libsql');
 const { createDatabase } = require('../../shared/db');
 const { aiDraft } = require('../../shared/ai');
+const faqKb = require('./faq-kb'); // Member FAQ Assistant grounding corpus + deterministic retrieval (queue 5a6)
 const nodemailer = require('nodemailer');
 const webpush = require('web-push');
 const firaService = require('./fira-service');
@@ -7462,6 +7463,24 @@ async function initializeApp() {
     // user-portal only, guarded — kept OUTSIDE the SCHEMA-MIRROR block so both portals boot clean.
     try { db.run("ALTER TABLE users ADD COLUMN locale TEXT"); } catch (e) { /* column may already exist */ }
 
+    // ===== Member FAQ Assistant (queue 5a6) — user-portal only, OUTSIDE the SCHEMA-MIRROR block =====
+    // One append-only row per member question, so we can (a) record the helpful-vote and (b) let the
+    // team see what members are asking. NO gamification, NO points. The admin portal does not touch
+    // this table, so it lives here alone (schema mirror block stays byte-identical). Idempotent.
+    db.run(`CREATE TABLE IF NOT EXISTS assistant_faq_log (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        locale TEXT DEFAULT 'en',
+        question TEXT,
+        matched_id TEXT,
+        confidence REAL,
+        outcome TEXT,          -- 'answer' | 'escalate' | 'medical'
+        rephrased INTEGER DEFAULT 0,
+        helpful INTEGER,       -- NULL until the member votes; 1 = yes, 0 = no
+        escalated INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
     // ============ ACCELERATOR / ABSTRACT SUBMISSION-AND-SCORING PIPELINE (SHARED) ============
     // Generic intake + review pipeline. The applicant surface (user portal) writes drafts and
     // submissions here; the review surface (admin portal) reads them, assigns reviewers, and records
@@ -9678,6 +9697,173 @@ async function submitReset(e){
         } catch (err) {
             console.error('Purchase inquiry failed:', err);
             res.status(500).json({ error: 'Could not send your message. Please try again in a moment.' });
+        }
+    });
+
+    // ===================== MEMBER FAQ ASSISTANT (queue 5a6) =====================
+    // Retrieval-first, grounded member assistant. Deterministic keyword/fuzzy matching against the
+    // vetted KB (faq-kb.js) with {placeholder} facts resolved LIVE from the DB. Confidence-gated:
+    // a strong match answers, a weak/no match or a clinical question hands off to the team via the
+    // EXISTING inquiry channel (direct_messages). NEVER invents a fact. Quiet-safe by construction:
+    // answers carry no points or gamification, so a quiet member sees the same utility answers.
+    const FAQ_STRONG = 1.3, FAQ_MARGIN = 0.4;
+    const faqLocale = (req) => (String((req.body && req.body.locale) || '').toLowerCase() === 'hr' ? 'hr' : 'en');
+    // Pull the fact-shaped tokens (numbers, emails, domains) out of a string, for the rephrase guard.
+    const faqFactSet = (t) => ({
+        nums: new Set((String(t).match(/\d[\d.,]*/g) || []).map((x) => x.replace(/[.,]+$/, ''))),
+        emails: new Set((String(t).match(/[\w.+-]+@[\w.-]+/g) || []).map((e) => e.toLowerCase())),
+        urls: new Set((String(t).match(/\b[\w-]+\.(?:hr|com|org|net)\b/gi) || []).map((u) => u.toLowerCase())),
+    });
+    // aiDraft ENHANCER (softened no-key-first): with a key the LLM may rephrase the matched answer
+    // conversationally, EN only (the shared primitive writes American English). It is discarded if it
+    // introduces any number, email, or link not in the grounded answer, so it can never add a fact.
+    // No key -> aiDraft returns empty -> the verbatim KB answer (first-class, well written) is used.
+    async function faqRephrase(answer, locale) {
+        if (locale !== 'en') return { text: answer, rephrased: false };
+        try {
+            const r = await aiDraft({
+                purpose: 'Rephrase this Med and X member-support answer so it reads warm and conversational. Do NOT add, remove, or change any fact, date, price, name, email, or link. Keep it concise. Return only the rephrased answer text.',
+                context: { answer_to_rephrase: answer },
+                maxTokens: 400,
+            });
+            if (!r || r.mock || !r.text) return { text: answer, rephrased: false };
+            const src = faqFactSet(answer), out = faqFactSet(r.text);
+            for (const n of out.nums) if (!src.nums.has(n)) return { text: answer, rephrased: false };
+            for (const e of out.emails) if (!src.emails.has(e)) return { text: answer, rephrased: false };
+            for (const u of out.urls) if (!src.urls.has(u)) return { text: answer, rephrased: false };
+            return { text: r.text.trim(), rephrased: true };
+        } catch (e) { return { text: answer, rephrased: false }; }
+    }
+
+    app.post('/api/assistant/ask', auth, async (req, res) => {
+        const locale = faqLocale(req);
+        try {
+            const question = String((req.body && req.body.question) || '').trim().slice(0, 500);
+            if (!question) return res.status(400).json({ error: locale === 'hr' ? 'Molimo upišite pitanje.' : 'Please type a question.' });
+
+            const id = uuidv4();
+            const insertLog = (outcome, matched, conf, rephrased) => {
+                try {
+                    db.run('INSERT INTO assistant_faq_log (id,user_id,locale,question,matched_id,confidence,outcome,rephrased) VALUES (?,?,?,?,?,?,?,?)',
+                        [id, req.user.id || null, locale, question, matched || null, conf == null ? null : conf, outcome, rephrased ? 1 : 0]);
+                    saveDb();
+                } catch (e) { /* logging is best-effort */ }
+            };
+
+            // 1) clinical / medical questions are ALWAYS out of scope — decline and hand off, never answer.
+            if (faqKb.isMedicalQuestion(question)) {
+                insertLog('medical', null, null, false);
+                return res.json({
+                    ok: true, log_id: id, outcome: 'medical', entry_id: null, category: 'medical', confidence: 0, rephrased: false,
+                    answer: locale === 'hr'
+                        ? 'Žao mi je, ne mogu pomoći s medicinskim ni kliničkim pitanjima. Za sve što se tiče Vašeg zdravlja obratite se kvalificiranom liječniku. Za pitanja o Med&X događanjima i članstvu rado pomažem, a mogu Vas povezati i s našim timom.'
+                        : 'I am sorry, I cannot help with medical or clinical questions. For anything about your health please speak with a qualified doctor. For Med&X events and membership I am glad to help, and I can connect you with our team.',
+                    can_escalate: true, escalate_target: faqKb.ESC_TARGETS.team, escalate_route: 'team', suggest_feedback: false,
+                });
+            }
+
+            // 2) deterministic retrieval (no API key needed) + live-fact resolution
+            const ranked = faqKb.scoreAll(question);
+            const facts = faqKb.buildFacts(query, locale);
+            const top = ranked[0];
+            const second = ranked[1] ? ranked[1].norm : 0;
+            // off-topic guard: a confident answer must actually COVER the question — at least two
+            // matched keywords, or every informative token known to the KB. A single generic keyword
+            // ("conference", "password") inside an otherwise unknown question ("can I bring my dog
+            // to the conference", "what is the wifi password") hands off to the team instead.
+            // QPRICE-specific subject gate: generic money words ('much','cost','koliko','kosta')
+            // in QPRICE's keywords are not enough — a confident ticket-price answer must name a
+            // TICKET/REGISTRATION subject. A money question about anything else (taxi, dinner, parking,
+            // abstract) fails this and hands off instead of quoting prices.
+            const priceSubjectOk = !top || top.entry.id !== 'QPRICE' || faqKb.priceHasTicketSubject(question);
+            const covered = top && (top.hits >= 2 || top.oov === 0) && priceSubjectOk;
+            const strong = top && covered && top.norm >= FAQ_STRONG &&
+                (ranked.length === 1 || (top.norm - second) >= FAQ_MARGIN || (ranked[1] && top.entry.section === ranked[1].entry.section) || top.norm >= 2.0);
+
+            let rendered = null;
+            if (top) rendered = faqKb.renderAnswer(top.entry, locale, facts);
+
+            // no confident match, OR the answer needs a fact we could not resolve -> warm hand-off (rule 11)
+            if (!top || !strong || !rendered || !rendered.ok) {
+                insertLog('escalate', top ? top.entry.id : null, top ? Number(top.norm.toFixed(3)) : null, false);
+                return res.json({
+                    ok: true, log_id: id, outcome: 'escalate', entry_id: top ? top.entry.id : null, category: 'general',
+                    confidence: top ? Number(top.norm.toFixed(2)) : 0, rephrased: false,
+                    answer: locale === 'hr'
+                        ? 'Nisam posve siguran da imam pouzdan odgovor na to. Rado Vas povezujem s našim timom koji će Vam osobno odgovoriti.'
+                        : 'I am not certain I have a reliable answer to that. Let me connect you with our team, who will get back to you personally.',
+                    can_escalate: true, escalate_target: faqKb.ESC_TARGETS.team, escalate_route: 'team', suggest_feedback: false,
+                });
+            }
+
+            // 3) confident match. A hand-off topic (undecided policy or must-route) shows the safe holding
+            // line AND offers to file it — the bot never asserts an undecided policy as settled fact.
+            const escTopic = top.entry.esc; // false | 'team' | 'support' | 'president'
+            const enhanced = await faqRephrase(rendered.text, locale);
+            insertLog(escTopic ? 'escalate' : 'answer', top.entry.id, Number(top.norm.toFixed(3)), enhanced.rephrased);
+            return res.json({
+                ok: true, log_id: id, outcome: escTopic ? 'escalate' : 'answer',
+                entry_id: top.entry.id, category: top.entry.section, confidence: Number(top.norm.toFixed(2)),
+                answer: enhanced.text, rephrased: enhanced.rephrased,
+                can_escalate: !!escTopic, suggest_feedback: !escTopic,
+                escalate_target: escTopic ? (faqKb.ESC_TARGETS[escTopic] || faqKb.ESC_TARGETS.team) : null,
+                escalate_route: escTopic || null,
+            });
+        } catch (err) {
+            console.error('assistant/ask failed:', err);
+            res.status(500).json({ error: locale === 'hr' ? 'Nešto je pošlo po zlu. Pokušajte ponovno za trenutak.' : 'Something went wrong. Please try again in a moment.' });
+        }
+    });
+
+    // Was this helpful? — records the vote on the log row. No points, no gamification.
+    app.post('/api/assistant/feedback', auth, (req, res) => {
+        try {
+            const { log_id, helpful } = req.body || {};
+            if (!log_id) return res.status(400).json({ error: 'Missing log_id.' });
+            db.run('UPDATE assistant_faq_log SET helpful = ? WHERE id = ? AND (user_id = ? OR user_id IS NULL)',
+                [helpful ? 1 : 0, String(log_id), req.user.id || null]);
+            saveDb();
+            res.json({ ok: true });
+        } catch (err) { console.error('assistant/feedback failed:', err); res.status(500).json({ error: 'Could not record that.' }); }
+    });
+
+    // Warm hand-off: files the member's question into the EXISTING member<->admin inbox channel
+    // (direct_messages, sender_type='user'), exactly like the purchase-inquiry path. The team reads it
+    // in the admin inbox and replies. Route (team/support/president) comes from the vetted KB entry.
+    app.post('/api/assistant/escalate', auth, (req, res) => {
+        const locale = faqLocale(req);
+        try {
+            const question = String((req.body && req.body.question) || '').trim().slice(0, 1000);
+            const target = ['team', 'support', 'president'].includes(req.body && req.body.target) ? req.body.target : 'team';
+            const category = String((req.body && req.body.category) || 'general').slice(0, 40);
+            const log_id = req.body && req.body.log_id;
+            if (!question) return res.status(400).json({ error: locale === 'hr' ? 'Molimo upišite pitanje.' : 'Please add your question.' });
+
+            const me = query.get('SELECT first_name, last_name, email FROM users WHERE id = ?', [req.user.id]) || {};
+            const memberName = (String(me.first_name || '') + ' ' + String(me.last_name || '')).trim() || (req.user.email || 'Member');
+            const to = faqKb.ESC_TARGETS[target] || faqKb.ESC_TARGETS.team;
+
+            const title = 'Assistant question — ' + category;
+            const lines = [];
+            lines.push(memberName + ' asked the member assistant a question that needs a person.');
+            lines.push('');
+            lines.push('Question:');
+            lines.push(question);
+            lines.push('');
+            lines.push('Topic: ' + category);
+            lines.push('Preferred route: ' + to);
+            lines.push('');
+            lines.push('Reply-to: ' + (me.email || req.user.email || ''));
+
+            const mid = uuidv4();
+            db.run("INSERT INTO direct_messages (id, sender_id, receiver_id, sender_type, receiver_type, title, content, is_read) VALUES (?, ?, ?, 'user', 'admin', ?, ?, 0)",
+                [mid, me.email || req.user.email || 'member', to, title, lines.join('\n')]);
+            if (log_id) { try { db.run('UPDATE assistant_faq_log SET escalated = 1 WHERE id = ?', [String(log_id)]); } catch (e) { /* best-effort */ } }
+            saveDb();
+            res.json({ ok: true, id: mid });
+        } catch (err) {
+            console.error('assistant/escalate failed:', err);
+            res.status(500).json({ error: locale === 'hr' ? 'Poruku nismo mogli poslati. Pokušajte ponovno.' : 'We could not send your message. Please try again.' });
         }
     });
 

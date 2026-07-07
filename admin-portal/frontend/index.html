@@ -5653,6 +5653,28 @@
         .assist-fab:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(155,27,34,0.6); }
         .assist-fab:active { transform: scale(0.95); }
 
+        /* Assistant example chips + deep-link buttons */
+        .assist-chip {
+            display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 999px;
+            border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary);
+            font-size: 12.5px; cursor: pointer; text-align: left; line-height: 1.25; transition: border-color 0.15s, background 0.15s;
+        }
+        .assist-chip:hover { border-color: #9b1b22; background: rgba(155,27,34,0.06); }
+        .assist-deeplink {
+            display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: 9px;
+            border: 1px solid #9b1b22; background: rgba(155,27,34,0.08); color: #9b1b22;
+            font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s;
+        }
+        .assist-deeplink:hover { background: rgba(155,27,34,0.16); }
+        .assist-gatecard {
+            align-self: flex-start; width: 92%; background: var(--bg-primary); border: 1px solid var(--accent-gold);
+            border-radius: 12px; padding: 13px 14px;
+        }
+        .assist-gatecard .agc-head {
+            display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+            text-transform: uppercase; color: var(--accent-gold); margin-bottom: 7px;
+        }
+
         .qr-modal-overlay {
             position: fixed;
             inset: 0;
@@ -23948,14 +23970,14 @@ President, Med&amp;X</textarea>
                             <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border-color);">
                                 <div style="display:flex;align-items:center;gap:10px;">
                                     <span style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#9b1b22,#9b1b22);display:flex;align-items:center;justify-content:center;color:#fff;"><i class="fas fa-robot"></i></span>
-                                    <div><div style="font-weight:700;color:var(--text-primary);">Med&amp;X Assistant</div><div style="font-size:11px;color:var(--text-muted);">Ask a question or tell me what to change</div></div>
+                                    <div><div style="font-weight:700;color:var(--text-primary);">Med&amp;X Assistant</div><div style="font-size:11px;color:var(--text-muted);">Ask how to do anything, or for a live number</div></div>
                                 </div>
                                 <button onclick="App.closeAssistant()" style="background:none;border:none;color:var(--text-muted);font-size:24px;cursor:pointer;line-height:1;">&times;</button>
                             </div>
                             <div id="assistMessages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;min-height:0;"></div>
                             <div style="padding:12px 14px;border-top:1px solid var(--border-color);">
                                 <div style="display:flex;gap:8px;">
-                                    <input id="assistInput" placeholder="e.g. How many registered for the Gala?" onkeydown="if(event.key==='Enter')App.assistantSend()" style="flex:1;padding:11px 13px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-primary);color:var(--text-primary);font-size:14px;">
+                                    <input id="assistInput" placeholder="e.g. How do I send invitations?" onkeydown="if(event.key==='Enter')App.assistantSend()" style="flex:1;padding:11px 13px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-primary);color:var(--text-primary);font-size:14px;">
                                     <button id="assistSendBtn" onclick="App.assistantSend()" class="btn btn-primary" style="padding:11px 16px;"><i class="fas fa-paper-plane"></i></button>
                                 </div>
                                 <div style="font-size:10px;color:var(--text-muted);margin-top:6px;text-align:center;">Any change is shown for your confirmation before it happens.</div>
@@ -23973,11 +23995,23 @@ President, Med&amp;X</textarea>
                 if (!box) return;
                 let html = '';
                 if (!this._assistHistory.length) {
-                    html += `<div style="color:var(--text-muted);font-size:13px;line-height:1.6;">Hi! I can answer questions like <em>"how many people registered for the Plexus Conference?"</em> or make changes like <em>"change the Gala start time to 19:00"</em> or <em>"add a Bridges event in Zurich on 2026-11-10"</em>.<br><br>Every change is shown to you with a Confirm button first — nothing happens without your OK.</div>`;
+                    const chips = ['How do I send invitations?', 'How many Plexus registrations?', 'How many gala seats are left?', 'Can I automate reminders?'];
+                    html += `<div style="color:var(--text-muted);font-size:13px;line-height:1.6;">Hi! Ask me how to do anything in the portal, or for a live number.
+                        <div style="margin-top:12px;display:flex;flex-direction:column;gap:7px;align-items:flex-start;">
+                            ${chips.map(c => `<button class="assist-chip" onclick="App.assistAsk('${escapeHtml(c).replace(/'/g, "\\'")}')">${escapeHtml(c)}</button>`).join('')}
+                        </div>
+                        <div style="margin-top:14px;">With the AI action mode enabled I can also make changes for you — every change waits for your Confirm first.</div></div>`;
                 }
                 for (const m of this._assistHistory) {
-                    if (m.role === 'user') html += `<div style="align-self:flex-end;max-width:85%;background:var(--accent-gold);color:#ffffff;padding:9px 12px;border-radius:12px 12px 2px 12px;font-size:14px;">${escapeHtml(m.content)}</div>`;
-                    else html += `<div style="align-self:flex-start;max-width:92%;background:var(--bg-primary);color:var(--text-primary);padding:9px 12px;border-radius:12px 12px 12px 2px;font-size:14px;white-space:pre-wrap;">${escapeHtml(m.content)}</div>`;
+                    if (m.role === 'user') { html += `<div style="align-self:flex-end;max-width:85%;background:var(--accent-gold);color:#ffffff;padding:9px 12px;border-radius:12px 12px 2px 12px;font-size:14px;">${escapeHtml(m.content)}</div>`; continue; }
+                    if (m.gated) {
+                        html += `<div class="assist-gatecard"><div class="agc-head"><i class="fas fa-lock"></i> AI action mode</div><div style="font-size:13.5px;color:var(--text-primary);white-space:pre-wrap;line-height:1.5;">${escapeHtml(m.content)}</div></div>`;
+                    } else {
+                        html += `<div style="align-self:flex-start;max-width:92%;background:var(--bg-primary);color:var(--text-primary);padding:9px 12px;border-radius:12px 12px 12px 2px;font-size:14px;white-space:pre-wrap;line-height:1.5;">${escapeHtml(m.content)}</div>`;
+                    }
+                    if (m.deepLink && m.deepLink.target) {
+                        html += `<div style="align-self:flex-start;margin:2px 0 4px;"><button class="assist-deeplink" onclick="App.assistDeepLink('${escapeHtml(String(m.deepLink.target))}')"><i class="fas fa-arrow-right-long"></i> ${escapeHtml(m.deepLink.label || 'Open')}</button></div>`;
+                    }
                 }
                 (this._assistPending || []).forEach((p, i) => {
                     if (p._done) html += `<div style="align-self:flex-start;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.4);color:#22c55e;padding:8px 12px;border-radius:10px;font-size:13px;"><i class="fas fa-check"></i> ${escapeHtml(p._doneMsg || 'Applied')}</div>`;
@@ -24009,7 +24043,7 @@ President, Med&amp;X</textarea>
                     const hist = this._assistHistory.filter(m => m.content !== '…').map(m => ({ role: m.role, content: m.content }));
                     const res = await this.api('/api/admin/assistant', { method: 'POST', body: JSON.stringify({ message: msg, history: hist.slice(0, -1) }) });
                     this._assistHistory.pop(); // drop the thinking bubble
-                    this._assistHistory.push({ role: 'assistant', content: (res && res.answer) || 'Sorry, I had no answer.' });
+                    this._assistHistory.push({ role: 'assistant', content: (res && res.answer) || 'Sorry, I had no answer.', deepLink: (res && res.deepLink) || null, gated: !!(res && res.gated) });
                     this._assistPending = (res && res.pending) || [];
                 } catch (e) {
                     this._assistHistory.pop();
@@ -24031,6 +24065,42 @@ President, Med&amp;X</textarea>
                 this.assistantRender();
             },
             assistantCancel(i) { if (this._assistPending[i]) { this._assistPending[i]._cancelled = true; this.assistantRender(); } },
+
+            // Fill the input from an example chip and send it.
+            assistAsk(text) { const i = document.getElementById('assistInput'); if (i) i.value = text; this.assistantSend(); },
+
+            // Resolve an assistant deep-link target to the same navigation the Cmd+K palette uses,
+            // then close the assistant so the staffer lands on the right screen.
+            assistDeepLink(target) {
+                const nav = {
+                    dashboard: () => App.showSection('dashboard'),
+                    newsletter: () => App.showSection('newsletter'),
+                    outbox: () => App.showSection('outbox'),
+                    'pr-media': () => App.showSection('pr-media'),
+                    'content-studio': () => App.showSection('content-studio'),
+                    'portal-content': () => App.showSection('portal-content'),
+                    'member-ops': () => App.showSection('member-ops'),
+                    'user-notifications': () => App.showSection('user-notifications'),
+                    team: () => App.showSection('team'),
+                    health: () => App.showSection('health'),
+                    resources: () => App.showSection('resources'),
+                    'event-invites': () => App.showSection('event-invites'),
+                    'event-reminders': () => App.showSection('event-reminders'),
+                    gala: () => App.showSection('gala'),
+                    finances: () => App.showSection('finances'),
+                    'finances-reconcile': () => { App.showSection('finances'); setTimeout(() => { try { FinanceApp.showTab('reconcile'); } catch (e) {} }, 280); },
+                    scanner: () => { try { App.openGlobalQRScanner(); } catch (e) { App.showSection('dashboard'); } },
+                    network: () => { try { NetworkApp.openPanel(); } catch (e) { App.showSection('dashboard'); } },
+                    plexus: () => App.showProject('plexus'),
+                    bridges: () => App.showProject('bridges'),
+                    forum: () => App.showProject('forum'),
+                    accelerator: () => App.showProject('accelerator'),
+                    'forum-pipeline': () => { App.showProject('forum'); setTimeout(() => { try { App.showForumTab('candidates'); } catch (e) {} }, 280); }
+                };
+                const fn = nav[target];
+                this.closeAssistant();
+                if (fn) { try { fn(); } catch (e) { Toast.error('Could not open that section.'); } }
+            },
 
             // Back-compat alias — all live updates flow through renderLinkPreview now.
             updateGenLinkTotal() { this.renderLinkPreview(); },
