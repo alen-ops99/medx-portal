@@ -6966,6 +6966,11 @@
                     <span>Year Calendar</span>
                 </a>
 
+                <a class="nav-item" data-section="editions" onclick="App.showSection('editions', this)">
+                    <i class="fas fa-layer-group" style="color: #9b1b22;"></i>
+                    <span>Editions</span>
+                </a>
+
                 <a class="nav-item" data-section="finances" onclick="App.showSection('finances', this)">
                     <i class="fas fa-coins" style="color: var(--finances);"></i>
                     <span>Finances</span>
@@ -7017,6 +7022,11 @@
                     <i class="fas fa-glass-cheers" style="color: #C9A962;"></i>
                     <span>Gala Evening</span>
                     <span id="galaPendingCount" style="background: #b45309; color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
+                </a>
+
+                <a class="nav-item" data-section="auctions" onclick="App.showSection('auctions', this)">
+                    <i class="fas fa-gavel" style="color: #C9A962;"></i>
+                    <span>Auctions</span>
                 </a>
 
                 <a class="nav-item" data-section="event-invites" onclick="App.showSection('event-invites', this)">
@@ -12393,6 +12403,25 @@ President, Med&amp;X</textarea>
                     </div>
                 </div>
 
+                <!-- ============ LIVE AUCTION ENGINE (queue 5a5f, event-agnostic) ============ -->
+                <div class="section" id="section-auctions">
+                    <div class="back-link" onclick="App.showSection('dashboard')">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </div>
+                    <div class="section-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;gap:16px;flex-wrap:wrap;">
+                        <div>
+                            <h1 style="font-size:28px;font-weight:700;margin-bottom:4px;">
+                                <i class="fas fa-gavel" style="color:#c9a962;margin-right:12px;"></i>Auctions
+                            </h1>
+                            <p style="color:var(--text-muted);">Live charity auctions for any event. Zero-login table bidding, staff paddle entry, a big-screen display, and winners settled as donations.</p>
+                        </div>
+                        <button id="auctionBackToListBtn" class="btn btn-secondary" style="display:none;white-space:nowrap;" onclick="AuctionAdmin.showList()"><i class="fas fa-arrow-left"></i> All auctions</button>
+                    </div>
+                    <div id="auctionListView"></div>
+                    <div id="auctionDetailView" style="display:none;"></div>
+                </div>
+                <!-- ============ /LIVE AUCTION ENGINE ============ -->
+
                 <!-- CROATIANS ABROAD -->
                 <div class="section" id="section-croatians-abroad">
                     <div class="back-link" onclick="App.showSection('dashboard')">
@@ -12708,6 +12737,69 @@ President, Med&amp;X</textarea>
                     <div id="ycTimeline"><div class="yc-empty"><i class="fas fa-spinner fa-spin"></i></div></div>
                     <div class="yc-live yc-no-print" id="ycLive"></div>
                 </div>
+
+                <!-- ============ EVENT EDITION CYCLING (admin-only, queue 5a5d) ============ -->
+                <div class="section" id="section-editions">
+                    <style>
+                    #section-editions .ed-head h1{font-size:28px;font-weight:700;margin-bottom:4px;}
+                    #section-editions .ed-sum{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0 22px;}
+                    #section-editions .ed-stat{border:1px solid var(--border);border-radius:12px;background:var(--bg-secondary);padding:12px 18px;min-width:120px;}
+                    #section-editions .ed-stat .n{font-family:'Fraunces',Georgia,serif;font-size:26px;font-weight:700;line-height:1;color:var(--text-primary);}
+                    #section-editions .ed-stat .l{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-top:6px;}
+                    #section-editions .ed-proj{border:1px solid var(--border);border-radius:16px;background:var(--bg-secondary);padding:0 0 4px;margin:0 0 18px;overflow:hidden;}
+                    #section-editions .ed-proj-hd{display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--border);}
+                    #section-editions .ed-proj-ic{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;flex-shrink:0;}
+                    #section-editions .ed-proj-hd h3{margin:0;font-family:'Fraunces',Georgia,serif;font-size:18px;font-weight:600;}
+                    #section-editions .ed-proj-hd .sub{font-size:12px;color:var(--text-muted);}
+                    #section-editions .ed-rail{display:flex;gap:14px;flex-wrap:wrap;padding:16px 18px;}
+                    #section-editions .ed-card{position:relative;flex:1 1 300px;min-width:280px;max-width:420px;border:1px solid var(--border);border-radius:14px;background:var(--bg-primary);padding:16px 16px 14px;}
+                    #section-editions .ed-card.archived{opacity:.82;background:var(--bg-secondary);border-style:dashed;}
+                    #section-editions .ed-card .yr{position:absolute;top:14px;right:16px;font-family:'Fraunces',Georgia,serif;font-size:22px;font-weight:700;color:var(--text-muted);opacity:.5;}
+                    #section-editions .ed-card h4{margin:0 44px 4px 0;font-size:16px;font-weight:700;line-height:1.2;}
+                    #section-editions .ed-card .meta{font-size:12.5px;color:var(--text-muted);margin-bottom:10px;}
+                    #section-editions .ed-badge{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:3px 9px;border-radius:999px;color:#fff;}
+                    #section-editions .ed-chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0;}
+                    #section-editions .ed-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:8px;background:rgba(14,165,164,.10);color:#0f766e;border:1px solid rgba(14,165,164,.18);}
+                    #section-editions .ed-chip.gold{background:rgba(201,169,98,.14);color:#8a6d2f;border-color:rgba(201,169,98,.3);}
+                    #section-editions .ed-mini{display:flex;gap:14px;flex-wrap:wrap;margin:10px 0 12px;}
+                    #section-editions .ed-mini span{font-size:12px;color:var(--text-secondary);}
+                    #section-editions .ed-mini b{font-weight:700;color:var(--text-primary);}
+                    #section-editions .ed-acts{display:flex;gap:8px;flex-wrap:wrap;}
+                    #section-editions .ed-acts .btn{font-size:13px;padding:8px 13px;}
+                    #section-editions .ed-empty{padding:40px 20px;text-align:center;color:var(--text-muted);}
+                    #section-editions .ed-modal .modal{max-width:640px;width:100%;}
+                    #section-editions .ed-prev{border:1px solid var(--border);border-radius:12px;background:var(--bg-primary);padding:14px 16px;margin:8px 0;}
+                    #section-editions .ed-prev h5{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);}
+                    #section-editions .ed-prevgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;}
+                    #section-editions .ed-prevgrid .c{border:1px solid var(--border);border-radius:10px;padding:9px 11px;background:var(--bg-secondary);}
+                    #section-editions .ed-prevgrid .c .n{font-family:'Fraunces',Georgia,serif;font-size:20px;font-weight:700;line-height:1;}
+                    #section-editions .ed-prevgrid .c .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-top:5px;}
+                    #section-editions .ed-safe{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:var(--text-secondary);line-height:1.5;margin:5px 0;}
+                    #section-editions .ed-safe i{color:#1f9d55;margin-top:2px;}
+                    #section-editions .ed-field{margin-bottom:12px;}
+                    #section-editions .ed-field label{display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;}
+                    #section-editions .ed-field input{width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;box-sizing:border-box;}
+                    #section-editions .ed-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+                    #section-editions .ed-toggle{display:flex;align-items:center;gap:10px;padding:11px 13px;border:1px solid var(--border);border-radius:11px;background:var(--bg-primary);margin-bottom:8px;cursor:pointer;}
+                    #section-editions .ed-toggle input{width:18px;height:18px;flex-shrink:0;cursor:pointer;}
+                    #section-editions .ed-toggle .t{font-size:13.5px;font-weight:600;}
+                    #section-editions .ed-toggle .s{font-size:11.5px;color:var(--text-muted);}
+                    #section-editions .ed-toggle .cnt{margin-left:auto;font-size:12px;font-weight:700;color:var(--text-muted);white-space:nowrap;}
+                    #section-editions .ed-resets{display:flex;flex-wrap:wrap;gap:7px;margin-top:4px;}
+                    #section-editions .ed-reset{font-size:11.5px;padding:4px 9px;border-radius:8px;background:rgba(148,163,184,.14);color:var(--text-secondary);}
+                    @media (max-width:640px){#section-editions .ed-grid2{grid-template-columns:1fr;}#section-editions .ed-card{max-width:none;}}
+                    </style>
+                    <div class="back-link" onclick="App.showSection('dashboard')"><i class="fas fa-arrow-left"></i> Back to Dashboard</div>
+                    <div class="section-header ed-head" style="margin-bottom:8px;">
+                        <div>
+                            <h1><i class="fas fa-layer-group" style="color:#9b1b22;margin-right:12px;"></i>Editions</h1>
+                            <p style="color:var(--text-muted);max-width:720px;">Archive a finished edition and roll a project into its next one. Nothing is ever deleted — issued tickets, certificates and receipts stay valid forever, and archived editions feed the Talk Library and Moments.</p>
+                        </div>
+                    </div>
+                    <div id="editionsBody"><div class="ed-empty"><i class="fas fa-spinner fa-spin"></i></div></div>
+                    <div id="editionsModalHost"></div>
+                </div>
+                <!-- ============ /EVENT EDITION CYCLING ============ -->
 
                 <!-- ============ EVENT INVITATION ENGINE (admin-only, queue 5a4) ============ -->
                 <div class="section" id="section-event-invites">
@@ -18419,6 +18511,7 @@ President, Med&amp;X</textarea>
                     'bridges': 'Building Bridges',
                     'finances': 'Finances',
                     'year-calendar': 'Year Calendar',
+                    'editions': 'Editions',
                     'pr-media': 'PR & Media',
                     'user-notifications': 'Message members',
                     'newsletter': 'Newsletter',
@@ -18429,6 +18522,7 @@ President, Med&amp;X</textarea>
                     'member-ops': 'Member Ops',
                     'messages': 'Messages',
                     'gala': 'Gala Evening',
+                    'auctions': 'Auctions',
                     'event-invites': 'Event invitations',
                     'event-reminders': 'Event reminders',
                     'conferences': 'Conferences',
@@ -18584,6 +18678,14 @@ President, Med&amp;X</textarea>
                     this.currentView = 'tech';
                     this.switchChatPanel('team');
                     TechApp.init();
+                } else if (sectionId === 'auctions') {
+                    this.currentView = 'auctions';
+                    this.switchChatPanel('team');
+                    if (typeof AuctionAdmin !== 'undefined') AuctionAdmin.init();
+                } else if (sectionId === 'editions') {
+                    this.currentView = 'editions';
+                    this.switchChatPanel('team');
+                    if (typeof EditionsAdmin !== 'undefined') EditionsAdmin.init();
                 } else {
                     // Switch chat panel to team chat mode
                     this.currentView = 'dashboard';
@@ -32619,13 +32721,638 @@ By applying to this program, I give the following consents:
             }
         };
 
+        // ================= LIVE AUCTION ENGINE (admin, queue 5a5f) =================
+        // Event-agnostic charity auctions: create + items, open/pause/close bidding,
+        // staff paddle entry, void, confirm winner (donation email to the outbox),
+        // pledged->paid tracking, and the public bid + big-screen display URLs.
+        const EditionsAdmin = {
+            data: null,
+            token() { return (window.App && App.token) || localStorage.getItem('medx_token') || localStorage.getItem('token'); },
+            async api(ep, method, body) {
+                const opt = { method: method || 'GET', headers: { 'Authorization': 'Bearer ' + this.token() } };
+                if (body !== undefined && body !== null) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+                const r = await fetch(ep, opt);
+                const d = await r.json().catch(function () { return {}; });
+                if (!r.ok) throw new Error(d.error || ('Error ' + r.status));
+                return d;
+            },
+            esc(x) { return (window.escapeHtml ? escapeHtml(String(x == null ? '' : x)) : String(x == null ? '' : x).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; })); },
+            toast(m, t) { if (window.App && App.showToast) App.showToast(m, t || 'success'); },
+            fmtDate(sd, ed) {
+                if (!sd) return 'Dates to be set';
+                try {
+                    var mn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    var S = new Date(sd + 'T00:00:00');
+                    if (ed && ed !== sd) {
+                        var E = new Date(ed + 'T00:00:00');
+                        if (E.getMonth() === S.getMonth() && E.getFullYear() === S.getFullYear()) return S.getDate() + '-' + E.getDate() + ' ' + mn[S.getMonth()] + ' ' + S.getFullYear();
+                        return S.getDate() + ' ' + mn[S.getMonth()] + ' ' + S.getFullYear() + ' - ' + E.getDate() + ' ' + mn[E.getMonth()] + ' ' + E.getFullYear();
+                    }
+                    return S.getDate() + ' ' + mn[S.getMonth()] + ' ' + S.getFullYear();
+                } catch (e) { return sd; }
+            },
+            statusBadge(st) {
+                var map = { active: ['#1f9d55', 'Active'], archived: ['#8a6d2f', 'Archived'] };
+                var m = map[st] || ['#64748b', st || ''];
+                return '<span class="ed-badge" style="background:' + m[0] + ';">' + m[1] + '</span>';
+            },
+
+            init() { this.load(); },
+
+            async load() {
+                var host = document.getElementById('editionsBody');
+                try {
+                    var d = await this.api('/api/admin/editions');
+                    this.data = d;
+                    host.innerHTML = this.render(d);
+                } catch (e) { host.innerHTML = '<div class="ed-empty" style="color:#b91c1c;">' + this.esc(e.message) + '</div>'; }
+            },
+
+            render(d) {
+                var self = this;
+                var sum = d.summary || { total: 0, active: 0, archived: 0 };
+                var head = '<div class="ed-sum">'
+                    + '<div class="ed-stat"><div class="n">' + sum.total + '</div><div class="l">Editions</div></div>'
+                    + '<div class="ed-stat"><div class="n">' + sum.active + '</div><div class="l">Active</div></div>'
+                    + '<div class="ed-stat"><div class="n">' + sum.archived + '</div><div class="l">Archived</div></div>'
+                    + '</div>';
+                if (!d.projects || !d.projects.length) return head + '<div class="ed-empty">No editions yet.</div>';
+                var body = d.projects.map(function (p) { return self.renderProject(p); }).join('');
+                return head + body;
+            },
+
+            renderProject(p) {
+                var self = this;
+                var cards = (p.editions || []).map(function (e) { return self.renderCard(e, p); }).join('');
+                return '<div class="ed-proj">'
+                    + '<div class="ed-proj-hd">'
+                    + '<div class="ed-proj-ic" style="background:' + this.esc(p.color || '#64748b') + ';"><i class="fas ' + this.esc(p.icon || 'fa-calendar') + '"></i></div>'
+                    + '<div><h3>' + this.esc(p.label) + '</h3><div class="sub">' + (p.editions || []).length + ' edition' + ((p.editions || []).length === 1 ? '' : 's') + (p.uses_conference ? ' · conference-based' : '') + '</div></div>'
+                    + '</div>'
+                    + '<div class="ed-rail">' + cards + '</div>'
+                    + '</div>';
+            },
+
+            renderCard(e, p) {
+                var st = e.stats || {};
+                var isActive = e.status === 'active';
+                var chips = '';
+                if (e.status === 'archived') {
+                    chips = '<div class="ed-chips">'
+                        + (e.talk_library_eligible ? '<span class="ed-chip"><i class="fas fa-clapperboard"></i> In Talk Library</span>' : '')
+                        + (e.moments_tag ? '<span class="ed-chip gold"><i class="fas fa-images"></i> In Moments</span>' : '')
+                        + '<span class="ed-chip" style="background:rgba(148,163,184,.14);color:var(--text-secondary);border-color:var(--border);"><i class="fas fa-lock"></i> ' + (st.registrations || 0) + ' registrations preserved</span>'
+                        + '</div>';
+                }
+                var mini = '<div class="ed-mini">'
+                    + '<span><b>' + (st.registrations || 0) + '</b> registrations</span>'
+                    + '<span><b>' + (st.tickets_valid || 0) + '</b> tickets valid</span>'
+                    + (p.uses_conference ? '<span><b>' + (st.sessions || 0) + '</b> sessions</span>' : '')
+                    + '</div>';
+                var acts = '';
+                if (isActive) {
+                    acts = '<div class="ed-acts">'
+                        + '<button class="btn btn-secondary" onclick="EditionsAdmin.openArchive(\'' + e.id + '\')"><i class="fas fa-box-archive"></i> Archive edition</button>'
+                        + '<button class="btn btn-primary" onclick="EditionsAdmin.openCarryover(\'' + e.id + '\')"><i class="fas fa-arrow-right-long"></i> Start next edition</button>'
+                        + '</div>';
+                } else {
+                    acts = '<div class="ed-acts">'
+                        + '<button class="btn btn-secondary" onclick="EditionsAdmin.viewSnapshot(\'' + e.id + '\')"><i class="fas fa-clock-rotate-left"></i> View snapshot</button>'
+                        + '<button class="btn btn-primary" onclick="EditionsAdmin.openCarryover(\'' + e.id + '\')"><i class="fas fa-arrow-right-long"></i> Start next edition</button>'
+                        + '</div>';
+                }
+                return '<div class="ed-card' + (isActive ? '' : ' archived') + '">'
+                    + '<div class="yr">' + this.esc(e.year || '') + '</div>'
+                    + '<h4>' + this.esc(e.label) + '</h4>'
+                    + '<div class="meta">' + this.esc(this.fmtDate(e.start_date, e.end_date)) + (e.venue ? ' · ' + this.esc(e.venue) : '') + '</div>'
+                    + this.statusBadge(e.status)
+                    + chips
+                    + mini
+                    + acts
+                    + '</div>';
+            },
+
+            // ---------- modal plumbing ----------
+            host() { return document.getElementById('editionsModalHost'); },
+            openModal(html) {
+                var h = this.host();
+                h.innerHTML = '<div class="modal-overlay ed-modal active" onclick="if(event.target===this)EditionsAdmin.closeModal()">' + html + '</div>';
+            },
+            closeModal() { var h = this.host(); if (h) h.innerHTML = ''; },
+
+            // ---------- archive ----------
+            async openArchive(id) {
+                try {
+                    var pv = await this.api('/api/admin/editions/' + id + '/archive-preview', 'POST', {});
+                    this.openModal(this.archiveModalHtml(id, pv));
+                } catch (e) { this.toast(e.message, 'error'); }
+            },
+            archiveModalHtml(id, pv) {
+                var pr = pv.preserved || {};
+                var grid = '<div class="ed-prevgrid">'
+                    + '<div class="c"><div class="n">' + (pr.registrations || 0) + '</div><div class="l">Registrations</div></div>'
+                    + '<div class="c"><div class="n">' + (pr.tickets_valid || 0) + '</div><div class="l">Tickets valid</div></div>'
+                    + '<div class="c"><div class="n">' + (pr.certificates || 0) + '</div><div class="l">Certificates</div></div>'
+                    + '<div class="c"><div class="n">' + (pr.sessions || 0) + '</div><div class="l">Sessions</div></div>'
+                    + '</div>';
+                var notes = (pv.notes || []).map(function (n) { return '<div class="ed-safe"><i class="fas fa-circle-check"></i><span>' + EditionsAdmin.esc(n) + '</span></div>'; }).join('');
+                var rh = pv.routed_to_history || {};
+                var histChips = '<div class="ed-chips" style="margin-top:12px;">'
+                    + '<span class="ed-chip"><i class="fas fa-clapperboard"></i> ' + ((rh.talk_library && rh.talk_library.sessions) || 0) + ' sessions to Talk Library</span>'
+                    + '<span class="ed-chip gold"><i class="fas fa-images"></i> ' + ((rh.moments && rh.moments.photos) || 0) + ' photos to Moments</span>'
+                    + '</div>';
+                return '<div class="modal">'
+                    + '<div class="modal-header"><h3>Archive ' + this.esc(pv.edition.label) + '?</h3><button class="modal-close" onclick="EditionsAdmin.closeModal()"><i class="fas fa-times"></i></button></div>'
+                    + '<div class="modal-body">'
+                    + '<div class="ed-prev"><h5>Dry run — exactly what changes</h5>'
+                    + '<div class="ed-safe"><i class="fas fa-circle-check"></i><span>Status moves from <b>Active</b> to <b>Archived</b>. This is a state change, never a deletion.</span></div>'
+                    + notes + histChips + '</div>'
+                    + '<div class="ed-prev"><h5>Everything below stays exactly as it is</h5>' + grid + '</div>'
+                    + '</div>'
+                    + '<div class="modal-footer" style="display:flex;gap:10px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--border);">'
+                    + '<button class="btn btn-secondary" onclick="EditionsAdmin.closeModal()">Cancel</button>'
+                    + '<button class="btn btn-primary" onclick="EditionsAdmin.confirmArchive(\'' + id + '\')"><i class="fas fa-box-archive"></i> Archive edition</button>'
+                    + '</div></div>';
+            },
+            async confirmArchive(id) {
+                try {
+                    await this.api('/api/admin/editions/' + id + '/archive', 'POST', { confirm: true });
+                    this.closeModal();
+                    this.toast('Edition archived. All tickets and certificates stay valid.', 'success');
+                    this.load();
+                } catch (e) { this.toast(e.message, 'error'); }
+            },
+
+            // ---------- carry-over wizard ----------
+            async openCarryover(id) {
+                try {
+                    var pv = await this.api('/api/admin/editions/' + id + '/carryover-preview', 'POST', {});
+                    this.openModal(this.carryoverModalHtml(id, pv));
+                    this.refreshPreview(id);
+                } catch (e) { this.toast(e.message, 'error'); }
+            },
+            carryoverModalHtml(id, pv) {
+                var df = pv.defaults || {};
+                var prev = pv.preview || {};
+                var src = prev.source || {};
+                var carryMap = {}; (prev.carries || []).forEach(function (c) { carryMap[c.kind] = c; });
+                function tog(kind, title, sub) {
+                    var c = carryMap[kind];
+                    var cnt = c ? c.count : 0;
+                    return '<label class="ed-toggle"><input type="checkbox" id="edCarry_' + kind + '" ' + (c ? 'checked' : '') + ' onchange="EditionsAdmin.refreshPreview(\'' + id + '\')">'
+                        + '<span><span class="t">' + title + '</span><br><span class="s">' + sub + '</span></span>'
+                        + '<span class="cnt">' + cnt + ' on file</span></label>';
+                }
+                var carries = src.project_label !== undefined ? '' : '';
+                var usesConf = prev.will_create && prev.will_create.conference;
+                var carrySection = usesConf
+                    ? (tog('pricing', 'Pricing structure', 'Copy the ticket types and prices') + tog('program', 'Program skeleton', 'Copy the session slots (speakers reset)') + tog('sponsors', 'Sponsor tiers', 'Copy the sponsor list'))
+                    : '<div class="s" style="font-size:12.5px;color:var(--text-muted);">This project carries its dates and settings forward. Pricing and program cloning apply to conference-based editions.</div>';
+                return '<div class="modal">'
+                    + '<div class="modal-header"><h3>Start the next edition</h3><button class="modal-close" onclick="EditionsAdmin.closeModal()"><i class="fas fa-times"></i></button></div>'
+                    + '<div class="modal-body">'
+                    + '<p style="font-size:13px;color:var(--text-muted);margin:0 0 14px;">Rolling on from <b>' + this.esc(src.label || '') + '</b>. The finished edition keeps every registration, ticket and certificate.</p>'
+                    + '<div class="ed-field"><label>New edition name</label><input id="edCoLabel" value="' + this.esc(df.label || '') + '"></div>'
+                    + '<div class="ed-grid2"><div class="ed-field"><label>Start date</label><input type="date" id="edCoStart" value="' + this.esc(df.start_date || '') + '" onchange="EditionsAdmin.refreshPreview(\'' + id + '\')"></div>'
+                    + '<div class="ed-field"><label>End date</label><input type="date" id="edCoEnd" value="' + this.esc(df.end_date || '') + '" onchange="EditionsAdmin.refreshPreview(\'' + id + '\')"></div></div>'
+                    + '<div class="ed-field"><label>Venue</label><input id="edCoVenue" value="' + this.esc(df.venue || '') + '" placeholder="Venue, City"></div>'
+                    + '<div class="ed-prev"><h5>What carries over</h5>' + carrySection + '</div>'
+                    + '<div class="ed-prev"><h5>What resets</h5><div class="ed-resets" id="edCoResets"></div></div>'
+                    + '<div class="ed-prev" id="edCoPreview"><h5>Preview</h5><div id="edCoPreviewBody"></div></div>'
+                    + '</div>'
+                    + '<div class="modal-footer" style="display:flex;gap:10px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--border);">'
+                    + '<button class="btn btn-secondary" onclick="EditionsAdmin.closeModal()">Cancel</button>'
+                    + '<button class="btn btn-primary" onclick="EditionsAdmin.confirmCarryover(\'' + id + '\')"><i class="fas fa-circle-check"></i> Create next edition</button>'
+                    + '</div></div>';
+            },
+            readCarryForm() {
+                var g = function (id) { var el = document.getElementById(id); return el ? el.value : ''; };
+                var c = function (id) { var el = document.getElementById(id); return el ? !!el.checked : true; };
+                return {
+                    label: g('edCoLabel'), start_date: g('edCoStart'), end_date: g('edCoEnd'), venue: g('edCoVenue'),
+                    carry_pricing: c('edCarry_pricing'), carry_program: c('edCarry_program'), carry_sponsors: c('edCarry_sponsors'),
+                    archive_source: true
+                };
+            },
+            async refreshPreview(id) {
+                try {
+                    var ans = this.readCarryForm();
+                    var pv = await this.api('/api/admin/editions/' + id + '/carryover-preview', 'POST', ans);
+                    var prev = pv.preview || {};
+                    var resets = (prev.resets || []).map(function (r) {
+                        var v = (r.to !== undefined) ? (' → ' + EditionsAdmin.esc(r.to)) : (' ' + (r.from || 0) + ' → 0');
+                        return '<span class="ed-reset">' + EditionsAdmin.esc(r.label) + v + '</span>';
+                    }).join('');
+                    var rEl = document.getElementById('edCoResets'); if (rEl) rEl.innerHTML = resets;
+                    var carries = (prev.carries || []);
+                    var carryLine = carries.length
+                        ? carries.map(function (c) { return '<div class="ed-safe"><i class="fas fa-copy" style="color:#0f766e;"></i><span>' + EditionsAdmin.esc(c.label) + ' — <b>' + c.count + '</b> carried</span></div>'; }).join('')
+                        : '<div class="ed-safe"><i class="fas fa-minus" style="color:var(--text-muted);"></i><span>Nothing cloned — a clean slate.</span></div>';
+                    var mp = '<div class="ed-safe"><i class="fas fa-globe" style="color:#9b1b22;"></i><span>' + EditionsAdmin.esc(prev.member_portal || '') + '</span></div>';
+                    var arch = prev.source_will_archive ? '<div class="ed-safe"><i class="fas fa-box-archive" style="color:#8a6d2f;"></i><span>The current edition is archived as part of this step.</span></div>' : '';
+                    var b = document.getElementById('edCoPreviewBody');
+                    if (b) b.innerHTML = carryLine + arch + mp;
+                } catch (e) { var b = document.getElementById('edCoPreviewBody'); if (b) b.innerHTML = '<span style="color:#b91c1c;">' + this.esc(e.message) + '</span>'; }
+            },
+            async confirmCarryover(id) {
+                try {
+                    var ans = this.readCarryForm();
+                    if (!ans.start_date) { this.toast('Please set a start date for the new edition.', 'error'); return; }
+                    ans.confirm = true;
+                    var r = await this.api('/api/admin/editions/' + id + '/carryover', 'POST', ans);
+                    this.closeModal();
+                    this.toast('Next edition created. The member portal now shows it.', 'success');
+                    this.load();
+                } catch (e) { this.toast(e.message, 'error'); }
+            },
+
+            // ---------- snapshot viewer ----------
+            async viewSnapshot(id) {
+                try {
+                    var ed = await this.api('/api/admin/editions/' + id);
+                    var snap = ed.snapshot || {};
+                    var lines = [];
+                    if (snap.captured_at) lines.push('<div class="ed-safe"><i class="fas fa-clock"></i><span>Captured ' + this.esc(new Date(snap.captured_at).toLocaleString()) + '</span></div>');
+                    if (snap.ticket_types) lines.push('<div class="ed-safe"><i class="fas fa-ticket"></i><span><b>' + snap.ticket_types.length + '</b> ticket types preserved</span></div>');
+                    if (snap.sessions) lines.push('<div class="ed-safe"><i class="fas fa-list"></i><span><b>' + snap.sessions.length + '</b> sessions preserved</span></div>');
+                    if (snap.speakers) lines.push('<div class="ed-safe"><i class="fas fa-user"></i><span><b>' + snap.speakers.length + '</b> speakers preserved</span></div>');
+                    if (snap.sponsors) lines.push('<div class="ed-safe"><i class="fas fa-handshake"></i><span><b>' + snap.sponsors.length + '</b> sponsors preserved</span></div>');
+                    var st = ed.stats || {};
+                    this.openModal('<div class="modal"><div class="modal-header"><h3>' + this.esc(ed.label) + ' — snapshot</h3><button class="modal-close" onclick="EditionsAdmin.closeModal()"><i class="fas fa-times"></i></button></div>'
+                        + '<div class="modal-body"><p style="font-size:13px;color:var(--text-muted);margin:0 0 12px;">This edition is archived. Its configuration was captured verbatim and its registrations, tickets and certificates remain valid and exportable.</p>'
+                        + '<div class="ed-prev">' + (lines.join('') || '<span style="color:var(--text-muted);">No snapshot detail.</span>') + '</div>'
+                        + '<div class="ed-prevgrid"><div class="c"><div class="n">' + (st.registrations || 0) + '</div><div class="l">Registrations</div></div><div class="c"><div class="n">' + (st.certificates || 0) + '</div><div class="l">Certificates</div></div></div>'
+                        + '</div>'
+                        + '<div class="modal-footer" style="display:flex;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--border);"><button class="btn btn-secondary" onclick="EditionsAdmin.closeModal()">Close</button></div></div>');
+                } catch (e) { this.toast(e.message, 'error'); }
+            }
+        };
+
+        const AuctionAdmin = {
+            current: null,
+            catalog: [],
+            pollTimer: null,
+            token() { return (window.App && App.token) || localStorage.getItem('medx_token') || localStorage.getItem('token'); },
+            async api(ep, method, body) {
+                const opt = { method: method || 'GET', headers: { 'Authorization': 'Bearer ' + this.token() } };
+                if (body !== undefined && body !== null) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+                const r = await fetch(ep, opt);
+                const d = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(d.error || ('Error ' + r.status));
+                return d;
+            },
+            esc(x) { return (window.escapeHtml ? escapeHtml(String(x == null ? '' : x)) : String(x == null ? '' : x).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; })); },
+            money(v, ccy) { try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: ccy || 'EUR', maximumFractionDigits: 0 }).format(Number(v) || 0); } catch (e) { return (ccy || 'EUR') + ' ' + Math.round(Number(v) || 0); } },
+            badge(s) {
+                const map = { draft: ['#8a827a', 'Draft'], live: ['#1f9d55', 'Live'], paused: ['#b45309', 'Paused'], closed: ['#6b6258', 'Closed'], pending: ['#8a827a', 'Not open'], open: ['#1f9d55', 'Open'], sold: ['#9b1b22', 'Sold'] };
+                const m = map[s] || ['#8a827a', s || ''];
+                return '<span style="display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;padding:3px 9px;border-radius:999px;color:#fff;background:' + m[0] + ';">' + m[1] + '</span>';
+            },
+            payBadge(s) {
+                if (s === 'paid') return '<span style="display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;padding:3px 9px;border-radius:999px;color:#fff;background:#1f9d55;">Paid</span>';
+                if (s === 'pledged') return '<span style="display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;padding:3px 9px;border-radius:999px;color:#fff;background:#b45309;">Pledged</span>';
+                return '';
+            },
+
+            init() { this.showList(); },
+
+            showList() {
+                this.stopPoll();
+                this.current = null;
+                document.getElementById('auctionDetailView').style.display = 'none';
+                document.getElementById('auctionListView').style.display = 'block';
+                document.getElementById('auctionBackToListBtn').style.display = 'none';
+                this.load();
+            },
+
+            async load() {
+                const host = document.getElementById('auctionListView');
+                try {
+                    const d = await this.api('/api/admin/auctions');
+                    this.catalog = d.event_catalog || [];
+                    host.innerHTML = this.renderList(d.auctions || []);
+                } catch (e) { host.innerHTML = '<div style="color:#b91c1c;">' + this.esc(e.message) + '</div>'; }
+            },
+
+            renderList(auctions) {
+                const opts = this.catalog.map(function (c) { return '<option value="' + c.key + '">' + c.name + '</option>'; }).join('');
+                let cards = '';
+                if (!auctions.length) {
+                    cards = '<div style="text-align:center;padding:40px 20px;color:var(--text-muted);"><i class="fas fa-gavel" style="font-size:30px;color:#d8d0c6;margin-bottom:12px;"></i><div>No auctions yet. Create your first one above.</div></div>';
+                } else {
+                    cards = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">' + auctions.map((a) => {
+                        return '<div class="card" style="padding:16px;cursor:pointer;" onclick="AuctionAdmin.open(\'' + a.id + '\')">'
+                            + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">'
+                            + '<div style="font-family:Fraunces,Georgia,serif;font-size:18px;font-weight:600;">' + this.esc(a.title) + '</div>' + this.badge(a.status) + '</div>'
+                            + (a.event_name ? '<div style="font-size:12px;color:#8a6d2f;font-weight:600;margin-bottom:8px;"><i class="fas fa-calendar-day"></i> ' + this.esc(a.event_name) + '</div>' : '')
+                            + '<div style="font-size:13px;color:var(--text-muted);">' + a.item_count + ' lot' + (a.item_count === 1 ? '' : 's') + ' &middot; ' + a.sold_count + ' sold</div>'
+                            + '</div>';
+                    }).join('') + '</div>';
+                }
+                return '<div class="card" style="padding:18px;margin-bottom:18px;">'
+                    + '<div style="font-weight:700;font-size:15px;margin-bottom:12px;"><i class="fas fa-plus-circle" style="color:#c9a962;"></i> New auction</div>'
+                    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+                    + '<div style="grid-column:1/-1;"><label style="font-size:12px;font-weight:600;color:var(--text-muted);">Title</label><input id="acNewTitle" class="form-input" placeholder="Gala Charity Auction" style="width:100%;"></div>'
+                    + '<div style="grid-column:1/-1;"><label style="font-size:12px;font-weight:600;color:var(--text-muted);">Subtitle (optional)</label><input id="acNewSubtitle" class="form-input" placeholder="An evening in support of Med&amp;X" style="width:100%;"></div>'
+                    + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);">Attach to event</label><select id="acNewEvent" class="form-input" style="width:100%;" onchange="AuctionAdmin.onEventChange()"><option value="">Not attached</option>' + opts + '<option value="__custom">Other (type a name)</option></select></div>'
+                    + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);">Custom event name</label><input id="acNewEventName" class="form-input" placeholder="e.g. Anniversary Dinner" style="width:100%;" disabled></div>'
+                    + '</div>'
+                    + '<div style="margin-top:14px;"><button class="btn btn-primary" onclick="AuctionAdmin.create()"><i class="fas fa-gavel"></i> Create auction</button></div>'
+                    + '</div>'
+                    + cards;
+            },
+
+            onEventChange() {
+                const sel = document.getElementById('acNewEvent');
+                const nameField = document.getElementById('acNewEventName');
+                nameField.disabled = (sel.value !== '__custom');
+                if (sel.value !== '__custom') nameField.value = '';
+            },
+
+            async create() {
+                const title = (document.getElementById('acNewTitle').value || '').trim();
+                if (!title) { Toast.error('Please enter a title.'); return; }
+                const subtitle = (document.getElementById('acNewSubtitle').value || '').trim();
+                const evSel = document.getElementById('acNewEvent').value;
+                let event_key = '', event_name = '';
+                if (evSel === '__custom') { event_name = (document.getElementById('acNewEventName').value || '').trim(); }
+                else if (evSel) { event_key = evSel; }
+                try {
+                    const d = await this.api('/api/admin/auctions', 'POST', { title: title, subtitle: subtitle, event_key: event_key, event_name: event_name });
+                    Toast.success('Auction created.');
+                    this.open(d.auction.id);
+                } catch (e) { Toast.error(e.message); }
+            },
+
+            async open(id) {
+                this.stopPoll();
+                try {
+                    const d = await this.api('/api/admin/auctions/' + id);
+                    this.current = d;
+                    document.getElementById('auctionListView').style.display = 'none';
+                    document.getElementById('auctionDetailView').style.display = 'block';
+                    document.getElementById('auctionBackToListBtn').style.display = 'inline-flex';
+                    this.renderDetail(d);
+                    this.startPoll();
+                } catch (e) { Toast.error(e.message); }
+            },
+
+            startPoll() { this.stopPoll(); this.pollTimer = setInterval(() => { this.refresh(); }, 4000); },
+            stopPoll() { if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; } },
+
+            async refresh() {
+                if (!this.current) return;
+                if (document.getElementById('auctionModal')) return; // do not re-render under an open modal
+                try {
+                    const d = await this.api('/api/admin/auctions/' + this.current.auction.id);
+                    this.current = d;
+                    this.renderDetail(d);
+                } catch (e) { /* transient */ }
+            },
+
+            renderDetail(d) {
+                const a = d.auction, s = d.stats;
+                const ccy = (d.items[0] && d.items[0].currency) || 'EUR';
+                const base = d.public_url;
+                let ctrl = '';
+                if (a.status === 'live') ctrl += '<button class="btn btn-secondary" onclick="AuctionAdmin.setStatus(\'paused\')"><i class="fas fa-pause"></i> Pause bidding</button>';
+                if (a.status === 'paused') ctrl += '<button class="btn btn-primary" onclick="AuctionAdmin.setStatus(\'live\')"><i class="fas fa-play"></i> Resume bidding</button>';
+                if (a.status === 'live' || a.status === 'paused') ctrl += '<button class="btn btn-secondary" onclick="AuctionAdmin.setStatus(\'closed\')"><i class="fas fa-flag-checkered"></i> Close auction</button>';
+
+                const items = d.items.map((it) => this.renderItem(it, a)).join('');
+
+                document.getElementById('auctionDetailView').innerHTML =
+                    '<div class="card" style="padding:20px;margin-bottom:16px;">'
+                    + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">'
+                    + '<div><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><h2 style="font-family:Fraunces,Georgia,serif;font-size:24px;font-weight:600;">' + this.esc(a.title) + '</h2>' + this.badge(a.status) + '</div>'
+                    + (a.subtitle ? '<div style="color:var(--text-muted);font-size:14px;margin-top:3px;">' + this.esc(a.subtitle) + '</div>' : '')
+                    + (a.event_name ? '<div style="font-size:12.5px;color:#8a6d2f;font-weight:600;margin-top:6px;"><i class="fas fa-calendar-day"></i> ' + this.esc(a.event_name) + '</div>' : '')
+                    + '</div>'
+                    + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+                    + '<button class="btn btn-secondary" onclick="AuctionAdmin.showQR()"><i class="fas fa-qrcode"></i> Links &amp; QR</button>'
+                    + '<button class="btn btn-secondary" onclick="AuctionAdmin.openSettings()"><i class="fas fa-sliders-h"></i> Settings</button>'
+                    + '</div></div>'
+                    + '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">' + ctrl + '</div>'
+                    + '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px;background:var(--bg-primary);border:1px solid var(--border);border-radius:10px;padding:11px 13px;">'
+                    + '<div style="font-size:12.5px;"><span style="color:var(--text-muted);">Bidding page </span><a href="' + this.esc(base) + '" target="_blank" style="color:var(--accent-gold);font-weight:600;">' + this.esc(base) + '</a></div>'
+                    + '<button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="AuctionAdmin.copy(\'' + this.esc(base) + '\', this)">Copy</button>'
+                    + '<a class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" href="' + this.esc(d.display_url) + '" target="_blank"><i class="fas fa-desktop"></i> Open display</a>'
+                    + '</div>'
+                    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-top:16px;">'
+                    + this.stat(s.item_count, 'Lots') + this.stat(s.sold, 'Sold') + this.stat(this.money(s.total_pledged, ccy), 'Pledged') + this.stat(this.money(s.total_paid, ccy), 'Received')
+                    + '</div></div>'
+                    + '<div class="card" style="padding:18px;margin-bottom:16px;">'
+                    + '<div style="font-weight:700;font-size:15px;margin-bottom:12px;"><i class="fas fa-plus-circle" style="color:#c9a962;"></i> Add a lot</div>'
+                    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+                    + '<div style="grid-column:1/-1;"><label style="font-size:12px;font-weight:600;color:var(--text-muted);">Lot title</label><input id="acItTitle" class="form-input" style="width:100%;" placeholder="Signed first edition"></div>'
+                    + '<div style="grid-column:1/-1;"><label style="font-size:12px;font-weight:600;color:var(--text-muted);">Story (optional)</label><textarea id="acItStory" class="form-input" rows="2" style="width:100%;" placeholder="A few lines about this lot"></textarea></div>'
+                    + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);">Starting bid</label><input id="acItStart" class="form-input" type="number" min="0" value="50" style="width:100%;"></div>'
+                    + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);">Minimum increment</label><input id="acItInc" class="form-input" type="number" min="1" value="10" style="width:100%;"></div>'
+                    + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);">Currency</label><input id="acItCcy" class="form-input" value="EUR" style="width:100%;"></div>'
+                    + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);">Photo</label><input id="acItPhoto" type="file" accept="image/*" onchange="AuctionAdmin.pickPhoto(this)" style="width:100%;font-size:12px;"><input type="hidden" id="acItPhotoUrl"><span id="acItPhotoMsg" style="font-size:11px;color:var(--text-muted);"></span></div>'
+                    + '</div>'
+                    + '<div style="margin-top:14px;"><button class="btn btn-primary" onclick="AuctionAdmin.addItem()"><i class="fas fa-plus"></i> Add lot</button></div>'
+                    + '</div>'
+                    + (items || '<div style="text-align:center;padding:26px;color:var(--text-muted);">No lots yet. Add one above, then open it for bidding.</div>');
+            },
+
+            stat(v, label) { return '<div class="stat-item"><div class="stat-value" style="font-size:22px;">' + v + '</div><div class="stat-label">' + label + '</div></div>'; },
+
+            renderItem(it, a) {
+                const ccy = it.currency || 'EUR';
+                const activeTag = it.is_active ? '<span style="font-size:10.5px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:#c9a962;margin-left:8px;"><i class="fas fa-circle" style="font-size:7px;"></i> On screen</span>' : '';
+                let controls = '';
+                if (it.status !== 'sold') {
+                    if (it.status !== 'open') controls += '<button class="btn btn-primary" style="font-size:12px;padding:6px 12px;" onclick="AuctionAdmin.itemStatus(\'' + it.id + '\',\'open\')"><i class="fas fa-play"></i> Open bidding</button>';
+                    if (it.status === 'open') { controls += '<button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="AuctionAdmin.itemStatus(\'' + it.id + '\',\'paused\')"><i class="fas fa-pause"></i> Pause</button>'; controls += '<button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="AuctionAdmin.itemStatus(\'' + it.id + '\',\'closed\')"><i class="fas fa-flag-checkered"></i> Close lot</button>'; }
+                    if (it.status === 'open') controls += '<button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="AuctionAdmin.openStaffBid(\'' + it.id + '\')"><i class="fas fa-hand-paper"></i> Paddle bid</button>';
+                    if (it.bid_count > 0) controls += '<button class="btn btn-primary" style="font-size:12px;padding:6px 12px;background:linear-gradient(135deg,#9b1b22,#7e151b);border:none;" onclick="AuctionAdmin.openConfirmWinner(\'' + it.id + '\',' + (it.current_highest || 0) + ')"><i class="fas fa-trophy"></i> Confirm winner</button>';
+                    controls += '<button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;color:#b91c1c;" onclick="AuctionAdmin.delItem(\'' + it.id + '\')">Delete</button>';
+                }
+                let sold = '';
+                if (it.status === 'sold') {
+                    sold = '<div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:10px;">'
+                        + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">'
+                        + '<div><div style="font-size:12px;color:var(--text-muted);">Winner</div><div style="font-weight:600;">' + this.esc(it.winner_name || '(paddle)') + ' &middot; ' + this.esc(it.winner_email || '') + '</div></div>'
+                        + '<div style="text-align:right;"><div style="font-family:Fraunces,Georgia,serif;font-size:20px;font-weight:700;">' + this.money(it.final_amount, ccy) + '</div>' + this.payBadge(it.payment_status) + '</div>'
+                        + '</div>'
+                        + '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">'
+                        + (it.payment_status === 'pledged' ? '<button class="btn btn-primary" style="font-size:12px;padding:6px 12px;" onclick="AuctionAdmin.markPaid(\'' + it.id + '\')"><i class="fas fa-check"></i> Mark paid</button>' : '')
+                        + (it.payment_status === 'pledged' ? '<button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="AuctionAdmin.remind(\'' + it.id + '\')"><i class="fas fa-bell"></i> Send reminder' + (it.reminder_count ? ' (' + it.reminder_count + ')' : '') + '</button>' : '')
+                        + '</div></div>';
+                }
+                const bids = (it.bids || []).map((b) => {
+                    const who = b.bidder_name || (b.paddle ? '#' + b.paddle : '(anonymous)');
+                    const voided = b.status === 'void';
+                    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid var(--border);font-size:13px;' + (voided ? 'opacity:0.45;text-decoration:line-through;' : '') + '">'
+                        + '<span>' + this.esc(who) + ' <span style="font-size:10px;color:var(--text-muted);text-transform:uppercase;">' + (b.source === 'staff' ? 'paddle' : 'table') + '</span></span>'
+                        + '<span style="display:flex;align-items:center;gap:8px;"><b>' + this.money(b.amount, ccy) + '</b>'
+                        + (!voided ? '<button class="btn btn-secondary" style="font-size:10px;padding:2px 8px;color:#b91c1c;" onclick="AuctionAdmin.voidBid(\'' + b.id + '\')">Void</button>' : '<span style="font-size:10px;color:var(--text-muted);">voided</span>')
+                        + '</span></div>';
+                }).join('');
+                const cur = it.current_highest != null ? this.money(it.current_highest, ccy) : (it.starting_bid ? this.money(it.starting_bid, ccy) + ' start' : '—');
+                return '<div class="card" style="padding:16px;margin-bottom:12px;">'
+                    + '<div style="display:flex;gap:14px;flex-wrap:wrap;">'
+                    + (it.photo_url ? '<img src="' + this.esc(it.photo_url) + '" alt="" style="width:110px;height:82px;object-fit:cover;border-radius:10px;background:#f3efe9;">' : '')
+                    + '<div style="flex:1;min-width:200px;">'
+                    + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="font-family:Fraunces,Georgia,serif;font-size:18px;font-weight:600;">' + this.esc(it.title) + '</span>' + this.badge(it.status) + activeTag + '</div>'
+                    + (it.story ? '<div style="font-size:13px;color:var(--text-muted);margin-top:4px;">' + this.esc(it.story) + '</div>' : '')
+                    + '<div style="font-size:12.5px;color:var(--text-muted);margin-top:6px;">Start ' + this.money(it.starting_bid, ccy) + ' &middot; increment ' + this.money(it.min_increment, ccy) + '</div>'
+                    + '<div style="margin-top:8px;"><span style="font-size:12px;color:var(--text-muted);">Current </span><span style="font-family:Fraunces,Georgia,serif;font-size:22px;font-weight:700;">' + cur + '</span>' + (it.current_bidder ? ' <span style="font-size:12.5px;color:#8a6d2f;">— ' + this.esc(it.current_bidder) + '</span>' : '') + '</div>'
+                    + '</div></div>'
+                    + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">' + controls + '</div>'
+                    + sold
+                    + (bids ? '<div style="margin-top:12px;"><div style="font-size:11px;letter-spacing:0.6px;text-transform:uppercase;color:var(--text-muted);font-weight:700;margin-bottom:4px;">Bids (' + it.bid_count + ' active)</div>' + bids + '</div>' : '')
+                    + '</div>';
+            },
+
+            async setStatus(status) {
+                try { const d = await this.api('/api/admin/auctions/' + this.current.auction.id, 'PUT', { status: status }); this.current = d; this.renderDetail(d); Toast.success('Auction ' + status + '.'); } catch (e) { Toast.error(e.message); }
+            },
+            async itemStatus(itemId, status) {
+                try { const d = await this.api('/api/admin/auctions/' + this.current.auction.id + '/items/' + itemId + '/status', 'POST', { status: status }); this.current = d; this.renderDetail(d); } catch (e) { Toast.error(e.message); }
+            },
+            async addItem() {
+                const title = (document.getElementById('acItTitle').value || '').trim();
+                if (!title) { Toast.error('Enter a lot title.'); return; }
+                const body = { title: title, story: (document.getElementById('acItStory').value || '').trim(), starting_bid: Number(document.getElementById('acItStart').value) || 0, min_increment: Number(document.getElementById('acItInc').value) || 10, currency: (document.getElementById('acItCcy').value || 'EUR').trim(), photo_url: document.getElementById('acItPhotoUrl').value || '' };
+                try { await this.api('/api/admin/auctions/' + this.current.auction.id + '/items', 'POST', body); Toast.success('Lot added.'); this.refresh(); } catch (e) { Toast.error(e.message); }
+            },
+            async pickPhoto(input) {
+                if (!input.files || !input.files[0]) return;
+                const msg = document.getElementById('acItPhotoMsg'); msg.textContent = 'Uploading...';
+                const fd = new FormData(); fd.append('file', input.files[0]);
+                try {
+                    const r = await fetch('/api/upload/photos', { method: 'POST', headers: { 'Authorization': 'Bearer ' + this.token() }, body: fd });
+                    const d = await r.json();
+                    if (!r.ok) throw new Error(d.error || 'Upload failed');
+                    document.getElementById('acItPhotoUrl').value = d.file_url;
+                    msg.textContent = 'Photo ready';
+                } catch (e) { msg.textContent = e.message; }
+            },
+            async voidBid(bidId) {
+                if (!confirm('Void this bid? It will no longer count toward the current price.')) return;
+                try { await this.api('/api/admin/auctions/' + this.current.auction.id + '/bids/' + bidId + '/void', 'POST', {}); this.refresh(); } catch (e) { Toast.error(e.message); }
+            },
+            async markPaid(itemId) {
+                try { await this.api('/api/admin/auctions/' + this.current.auction.id + '/items/' + itemId + '/mark-paid', 'POST', {}); Toast.success('Marked as paid.'); this.refresh(); } catch (e) { Toast.error(e.message); }
+            },
+            async remind(itemId) {
+                try { const d = await this.api('/api/admin/auctions/' + this.current.auction.id + '/items/' + itemId + '/remind', 'POST', {}); Toast.success('Reminder staged in the outbox for your approval.'); this.refresh(); } catch (e) { Toast.error(e.message); }
+            },
+            async delItem(itemId) {
+                if (!confirm('Delete this lot and its bids?')) return;
+                try { await this.api('/api/admin/auctions/' + this.current.auction.id + '/items/' + itemId, 'DELETE'); this.refresh(); } catch (e) { Toast.error(e.message); }
+            },
+
+            // ---- modals ----
+            modal(inner) {
+                this.closeModal();
+                const ov = document.createElement('div');
+                ov.id = 'auctionModal';
+                ov.style.cssText = 'position:fixed;inset:0;background:rgba(21,17,15,0.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;';
+                ov.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:480px;width:100%;max-height:88vh;overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,0.3);">' + inner + '</div>';
+                ov.addEventListener('click', function (e) { if (e.target === ov) AuctionAdmin.closeModal(); });
+                document.body.appendChild(ov);
+            },
+            closeModal() { const m = document.getElementById('auctionModal'); if (m) m.remove(); },
+
+            openStaffBid(itemId) {
+                const it = (this.current.items || []).find(function (x) { return x.id === itemId; });
+                if (!it) return;
+                const min = it.min_next;
+                this.modal('<div style="padding:22px;">'
+                    + '<h3 style="font-family:Fraunces,Georgia,serif;font-size:20px;font-weight:600;margin-bottom:4px;">Paddle bid</h3>'
+                    + '<div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">' + this.esc(it.title) + ' &middot; minimum ' + this.money(min, it.currency) + '</div>'
+                    + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);">Bidder name</label><input id="acSbName" class="form-input" style="width:100%;margin-bottom:10px;" placeholder="Name">'
+                    + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);">Table or paddle number</label><input id="acSbPaddle" class="form-input" style="width:100%;margin-bottom:10px;" placeholder="e.g. 12">'
+                    + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);">Amount</label><input id="acSbAmount" class="form-input" type="number" min="0" value="' + min + '" style="width:100%;margin-bottom:16px;">'
+                    + '<div style="display:flex;gap:8px;justify-content:flex-end;"><button class="btn btn-secondary" onclick="AuctionAdmin.closeModal()">Cancel</button><button class="btn btn-primary" onclick="AuctionAdmin.submitStaffBid(\'' + itemId + '\')"><i class="fas fa-hand-paper"></i> Add bid</button></div>'
+                    + '</div>');
+            },
+            async submitStaffBid(itemId) {
+                const body = { item_id: itemId, bidder_name: (document.getElementById('acSbName').value || '').trim(), paddle: (document.getElementById('acSbPaddle').value || '').trim(), amount: Number(document.getElementById('acSbAmount').value) };
+                try { await this.api('/api/admin/auctions/' + this.current.auction.id + '/bids', 'POST', body); this.closeModal(); Toast.success('Bid recorded.'); this.refresh(); } catch (e) { Toast.error(e.message); }
+            },
+
+            openConfirmWinner(itemId, amount) {
+                const it = (this.current.items || []).find(function (x) { return x.id === itemId; });
+                if (!it) return;
+                const hasBank = !!(this.current.auction.bank_details && String(this.current.auction.bank_details).trim());
+                this.modal('<div style="padding:22px;">'
+                    + '<h3 style="font-family:Fraunces,Georgia,serif;font-size:20px;font-weight:600;margin-bottom:4px;">Confirm the winner</h3>'
+                    + '<div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">' + this.esc(it.title) + ' &middot; winning bid ' + this.money(it.current_highest || amount, it.currency) + (it.current_bidder ? ' &middot; ' + this.esc(it.current_bidder) : '') + '</div>'
+                    + (hasBank ? '' : '<div style="background:#fdf6e3;border:1px solid #e6d29a;border-radius:10px;padding:11px 13px;font-size:12.5px;color:#8a6d2f;margin-bottom:14px;"><i class="fas fa-triangle-exclamation"></i> No bank transfer details are set for this auction. The donation email will include a placeholder block. Add the details in Settings so the winner knows where to send the gift.</div>')
+                    + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);">Winner email (for the donation request)</label><input id="acCwEmail" class="form-input" type="email" style="width:100%;margin-bottom:16px;" placeholder="name@example.com">'
+                    + '<div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">The winner receives a warm bilingual donation email with the amount and bank transfer details. It is staged in the outbox for your approval — nothing sends until you approve it.</div>'
+                    + '<div style="display:flex;gap:8px;justify-content:flex-end;"><button class="btn btn-secondary" onclick="AuctionAdmin.closeModal()">Cancel</button><button class="btn btn-primary" style="background:linear-gradient(135deg,#9b1b22,#7e151b);border:none;" onclick="AuctionAdmin.submitConfirmWinner(\'' + itemId + '\')"><i class="fas fa-trophy"></i> Confirm &amp; stage email</button></div>'
+                    + '</div>');
+            },
+            async submitConfirmWinner(itemId) {
+                const email = (document.getElementById('acCwEmail').value || '').trim();
+                if (!email) { Toast.error('Enter the winner email.'); return; }
+                try {
+                    const d = await this.api('/api/admin/auctions/' + this.current.auction.id + '/items/' + itemId + '/confirm-winner', 'POST', { email: email });
+                    this.closeModal();
+                    Toast.success('Winner confirmed. Donation email staged in the outbox' + (d.bank_missing ? ' (with a placeholder for bank details)' : '') + '.');
+                    this.refresh();
+                } catch (e) { Toast.error(e.message); }
+            },
+
+            openSettings() {
+                const a = this.current.auction;
+                this.modal('<div style="padding:22px;">'
+                    + '<h3 style="font-family:Fraunces,Georgia,serif;font-size:20px;font-weight:600;margin-bottom:14px;">Auction settings</h3>'
+                    + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);">Title</label><input id="acStTitle" class="form-input" style="width:100%;margin-bottom:10px;" value="' + this.esc(a.title) + '">'
+                    + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);">Subtitle</label><input id="acStSubtitle" class="form-input" style="width:100%;margin-bottom:10px;" value="' + this.esc(a.subtitle || '') + '">'
+                    + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);">Event name</label><input id="acStEvent" class="form-input" style="width:100%;margin-bottom:10px;" value="' + this.esc(a.event_name || '') + '" placeholder="Attach to any event">'
+                    + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);">Accent colour</label><input id="acStAccent" class="form-input" type="color" style="width:70px;height:38px;padding:2px;margin-bottom:10px;display:block;" value="' + this.esc(a.theme_accent || '#9b1b22') + '">'
+                    + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);">Donation purpose line (shown in the winner email)</label><textarea id="acStNote" class="form-input" rows="2" style="width:100%;margin-bottom:10px;" placeholder="Your gift supports the Med&amp;X mission.">' + this.esc(a.donation_note || '') + '</textarea>'
+                    + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);">Bank transfer details (for the donation email)</label><textarea id="acStBank" class="form-input" rows="4" style="width:100%;margin-bottom:6px;" placeholder="Account holder\nIBAN\nReference / model">' + this.esc(a.bank_details || '') + '</textarea>'
+                    + '<div style="font-size:11.5px;color:var(--text-muted);margin-bottom:16px;">Leave empty to fill later. The winner email will hold a placeholder until you add these.</div>'
+                    + '<div style="display:flex;gap:8px;justify-content:space-between;align-items:center;"><button class="btn btn-secondary" style="color:#b91c1c;" onclick="AuctionAdmin.del()"><i class="fas fa-trash"></i> Delete auction</button>'
+                    + '<div style="display:flex;gap:8px;"><button class="btn btn-secondary" onclick="AuctionAdmin.closeModal()">Cancel</button><button class="btn btn-primary" onclick="AuctionAdmin.saveSettings()"><i class="fas fa-check"></i> Save</button></div></div>'
+                    + '</div>');
+            },
+            async saveSettings() {
+                const body = { title: (document.getElementById('acStTitle').value || '').trim(), subtitle: (document.getElementById('acStSubtitle').value || '').trim(), event_name: (document.getElementById('acStEvent').value || '').trim(), theme_accent: document.getElementById('acStAccent').value, donation_note: (document.getElementById('acStNote').value || '').trim(), bank_details: (document.getElementById('acStBank').value || '').trim() };
+                try { const d = await this.api('/api/admin/auctions/' + this.current.auction.id, 'PUT', body); this.current = d; this.closeModal(); this.renderDetail(d); Toast.success('Settings saved.'); } catch (e) { Toast.error(e.message); }
+            },
+            async del() {
+                if (!confirm('Delete this entire auction, its lots and bids? This cannot be undone.')) return;
+                try { await this.api('/api/admin/auctions/' + this.current.auction.id, 'DELETE'); this.closeModal(); Toast.success('Auction deleted.'); this.showList(); } catch (e) { Toast.error(e.message); }
+            },
+
+            async showQR() {
+                this.modal('<div style="padding:22px;text-align:center;"><div style="color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading...</div></div>');
+                try {
+                    const d = await this.api('/api/admin/auctions/' + this.current.auction.id + '/qr');
+                    this.modal('<div style="padding:22px;">'
+                        + '<h3 style="font-family:Fraunces,Georgia,serif;font-size:20px;font-weight:600;margin-bottom:14px;">Links &amp; QR codes</h3>'
+                        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">'
+                        + '<div style="text-align:center;"><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);margin-bottom:8px;">Table bidding</div><img src="' + d.bid_qr + '" alt="" style="width:100%;max-width:200px;border:1px solid var(--border);border-radius:10px;"><div style="margin-top:8px;"><button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="AuctionAdmin.copy(\'' + this.esc(d.bid_url) + '\', this)">Copy link</button></div></div>'
+                        + '<div style="text-align:center;"><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);margin-bottom:8px;">Big-screen display</div><img src="' + d.display_qr + '" alt="" style="width:100%;max-width:200px;border:1px solid var(--border);border-radius:10px;"><div style="margin-top:8px;"><a class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" href="' + this.esc(d.display_url) + '" target="_blank">Open display</a></div></div>'
+                        + '</div>'
+                        + '<div style="font-size:12px;color:var(--text-muted);margin-top:16px;">Print the table QR for guests to bid from their phones. Open the display on the projector — it advances automatically as you switch the live lot.</div>'
+                        + '<div style="text-align:right;margin-top:16px;"><button class="btn btn-secondary" onclick="AuctionAdmin.closeModal()">Close</button></div>'
+                        + '</div>');
+                } catch (e) { this.closeModal(); Toast.error(e.message); }
+            },
+
+            copy(text, btn) {
+                navigator.clipboard.writeText(text).then(function () { if (btn) { const o = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = o; }, 1400); } }).catch(function () { Toast.error('Could not copy'); });
+            }
+        };
+        window.AuctionAdmin = AuctionAdmin;
+
         // ===== APPROVAL OUTBOX (all pending batches, source-engine agnostic) =====
         const PendingOutbox = {
             LABELS: {
                 'network-outreach': 'My Network outreach', 'assistant-reminder': 'Assistant reminder',
                 'gala-guest-msg': 'Gala guest message', 'gala-program': 'Gala program',
                 'confirm-seat': 'Seat confirmation', 'post-event': 'Post-event', 'newsletter': 'Newsletter',
-                'sponsor-lifecycle': 'Sponsor wrap', 'nag-digest': 'Team digest', 'outlook-reply': 'Inbox reply', 'weekly-pulse': 'Weekly pulse'
+                'sponsor-lifecycle': 'Sponsor wrap', 'nag-digest': 'Team digest', 'outlook-reply': 'Inbox reply', 'weekly-pulse': 'Weekly pulse',
+                'auction-winner': 'Auction winner', 'auction-reminder': 'Auction reminder'
             },
             label(s) { return this.LABELS[s] || String(s || 'batch').replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); },
             async api(ep, o = {}) {

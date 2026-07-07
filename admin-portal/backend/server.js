@@ -4015,6 +4015,106 @@ async function initializeApp() {
     try { db.run("ALTER TABLE nag_items ADD COLUMN claimed_by_name TEXT"); } catch (e) { /* column exists */ }
     try { db.run("ALTER TABLE nag_items ADD COLUMN claimed_at TEXT"); } catch (e) { /* column exists */ }
 
+    // ============ LIVE AUCTION ENGINE (ADMIN-ONLY, event-agnostic) ============
+    // A reusable charity-auction capability: the admin creates an auction, attaches it to ANY event
+    // (event_key/event_name is a neutral reference — Gala is only the first user, never hardcoded),
+    // adds items, opens/pauses/closes bidding, takes bids from a zero-login public page (QR on tables)
+    // AND from staff paddle entry, both flowing through ONE server-validated bid stream. When an item
+    // sells the admin confirms the winning bid and a warm bilingual DONATION email is staged in the
+    // EXISTING approval outbox (bank-transfer details, NOT card checkout — the frozen Stripe surfaces
+    // stay untouched). Pledged -> paid is tracked and an unpaid reminder rides the existing drip_log.
+    // These tables live OUTSIDE the SCHEMA-MIRROR block by design — the user portal never reads or
+    // writes them; the shared Turso DB gets them on admin boot. NOTHING here is ever deleted in prod
+    // beyond an admin removing a draft: an auction is closed (a state change), never destroyed.
+    db.run(`CREATE TABLE IF NOT EXISTS auctions (
+        id TEXT PRIMARY KEY,
+        token TEXT UNIQUE NOT NULL,
+        event_key TEXT,
+        event_name TEXT,
+        theme_accent TEXT DEFAULT '#9b1b22',
+        title TEXT NOT NULL,
+        subtitle TEXT,
+        status TEXT DEFAULT 'draft',
+        bank_details TEXT,
+        donation_note TEXT,
+        active_item_id TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS auction_items (
+        id TEXT PRIMARY KEY,
+        auction_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        story TEXT,
+        photo_url TEXT,
+        starting_bid REAL DEFAULT 0,
+        min_increment REAL DEFAULT 10,
+        currency TEXT DEFAULT 'EUR',
+        status TEXT DEFAULT 'pending',
+        sort_order INTEGER DEFAULT 0,
+        winning_bid_id TEXT,
+        winner_name TEXT,
+        winner_email TEXT,
+        final_amount REAL,
+        payment_status TEXT DEFAULT 'none',
+        confirmed_at TEXT,
+        paid_at TEXT,
+        reminder_count INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS auction_bids (
+        id TEXT PRIMARY KEY,
+        auction_id TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        bidder_name TEXT,
+        paddle TEXT,
+        amount REAL NOT NULL,
+        source TEXT DEFAULT 'public',
+        status TEXT DEFAULT 'active',
+        ip TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_auction_bids_item ON auction_bids(item_id, status)'); } catch (e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_auction_items_auction ON auction_items(auction_id)'); } catch (e) {}
+
+    // ============ EVENT EDITION CYCLING (queue 5a5d) — ADMIN-ONLY ============
+    // Registry + history overlay over the existing event tables. Every recurring Med&X
+    // project (Plexus, Building Bridges, Forum, Accelerator, Gala) runs yearly EDITIONS.
+    // event_editions holds ONE row per edition; the ACTIVE edition's live config still lives
+    // in the existing tables (conferences / plexus_page_settings / ticket_types / sessions /
+    // speakers) — this table never forks that data. Archiving is a STATE CHANGE
+    // (status active -> archived) that snapshots the then-current config into
+    // config_snapshot_json for history and flags the edition for the Talk Library + Moments
+    // history surfaces; it NEVER deletes a registration, ticket, certificate or purchase, so
+    // every issued QR keeps validating through the untouched scanner path. Carry-over creates
+    // the NEXT edition as a fresh ACTIVE row (new conference the member portal picks up
+    // automatically) and clones only what the admin chooses to carry. Lives OUTSIDE the
+    // SCHEMA-MIRROR block by design — editions are admin-only; the user portal reads the
+    // ACTIVE config from the existing tables, never from here.
+    db.run(`CREATE TABLE IF NOT EXISTS event_editions (
+        id TEXT PRIMARY KEY,
+        project TEXT NOT NULL,
+        edition_key TEXT UNIQUE,
+        label TEXT,
+        status TEXT DEFAULT 'active',
+        start_date TEXT,
+        end_date TEXT,
+        venue TEXT,
+        conference_id TEXT,
+        talk_library_eligible INTEGER DEFAULT 0,
+        moments_tag TEXT,
+        config_snapshot_json TEXT,
+        carried_from TEXT,
+        is_seed INTEGER DEFAULT 0,
+        archived_at TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_event_editions_project ON event_editions(project, status)'); } catch (e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_event_editions_key ON event_editions(edition_key)'); } catch (e) {}
+
     // ============ BIOMEDICAL FORUM — CANDIDATE PIPELINE (ADMIN-ONLY) ============
     // The member-acquisition machine. The owner's worldwide list of Croatians in biomedicine is
     // imported here, each candidate gets an AI dossier (aiDraft, deterministic fallback), verified
@@ -24969,6 +25069,1194 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             if (!events.length) return res.status(404).send(comboNoticePage('This invitation link is not active', 'Please reach out to the Med&X team for a current invitation.'));
             return res.send(comboInvitePage(row, events));
         } catch (e) { console.error('[combo page]', e.message); return res.status(500).send(comboNoticePage('Something went wrong', 'Please try again in a moment.')); }
+    });
+
+    // ============================================================================
+    // LIVE AUCTION ENGINE (queue 5a5f) — event-agnostic, admin-served public pages
+    // ----------------------------------------------------------------------------
+    // Admin builds auctions + items, opens/pauses/closes bidding, takes bids from a
+    // zero-login public page (QR on tables) and from staff paddle entry — ONE
+    // server-validated bid stream. A premium big-screen display polls live. On sale
+    // the admin confirms the winning bid and a bilingual DONATION email (bank
+    // transfer, NOT card checkout) is staged in the EXISTING approval outbox. Neutral
+    // naming throughout: this is "auction", attachable to ANY event, never gala_*.
+    // ============================================================================
+    const AUCTION_EVENT_CATALOG = [
+        { key: 'gala', name: 'Gala Evening' },
+        { key: 'donor', name: 'Donor Night' },
+        { key: 'bridges', name: 'Building Bridges' },
+        { key: 'conference', name: 'Plexus Conference' }
+    ];
+
+    function auctionPublicBase() {
+        return (process.env.RENDER_EXTERNAL_URL || process.env.ADMIN_PORTAL_URL || ('http://localhost:' + (process.env.PORT || 3002))).replace(/\/+$/, '');
+    }
+    function auctionMoney(amount, currency, lang) {
+        try {
+            return new Intl.NumberFormat(lang === 'hr' ? 'hr-HR' : 'en-US', { style: 'currency', currency: currency || 'EUR', maximumFractionDigits: 0 }).format(Number(amount) || 0);
+        } catch (e) { return (currency || 'EUR') + ' ' + Math.round(Number(amount) || 0); }
+    }
+    // Highest ACTIVE bid for an item — amount desc, then earliest-placed wins any tie
+    // (amounts must strictly clear the floor, so ties are only a defensive tie-break).
+    function auctionHighest(itemId) {
+        return query.get("SELECT * FROM auction_bids WHERE item_id = ? AND status = 'active' ORDER BY amount DESC, created_at ASC, id ASC LIMIT 1", [itemId]);
+    }
+    // The minimum acceptable next bid for an item, given its current highest active bid.
+    function auctionFloor(item, highest) {
+        const inc = Number(item.min_increment) || 0;
+        if (highest) return Number(highest.amount) + inc;
+        return Number(item.starting_bid) || 0;
+    }
+    function auctionRecent(itemId, limit) {
+        return query.all("SELECT bidder_name, paddle, amount, source, created_at FROM auction_bids WHERE item_id = ? AND status = 'active' ORDER BY created_at DESC, id DESC LIMIT ?", [itemId, limit || 8]);
+    }
+    // Build the live public state for a bid/display page. active item is the auction's
+    // active_item_id (the lot on the big screen); the room bids on that one lot.
+    function auctionStateFor(auction) {
+        const item = auction.active_item_id ? query.get('SELECT * FROM auction_items WHERE id = ? AND auction_id = ?', [auction.active_item_id, auction.id]) : null;
+        const state = {
+            ok: true,
+            auction: { title: auction.title, subtitle: auction.subtitle || '', event_name: auction.event_name || '', theme_accent: auction.theme_accent || '#9b1b22', status: auction.status },
+            item: null, highest: null, min_next: 0, starting_bid: 0, recent: [], open: false
+        };
+        if (item) {
+            const highest = auctionHighest(item.id);
+            const floor = auctionFloor(item, highest);
+            state.item = { id: item.id, title: item.title, story: item.story || '', photo_url: item.photo_url || '', currency: item.currency || 'EUR', status: item.status, min_increment: Number(item.min_increment) || 0 };
+            state.highest = highest ? { amount: Number(highest.amount), bidder_name: highest.bidder_name || '', paddle: highest.paddle || '' } : null;
+            state.min_next = floor;
+            state.starting_bid = Number(item.starting_bid) || 0;
+            state.recent = auctionRecent(item.id, 8).map(function (b) { return { bidder_name: b.bidder_name || '', paddle: b.paddle || '', amount: Number(b.amount), source: b.source, created_at: b.created_at }; });
+            state.open = auction.status === 'live' && item.status === 'open';
+        }
+        return state;
+    }
+    // Admin-facing full detail (items + per-item highest + stats).
+    function auctionDetail(auction) {
+        const items = query.all('SELECT * FROM auction_items WHERE auction_id = ? ORDER BY sort_order ASC, created_at ASC', [auction.id]).map(function (it) {
+            const highest = auctionHighest(it.id);
+            const bidCount = query.get("SELECT COUNT(*) AS c FROM auction_bids WHERE item_id = ? AND status = 'active'", [it.id]);
+            const bids = query.all("SELECT id, bidder_name, paddle, amount, source, status, created_at FROM auction_bids WHERE item_id = ? ORDER BY created_at DESC, id DESC LIMIT 40", [it.id]);
+            return Object.assign({}, it, {
+                current_highest: highest ? Number(highest.amount) : null,
+                current_bidder: highest ? (highest.bidder_name || '') : null,
+                current_paddle: highest ? (highest.paddle || '') : null,
+                min_next: auctionFloor(it, highest),
+                bid_count: bidCount ? bidCount.c : 0,
+                bids: bids,
+                is_active: auction.active_item_id === it.id
+            });
+        });
+        let pledged = 0, paid = 0, sold = 0;
+        items.forEach(function (it) {
+            if (it.payment_status === 'pledged' || it.payment_status === 'paid') { sold++; pledged += Number(it.final_amount) || 0; }
+            if (it.payment_status === 'paid') paid += Number(it.final_amount) || 0;
+        });
+        return { auction: auction, items: items, stats: { item_count: items.length, sold: sold, total_pledged: pledged, total_paid: paid }, public_url: auctionPublicBase() + '/a/' + auction.token, display_url: auctionPublicBase() + '/a/' + auction.token + '?display=1' };
+    }
+
+    // ---- Bilingual DONATION email (staged to the ONE approval outbox) ----
+    function auctionBankBlock(auction, lang) {
+        const details = String(auction.bank_details || '').trim();
+        const label = lang === 'hr' ? 'Podaci za plaćanje (donacija bankovnim prijenosom)' : 'Payment details (donation by bank transfer)';
+        if (details) {
+            return '<div style="background:#f8f6f1;border:1px solid #e8e2d6;border-radius:10px;padding:16px 18px;margin:14px 0;">'
+                + '<div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#8a6d2f;font-weight:700;margin-bottom:8px;">' + label + '</div>'
+                + '<div style="font-size:14px;color:#334155;line-height:1.7;white-space:pre-wrap;">' + nagEscape(details) + '</div></div>';
+        }
+        const placeholder = lang === 'hr'
+            ? 'Podaci o bankovnom računu bit će navedeni ovdje.'
+            : 'The bank account details will be provided here.';
+        return '<div style="background:#fdf6e3;border:1px dashed #d9c48a;border-radius:10px;padding:16px 18px;margin:14px 0;">'
+            + '<div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#8a6d2f;font-weight:700;margin-bottom:8px;">' + label + '</div>'
+            + '<div style="font-size:14px;color:#8a7a52;line-height:1.7;">[ ' + placeholder + ' ]</div></div>';
+    }
+    function auctionWinnerHtml(auction, item, amount) {
+        const purpose = String(auction.donation_note || '').trim();
+        const eventName = auction.event_name || auction.title;
+        const amtEn = auctionMoney(amount, item.currency, 'en');
+        const amtHr = auctionMoney(amount, item.currency, 'hr');
+        // English
+        let en = '<p style="margin:0 0 14px;">Thank you very much for your winning bid at ' + nagEscape(eventName) + '.</p>';
+        en += '<p style="margin:0 0 14px;">You are the successful bidder for <strong>' + nagEscape(item.title) + '</strong>, with a pledge of <strong>' + amtEn + '</strong>.</p>';
+        if (purpose) en += '<p style="margin:0 0 14px;">' + nagEscape(purpose) + '</p>';
+        en += '<p style="margin:0 0 14px;">Your winning bid is a charitable donation to Med&amp;X and is settled by bank transfer, not card payment. Please use the details below to complete your gift. Your pledge is a binding commitment to donate the amount above.</p>';
+        en += auctionBankBlock(auction, 'en');
+        en += '<p style="margin:14px 0 0;">With warm gratitude,<br>The Med&amp;X team</p>';
+        // Croatian (formal Vi)
+        let hr = '<p style="margin:0 0 14px;">Najljepša Vam hvala na pobjedničkoj ponudi na događaju ' + nagEscape(eventName) + '.</p>';
+        hr += '<p style="margin:0 0 14px;">Vi ste izlicitirali <strong>' + nagEscape(item.title) + '</strong>, uz obećanu donaciju u iznosu od <strong>' + amtHr + '</strong>.</p>';
+        if (purpose) hr += '<p style="margin:0 0 14px;">' + nagEscape(purpose) + '</p>';
+        hr += '<p style="margin:0 0 14px;">Vaša pobjednička ponuda humanitarna je donacija udruzi Med&amp;X i podmiruje se bankovnim prijenosom, a ne karticom. Molimo Vas da za uplatu upotrijebite podatke navedene u nastavku. Vaše obećanje obvezujuća je namjera darovanja gore navedenog iznosa.</p>';
+        hr += auctionBankBlock(auction, 'hr');
+        hr += '<p style="margin:14px 0 0;">Sa zahvalnošću,<br>Tim Med&amp;X</p>';
+        const body = en
+            + '<div style="height:1px;background:#e8e2d6;margin:26px 0;"></div>'
+            + '<div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#8a6d2f;font-weight:700;margin-bottom:10px;">Hrvatski</div>'
+            + hr;
+        return buildEmailTemplate('Thank you for your winning bid', body, { accent: 'gold' });
+    }
+    function auctionReminderHtml(auction, item, amount) {
+        const eventName = auction.event_name || auction.title;
+        const amtEn = auctionMoney(amount, item.currency, 'en');
+        const amtHr = auctionMoney(amount, item.currency, 'hr');
+        let en = '<p style="margin:0 0 14px;">We are following up warmly on your winning bid for <strong>' + nagEscape(item.title) + '</strong> at ' + nagEscape(eventName) + '.</p>';
+        en += '<p style="margin:0 0 14px;">Our records show the donation of <strong>' + amtEn + '</strong> is not yet settled. Whenever it is convenient, please complete the bank transfer using the details below.</p>';
+        en += auctionBankBlock(auction, 'en');
+        en += '<p style="margin:14px 0 0;">Thank you again for your generosity,<br>The Med&amp;X team</p>';
+        let hr = '<p style="margin:0 0 14px;">Srdačno se javljamo u vezi s Vašom pobjedničkom ponudom za <strong>' + nagEscape(item.title) + '</strong> na događaju ' + nagEscape(eventName) + '.</p>';
+        hr += '<p style="margin:0 0 14px;">Prema našoj evidenciji donacija u iznosu od <strong>' + amtHr + '</strong> još nije podmirena. Kada Vam bude odgovaralo, molimo Vas da dovršite bankovni prijenos prema podacima u nastavku.</p>';
+        hr += auctionBankBlock(auction, 'hr');
+        hr += '<p style="margin:14px 0 0;">Još jednom Vam hvala na velikodušnosti,<br>Tim Med&amp;X</p>';
+        const body = en
+            + '<div style="height:1px;background:#e8e2d6;margin:26px 0;"></div>'
+            + '<div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#8a6d2f;font-weight:700;margin-bottom:10px;">Hrvatski</div>'
+            + hr;
+        return buildEmailTemplate('A gentle reminder about your donation', body, { accent: 'gold' });
+    }
+
+    // =================== ADMIN ROUTES ===================
+    app.get('/api/admin/auctions', auth, adminOnly, (req, res) => {
+        try {
+            const rows = query.all('SELECT * FROM auctions ORDER BY created_at DESC');
+            const list = rows.map(function (a) {
+                const items = query.get('SELECT COUNT(*) AS c FROM auction_items WHERE auction_id = ?', [a.id]);
+                const sold = query.get("SELECT COUNT(*) AS c FROM auction_items WHERE auction_id = ? AND payment_status IN ('pledged','paid')", [a.id]);
+                return Object.assign({}, a, { item_count: items ? items.c : 0, sold_count: sold ? sold.c : 0, public_url: auctionPublicBase() + '/a/' + a.token });
+            });
+            res.json({ auctions: list, event_catalog: AUCTION_EVENT_CATALOG });
+        } catch (e) { console.error('[auction] list', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.post('/api/admin/auctions', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const title = String(b.title || '').trim().slice(0, 160);
+            if (!title) return res.status(400).json({ error: 'A title is required.' });
+            const crypto = require('crypto');
+            const id = crypto.randomUUID();
+            const token = crypto.randomBytes(9).toString('base64url');
+            const eventKey = String(b.event_key || '').trim().slice(0, 40) || null;
+            const known = AUCTION_EVENT_CATALOG.find(function (e) { return e.key === eventKey; });
+            const eventName = String(b.event_name || (known ? known.name : '')).trim().slice(0, 120) || null;
+            const themeAccent = /^#[0-9a-fA-F]{6}$/.test(String(b.theme_accent || '')) ? b.theme_accent : '#9b1b22';
+            const subtitle = String(b.subtitle || '').trim().slice(0, 240) || null;
+            const bankDetails = String(b.bank_details || '').trim().slice(0, 2000) || null;
+            const donationNote = String(b.donation_note || '').trim().slice(0, 600) || null;
+            db.run('INSERT INTO auctions (id, token, event_key, event_name, theme_accent, title, subtitle, status, bank_details, donation_note, created_by) VALUES (?,?,?,?,?,?,?,\'draft\',?,?,?)',
+                [id, token, eventKey, eventName, themeAccent, title, subtitle, bankDetails, donationNote, (req.user && req.user.email) || 'admin']);
+            saveDb();
+            logAudit(req, 'auction.create', title + ' -> /a/' + token);
+            const row = query.get('SELECT * FROM auctions WHERE id = ?', [id]);
+            res.json({ success: true, auction: Object.assign({}, row, { public_url: auctionPublicBase() + '/a/' + row.token }) });
+        } catch (e) { console.error('[auction] create', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.get('/api/admin/auctions/:id', auth, adminOnly, (req, res) => {
+        try {
+            const a = query.get('SELECT * FROM auctions WHERE id = ?', [req.params.id]);
+            if (!a) return res.status(404).json({ error: 'Auction not found' });
+            res.json(auctionDetail(a));
+        } catch (e) { console.error('[auction] detail', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.put('/api/admin/auctions/:id', auth, adminOnly, (req, res) => {
+        try {
+            const a = query.get('SELECT * FROM auctions WHERE id = ?', [req.params.id]);
+            if (!a) return res.status(404).json({ error: 'Auction not found' });
+            const b = req.body || {};
+            const sets = [], vals = [];
+            if (b.title !== undefined) { sets.push('title = ?'); vals.push(String(b.title || '').trim().slice(0, 160) || a.title); }
+            if (b.subtitle !== undefined) { sets.push('subtitle = ?'); vals.push(String(b.subtitle || '').trim().slice(0, 240) || null); }
+            if (b.event_key !== undefined) { sets.push('event_key = ?'); vals.push(String(b.event_key || '').trim().slice(0, 40) || null); }
+            if (b.event_name !== undefined) { sets.push('event_name = ?'); vals.push(String(b.event_name || '').trim().slice(0, 120) || null); }
+            if (b.theme_accent !== undefined && /^#[0-9a-fA-F]{6}$/.test(String(b.theme_accent || ''))) { sets.push('theme_accent = ?'); vals.push(b.theme_accent); }
+            if (b.bank_details !== undefined) { sets.push('bank_details = ?'); vals.push(String(b.bank_details || '').trim().slice(0, 2000) || null); }
+            if (b.donation_note !== undefined) { sets.push('donation_note = ?'); vals.push(String(b.donation_note || '').trim().slice(0, 600) || null); }
+            if (b.status !== undefined && ['draft', 'live', 'paused', 'closed'].includes(b.status)) { sets.push('status = ?'); vals.push(b.status); }
+            if (!sets.length) return res.json({ success: true, auction: a });
+            sets.push("updated_at = datetime('now')");
+            vals.push(a.id);
+            db.run('UPDATE auctions SET ' + sets.join(', ') + ' WHERE id = ?', vals);
+            saveDb();
+            logAudit(req, 'auction.update', a.title + (b.status ? ' -> ' + b.status : ''));
+            res.json(auctionDetail(query.get('SELECT * FROM auctions WHERE id = ?', [a.id])));
+        } catch (e) { console.error('[auction] update', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.delete('/api/admin/auctions/:id', auth, adminOnly, (req, res) => {
+        try {
+            const a = query.get('SELECT * FROM auctions WHERE id = ?', [req.params.id]);
+            if (!a) return res.status(404).json({ error: 'Auction not found' });
+            db.run('DELETE FROM auction_bids WHERE auction_id = ?', [a.id]);
+            db.run('DELETE FROM auction_items WHERE auction_id = ?', [a.id]);
+            db.run('DELETE FROM auctions WHERE id = ?', [a.id]);
+            saveDb();
+            logAudit(req, 'auction.delete', a.title);
+            res.json({ success: true });
+        } catch (e) { console.error('[auction] delete', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ---- Items ----
+    app.post('/api/admin/auctions/:id/items', auth, adminOnly, (req, res) => {
+        try {
+            const a = query.get('SELECT * FROM auctions WHERE id = ?', [req.params.id]);
+            if (!a) return res.status(404).json({ error: 'Auction not found' });
+            const b = req.body || {};
+            const title = String(b.title || '').trim().slice(0, 160);
+            if (!title) return res.status(400).json({ error: 'An item title is required.' });
+            const crypto = require('crypto');
+            const id = crypto.randomUUID();
+            const starting = Math.max(0, Number(b.starting_bid) || 0);
+            const inc = Math.max(1, Number(b.min_increment) || 10);
+            const currency = String(b.currency || 'EUR').trim().slice(0, 8) || 'EUR';
+            const nextSort = query.get('SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM auction_items WHERE auction_id = ?', [a.id]);
+            db.run('INSERT INTO auction_items (id, auction_id, title, story, photo_url, starting_bid, min_increment, currency, status, sort_order) VALUES (?,?,?,?,?,?,?,?,\'pending\',?)',
+                [id, a.id, title, String(b.story || '').trim().slice(0, 2000) || null, String(b.photo_url || '').trim().slice(0, 500) || null, starting, inc, currency, nextSort ? nextSort.n : 1]);
+            saveDb();
+            logAudit(req, 'auction.item.create', a.title + ' / ' + title);
+            res.json({ success: true, item: query.get('SELECT * FROM auction_items WHERE id = ?', [id]) });
+        } catch (e) { console.error('[auction] item create', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.put('/api/admin/auctions/:id/items/:itemId', auth, adminOnly, (req, res) => {
+        try {
+            const it = query.get('SELECT * FROM auction_items WHERE id = ? AND auction_id = ?', [req.params.itemId, req.params.id]);
+            if (!it) return res.status(404).json({ error: 'Item not found' });
+            const b = req.body || {};
+            const sets = [], vals = [];
+            if (b.title !== undefined) { sets.push('title = ?'); vals.push(String(b.title || '').trim().slice(0, 160) || it.title); }
+            if (b.story !== undefined) { sets.push('story = ?'); vals.push(String(b.story || '').trim().slice(0, 2000) || null); }
+            if (b.photo_url !== undefined) { sets.push('photo_url = ?'); vals.push(String(b.photo_url || '').trim().slice(0, 500) || null); }
+            if (b.starting_bid !== undefined) { sets.push('starting_bid = ?'); vals.push(Math.max(0, Number(b.starting_bid) || 0)); }
+            if (b.min_increment !== undefined) { sets.push('min_increment = ?'); vals.push(Math.max(1, Number(b.min_increment) || 10)); }
+            if (b.currency !== undefined) { sets.push('currency = ?'); vals.push(String(b.currency || 'EUR').trim().slice(0, 8) || 'EUR'); }
+            if (!sets.length) return res.json({ success: true, item: it });
+            vals.push(it.id);
+            db.run('UPDATE auction_items SET ' + sets.join(', ') + ' WHERE id = ?', vals);
+            saveDb();
+            res.json({ success: true, item: query.get('SELECT * FROM auction_items WHERE id = ?', [it.id]) });
+        } catch (e) { console.error('[auction] item update', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.delete('/api/admin/auctions/:id/items/:itemId', auth, adminOnly, (req, res) => {
+        try {
+            const it = query.get('SELECT * FROM auction_items WHERE id = ? AND auction_id = ?', [req.params.itemId, req.params.id]);
+            if (!it) return res.status(404).json({ error: 'Item not found' });
+            db.run('DELETE FROM auction_bids WHERE item_id = ?', [it.id]);
+            db.run('DELETE FROM auction_items WHERE id = ?', [it.id]);
+            db.run("UPDATE auctions SET active_item_id = NULL WHERE id = ? AND active_item_id = ?", [req.params.id, it.id]);
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { console.error('[auction] item delete', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Open / pause / close a lot. Opening makes it the ACTIVE lot on the big screen,
+    // flips the auction live, and pauses any other lot that was open (one live lot).
+    app.post('/api/admin/auctions/:id/items/:itemId/status', auth, adminOnly, (req, res) => {
+        try {
+            const a = query.get('SELECT * FROM auctions WHERE id = ?', [req.params.id]);
+            if (!a) return res.status(404).json({ error: 'Auction not found' });
+            const it = query.get('SELECT * FROM auction_items WHERE id = ? AND auction_id = ?', [req.params.itemId, a.id]);
+            if (!it) return res.status(404).json({ error: 'Item not found' });
+            const status = String((req.body || {}).status || '');
+            if (!['open', 'paused', 'closed'].includes(status)) return res.status(400).json({ error: 'status must be open, paused, or closed' });
+            db.run('UPDATE auction_items SET status = ? WHERE id = ?', [status, it.id]);
+            if (status === 'open') {
+                db.run("UPDATE auction_items SET status = 'paused' WHERE auction_id = ? AND id != ? AND status = 'open'", [a.id, it.id]);
+                const sets = ['active_item_id = ?'], vals = [it.id];
+                if (a.status === 'draft' || a.status === 'closed') { sets.push("status = 'live'"); }
+                sets.push("updated_at = datetime('now')");
+                vals.push(a.id);
+                db.run('UPDATE auctions SET ' + sets.join(', ') + ' WHERE id = ?', vals);
+            }
+            saveDb();
+            logAudit(req, 'auction.item.' + status, a.title + ' / ' + it.title);
+            res.json(auctionDetail(query.get('SELECT * FROM auctions WHERE id = ?', [a.id])));
+        } catch (e) { console.error('[auction] item status', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Staff paddle entry (emcee-style) — SAME validated stream as the public page.
+    app.post('/api/admin/auctions/:id/bids', auth, adminOnly, (req, res) => {
+        try {
+            const a = query.get('SELECT * FROM auctions WHERE id = ?', [req.params.id]);
+            if (!a) return res.status(404).json({ error: 'Auction not found' });
+            const b = req.body || {};
+            const itemId = String(b.item_id || a.active_item_id || '');
+            const it = query.get('SELECT * FROM auction_items WHERE id = ? AND auction_id = ?', [itemId, a.id]);
+            if (!it) return res.status(400).json({ error: 'Choose a lot for this bid.' });
+            if (it.status !== 'open') return res.status(409).json({ error: 'This lot is not open for bidding.' });
+            const amount = Number(b.amount);
+            if (!isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'Enter a valid amount.' });
+            const highest = auctionHighest(it.id);
+            const floor = auctionFloor(it, highest);
+            if (amount < floor) return res.status(409).json({ error: 'Bid must be at least ' + auctionMoney(floor, it.currency, 'en') + '.', min_next: floor });
+            const bidderName = String(b.bidder_name || '').trim().slice(0, 120) || null;
+            const paddle = String(b.paddle || '').trim().slice(0, 40) || null;
+            if (!bidderName && !paddle) return res.status(400).json({ error: 'Enter a name or paddle number.' });
+            const crypto = require('crypto');
+            const id = crypto.randomUUID();
+            db.run("INSERT INTO auction_bids (id, auction_id, item_id, bidder_name, paddle, amount, source, status, ip) VALUES (?,?,?,?,?,?,'staff','active',?)",
+                [id, a.id, it.id, bidderName, paddle, amount, (req.ip || '').slice(0, 60)]);
+            saveDb();
+            res.json({ success: true, bid: query.get('SELECT * FROM auction_bids WHERE id = ?', [id]), min_next: amount + (Number(it.min_increment) || 0) });
+        } catch (e) { console.error('[auction] staff bid', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.post('/api/admin/auctions/:id/bids/:bidId/void', auth, adminOnly, (req, res) => {
+        try {
+            const bid = query.get('SELECT * FROM auction_bids WHERE id = ? AND auction_id = ?', [req.params.bidId, req.params.id]);
+            if (!bid) return res.status(404).json({ error: 'Bid not found' });
+            db.run("UPDATE auction_bids SET status = 'void' WHERE id = ?", [bid.id]);
+            saveDb();
+            logAudit(req, 'auction.bid.void', auctionMoney(bid.amount, 'EUR', 'en') + ' (' + (bid.bidder_name || bid.paddle || 'bid') + ')');
+            res.json({ success: true });
+        } catch (e) { console.error('[auction] void', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Confirm the winner for a lot -> mark it sold + stage the bilingual DONATION email
+    // in the approval outbox. Admin supplies the winner email (bids are zero-login, no
+    // email captured). Empty bank_details still stages the email (placeholder block) and
+    // returns bank_missing so the UI can warn.
+    app.post('/api/admin/auctions/:id/items/:itemId/confirm-winner', auth, adminOnly, (req, res) => {
+        try {
+            const a = query.get('SELECT * FROM auctions WHERE id = ?', [req.params.id]);
+            if (!a) return res.status(404).json({ error: 'Auction not found' });
+            const it = query.get('SELECT * FROM auction_items WHERE id = ? AND auction_id = ?', [req.params.itemId, a.id]);
+            if (!it) return res.status(404).json({ error: 'Item not found' });
+            const highest = auctionHighest(it.id);
+            if (!highest) return res.status(400).json({ error: 'There are no bids on this lot yet.' });
+            const b = req.body || {};
+            const email = String(b.email || '').trim().slice(0, 200);
+            if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Enter a valid email for the winner.' });
+            const amount = Number(highest.amount);
+            const crypto = require('crypto');
+            db.run("UPDATE auction_items SET status = 'sold', winning_bid_id = ?, winner_name = ?, winner_email = ?, final_amount = ?, payment_status = 'pledged', confirmed_at = datetime('now') WHERE id = ?",
+                [highest.id, highest.bidder_name || null, email, amount, it.id]);
+            // Stage the bilingual donation email in the ONE approval outbox (pending_approval).
+            const html = auctionWinnerHtml(a, it, amount);
+            const subject = 'Thank you for your winning bid — ' + it.title;
+            const batchId = 'auction-winner-' + it.id;
+            const payload = { to: email, subject: subject, html: html };
+            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                    VALUES (?, 'pending_approval', ?, 'auction-winner', 'auction_winner', ?, ?, ?, ?, datetime('now'))`,
+                [crypto.randomUUID(), batchId, JSON.stringify(payload), email, subject, (req.user && req.user.email) || 'auction-engine']);
+            saveDb();
+            logAudit(req, 'auction.confirm_winner', a.title + ' / ' + it.title + ' -> ' + auctionMoney(amount, it.currency, 'en') + ' (' + email + ')');
+            const bankMissing = !String(a.bank_details || '').trim();
+            res.json({ success: true, bank_missing: bankMissing, final_amount: amount, item: query.get('SELECT * FROM auction_items WHERE id = ?', [it.id]) });
+        } catch (e) { console.error('[auction] confirm', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.post('/api/admin/auctions/:id/items/:itemId/mark-paid', auth, adminOnly, (req, res) => {
+        try {
+            const it = query.get('SELECT * FROM auction_items WHERE id = ? AND auction_id = ?', [req.params.itemId, req.params.id]);
+            if (!it) return res.status(404).json({ error: 'Item not found' });
+            if (it.payment_status !== 'pledged' && it.payment_status !== 'paid') return res.status(409).json({ error: 'Confirm a winner before marking paid.' });
+            db.run("UPDATE auction_items SET payment_status = 'paid', paid_at = datetime('now') WHERE id = ?", [it.id]);
+            saveDb();
+            logAudit(req, 'auction.mark_paid', it.title + ' (' + auctionMoney(it.final_amount, it.currency, 'en') + ')');
+            res.json({ success: true, item: query.get('SELECT * FROM auction_items WHERE id = ?', [it.id]) });
+        } catch (e) { console.error('[auction] mark paid', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Unpaid reminder -> staged in the approval outbox, idempotent per reminder round
+    // via drip_log (marker auction-reminder:<itemId>:<n>).
+    app.post('/api/admin/auctions/:id/items/:itemId/remind', auth, adminOnly, (req, res) => {
+        try {
+            const a = query.get('SELECT * FROM auctions WHERE id = ?', [req.params.id]);
+            if (!a) return res.status(404).json({ error: 'Auction not found' });
+            const it = query.get('SELECT * FROM auction_items WHERE id = ? AND auction_id = ?', [req.params.itemId, a.id]);
+            if (!it) return res.status(404).json({ error: 'Item not found' });
+            if (it.payment_status !== 'pledged') return res.status(409).json({ error: 'Only unpaid, confirmed lots can be reminded.' });
+            if (!it.winner_email) return res.status(400).json({ error: 'No winner email on file for this lot.' });
+            const crypto = require('crypto');
+            const nextRound = (Number(it.reminder_count) || 0) + 1;
+            const marker = 'auction-reminder:' + it.id + ':' + nextRound;
+            const dripId = crypto.randomUUID();
+            db.run('INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, ?, ?, ?)', [dripId, 'auction-reminder', it.winner_email, marker]);
+            const inserted = query.get('SELECT id FROM drip_log WHERE user_id = ? AND kind = ?', ['auction-reminder', marker]);
+            if (!inserted || inserted.id !== dripId) return res.status(409).json({ error: 'A reminder for this round was already staged.' });
+            const html = auctionReminderHtml(a, it, it.final_amount);
+            const subject = 'A gentle reminder about your donation — ' + it.title;
+            const payload = { to: it.winner_email, subject: subject, html: html };
+            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                    VALUES (?, 'pending_approval', ?, 'auction-reminder', 'auction_reminder', ?, ?, ?, ?, datetime('now'))`,
+                [crypto.randomUUID(), 'auction-reminder-' + it.id + '-' + nextRound, JSON.stringify(payload), it.winner_email, subject, (req.user && req.user.email) || 'auction-engine']);
+            db.run('UPDATE auction_items SET reminder_count = ? WHERE id = ?', [nextRound, it.id]);
+            saveDb();
+            logAudit(req, 'auction.remind', it.title + ' (round ' + nextRound + ')');
+            res.json({ success: true, reminder_count: nextRound });
+        } catch (e) { console.error('[auction] remind', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // Results feed for the command center (per event or all). Neutral endpoint.
+    app.get('/api/admin/auction-summary', auth, adminOnly, (req, res) => {
+        try {
+            const eventKey = req.query.event_key ? String(req.query.event_key).slice(0, 40) : null;
+            const auctions = eventKey
+                ? query.all('SELECT * FROM auctions WHERE event_key = ?', [eventKey])
+                : query.all('SELECT * FROM auctions');
+            let pledged = 0, paid = 0, sold = 0, lots = 0, live = 0;
+            auctions.forEach(function (a) {
+                if (a.status === 'live') live++;
+                const items = query.all('SELECT payment_status, final_amount FROM auction_items WHERE auction_id = ?', [a.id]);
+                items.forEach(function (it) {
+                    lots++;
+                    if (it.payment_status === 'pledged' || it.payment_status === 'paid') { sold++; pledged += Number(it.final_amount) || 0; }
+                    if (it.payment_status === 'paid') paid += Number(it.final_amount) || 0;
+                });
+            });
+            res.json({ event_key: eventKey, auctions: auctions.length, live_auctions: live, lots: lots, sold: sold, total_pledged: pledged, total_paid: paid, outstanding: pledged - paid });
+        } catch (e) { console.error('[auction] summary', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // QR data-URLs for the two public URLs (plain URL strings — NOT a member QR payload,
+    // so the frozen member-QR generation/validation is untouched). Returned as data URLs
+    // so the admin fetch can carry its auth header (an <img src> cannot).
+    app.get('/api/admin/auctions/:id/qr', auth, adminOnly, async (req, res) => {
+        try {
+            const a = query.get('SELECT token FROM auctions WHERE id = ?', [req.params.id]);
+            if (!a) return res.status(404).json({ error: 'Auction not found' });
+            const base = auctionPublicBase();
+            const bidUrl = base + '/a/' + a.token;
+            const displayUrl = base + '/a/' + a.token + '?display=1';
+            const opts = { width: 460, margin: 2, color: { dark: '#15110f', light: '#ffffff' } };
+            const bid = await QRCode.toDataURL(bidUrl, opts);
+            const display = await QRCode.toDataURL(displayUrl, opts);
+            res.json({ bid_url: bidUrl, display_url: displayUrl, bid_qr: bid, display_qr: display });
+        } catch (e) { console.error('[auction] qr', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // =================== PUBLIC (zero-login, admin-served) ===================
+    const auctionBidLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many bids in a short time. Please wait a moment and try again.' } });
+
+    app.get('/api/public/auction/:token/state', publicLimiter, (req, res) => {
+        try {
+            const a = query.get('SELECT * FROM auctions WHERE token = ?', [String(req.params.token || '').slice(0, 64)]);
+            if (!a) return res.status(404).json({ ok: false, error: 'Auction not found' });
+            res.json(auctionStateFor(a));
+        } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+    });
+
+    app.post('/api/public/auction/:token/bid', auctionBidLimiter, (req, res) => {
+        try {
+            const a = query.get('SELECT * FROM auctions WHERE token = ?', [String(req.params.token || '').slice(0, 64)]);
+            if (!a) return res.status(404).json({ error: 'Auction not found' });
+            if (a.status !== 'live') return res.status(409).json({ error: 'Bidding is not open at the moment.' });
+            const it = a.active_item_id ? query.get('SELECT * FROM auction_items WHERE id = ? AND auction_id = ?', [a.active_item_id, a.id]) : null;
+            if (!it || it.status !== 'open') return res.status(409).json({ error: 'Bidding is not open at the moment.' });
+            const b = req.body || {};
+            const bidderName = String(b.bidder_name || '').trim().slice(0, 120);
+            const paddle = String(b.paddle || '').trim().slice(0, 40);
+            if (!bidderName && !paddle) return res.status(400).json({ error: 'Please add your name or table/paddle number.' });
+            const amount = Number(b.amount);
+            if (!isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'Please enter a valid amount.' });
+            // Read-validate-insert runs synchronously (no await between), so two racing
+            // bids cannot interleave — the second sees the first and is checked against it.
+            const highest = auctionHighest(it.id);
+            const floor = auctionFloor(it, highest);
+            if (amount < floor) return res.status(409).json({ error: 'The bid must be at least ' + auctionMoney(floor, it.currency, 'en') + '.', min_next: floor, current: highest ? Number(highest.amount) : null });
+            const crypto = require('crypto');
+            const id = crypto.randomUUID();
+            db.run("INSERT INTO auction_bids (id, auction_id, item_id, bidder_name, paddle, amount, source, status, ip) VALUES (?,?,?,?,?,?,'public','active',?)",
+                [id, a.id, it.id, bidderName || null, paddle || null, amount, (req.ip || '').slice(0, 60)]);
+            saveDb();
+            res.json({ success: true, amount: amount, min_next: amount + (Number(it.min_increment) || 0) });
+        } catch (e) { console.error('[auction] public bid', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // The public pages (bid + big-screen display). One route; ?display=1 = projector.
+    app.get('/a/:token', publicLimiter, (req, res) => {
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        try {
+            const a = query.get('SELECT * FROM auctions WHERE token = ?', [String(req.params.token || '').slice(0, 64)]);
+            if (!a) return res.status(404).send(auctionNoticePage('This auction link is not active', 'Please reach out to the Med&X team.'));
+            const isDisplay = String(req.query.display || '') === '1';
+            return res.send(isDisplay ? auctionDisplayPage(a) : auctionBidPage(a));
+        } catch (e) { console.error('[auction] page', e.message); return res.status(500).send(auctionNoticePage('Something went wrong', 'Please try again in a moment.')); }
+    });
+
+
+    // ---- Bilingual copy for the public pages (EN + HR formal Vi) ----
+    const AUCTION_I18N = {
+        en: {
+            current_bid: 'Current bid', no_bids_yet: 'No bids yet', min_next: 'Minimum next bid',
+            starting_at: 'Starting at', your_name: 'Your name', table_paddle: 'Table or paddle number',
+            optional: 'optional', amount: 'Your bid', place_bid: 'Place bid', placing: 'Placing your bid',
+            bid_placed: 'Your bid is in. Thank you', you_lead: 'You are the leading bid',
+            not_open: 'Bidding is not open at the moment', lot_closed: 'This lot has closed',
+            paused: 'Bidding is paused for a moment', standby: 'The auction will begin shortly',
+            recent_bids: 'Recent bids', name_or_paddle: 'Please add your name or table number',
+            invalid_amount: 'Please enter a valid amount', up_next: 'Up next',
+            live: 'Live', leading: 'Leading', hint: 'You can raise the amount before you place your bid'
+        },
+        hr: {
+            current_bid: 'Trenutačna ponuda', no_bids_yet: 'Još nema ponuda', min_next: 'Najmanja sljedeća ponuda',
+            starting_at: 'Početna cijena', your_name: 'Vaše ime', table_paddle: 'Broj stola ili licitacijske pločice',
+            optional: 'nije obavezno', amount: 'Vaša ponuda', place_bid: 'Pošaljite ponudu', placing: 'Šaljemo Vašu ponudu',
+            bid_placed: 'Vaša ponuda je zaprimljena. Hvala Vam', you_lead: 'Vi vodite s najvišom ponudom',
+            not_open: 'Licitacija trenutačno nije otvorena', lot_closed: 'Ova stavka je zatvorena',
+            paused: 'Licitacija je nakratko pauzirana', standby: 'Licitacija počinje uskoro',
+            recent_bids: 'Nedavne ponude', name_or_paddle: 'Molimo unesite svoje ime ili broj stola',
+            invalid_amount: 'Molimo unesite ispravan iznos', up_next: 'Slijedi',
+            live: 'Uživo', leading: 'Vodeća ponuda', hint: 'Iznos možete povećati prije nego pošaljete ponudu'
+        }
+    };
+
+    const AUCTION_BID_JS = `
+(function(){
+  var A = window.__AUC__; var T = A.i18n;
+  var lang = localStorage.getItem('medx_auction_lang');
+  if (lang !== 'en' && lang !== 'hr') lang = (navigator.language && navigator.language.slice(0,2).toLowerCase() === 'hr') ? 'hr' : 'en';
+  function t(k){ return (T[lang] && T[lang][k]) || (T.en && T.en[k]) || k; }
+  var currency = 'EUR';
+  function money(v){ try { return new Intl.NumberFormat(lang==='hr'?'hr-HR':'en-US',{style:'currency',currency:currency,maximumFractionDigits:0}).format(Number(v)||0);}catch(e){return currency+' '+Math.round(Number(v)||0);} }
+  function el(id){ return document.getElementById(id); }
+  function esc(x){ return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var lastItem = null, minNext = 0, amtTouched = false, lastState = null, busy = false;
+
+  el('inAmount').addEventListener('input', function(){ amtTouched = true; });
+  var langBtns = document.querySelectorAll('.lang button');
+  langBtns.forEach(function(btn){ btn.addEventListener('click', function(){ lang = btn.getAttribute('data-l'); localStorage.setItem('medx_auction_lang', lang); var mm = el('msg'); if (mm) mm.className = 'msg'; renderLabels(); if (lastState) paint(lastState); }); });
+  el('placeBtn').addEventListener('click', placeBid);
+
+  function renderLabels(){
+    langBtns.forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-l')===lang); });
+    el('eventName').textContent = A.eventName || '';
+    el('auctionTitle').textContent = A.title || '';
+    el('lblCurrent').textContent = t('current_bid');
+    el('lblName').textContent = t('your_name');
+    el('lblPaddle').innerHTML = esc(t('table_paddle')) + ' <span>(' + esc(t('optional')) + ')</span>';
+    el('lblAmount').textContent = t('amount');
+    el('placeBtn').textContent = t('place_bid');
+    el('hint').textContent = t('hint');
+    document.documentElement.lang = lang;
+  }
+
+  function paint(s){
+    lastState = s;
+    if (!s || !s.item){
+      el('itemTitle').textContent = A.title || '';
+      el('itemStory').textContent = '';
+      el('photoWrap').innerHTML = '';
+      el('curBid').textContent = '-';
+      el('leadWho').textContent = '';
+      el('minNextLine').textContent = '';
+      el('formWrap').style.display = 'none';
+      var cw0 = el('closedWrap'); cw0.style.display = 'block'; cw0.textContent = t('standby');
+      el('recentWrap').innerHTML = '';
+      return;
+    }
+    currency = s.item.currency || 'EUR';
+    if (s.item.id !== lastItem){ lastItem = s.item.id; amtTouched = false; el('inAmount').value = ''; el('msg').className='msg'; }
+    el('itemTitle').textContent = s.item.title || '';
+    el('itemStory').textContent = s.item.story || '';
+    el('photoWrap').innerHTML = s.item.photo_url ? ('<img class="photo" alt="" src="' + encodeURI(s.item.photo_url) + '">') : '';
+    if (s.highest){
+      el('curBid').textContent = money(s.highest.amount);
+      var who = s.highest.bidder_name || (s.highest.paddle ? ('#' + s.highest.paddle) : '');
+      el('leadWho').textContent = who ? (t('leading') + ': ' + who) : '';
+    } else {
+      el('curBid').textContent = money(s.starting_bid);
+      el('leadWho').textContent = t('no_bids_yet');
+    }
+    minNext = s.min_next || 0;
+    el('minNextLine').innerHTML = esc(t('min_next')) + ': <b>' + money(minNext) + '</b>';
+    if (s.open){
+      el('formWrap').style.display = 'block';
+      el('closedWrap').style.display = 'none';
+      buildChips(s);
+      if (!amtTouched){ el('inAmount').value = minNext; }
+    } else {
+      el('formWrap').style.display = 'none';
+      var cw = el('closedWrap'); cw.style.display = 'block';
+      cw.textContent = s.item.status === 'closed' ? t('lot_closed') : (s.item.status === 'paused' ? t('paused') : t('not_open'));
+    }
+    var r = s.recent || [];
+    if (r.length){
+      var h = '<div class="rlbl">' + esc(t('recent_bids')) + '</div>';
+      r.forEach(function(b){ var w = b.bidder_name || (b.paddle ? ('#' + b.paddle) : '-'); h += '<div class="rrow"><span class="who">' + esc(w) + '</span><span class="amt">' + money(b.amount) + '</span></div>'; });
+      el('recentWrap').innerHTML = h;
+    } else { el('recentWrap').innerHTML = ''; }
+  }
+
+  function buildChips(s){
+    var inc = (s.item && s.item.min_increment) || 0;
+    var base = minNext;
+    var vals = [base]; if (inc>0){ vals.push(base+inc); vals.push(base+inc*2); }
+    var h='';
+    vals.forEach(function(v){ h += '<button type="button" data-v="' + v + '">' + money(v) + '</button>'; });
+    var c = el('chips'); c.innerHTML = h;
+    c.querySelectorAll('button').forEach(function(btn){ btn.addEventListener('click', function(){ amtTouched=true; el('inAmount').value = btn.getAttribute('data-v'); }); });
+  }
+
+  function showMsg(kind, text){ var m = el('msg'); m.className = 'msg ' + kind; m.textContent = text; }
+
+  function placeBid(){
+    if (busy) return;
+    var name = el('inName').value.trim();
+    var paddle = el('inPaddle').value.trim();
+    var amount = Number(el('inAmount').value);
+    if (!name && !paddle){ showMsg('err', t('name_or_paddle')); return; }
+    if (!isFinite(amount) || amount<=0){ showMsg('err', t('invalid_amount')); return; }
+    busy = true; el('placeBtn').disabled = true; el('placeBtn').textContent = t('placing');
+    fetch('/api/public/auction/' + A.token + '/bid', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ bidder_name:name, paddle:paddle, amount:amount }) })
+      .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
+      .then(function(res){
+        if (res.ok && res.d.success){ showMsg('ok', t('bid_placed')); amtTouched = false; refresh(); }
+        else { showMsg('err', (res.d && res.d.error) || t('invalid_amount')); if (res.d && res.d.min_next){ minNext = res.d.min_next; el('inAmount').value = res.d.min_next; } }
+      })
+      .catch(function(){ showMsg('err', t('invalid_amount')); })
+      .then(function(){ busy=false; el('placeBtn').disabled=false; el('placeBtn').textContent=t('place_bid'); });
+  }
+
+  function refresh(){ fetch('/api/public/auction/' + A.token + '/state').then(function(r){ return r.json(); }).then(function(s){ if (s && s.ok) paint(s); }).catch(function(){}); }
+
+  renderLabels();
+  refresh();
+  setInterval(refresh, 3000);
+})();
+`;
+
+    const AUCTION_DISPLAY_JS = `
+(function(){
+  var A = window.__AUC__; var T = A.i18n;
+  var lang = (navigator.language && navigator.language.slice(0,2).toLowerCase()==='hr') ? 'hr' : 'en';
+  var currency='EUR';
+  function money(v){ try { return new Intl.NumberFormat('en-US',{style:'currency',currency:currency,maximumFractionDigits:0}).format(Number(v)||0);}catch(e){return currency+' '+Math.round(Number(v)||0);} }
+  function el(id){ return document.getElementById(id); }
+  function esc(x){ return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  el('evt').textContent = A.eventName || A.title || '';
+  el('liveTxt').textContent = T.en.live + ' / ' + T.hr.live;
+
+  function paint(s){
+    if (!s || !s.item){
+      el('main').innerHTML = '<div class="standby"><div class="lot">' + esc(A.title||'') + '</div><div class="minnext">' + esc(T.en.standby) + ' &middot; ' + esc(T.hr.standby) + '</div></div>';
+      el('ticker').innerHTML='';
+      el('livepill').style.visibility = 'hidden';
+      return;
+    }
+    el('livepill').style.visibility = (s.open ? 'visible' : 'hidden');
+    currency = s.item.currency || 'EUR';
+    var photo = s.item.photo_url ? ('<img class="photo" alt="" src="' + encodeURI(s.item.photo_url) + '">') : '<div class="photo"></div>';
+    var big = s.highest ? money(s.highest.amount) : money(s.starting_bid);
+    var lead = '';
+    if (s.highest){ var who = s.highest.bidder_name || (s.highest.paddle ? ('#'+s.highest.paddle) : ''); lead = who ? (T.en.leading + ' / ' + T.hr.leading + ': ' + esc(who)) : ''; }
+    else { lead = T.en.no_bids_yet + ' / ' + T.hr.no_bids_yet; }
+    var statusNote = '';
+    if (!s.open){ statusNote = (s.item.status==='closed') ? (T.en.lot_closed+' / '+T.hr.lot_closed) : (T.en.not_open+' / '+T.hr.not_open); }
+    el('main').innerHTML = photo
+      + '<div class="info">'
+      + '<div class="lot">' + esc(s.item.title||'') + '</div>'
+      + '<div class="curlbl">' + esc(T.en.current_bid) + ' &middot; ' + esc(T.hr.current_bid) + '</div>'
+      + '<div class="cur">' + big + '</div>'
+      + '<div class="lead">' + lead + '</div>'
+      + (s.open ? ('<div class="minnext">' + esc(T.en.min_next) + ' / ' + esc(T.hr.min_next) + ': <b>' + money(s.min_next) + '</b></div>') : ('<div class="minnext">' + statusNote + '</div>'))
+      + '</div>';
+    var r = s.recent || [];
+    if (r.length){
+      var h = '<span class="tklbl">' + esc(T.en.recent_bids) + '</span>';
+      r.slice(0,6).forEach(function(b){ var who=b.bidder_name||(b.paddle?('#'+b.paddle):'-'); h += '<span class="tk"><b>' + money(b.amount) + '</b> ' + esc(who) + '</span>'; });
+      el('ticker').innerHTML = h;
+    } else { el('ticker').innerHTML=''; }
+  }
+
+  function refresh(){ fetch('/api/public/auction/'+A.token+'/state').then(function(r){return r.json();}).then(function(s){ if(s&&s.ok) paint(s); }).catch(function(){}); }
+  refresh(); setInterval(refresh, 2500);
+})();
+`;
+
+    function auctionNoticePage(heading, sub) {
+        return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">'
+            + '<title>Med&X</title>'
+            + '<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">'
+            + '<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#fbf9f6;color:#15110f;font-family:Inter,-apple-system,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:30px}'
+            + '.b{max-width:520px;text-align:center}h1{font-family:Fraunces,Georgia,serif;font-size:32px;font-weight:600;margin-bottom:12px}p{color:#5c5650;font-size:16px;line-height:1.6}</style></head>'
+            + '<body><div class="b"><h1>' + nagEscape(heading) + '</h1><p>' + nagEscape(sub) + '</p></div></body></html>';
+    }
+
+    function auctionBidPage(a) {
+        const accent = /^#[0-9a-fA-F]{6}$/.test(String(a.theme_accent || '')) ? a.theme_accent : '#9b1b22';
+        const cfg = { token: a.token, accent: accent, eventName: a.event_name || '', title: a.title, subtitle: a.subtitle || '', i18n: AUCTION_I18N };
+        return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">'
+            + '<title>' + nagEscape(a.title) + ' — Med&X</title>'
+            + '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+            + '<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">'
+            + '<style>'
+            + '*{margin:0;padding:0;box-sizing:border-box}'
+            + 'body{background:#fbf9f6;color:#15110f;font-family:Inter,-apple-system,sans-serif;min-height:100vh;-webkit-text-size-adjust:100%}'
+            + '.wrap{max-width:520px;margin:0 auto;padding:20px 18px 60px}'
+            + '.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}'
+            + '.brand{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:20px;letter-spacing:0.5px}'
+            + '.lang button{background:none;border:1px solid #ddd5c9;color:#8a827a;font-size:13px;font-weight:600;padding:5px 11px;border-radius:8px;cursor:pointer;margin-left:6px}'
+            + '.lang button.on{background:' + accent + ';border-color:' + accent + ';color:#fff}'
+            + '.eventname{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:' + accent + ';font-weight:700;margin-bottom:6px}'
+            + 'h1{font-family:Fraunces,Georgia,serif;font-size:27px;font-weight:600;line-height:1.12;margin-bottom:20px}'
+            + '.card{background:#fff;border:1px solid #ece7df;border-radius:18px;overflow:hidden;box-shadow:0 10px 30px rgba(21,17,15,0.06)}'
+            + '.photo{width:100%;aspect-ratio:16/10;object-fit:cover;display:block;background:#f3efe9}'
+            + '.pad{padding:20px 20px 22px}'
+            + 'h2{font-family:Fraunces,Georgia,serif;font-size:22px;font-weight:600;margin-bottom:8px}'
+            + '.story{color:#5c5650;font-size:14.5px;line-height:1.6;margin-bottom:18px;white-space:pre-wrap}'
+            + '.bidbox{background:#faf7f2;border:1px solid #efe9df;border-radius:14px;padding:16px 18px;margin-bottom:18px}'
+            + '.lbl{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#8a827a;font-weight:700;margin-bottom:4px}'
+            + '.cur{font-family:Fraunces,Georgia,serif;font-size:34px;font-weight:700;color:#15110f;line-height:1.1}'
+            + '.lead{font-size:13px;color:#8a6d2f;font-weight:600;margin-top:4px}'
+            + '.minnext{font-size:13.5px;color:#5c5650;margin-top:10px}'
+            + '.minnext b{color:' + accent + '}'
+            + 'label{display:block;font-size:13px;font-weight:600;color:#3a352f;margin:14px 0 6px}'
+            + 'label span{font-weight:400;color:#a49b8f}'
+            + 'input{width:100%;padding:14px 15px;border:1.5px solid #ddd5c9;border-radius:11px;font-size:16px;font-family:inherit;color:#15110f;background:#fff}'
+            + 'input:focus{outline:none;border-color:' + accent + '}'
+            + '.chips{display:flex;gap:8px;margin:10px 0 4px;flex-wrap:wrap}'
+            + '.chips button{flex:1;min-width:90px;background:#fff;border:1.5px solid #ddd5c9;color:#3a352f;font-size:14px;font-weight:600;padding:11px 8px;border-radius:10px;cursor:pointer}'
+            + '.chips button:hover{border-color:' + accent + ';color:' + accent + '}'
+            + '.place{width:100%;margin-top:16px;background:' + accent + ';color:#fff;border:none;padding:17px;border-radius:12px;font-size:16.5px;font-weight:700;cursor:pointer;box-shadow:0 10px 22px rgba(155,27,34,0.22)}'
+            + '.place:disabled{opacity:0.6;cursor:default}'
+            + '.hint{font-size:12px;color:#a49b8f;margin-top:10px;text-align:center}'
+            + '.msg{margin-top:14px;padding:12px 14px;border-radius:10px;font-size:14px;font-weight:600;display:none}'
+            + '.msg.ok{display:block;background:#eef7ee;color:#256b2d;border:1px solid #cfe6cf}'
+            + '.msg.err{display:block;background:#fdecec;color:#a4282a;border:1px solid #f3caca}'
+            + '.closed{display:none;text-align:center;padding:18px 6px 6px;color:#8a827a;font-size:15px;font-weight:600}'
+            + '.recent{margin-top:22px}'
+            + '.recent .rlbl{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#a49b8f;font-weight:700;margin-bottom:8px}'
+            + '.rrow{display:flex;justify-content:space-between;padding:9px 2px;border-bottom:1px solid #efe9df;font-size:14px}'
+            + '.rrow .who{color:#5c5650}.rrow .amt{font-weight:700;color:#15110f}'
+            + 'footer{text-align:center;margin-top:34px;color:#a49b8f;font-size:12px}'
+            + '</style></head><body>'
+            + '<div class="wrap">'
+            + '<div class="top"><div class="brand">Med&amp;X</div><div class="lang"><button data-l="en">EN</button><button data-l="hr">HR</button></div></div>'
+            + '<div class="eventname" id="eventName"></div>'
+            + '<h1 id="auctionTitle"></h1>'
+            + '<div class="card">'
+            + '<div id="photoWrap"></div>'
+            + '<div class="pad">'
+            + '<h2 id="itemTitle"></h2><div class="story" id="itemStory"></div>'
+            + '<div class="bidbox"><div class="lbl" id="lblCurrent"></div><div class="cur" id="curBid"></div><div class="lead" id="leadWho"></div><div class="minnext" id="minNextLine"></div></div>'
+            + '<div id="formWrap">'
+            + '<label id="lblName"></label><input id="inName" autocomplete="name">'
+            + '<label id="lblPaddle"></label><input id="inPaddle" inputmode="numeric">'
+            + '<label id="lblAmount"></label><div class="chips" id="chips"></div><input id="inAmount" type="number" inputmode="decimal" step="1" min="0">'
+            + '<button class="place" id="placeBtn"></button><div class="hint" id="hint"></div>'
+            + '<div class="msg" id="msg"></div>'
+            + '</div>'
+            + '<div class="closed" id="closedWrap"></div>'
+            + '</div></div>'
+            + '<div class="recent" id="recentWrap"></div>'
+            + '<footer>Med&amp;X &middot; Building Bridges in Biomedicine</footer>'
+            + '</div>'
+            + '<script>window.__AUC__=' + JSON.stringify(cfg) + ';</script>'
+            + '<script>' + AUCTION_BID_JS + '</script>'
+            + '</body></html>';
+    }
+
+    function auctionDisplayPage(a) {
+        const cfg = { token: a.token, eventName: a.event_name || '', title: a.title, subtitle: a.subtitle || '', i18n: AUCTION_I18N };
+        return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">'
+            + '<title>' + nagEscape(a.title) + ' — Med&X</title>'
+            + '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+            + '<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">'
+            + '<style>'
+            + '*{margin:0;padding:0;box-sizing:border-box}'
+            + 'html,body{height:100%}'
+            + 'body{background:radial-gradient(circle at 30% 0%,#122036 0%,#0a1120 60%,#070c16 100%);color:#f4ecd8;font-family:Inter,-apple-system,sans-serif;overflow:hidden;height:100vh}'
+            + '.screen{height:100vh;display:flex;flex-direction:column;padding:3.2vh 3.6vw}'
+            + '.hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:2.4vh}'
+            + '.brand{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:2.4vh;letter-spacing:1px;color:#e7cf94}'
+            + '.livepill{display:flex;align-items:center;gap:0.8vw;font-size:1.7vh;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#e7cf94}'
+            + '.dot{width:1.2vh;height:1.2vh;border-radius:50%;background:#e7cf94;box-shadow:0 0 12px #e7cf94;animation:pulse 1.6s infinite}'
+            + '@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.35}}'
+            + '.evt{font-size:1.9vh;letter-spacing:4px;text-transform:uppercase;color:#c9a962;font-weight:700;margin-bottom:0.6vh}'
+            + '.main{flex:1;display:flex;gap:3.6vw;align-items:center;min-height:0}'
+            + '.photo{flex:0 0 44%;height:66vh;border-radius:1.4vh;object-fit:cover;background:#0f1a2c;box-shadow:0 3vh 8vh rgba(0,0,0,0.5)}'
+            + '.info{flex:1;min-width:0}'
+            + '.lot{font-family:Fraunces,Georgia,serif;font-size:5.4vh;font-weight:600;line-height:1.05;margin-bottom:2.2vh;color:#fbf5e6}'
+            + '.curlbl{font-size:2vh;letter-spacing:3px;text-transform:uppercase;color:#8ea0bd;font-weight:700;margin-bottom:0.4vh}'
+            + '.cur{font-family:Fraunces,Georgia,serif;font-size:13vh;font-weight:700;line-height:0.98;color:#e7cf94;text-shadow:0 0.5vh 3vh rgba(231,207,148,0.25)}'
+            + '.lead{font-size:2.6vh;color:#cdb98a;font-weight:600;margin-top:1vh}'
+            + '.minnext{font-size:2.1vh;color:#8ea0bd;margin-top:2.2vh}'
+            + '.minnext b{color:#e7cf94}'
+            + '.standby{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}'
+            + '.standby .lot{font-size:6vh}'
+            + '.ticker{margin-top:2vh;border-top:1px solid rgba(231,207,148,0.2);padding-top:1.6vh;display:flex;gap:2.4vw;overflow:hidden;white-space:nowrap}'
+            + '.tk{font-size:2vh;color:#b9c6da}.tk b{color:#e7cf94}'
+            + '.tklbl{font-size:1.6vh;letter-spacing:2px;text-transform:uppercase;color:#6c7d99;font-weight:700;margin-right:1vw}'
+            + '</style></head><body>'
+            + '<div class="screen">'
+            + '<div class="hd"><div class="brand">Med&amp;X</div><div class="livepill" id="livepill"><span class="dot"></span><span id="liveTxt">Live</span></div></div>'
+            + '<div class="evt" id="evt"></div>'
+            + '<div class="main" id="main"></div>'
+            + '<div class="ticker" id="ticker"></div>'
+            + '</div>'
+            + '<script>window.__AUC__=' + JSON.stringify(cfg) + ';</script>'
+            + '<script>' + AUCTION_DISPLAY_JS + '</script>'
+            + '</body></html>';
+    }
+
+    // ============================================================================
+    // EVENT EDITION CYCLING (queue 5a5d) — admin-only registry + history overlay
+    // ----------------------------------------------------------------------------
+    // Archive a finished edition (state change + config snapshot + history routing,
+    // NEVER a delete) and carry over into the next edition (a fresh ACTIVE conference
+    // the member portal picks up automatically, cloning only what the admin chooses).
+    // The ACTIVE edition's live config stays in conferences / plexus_page_settings /
+    // ticket_types / sessions / speakers — this layer never forks it. Every issued QR,
+    // certificate and purchase is untouched, so the frozen scanner path keeps validating.
+    // ============================================================================
+    const EDITION_PROJECTS = [
+        { project: 'plexus',      label: 'Plexus Conference', usesConference: true,  color: '#9b1b22', icon: 'fa-microscope' },
+        { project: 'bridges',     label: 'Building Bridges',  usesConference: false, color: '#0ea5a4', icon: 'fa-people-arrows' },
+        { project: 'forum',       label: 'Biomedical Forum',  usesConference: false, color: '#7c3aed', icon: 'fa-user-tie' },
+        { project: 'accelerator', label: 'Accelerator',       usesConference: false, color: '#d97706', icon: 'fa-flask' },
+        { project: 'gala',        label: 'Gala Evening',      usesConference: false, color: '#c9a962', icon: 'fa-champagne-glasses' }
+    ];
+    function editionProjectMeta(project) {
+        return EDITION_PROJECTS.find(function (p) { return p.project === project; }) || { project: project, label: project, usesConference: false, color: '#64748b', icon: 'fa-calendar' };
+    }
+    function edCnt(sql, args) { try { var r = query.get(sql, args || []); return (r && r.c) || 0; } catch (e) { return 0; } }
+    function editionRegTable(project) {
+        return { plexus: 'registrations', gala: 'gala_registrations', bridges: 'bridges_registrations', forum: 'forum_event_registrations', accelerator: 'accelerator_applications' }[project] || null;
+    }
+    function editionYearOf(ed) {
+        if (ed.start_date && /^\d{4}/.test(ed.start_date)) return String(ed.start_date).slice(0, 4);
+        var m = /(\d{4})/.exec(ed.edition_key || '');
+        return m ? m[1] : String(new Date().getFullYear());
+    }
+    function editionHumanDate(start, end) {
+        try {
+            if (!start) return '';
+            var s = new Date(start + 'T00:00:00');
+            var mon = s.toLocaleString('en-US', { month: 'long' });
+            if (end && end !== start) {
+                var e = new Date(end + 'T00:00:00');
+                if (e.getMonth() === s.getMonth() && e.getFullYear() === s.getFullYear()) {
+                    return s.getDate() + '-' + e.getDate() + ' ' + mon + ' ' + s.getFullYear();
+                }
+                return s.getDate() + ' ' + mon + ' ' + s.getFullYear() + ' - ' + e.getDate() + ' ' + e.toLocaleString('en-US', { month: 'long' }) + ' ' + e.getFullYear();
+            }
+            return s.getDate() + ' ' + mon + ' ' + s.getFullYear();
+        } catch (e) { return start || ''; }
+    }
+    // Seed the CURRENT live data as each project's ACTIVE edition. Idempotent + additive:
+    // a project already carrying an edition is left alone, and nothing in the live tables
+    // is modified — this only registers what already exists as the active edition.
+    function ensureEditionsSeeded() {
+        try {
+            var seededAny = false;
+            for (var i = 0; i < EDITION_PROJECTS.length; i++) {
+                var p = EDITION_PROJECTS[i];
+                var existing = query.get('SELECT id FROM event_editions WHERE project = ?', [p.project]);
+                if (existing) continue;
+                var start = null, end = null, venue = null, confId = null, label = p.label, year = null;
+                if (p.usesConference) {
+                    var conf = query.get('SELECT * FROM conferences WHERE is_active = 1 ORDER BY year DESC LIMIT 1');
+                    if (conf) {
+                        start = conf.start_date; end = conf.end_date;
+                        venue = [conf.venue_name, conf.venue_city].filter(Boolean).join(', ') || null;
+                        confId = conf.id; year = conf.year; if (conf.name) label = conf.name;
+                    }
+                }
+                var ps = null; try { ps = query.get('SELECT * FROM project_settings WHERE project = ?', [p.project]); } catch (e) {}
+                if (ps) { if (!start) start = ps.event_date; if (!end) end = ps.end_date; if (!venue) venue = ps.venue || ps.location; }
+                var editionYear = year || (start && /^\d{4}/.test(String(start)) ? String(start).slice(0, 4) : new Date().getFullYear());
+                var editionKey = p.project + '-' + editionYear;
+                var labelWithYear = /\d{4}/.test(label) ? label : (label + ' ' + editionYear);
+                try {
+                    db.run('INSERT INTO event_editions (id, project, edition_key, label, status, start_date, end_date, venue, conference_id, is_seed) VALUES (?,?,?,?,\'active\',?,?,?,?,1)',
+                        [uuidv4(), p.project, editionKey, labelWithYear, start || null, end || null, venue || null, confId]);
+                    seededAny = true;
+                } catch (e) { /* unique clash — already seeded under this key */ }
+            }
+            if (seededAny) saveDb();
+        } catch (e) { console.error('[editions seed]', e.message); }
+    }
+    // Counts of everything this edition owns — all PRESERVED by archiving.
+    function editionStats(ed) {
+        var out = { registrations: 0, tickets_valid: 0, certificates: 0, sessions: 0, speakers: 0, sponsors: 0, photos: 0, ticket_types: 0, promo_codes: 0 };
+        var cid = ed.conference_id;
+        if (cid) {
+            out.registrations = edCnt('SELECT COUNT(*) c FROM registrations WHERE conference_id = ?', [cid]);
+            out.tickets_valid = edCnt("SELECT COUNT(*) c FROM registrations WHERE conference_id = ? AND COALESCE(ticket_qr_code,'') != ''", [cid]) || out.registrations;
+            out.certificates = edCnt('SELECT COUNT(*) c FROM certificates ct JOIN registrations r ON ct.registration_id = r.id WHERE r.conference_id = ?', [cid]);
+            out.sessions = edCnt('SELECT COUNT(*) c FROM sessions WHERE conference_id = ?', [cid]);
+            out.speakers = edCnt('SELECT COUNT(*) c FROM speakers WHERE conference_id = ?', [cid]);
+            out.sponsors = edCnt('SELECT COUNT(*) c FROM sponsors WHERE conference_id = ?', [cid]);
+            out.photos = edCnt('SELECT COUNT(*) c FROM conference_photos WHERE conference_id = ?', [cid]);
+            out.ticket_types = edCnt('SELECT COUNT(*) c FROM ticket_types WHERE conference_id = ?', [cid]);
+            out.promo_codes = edCnt('SELECT COUNT(*) c FROM promo_codes WHERE conference_id = ?', [cid]);
+        } else {
+            var t = editionRegTable(ed.project);
+            if (t) { out.registrations = edCnt('SELECT COUNT(*) c FROM ' + t); out.tickets_valid = out.registrations; }
+        }
+        return out;
+    }
+    // Snapshot the edition's then-current config as data, so history is preserved verbatim.
+    function buildEditionSnapshot(ed) {
+        var snap = { captured_at: new Date().toISOString(), project: ed.project, edition_key: ed.edition_key, conference_id: ed.conference_id || null };
+        try { snap.project_settings = query.get('SELECT * FROM project_settings WHERE project = ?', [ed.project]) || null; } catch (e) { snap.project_settings = null; }
+        if (ed.project === 'plexus') { try { snap.page_settings = query.get("SELECT * FROM plexus_page_settings WHERE id = 'default'") || null; } catch (e) { snap.page_settings = null; } }
+        var cid = ed.conference_id;
+        if (cid) {
+            try { snap.conference = query.get('SELECT * FROM conferences WHERE id = ?', [cid]) || null; } catch (e) {}
+            try { snap.ticket_types = query.all('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order', [cid]); } catch (e) { snap.ticket_types = []; }
+            try { snap.sessions = query.all('SELECT id, title, day, start_time, end_time, room, track, session_type FROM sessions WHERE conference_id = ?', [cid]); } catch (e) { snap.sessions = []; }
+            try { snap.speakers = query.all('SELECT id, name, title, institution, talk_title, is_keynote FROM speakers WHERE conference_id = ?', [cid]); } catch (e) { snap.speakers = []; }
+            try { snap.sponsors = query.all('SELECT id, name, tier, website_url FROM sponsors WHERE conference_id = ?', [cid]); } catch (e) { snap.sponsors = []; }
+        }
+        return snap;
+    }
+    function buildArchivePreview(ed) {
+        var stats = editionStats(ed);
+        var meta = editionProjectMeta(ed.project);
+        return {
+            action: 'archive',
+            edition: { id: ed.id, project: ed.project, project_label: meta.label, label: ed.label, edition_key: ed.edition_key, status: ed.status, start_date: ed.start_date, end_date: ed.end_date },
+            status_change: { from: ed.status, to: 'archived' },
+            preserved: stats,
+            routed_to_history: {
+                talk_library: { eligible: true, sessions: stats.sessions },
+                moments: { tag: ed.edition_key, photos: stats.photos }
+            },
+            destructive: false,
+            deletes: [],
+            notes: [
+                'No registration, ticket, certificate or purchase is deleted or changed.',
+                'Every issued QR keeps validating at the door — the scanner path is untouched.',
+                'Registrations stay queryable and exportable from this edition.',
+                'Recorded sessions become eligible for the Talk Library, and photos are tagged to Moments.'
+            ]
+        };
+    }
+    function performArchive(ed, req) {
+        var snap = buildEditionSnapshot(ed);
+        var now = new Date().toISOString();
+        db.run("UPDATE event_editions SET status = 'archived', archived_at = ?, talk_library_eligible = 1, moments_tag = ?, config_snapshot_json = ?, updated_at = ? WHERE id = ?",
+            [now, ed.edition_key, JSON.stringify(snap), now, ed.id]);
+        saveDb();
+        try { logAudit(req, 'edition.archive', ed.label || ed.edition_key); } catch (e) {}
+        return query.get('SELECT * FROM event_editions WHERE id = ?', [ed.id]);
+    }
+    function editionCarryDefaults(source) {
+        // Propose the next edition: same project, year + 1, dates shifted by a year.
+        var y = parseInt(editionYearOf(source), 10) || new Date().getFullYear();
+        var ny = y + 1;
+        function shiftYear(d) { if (!d || !/^\d{4}-\d{2}-\d{2}/.test(d)) return null; return (ny) + d.slice(4); }
+        var meta = editionProjectMeta(source.project);
+        var baseLabel = (source.label || meta.label).replace(/\b\d{4}\b/, String(ny));
+        if (!/\d{4}/.test(baseLabel)) baseLabel = baseLabel + ' ' + ny;
+        return {
+            project: source.project,
+            label: baseLabel,
+            edition_key: source.project + '-' + ny,
+            start_date: shiftYear(source.start_date),
+            end_date: shiftYear(source.end_date),
+            venue: source.venue || null,
+            year: ny
+        };
+    }
+    function normalizeCarryAnswers(source, body) {
+        var d = editionCarryDefaults(source);
+        var b = body || {};
+        return {
+            label: String(b.label || d.label).trim().slice(0, 160) || d.label,
+            edition_key: String(b.edition_key || d.edition_key).trim().slice(0, 80) || d.edition_key,
+            start_date: (b.start_date && /^\d{4}-\d{2}-\d{2}$/.test(b.start_date)) ? b.start_date : d.start_date,
+            end_date: (b.end_date && /^\d{4}-\d{2}-\d{2}$/.test(b.end_date)) ? b.end_date : d.end_date,
+            venue: (b.venue != null ? String(b.venue) : (d.venue || '')).trim().slice(0, 200) || null,
+            carry_pricing: b.carry_pricing !== false,
+            carry_program: b.carry_program !== false,
+            carry_sponsors: b.carry_sponsors !== false,
+            archive_source: b.archive_source !== false
+        };
+    }
+    function buildCarryoverPreview(source, ans) {
+        var stats = editionStats(source);
+        var meta = editionProjectMeta(source.project);
+        var carries = [];
+        if (source.conference_id) {
+            if (ans.carry_pricing) carries.push({ kind: 'pricing', label: 'Pricing structure (ticket types)', count: stats.ticket_types });
+            if (ans.carry_program) carries.push({ kind: 'program', label: 'Program skeleton (session slots)', count: stats.sessions });
+            if (ans.carry_sponsors) carries.push({ kind: 'sponsors', label: 'Sponsor tiers', count: stats.sponsors });
+        }
+        var resets = [
+            { kind: 'speakers', label: 'Speakers', from: stats.speakers, to: 0 },
+            { kind: 'registrations', label: 'Registrations', from: stats.registrations, to: 0 },
+            { kind: 'dates', label: 'Dates & countdown', to: editionHumanDate(ans.start_date, ans.end_date) || '(to be set)' }
+        ];
+        return {
+            action: 'carryover',
+            source: { id: source.id, project: source.project, project_label: meta.label, label: source.label, edition_key: source.edition_key, status: source.status },
+            source_will_archive: ans.archive_source && source.status !== 'archived',
+            new_edition: { project: source.project, label: ans.label, edition_key: ans.edition_key, start_date: ans.start_date, end_date: ans.end_date, venue: ans.venue, status: 'active' },
+            carries: carries,
+            resets: resets,
+            will_create: { conference: !!source.conference_id, edition_row: true },
+            member_portal: source.conference_id
+                ? 'The member portal will show this new edition automatically — it reads the active conference.'
+                : 'The member portal will pick up the new edition dates from the project settings.',
+            source_untouched: true,
+            destructive: false,
+            notes: [
+                'The finished edition keeps every registration, ticket and certificate exactly as it is.',
+                'The new edition starts with fresh speakers, a clean registration list and new dates.'
+            ]
+        };
+    }
+    function editionUniqueSlug(base) {
+        var slug = base, i = 2;
+        while (query.get('SELECT id FROM conferences WHERE slug = ?', [slug])) { slug = base + '-' + i; i++; }
+        return slug;
+    }
+    function editionUniqueKey(base) {
+        var k = base, i = 2;
+        while (query.get('SELECT id FROM event_editions WHERE edition_key = ?', [k])) { k = base + '-' + i; i++; }
+        return k;
+    }
+    function performCarryover(source, ans, req) {
+        var created = { conference_id: null, edition_id: null, ticket_types: 0, sessions: 0, sponsors: 0 };
+        var newYear = parseInt((ans.start_date && /^\d{4}/.test(ans.start_date)) ? ans.start_date.slice(0, 4) : editionYearOf(source), 10) || (new Date().getFullYear() + 1);
+        var newConfId = null;
+        // Archive the finished edition first if asked (and not already archived).
+        if (ans.archive_source && source.status !== 'archived') { performArchive(source, req); }
+        if (source.conference_id) {
+            var srcConf = query.get('SELECT * FROM conferences WHERE id = ?', [source.conference_id]);
+            newConfId = uuidv4();
+            var slug = editionUniqueSlug(source.project + '-' + newYear);
+            var venueParts = String(ans.venue || '').split(',').map(function (x) { return x.trim(); });
+            db.run('INSERT INTO conferences (id, name, year, slug, description, start_date, end_date, venue_name, venue_city, venue_country, max_capacity, is_active, registration_open) VALUES (?,?,?,?,?,?,?,?,?,?,?,1,1)',
+                [newConfId, ans.label, newYear, slug,
+                 srcConf ? srcConf.description : null, ans.start_date || null, ans.end_date || null,
+                 venueParts[0] || (srcConf ? srcConf.venue_name : null), venueParts[1] || (srcConf ? srcConf.venue_city : null), venueParts[2] || (srcConf ? srcConf.venue_country : null),
+                 srcConf ? (srcConf.max_capacity || 200) : 200]);
+            created.conference_id = newConfId;
+            if (ans.carry_pricing) {
+                var tts = query.all('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order', [source.conference_id]);
+                tts.forEach(function (t) {
+                    db.run('INSERT INTO ticket_types (id, conference_id, name, name_hr, price_early_bird, price_regular, price_late, currency, includes_gala, sold_count, sort_order) VALUES (?,?,?,?,?,?,?,?,?,0,?)',
+                        [uuidv4(), newConfId, t.name, t.name_hr, t.price_early_bird, t.price_regular, t.price_late, t.currency || 'EUR', t.includes_gala || 0, t.sort_order || 0]);
+                    created.ticket_types++;
+                });
+            }
+            if (ans.carry_program) {
+                var ss = query.all('SELECT * FROM sessions WHERE conference_id = ?', [source.conference_id]);
+                ss.forEach(function (se) {
+                    // Program SKELETON carries; speaker bindings reset (speakers are a reset dimension).
+                    db.run('INSERT INTO sessions (id, conference_id, title, description, session_type, day, start_time, end_time, room, track, speaker_ids) VALUES (?,?,?,?,?,?,?,?,?,?,NULL)',
+                        [uuidv4(), newConfId, se.title, se.description, se.session_type, se.day, se.start_time, se.end_time, se.room, se.track]);
+                    created.sessions++;
+                });
+            }
+            if (ans.carry_sponsors) {
+                var sp = query.all('SELECT * FROM sponsors WHERE conference_id = ?', [source.conference_id]);
+                sp.forEach(function (s) {
+                    db.run('INSERT INTO sponsors (id, conference_id, name, tier, logo_url, website_url, description, sort_order) VALUES (?,?,?,?,?,?,?,?)',
+                        [uuidv4(), newConfId, s.name, s.tier, s.logo_url, s.website_url, s.description, s.sort_order || 0]);
+                    created.sponsors++;
+                });
+            }
+            // Plexus hub display date follows the active edition (curated copy left intact).
+            if (source.project === 'plexus') {
+                try { db.run("UPDATE plexus_page_settings SET conference_date = ?, conference_status = 'Open for registration', updated_at = ? WHERE id = 'default'", [editionHumanDate(ans.start_date, ans.end_date), new Date().toISOString()]); } catch (e) {}
+            }
+        }
+        // Project dated entry follows the active edition.
+        try { db.run('UPDATE project_settings SET event_date = ?, end_date = ?, venue = ?, updated_at = ? WHERE project = ?', [ans.start_date || null, ans.end_date || null, ans.venue || null, new Date().toISOString(), source.project]); } catch (e) {}
+        var newEditionId = uuidv4();
+        var key = editionUniqueKey(ans.edition_key || (source.project + '-' + newYear));
+        db.run('INSERT INTO event_editions (id, project, edition_key, label, status, start_date, end_date, venue, conference_id, carried_from, created_by, created_at, updated_at) VALUES (?,?,?,?,\'active\',?,?,?,?,?,?,?,?)',
+            [newEditionId, source.project, key, ans.label, ans.start_date || null, ans.end_date || null, ans.venue || null, newConfId, source.id, (req.user && req.user.id) || null, new Date().toISOString(), new Date().toISOString()]);
+        created.edition_id = newEditionId;
+        saveDb();
+        try { logAudit(req, 'edition.carryover', source.label + ' -> ' + ans.label); } catch (e) {}
+        return { new_edition: query.get('SELECT * FROM event_editions WHERE id = ?', [newEditionId]), created: created };
+    }
+
+    // ---- Editions: list (grouped by project, calendar-ready) ----
+    app.get('/api/admin/editions', auth, adminOnly, (req, res) => {
+        try {
+            ensureEditionsSeeded();
+            var rows = query.all('SELECT * FROM event_editions ORDER BY project, (start_date IS NULL), start_date DESC, created_at DESC');
+            var byProject = {};
+            rows.forEach(function (ed) {
+                var meta = editionProjectMeta(ed.project);
+                if (!byProject[ed.project]) byProject[ed.project] = { project: ed.project, label: meta.label, color: meta.color, icon: meta.icon, uses_conference: meta.usesConference, editions: [] };
+                byProject[ed.project].editions.push(Object.assign({}, ed, { year: editionYearOf(ed), stats: editionStats(ed) }));
+            });
+            // Keep the known projects ordered; append any unknown ones after.
+            var projects = [];
+            EDITION_PROJECTS.forEach(function (p) { if (byProject[p.project]) { projects.push(byProject[p.project]); delete byProject[p.project]; } });
+            Object.keys(byProject).forEach(function (k) { projects.push(byProject[k]); });
+            var summary = {
+                total: rows.length,
+                active: rows.filter(function (r) { return r.status === 'active'; }).length,
+                archived: rows.filter(function (r) { return r.status === 'archived'; }).length
+            };
+            res.json({ projects: projects, summary: summary });
+        } catch (e) { console.error('[editions] list', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ---- Editions: single detail (with snapshot) ----
+    app.get('/api/admin/editions/:id', auth, adminOnly, (req, res) => {
+        try {
+            ensureEditionsSeeded();
+            var ed = query.get('SELECT * FROM event_editions WHERE id = ?', [req.params.id]);
+            if (!ed) return res.status(404).json({ error: 'Edition not found' });
+            var meta = editionProjectMeta(ed.project);
+            var snap = null; if (ed.config_snapshot_json) { try { snap = JSON.parse(ed.config_snapshot_json); } catch (e) {} }
+            res.json(Object.assign({}, ed, { project_label: meta.label, color: meta.color, icon: meta.icon, year: editionYearOf(ed), stats: editionStats(ed), snapshot: snap }));
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ---- Archive dry-run preview (nothing changes) ----
+    app.post('/api/admin/editions/:id/archive-preview', auth, adminOnly, (req, res) => {
+        try {
+            ensureEditionsSeeded();
+            var ed = query.get('SELECT * FROM event_editions WHERE id = ?', [req.params.id]);
+            if (!ed) return res.status(404).json({ error: 'Edition not found' });
+            if (ed.status === 'archived') return res.status(400).json({ error: 'This edition is already archived.' });
+            res.json(buildArchivePreview(ed));
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ---- Archive (confirm required) ----
+    app.post('/api/admin/editions/:id/archive', auth, adminOnly, (req, res) => {
+        try {
+            ensureEditionsSeeded();
+            var ed = query.get('SELECT * FROM event_editions WHERE id = ?', [req.params.id]);
+            if (!ed) return res.status(404).json({ error: 'Edition not found' });
+            if (ed.status === 'archived') return res.status(400).json({ error: 'This edition is already archived.' });
+            if (!req.body || req.body.confirm !== true) return res.status(400).json({ error: 'Confirmation required.', preview: buildArchivePreview(ed) });
+            var updated = performArchive(ed, req);
+            res.json({ success: true, edition: updated });
+        } catch (e) { console.error('[editions] archive', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ---- Carry-over dry-run preview (nothing changes) ----
+    app.post('/api/admin/editions/:id/carryover-preview', auth, adminOnly, (req, res) => {
+        try {
+            ensureEditionsSeeded();
+            var src = query.get('SELECT * FROM event_editions WHERE id = ?', [req.params.id]);
+            if (!src) return res.status(404).json({ error: 'Source edition not found' });
+            var ans = normalizeCarryAnswers(src, req.body);
+            res.json({ defaults: editionCarryDefaults(src), preview: buildCarryoverPreview(src, ans), answers: ans });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ---- Carry-over (create the next edition) ----
+    app.post('/api/admin/editions/:id/carryover', auth, adminOnly, (req, res) => {
+        try {
+            ensureEditionsSeeded();
+            var src = query.get('SELECT * FROM event_editions WHERE id = ?', [req.params.id]);
+            if (!src) return res.status(404).json({ error: 'Source edition not found' });
+            if (!req.body || req.body.confirm !== true) {
+                var ansP = normalizeCarryAnswers(src, req.body);
+                return res.status(400).json({ error: 'Confirmation required.', preview: buildCarryoverPreview(src, ansP) });
+            }
+            var ans = normalizeCarryAnswers(src, req.body);
+            if (!ans.start_date) return res.status(400).json({ error: 'A start date for the new edition is required.' });
+            var result = performCarryover(src, ans, req);
+            res.json(Object.assign({ success: true }, result));
+        } catch (e) { console.error('[editions] carryover', e.message); res.status(500).json({ error: e.message }); }
     });
 
     // ========== UNIVERSAL EVENT CHECK-IN VERIFY (mirror of user-portal endpoint) ==========

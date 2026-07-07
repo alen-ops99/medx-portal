@@ -2185,7 +2185,7 @@ app.get('/invite/:data', async (req, res) => {
             // Get live gala price for the Gala card on this page
             const galaForCA = query.get("SELECT * FROM gala_settings WHERE id = 'default'") || {};
             const galaPrice = (galaForCA && galaForCA.price_gala_only) ? Number(galaForCA.price_gala_only) : 150;
-            const confForCA = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'") || {};
+            const confForCA = activePlexusConf() || {};
             // Variant: 'croatian' (default) or 'international' — payload v: takes precedence over DB row
             const caVariant = (data.v === 'international' || (caInvite && caInvite.variant === 'international')) ? 'international' : 'croatian';
             const fmtShortDate = (iso) => {
@@ -3538,6 +3538,16 @@ function getActiveConference() {
     return query.get(`SELECT c.* FROM conferences c
                       WHERE c.is_active = 1 AND EXISTS (SELECT 1 FROM ticket_types t WHERE t.conference_id = c.id)
                       ORDER BY c.year DESC LIMIT 1`)
+        || query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+}
+
+// Active Plexus edition for the member portal's edition-scoped content routes (schedule,
+// hotels, survey, ...). Mirrors /api/conferences/active — is_active = 1, newest year — so the
+// whole member portal follows a carried-over edition, while falling back to the seed row so a
+// half-built new year never blanks the portal. Content only; a member's own ticket and
+// certificate resolve per-registration (prefer active edition, then their newest) below.
+function activePlexusConf() {
+    return query.get('SELECT * FROM conferences WHERE is_active = 1 ORDER BY year DESC LIMIT 1')
         || query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
 }
 
@@ -10387,7 +10397,7 @@ async function submitReset(e){
 
         // --- Members: Plexus attendee directory (public profiles only, or self) ---
         grp(() => {
-            const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+            const conf = activePlexusConf();
             if (conf) {
                 query.all(`SELECT DISTINCT u.id, u.first_name, u.last_name, u.institution
                     FROM users u
@@ -15662,7 +15672,7 @@ By applying to this program, I provide the following consents:
     // ========== DASHBOARD SUMMARY ==========
 
     app.get('/api/dashboard/summary', auth, adminOnly, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const program = query.get('SELECT id FROM accelerator_programs WHERE is_active = 1');
 
         const summary = {
@@ -17802,8 +17812,8 @@ By applying to this program, I provide the following consents:
                 JOIN ticket_types t ON r.ticket_type_id = t.id
                 LEFT JOIN payment_transactions pt ON pt.registration_id = r.id
                 JOIN conferences c ON r.conference_id = c.id
-                WHERE c.slug = 'plexus-2026' AND r.status != 'cancelled'`;
-            const params = [];
+                WHERE c.id = ? AND r.status != 'cancelled'`;
+            const params = [(activePlexusConf() || {}).id || ''];
 
             if (status && status !== 'all') {
                 sql += ' AND r.payment_status = ?';
@@ -17888,8 +17898,8 @@ By applying to this program, I provide the following consents:
                 user = query.get('SELECT * FROM users WHERE id = ?', [userId]);
             }
 
-            // Check if already registered for this conference
-            const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+            // Check if already registered for this conference (active edition — same resolver as the pricing path below)
+            const conf = getActiveConference();
             const existingReg = query.get('SELECT * FROM registrations WHERE conference_id = ? AND user_id = ? AND status != ?', [conf.id, user.id, 'cancelled']);
             if (existingReg) return res.status(400).json({ error: 'Already registered for this conference', registration_id: existingReg.id });
 
@@ -17908,7 +17918,7 @@ By applying to this program, I provide the following consents:
         try {
             const { ticket_type_id, registration_type, promo_code, billing_info, registration_details: details } = req.body;
 
-            const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+            const conf = getActiveConference();
             const ticket = query.get('SELECT * FROM ticket_types WHERE id = ?', [ticket_type_id]);
 
             if (!ticket) return res.status(400).json({ error: 'Invalid ticket type' });
@@ -17976,7 +17986,7 @@ By applying to this program, I provide the following consents:
 
     // Get my registration
     app.get('/api/plexus/my-registration', auth, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const reg = query.get(`SELECT r.*, t.name as ticket_name, t.includes_gala, u.first_name, u.last_name, u.email
             FROM registrations r
             JOIN ticket_types t ON r.ticket_type_id = t.id
@@ -17992,7 +18002,7 @@ By applying to this program, I provide the following consents:
     // Join waiting list
     app.post('/api/plexus/waitlist', auth, (req, res) => {
         const { ticket_type_id } = req.body;
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
 
         // Get next position
         const lastPos = query.get('SELECT MAX(position) as p FROM waitlist WHERE conference_id = ?', [conf.id])?.p || 0;
@@ -18040,7 +18050,7 @@ By applying to this program, I provide the following consents:
     // Apply for scholarship
     app.post('/api/plexus/scholarship', auth, (req, res) => {
         const { institution, country, career_stage, financial_need_statement, research_statement, amount_requested } = req.body;
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
 
         const id = uuidv4();
         db.run(`INSERT INTO scholarship_applications (id, conference_id, user_id, institution, country, career_stage, financial_need_statement, research_statement, amount_requested)
@@ -18056,10 +18066,10 @@ By applying to this program, I provide the following consents:
     app.post('/api/plexus/abstracts', auth, async (req, res) => {
         const { title, abstract_text, topic_category, presentation_type, authors } = req.body;
         const keywords = req.body.keywords ?? null;
-        const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
 
         // Check deadline
-        if (new Date() > new Date(conf.abstract_deadline)) {
+        if (conf.abstract_deadline && new Date() > new Date(conf.abstract_deadline)) {
             return res.status(400).json({ error: 'Abstract submission deadline has passed' });
         }
 
@@ -18100,7 +18110,7 @@ By applying to this program, I provide the following consents:
 
     // Get my abstracts
     app.get('/api/plexus/my-abstracts', auth, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const abstracts = query.all('SELECT * FROM abstracts WHERE conference_id = ? AND submitter_id = ? ORDER BY created_at DESC', [conf.id, req.user.id]);
 
         abstracts.forEach(a => {
@@ -18163,7 +18173,7 @@ By applying to this program, I provide the following consents:
 
     // Get full schedule (public — only published sessions)
     app.get('/api/plexus/schedule', (req, res) => {
-        const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         if (!conf) return res.json({ conference: null, sessions: [], tracks: [], rooms: [] });
         const sessions = query.all(`SELECT s.*, GROUP_CONCAT(sp.name) as speaker_names
             FROM sessions s
@@ -18178,7 +18188,7 @@ By applying to this program, I provide the following consents:
 
     // Admin: Get all sessions (including unpublished) — for admin panel in user portal
     app.get('/api/admin/plexus/sessions', auth, adminOnly, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         if (!conf) return res.json([]);
         const sessions = query.all(`SELECT s.*, GROUP_CONCAT(sp.name) as speaker_names
             FROM sessions s
@@ -18189,7 +18199,7 @@ By applying to this program, I provide the following consents:
 
     // Admin: Create session
     app.post('/api/admin/plexus/sessions', auth, adminOnly, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const { title, description, session_type, day, start_time, end_time, room, track, speaker_ids, capacity, is_published } = req.body;
 
         const id = uuidv4();
@@ -18246,7 +18256,7 @@ By applying to this program, I provide the following consents:
     // Admin: Bulk publish sessions
     app.post('/api/admin/plexus/sessions/bulk-publish', auth, adminOnly, (req, res) => {
         const { session_ids } = req.body;
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         let ids = session_ids;
         if (!ids || ids.length === 0) {
             const unpublished = query.all('SELECT id, title FROM sessions WHERE conference_id = ? AND (is_published = 0 OR is_published IS NULL)', [conf.id]);
@@ -18376,7 +18386,7 @@ By applying to this program, I provide the following consents:
     // Get attendee directory
     app.get('/api/plexus/attendees', auth, (req, res) => {
         const { search, country, institution, interests } = req.query;
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
 
         let sql = `SELECT DISTINCT u.id, u.first_name, u.last_name, u.institution, u.country, up.title, up.research_interests, up.is_profile_public
             FROM users u
@@ -18453,7 +18463,7 @@ By applying to this program, I provide the following consents:
     // Request meeting
     app.post('/api/plexus/meetings', auth, (req, res) => {
         const { requestee_id, message, proposed_times } = req.body;
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
 
         const id = uuidv4();
         db.run('INSERT INTO meeting_requests (id, conference_id, requester_id, requestee_id, message, proposed_times) VALUES (?, ?, ?, ?, ?, ?)',
@@ -18475,9 +18485,12 @@ By applying to this program, I provide the following consents:
 
     // Request visa invitation letter
     app.post('/api/plexus/visa-request', auth, (req, res) => {
+        // Prefer the active edition, then the member's newest registration, so a carried-over
+        // edition's registrant can request their letter while past registrations still resolve.
         const reg = query.get(`SELECT r.id FROM registrations r
             JOIN conferences c ON r.conference_id = c.id
-            WHERE c.slug = 'plexus-2026' AND r.user_id = ?`, [req.user.id]);
+            WHERE r.user_id = ?
+            ORDER BY c.is_active DESC, c.year DESC LIMIT 1`, [req.user.id]);
 
         if (!reg) return res.status(400).json({ error: 'Must be registered to request visa letter' });
 
@@ -18493,7 +18506,8 @@ By applying to this program, I provide the following consents:
 
     // Get partner hotels
     app.get('/api/plexus/hotels', (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
+        if (!conf) return res.json([]);
         const hotels = query.all('SELECT * FROM partner_hotels WHERE conference_id = ? ORDER BY sort_order', [conf.id]);
         res.json(hotels);
     });
@@ -18503,7 +18517,7 @@ By applying to this program, I provide the following consents:
     // Apply as volunteer
     app.post('/api/plexus/volunteers', auth, (req, res) => {
         const { availability, preferred_tasks } = req.body;
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
 
         const existing = query.get('SELECT * FROM volunteers WHERE conference_id = ? AND user_id = ?', [conf.id, req.user.id]);
         if (existing) return res.status(400).json({ error: 'Already applied' });
@@ -18517,7 +18531,7 @@ By applying to this program, I provide the following consents:
 
     // Get my volunteer status
     app.get('/api/plexus/my-volunteer', auth, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const volunteer = query.get('SELECT * FROM volunteers WHERE conference_id = ? AND user_id = ?', [conf.id, req.user.id]);
 
         if (!volunteer) return res.json(null);
@@ -18535,7 +18549,7 @@ By applying to this program, I provide the following consents:
 
     // Apply as speaker
     app.post('/api/plexus/speaker-application', auth, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const { application_type, name, email, institution, title, bio, proposed_title, proposed_abstract, topic_area, presentation_type, duration_requested, av_requirements, previous_experience, target_audience, co_presenter_info, max_participants, required_materials } = req.body;
 
         const id = uuidv4();
@@ -18551,7 +18565,7 @@ By applying to this program, I provide the following consents:
     // Get speakers (public - only published ones; explicit columns — speakers rows also
     // hold email, invite_code (login credential) and travel logistics that must not leak)
     app.get('/api/plexus/speakers', (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const speakers = query.all(`SELECT id, name, title, institution, bio, photo_url,
             talk_title, talk_abstract, speaker_type, is_keynote, linkedin_url, twitter_url, sort_order
             FROM speakers WHERE conference_id = ? AND is_confirmed = 1 AND is_published = 1
@@ -18561,21 +18575,21 @@ By applying to this program, I provide the following consents:
 
     // Get sponsors (public - only published ones)
     app.get('/api/plexus/sponsors', (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const sponsors = query.all('SELECT * FROM sponsors WHERE conference_id = ? AND is_published = 1 ORDER BY tier DESC, sort_order', [conf.id]);
         res.json(sponsors);
     });
 
     // Get announcements
     app.get('/api/plexus/announcements', (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const announcements = query.all('SELECT * FROM announcements WHERE conference_id = ? ORDER BY published_at DESC LIMIT 20', [conf.id]);
         res.json(announcements);
     });
 
     // Get digital poster gallery
     app.get('/api/plexus/posters', (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const posters = query.all(`SELECT a.*, af.file_path as poster_file,
             GROUP_CONCAT(aa.first_name || ' ' || aa.last_name, ', ') as author_names
             FROM abstracts a
@@ -18588,24 +18602,28 @@ By applying to this program, I provide the following consents:
 
     // Get photo gallery
     app.get('/api/plexus/photos', (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const photos = query.all('SELECT * FROM conference_photos WHERE conference_id = ? AND is_public = 1 ORDER BY sort_order', [conf.id]);
         res.json(photos);
     });
 
     // Get resources/downloads
     app.get('/api/plexus/resources', (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const resources = query.all('SELECT * FROM resources WHERE conference_id = ? ORDER BY category, title', [conf.id]);
         res.json(resources);
     });
 
     // Download certificate
     app.get('/api/plexus/my-certificate', auth, (req, res) => {
-        const reg = query.get(`SELECT r.*, u.first_name, u.last_name FROM registrations r
+        // Resolve the member's attended registration, preferring the active edition and then
+        // their newest — so a carried-over edition's attendee gets their new certificate while a
+        // past attendee keeps retrieving theirs (archiving never deletes a registration).
+        const reg = query.get(`SELECT r.*, u.first_name, u.last_name, c.name AS conference_name, c.year AS conference_year FROM registrations r
             JOIN users u ON r.user_id = u.id
             JOIN conferences c ON r.conference_id = c.id
-            WHERE c.slug = 'plexus-2026' AND r.user_id = ? AND r.checked_in = 1`, [req.user.id]);
+            WHERE r.user_id = ? AND r.checked_in = 1
+            ORDER BY c.is_active DESC, c.year DESC LIMIT 1`, [req.user.id]);
 
         if (!reg) return res.status(400).json({ error: 'Must attend conference to get certificate' });
 
@@ -18613,10 +18631,11 @@ By applying to this program, I provide the following consents:
 
         if (!cert) {
             const id = uuidv4();
-            const certNumber = `PLX26-CERT-${String(Date.now()).slice(-8)}`;
+            const yy = String(reg.conference_year || '').slice(-2) || '26';
+            const certNumber = `PLX${yy}-CERT-${String(Date.now()).slice(-8)}`;
             db.run(`INSERT INTO certificates (id, registration_id, certificate_type, certificate_number, recipient_name, conference_name, issue_date)
-                VALUES (?, ?, 'attendance', ?, ?, 'Plexus Conference 2026', datetime('now'))`,
-                [id, reg.id, certNumber, `${reg.first_name} ${reg.last_name}`]);
+                VALUES (?, ?, 'attendance', ?, ?, ?, datetime('now'))`,
+                [id, reg.id, certNumber, `${reg.first_name} ${reg.last_name}`, reg.conference_name || 'Plexus Conference 2026']);
             saveDb();
             cert = query.get('SELECT * FROM certificates WHERE id = ?', [id]);
         }
@@ -18626,7 +18645,8 @@ By applying to this program, I provide the following consents:
 
     // Get survey
     app.get('/api/plexus/survey', auth, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
+        if (!conf) return res.json(null);
         const survey = query.get('SELECT * FROM surveys WHERE conference_id = ? AND is_active = 1', [conf.id]);
         if (!survey) return res.json(null);
 
@@ -18679,7 +18699,7 @@ By applying to this program, I provide the following consents:
 
     // Admin: Get all registrations
     app.get('/api/admin/plexus/registrations', auth, adminOnly, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const registrations = query.all(`SELECT r.*, u.first_name, u.last_name, u.email, u.phone, u.institution, u.country, t.name as ticket_name
             FROM registrations r
             JOIN users u ON r.user_id = u.id
@@ -18690,7 +18710,7 @@ By applying to this program, I provide the following consents:
 
     // Admin: Get all abstracts
     app.get('/api/admin/plexus/abstracts', auth, adminOnly, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const abstracts = query.all(`SELECT a.*, u.first_name, u.last_name, u.email
             FROM abstracts a JOIN users u ON a.submitter_id = u.id
             WHERE a.conference_id = ? ORDER BY a.created_at DESC`, [conf.id]);
@@ -18723,7 +18743,7 @@ By applying to this program, I provide the following consents:
 
     // Admin: Get dashboard stats
     app.get('/api/admin/plexus/stats', auth, adminOnly, (req, res) => {
-        const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
 
         const stats = {
             total_registrations: query.get('SELECT COUNT(*) as c FROM registrations WHERE conference_id = ?', [conf.id])?.c || 0,
@@ -18746,7 +18766,7 @@ By applying to this program, I provide the following consents:
 
     // Admin: Manage promo codes
     app.post('/api/admin/plexus/promo-codes', auth, adminOnly, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const { code, discount_type, discount_value, max_uses, valid_until } = req.body;
 
         const id = uuidv4();
@@ -18757,7 +18777,7 @@ By applying to this program, I provide the following consents:
     });
 
     app.get('/api/admin/plexus/promo-codes', auth, adminOnly, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const codes = query.all('SELECT * FROM promo_codes WHERE conference_id = ?', [conf.id]);
         res.json(codes);
     });
@@ -18766,7 +18786,7 @@ By applying to this program, I provide the following consents:
 
     // Admin: Manage speakers
     app.post('/api/admin/plexus/speakers', auth, adminOnly, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const b = req.body;
 
         const id = uuidv4();
@@ -18783,7 +18803,7 @@ By applying to this program, I provide the following consents:
 
     // Admin: Manage volunteer shifts
     app.post('/api/admin/plexus/volunteer-shifts', auth, adminOnly, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const { name, description, date, start_time, end_time, location, max_volunteers, required_skills } = req.body;
 
         const id = uuidv4();
@@ -18795,7 +18815,7 @@ By applying to this program, I provide the following consents:
 
     // Admin: Get volunteers
     app.get('/api/admin/plexus/volunteers', auth, adminOnly, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const volunteers = query.all(`SELECT v.*, u.first_name, u.last_name, u.email, u.phone
             FROM volunteers v JOIN users u ON v.user_id = u.id WHERE v.conference_id = ?`, [conf.id]);
         res.json(volunteers);
@@ -18861,7 +18881,7 @@ By applying to this program, I provide the following consents:
 
     // Admin: Get pending items
     app.get('/api/admin/plexus/pending', auth, adminOnly, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
 
         const pending = {
             refunds: query.all(`SELECT rr.*, u.first_name, u.last_name, u.email
@@ -18884,7 +18904,7 @@ By applying to this program, I provide the following consents:
 
     // Admin: Get speakers (supports ?year= filter)
     app.get('/api/admin/plexus/speakers', auth, adminOnly, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const { year } = req.query;
         let sql = `SELECT * FROM speakers WHERE conference_id = ?`;
         const params = [conf?.id || ''];
@@ -18899,7 +18919,7 @@ By applying to this program, I provide the following consents:
 
     // Admin: Get distinct speaker years
     app.get('/api/admin/plexus/speakers/years', auth, adminOnly, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const years = query.all(`SELECT DISTINCT year FROM speakers WHERE conference_id = ? AND year IS NOT NULL ORDER BY year DESC`, [conf?.id || '']);
         res.json(years.map(y => y.year));
     });
@@ -18978,7 +18998,7 @@ By applying to this program, I provide the following consents:
     // Admin: Import speakers from CSV
     app.post('/api/admin/plexus/speakers/import', auth, adminOnly, upload.single('file'), (req, res) => {
         try {
-            const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+            const conf = activePlexusConf();
             const fileContent = fs.readFileSync(req.file.path, 'utf-8');
             const lines = fileContent.split('\n').filter(l => l.trim());
             if (lines.length < 2) return res.status(400).json({ error: 'CSV file must have a header row and at least one data row' });
@@ -19027,7 +19047,7 @@ By applying to this program, I provide the following consents:
         const { speaker_ids, subject, body } = req.body;
         if (!speaker_ids || !speaker_ids.length) return res.status(400).json({ error: 'No speakers selected' });
 
-        const conf = query.get("SELECT name FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const confName = conf?.name || 'Plexus Conference 2026';
         const results = [];
 
@@ -19076,7 +19096,7 @@ By applying to this program, I provide the following consents:
         const speaker = query.get('SELECT * FROM speakers WHERE id = ?', [req.params.id]);
         if (!speaker) return res.status(404).json({ error: 'Speaker not found' });
 
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const newYear = req.body.year || new Date().getFullYear();
         const id = uuidv4();
 
@@ -19091,7 +19111,7 @@ By applying to this program, I provide the following consents:
 
     // Admin: Get sponsors
     app.get('/api/admin/plexus/sponsors', auth, adminOnly, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const sponsors = query.all(`SELECT * FROM sponsors WHERE conference_id = ? ORDER BY tier, name`, [conf?.id || '']);
         res.json(sponsors || []);
     });
@@ -19099,7 +19119,7 @@ By applying to this program, I provide the following consents:
     // Admin: Add sponsor
     app.post('/api/admin/plexus/sponsors', auth, adminOnly, (req, res) => {
         const { name, tier, website, logo_url, description, status, amount_pledged, amount_received, contact_name, contact_email, notes, is_published } = req.body;
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const id = uuidv4();
         db.run(`INSERT INTO sponsors (id, conference_id, name, tier, website, logo_url, description, status, amount_pledged, amount_received, contact_name, contact_email, notes, is_published, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
@@ -19172,7 +19192,7 @@ By applying to this program, I provide the following consents:
 
     // Admin: Export volunteers CSV
     app.get('/api/admin/plexus/volunteers/export', auth, adminOnly, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const volunteers = query.all(`SELECT v.*,
             COALESCE(v.first_name, u.first_name) as first_name,
             COALESCE(v.last_name, u.last_name) as last_name,
@@ -19210,7 +19230,7 @@ By applying to this program, I provide the following consents:
 
     // Admin: Recent check-ins
     app.get('/api/admin/plexus/recent-checkins', auth, adminOnly, (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const checkins = query.all(`
             SELECT r.id, u.first_name || ' ' || u.last_name as name, u.email, r.checked_in_at
             FROM registrations r
@@ -23981,7 +24001,7 @@ By applying to this program, I provide the following consents:
 
     // Get plexus registration stats (live count)
     app.get('/api/plexus/stats', (req, res) => {
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         const total = query.get("SELECT COUNT(*) as count FROM registrations WHERE conference_id = ?", [conf?.id || '']);
         const paid = query.get("SELECT COUNT(*) as count FROM registrations WHERE conference_id = ? AND payment_status = 'paid'", [conf?.id || '']);
         res.json({
@@ -23992,7 +24012,7 @@ By applying to this program, I provide the following consents:
 
     // Get plexus sessions (public — only published, with speaker names)
     app.get('/api/plexus/sessions', (req, res) => {
-        const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
+        const conf = activePlexusConf();
         if (!conf) return res.json([]);
         const sessions = query.all(`SELECT s.*, GROUP_CONCAT(sp.name) as speaker_names
             FROM sessions s
