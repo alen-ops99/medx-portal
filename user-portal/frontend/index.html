@@ -59048,7 +59048,7 @@ button,input,select,textarea{font-family:var(--sans);}
             <button class="up-tab" data-tab="mymedx" onclick="UserPortal.showSection('mymedx');" aria-label="My Med&amp;X">
                 <i class="fas fa-id-badge"></i><span data-i18n="nav.mymedx">My Med&amp;X</span>
             </button>
-            <button class="up-tab" data-tab="profile" onclick="UserPortal.toggleUserMenu(event);" aria-label="Profile">
+            <button class="up-tab" data-tab="profile" onclick="UserPortal.showSection('settings');" aria-label="Profile">
                 <i class="fas fa-user-circle"></i><span data-i18n="nav.profile">Profile</span>
             </button>
         </nav>
@@ -95373,8 +95373,11 @@ You can use variables like {first_name} that will be personalized for each recip
             },
 
             joinMeeting(meetingId) {
-                // Open Zoom link
-                window.open('https://harvard.zoom.us/my/alen1', '_blank');
+                // Per-pair meeting links are not issued yet. Never open a personal room here.
+                var hr = false; try { hr = (window.MedXI18n && MedXI18n.locale === 'hr'); } catch (e) {}
+                Toast.info(hr
+                    ? 'Zakazivanje sastanaka uskoro stiže. Vaša poveznica za sastanak pojavit će se ovdje.'
+                    : 'Meeting scheduling is coming soon. Your meeting link will appear here.');
             },
 
             rescheduleMeeting(meetingId) {
@@ -104759,9 +104762,9 @@ ${'='.repeat(70)}
 
             // ===== CUSTOM SHORTCUT =====
             defaultShortcut: {
-                label: 'Start Zoom Call',
-                url: 'https://harvard.zoom.us/my/alen1',
-                icon: 'fa-video'
+                label: 'Med&X website',
+                url: 'https://www.medx.hr/',
+                icon: 'fa-globe'
             },
 
             // ===== NOTES CANVAS =====
