@@ -9606,6 +9606,10 @@
             padding: 40px 24px;
             text-align: center;
         }
+        @media (max-width: 768px) {
+            /* Clear the fixed bottom nav + floating buttons so footer legal links aren't covered */
+            .hub-footer-minimal { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
+        }
 
         .hub-footer-minimal-content {
             max-width: 600px;
@@ -10770,7 +10774,7 @@
             gap: 12px;
             padding: 12px 20px;
             font-size: 14px;
-            color: var(--emph-line);
+            color: var(--ink);
             cursor: pointer;
             transition: all 0.15s;
         }
@@ -20206,7 +20210,7 @@
         .px-wizard-step.active .px-wizard-step-number {
             background: var(--emph-bg);
             border-color: var(--ink);
-            color: var(--up-navy);
+            color: #fff;
         }
 
         .px-wizard-step.completed .px-wizard-step-number {
@@ -29276,6 +29280,15 @@
             opacity: 0.6;
         }
 
+        @media (max-width: 480px) {
+            /* Stepper overflowed its card at 390px (labels spilled under the help FAB).
+               Tighten the connectors and allow scroll as a safety so nothing clips. */
+            .af-steps { padding: 20px 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            .af-step-line { width: 20px; margin: 0 8px; }
+            .af-step { gap: 8px; }
+            .af-step span { font-size: 12px; }
+        }
+
         .af-hero {
             background: linear-gradient(135deg, var(--emph-bg) 0%, var(--emph-bg-2) 55%, #4a1f22 100%);
             border-radius: var(--up-radius);
@@ -32399,7 +32412,12 @@
                 overflow-x: auto;
                 padding-bottom: 8px;
                 gap: 8px;
+                scrollbar-width: thin;
+                /* Right-edge fade cues that Notifications/Appearance/Privacy are further right */
+                -webkit-mask-image: linear-gradient(to right, #000 84%, transparent 100%);
+                        mask-image: linear-gradient(to right, #000 84%, transparent 100%);
             }
+            .settings-nav-item { padding: 12px 13px; }
         }
 
         .settings-nav-item {
@@ -53496,7 +53514,8 @@ textarea:focus:not(:focus-visible),
     width: 400px;
     max-width: 100vw;
     height: 100vh;
-    background: linear-gradient(180deg, var(--emph-bg-2) 0%, var(--emph-bg) 100%);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
     border-left: 1px solid var(--border);
     z-index: 10002;
     display: flex;
@@ -53552,8 +53571,8 @@ textarea:focus:not(:focus-visible),
 }
 
 .notification-panel-close {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     border-radius: 8px;
     background: transparent;
     border: none;
@@ -71438,7 +71457,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     .mlc-qr{width:19%;min-width:52px;aspect-ratio:1;flex:none;border-radius:8px;background:#fff;padding:5px;box-sizing:border-box;box-shadow:0 6px 16px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;}
                     .mlc-qr canvas,.mlc-qr img,.mlc-qr svg{width:100%!important;height:100%!important;display:block;}
                     .mlc-qr i{color:#c9bfb0;font-size:24px;}
-                    .mlc-flip{position:absolute;top:11px;right:12px;z-index:6;display:inline-flex;align-items:center;gap:6px;background:rgba(12,19,34,.62);border:1px solid rgba(201,169,98,.45);color:rgba(230,201,135,.95);border-radius:999px;padding:5px 11px;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;font-family:inherit;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);transition:background .2s ease;}
+                    .mlc-flip{position:absolute;top:11px;right:12px;z-index:6;display:inline-flex;align-items:center;gap:6px;background:rgba(12,19,34,.62);border:1px solid rgba(201,169,98,.45);color:rgba(230,201,135,.95);border-radius:999px;padding:7px 13px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;font-family:inherit;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);transition:background .2s ease;}
                     .mlc-flip:hover{background:rgba(155,27,34,.55);}
                     .mlc-back-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;}
                     .mlc-back-title{font-family:var(--serif,'Fraunces',serif);font-size:15px;font-weight:600;color:#fff;}
@@ -100500,7 +100519,7 @@ ${'='.repeat(70)}
 
             events: [
                 { id: 'plexus-2026', name: 'Plexus Conference 2026', date: 'December 4-5, 2026', location: 'Zagreb, Croatia', color: '#c2484e', icon: 'fa-calendar-alt' },
-                { id: 'af26', name: 'Annual Biomedical Forum 2026', date: 'May 25-27, 2027', location: 'Split & Zagreb, Croatia', color: '#f59e0b', icon: 'fa-users' },
+                { id: 'af26', name: 'Annual Biomedical Forum 2026', date: 'May 25-27, 2026', location: 'Split & Zagreb, Croatia', color: '#f59e0b', icon: 'fa-users' },
                 { id: 'bb-zurich-2026', name: 'Building Bridges: Zurich', date: 'March 15, 2026', location: 'Zurich, Switzerland', color: '#3b82f6', icon: 'fa-globe-europe' }
             ],
 
@@ -130898,6 +130917,14 @@ By applying to this program, I give the following consents:
          ticket is issued server-side through the existing per-event registration path
          so the frozen scanner validates it unchanged.
          ============================================================================ -->
+    <style>
+    /* Guest-pass "Bring a colleague" cards: stack head + full-width CTA on narrow phones
+       (the flex:1 text block otherwise collapses to a few px and the button rides over the title). */
+    @media (max-width: 480px){
+      .gp-card-head{ flex-direction: column !important; align-items: stretch !important; }
+      .gp-card-head .gp-card-btn{ width: 100%; justify-content: center; margin-top: 4px; }
+    }
+    </style>
     <script>
     window.GuestPass = (function(){
         function api(path, opts){ return (typeof UserPortal !== 'undefined' && UserPortal.api) ? UserPortal.api(path, opts) : fetch(path, opts).then(function(r){ return r.json(); }); }
@@ -130943,7 +130970,7 @@ By applying to this program, I give the following consents:
             var remaining = (d && d.remaining != null) ? d.remaining : limit;
             var passes = (d && Array.isArray(d.passes)) ? d.passes : [];
             var full = remaining <= 0;
-            var btn = '<button onclick="GuestPass.open(\''+eventKey+'\')"'+(full?' disabled':'')+' style="display:inline-flex;align-items:center;gap:8px;background:'+(full?'var(--paper-2,#eee)':'var(--crimson,#9b1b22)')+';color:'+(full?'var(--muted,#6b6258)':'#fff')+';border:none;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:700;cursor:'+(full?'not-allowed':'pointer')+';font-family:inherit;flex-shrink:0;"><i class="fas fa-user-plus"></i> '+esc(t('gp.cta'))+'</button>';
+            var btn = '<button class="gp-card-btn" onclick="GuestPass.open(\''+eventKey+'\')"'+(full?' disabled':'')+' style="display:inline-flex;align-items:center;gap:8px;background:'+(full?'var(--paper-2,#eee)':'var(--crimson,#9b1b22)')+';color:'+(full?'var(--muted,#6b6258)':'#fff')+';border:none;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:700;cursor:'+(full?'not-allowed':'pointer')+';font-family:inherit;flex-shrink:0;"><i class="fas fa-user-plus"></i> '+esc(t('gp.cta'))+'</button>';
             var counter = full
                 ? '<div style="font-size:12px;color:var(--crimson,#9b1b22);margin-top:12px;font-weight:600;"><i class="fas fa-circle-info"></i> '+esc(t('gp.limitReached'))+'</div>'
                 : '<div style="font-size:12px;color:var(--muted,#6b6258);margin-top:12px;">'+esc(t('gp.remaining', { n: remaining, limit: limit }))+'</div>';
@@ -130953,7 +130980,7 @@ By applying to this program, I give the following consents:
                     + passes.map(passRow).join('') + '</div>';
             }
             return '<div style="background:var(--surface,#fff);border:1px solid var(--line,#e2dcd3);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow-sm,0 1px 2px rgba(21,17,15,.04));">'
-                + '<div style="display:flex;align-items:flex-start;gap:14px;justify-content:space-between;flex-wrap:wrap;">'
+                + '<div class="gp-card-head" style="display:flex;align-items:flex-start;gap:14px;justify-content:space-between;flex-wrap:wrap;">'
                     + '<div style="display:flex;gap:12px;align-items:center;min-width:0;flex:1;">'
                         + '<span style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--crimson,#9b1b22),var(--crimson-deep,#7d161c));color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;"><i class="fas '+meta.icon+'"></i></span>'
                         + '<div style="min-width:0;"><div style="font-size:15px;font-weight:700;color:var(--ink,#15110f);font-family:var(--serif,\'Fraunces\',serif);line-height:1.15;">'+esc(name)+'</div>'

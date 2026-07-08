@@ -6,6 +6,7 @@
 <title>The Biomedical Forum — an initiative of Med&X</title>
 <meta name="description" content="A standing circle of senior biomedical leaders, convened under Med&X.">
 <meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="/assets/favicon-x.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,400;1,9..144,500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -93,6 +94,13 @@ input,button,select,textarea{font-family:inherit;font-size:inherit}
   .fnav.mobopen .mob-leave{display:block;color:var(--ink-mute);font-family:var(--sans)!important;font-size:13px!important;font-weight:600;letter-spacing:.14em;text-transform:uppercase;margin-top:8px;border-bottom:0!important}
   .fnav.mobopen .fnav-links{display:flex;position:fixed;inset:56px 0 auto 0;flex-direction:column;gap:0;background:var(--paper);border-bottom:1px solid var(--line);padding:8px 40px 20px;box-shadow:var(--shadow-sm)}
   .fnav.mobopen .fnav-links a{padding:14px 0;border-bottom:1px solid var(--line);font-family:var(--serif);font-size:1.3rem}
+}
+@media(max-width:480px){
+  /* Logo image + "Biomedical Forum" wordmark + EN/HR toggle + burger cannot all fit at 390px,
+     so the wordmark overflowed onto the toggle. Drop the redundant Med&X logo image here;
+     the wordmark keeps the identity and the brand stays clickable to home. */
+  .brand .logo{display:none}
+  .brand .wm{border-left:0;padding-left:0}
 }
 
 /* hero */
