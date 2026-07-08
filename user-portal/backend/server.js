@@ -10849,8 +10849,16 @@ async function submitReset(e){
                                        WHERE r.user_id = ?`, [user.id]);
                 certificates = (row && row.n) || 0;
             } catch (e) { certificates = 0; }
+            // Talks/sessions the member actually checked into (real attendance; breaks excluded).
+            let talks = 0;
+            try {
+                const row = query.get(`SELECT COUNT(*) AS n FROM session_attendance sa
+                                       JOIN sessions s ON sa.session_id = s.id
+                                       WHERE sa.user_id = ? AND (s.session_type IS NULL OR s.session_type != 'break')`, [user.id]);
+                talks = (row && row.n) || 0;
+            } catch (e) { talks = 0; }
             const name = `${user.first_name || ''} ${user.last_name || ''}`.trim();
-            const hasData = (eventsRegistered + connections + certificates) > 0;
+            const hasData = (eventsRegistered + connections + certificates + talks) > 0;
             res.json({
                 quiet: !!quiet,
                 year: 2026,
@@ -10860,6 +10868,7 @@ async function submitReset(e){
                 events_registered: eventsRegistered,
                 connections: connections,
                 certificates: certificates,
+                talks: talks,
                 cities: Array.from(cities),
                 years: Array.from(years).sort(),
                 has_data: hasData

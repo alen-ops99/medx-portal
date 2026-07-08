@@ -80983,6 +80983,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 var joined = (data && +data.events_registered) || 0;
                 var conn = (data && +data.connections) || 0;
                 var certs = (data && +data.certificates) || 0;
+                var talks = (data && +data.talks) || 0;
                 var hasData = !!(data && data.has_data);
                 var el = document.createElement('div');
                 if (plain) {
@@ -81014,6 +81015,7 @@ You can use variables like {first_name} that will be personalized for each recip
                     ? (attended === 1 ? t('wrap.statAttended1') : t('wrap.statAttended'))
                     : (joined === 1 ? t('wrap.statJoined1') : t('wrap.statJoined'));
                 if (gCount > 0) tiles.push({ n: gCount, label: gLabel });
+                if (talks > 0) tiles.push({ n: talks, label: talks === 1 ? t('wrap.statTalks1') : t('wrap.statTalks') });
                 if (conn > 0) tiles.push({ n: conn, label: conn === 1 ? t('wrap.statConn1') : t('wrap.statConn') });
                 if (certs > 0) tiles.push({ n: certs, label: certs === 1 ? t('wrap.statCerts1') : t('wrap.statCerts') });
                 var tilesHtml = tiles.map(function(x){
@@ -81341,6 +81343,8 @@ You can use variables like {first_name} that will be personalized for each recip
                 'wrap.statConn1':    { en: 'connection made', hr: 'povezivanje ostvareno' },
                 'wrap.statCerts':    { en: 'certificates earned', hr: 'potvrda stečeno' },
                 'wrap.statCerts1':   { en: 'certificate earned', hr: 'potvrda stečena' },
+                'wrap.statTalks':    { en: 'talks attended', hr: 'predavanja posjećeno' },
+                'wrap.statTalks1':   { en: 'talk attended', hr: 'predavanje posjećeno' },
                 'wrap.warm':         { en: 'Thank you for being part of it all. Here is to the next chapter, together.', hr: 'Hvala vam što ste bili dio svega. Neka slijedi novo poglavlje, zajedno.' },
                 'wrap.warmNew':      { en: 'Your Med&X story is just beginning, and we are glad to share it with you.', hr: 'Vaša priča s Med&X-om tek počinje i drago nam je što je dijelimo s vama.' },
                 // Card face — plain (quiet) variant, no gamification framing
