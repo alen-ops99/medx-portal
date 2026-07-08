@@ -1714,7 +1714,9 @@ function renderVerifyPage(state) {
             neutralHeading: 'No active record',
             neutralBody: "We can't confirm an active Med&X membership for this link. The membership may have lapsed, or the link may be incorrect.",
             foot: 'This page confirms active Med&X membership only. It shows no private information.',
-            type_student: 'Student', type_physician: 'Physician', type_senior_forum: 'Senior Forum Member', type_alumni: 'Alumni', type_member: 'Member'
+            type_student: 'Student', type_physician: 'Physician', type_senior_forum: 'Senior Forum Member', type_alumni: 'Alumni', type_member: 'Member',
+            connectCta: 'Connect on Med&X', connecting: 'Connecting…', connected: 'Connected. You can now message each other in the portal.',
+            alreadyConnected: 'You are already connected.', connectErr: 'We could not add this connection. Please try again.'
         },
         hr: {
             eyebrow: 'Provjera članstva',
@@ -1724,7 +1726,9 @@ function renderVerifyPage(state) {
             neutralHeading: 'Nema aktivne evidencije',
             neutralBody: 'Ne možemo potvrditi aktivno članstvo u Med&X-u za ovu poveznicu. Članstvo je možda isteklo ili poveznica nije ispravna.',
             foot: 'Ova stranica potvrđuje samo aktivno članstvo u Med&X-u. Ne prikazuje nikakve privatne podatke.',
-            type_student: 'Student', type_physician: 'Liječnik', type_senior_forum: 'Viši član Foruma', type_alumni: 'Alumni', type_member: 'Član'
+            type_student: 'Student', type_physician: 'Liječnik', type_senior_forum: 'Viši član Foruma', type_alumni: 'Alumni', type_member: 'Član',
+            connectCta: 'Povežite se na Med&X-u', connecting: 'Povezivanje…', connected: 'Povezani ste. Sada možete razmjenjivati poruke u portalu.',
+            alreadyConnected: 'Već ste povezani.', connectErr: 'Nismo mogli dodati ovu vezu. Pokušajte ponovno.'
         }
     };
     var enT = VDICT.en;
@@ -1747,11 +1751,21 @@ function renderVerifyPage(state) {
             fieldsHtml += '<div class="field"><div class="fl" data-vk="lMembership">' + enT.lMembership + '</div><div class="fv" data-vk="' + tk + '">' + escapeHtml(tlabel) + '</div></div>';
         }
     }
+    // Badge-to-badge connect affordance (only on a valid badge). Hidden until the client confirms a
+    // signed-in member is viewing (a userToken in localStorage); public visitors never see it.
+    var rawToken = (ok && state.token) ? String(state.token) : '';
+    var connectHtml = ok
+        ? ('<div class="connect" id="connectWrap" style="display:none;">'
+            + '<button type="button" class="connect-btn" id="connectBtn" data-vk="connectCta">' + enT.connectCta + '</button>'
+            + '<div class="connect-status" id="connectStatus" role="status" aria-live="polite"></div>'
+          + '</div>')
+        : '';
     var bodyHtml = ok
         ? (sealHtml
             + '<h1 data-vk="okHeading">' + enT.okHeading + '</h1>'
             + '<p class="statement" data-vk="okStatement">' + enT.okStatement + '</p>'
-            + '<div class="fields">' + fieldsHtml + '</div>')
+            + '<div class="fields">' + fieldsHtml + '</div>'
+            + connectHtml)
         : (sealHtml
             + '<h1 data-vk="neutralHeading">' + enT.neutralHeading + '</h1>'
             + '<p class="statement" data-vk="neutralBody">' + enT.neutralBody + '</p>');
@@ -1787,6 +1801,12 @@ function renderVerifyPage(state) {
 + '.field .fv { font-size:15px; font-weight:500; color:#e2e8f0; text-align:right; }'
 + '.foot { text-align:center; font-size:12px; color:#64748b; margin-top:26px; line-height:1.6; }'
 + '.foot a { color:#c9a962; text-decoration:none; }'
++ '.connect { margin-top:28px; }'
++ '.connect-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; background:linear-gradient(135deg,#c9a962,#b8965a); color:#0f172a; border:none; font-family:inherit; font-weight:700; font-size:14px; letter-spacing:0.3px; padding:13px 30px; border-radius:12px; cursor:pointer; transition:filter 0.15s; }'
++ '.connect-btn:hover { filter:brightness(1.06); }'
++ '.connect-btn:disabled { opacity:0.6; cursor:default; }'
++ '.connect-status { margin-top:12px; font-size:13px; line-height:1.5; color:#86efac; min-height:16px; }'
++ '.connect-status.err { color:#fca5a5; }'
 + '@media (max-width:480px){ .card { padding:38px 22px 32px; } }'
 + '</style></head><body><div class="container">'
 + '<div class="lang"><button type="button" data-l="en" class="on" onclick="setLang(\'en\')">EN</button><button type="button" data-l="hr" onclick="setLang(\'hr\')">HR</button></div>'
@@ -1796,6 +1816,7 @@ function renderVerifyPage(state) {
 + '</div><script>'
 + 'var VDICT = ' + JSON.stringify(VDICT) + ';'
 + 'function setLang(l){ if(!VDICT[l]) l="en"; document.documentElement.lang=l; var els=document.querySelectorAll("[data-vk]"); for(var i=0;i<els.length;i++){ var k=els[i].getAttribute("data-vk"); if(VDICT[l][k]!=null) els[i].textContent=VDICT[l][k]; } var b=document.querySelectorAll(".lang button"); for(var j=0;j<b.length;j++){ b[j].className=(b[j].getAttribute("data-l")===l?"on":""); } try{ document.title=(l==="hr"?"Provjera članstva":"Membership verification")+" · Med&X"; }catch(e){} }'
++ '(function(){ var BADGE_TOKEN=' + JSON.stringify(rawToken) + '; var wrap=document.getElementById("connectWrap"); if(!wrap||!BADGE_TOKEN) return; var tok=null; try{ tok=localStorage.getItem("userToken"); }catch(e){} if(!tok) return; wrap.style.display="block"; var btn=document.getElementById("connectBtn"); var st=document.getElementById("connectStatus"); function L(){ var l=document.documentElement.lang; return VDICT[l]||VDICT.en; } btn.addEventListener("click",function(){ btn.disabled=true; st.className="connect-status"; st.textContent=L().connecting; fetch("/api/networking/connect-by-badge",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+tok},body:JSON.stringify({token:BADGE_TOKEN})}).then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); }).then(function(x){ if(x.ok){ st.className="connect-status"; st.textContent=(x.d&&x.d.already)?L().alreadyConnected:L().connected; btn.style.display="none"; } else { st.className="connect-status err"; st.textContent=L().connectErr; btn.disabled=false; } }).catch(function(){ st.className="connect-status err"; st.textContent=L().connectErr; btn.disabled=false; }); }); })();'
 + '</' + 'script></body></html>';
 }
 
@@ -1951,7 +1972,7 @@ app.get('/verify/:token', (req, res) => {
             typeCode = (meta && meta.member_type && ALLOWED[meta.member_type]) ? meta.member_type : 'member';
         }
         var photoUrl = (user.is_public_profile && user.photo_url) ? String(user.photo_url) : '';
-        return res.status(200).send(renderVerifyPage({ ok: true, name: name, sinceYear: sinceYear, typeCode: typeCode, photoUrl: photoUrl }));
+        return res.status(200).send(renderVerifyPage({ ok: true, name: name, sinceYear: sinceYear, typeCode: typeCode, photoUrl: photoUrl, token: String(req.params.token || '') }));
     } catch (e) { return neutral(); }
 });
 
@@ -6376,10 +6397,14 @@ async function initializeApp() {
         timezone TEXT DEFAULT 'America/New_York',
         meeting_format TEXT DEFAULT 'video',
         open_to_coffee_chats INTEGER DEFAULT 1,
+        coffee_matchmaker_opt_in INTEGER DEFAULT 0,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id)
     )`);
+    // Additive: existing DBs created before the monthly coffee-matchmaker opt-in. Guarded so a
+    // re-run is a no-op. Declared IDENTICALLY in both portal server.js files.
+    try { db.run('ALTER TABLE networking_profiles ADD COLUMN coffee_matchmaker_opt_in INTEGER DEFAULT 0'); } catch (e) { /* column may already exist */ }
 
     db.run(`CREATE TABLE IF NOT EXISTS networking_connections (
         id TEXT PRIMARY KEY,
@@ -6407,6 +6432,26 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (organizer_id) REFERENCES users(id),
         FOREIGN KEY (attendee_id) REFERENCES users(id)
+    )`);
+
+    // 1:1 meeting REQUESTS — the real request -> accept/decline flow behind the member scheduler.
+    // A requester proposes a slot; the recipient accepts or declines. On accept the UI shows a
+    // "meeting link coming soon" placeholder — a personal Zoom room is NEVER issued here.
+    // Declared IDENTICALLY in both portal server.js files (outside the SCHEMA-MIRROR block).
+    db.run(`CREATE TABLE IF NOT EXISTS pending_meetings (
+        id TEXT PRIMARY KEY,
+        requester_id TEXT NOT NULL,
+        recipient_id TEXT NOT NULL,
+        date TEXT,
+        time TEXT,
+        duration INTEGER DEFAULT 30,
+        format TEXT DEFAULT 'video',
+        note TEXT,
+        status TEXT DEFAULT 'pending',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        responded_at TEXT,
+        FOREIGN KEY (requester_id) REFERENCES users(id),
+        FOREIGN KEY (recipient_id) REFERENCES users(id)
     )`);
 
     // No foreign keys here: admin→user messages store the recipient's EMAIL as receiver_id
@@ -9522,6 +9567,49 @@ async function submitReset(e){
         }
     });
 
+    // ---- Public impact numbers for the website /impact page (user-portal only by design) ----
+    // Read-only headline AGGREGATES for medx.hr/impact — counts only, never rows, never PII, same
+    // CORS allowlist and rate limit as the other /api/public reads. Every count is individually
+    // guarded: a table that only the admin portal creates (the auction tables live outside the
+    // schema mirror) reads as null on a DB that does not have it, while in production both portals
+    // share one Turso DB, so these are the real portal numbers. Memoised 2 min + CDN cache headers.
+    app.get('/api/public/impact', publicLimiter, (req, res) => {
+        try {
+            const payload = memo('impact', 120000, () => {
+                const cnt = (sql) => { try { const r = query.get(sql); return r ? (Number(r.c) || 0) : 0; } catch (e) { return null; } };
+                const members = cnt('SELECT COUNT(*) AS c FROM users');
+                const countries = cnt("SELECT COUNT(DISTINCT LOWER(TRIM(country))) AS c FROM users WHERE country IS NOT NULL AND TRIM(country) <> ''");
+                const regParts = [
+                    'SELECT COUNT(*) AS c FROM registrations',
+                    'SELECT COUNT(*) AS c FROM gala_registrations',
+                    'SELECT COUNT(*) AS c FROM bridges_registrations',
+                    'SELECT COUNT(*) AS c FROM croatians_abroad_registrations',
+                    'SELECT COUNT(*) AS c FROM forum_event_registrations'
+                ].map(cnt).filter((v) => v != null);
+                const registrations = regParts.length ? regParts.reduce((a, b) => a + b, 0) : null;
+                const evParts = [
+                    'SELECT COUNT(*) AS c FROM conferences',
+                    'SELECT COUNT(*) AS c FROM bridges_events',
+                    'SELECT COUNT(*) AS c FROM forum_events'
+                ].map(cnt).filter((v) => v != null);
+                const events = evParts.length ? evParts.reduce((a, b) => a + b, 0) : null;
+                const speakers = cnt('SELECT COUNT(*) AS c FROM speakers WHERE COALESCE(is_confirmed,0) = 1');
+                // Gala charity giving (live-auction engine, admin-side tables): pledged = confirmed
+                // winning amounts, paid = the part already received. Omitted entirely when absent.
+                let charity_giving = null;
+                try {
+                    const g = query.get("SELECT SUM(final_amount) AS pledged, SUM(CASE WHEN COALESCE(payment_status,'') = 'paid' THEN final_amount ELSE 0 END) AS paid FROM auction_items WHERE COALESCE(final_amount,0) > 0");
+                    if (g && g.pledged != null) charity_giving = { pledged_eur: Math.round(Number(g.pledged) || 0), paid_eur: Math.round(Number(g.paid) || 0) };
+                } catch (e) {}
+                return { members, countries, registrations, events, speakers, charity_giving, generated_at: new Date().toISOString() };
+            });
+            publicCacheHeaders(res);
+            res.json(payload);
+        } catch (e) {
+            res.status(500).json({ error: 'Failed to load impact data' });
+        }
+    });
+
     // ================= POST-EVENT MICRO-SURVEY — public tap endpoints (no login) =================
     // These land the taps from the survey invite the admin staged. The signed token carries the
     // event + registration; the response row (shared table) enforces one answer per person. Every
@@ -10450,6 +10538,74 @@ async function submitReset(e){
         } catch (e) { console.error('passport failed:', e); res.status(500).json({ error: 'Failed to load passport' }); }
     });
 
+    // "Your Plexus 2026" recap (R3-6) — a shareable per-member wrapped card built from REAL data:
+    // gatherings joined + attended, accepted connections, certificates, cities and years. The
+    // gamified "wrapped" framing is FAIL-CLOSED for quiet gala/forum-only profiles: on any doubt
+    // (quiet flag true OR the derivation throwing) we mark quiet:true so the client renders the
+    // plain, dignified variant with no gamification. Counts are real; the warm message + all copy
+    // are localized client-side (EN/HR). Never touches the frozen registration/QR/Stripe surfaces.
+    app.get('/api/member/wrapped', auth, (req, res) => {
+        try {
+            const user = query.get('SELECT id, email, first_name, last_name, is_admin FROM users WHERE id = ?', [req.user.id]);
+            if (!user) return res.status(404).json({ error: 'User not found' });
+            // Fail-closed: default the gamified framing OFF unless we can positively confirm the
+            // member is not a quiet profile. Any error in derivation stays quiet:true (plain).
+            let quiet = true;
+            try { quiet = quietFlagFor(user) === true ? true : false; } catch (e) { quiet = true; }
+            const yr = (d) => { const m = String(d || '').match(/(\d{4})/); return m ? m[1] : ''; };
+            let eventsRegistered = 0, eventsAttended = 0;
+            const cities = new Set(), years = new Set();
+            try {
+                query.all(`SELECT c.venue_city, c.start_date, r.checked_in, r.created_at
+                           FROM registrations r JOIN conferences c ON r.conference_id = c.id
+                           WHERE r.user_id = ?`, [user.id]).forEach(r => {
+                    eventsRegistered++;
+                    if (r.checked_in) eventsAttended++;
+                    if (r.venue_city) cities.add(String(r.venue_city).trim());
+                    const y = yr(r.start_date || r.created_at); if (y) years.add(y);
+                });
+            } catch (e) { /* registrations optional */ }
+            try {
+                query.all(`SELECT e.city, e.event_date, br.checked_in
+                           FROM bridges_registrations br JOIN bridges_events e ON br.event_id = e.id
+                           WHERE LOWER(br.email) = LOWER(?)`, [user.email || '']).forEach(b => {
+                    eventsRegistered++;
+                    if (b.checked_in) eventsAttended++;
+                    if (b.city) cities.add(String(b.city).trim());
+                    const y = yr(b.event_date); if (y) years.add(y);
+                });
+            } catch (e) { /* bridges optional */ }
+            let connections = 0;
+            try {
+                const row = query.get(`SELECT COUNT(*) AS n FROM networking_connections
+                                       WHERE status = 'accepted' AND (requester_id = ? OR receiver_id = ?)`, [user.id, user.id]);
+                connections = (row && row.n) || 0;
+            } catch (e) { connections = 0; }
+            let certificates = 0;
+            try {
+                const row = query.get(`SELECT COUNT(*) AS n FROM certificates ct
+                                       JOIN registrations r ON ct.registration_id = r.id
+                                       WHERE r.user_id = ?`, [user.id]);
+                certificates = (row && row.n) || 0;
+            } catch (e) { certificates = 0; }
+            const name = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+            const hasData = (eventsRegistered + connections + certificates) > 0;
+            res.json({
+                quiet: !!quiet,
+                year: 2026,
+                name: name,
+                first_name: user.first_name || '',
+                events_attended: eventsAttended,
+                events_registered: eventsRegistered,
+                connections: connections,
+                certificates: certificates,
+                cities: Array.from(cities),
+                years: Array.from(years).sort(),
+                has_data: hasData
+            });
+        } catch (e) { console.error('wrapped failed:', e); res.status(500).json({ error: 'Failed to load your recap' }); }
+    });
+
     // Google Wallet "Save to Wallet" link (queue 5a5l) — a signed generic-pass JWT built server-side.
     // The pass barcode carries the SAME membership identity payload the on-screen card + scanner use
     // (keyed on userId). If the issuer secrets are absent (e.g. local/dev), it returns a clean
@@ -10507,6 +10663,96 @@ async function submitReset(e){
             const token = jwt.sign(claims, sa.private_key, { algorithm: 'RS256' });
             res.json({ configured: true, save_url: 'https://pay.google.com/gp/v/save/' + token });
         } catch (e) { console.error('google wallet failed:', e); res.status(500).json({ error: 'Failed to build Google Wallet pass' }); }
+    });
+
+    // ===== R3-3 EVENT-DAY TICKET SUITE — per-ticket wallet passes =====
+    // GET /api/member/wallet/google/ticket/:regId — a signed generic-pass JWT for ONE of the
+    // member's own event tickets. The pass barcode carries the EXACT value the on-screen wallet
+    // card and the check-in scanner already use (registrations.ticket_qr_code, falling back to
+    // 'MEDX:'+id) — the frozen payload is REUSED byte-for-byte, never regenerated. Unconfigured
+    // environments get the same clean owner-action gate as the membership pass above.
+    app.get('/api/member/wallet/google/ticket/:regId', auth, (req, res) => {
+        try {
+            const issuerId = process.env.GOOGLE_WALLET_ISSUER_ID;
+            const saKeyRaw = process.env.GOOGLE_WALLET_SA_KEY;
+            const classId = process.env.GOOGLE_WALLET_TICKET_CLASS_ID || (issuerId ? (issuerId + '.medx_event_ticket') : '');
+            if (!issuerId || !saKeyRaw) {
+                return res.json({
+                    configured: false,
+                    owner_action: 'Set GOOGLE_WALLET_ISSUER_ID and GOOGLE_WALLET_SA_KEY (a Google Wallet API service-account JSON) in the server environment. Create the issuer at pay.google.com/business/console and the service account in Google Cloud, then grant it Wallet access.',
+                    message_en: 'Google Wallet is not set up yet. Your team can enable it shortly.',
+                    message_hr: 'Google Wallet još nije postavljen. Vaš ga tim može uskoro omogućiti.'
+                });
+            }
+            let sa;
+            try { sa = typeof saKeyRaw === 'string' ? JSON.parse(saKeyRaw) : saKeyRaw; }
+            catch (e) { return res.status(500).json({ error: 'Google Wallet service account key is not valid JSON.' }); }
+            // Ownership is enforced in the WHERE clause — a member can only mint their own ticket.
+            const reg = query.get(`SELECT r.*, c.name AS conference_name, c.start_date, c.end_date, c.venue_name, c.venue_city, t.name AS ticket_name
+                FROM registrations r JOIN conferences c ON r.conference_id = c.id JOIN ticket_types t ON r.ticket_type_id = t.id
+                WHERE r.id = ? AND r.user_id = ?`, [req.params.regId, req.user.id]);
+            if (!reg) return res.status(404).json({ error: 'We could not find that ticket on your account.' });
+            const user = query.get('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [req.user.id]) || {};
+            const name = (((reg.first_name || user.first_name || '') + ' ' + (reg.last_name || user.last_name || '')).trim()) || 'Med&X Guest';
+            const qrValue = reg.ticket_qr_code || ('MEDX:' + reg.id); // frozen ticket payload, reused as-is
+            const origin = (process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+            const dates = reg.start_date
+                ? (reg.end_date && reg.end_date !== reg.start_date ? `${reg.start_date} – ${reg.end_date}` : reg.start_date)
+                : '';
+            const venue = [reg.venue_name, reg.venue_city].filter(Boolean).join(', ');
+            const statusLabel = reg.payment_status === 'paid' ? 'Paid' : (!Number(reg.amount_paid || 0) ? 'Confirmed' : 'Payment pending');
+            const genericObject = {
+                id: `${issuerId}.medx-ticket-${String(reg.id).replace(/[^a-zA-Z0-9]/g, '')}`,
+                classId: classId,
+                genericType: 'GENERIC_TYPE_UNSPECIFIED',
+                hexBackgroundColor: '#14100d',
+                logo: { sourceUri: { uri: origin + '/assets/images/medx-logo.png' } },
+                cardTitle: { defaultValue: { language: 'en', value: reg.conference_name || 'Med&X Event' } },
+                subheader: { defaultValue: { language: 'en', value: reg.ticket_name || reg.registration_type || 'Ticket' } },
+                header: { defaultValue: { language: 'en', value: name } },
+                barcode: { type: 'QR_CODE', value: qrValue, alternateText: String(reg.id).slice(0, 8).toUpperCase() },
+                textModulesData: [
+                    dates ? { id: 'dates', header: 'Dates', body: dates } : null,
+                    venue ? { id: 'venue', header: 'Venue', body: venue } : null,
+                    reg.seat_number ? { id: 'seat', header: 'Seat', body: String(reg.seat_number) } : null,
+                    { id: 'status', header: 'Status', body: statusLabel },
+                    reg.invoice_number ? { id: 'invoice', header: 'Invoice', body: '#' + reg.invoice_number } : null
+                ].filter(Boolean)
+            };
+            const claims = {
+                iss: sa.client_email,
+                aud: 'google',
+                typ: 'savetowallet',
+                origins: [origin],
+                payload: { genericObjects: [genericObject] }
+            };
+            const token = jwt.sign(claims, sa.private_key, { algorithm: 'RS256' });
+            res.json({ configured: true, save_url: 'https://pay.google.com/gp/v/save/' + token });
+        } catch (e) { console.error('google wallet ticket failed:', e); res.status(500).json({ error: 'Failed to build Google Wallet pass' }); }
+    });
+
+    // GET /api/member/wallet/apple/ticket/:regId — Apple Wallet, WIRED BUT DORMANT. A real,
+    // installable .pkpass must be signed with an Apple Developer Pass Type ID certificate
+    // ($99/yr — owner action), so until those secrets exist this route returns a clean gate
+    // naming exactly what to set. The ownership check runs now so the wiring is real end-to-end
+    // and the signing block is the only thing left to drop in when the certificate arrives.
+    app.get('/api/member/wallet/apple/ticket/:regId', auth, (req, res) => {
+        try {
+            const reg = query.get('SELECT id FROM registrations WHERE id = ? AND user_id = ?', [req.params.regId, req.user.id]);
+            if (!reg) return res.status(404).json({ error: 'We could not find that ticket on your account.' });
+            const configured = !!(process.env.APPLE_WALLET_CERT_PEM && process.env.APPLE_WALLET_KEY_PEM
+                && process.env.APPLE_WALLET_TEAM_ID && process.env.APPLE_WALLET_PASS_TYPE_ID);
+            // NOTE for the future signing block: build a pass.json (eventTicket) whose barcode
+            // message is EXACTLY reg.ticket_qr_code || ('MEDX:'+reg.id) — the frozen payload —
+            // zip with manifest.json + PKCS#7 signature, and stream as application/vnd.apple.pkpass.
+            return res.json({
+                configured: false,
+                dormant: configured, // true once the certs exist but the signer has not shipped yet
+                owner_action: 'Join the Apple Developer Program ($99/yr), create a Pass Type ID certificate at developer.apple.com, then set APPLE_WALLET_CERT_PEM, APPLE_WALLET_KEY_PEM, APPLE_WALLET_TEAM_ID and APPLE_WALLET_PASS_TYPE_ID in the server environment.',
+                message_en: 'Apple Wallet is coming soon.',
+                message_hr: 'Apple Wallet stiže uskoro.'
+            });
+        } catch (e) { console.error('apple wallet ticket failed:', e); res.status(500).json({ error: 'Failed to prepare the Apple Wallet pass' }); }
     });
 
     // ========== GLOBAL MEMBER SEARCH + PROFILE NUDGE (additive, read-mostly) ==========
@@ -22906,13 +23152,18 @@ By applying to this program, I provide the following consents:
         try {
             const users = query.all(`
                 SELECT u.id, u.first_name, u.last_name, u.institution, u.country, u.bio, u.photo_url, u.created_at,
+                       u.email, u.is_admin,
                        np.career_stage, np.research_interests, np.looking_for, np.open_to_coffee_chats
                 FROM users u
                 LEFT JOIN networking_profiles np ON np.user_id = u.id
                 WHERE u.is_public_profile = 1 AND u.id != ?
                 ORDER BY u.created_at DESC
             `, [req.user.id]);
-            res.json(users);
+            // Quiet (senior gala/forum-only) members are never surfaced in the directory — fail-closed.
+            // The email/is_admin columns are only needed for the quiet check; strip them before responding.
+            const visible = users.filter(u => { try { return !quietFlagFor(u); } catch (e) { return false; } });
+            visible.forEach(u => { delete u.email; delete u.is_admin; });
+            res.json(visible);
         } catch (error) {
             console.error('Error fetching discover users:', error);
             res.status(500).json({ error: 'Failed to fetch users' });
@@ -22922,14 +23173,16 @@ By applying to this program, I provide the following consents:
     // Save/update networking preferences
     app.put('/api/networking/profile', auth, (req, res) => {
         const { career_stage, looking_for, research_interests, working_on, timezone, meeting_format, open_to_coffee_chats } = req.body;
+        // Accept the monthly coffee-matchmaker opt-in under either camelCase or snake_case.
+        const coffeeMatchmaker = (req.body.coffeeMatchmaker != null ? req.body.coffeeMatchmaker : req.body.coffee_matchmaker_opt_in) ? 1 : 0;
         const existing = query.get('SELECT id FROM networking_profiles WHERE user_id = ?', [req.user.id]);
         if (existing) {
-            db.run(`UPDATE networking_profiles SET career_stage=?, looking_for=?, research_interests=?, working_on=?, timezone=?, meeting_format=?, open_to_coffee_chats=?, updated_at=datetime('now') WHERE user_id=?`,
-                [career_stage, looking_for, JSON.stringify(research_interests || []), working_on, timezone || 'America/New_York', meeting_format || 'video', open_to_coffee_chats ? 1 : 0, req.user.id]);
+            db.run(`UPDATE networking_profiles SET career_stage=?, looking_for=?, research_interests=?, working_on=?, timezone=?, meeting_format=?, open_to_coffee_chats=?, coffee_matchmaker_opt_in=?, updated_at=datetime('now') WHERE user_id=?`,
+                [career_stage, looking_for, JSON.stringify(research_interests || []), working_on, timezone || 'America/New_York', meeting_format || 'video', open_to_coffee_chats ? 1 : 0, coffeeMatchmaker, req.user.id]);
         } else {
             const id = uuidv4();
-            db.run(`INSERT INTO networking_profiles (id, user_id, career_stage, looking_for, research_interests, working_on, timezone, meeting_format, open_to_coffee_chats) VALUES (?,?,?,?,?,?,?,?,?)`,
-                [id, req.user.id, career_stage, looking_for, JSON.stringify(research_interests || []), working_on, timezone || 'America/New_York', meeting_format || 'video', open_to_coffee_chats ? 1 : 0]);
+            db.run(`INSERT INTO networking_profiles (id, user_id, career_stage, looking_for, research_interests, working_on, timezone, meeting_format, open_to_coffee_chats, coffee_matchmaker_opt_in) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+                [id, req.user.id, career_stage, looking_for, JSON.stringify(research_interests || []), working_on, timezone || 'America/New_York', meeting_format || 'video', open_to_coffee_chats ? 1 : 0, coffeeMatchmaker]);
         }
         saveDb();
         res.json({ success: true });
@@ -23047,6 +23300,153 @@ By applying to this program, I provide the following consents:
         }
         saveDb();
         res.json({ success: true });
+    });
+
+    // ===== 1:1 MEETING REQUESTS (real request -> accept/decline flow) =====
+    // Replaces the old front-end "meeting scheduled!" toast stub. A member proposes a slot to one
+    // of their accepted connections; the recipient accepts or declines. On accept the client shows a
+    // "meeting link coming soon" placeholder — we NEVER hand out a personal Zoom room here.
+
+    // Create a meeting request.
+    app.post('/api/networking/meeting-requests', auth, (req, res) => {
+        const { recipient_id, date, time, duration, format, note } = req.body || {};
+        if (!recipient_id) return res.status(400).json({ error: 'recipient_id required' });
+        if (recipient_id === req.user.id) return res.status(400).json({ error: 'You cannot request a meeting with yourself' });
+        const recipient = query.get('SELECT id, email, is_admin FROM users WHERE id = ?', [recipient_id]);
+        if (!recipient) return res.status(404).json({ error: 'Recipient not found' });
+        // Quiet (senior gala/forum-only) members are never surfaced as a target — fail-closed.
+        try { if (quietFlagFor(recipient)) return res.status(404).json({ error: 'Recipient not found' }); } catch (e) {}
+        // Gate to accepted connections (mirrors the DM + legacy-meeting gating). Admins exempt.
+        if (!req.user.is_admin) {
+            const connected = query.get(
+                `SELECT id FROM networking_connections WHERE status = 'accepted'
+                 AND ((requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?))`,
+                [req.user.id, recipient_id, recipient_id, req.user.id]);
+            if (!connected) return res.status(403).json({ error: 'You can only request meetings with your accepted connections.' });
+        }
+        // One live (pending) request per direction — do not let a member spam duplicates.
+        const dupe = query.get("SELECT id FROM pending_meetings WHERE requester_id = ? AND recipient_id = ? AND status = 'pending'", [req.user.id, recipient_id]);
+        if (dupe) return res.status(409).json({ error: 'You already have a pending meeting request with this member.' });
+        const id = uuidv4();
+        db.run('INSERT INTO pending_meetings (id, requester_id, recipient_id, date, time, duration, format, note) VALUES (?,?,?,?,?,?,?,?)',
+            [id, req.user.id, recipient_id, date || null, time || null, duration || 30, format || 'video', note || null]);
+        saveDb();
+        try {
+            const sender = query.get('SELECT first_name, last_name FROM users WHERE id = ?', [req.user.id]);
+            const senderName = sender ? `${sender.first_name || ''} ${sender.last_name || ''}`.trim() : 'A member';
+            sendPushToUser(recipient_id, {
+                title: 'New 1:1 meeting request',
+                body: `${senderName} would like to meet with you`,
+                url: '/?section=network'
+            });
+        } catch (e) {}
+        res.json({ id, status: 'pending' });
+    });
+
+    // List meeting requests for the signed-in member (both directions).
+    app.get('/api/networking/meeting-requests', auth, (req, res) => {
+        const incoming = query.all(`SELECT pm.*, u.first_name, u.last_name, u.institution, u.photo_url
+            FROM pending_meetings pm JOIN users u ON pm.requester_id = u.id
+            WHERE pm.recipient_id = ? ORDER BY pm.created_at DESC`, [req.user.id]);
+        const outgoing = query.all(`SELECT pm.*, u.first_name, u.last_name, u.institution, u.photo_url
+            FROM pending_meetings pm JOIN users u ON pm.recipient_id = u.id
+            WHERE pm.requester_id = ? ORDER BY pm.created_at DESC`, [req.user.id]);
+        res.json({ incoming, outgoing });
+    });
+
+    // Recipient accepts or declines a meeting request.
+    app.put('/api/networking/meeting-requests/:id', auth, (req, res) => {
+        const { status } = req.body || {};
+        if (!['accepted', 'declined'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
+        const pm = query.get('SELECT * FROM pending_meetings WHERE id = ? AND recipient_id = ?', [req.params.id, req.user.id]);
+        if (!pm) return res.status(404).json({ error: 'Meeting request not found' });
+        if (pm.status !== 'pending') return res.status(409).json({ error: 'This request has already been answered.' });
+        db.run("UPDATE pending_meetings SET status = ?, responded_at = datetime('now') WHERE id = ?", [status, req.params.id]);
+        saveDb();
+        try {
+            const responder = query.get('SELECT first_name, last_name FROM users WHERE id = ?', [req.user.id]);
+            const rName = responder ? `${responder.first_name || ''} ${responder.last_name || ''}`.trim() : 'A member';
+            sendPushToUser(pm.requester_id, {
+                title: status === 'accepted' ? 'Meeting request accepted' : 'Meeting request declined',
+                body: `${rName} ${status === 'accepted' ? 'accepted' : 'declined'} your meeting request`,
+                url: '/?section=network'
+            });
+        } catch (e) {}
+        // On accept we return a placeholder only. A per-pair meeting link is issued later (owner
+        // action) — a personal Zoom room is NEVER exposed from here.
+        if (status === 'accepted') {
+            return res.json({ success: true, status: 'accepted', link_status: 'coming_soon', link: null });
+        }
+        res.json({ success: true, status: 'declined' });
+    });
+
+    // ===== BADGE-TO-BADGE CONNECT =====
+    // A signed-in member scans another member's public badge QR, lands on /verify/:token and taps
+    // "Connect on Med&X". We resolve the badge token to its owner and add the connection. An in-person
+    // badge exchange is a mutual gesture, so it lands as an accepted connection. Quiet members are
+    // never surfaced this way (fail-closed).
+    app.post('/api/networking/connect-by-badge', auth, (req, res) => {
+        const token = (req.body && req.body.token) ? String(req.body.token) : '';
+        let targetId = null;
+        try { targetId = resolveVerifyBadgeToken(token); } catch (e) { targetId = null; }
+        if (!targetId) return res.status(404).json({ error: 'Badge not recognized.' });
+        if (targetId === req.user.id) return res.status(400).json({ error: 'That is your own badge.' });
+        const target = query.get('SELECT id, email, is_admin, first_name, last_name, deleted_at FROM users WHERE id = ?', [targetId]);
+        if (!target || target.deleted_at) return res.status(404).json({ error: 'Badge not recognized.' });
+        try { if (quietFlagFor(target)) return res.status(404).json({ error: 'Badge not recognized.' }); } catch (e) {}
+        const targetName = `${target.first_name || ''} ${target.last_name || ''}`.trim() || 'Member';
+        const existing = query.get('SELECT id, status FROM networking_connections WHERE (requester_id=? AND receiver_id=?) OR (requester_id=? AND receiver_id=?)',
+            [req.user.id, targetId, targetId, req.user.id]);
+        if (existing) {
+            if (existing.status === 'accepted') return res.json({ status: 'accepted', already: true, name: targetName });
+            // A prior pending request in either direction is confirmed by the in-person scan.
+            db.run("UPDATE networking_connections SET status = 'accepted', accepted_at = datetime('now') WHERE id = ?", [existing.id]);
+            saveDb();
+            return res.json({ status: 'accepted', name: targetName });
+        }
+        const id = uuidv4();
+        db.run("INSERT INTO networking_connections (id, requester_id, receiver_id, status, accepted_at) VALUES (?,?,?, 'accepted', datetime('now'))",
+            [id, req.user.id, targetId]);
+        saveDb();
+        try {
+            const me = query.get('SELECT first_name, last_name FROM users WHERE id = ?', [req.user.id]);
+            const myName = me ? `${me.first_name || ''} ${me.last_name || ''}`.trim() : 'A member';
+            sendPushToUser(targetId, { title: 'New connection', body: `${myName} connected with you at the badge`, url: '/?section=network' });
+        } catch (e) {}
+        res.json({ status: 'accepted', name: targetName });
+    });
+
+    // ===== MONTHLY COFFEE MATCHMAKER =====
+    // Members opt in (networking_profiles.coffee_matchmaker_opt_in). Once a month we pair opted-in
+    // members for an informal coffee. This endpoint surfaces the current month's suggested match:
+    // a deterministic pick (stable for the whole calendar month) among OTHER opted-in members, never
+    // the same person twice in a month, excluding existing connections, self, and quiet members.
+    app.get('/api/networking/coffee-match', auth, (req, res) => {
+        const me = query.get('SELECT coffee_matchmaker_opt_in FROM networking_profiles WHERE user_id = ?', [req.user.id]);
+        if (!me || !me.coffee_matchmaker_opt_in) return res.json({ opted_in: false, match: null });
+        // Candidate pool: opted-in members other than me who are not already a connection (any state).
+        const pool = query.all(`SELECT u.id, u.first_name, u.last_name, u.institution, u.photo_url, u.email, u.is_admin
+            FROM networking_profiles np JOIN users u ON u.id = np.user_id
+            WHERE np.coffee_matchmaker_opt_in = 1 AND u.id != ?
+              AND u.id NOT IN (
+                SELECT CASE WHEN requester_id = ? THEN receiver_id ELSE requester_id END
+                FROM networking_connections WHERE requester_id = ? OR receiver_id = ?
+              )
+            ORDER BY u.id ASC`, [req.user.id, req.user.id, req.user.id, req.user.id]);
+        // Drop quiet members (fail-closed) and never leak email downstream.
+        const candidates = pool.filter(u => { try { return !quietFlagFor(u); } catch (e) { return false; } });
+        if (candidates.length === 0) return res.json({ opted_in: true, match: null });
+        // Deterministic monthly pick: hash (YYYY-MM + my id) into the candidate list.
+        const period = new Date().toISOString().slice(0, 7); // YYYY-MM
+        let h = 0; const seed = period + ':' + req.user.id;
+        for (let i = 0; i < seed.length; i++) { h = (h * 31 + seed.charCodeAt(i)) | 0; }
+        const pick = candidates[Math.abs(h) % candidates.length];
+        res.json({ opted_in: true, period, match: {
+            id: pick.id,
+            name: `${pick.first_name || ''} ${pick.last_name || ''}`.trim() || 'Member',
+            institution: pick.institution || '',
+            photo_url: pick.photo_url || ''
+        }});
     });
 
     // ===== DIRECT MESSAGING API =====

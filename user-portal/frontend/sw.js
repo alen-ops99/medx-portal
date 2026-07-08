@@ -1,5 +1,5 @@
 // Med&X Portal Service Worker
-const CACHE_NAME = 'medx-portal-v8';
+const CACHE_NAME = 'medx-portal-v9';
 
 // App-shell assets to precache. (icon-512 is install-only and 740KB — left out of precache
 // so it isn't fetched on every first load; the browser pulls it from the manifest on install.)
@@ -7,6 +7,11 @@ const ASSETS_TO_CACHE = [
     '/index.html',
     '/manifest.json',
     '/icon-192.png',
+    // R3-3 event-day ticket suite: the boarding pass must render fully offline, so the
+    // vendored QR generator and the icon CSS ride in the precached app shell. API responses
+    // are still NEVER cached (see the fetch handler) — ticket data persists in app storage.
+    '/vendor/qrcode/qrcode.min.js',
+    '/vendor/fontawesome/css/all.min.css',
     'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
 ];
 

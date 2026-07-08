@@ -7165,10 +7165,14 @@ async function initializeApp() {
         timezone TEXT DEFAULT 'America/New_York',
         meeting_format TEXT DEFAULT 'video',
         open_to_coffee_chats INTEGER DEFAULT 1,
+        coffee_matchmaker_opt_in INTEGER DEFAULT 0,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id)
     )`);
+    // Additive: existing DBs created before the monthly coffee-matchmaker opt-in. Guarded so a
+    // re-run is a no-op. Declared IDENTICALLY in both portal server.js files.
+    try { db.run('ALTER TABLE networking_profiles ADD COLUMN coffee_matchmaker_opt_in INTEGER DEFAULT 0'); } catch (e) { /* column may already exist */ }
 
     db.run(`CREATE TABLE IF NOT EXISTS networking_connections (
         id TEXT PRIMARY KEY,
@@ -7196,6 +7200,26 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (organizer_id) REFERENCES users(id),
         FOREIGN KEY (attendee_id) REFERENCES users(id)
+    )`);
+
+    // 1:1 meeting REQUESTS — the real request -> accept/decline flow behind the member scheduler.
+    // A requester proposes a slot; the recipient accepts or declines. On accept the UI shows a
+    // "meeting link coming soon" placeholder — a personal Zoom room is NEVER issued here.
+    // Declared IDENTICALLY in both portal server.js files (outside the SCHEMA-MIRROR block).
+    db.run(`CREATE TABLE IF NOT EXISTS pending_meetings (
+        id TEXT PRIMARY KEY,
+        requester_id TEXT NOT NULL,
+        recipient_id TEXT NOT NULL,
+        date TEXT,
+        time TEXT,
+        duration INTEGER DEFAULT 30,
+        format TEXT DEFAULT 'video',
+        note TEXT,
+        status TEXT DEFAULT 'pending',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        responded_at TEXT,
+        FOREIGN KEY (requester_id) REFERENCES users(id),
+        FOREIGN KEY (recipient_id) REFERENCES users(id)
     )`);
 
     db.run(`CREATE TABLE IF NOT EXISTS gala_registrations (
@@ -20026,6 +20050,194 @@ By applying to this program, I provide the following consents:
         logAudit(req, 'sponsor_report_send', `Report ${r.id} staged to ${to} (pending approval)`);
         saveDb();
         res.json({ success: true, outbox_batch: batchId, recipient: to });
+    });
+
+    // ===================== TRANSPARENCY ENGINE (R3-5) =====================
+    // Board pack / godišnje izvješće generated from REAL portal numbers — members, events,
+    // registrations and gala (auction) pledges are queried live at generation time, never typed
+    // in by hand. Stateless by design: no new tables, nothing to mirror, so the schema-sync gate
+    // is untouched. Every count is individually guarded, so a table this DB does not have yet
+    // (fresh local file) reads as zero instead of failing the whole pack. PDF export rides the
+    // SAME print-suite pipeline (psRenderPdf) and returns a clean 503 when headless Chrome is
+    // absent (e.g. on Render); the HTML preview and the Word-editable export always work.
+    function trqCount(sql, params) { try { const r = query.get(sql, params || []); return r ? (Number(r.c) || 0) : 0; } catch (e) { return 0; } }
+    function transparencyFacts(yearRaw) {
+        const y = /^\d{4}$/.test(String(yearRaw || '')) ? String(yearRaw) : String(new Date().getFullYear());
+        const members = {
+            total: trqCount('SELECT COUNT(*) AS c FROM users'),
+            new_in_year: trqCount("SELECT COUNT(*) AS c FROM users WHERE substr(COALESCE(created_at,''),1,4) = ?", [y]),
+            verified: trqCount('SELECT COUNT(*) AS c FROM users WHERE COALESCE(email_verified,0) = 1'),
+            countries: trqCount("SELECT COUNT(DISTINCT LOWER(TRIM(country))) AS c FROM users WHERE country IS NOT NULL AND TRIM(country) <> ''")
+        };
+        // One row per registration surface the portal actually runs. Totals are all-time ("as
+        // recorded in the portal"), in_year filters on each row's own created/registered date.
+        const streamDefs = [
+            { key: 'plexus',   label_en: 'Plexus Conference',      label_hr: 'Konferencija Plexus',        table: 'registrations',                    dateCol: 'created_at' },
+            { key: 'gala',     label_en: 'Plexus Gala',            label_hr: 'Plexus Gala',                table: 'gala_registrations',               dateCol: 'created_at' },
+            { key: 'bridges',  label_en: 'Building Bridges',       label_hr: 'Building Bridges',           table: 'bridges_registrations',            dateCol: 'registered_at' },
+            { key: 'abroad',   label_en: 'Croatians Abroad',       label_hr: 'Hrvati u inozemstvu',        table: 'croatians_abroad_registrations',   dateCol: 'created_at' },
+            { key: 'forum',    label_en: 'Biomedical Forum events', label_hr: 'Događanja Biomedical Foruma', table: 'forum_event_registrations',      dateCol: 'registered_at' }
+        ];
+        const streams = streamDefs.map((s) => ({
+            key: s.key, label_en: s.label_en, label_hr: s.label_hr,
+            total: trqCount(`SELECT COUNT(*) AS c FROM ${s.table}`),
+            in_year: trqCount(`SELECT COUNT(*) AS c FROM ${s.table} WHERE substr(COALESCE(${s.dateCol},''),1,4) = ?`, [y]),
+            paid: trqCount(`SELECT COUNT(*) AS c FROM ${s.table} WHERE COALESCE(payment_status,'') = 'paid'`),
+            checked_in: s.key === 'abroad'
+                ? trqCount('SELECT COUNT(*) AS c FROM croatians_abroad_registrations WHERE COALESCE(conference_checked_in,0) = 1 OR COALESCE(bridges_checked_in,0) = 1')
+                : trqCount(`SELECT COUNT(*) AS c FROM ${s.table} WHERE COALESCE(checked_in,0) = 1`)
+        }));
+        const registrations = {
+            streams,
+            total: streams.reduce((a, s) => a + s.total, 0),
+            in_year: streams.reduce((a, s) => a + s.in_year, 0)
+        };
+        const events = {
+            conferences: trqCount('SELECT COUNT(*) AS c FROM conferences'),
+            public_events: trqCount('SELECT COUNT(*) AS c FROM bridges_events'),
+            forum_events: trqCount('SELECT COUNT(*) AS c FROM forum_events')
+        };
+        events.total = events.conferences + events.public_events + events.forum_events;
+        // Gala pledges — the live-auction giving book. Pledged = confirmed winning amounts,
+        // received = the part already marked paid. EUR by the auction engine's own default.
+        let gala_pledges = { items_won: 0, pledged_eur: 0, received_eur: 0, bids: 0, auctions: 0 };
+        try {
+            const g = query.get("SELECT COUNT(*) AS n, SUM(final_amount) AS pledged, SUM(CASE WHEN COALESCE(payment_status,'') = 'paid' THEN final_amount ELSE 0 END) AS paid FROM auction_items WHERE COALESCE(final_amount,0) > 0");
+            if (g) gala_pledges = { items_won: Number(g.n) || 0, pledged_eur: Math.round((Number(g.pledged) || 0) * 100) / 100, received_eur: Math.round((Number(g.paid) || 0) * 100) / 100, bids: 0, auctions: 0 };
+        } catch (e) {}
+        gala_pledges.bids = trqCount("SELECT COUNT(*) AS c FROM auction_bids WHERE COALESCE(status,'') = 'active'");
+        gala_pledges.auctions = trqCount('SELECT COUNT(*) AS c FROM auctions');
+        const speakers_confirmed = trqCount('SELECT COUNT(*) AS c FROM speakers WHERE COALESCE(is_confirmed,0) = 1');
+        return { year: y, members, registrations, events, gala_pledges, speakers_confirmed, generated_at: new Date().toISOString() };
+    }
+    function boardPackHtml(facts, lang) {
+        const hr = lang === 'hr';
+        const e = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        const nf = new Intl.NumberFormat(hr ? 'hr-HR' : 'en-US');
+        const n = (v) => nf.format(Number(v) || 0);
+        const eur = (v) => '&euro;' + nf.format(Math.round(Number(v) || 0));
+        const genDate = new Date(facts.generated_at);
+        const dateStr = genDate.toLocaleDateString(hr ? 'hr-HR' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+        const T = hr ? {
+            doc: 'Godišnje izvješće', sub: 'Materijali za upravni odbor', atGlance: 'Ukratko',
+            membership: 'Članstvo', membersTotal: 'Članovi portala (ukupno)', newMembers: 'Novi članovi u ' + facts.year + '.',
+            verified: 'Potvrđene e-adrese', countries: 'Zemlje članova',
+            eventsRegs: 'Događanja i registracije', evConf: 'Konferencijska izdanja', evPublic: 'Javna događanja', evForum: 'Forumska događanja', evTotal: 'Događanja u portalu (ukupno)',
+            colProgram: 'Program', colTotal: 'Registracije (ukupno)', colYear: 'U ' + facts.year + '.', colPaid: 'Plaćeno', colChecked: 'Evidentirani dolasci',
+            regTotal: 'Sve registracije (ukupno)', regYear: 'Registracije u ' + facts.year + '.',
+            giving: 'Dobrotvorno darivanje (dražba)', gItems: 'Darovani predmeti', gPledged: 'Obećani iznos', gReceived: 'Uplaćeno do danas', gBids: 'Zaprimljene ponude', gAuctions: 'Održane dražbe',
+            speakers: 'Potvrđeni predavači',
+            method: 'Svaka brojka u ovom izvješću očitana je izravno iz baze podataka portala Med&X u trenutku izrade. Ništa nije uneseno ručno.',
+            generated: 'Izrađeno ' + dateStr + '.'
+        } : {
+            doc: 'Annual report', sub: 'Board pack', atGlance: 'At a glance',
+            membership: 'Membership', membersTotal: 'Portal members (total)', newMembers: 'New members in ' + facts.year,
+            verified: 'Verified email addresses', countries: 'Member countries',
+            eventsRegs: 'Events and registrations', evConf: 'Conference editions', evPublic: 'Public events', evForum: 'Forum events', evTotal: 'Events on the portal (total)',
+            colProgram: 'Programme', colTotal: 'Registrations (total)', colYear: 'In ' + facts.year, colPaid: 'Paid', colChecked: 'Checked in',
+            regTotal: 'All registrations (total)', regYear: 'Registrations in ' + facts.year,
+            giving: 'Charity giving (auction)', gItems: 'Items won', gPledged: 'Amount pledged', gReceived: 'Received to date', gBids: 'Bids received', gAuctions: 'Auctions held',
+            speakers: 'Confirmed speakers',
+            method: 'Every figure in this report is read directly from the Med&X portal database at the moment of generation. Nothing is typed in by hand.',
+            generated: 'Generated on ' + dateStr + '.'
+        };
+        const rows = facts.registrations.streams.map((s) => `
+            <tr><td>${e(hr ? s.label_hr : s.label_en)}</td><td>${n(s.total)}</td><td>${n(s.in_year)}</td><td>${n(s.paid)}</td><td>${n(s.checked_in)}</td></tr>`).join('');
+        return `<!DOCTYPE html><html lang="${hr ? 'hr' : 'en'}"><head><meta charset="UTF-8"><style>
+          @page{size:A4;margin:18mm}*{box-sizing:border-box}body{font-family:Inter,Arial,sans-serif;color:#15110f;margin:0;font-size:13px;line-height:1.55}
+          .h{border-bottom:3px solid #C9A962;padding-bottom:16px;margin-bottom:26px}.brand{font-size:26px;font-weight:800;color:#9b1b22}
+          .k{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#8a8178;margin-top:6px}
+          h1{font-family:Georgia,serif;font-size:26px;margin:0 0 2px}
+          h2{font-family:Georgia,serif;font-size:17px;margin:30px 0 12px;padding-bottom:6px;border-bottom:1px solid #e6e0d6;color:#3b342c}
+          .sub{color:#524b43;font-size:14px;margin-bottom:4px}
+          .nums{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0 4px}
+          .num{flex:1 1 150px;border:1px solid #e6e0d6;border-radius:12px;padding:13px;text-align:center}
+          .num b{display:block;font-size:24px;color:#9b1b22}.num span{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#8a8178}
+          table{width:100%;border-collapse:collapse;margin:8px 0}
+          th{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#8a8178;text-align:left;border-bottom:2px solid #C9A962;padding:7px 8px}
+          td{border-bottom:1px solid #eee7db;padding:8px}
+          td:not(:first-child),th:not(:first-child){text-align:right}
+          tr.total td{font-weight:700;border-top:2px solid #e6e0d6}
+          .foot{margin-top:34px;border-top:1px solid #e6e0d6;padding-top:14px;color:#8a8178;font-size:11.5px}
+        </style></head><body>
+          <div class="h"><div class="brand">Med&amp;X</div><div class="k">${e(T.sub)}</div></div>
+          <h1>${e(T.doc)} ${e(facts.year)}${hr ? '.' : ''}</h1>
+          <div class="sub">Med&amp;X ${hr ? 'udruga' : 'Association'}</div>
+          <h2>${e(T.atGlance)}</h2>
+          <div class="nums">
+            <div class="num"><b>${n(facts.members.total)}</b><span>${e(T.membersTotal)}</span></div>
+            <div class="num"><b>${n(facts.registrations.total)}</b><span>${e(T.regTotal)}</span></div>
+            <div class="num"><b>${n(facts.events.total)}</b><span>${e(T.evTotal)}</span></div>
+            <div class="num"><b>${eur(facts.gala_pledges.pledged_eur)}</b><span>${e(T.gPledged)}</span></div>
+          </div>
+          <h2>${e(T.membership)}</h2>
+          <div class="nums">
+            <div class="num"><b>${n(facts.members.total)}</b><span>${e(T.membersTotal)}</span></div>
+            <div class="num"><b>${n(facts.members.new_in_year)}</b><span>${e(T.newMembers)}</span></div>
+            <div class="num"><b>${n(facts.members.verified)}</b><span>${e(T.verified)}</span></div>
+            <div class="num"><b>${n(facts.members.countries)}</b><span>${e(T.countries)}</span></div>
+          </div>
+          <h2>${e(T.eventsRegs)}</h2>
+          <div class="nums">
+            <div class="num"><b>${n(facts.events.conferences)}</b><span>${e(T.evConf)}</span></div>
+            <div class="num"><b>${n(facts.events.public_events)}</b><span>${e(T.evPublic)}</span></div>
+            <div class="num"><b>${n(facts.events.forum_events)}</b><span>${e(T.evForum)}</span></div>
+            <div class="num"><b>${n(facts.speakers_confirmed)}</b><span>${e(T.speakers)}</span></div>
+          </div>
+          <table>
+            <thead><tr><th>${e(T.colProgram)}</th><th>${e(T.colTotal)}</th><th>${e(T.colYear)}</th><th>${e(T.colPaid)}</th><th>${e(T.colChecked)}</th></tr></thead>
+            <tbody>${rows}
+            <tr class="total"><td>${e(T.regTotal)}</td><td>${n(facts.registrations.total)}</td><td>${n(facts.registrations.in_year)}</td><td></td><td></td></tr>
+            </tbody>
+          </table>
+          <h2>${e(T.giving)}</h2>
+          <div class="nums">
+            <div class="num"><b>${n(facts.gala_pledges.items_won)}</b><span>${e(T.gItems)}</span></div>
+            <div class="num"><b>${eur(facts.gala_pledges.pledged_eur)}</b><span>${e(T.gPledged)}</span></div>
+            <div class="num"><b>${eur(facts.gala_pledges.received_eur)}</b><span>${e(T.gReceived)}</span></div>
+            <div class="num"><b>${n(facts.gala_pledges.bids)}</b><span>${e(T.gBids)}</span></div>
+            <div class="num"><b>${n(facts.gala_pledges.auctions)}</b><span>${e(T.gAuctions)}</span></div>
+          </div>
+          <div class="foot">${e(T.method)}<br>${e(T.generated)}</div>
+        </body></html>`;
+    }
+    app.get('/api/admin/transparency/facts', auth, adminOnly, (req, res) => {
+        res.json({ success: true, facts: transparencyFacts(req.query.year) });
+    });
+    app.get('/api/admin/transparency/board-pack', auth, adminOnly, (req, res) => {
+        const lang = req.query.lang === 'hr' ? 'hr' : 'en';
+        const facts = transparencyFacts(req.query.year);
+        logAudit(req, 'board_pack_preview', `Board pack ${facts.year} (${lang}) previewed`);
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(boardPackHtml(facts, lang));
+    });
+    app.get('/api/admin/transparency/board-pack.doc', auth, adminOnly, (req, res) => {
+        const lang = req.query.lang === 'hr' ? 'hr' : 'en';
+        const facts = transparencyFacts(req.query.year);
+        logAudit(req, 'board_pack_export', `Board pack ${facts.year} (${lang}) exported as Word`);
+        saveDb();
+        res.setHeader('Content-Type', 'application/msword');
+        res.setHeader('Content-Disposition', `attachment; filename="medx-board-pack-${facts.year}-${lang}.doc"`);
+        res.send('﻿' + boardPackHtml(facts, lang));
+    });
+    app.get('/api/admin/transparency/board-pack.pdf', auth, adminOnly, async (req, res) => {
+        if (typeof psChromeBinary === 'function' && !psChromeBinary()) {
+            return res.status(503).json({ error: 'print_engine_unavailable', message: 'The print engine (headless Chrome) is not available here. Set CHROME_PATH to enable PDF export. The Word export and the preview still work.' });
+        }
+        const lang = req.query.lang === 'hr' ? 'hr' : 'en';
+        const facts = transparencyFacts(req.query.year);
+        try {
+            const os = require('os'); const pathMod = require('path');
+            const outPath = pathMod.join(os.tmpdir(), 'board-pack-' + facts.year + '-' + lang + '-' + Date.now() + '.pdf');
+            await psRenderPdf(boardPackHtml(facts, lang), outPath);
+            logAudit(req, 'board_pack_export', `Board pack ${facts.year} (${lang}) exported as PDF`);
+            saveDb();
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="medx-board-pack-${facts.year}-${lang}.pdf"`);
+            require('fs').createReadStream(outPath).pipe(res);
+        } catch (e) {
+            res.status(503).json({ error: 'print_engine_unavailable', message: String(e && e.message || e) });
+        }
     });
 
     // ===================== THANK-YOU KITS: SPEAKERS + ATTENDEES (queue 5a5g piece 4) =====================

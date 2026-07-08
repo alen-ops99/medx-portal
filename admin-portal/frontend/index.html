@@ -7015,6 +7015,11 @@
                     <span>Finances</span>
                 </a>
 
+                <a class="nav-item" data-section="transparency" onclick="App.showSection('transparency', this)">
+                    <i class="fas fa-scale-balanced" style="color: #C9A962;"></i>
+                    <span>Board pack</span>
+                </a>
+
                 <a class="nav-item" data-section="pr-media" onclick="App.showSection('pr-media', this)">
                     <i class="fas fa-bullhorn" style="color: var(--pr-media);"></i>
                     <span>PR & Media</span>
@@ -12850,6 +12855,46 @@ President, Med&amp;X</textarea>
                 </div>
 
                 <!-- ============ EVENT EDITION CYCLING (admin-only, queue 5a5d) ============ -->
+                <div class="section" id="section-transparency">
+                    <style>
+                    #section-transparency .tr-grid{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0 22px;}
+                    #section-transparency .tr-stat{border:1px solid var(--border);border-radius:12px;background:var(--bg-secondary);padding:14px 20px;min-width:150px;flex:1 1 150px;}
+                    #section-transparency .tr-stat .n{font-family:'Fraunces',Georgia,serif;font-size:26px;font-weight:700;line-height:1;color:var(--text-primary);}
+                    #section-transparency .tr-stat .l{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-top:6px;}
+                    #section-transparency .tr-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;border:1px solid var(--border);border-radius:12px;background:var(--bg-secondary);padding:14px 16px;margin:6px 0 4px;}
+                    #section-transparency .tr-controls label{font-size:13px;color:var(--text-muted);}
+                    #section-transparency .tr-controls input,#section-transparency .tr-controls select{padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;}
+                    #section-transparency #trPreviewWrap{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff;margin-top:18px;display:none;}
+                    #section-transparency #trPreviewFrame{width:100%;height:980px;border:0;display:block;background:#fff;}
+                    #section-transparency .tr-note{font-size:12.5px;color:var(--text-muted);margin-top:10px;line-height:1.6;}
+                    </style>
+                    <div class="back-link" onclick="App.showSection('dashboard')">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </div>
+                    <div class="page-header">
+                        <h1><i class="fas fa-scale-balanced" style="color: #C9A962; margin-right: 12px;"></i>Board pack</h1>
+                        <p>Godišnje izvješće from live portal numbers — members, events, registrations and gala pledges. Every figure is read from the database at generation time, nothing is typed in by hand.</p>
+                    </div>
+                    <div class="tr-controls">
+                        <label for="trYear">Year</label>
+                        <input type="number" id="trYear" min="2015" max="2100" step="1" style="width:110px;" onchange="TransparencyAdmin.loadFacts()">
+                        <label for="trLang">Language</label>
+                        <select id="trLang">
+                            <option value="en">English</option>
+                            <option value="hr">Hrvatski</option>
+                        </select>
+                        <span style="flex:1;"></span>
+                        <button class="btn btn-secondary" onclick="TransparencyAdmin.loadFacts()"><i class="fas fa-rotate"></i> Refresh numbers</button>
+                        <button class="btn btn-secondary" onclick="TransparencyAdmin.preview()"><i class="fas fa-eye"></i> Preview</button>
+                        <button class="btn btn-secondary" onclick="TransparencyAdmin.download('doc')"><i class="fas fa-file-word"></i> Word</button>
+                        <button class="btn btn-primary" onclick="TransparencyAdmin.download('pdf')"><i class="fas fa-file-pdf"></i> PDF</button>
+                    </div>
+                    <div id="trStatus" class="tr-note" style="display:none;"></div>
+                    <div class="tr-grid" id="trFactsGrid"></div>
+                    <div id="trPreviewWrap"><iframe id="trPreviewFrame" title="Board pack preview"></iframe></div>
+                    <div class="tr-note">PDF export uses the print engine (headless Chrome). Where it is not available, the portal replies with a clear notice — the Word export and the on-screen preview always work. Exports are logged in the audit log.</div>
+                </div>
+
                 <div class="section" id="section-editions">
                     <style>
                     #section-editions .ed-head h1{font-size:28px;font-weight:700;margin-bottom:4px;}
@@ -18653,6 +18698,7 @@ President, Med&amp;X</textarea>
                     'forum': 'Biomedical Forum',
                     'bridges': 'Building Bridges',
                     'finances': 'Finances',
+                    'transparency': 'Board pack',
                     'year-calendar': 'Year Calendar',
                     'editions': 'Editions',
                     'cme': 'CME / HLK',
@@ -18836,6 +18882,10 @@ President, Med&amp;X</textarea>
                     this.currentView = 'cme';
                     this.switchChatPanel('team');
                     if (typeof CmeAdmin !== 'undefined') CmeAdmin.init();
+                } else if (sectionId === 'transparency') {
+                    this.currentView = 'transparency';
+                    this.switchChatPanel('team');
+                    if (typeof TransparencyAdmin !== 'undefined') TransparencyAdmin.init();
                 } else {
                     // Switch chat panel to team chat mode
                     this.currentView = 'dashboard';
@@ -33652,6 +33702,83 @@ By applying to this program, I give the following consents:
             }
         };
         window.AuctionAdmin = AuctionAdmin;
+
+        // ===================== TRANSPARENCY ENGINE (R3-5) — board pack UI =====================
+        const TransparencyAdmin = {
+            token() { return (window.App && App.token) || localStorage.getItem('medx_token') || localStorage.getItem('token'); },
+            esc(x) { return String(x == null ? '' : x).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); },
+            year() { const el = document.getElementById('trYear'); const v = el && el.value; return /^\d{4}$/.test(String(v || '')) ? String(v) : String(new Date().getFullYear()); },
+            lang() { const el = document.getElementById('trLang'); return (el && el.value === 'hr') ? 'hr' : 'en'; },
+            status(msg, isErr) {
+                const el = document.getElementById('trStatus'); if (!el) return;
+                if (!msg) { el.style.display = 'none'; return; }
+                el.style.display = 'block'; el.style.color = isErr ? '#9b1b22' : 'var(--text-muted)'; el.textContent = msg;
+            },
+            init() {
+                const yEl = document.getElementById('trYear');
+                if (yEl && !yEl.value) yEl.value = String(new Date().getFullYear());
+                this.loadFacts();
+            },
+            async loadFacts() {
+                const host = document.getElementById('trFactsGrid'); if (!host) return;
+                this.status('');
+                try {
+                    const r = await fetch('/api/admin/transparency/facts?year=' + encodeURIComponent(this.year()), { headers: { 'Authorization': 'Bearer ' + this.token() } });
+                    const d = await r.json();
+                    if (!r.ok || !d.facts) throw new Error(d.error || ('Error ' + r.status));
+                    const f = d.facts;
+                    const nf = new Intl.NumberFormat('en-US');
+                    const cards = [
+                        [nf.format(f.members.total), 'Members'],
+                        [nf.format(f.members.new_in_year), 'New in ' + this.esc(f.year)],
+                        [nf.format(f.members.countries), 'Countries'],
+                        [nf.format(f.events.total), 'Events'],
+                        [nf.format(f.registrations.total), 'Registrations'],
+                        [nf.format(f.registrations.in_year), 'Registrations in ' + this.esc(f.year)],
+                        ['€' + nf.format(Math.round(f.gala_pledges.pledged_eur)), 'Gala pledges'],
+                        ['€' + nf.format(Math.round(f.gala_pledges.received_eur)), 'Gala received']
+                    ];
+                    host.innerHTML = cards.map((c) => '<div class="tr-stat"><div class="n">' + c[0] + '</div><div class="l">' + c[1] + '</div></div>').join('');
+                } catch (e) {
+                    host.innerHTML = '';
+                    this.status('Could not load the live numbers: ' + (e && e.message || e), true);
+                }
+            },
+            async preview() {
+                this.status('Building the preview…');
+                try {
+                    const r = await fetch('/api/admin/transparency/board-pack?year=' + encodeURIComponent(this.year()) + '&lang=' + this.lang(), { headers: { 'Authorization': 'Bearer ' + this.token() } });
+                    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.message || d.error || ('Error ' + r.status)); }
+                    const html = await r.text();
+                    const wrap = document.getElementById('trPreviewWrap');
+                    const frame = document.getElementById('trPreviewFrame');
+                    if (frame) frame.srcdoc = html;
+                    if (wrap) wrap.style.display = 'block';
+                    this.status('');
+                } catch (e) { this.status('Preview failed: ' + (e && e.message || e), true); }
+            },
+            async download(kind) {
+                const ext = kind === 'pdf' ? 'pdf' : 'doc';
+                this.status(ext === 'pdf' ? 'Rendering the PDF…' : 'Preparing the Word file…');
+                try {
+                    const r = await fetch('/api/admin/transparency/board-pack.' + ext + '?year=' + encodeURIComponent(this.year()) + '&lang=' + this.lang(), { headers: { 'Authorization': 'Bearer ' + this.token() } });
+                    if (!r.ok) {
+                        const d = await r.json().catch(() => ({}));
+                        // The 503 print-engine notice is expected where Chrome is absent — show it plainly.
+                        throw new Error(d.message || d.error || ('Error ' + r.status));
+                    }
+                    const blob = await r.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = 'medx-board-pack-' + this.year() + '-' + this.lang() + '.' + ext;
+                    document.body.appendChild(a); a.click(); a.remove();
+                    setTimeout(() => URL.revokeObjectURL(url), 4000);
+                    this.status('');
+                } catch (e) { this.status((ext === 'pdf' ? 'PDF export: ' : 'Word export: ') + (e && e.message || e), true); }
+            }
+        };
+        window.TransparencyAdmin = TransparencyAdmin;
+
 
         // ===== CME / HLK ACCREDITATION admin module (queue 5a5c) =====
         // Per conference edition: flag HLK accreditation, set CME points + accreditation number,

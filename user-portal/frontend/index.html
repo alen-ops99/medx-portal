@@ -28,7 +28,10 @@
          started downloading long after first paint (hero showed as a bare gradient until a
          refresh). Preloading starts the fetch with the document itself. -->
     <link rel="preload" as="image" href="/assets/photos/plexus_25_gala_grupna.jpg">
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js" crossorigin="anonymous" defer></script>
+    <!-- qrcode self-hosted (R3-3 ticket suite): the event-day ticket must render its QR with no
+         network, so the generator library is vendored + precached by sw.js instead of pulled from
+         jsDelivr. Same pinned 1.5.1 build — the QR payload and generation logic are unchanged. -->
+    <script src="/vendor/qrcode/qrcode.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <!-- jsQR self-hosted: jsDelivr re-minifies on their side, so a pinned SRI hash rots and the
          browser blocks the scanner library. Vendored like Font Awesome, no SRI needed same-origin. -->
@@ -57115,6 +57118,15 @@ button,input,select,textarea{font-family:var(--sans);}
             'tk.addToCalendar':{en:'Add to calendar', hr:'Dodajte u kalendar'},
             'tk.downloadTicket':{en:'Download ticket', hr:'Preuzmite ulaznicu'},
             'tk.walletSoon': {en:'Add to Apple Wallet coming soon.', hr:'Dodavanje u Apple Wallet uskoro.'},
+            // --- R3-3 event-day ticket suite (Present mode + offline + wallet passes) ---
+            'tk.present':     {en:'Present ticket', hr:'Pokažite ulaznicu'},
+            'tk.presentHint': {en:'Show this screen at check-in.', hr:'Pokažite ovaj zaslon pri prijavi.'},
+            'tk.presentAria': {en:'Your ticket, full screen. Press Escape or Close to leave.', hr:'Vaša ulaznica preko cijelog zaslona. Pritisnite Escape ili Zatvorite za izlaz.'},
+            'tk.offlineTickets':{en:'You are offline — showing your saved tickets.', hr:'Niste povezani s internetom — prikazujemo vaše spremljene ulaznice.'},
+            'tk.offlineReady':{en:'Saved on this device — works offline.', hr:'Spremljeno na ovom uređaju — radi i bez interneta.'},
+            'tk.noTicketToPresent':{en:'No ticket to present yet.', hr:'Još nema ulaznice za pokazivanje.'},
+            'tk.guest':       {en:'Guest', hr:'Gost'},
+            'tk.seat':        {en:'Seat', hr:'Sjedalo'},
             'tk.medxEvent':  {en:'Med&X event', hr:'Med&X događaj'},
             'tk.downloaded': {en:'Ticket downloaded', hr:'Ulaznica preuzeta'},
             'tk.dlMemberCard':{en:'Download membership card', hr:'Preuzmite člansku iskaznicu'},
@@ -57681,6 +57693,26 @@ button,input,select,textarea{font-family:var(--sans);}
             'net.lookingCollabQ':   {en:'Looking for Collaborators?', hr:'Tražite suradnike?'},
             'net.lookingCollab':    {en:'Looking for Collaborators', hr:'Tražite suradnike'},
             'net.lookingCollabDesc':{en:'Show on your profile that you are actively seeking research collaborators', hr:'Na profilu pokažite da aktivno tražite suradnike u istraživanju'},
+            'net.coffeeMatchQ':     {en:'Monthly Coffee Matchmaker?', hr:'Mjesečno uparivanje za kavu?'},
+            'net.coffeeMatch':      {en:'Monthly Coffee Matchmaker', hr:'Mjesečno uparivanje za kavu'},
+            'net.coffeeMatchDesc':  {en:'Opt in and once a month we introduce you to another member for an informal coffee', hr:'Uključite se i jednom mjesečno upoznat ćemo Vas s drugim članom za neformalnu kavu'},
+            'net.coffeeMatchThis':  {en:'This month we suggest', hr:'Ovaj mjesec predlažemo'},
+            'net.coffeeMatchNone':  {en:'No match yet this month. We will introduce you as more members opt in.', hr:'Ovaj mjesec još nema para. Upoznat ćemo Vas kako se više članova uključi.'},
+            'net.pickSlot':         {en:'Please select a time slot', hr:'Odaberite termin'},
+            'net.reqMeetingSent':   {en:'Meeting request sent. You will be notified when they respond.', hr:'Zahtjev za sastanak je poslan. Obavijestit ćemo Vas kada odgovore.'},
+            'net.reqMeetingDup':    {en:'You already have a pending meeting request with this member.', hr:'Već imate zahtjev za sastanak na čekanju s ovim članom.'},
+            'net.reqMeetingConnErr':{en:'You can request meetings with your accepted connections only.', hr:'Sastanke možete zatražiti samo sa svojim prihvaćenim vezama.'},
+            'net.reqMeetingErr':    {en:'We could not send the meeting request. Please try again.', hr:'Nismo mogli poslati zahtjev za sastanak. Pokušajte ponovno.'},
+            'net.mReqTitle':        {en:'Meeting Requests', hr:'Zahtjevi za sastanak'},
+            'net.mReqEmpty':        {en:'No meeting requests right now.', hr:'Trenutačno nema zahtjeva za sastanak.'},
+            'net.mReqIncoming':     {en:'Incoming', hr:'Dolazni'},
+            'net.mReqOutgoing':     {en:'Sent by you', hr:'Vi ste poslali'},
+            'net.mReqAccept':       {en:'Accept', hr:'Prihvatite'},
+            'net.mReqDecline':      {en:'Decline', hr:'Odbijte'},
+            'net.mReqAccepted':     {en:'Accepted', hr:'Prihvaćeno'},
+            'net.mReqDeclined':     {en:'Declined', hr:'Odbijeno'},
+            'net.mReqPending':      {en:'Pending', hr:'Na čekanju'},
+            'net.mReqLinkSoon':     {en:'Confirmed. A meeting link will appear here soon.', hr:'Potvrđeno. Poveznica za sastanak pojavit će se ovdje uskoro.'},
 
             // --- Talk Library ---
             'talk.title':        {en:'Talk Library', hr:'Knjižnica predavanja'},
@@ -69312,6 +69344,13 @@ button,input,select,textarea{font-family:var(--sans);}
                         <div class="connection-grid" id="sentRequestsGrid">
                             <!-- No sent requests -->
                         </div>
+
+                        <div class="network-section-header" style="margin-top: 32px;">
+                            <h3><i class="fas fa-calendar-check" style="margin-right:6px;color:var(--up-gold);"></i><span data-i18n="net.mReqTitle">Meeting Requests</span></h3>
+                        </div>
+                        <div class="connection-grid" id="meetingRequestsGrid">
+                            <!-- Dynamically rendered by NetworkingPortal.loadMeetingRequests() -->
+                        </div>
                     </div>
 
                     <!-- Meetings Panel -->
@@ -71493,6 +71532,13 @@ button,input,select,textarea{font-family:var(--sans);}
                                 <button type="button" class="mlc-wallet-btn apple soon" id="mlcAppleWalletBtn" onclick="MyMedXPortal.addToAppleWallet()"><i class="fab fa-apple"></i> <span data-i18n="mmx.lcAddAppleWallet">Add to Apple Wallet</span></button>
                             </div>
                             <div class="mmx-card-note"><i class="fas fa-qrcode"></i><span data-i18n="tk.qrNote">Your QR carries your key info for fast check-in at Med&amp;X events.</span></div>
+                            <div class="mmx-share" id="mymedxWrapped">
+                                <div class="mmx-share-head"><i class="fas fa-image"></i><span data-i18n="wrap.blockTitle">Your Plexus 2026</span></div>
+                                <p class="mmx-share-note" data-i18n="wrap.blockNote">A card you can keep and share — the Med&amp;X gatherings you joined this year and the people you met along the way.</p>
+                                <div class="mmx-share-actions">
+                                    <button type="button" class="mmx-share-btn" onclick="MyMedXPortal.openWrapped()"><i class="fas fa-arrow-down"></i> <span data-i18n="wrap.blockCta">Create your card</span></button>
+                                </div>
+                            </div>
                             <div class="mmx-share">
                                 <div class="mmx-share-head"><i class="fas fa-share-nodes"></i><span data-i18n="mmx.shareMembTitle">Share your membership</span></div>
                                 <p class="mmx-share-note" data-i18n="mmx.shareMembNote">Prove your active Med&amp;X membership with a public link, or add it to your LinkedIn profile as a credential.</p>
@@ -79509,8 +79555,24 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (wc) wc.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--muted);font-size:13px;">' + t('mmx.loadingTickets') + '</div>';
                 fetch(apiBase + '/api/registrations/my', { headers: token ? { 'Authorization': 'Bearer ' + token } : {} })
                     .then(function(r){ return r.ok ? r.json() : Promise.reject('err'); })
-                    .then(function(regs){ self._regs = Array.isArray(regs) ? regs : []; self.renderRecognition(self._regs); self._renderWalletCards(self._regs); self.renderPurchases(self._regs); })
-                    .catch(function(){ self._regs = []; self.renderRecognition([]); self._renderWalletCards(null); self.renderPurchases(null); })
+                    .then(function(regs){
+                        self._regs = Array.isArray(regs) ? regs : [];
+                        self._saveTicketCache(self._regs);
+                        self.renderRecognition(self._regs); self._renderWalletCards(self._regs); self.renderPurchases(self._regs);
+                    })
+                    .catch(function(){
+                        // R3-3 offline ticket suite: the API is unreachable (event-day dead spots,
+                        // airplane mode). Fall back to the tickets saved on this device so the
+                        // boarding pass + QR still show. The service worker NEVER caches /api/ —
+                        // this cache is app state, written only from a fresh authenticated fetch.
+                        var cached = self._cachedRegs();
+                        if (cached && cached.length) {
+                            self._regs = cached;
+                            self.renderRecognition(cached); self._renderWalletCards(cached, true); self.renderPurchases(cached);
+                        } else {
+                            self._regs = []; self.renderRecognition([]); self._renderWalletCards(null); self.renderPurchases(null);
+                        }
+                    })
                     .then(function(){ self._memberDataLoading = false; });
             },
 
@@ -79838,8 +79900,10 @@ You can use variables like {first_name} that will be personalized for each recip
                 } catch(e){ return start; }
             },
 
-            // Real wallet: tickets from /api/registrations/my, QR rendered from the actual ticket_qr_code (same value the scanner reads)
-            _renderWalletCards(regs) {
+            // Real wallet: tickets from /api/registrations/my, QR rendered from the actual ticket_qr_code (same value the scanner reads).
+            // R3-3: `offline` marks a render from the on-device ticket cache (medx_ticket_cache) when
+            // the API is unreachable — the boarding pass must still show at the venue door.
+            _renderWalletCards(regs, offline) {
                 var container = document.getElementById('mymedxQRCodes');
                 if (!container) return;
                 if (regs === null) {
@@ -79856,7 +79920,10 @@ You can use variables like {first_name} that will be personalized for each recip
                     return;
                 }
                 var jobs = [];
-                container.innerHTML = regs.map(function(r, i){
+                var offlineNote = offline
+                    ? '<div style="grid-column:1/-1;display:flex;align-items:center;gap:9px;background:var(--paper-2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:12.5px;color:var(--ink-soft);"><i class="fas fa-wifi" style="color:var(--warning);"></i> ' + t('tk.offlineTickets') + '</div>'
+                    : '';
+                container.innerHTML = offlineNote + regs.map(function(r, i){
                     var paid = (r.payment_status === 'paid');
                     var free = (!r.amount_paid || Number(r.amount_paid) === 0);
                     var statusLabel = paid ? t('tk.paid') : (free ? t('tk.confirmed') : t('tk.paymentPending'));
@@ -79888,7 +79955,12 @@ You can use variables like {first_name} that will be personalized for each recip
                             + '<button onclick="MyMedXPortal.downloadTicket(' + i + ')" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;background:var(--crimson);color:#fff;border:none;border-radius:9px;padding:10px 12px;font-size:13px;font-weight:700;cursor:pointer;"><i class="fas fa-download"></i> ' + t('tk.downloadTicket') + '</button>'
                             + '<button onclick="MyMedXPortal.saveTicketPdf(' + i + ')" style="display:inline-flex;align-items:center;justify-content:center;gap:7px;background:transparent;color:var(--ink);border:1px solid var(--line-strong);border-radius:9px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-file-pdf"></i> PDF</button>'
                         + '</div>'
-                        + '<div style="text-align:center;font-size:11px;color:var(--muted);margin-top:2px;">' + t('tk.walletSoon') + '</div>'
+                        + '<button onclick="MyMedXPortal.openPresentMode(' + i + ')" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#14110f;color:#e8d5a8;border:1px solid #14110f;border-radius:9px;padding:11px 12px;font-size:13px;font-weight:700;cursor:pointer;margin-top:2px;"><i class="fas fa-qrcode"></i> ' + t('tk.present') + '</button>'
+                        + '<div style="display:flex;gap:8px;">'
+                            + '<button onclick="MyMedXPortal.addTicketToGoogleWallet(' + i + ')" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;background:transparent;color:var(--ink);border:1px solid var(--line-strong);border-radius:9px;padding:9px 10px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fab fa-google"></i> Google Wallet</button>'
+                            + '<button onclick="MyMedXPortal.addTicketToAppleWallet(' + i + ')" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;background:transparent;color:var(--ink);border:1px solid var(--line-strong);border-radius:9px;padding:9px 10px;font-size:12px;font-weight:600;cursor:pointer;opacity:.55;"><i class="fab fa-apple"></i> Apple Wallet</button>'
+                        + '</div>'
+                        + '<div style="text-align:center;font-size:11px;color:var(--muted);margin-top:2px;"><i class="fas fa-circle-check" style="color:var(--success);"></i> ' + t('tk.offlineReady') + '</div>'
                     + '</div>';
                 }).join('');
                 // Render REAL QR codes from the ticket_qr_code value
@@ -79903,6 +79975,21 @@ You can use variables like {first_name} that will be personalized for each recip
                     });
                 } else {
                     jobs.forEach(function(job){ var el=document.getElementById(job.id); if(el){ el.textContent='QR unavailable'; el.style.fontSize='11px'; el.style.color='var(--muted)'; } });
+                }
+                // Manifest shortcut ("My Ticket" → /?app=1&view=ticket): once the wallet has real
+                // tickets, open Present mode on the most relevant one (first not-yet-finished event,
+                // else the newest registration).
+                if (this._autoPresent && regs.length) {
+                    this._autoPresent = false;
+                    var pick = 0;
+                    try {
+                        var today = new Date().toISOString().slice(0, 10);
+                        for (var k = 0; k < regs.length; k++) {
+                            if (((regs[k].end_date || regs[k].start_date) || '') >= today) { pick = k; break; }
+                        }
+                    } catch (e) {}
+                    var selfP = this;
+                    setTimeout(function(){ selfP.openPresentMode(pick); }, 120);
                 }
             },
 
@@ -80406,6 +80493,166 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (typeof Toast !== 'undefined' && Toast.info) Toast.info(t('mmx.lcAppleSoon'));
             },
 
+            // ===== R3-3 EVENT-DAY TICKET SUITE =====
+            // On-device ticket cache: a slim copy of the member's own registrations, written ONLY
+            // after a fresh authenticated /api/registrations/my fetch, read ONLY when that fetch
+            // fails (offline). Same device-trust level as medx_user_data. The service worker never
+            // caches /api/ responses — this is deliberate app state, not a transparent cache.
+            _TICKET_CACHE_KEY: 'medx_ticket_cache',
+            _saveTicketCache(regs) {
+                try {
+                    var slim = (regs || []).map(function(r){
+                        return {
+                            id: r.id, conference_name: r.conference_name, ticket_name: r.ticket_name,
+                            registration_type: r.registration_type, first_name: r.first_name, last_name: r.last_name,
+                            ticket_qr_code: r.ticket_qr_code, start_date: r.start_date, end_date: r.end_date,
+                            venue_name: r.venue_name, venue_city: r.venue_city, payment_status: r.payment_status,
+                            amount_paid: r.amount_paid, invoice_number: r.invoice_number, checked_in: r.checked_in,
+                            seat_number: r.seat_number
+                        };
+                    });
+                    localStorage.setItem(this._TICKET_CACHE_KEY, JSON.stringify(slim));
+                } catch (e) { /* storage full/blocked — the online path is unaffected */ }
+            },
+            _cachedRegs() {
+                try {
+                    var raw = localStorage.getItem(this._TICKET_CACHE_KEY);
+                    var arr = raw ? JSON.parse(raw) : null;
+                    return Array.isArray(arr) ? arr : null;
+                } catch (e) { return null; }
+            },
+
+            // Present mode — a full-screen boarding pass for the venue door: guest name, event,
+            // seat/type, and the EXISTING frozen QR payload re-rendered large (>=148px). The QR
+            // value is byte-identical to the wallet card + scanner value; only the pixel size of
+            // the rendered image differs (exactly like the existing PNG ticket download).
+            _presentWakeLock: null,
+            _presentEscHandler: null,
+            openPresentMode(idx) {
+                var regs = (this._regs && this._regs.length) ? this._regs : (this._cachedRegs() || []);
+                var r = regs[idx || 0];
+                if (!r) { if (typeof Toast !== 'undefined' && Toast.info) Toast.info(t('tk.noTicketToPresent')); return; }
+                this.closePresentMode();
+                var name = this._guestName(r);
+                var qrData = r.ticket_qr_code || ('MEDX:' + (r.id || '')); // EXACT same value the wallet card + scanner use
+                var dates = this._fmtDateRange(r.start_date, r.end_date);
+                var venue = [r.venue_name, r.venue_city].filter(Boolean).join(', ');
+                var paid = (r.payment_status === 'paid');
+                var free = (!r.amount_paid || Number(r.amount_paid) === 0);
+                var statusLabel = paid ? t('tk.paid') : (free ? t('tk.confirmed') : t('tk.paymentPending'));
+                var statusColor = (paid || free) ? '#2f6b3a' : '#9a6b1f';
+                var ov = document.createElement('div');
+                ov.id = 'mxPresentOverlay';
+                ov.setAttribute('role', 'dialog');
+                ov.setAttribute('aria-modal', 'true');
+                ov.setAttribute('aria-label', t('tk.presentAria'));
+                ov.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box;background:linear-gradient(165deg,#1d1813,#14100d 55%,#0e0a08);overflow:auto;';
+                ov.innerHTML =
+                    '<button type="button" onclick="MyMedXPortal.closePresentMode()" aria-label="' + t('mmx.close') + '" style="position:fixed;top:16px;right:16px;z-index:2;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.28);color:#fff;border-radius:999px;width:42px;height:42px;font-size:17px;cursor:pointer;line-height:1;">&#10005;</button>'
+                  + '<div style="width:min(92vw,400px);background:#fbf9f6;border-radius:22px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.55);margin:auto;">'
+                    + '<div style="height:8px;background:linear-gradient(90deg,#a38a4f,#c9a962,#e8d5a8,#c9a962,#a38a4f);"></div>'
+                    + '<div style="padding:22px 24px 16px;background:linear-gradient(165deg,#1d1813,#14100d);color:#fff;">'
+                      + '<div style="font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#c9a962;font-weight:700;margin-bottom:7px;">Med&amp;X</div>'
+                      + '<div style="font-family:var(--serif,\'Fraunces\',Georgia,serif);font-size:25px;font-weight:600;line-height:1.08;">' + escapeHtml(r.conference_name || t('tk.medxEvent')) + '</div>'
+                      + (dates || venue
+                          ? '<div style="font-size:12.5px;color:rgba(255,255,255,.72);margin-top:9px;line-height:1.5;">'
+                            + (dates ? '<div><i class="fas fa-calendar" style="width:17px;color:#c9a962;"></i> ' + escapeHtml(dates) + '</div>' : '')
+                            + (venue ? '<div><i class="fas fa-location-dot" style="width:17px;color:#c9a962;"></i> ' + escapeHtml(venue) + '</div>' : '')
+                          + '</div>'
+                          : '')
+                    + '</div>'
+                    + '<div style="padding:16px 24px 6px;display:flex;justify-content:space-between;align-items:center;gap:10px;">'
+                      + '<div style="min-width:0;">'
+                        + '<div style="font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:#a38a4f;font-weight:700;">' + t('tk.guest') + '</div>'
+                        + '<div style="font-family:var(--serif,\'Fraunces\',Georgia,serif);font-size:21px;font-weight:600;color:#15110f;line-height:1.12;">' + escapeHtml(name) + '</div>'
+                        + '<div style="font-size:12px;color:#6b6258;margin-top:3px;">' + escapeHtml(r.ticket_name || r.registration_type || t('tk.ticket')) + (r.seat_number ? ' &middot; ' + t('tk.seat') + ' ' + escapeHtml(String(r.seat_number)) : '') + '</div>'
+                      + '</div>'
+                      + '<span style="white-space:nowrap;flex:none;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:' + statusColor + ';border:1px solid currentColor;padding:5px 10px;border-radius:999px;">' + statusLabel + '</span>'
+                    + '</div>'
+                    + '<div style="position:relative;margin:12px 0 0;"><div style="border-top:2px dashed #d9d2c5;"></div>'
+                      + '<div style="position:absolute;left:-13px;top:-13px;width:26px;height:26px;border-radius:50%;background:#14100d;"></div>'
+                      + '<div style="position:absolute;right:-13px;top:-13px;width:26px;height:26px;border-radius:50%;background:#14100d;"></div>'
+                    + '</div>'
+                    + '<div style="padding:20px 24px 22px;display:flex;flex-direction:column;align-items:center;">'
+                      + '<div style="background:#ffffff;border:1px solid #e6e0d4;border-radius:16px;padding:14px;">'
+                        + '<div id="mxPresentQR" style="width:min(64vw,232px);height:min(64vw,232px);min-width:148px;min-height:148px;display:flex;align-items:center;justify-content:center;"></div>'
+                      + '</div>'
+                      + '<div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#15110f;font-weight:700;margin-top:14px;">' + t('tk.presentHint') + '</div>'
+                      + (r.invoice_number ? '<div style="font-size:12px;color:#6b6258;margin-top:5px;font-variant-numeric:tabular-nums;">#' + escapeHtml(r.invoice_number) + '</div>' : '')
+                    + '</div>'
+                  + '</div>';
+                document.body.appendChild(ov);
+                this._presentPrevOverflow = document.body.style.overflow;
+                document.body.style.overflow = 'hidden';
+                // The QR pixels: rendered from the SAME frozen payload, sized for across-the-desk scans.
+                var host = document.getElementById('mxPresentQR');
+                if (host && typeof QRCode !== 'undefined') {
+                    QRCode.toCanvas(document.createElement('canvas'), qrData, { width: 464, margin: 1, errorCorrectionLevel: 'M', color: { dark: '#15110f', light: '#ffffff' } }, function(err, canvas){
+                        if (err || !canvas) { host.textContent = 'QR unavailable'; host.style.fontSize = '12px'; host.style.color = '#6b6258'; return; }
+                        canvas.style.width = '100%'; canvas.style.height = '100%'; host.appendChild(canvas);
+                    });
+                } else if (host) { host.textContent = 'QR unavailable'; host.style.fontSize = '12px'; host.style.color = '#6b6258'; }
+                // Keep the screen awake at the door (best effort — not all browsers expose it).
+                var self = this;
+                try { if (navigator.wakeLock && navigator.wakeLock.request) navigator.wakeLock.request('screen').then(function(l){ self._presentWakeLock = l; }).catch(function(){}); } catch (e) {}
+                this._presentEscHandler = function(ev){ if (ev.key === 'Escape') MyMedXPortal.closePresentMode(); };
+                document.addEventListener('keydown', this._presentEscHandler);
+            },
+            closePresentMode() {
+                var ov = document.getElementById('mxPresentOverlay');
+                if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
+                if (this._presentEscHandler) { document.removeEventListener('keydown', this._presentEscHandler); this._presentEscHandler = null; }
+                try { if (this._presentWakeLock) { this._presentWakeLock.release().catch(function(){}); this._presentWakeLock = null; } } catch (e) {}
+                if (ov) document.body.style.overflow = this._presentPrevOverflow || '';
+            },
+
+            // Google Wallet for ONE event ticket — the server signs a generic-pass JWT whose barcode
+            // carries the frozen ticket payload. Same clean key-gate as the membership pass in dev.
+            addTicketToGoogleWallet(idx) {
+                var r = (this._regs || [])[idx];
+                if (!r || !r.id) { if (typeof Toast !== 'undefined' && Toast.info) Toast.info(t('tk.noTicketToPresent')); return; }
+                var self = this;
+                var tkn = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
+                var base = (typeof API_BASE !== 'undefined' ? API_BASE : '');
+                if (typeof Toast !== 'undefined' && Toast.info) Toast.info(t('mmx.lcGooglePrep'));
+                fetch(base + '/api/member/wallet/google/ticket/' + encodeURIComponent(r.id), { headers: tkn ? { 'Authorization': 'Bearer ' + tkn } : {} })
+                    .then(function(res){ return res.ok ? res.json() : Promise.reject('err'); })
+                    .then(function(d){
+                        if (d && d.configured && d.save_url) { window.open(d.save_url, '_blank', 'noopener'); }
+                        else if (d && d.configured === false) {
+                            var msg = (self._isHR() ? d.message_hr : d.message_en) || t('mmx.lcGoogleSoon');
+                            if (typeof Toast !== 'undefined' && Toast.info) Toast.info(msg);
+                        } else { if (typeof Toast !== 'undefined' && Toast.error) Toast.error(t('mmx.lcWalletErr')); }
+                    })
+                    .catch(function(){ if (typeof Toast !== 'undefined' && Toast.error) Toast.error(t('mmx.lcWalletErr')); });
+            },
+
+            // Apple Wallet ticket — WIRED BUT DORMANT (a signed .pkpass needs the $99/yr Apple
+            // Developer cert, an owner action). Flag off: honest "coming soon". Flag on: calls the
+            // server route, which stays gated until the certificate env vars exist.
+            _APPLE_TICKET_WALLET_ENABLED: false,
+            addTicketToAppleWallet(idx) {
+                if (!this._APPLE_TICKET_WALLET_ENABLED) {
+                    if (typeof Toast !== 'undefined' && Toast.info) Toast.info(t('mmx.lcAppleSoon'));
+                    return;
+                }
+                var r = (this._regs || [])[idx];
+                if (!r || !r.id) { if (typeof Toast !== 'undefined' && Toast.info) Toast.info(t('tk.noTicketToPresent')); return; }
+                var self = this;
+                var tkn = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
+                var base = (typeof API_BASE !== 'undefined' ? API_BASE : '');
+                fetch(base + '/api/member/wallet/apple/ticket/' + encodeURIComponent(r.id), { headers: tkn ? { 'Authorization': 'Bearer ' + tkn } : {} })
+                    .then(function(res){ return res.ok ? res.json() : Promise.reject('err'); })
+                    .then(function(d){
+                        if (d && d.configured && d.pass_url) { window.open(d.pass_url, '_blank', 'noopener'); }
+                        else {
+                            var msg = (d && (self._isHR() ? d.message_hr : d.message_en)) || t('mmx.lcAppleSoon');
+                            if (typeof Toast !== 'undefined' && Toast.info) Toast.info(msg);
+                        }
+                    })
+                    .catch(function(){ if (typeof Toast !== 'undefined' && Toast.error) Toast.error(t('mmx.lcWalletErr')); });
+            },
+
             // ===== Member photo (users.photo_url) with an initials monogram fallback =====
             // The hero avatar and the membership card portrait always carry a personal mark:
             // the member's photo when one is on file, otherwise their initials. The photo is
@@ -80658,6 +80905,165 @@ You can use variables like {first_name} that will be personalized for each recip
 
             _isHR(){ try{ return !!(window.MedXI18n && MedXI18n.get && MedXI18n.get()==='hr'); }catch(e){ return false; } },
             _plural(n, en1, enN, hr1, hr234, hr5){ if(this._isHR()){ var mm=n%100, dd=n%10; if(dd===1&&mm!==11) return hr1; if(dd>=2&&dd<=4&&!(mm>=12&&mm<=14)) return hr234; return hr5; } return n===1?en1:enN; },
+
+            // ===== "Your Plexus 2026" recap (R3-6) =====
+            // A shareable per-member wrapped card built from REAL data (GET /api/member/wrapped):
+            // gatherings joined + attended, accepted connections, certificates. Playful members get
+            // a gamified card; quiet gala/forum profiles are FAIL-CLOSED to a plain, dignified variant
+            // (no gamification framing). We treat quiet when EITHER the server flag or the client
+            // MedXQuiet gate says so — so a stray gamified card can never leak to a quiet member. The
+            // PNG is produced + downloaded/shared through the existing card-download path (_rasterize,
+            // _saveBlob), the same one the membership card uses.
+            async openWrapped() {
+                try {
+                    await this._ensureLibs();
+                    if (typeof Toast !== 'undefined' && Toast.info) Toast.info(t('wrap.preparing'));
+                    var tkn = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
+                    var base = (typeof API_BASE !== 'undefined' ? API_BASE : '');
+                    var data = null;
+                    try {
+                        var r = await fetch(base + '/api/member/wrapped', { headers: tkn ? { 'Authorization': 'Bearer ' + tkn } : {} });
+                        data = r.ok ? await r.json() : null;
+                    } catch (e) { data = null; }
+                    // Degrade gracefully with no data, and FAIL-CLOSED to plain if anything is unsure.
+                    data = data || { has_data: false, events_attended: 0, events_registered: 0, connections: 0, certificates: 0, quiet: true };
+                    var plain = (data.quiet === true) || (typeof MedXQuiet !== 'undefined' && MedXQuiet.isQuiet());
+                    var node = this._composeWrapped(data, plain);
+                    var canvas = await this._rasterize(node, 1080, 1350);
+                    var self = this;
+                    canvas.toBlob(function(blob){
+                        if (!blob) { if (typeof Toast !== 'undefined' && Toast.error) Toast.error(t('wrap.genFail')); return; }
+                        self._showWrappedModal(blob, plain);
+                    }, 'image/png');
+                } catch (e) {
+                    console.error('Wrapped card failed:', e);
+                    if (typeof Toast !== 'undefined' && Toast.error) Toast.error(t('wrap.genFail'));
+                }
+            },
+
+            _composeWrapped(data, plain) {
+                var user = this._currentUser();
+                var first = (data && data.first_name) || (user.first_name || (user.name || '').split(' ')[0] || '');
+                var attended = (data && +data.events_attended) || 0;
+                var joined = (data && +data.events_registered) || 0;
+                var conn = (data && +data.connections) || 0;
+                var certs = (data && +data.certificates) || 0;
+                var hasData = !!(data && data.has_data);
+                var el = document.createElement('div');
+                if (plain) {
+                    // Plain, dignified variant — no big achievement numbers, no gamified language.
+                    var body;
+                    if (joined > 0) {
+                        var gath = (joined === 1) ? t('wrap.plainGath1') : t('wrap.plainGath', { c: joined });
+                        body = t('wrap.plainBody', { n: gath });
+                    } else {
+                        body = t('wrap.plainBodyNew');
+                    }
+                    el.style.cssText = "position:fixed;left:-10000px;top:0;z-index:-1;pointer-events:none;width:1080px;height:1350px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:radial-gradient(130% 120% at 18% 8%,#16223f,#0f1830 48%,#0a0f1e 100%);font-family:'Inter',-apple-system,sans-serif;color:#ffffff;";
+                    el.innerHTML =
+                        '<div style="height:10px;flex:0 0 auto;background:linear-gradient(90deg,#a38a4f,#c9a962,#e8d5a8,#c9a962,#a38a4f);"></div>'
+                      + '<div style="flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;padding:120px 96px;box-sizing:border-box;">'
+                        + '<div style="display:inline-flex;align-items:center;background:#fbf9f6;border-radius:16px;padding:16px 22px;align-self:flex-start;box-shadow:0 12px 30px rgba(0,0,0,.35);margin-bottom:64px;"><img src="/assets/images/medx-logo.png" crossorigin="anonymous" style="height:50px;width:auto;display:block;"></div>'
+                        + '<div style="font-size:22px;letter-spacing:8px;text-transform:uppercase;color:#e6c987;font-weight:700;margin-bottom:26px;">' + escapeHtml(t('wrap.plainEyebrow')) + '</div>'
+                        + '<div style="font-family:\'Fraunces\',Georgia,serif;font-size:88px;font-weight:600;line-height:1.02;color:#ffffff;letter-spacing:-1px;margin-bottom:40px;">' + escapeHtml(t('wrap.plainTitle')) + '</div>'
+                        + (first ? '<div style="font-size:30px;color:rgba(255,255,255,.62);margin-bottom:26px;">' + escapeHtml(first) + '</div>' : '')
+                        + '<div style="font-size:36px;line-height:1.5;color:rgba(255,255,255,.9);max-width:820px;">' + escapeHtml(body) + '</div>'
+                      + '</div>'
+                      + '<div style="padding:0 96px 96px;box-sizing:border-box;font-size:24px;color:rgba(230,201,135,.72);letter-spacing:1px;">medx.hr</div>';
+                    return el;
+                }
+                // Playful (gamified) variant.
+                var tiles = [];
+                var gCount = attended > 0 ? attended : joined;
+                var gLabel = attended > 0
+                    ? (attended === 1 ? t('wrap.statAttended1') : t('wrap.statAttended'))
+                    : (joined === 1 ? t('wrap.statJoined1') : t('wrap.statJoined'));
+                if (gCount > 0) tiles.push({ n: gCount, label: gLabel });
+                if (conn > 0) tiles.push({ n: conn, label: conn === 1 ? t('wrap.statConn1') : t('wrap.statConn') });
+                if (certs > 0) tiles.push({ n: certs, label: certs === 1 ? t('wrap.statCerts1') : t('wrap.statCerts') });
+                var tilesHtml = tiles.map(function(x){
+                    return '<div style="flex:1;min-width:0;text-align:center;padding:14px 8px;">'
+                        + '<div style="font-family:\'Fraunces\',Georgia,serif;font-size:104px;font-weight:600;line-height:1;color:#e6c987;">' + escapeHtml(String(x.n)) + '</div>'
+                        + '<div style="font-size:24px;letter-spacing:.5px;color:rgba(255,255,255,.78);margin-top:14px;line-height:1.3;">' + escapeHtml(x.label) + '</div>'
+                      + '</div>';
+                }).join('<div style="width:1px;align-self:stretch;background:linear-gradient(180deg,transparent,rgba(201,169,98,.35),transparent);margin:0 6px;"></div>');
+                var warm = hasData ? t('wrap.warm') : t('wrap.warmNew');
+                el.style.cssText = "position:fixed;left:-10000px;top:0;z-index:-1;pointer-events:none;width:1080px;height:1350px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:radial-gradient(130% 120% at 16% 6%,#16223f,#0f1830 46%,#0a0f1e 100%);font-family:'Inter',-apple-system,sans-serif;color:#ffffff;";
+                el.innerHTML =
+                    '<div style="height:12px;flex:0 0 auto;background:linear-gradient(90deg,#7d161c,#9b1b22,#c2484e,#9b1b22,#7d161c);"></div>'
+                  + '<div style="position:absolute;inset:0;mix-blend-mode:screen;opacity:.8;background:radial-gradient(620px 620px at 30% 14%,rgba(230,201,135,.32),rgba(230,201,135,.06) 46%,transparent 64%);"></div>'
+                  + '<img src="/assets/images/medx-logo.png" crossorigin="anonymous" style="position:absolute;right:-120px;bottom:-160px;width:760px;opacity:.06;transform:rotate(-8deg);">'
+                  + '<div style="position:relative;z-index:2;flex:1 1 auto;display:flex;flex-direction:column;padding:96px 88px 0;box-sizing:border-box;">'
+                    + '<div style="display:flex;align-items:center;justify-content:space-between;">'
+                      + '<div style="display:inline-flex;align-items:center;background:#fbf9f6;border-radius:16px;padding:16px 22px;box-shadow:0 12px 30px rgba(0,0,0,.35);"><img src="/assets/images/medx-logo.png" crossorigin="anonymous" style="height:50px;width:auto;display:block;"></div>'
+                    + '</div>'
+                    + '<div style="margin-top:70px;">'
+                      + '<div style="font-size:24px;letter-spacing:8px;text-transform:uppercase;color:#e6c987;font-weight:700;margin-bottom:22px;">' + escapeHtml(t('wrap.eyebrow')) + '</div>'
+                      + '<div style="font-family:\'Fraunces\',Georgia,serif;font-size:112px;font-weight:600;line-height:.96;color:#ffffff;letter-spacing:-2px;">' + escapeHtml(first || t('wrap.headline')) + '</div>'
+                      + (first ? '<div style="font-size:34px;color:rgba(230,201,135,.85);margin-top:14px;letter-spacing:.5px;">' + escapeHtml(t('wrap.headline')) + '</div>' : '')
+                    + '</div>'
+                    + (tiles.length
+                        ? '<div style="margin-top:auto;display:flex;align-items:flex-end;gap:0;padding:40px 0 44px;">' + tilesHtml + '</div>'
+                        : '<div style="margin-top:auto;height:40px;"></div>')
+                    + '<div style="border-top:1px solid rgba(201,169,98,.28);padding:44px 0 40px;font-size:34px;line-height:1.5;color:rgba(255,255,255,.9);max-width:900px;">' + escapeHtml(warm) + '</div>'
+                  + '</div>'
+                  + '<div style="position:relative;z-index:2;padding:0 88px 84px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;">'
+                    + '<div style="font-size:24px;color:rgba(230,201,135,.72);letter-spacing:1px;">medx.hr</div>'
+                    + '<div style="font-size:22px;color:rgba(255,255,255,.45);letter-spacing:2px;text-transform:uppercase;">Plexus 2026</div>'
+                  + '</div>';
+                return el;
+            },
+
+            _showWrappedModal(blob, plain) {
+                var self = this;
+                var url = URL.createObjectURL(blob);
+                var fname = plain ? 'medx-2026-recap.png' : 'plexus-2026-wrapped.png';
+                var prev = document.getElementById('mxWrappedOverlay');
+                if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+                var overlay = document.createElement('div');
+                overlay.id = 'mxWrappedOverlay';
+                overlay.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(10,12,18,.82);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;';
+                var box = document.createElement('div');
+                box.style.cssText = 'max-width:420px;width:100%;display:flex;flex-direction:column;align-items:center;gap:16px;';
+                var img = document.createElement('img');
+                img.src = url; img.alt = t('wrap.modalTitle');
+                img.style.cssText = 'width:100%;height:auto;border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.5);display:block;';
+                var actions = document.createElement('div');
+                actions.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;justify-content:center;';
+                var mkBtn = function(label, primary){
+                    var b = document.createElement('button');
+                    b.type = 'button'; b.textContent = label;
+                    b.style.cssText = 'border-radius:12px;padding:12px 20px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid ' + (primary ? '#9b1b22' : 'rgba(255,255,255,.35)') + ';background:' + (primary ? '#9b1b22' : 'transparent') + ';color:#fff;';
+                    return b;
+                };
+                var dlBtn = mkBtn(t('wrap.download'), true);
+                dlBtn.addEventListener('click', function(){
+                    self._saveBlob(blob, fname);
+                    if (typeof Toast !== 'undefined' && Toast.success) Toast.success(t('wrap.downloaded'));
+                });
+                actions.appendChild(dlBtn);
+                // Native share (Web Share API with files) when the platform supports it.
+                try {
+                    var file = new File([blob], fname, { type: 'image/png' });
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        var shBtn = mkBtn(t('wrap.share'), false);
+                        shBtn.addEventListener('click', function(){
+                            navigator.share({ files: [file], title: t('wrap.modalTitle'), text: t('wrap.shareText') }).catch(function(){});
+                        });
+                        actions.appendChild(shBtn);
+                    }
+                } catch (e) { /* Web Share unavailable — download still works */ }
+                var closeBtn = mkBtn(t('wrap.close'), false);
+                var close = function(){ if (overlay.parentNode) overlay.parentNode.removeChild(overlay); setTimeout(function(){ URL.revokeObjectURL(url); }, 500); };
+                closeBtn.addEventListener('click', close);
+                actions.appendChild(closeBtn);
+                overlay.addEventListener('click', function(e){ if (e.target === overlay) close(); });
+                box.appendChild(img); box.appendChild(actions);
+                overlay.appendChild(box);
+                document.body.appendChild(overlay);
+                if (typeof Toast !== 'undefined' && Toast.success) Toast.success(t('wrap.ready'));
+            },
+
             relocalize(){ try{ this.renderPrograms(); this.renderInterests(); this.renderNetworkStats(); if(this._regs){ this.renderRecognition(this._regs); this._renderWalletCards(this._regs); this.renderPurchases(this._regs); } if(this._record!==undefined){ this._renderRecordHtml(this._record); } if(this._giving!==undefined){ this._paintGiving(); } this.loadPoints(); this.renderMembershipCardVisual(); this.renderGuestPasses(); }catch(e){} }
         };
 
@@ -80872,6 +81278,46 @@ You can use variables like {first_name} that will be personalized for each recip
             });
         } catch (e) {}
 
+        // "Your Plexus 2026" recap (R3-6) — EN + HR (formal Vi register, no semicolons), same pass.
+        // The block/CTA copy is neutral so it reads with dignity for quiet profiles too, while the
+        // card itself renders a gamified variant only for playful members.
+        try {
+            if (window.MedXI18n && MedXI18n.extend) MedXI18n.extend({
+                'wrap.blockTitle':   { en: 'Your Plexus 2026', hr: 'Vaš Plexus 2026' },
+                'wrap.blockNote':    { en: 'A card you can keep and share — the Med&X gatherings you joined this year and the people you met along the way.', hr: 'Kartica koju možete sačuvati i podijeliti — okupljanja Med&X-a kojima ste se pridružili ove godine i ljudi koje ste usput upoznali.' },
+                'wrap.blockCta':     { en: 'Create your card', hr: 'Izradite svoju karticu' },
+                'wrap.preparing':    { en: 'Preparing your card…', hr: 'Pripremamo vašu karticu…' },
+                'wrap.ready':        { en: 'Your card is ready', hr: 'Vaša kartica je spremna' },
+                'wrap.genFail':      { en: 'We could not create your card right now. Please try again in a moment.', hr: 'Trenutačno ne možemo izraditi vašu karticu. Pokušajte ponovno za koji trenutak.' },
+                'wrap.modalTitle':   { en: 'Your Plexus 2026', hr: 'Vaš Plexus 2026' },
+                'wrap.download':     { en: 'Download', hr: 'Preuzmite' },
+                'wrap.share':        { en: 'Share', hr: 'Podijelite' },
+                'wrap.close':        { en: 'Close', hr: 'Zatvorite' },
+                'wrap.downloaded':   { en: 'Card saved', hr: 'Kartica je spremljena' },
+                'wrap.shareText':    { en: 'My year with Med&X — Plexus 2026', hr: 'Moja godina s Med&X-om — Plexus 2026' },
+                // Card face — playful (gamified) variant
+                'wrap.eyebrow':      { en: 'YOUR YEAR WITH MED&X', hr: 'VAŠA GODINA S MED&X-OM' },
+                'wrap.headline':     { en: 'Plexus 2026', hr: 'Plexus 2026' },
+                'wrap.statAttended': { en: 'gatherings attended', hr: 'okupljanja posjećeno' },
+                'wrap.statAttended1':{ en: 'gathering attended', hr: 'okupljanje posjećeno' },
+                'wrap.statJoined':   { en: 'gatherings joined', hr: 'okupljanja upisano' },
+                'wrap.statJoined1':  { en: 'gathering joined', hr: 'okupljanje upisano' },
+                'wrap.statConn':     { en: 'connections made', hr: 'povezivanja ostvareno' },
+                'wrap.statConn1':    { en: 'connection made', hr: 'povezivanje ostvareno' },
+                'wrap.statCerts':    { en: 'certificates earned', hr: 'potvrda stečeno' },
+                'wrap.statCerts1':   { en: 'certificate earned', hr: 'potvrda stečena' },
+                'wrap.warm':         { en: 'Thank you for being part of it all. Here is to the next chapter, together.', hr: 'Hvala vam što ste bili dio svega. Neka slijedi novo poglavlje, zajedno.' },
+                'wrap.warmNew':      { en: 'Your Med&X story is just beginning, and we are glad to share it with you.', hr: 'Vaša priča s Med&X-om tek počinje i drago nam je što je dijelimo s vama.' },
+                // Card face — plain (quiet) variant, no gamification framing
+                'wrap.plainEyebrow': { en: 'MED&X · 2026', hr: 'MED&X · 2026' },
+                'wrap.plainTitle':   { en: 'A note on your year', hr: 'Osvrt na vašu godinu' },
+                'wrap.plainBody':    { en: 'This year you joined us at {n}. We were honoured by your presence, and we look forward to welcoming you again.', hr: 'Ove godine pridružili ste nam se na {n}. Bila nam je čast zbog vaše prisutnosti i radujemo se ponovnom susretu s vama.' },
+                'wrap.plainBodyNew': { en: 'We are glad to have you with us at Med&X, and we look forward to welcoming you in person.', hr: 'Drago nam je što ste uz nas u Med&X-u i radujemo se osobnom susretu s vama.' },
+                'wrap.plainGath':    { en: '{c} gatherings', hr: '{c} okupljanja' },
+                'wrap.plainGath1':   { en: 'one gathering', hr: 'jednom okupljanju' }
+            });
+        } catch (e) {}
+
 
         // =========================================
         // USER PORTAL - Member-facing portal
@@ -80990,6 +81436,16 @@ You can use variables like {first_name} that will be personalized for each recip
                             document.getElementById('landingPage').style.display = 'none';
                             document.getElementById('userPortal').classList.add('active');
                             this.showUserPortal(false, false);
+                            // R3-3: manifest shortcut "My Ticket" (/?app=1&view=ticket) — open the
+                            // ticket wallet and auto-present the boarding pass. Works offline too:
+                            // the shell comes from the service worker cache and the ticket data
+                            // from the on-device cache when the API is unreachable.
+                            if (urlParams.get('view') === 'ticket') {
+                                try {
+                                    MyMedXPortal._autoPresent = true;
+                                    setTimeout(function(){ try { UserPortal.showSection('mymedx'); } catch (e) {} }, 150);
+                                } catch (e) {}
+                            }
                             return; // Skip rest of init — user is logged in
                         } catch (e) {
                             // Invalid saved data — clear and continue to landing
@@ -94486,7 +94942,7 @@ You can use variables like {first_name} that will be personalized for each recip
                     panel.classList.add('active');
                 }
                 if (tabName === 'connections') this.loadConnections();
-                if (tabName === 'requests') this.loadPendingRequests();
+                if (tabName === 'requests') { this.loadPendingRequests(); this.loadMeetingRequests(); }
                 if (tabName === 'discover') this.loadDiscover();
                 if (tabName === 'opportunities' && typeof OpportunityBoard !== 'undefined') OpportunityBoard.load();
                 if (tabName === 'mentorship' && typeof Mentorship !== 'undefined') Mentorship.load();
@@ -95285,6 +95741,110 @@ You can use variables like {first_name} that will be personalized for each recip
                 }, 200);
             },
 
+            // ===== 1:1 meeting requests (request -> accept/decline) =====
+            _meetingReqName(r) {
+                return escapeHtml(((r.first_name || '') + ' ' + (r.last_name || '')).trim() || 'Member');
+            },
+            _meetingReqWhen(r) {
+                const parts = [];
+                if (r.date) parts.push(escapeHtml(String(r.date)));
+                if (r.time) parts.push(escapeHtml(String(r.time)));
+                return parts.join(' · ');
+            },
+            async loadMeetingRequests() {
+                const grid = document.getElementById('meetingRequestsGrid');
+                if (!grid) return;
+                let data;
+                try {
+                    data = await UserPortal.api('/api/networking/meeting-requests');
+                } catch (err) {
+                    grid.innerHTML = '';
+                    return;
+                }
+                const incoming = Array.isArray(data?.incoming) ? data.incoming : [];
+                const outgoing = Array.isArray(data?.outgoing) ? data.outgoing : [];
+                if (incoming.length === 0 && outgoing.length === 0) {
+                    grid.innerHTML = MedXState.render({ gridSpan: true, icon: 'fa-calendar-check', body: this._t('net.mReqEmpty') });
+                    return;
+                }
+                const statusChip = (s) => {
+                    if (s === 'accepted') return `<div class="connection-status"><i class="fas fa-check-circle" style="color:#2f6b3a;"></i> ${this._t('net.mReqLinkSoon')}</div>`;
+                    if (s === 'declined') return `<div class="connection-status"><i class="fas fa-times-circle" style="color:var(--muted);"></i> ${this._t('net.mReqDeclined')}</div>`;
+                    return `<div class="connection-status"><i class="fas fa-clock" style="color:var(--up-gold);"></i> ${this._t('net.mReqPending')}</div>`;
+                };
+                let html = '';
+                incoming.forEach(r => {
+                    const name = this._meetingReqName(r);
+                    const initials = name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+                    const inst = escapeHtml(r.institution || '');
+                    const when = this._meetingReqWhen(r);
+                    const actions = r.status === 'pending'
+                        ? `<div class="connection-actions" style="margin-top:12px;">
+                                <button class="connection-btn primary" onclick="NetworkingPortal.acceptMeetingRequest('${r.id}', this)"><i class="fas fa-check"></i> ${this._t('net.mReqAccept')}</button>
+                                <button class="connection-btn secondary" onclick="NetworkingPortal.declineMeetingRequest('${r.id}', this)"><i class="fas fa-times"></i> ${this._t('net.mReqDecline')}</button>
+                           </div>`
+                        : '';
+                    html += `<div class="connection-card" data-meeting-req-id="${r.id}">
+                        <div class="connection-card-header">
+                            <div class="connection-avatar">${initials}</div>
+                            <div class="connection-info"><h4>${name}</h4><span class="connection-specialty">${inst}</span></div>
+                        </div>
+                        <div style="font-size:12px;color:var(--muted);margin-top:6px;"><span style="color:var(--up-gold);font-weight:600;">${this._t('net.mReqIncoming')}</span>${when ? ' · ' + when : ''}</div>
+                        <div class="meeting-req-status">${statusChip(r.status)}</div>
+                        ${actions}
+                    </div>`;
+                });
+                outgoing.forEach(r => {
+                    const name = this._meetingReqName(r);
+                    const initials = name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+                    const inst = escapeHtml(r.institution || '');
+                    const when = this._meetingReqWhen(r);
+                    html += `<div class="connection-card">
+                        <div class="connection-card-header">
+                            <div class="connection-avatar">${initials}</div>
+                            <div class="connection-info"><h4>${name}</h4><span class="connection-specialty">${inst}</span></div>
+                        </div>
+                        <div style="font-size:12px;color:var(--muted);margin-top:6px;"><span style="font-weight:600;">${this._t('net.mReqOutgoing')}</span>${when ? ' · ' + when : ''}</div>
+                        <div class="meeting-req-status">${statusChip(r.status)}</div>
+                    </div>`;
+                });
+                grid.innerHTML = html;
+            },
+            async acceptMeetingRequest(id, btn) {
+                const card = btn ? btn.closest('.connection-card') : null;
+                try {
+                    await UserPortal.api(`/api/networking/meeting-requests/${encodeURIComponent(id)}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ status: 'accepted' })
+                    });
+                    if (card) {
+                        const statusEl = card.querySelector('.meeting-req-status');
+                        if (statusEl) statusEl.innerHTML = `<div class="connection-status"><i class="fas fa-check-circle" style="color:#2f6b3a;"></i> ${this._t('net.mReqLinkSoon')}</div>`;
+                        const actions = card.querySelector('.connection-actions');
+                        if (actions) actions.remove();
+                    }
+                    this.showToast(this._t('net.mReqLinkSoon'));
+                } catch (err) {
+                    this.showToast(this._t('net.reqMeetingErr'));
+                }
+            },
+            async declineMeetingRequest(id, btn) {
+                const card = btn ? btn.closest('.connection-card') : null;
+                try {
+                    await UserPortal.api(`/api/networking/meeting-requests/${encodeURIComponent(id)}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ status: 'declined' })
+                    });
+                    if (card) {
+                        card.style.transition = 'all 0.3s ease';
+                        card.style.opacity = '0';
+                        setTimeout(() => card.remove(), 300);
+                    }
+                } catch (err) {
+                    this.showToast(this._t('net.reqMeetingErr'));
+                }
+            },
+
             // Connection Request Modal methods
             _crTargetUserId: null,
             openConnectionRequestModal(userId, name, initials, title) {
@@ -95376,19 +95936,41 @@ You can use variables like {first_name} that will be personalized for each recip
                 btn.classList.add('selected');
             },
 
-            confirmSchedule() {
+            async confirmSchedule() {
                 if (!this.selectedTimeSlot) {
-                    Toast.error('Please select a time slot');
+                    Toast.error(this._t('net.pickSlot'));
                     return;
                 }
+                const recipientId = this.currentScheduleTarget;
+                if (!recipientId) { this.closeScheduleModal(); return; }
 
                 const date = document.getElementById('scheduleDatePicker').value;
-                const type = document.getElementById('scheduleMeetingType').value;
+                const format = document.getElementById('scheduleMeetingType').value;
                 const note = document.getElementById('scheduleNote').value;
 
-                // In production, this would make an API call
-                this.closeScheduleModal();
-                this.showToast(`Meeting scheduled for ${date} at ${this.selectedTimeSlot}!`);
+                // Real request -> accept flow. Persist a pending meeting request; the recipient
+                // accepts or declines it. We never fabricate a "scheduled" meeting client-side.
+                try {
+                    await UserPortal.api('/api/networking/meeting-requests', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            recipient_id: recipientId,
+                            date: date,
+                            time: this.selectedTimeSlot,
+                            duration: this.selectedDuration,
+                            format: format,
+                            note: note
+                        })
+                    });
+                    this.closeScheduleModal();
+                    this.showToast(this._t('net.reqMeetingSent'));
+                } catch (err) {
+                    const status = err && err.status;
+                    let msg = this._t('net.reqMeetingErr');
+                    if (status === 409) msg = this._t('net.reqMeetingDup');
+                    else if (status === 403) msg = this._t('net.reqMeetingConnErr');
+                    this.showToast(msg);
+                }
             },
 
             joinMeeting(meetingId) {
