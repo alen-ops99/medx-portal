@@ -11,8 +11,13 @@ const ASSETS_TO_CACHE = [
     // vendored QR generator and the icon CSS ride in the precached app shell. API responses
     // are still NEVER cached (see the fetch handler) — ticket data persists in app storage.
     '/vendor/qrcode/qrcode.min.js',
-    '/vendor/fontawesome/css/all.min.css',
-    'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
+    '/vendor/fontawesome/css/all.min.css'
+    // NOTE: the precache list must stay SAME-ORIGIN. The Google-fonts CSS that used to sit
+    // here is cross-origin, and the worker runs under the server's CSP whose connect-src
+    // does not include fonts.googleapis.com — cache.addAll() was rejected, INSTALL FAILED,
+    // and the service worker never activated or controlled a page (so the offline shell
+    // silently never worked). Fonts fall back to system faces offline; the woff2 files were
+    // never precached anyway. (Proven against the admin SW, which is same-origin and works.)
 ];
 
 // Install event - cache assets

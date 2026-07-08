@@ -82897,6 +82897,17 @@ You can use variables like {first_name} that will be personalized for each recip
 
         // Initialize UserPortal when page loads
         document.addEventListener('DOMContentLoaded', () => {
+            // R3-3 ticket suite: register the service worker deterministically at boot. The
+            // legacy PWA.registerServiceWorker() call is buried in a code path that does not
+            // reliably execute (and it waits for a window 'load' event that can already have
+            // fired by then), so the offline app shell was often never registered at all.
+            // register() is idempotent — if the legacy path does run later and attaches its
+            // update-banner listener to the same registration, nothing conflicts.
+            try {
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.register('/sw.js').catch(function () { /* offline or blocked — non-fatal */ });
+                }
+            } catch (e) { /* non-fatal */ }
             UserPortal.init();
 
             // Direct-link deep-link: handle both query-style ?event=<slug>

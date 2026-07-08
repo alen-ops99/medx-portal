@@ -985,3 +985,26 @@ The R3-5 code itself (admin board-pack generator + user-portal /api/public/impac
 
 ### Frozen surfaces untouched
 Stripe/checkout/calculateTotal/POST /api/registrations//api/plexus/register, QR gen+scanner+member payload — none touched. No schema change anywhere (schema-sync 435 lines byte-identical, both node --check OK). Both dev servers left running (3001 user / 3002 admin).
+
+## 2026-07-08 — R3-3 EVENT-DAY TICKET SUITE — completed + fully verified E2E (23/23 incl. real offline)
+
+The earlier "Round 3 partial salvage" commit (785078b) captured this lane's working tree mid-task: Present-mode boarding pass, on-device ticket cache, per-ticket Google Wallet endpoint + dormant Apple stub, vendored qrcode 1.5.1, sw.js v9, EN+HR strings, ?view=ticket deep link. That snapshot LOOKED complete but offline did NOT actually work yet — this commit adds the two root-cause fixes found during adversarial offline verification:
+
+### ROOT CAUSE 1 — user-portal SW install silently failed since v8 (cross-origin precache vs CSP)
+- `ASSETS_TO_CACHE` included `https://fonts.googleapis.com/...css`. The service worker executes under the server's helmet CSP, whose `connect-src` does not include fonts.googleapis.com → `cache.addAll()` REJECTED → install failed → the SW never activated and never controlled a page. The offline app shell therefore never worked on the member portal (Chromium's non-atomic addAll left same-origin entries in the cache, masking the failure). Proven by differential test against the admin SW (same-origin-only precache — activates + controls in ~1s). FIX: precache list is now same-origin only, with a NOTE in sw.js so the fonts URL never returns.
+
+### ROOT CAUSE 2 — service worker registration was nondeterministic (buried dead code)
+- The only `navigator.serviceWorker.register('/sw.js')` call lives in `PWA.registerServiceWorker()`, but the whole `PWA`/`initPhase5` block is swallowed INSIDE the body of `ComparativeAnalytics.addComparison()` — a method only referenced in a comment — and it additionally waits for a window 'load' event that can already have fired. Registration therefore happened rarely/racily. FIX: idempotent `navigator.serviceWorker.register('/sw.js')` at the real DOMContentLoaded boot next to `UserPortal.init()`; the legacy path, if it ever runs, attaches its update-banner listener to the same registration harmlessly.
+
+### VERIFIED E2E (Playwright, 23/23 PASS; test JWT for existing dev user ivan.horvat@test.medx.hr — zero rows created, counts unchanged 4 registrations / 34 users)
+- SW registers deterministically, activates, precaches shell+vendored qrcode under `medx-portal-v9`, page controlled via clients.claim.
+- NO /api/ response in any cache, online or offline (fetch of /api/registrations/my while offline fails — never served from cache).
+- Wallet card QR ≥148px; Present + Google Wallet + Apple Wallet buttons; "Saved on this device" note; `medx_ticket_cache` written after fetch.
+- Present mode: full-screen boarding pass (guest name, event, ticket type + seat when present, dates/venue, status chip, invoice), QR rendered at 232px from the EXACT frozen payload (`ticket_qr_code || 'MEDX:'+id` — byte-identity asserted vs the wallet card), Escape/close works, wake-lock best-effort.
+- Google Wallet per-ticket endpoint returns the clean bilingual key-gate when GOOGLE_WALLET_* env is absent; ownership enforced in SQL (cross-user regId → 404, proven). Apple ticket route wired-but-dormant (owner action: Apple Developer Pass Type ID cert, env names documented in the route).
+- EN+HR: "Pokažite ulaznicu" button, HR overlay hint "Pokažite ovaj zaslon pri prijavi.", Gost label — verified rendered in HR locale.
+- OFFLINE (context.setOffline(true)): renderer navigation to `/?app=1&view=ticket` (the manifest "My Ticket" shortcut, now actually wired) served from the SW shell cache, auto-opens Present mode, QR ≥148px with real modules, name+event from the on-device cache, offline banner shown. Screenshots byte-comparable online vs offline.
+- Playwright gotcha for future lanes: CDP navigations (page.goto/page.reload) BYPASS service-worker interception in this Chromium — offline navigation tests must use renderer-initiated `location.assign(...)`, and the page must be claim-controlled first.
+
+### Frozen surfaces untouched
+- QR payload generation, scanner, member payload, Stripe/checkout, calculateTotal, POST /api/registrations, /api/plexus/register — none modified. The QR library is the same pinned qrcode@1.5.1 build, now self-hosted for offline; payloads byte-identical.
