@@ -57701,6 +57701,9 @@ button,input,select,textarea{font-family:var(--sans);}
             'net.coffeeMatchDesc':  {en:'Opt in and once a month we introduce you to another member for an informal coffee', hr:'Uključite se i jednom mjesečno upoznat ćemo Vas s drugim članom za neformalnu kavu'},
             'net.coffeeMatchThis':  {en:'This month we suggest', hr:'Ovaj mjesec predlažemo'},
             'net.coffeeMatchNone':  {en:'No match yet this month. We will introduce you as more members opt in.', hr:'Ovaj mjesec još nema para. Upoznat ćemo Vas kako se više članova uključi.'},
+            'net.coffeeMatchConnect':{en:'Send a connection request', hr:'Pošaljite zahtjev za povezivanje'},
+            'net.coffeeMatchSent':  {en:'Request sent', hr:'Zahtjev poslan'},
+            'net.connReqSent':      {en:'Connection request sent.', hr:'Zahtjev za povezivanje je poslan.'},
             'net.pickSlot':         {en:'Please select a time slot', hr:'Odaberite termin'},
             'net.reqMeetingSent':   {en:'Meeting request sent. You will be notified when they respond.', hr:'Zahtjev za sastanak je poslan. Obavijestit ćemo Vas kada odgovore.'},
             'net.reqMeetingDup':    {en:'You already have a pending meeting request with this member.', hr:'Već imate zahtjev za sastanak na čekanju s ovim članom.'},
@@ -69124,6 +69127,8 @@ button,input,select,textarea{font-family:var(--sans);}
                             <h2 data-i18n="net.discoverTitle">Discover the Med&amp;X network</h2>
                             <p data-i18n="net.discoverSub">Search members by name, field, institution, or program.</p>
                         </div>
+                        <!-- Monthly coffee-matchmaker banner — populated by NetworkingPortal.loadCoffeeMatch() when opted in -->
+                        <div id="coffeeMatchWrap"></div>
                         <div class="discovery-filters">
                             <div class="discovery-search">
                                 <i class="fas fa-search"></i>
@@ -69522,6 +69527,22 @@ button,input,select,textarea{font-family:var(--sans);}
                                         </div>
                                         <label class="toggle-switch">
                                             <input type="checkbox" id="npCoffeeChats" checked>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="networking-form-group full-width">
+                                    <label data-i18n="net.coffeeMatchQ">Monthly Coffee Matchmaker?</label>
+                                    <div class="coffee-chat-toggle">
+                                        <div class="coffee-chat-info">
+                                            <i class="fas fa-user-friends"></i>
+                                            <div>
+                                                <h4 data-i18n="net.coffeeMatch">Monthly Coffee Matchmaker</h4>
+                                                <p data-i18n="net.coffeeMatchDesc">Opt in and once a month we introduce you to another member for an informal coffee</p>
+                                            </div>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="npCoffeeMatchmaker">
                                             <span class="toggle-slider"></span>
                                         </label>
                                     </div>
@@ -94968,7 +94989,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 }
                 if (tabName === 'connections') this.loadConnections();
                 if (tabName === 'requests') { this.loadPendingRequests(); this.loadMeetingRequests(); }
-                if (tabName === 'discover') this.loadDiscover();
+                if (tabName === 'discover') { this.loadDiscover(); this.loadCoffeeMatch(); }
                 if (tabName === 'opportunities' && typeof OpportunityBoard !== 'undefined') OpportunityBoard.load();
                 if (tabName === 'mentorship' && typeof Mentorship !== 'undefined') Mentorship.load();
                 if (tabName === 'connections' && typeof DirectoryPowerups !== 'undefined') DirectoryPowerups.renderSavedSearches();
@@ -95776,6 +95797,45 @@ You can use variables like {first_name} that will be personalized for each recip
                 if (r.time) parts.push(escapeHtml(String(r.time)));
                 return parts.join(' · ');
             },
+            // ===== MONTHLY COFFEE MATCHMAKER (member) =====
+            // Renders the discover-panel banner ONLY when the member has opted in. The suggested
+            // partner is the deterministic monthly pick from GET /api/networking/coffee-match
+            // (quiet members are filtered server-side). The action sends a normal connection request.
+            _coffeeMatch: null,
+            async loadCoffeeMatch() {
+                const wrap = document.getElementById('coffeeMatchWrap');
+                if (!wrap) return;
+                let data;
+                try { data = await UserPortal.api('/api/networking/coffee-match'); }
+                catch (err) { wrap.innerHTML = ''; this._coffeeMatch = null; return; }
+                if (!data || !data.opted_in) { wrap.innerHTML = ''; this._coffeeMatch = null; return; }
+                if (!data.match) {
+                    this._coffeeMatch = null;
+                    wrap.innerHTML = `<div class="coffee-match-banner"><div class="coffee-match-icon"><i class="fas fa-user-friends"></i></div><div class="coffee-match-content"><h3>${this._t('net.coffeeMatch')}</h3><p>${this._t('net.coffeeMatchNone')}</p></div></div>`;
+                    return;
+                }
+                const m = data.match;
+                this._coffeeMatch = m;
+                const name = escapeHtml(m.name || 'Member');
+                const inst = escapeHtml(m.institution || '');
+                wrap.innerHTML = `<div class="coffee-match-banner"><div class="coffee-match-icon"><i class="fas fa-user-friends"></i></div><div class="coffee-match-content"><h3>${this._t('net.coffeeMatch')}</h3><p>${this._t('net.coffeeMatchThis')}: <strong>${name}</strong>${inst ? ' · ' + inst : ''}</p></div><button class="coffee-match-btn" onclick="NetworkingPortal.connectWithCoffeeMatch(this)">${this._t('net.coffeeMatchConnect')}</button></div>`;
+            },
+            async connectWithCoffeeMatch(btn) {
+                const m = this._coffeeMatch;
+                if (!m || !m.id) return;
+                if (btn) btn.disabled = true;
+                try {
+                    await UserPortal.api('/api/networking/connections', {
+                        method: 'POST',
+                        body: JSON.stringify({ receiver_id: m.id })
+                    });
+                    if (btn) btn.textContent = this._t('net.coffeeMatchSent');
+                    this.showToast(this._t('net.connReqSent'));
+                } catch (err) {
+                    if (btn) btn.disabled = false;
+                    this.showToast(this._t('net.reqMeetingErr'));
+                }
+            },
             async loadMeetingRequests() {
                 const grid = document.getElementById('meetingRequestsGrid');
                 if (!grid) return;
@@ -96162,7 +96222,10 @@ You can use variables like {first_name} that will be personalized for each recip
                     timezone: document.getElementById('npTimezone').value,
                     meetingFormat: document.getElementById('npMeetingFormat').value,
                     openToCoffeeChats: document.getElementById('npCoffeeChats').checked,
-                    lookingForCollaborators: document.getElementById('npLookingCollaborators').checked
+                    lookingForCollaborators: document.getElementById('npLookingCollaborators').checked,
+                    // Monthly coffee-matchmaker opt-in. Backend accepts this camelCase key directly and
+                    // persists it to networking_profiles.coffee_matchmaker_opt_in (drives /coffee-match).
+                    coffeeMatchmaker: !!(document.getElementById('npCoffeeMatchmaker') && document.getElementById('npCoffeeMatchmaker').checked)
                 };
 
                 // Save to localStorage for demo
@@ -96180,6 +96243,8 @@ You can use variables like {first_name} that will be personalized for each recip
                     }
                 } catch(e) { console.error('Failed to save profile to server:', e); }
 
+                // Reflect the coffee-matchmaker opt-in immediately (surfaces/hides the discover banner).
+                this.loadCoffeeMatch();
                 this.showToast('Networking preferences saved!');
             },
 
@@ -96194,6 +96259,8 @@ You can use variables like {first_name} that will be personalized for each recip
                     document.getElementById('npMeetingFormat').value = profile.meetingFormat || 'video';
                     document.getElementById('npCoffeeChats').checked = profile.openToCoffeeChats !== false;
                     document.getElementById('npLookingCollaborators').checked = profile.lookingForCollaborators !== false;
+                    const npCoffeeMatch = document.getElementById('npCoffeeMatchmaker');
+                    if (npCoffeeMatch) npCoffeeMatch.checked = !!profile.coffeeMatchmaker;
 
                     if (profile.researchInterests) {
                         this.researchTags = profile.researchInterests;

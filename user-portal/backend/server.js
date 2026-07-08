@@ -8938,6 +8938,7 @@ async function initializeApp() {
             tryRun('DELETE FROM networking_connections WHERE requester_id = ? OR receiver_id = ?', [userId, userId]);
             tryRun('DELETE FROM networking_profiles WHERE user_id = ?', [userId]);
             tryRun('DELETE FROM networking_meetings WHERE requester_id = ? OR receiver_id = ?', [userId, userId]);
+            tryRun('DELETE FROM pending_meetings WHERE requester_id = ? OR recipient_id = ?', [userId, userId]);
             tryRun('DELETE FROM direct_messages WHERE sender_id = ? OR receiver_id = ?', [userId, userId]);
             tryRun('DELETE FROM push_subscriptions WHERE user_id = ?', [userId]);
             tryRun('DELETE FROM user_notifications WHERE user_id = ?', [userId]);
