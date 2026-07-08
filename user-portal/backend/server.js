@@ -1697,6 +1697,36 @@ function resolveVerifyBadgeToken(token) {
     return null;
 }
 
+// ---- Shareable member-record token (stateless, HMAC — no schema) ----
+// A member can share a dignified, read-only page of their OWN Med&X record. The token is a
+// signed slug derived from the user id via HMAC(JWT_SECRET) in a namespace DISTINCT from the
+// verify badge, so the two links are not interchangeable and neither can be forged. Re-checked
+// live on every request (revocation-safe). Accepts the shared badge secret too, so a token
+// minted by either portal resolves.
+function shareRecordToken(userId) {
+    var uid = String(userId || '');
+    if (!uid) return '';
+    var sig = crypto.createHmac('sha256', JWT_SECRET).update('medx-share-record:' + uid).digest('hex').slice(0, 24);
+    return Buffer.from(uid, 'utf8').toString('base64url') + '.' + sig;
+}
+function resolveShareRecordToken(token) {
+    if (!token || typeof token !== 'string') return null;
+    var parts = token.split('.');
+    if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+    var uid;
+    try { uid = Buffer.from(parts[0], 'base64url').toString('utf8'); } catch (e) { return null; }
+    if (!uid) return null;
+    var secrets = [JWT_SECRET];
+    try { var shared = badgeVerifySecret(); if (shared && secrets.indexOf(shared) === -1) secrets.push(shared); } catch (e) {}
+    for (var i = 0; i < secrets.length; i++) {
+        var expect = crypto.createHmac('sha256', secrets[i]).update('medx-share-record:' + uid).digest('hex').slice(0, 24);
+        var a = Buffer.from(parts[1]); var b = Buffer.from(expect);
+        if (a.length !== b.length) continue;
+        try { if (crypto.timingSafeEqual(a, b)) return uid; } catch (e) {}
+    }
+    return null;
+}
+
 function renderVerifyPage(state) {
     var ok = !!(state && state.ok);
     var name = ok ? escapeHtml(state.name || '') : '';
@@ -1975,6 +2005,223 @@ app.get('/verify/:token', (req, res) => {
         return res.status(200).send(renderVerifyPage({ ok: true, name: name, sinceYear: sinceYear, typeCode: typeCode, photoUrl: photoUrl, token: String(req.params.token || '') }));
     } catch (e) { return neutral(); }
 });
+
+// ===================== Shareable read-only member record =====================
+// A member shares a dignified, read-only page of their OWN Med&X record — verified
+// participation, certificates and recognition — with one stable link (/r/:token). The page
+// shows NO email, NO points balance and NO private contact details. Membership class is hidden
+// for quiet / senior profiles (mirrors the verify page). Only CONFIRMED participation (paid or
+// attended) is listed, never pending/unpaid registrations. Deleted / anonymized / lapsed accounts
+// fall back to a neutral state — revocation-safe, because the record is rebuilt live on every
+// request. Registered BEFORE express.static so it beats the SPA (like the verify + event pages).
+function renderRecordSharePage(state) {
+    var ok = !!(state && state.ok);
+    var name = ok ? escapeHtml(state.name || '') : '';
+    var sinceYear = ok ? escapeHtml(String(state.sinceYear || '')) : '';
+    var typeCode = ok ? (state.typeCode || null) : null;
+    var photoUrl = (ok && state.photoUrl) ? String(state.photoUrl) : '';
+    var events = (ok && Array.isArray(state.events)) ? state.events : [];
+    var certificates = (ok && Array.isArray(state.certificates)) ? state.certificates : [];
+    var badges = (ok && Array.isArray(state.badges)) ? state.badges : [];
+    var VDICT = {
+        en: {
+            eyebrow: 'Med&X record', okHeading: 'Med&X record',
+            okStatement: 'A verified summary of Med&X participation and recognition.',
+            lMember: 'Member', lSince: 'Member since', lMembership: 'Membership',
+            secParticipation: 'Participation', secCertificates: 'Certificates', secRecognition: 'Recognition',
+            chipAttended: 'Attended', chipConfirmed: 'Confirmed',
+            emptyParticipation: 'No public participation on record yet.',
+            neutralHeading: 'No active record',
+            neutralBody: "We can't confirm an active Med&X record for this link. The membership may have lapsed, or the link may be incorrect.",
+            foot: 'This page shows verified Med&X participation only. It shows no private contact details.',
+            type_student: 'Student', type_physician: 'Physician', type_senior_forum: 'Senior Forum Member', type_alumni: 'Alumni', type_member: 'Member'
+        },
+        hr: {
+            eyebrow: 'Med&X evidencija', okHeading: 'Med&X evidencija',
+            okStatement: 'Provjerena evidencija sudjelovanja i priznanja u Med&X-u.',
+            lMember: 'Član', lSince: 'Član od', lMembership: 'Članstvo',
+            secParticipation: 'Sudjelovanje', secCertificates: 'Potvrde', secRecognition: 'Priznanja',
+            chipAttended: 'Nazočnost', chipConfirmed: 'Potvrđeno',
+            emptyParticipation: 'Još nema javno vidljivog sudjelovanja u evidenciji.',
+            neutralHeading: 'Nema aktivne evidencije',
+            neutralBody: 'Ne možemo potvrditi aktivnu Med&X evidenciju za ovu poveznicu. Članstvo je možda isteklo ili poveznica nije ispravna.',
+            foot: 'Ova stranica prikazuje samo provjereno sudjelovanje u Med&X-u. Ne prikazuje nikakve privatne kontaktne podatke.',
+            type_student: 'Student', type_physician: 'Liječnik', type_senior_forum: 'Viši član Foruma', type_alumni: 'Alumni', type_member: 'Član'
+        }
+    };
+    var enT = VDICT.en;
+    var checkSvg = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+    var sealHtml;
+    if (ok && photoUrl) {
+        sealHtml = '<div class="seal photo"><img src="' + escapeHtml(photoUrl) + '" alt=""><span class="seal-check">' + checkSvg + '</span></div>';
+    } else if (ok) {
+        sealHtml = '<div class="seal ok">' + checkSvg + '</div>';
+    } else {
+        sealHtml = '<div class="seal neutral"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg></div>';
+    }
+    var fieldsHtml = '';
+    var bodyHtml;
+    if (ok) {
+        fieldsHtml += '<div class="field"><div class="fl" data-vk="lMember">' + enT.lMember + '</div><div class="fv">' + name + '</div></div>';
+        if (sinceYear) fieldsHtml += '<div class="field"><div class="fl" data-vk="lSince">' + enT.lSince + '</div><div class="fv">' + sinceYear + '</div></div>';
+        if (typeCode) {
+            var tk = 'type_' + typeCode;
+            var tlabel = enT[tk] || enT.type_member;
+            fieldsHtml += '<div class="field"><div class="fl" data-vk="lMembership">' + enT.lMembership + '</div><div class="fv" data-vk="' + tk + '">' + escapeHtml(tlabel) + '</div></div>';
+        }
+        // Participation (confirmed only)
+        var partInner;
+        if (events.length) {
+            partInner = events.map(function (ev) {
+                var sub = [ev.ticket_name, ev.venue, (ev.start_date ? String(ev.start_date).slice(0, 4) : '')]
+                    .filter(Boolean).map(function (x) { return escapeHtml(String(x)); }).join(' &middot; ');
+                var vk = ev.attended ? 'chipAttended' : 'chipConfirmed';
+                return '<div class="row"><div class="rmain"><div class="rt">' + escapeHtml(ev.title || '') + '</div>'
+                    + (sub ? '<div class="rs">' + sub + '</div>' : '') + '</div>'
+                    + '<span class="chip' + (ev.attended ? ' chip-ok' : '') + '" data-vk="' + vk + '">' + enT[vk] + '</span></div>';
+            }).join('');
+        } else {
+            partInner = '<div class="empty" data-vk="emptyParticipation">' + enT.emptyParticipation + '</div>';
+        }
+        var partBlock = '<div class="sec"><div class="sec-h" data-vk="secParticipation">' + enT.secParticipation + '</div>' + partInner + '</div>';
+        // Certificates (only when present)
+        var certBlock = '';
+        if (certificates.length) {
+            var certInner = certificates.map(function (c) {
+                var sub = [c.number, c.year].filter(Boolean).map(function (x) { return escapeHtml(String(x)); }).join(' &middot; ');
+                return '<div class="row"><div class="rmain"><div class="rt">' + escapeHtml(c.title || '') + '</div>'
+                    + (sub ? '<div class="rs">' + sub + '</div>' : '') + '</div></div>';
+            }).join('');
+            certBlock = '<div class="sec"><div class="sec-h" data-vk="secCertificates">' + enT.secCertificates + '</div>' + certInner + '</div>';
+        }
+        // Recognition badges (only when present)
+        var badgeBlock = '';
+        if (badges.length) {
+            var badgeInner = badges.map(function (b) { return '<span class="badge-chip">' + escapeHtml(b.name || '') + '</span>'; }).join('');
+            badgeBlock = '<div class="sec"><div class="sec-h" data-vk="secRecognition">' + enT.secRecognition + '</div><div class="badges">' + badgeInner + '</div></div>';
+        }
+        bodyHtml = sealHtml
+            + '<h1 data-vk="okHeading">' + enT.okHeading + '</h1>'
+            + '<p class="statement" data-vk="okStatement">' + enT.okStatement + '</p>'
+            + '<div class="fields">' + fieldsHtml + '</div>'
+            + partBlock + certBlock + badgeBlock;
+    } else {
+        bodyHtml = sealHtml
+            + '<h1 data-vk="neutralHeading">' + enT.neutralHeading + '</h1>'
+            + '<p class="statement" data-vk="neutralBody">' + enT.neutralBody + '</p>';
+    }
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="noindex"><title>Med&amp;X record</title>'
+        + '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+        + '<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><style>'
+        + '* { margin:0; padding:0; box-sizing:border-box; }'
+        + 'body { min-height:100vh; background:linear-gradient(160deg,#0f172a,#1e293b); font-family:\'Inter\',-apple-system,BlinkMacSystemFont,system-ui,sans-serif; color:#e2e8f0; padding:44px 20px 40px; display:flex; flex-direction:column; }'
+        + '.container { max-width:600px; margin:0 auto; width:100%; }'
+        + '.lang { display:flex; justify-content:center; gap:6px; margin-bottom:22px; }'
+        + '.lang button { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); color:#94a3b8; font-family:inherit; font-size:11px; font-weight:600; letter-spacing:1px; padding:6px 12px; border-radius:999px; cursor:pointer; transition:all 0.15s; }'
+        + '.lang button.on { background:rgba(201,169,98,0.16); border-color:rgba(201,169,98,0.55); color:#e2e8f0; }'
+        + '.logo { text-align:center; margin-bottom:26px; }'
+        + '.logo img { height:34px; width:auto; display:inline-block; filter:brightness(0) invert(1); opacity:0.92; }'
+        + '.card { position:relative; text-align:center; padding:44px 34px 36px; background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,98,0.22); border-radius:22px; }'
+        + '.card::before, .card::after { content:\'\'; position:absolute; width:42px; height:42px; }'
+        + '.card::before { top:0; left:0; border-top:1px solid rgba(201,169,98,0.6); border-left:1px solid rgba(201,169,98,0.6); border-top-left-radius:22px; }'
+        + '.card::after { bottom:0; right:0; border-bottom:1px solid rgba(201,169,98,0.6); border-right:1px solid rgba(201,169,98,0.6); border-bottom-right-radius:22px; }'
+        + '.eyebrow { font-size:11px; font-weight:600; letter-spacing:4px; text-transform:uppercase; color:#c9a962; margin-bottom:22px; }'
+        + '.seal { width:84px; height:84px; margin:0 auto 22px; border-radius:50%; display:flex; align-items:center; justify-content:center; }'
+        + '.seal.ok { background:linear-gradient(135deg,#c9a962,#b8965a); color:#0f172a; box-shadow:0 10px 30px rgba(201,169,98,0.3); }'
+        + '.seal.neutral { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.14); color:#64748b; }'
+        + '.seal.photo { position:relative; width:92px; height:92px; padding:0; background:none; }'
+        + '.seal.photo img { width:92px; height:92px; border-radius:50%; object-fit:cover; border:2px solid rgba(201,169,98,0.6); }'
+        + '.seal.photo .seal-check { position:absolute; right:-2px; bottom:-2px; width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#c9a962,#b8965a); color:#0f172a; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,0.35); }'
+        + '.seal.photo .seal-check svg { width:18px; height:18px; }'
+        + 'h1 { font-family:\'Cormorant Garamond\',Georgia,serif; font-weight:600; font-size:clamp(28px,5vw,38px); line-height:1.15; color:#fff; margin-bottom:14px; }'
+        + '.statement { max-width:420px; margin:0 auto; font-size:15px; line-height:1.7; color:#94a3b8; }'
+        + '.fields { display:flex; flex-direction:column; gap:2px; max-width:360px; margin:28px auto 0; }'
+        + '.field { display:flex; justify-content:space-between; align-items:baseline; gap:16px; padding:13px 4px; border-top:1px solid rgba(255,255,255,0.07); text-align:left; }'
+        + '.field:last-child { border-bottom:1px solid rgba(255,255,255,0.07); }'
+        + '.field .fl { font-size:11px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; color:#64748b; }'
+        + '.field .fv { font-size:15px; font-weight:500; color:#e2e8f0; text-align:right; }'
+        + '.sec { text-align:left; margin-top:30px; }'
+        + '.sec-h { font-size:11px; font-weight:600; letter-spacing:1.6px; text-transform:uppercase; color:#c9a962; margin-bottom:8px; }'
+        + '.row { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:13px 2px; border-top:1px solid rgba(255,255,255,0.07); }'
+        + '.row:first-of-type { border-top:none; }'
+        + '.rmain { min-width:0; }'
+        + '.rt { font-size:14.5px; font-weight:500; color:#e2e8f0; }'
+        + '.rs { font-size:12.5px; color:#94a3b8; margin-top:2px; }'
+        + '.chip { flex-shrink:0; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:#94a3b8; border:1px solid rgba(255,255,255,0.14); border-radius:999px; padding:4px 10px; white-space:nowrap; }'
+        + '.chip.chip-ok { color:#86efac; border-color:rgba(134,239,172,0.4); }'
+        + '.badges { display:flex; flex-wrap:wrap; gap:8px; }'
+        + '.badge-chip { font-size:12px; font-weight:500; color:#e2e8f0; background:rgba(201,169,98,0.12); border:1px solid rgba(201,169,98,0.3); border-radius:999px; padding:5px 12px; }'
+        + '.empty { font-size:13.5px; color:#94a3b8; padding:6px 2px; }'
+        + '.foot { text-align:center; font-size:12px; color:#64748b; margin-top:26px; line-height:1.6; }'
+        + '.foot a { color:#c9a962; text-decoration:none; }'
+        + '@media (max-width:480px){ .card { padding:36px 20px 30px; } }'
+        + '</style></head><body><div class="container">'
+        + '<div class="lang"><button type="button" data-l="en" class="on" onclick="setLang(\'en\')">EN</button><button type="button" data-l="hr" onclick="setLang(\'hr\')">HR</button></div>'
+        + '<div class="logo"><img src="' + MEDX_LOGO_URL + '" alt="Med&amp;X"></div>'
+        + '<div class="card"><div class="eyebrow" data-vk="eyebrow">' + enT.eyebrow + '</div>' + bodyHtml + '</div>'
+        + '<div class="foot"><span data-vk="foot">' + enT.foot + '</span> &middot; <a href="https://medx.hr">medx.hr</a></div>'
+        + '</div><script>'
+        + 'var VDICT = ' + JSON.stringify(VDICT) + ';'
+        + 'function setLang(l){ if(!VDICT[l]) l="en"; document.documentElement.lang=l; var els=document.querySelectorAll("[data-vk]"); for(var i=0;i<els.length;i++){ var k=els[i].getAttribute("data-vk"); if(VDICT[l][k]!=null) els[i].textContent=VDICT[l][k]; } var b=document.querySelectorAll(".lang button"); for(var j=0;j<b.length;j++){ b[j].className=(b[j].getAttribute("data-l")===l?"on":""); } try{ document.title=(l==="hr"?"Med&X evidencija":"Med&X record"); }catch(e){} }'
+        + '</' + 'script></body></html>';
+}
+
+app.get('/r/:token', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    var neutral = function () { return res.status(200).send(renderRecordSharePage({ ok: false })); };
+    try {
+        var uid = resolveShareRecordToken(String(req.params.token || ''));
+        if (!uid) return neutral();
+        var user = query.get('SELECT id, first_name, last_name, is_public_profile, photo_url, created_at, deleted_at FROM users WHERE id = ?', [uid]);
+        if (!user || user.deleted_at) return neutral();
+        var meta = null;
+        try { meta = query.get('SELECT member_type, member_since, standing FROM member_meta WHERE user_id = ?', [uid]); } catch (e) { meta = null; }
+        var standing = (meta && meta.standing) ? String(meta.standing) : 'good_standing';
+        if (standing !== 'good_standing') return neutral();
+        var name = ((user.first_name || '') + ' ' + (user.last_name || '')).trim();
+        if (!name || /^deleted user$/i.test(name)) return neutral();
+        var sinceRaw = (meta && meta.member_since) ? meta.member_since : user.created_at;
+        var sinceYear = sinceRaw ? String(sinceRaw).slice(0, 4) : '';
+        var quiet = false;
+        try { quiet = quietFlagFor(user); } catch (e) { quiet = false; }
+        var typeCode = null;
+        if (!quiet) {
+            var ALLOWED = { student: 1, physician: 1, senior_forum: 1, alumni: 1 };
+            typeCode = (meta && meta.member_type && ALLOWED[meta.member_type]) ? meta.member_type : 'member';
+        }
+        var photoUrl = (user.is_public_profile && user.photo_url) ? String(user.photo_url) : '';
+        var events = [];
+        try {
+            var regs = query.all('SELECT r.checked_in, r.payment_status, r.status, c.name as conference_name, c.start_date, c.end_date, c.venue_name, c.venue_city, t.name as ticket_name FROM registrations r JOIN conferences c ON r.conference_id = c.id JOIN ticket_types t ON r.ticket_type_id = t.id WHERE r.user_id = ? ORDER BY c.start_date DESC', [uid]);
+            events = (regs || []).filter(function (r) { return r.checked_in || r.payment_status === 'paid' || r.status === 'confirmed'; }).map(function (r) {
+                return {
+                    title: r.conference_name || 'Med&X event',
+                    ticket_name: r.ticket_name || '',
+                    start_date: r.start_date, end_date: r.end_date,
+                    venue: [r.venue_name, r.venue_city].filter(Boolean).join(', '),
+                    attended: !!r.checked_in
+                };
+            });
+        } catch (e) { events = []; }
+        var certificates = [];
+        try {
+            var certs = query.all('SELECT ct.conference_name, ct.certificate_number, ct.issue_date, ct.certificate_type FROM certificates ct JOIN registrations r ON ct.registration_id = r.id WHERE r.user_id = ? ORDER BY ct.issue_date DESC', [uid]);
+            certificates = (certs || []).map(function (ct) {
+                return {
+                    title: ct.conference_name ? (ct.conference_name + ' — Certificate of Attendance') : 'Certificate of Attendance',
+                    number: ct.certificate_number || '',
+                    year: ct.issue_date ? String(ct.issue_date).slice(0, 4) : ''
+                };
+            });
+        } catch (e) { certificates = []; }
+        var badges = [];
+        try {
+            badges = query.all('SELECT b.name, b.icon FROM forum_member_badges mb JOIN forum_badges b ON mb.badge_id = b.id JOIN forum_members fm ON mb.member_id = fm.id WHERE fm.user_id = ? ORDER BY mb.earned_at DESC', [uid]).map(function (x) { return { name: x.name, icon: x.icon }; });
+        } catch (e) { badges = []; }
+        return res.status(200).send(renderRecordSharePage({ ok: true, name: name, sinceYear: sinceYear, typeCode: typeCode, photoUrl: photoUrl, events: events, certificates: certificates, badges: badges }));
+    } catch (e) { return neutral(); }
+});
+
 
 
 // ============================ ADD-TO-CALENDAR (.ics) ============================
@@ -10428,6 +10675,19 @@ async function submitReset(e){
             });
         } catch (e) { console.error('verify-link failed:', e); res.status(500).json({ error: 'Failed to build verify link' }); }
     });
+
+    // Mint the member's own shareable read-only record link (stable, revocation-safe). Available to
+    // EVERY member including quiet / senior profiles — it is their own record, not gamification.
+    app.get('/api/member/share-record-link', auth, (req, res) => {
+        try {
+            const user = query.get('SELECT id FROM users WHERE id = ?', [req.user.id]);
+            if (!user) return res.status(404).json({ error: 'User not found' });
+            const token = shareRecordToken(user.id);
+            if (!token) return res.status(500).json({ error: 'Failed to build record link' });
+            res.json({ token: token, path: '/r/' + token });
+        } catch (e) { console.error('share-record-link failed:', e); res.status(500).json({ error: 'Failed to build record link' }); }
+    });
+
 
 
     // Member's gala seat/table — reads the admin seating plan (item 21). Display only.

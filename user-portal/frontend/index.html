@@ -57148,6 +57148,9 @@ button,input,select,textarea{font-family:var(--sans);}
             'mmx.myNetworkH':     {en:'My Network', hr:'Moja mreža'},
             'mmx.myRecord':       {en:'My Record', hr:'Moja evidencija'},
             'mmx.shareRecord':    {en:'Share my Med&X record', hr:'Podijelite svoju Med&X evidenciju'},
+            'quiz.lbYou':         {en:'You', hr:'Vi'},
+            'quiz.lbAwaiting':    {en:'Member rankings appear as more members play', hr:'Poredak članova prikazuje se kako se pridružuje više sudionika'},
+            'quiz.lbPts':         {en:'pts', hr:'bod.'},
             'mmx.shareMembTitle': {en:'Share your membership', hr:'Podijelite svoje članstvo'},
             'mmx.shareMembNote':  {en:'Prove your active Med&X membership with a public link, or add it to your LinkedIn profile as a credential.', hr:'Dokažite svoje aktivno članstvo u Med&X-u putem javne poveznice ili ga dodajte na svoj LinkedIn profil kao vjerodajnicu.'},
             'mmx.shareCopyLink':  {en:'Copy verify link', hr:'Kopirajte poveznicu za provjeru'},
@@ -61444,9 +61447,9 @@ button,input,select,textarea{font-family:var(--sans);}
                                     <div class="quiz-leaderboard-preview">
                                         <span class="quiz-leaderboard-title"><i class="fas fa-medal"></i> Top 3</span>
                                         <div class="quiz-leaderboard-avatars" id="quizLeaderboard">
-                                            <div class="quiz-leader" title="#1 Dr. Anna S. - 2,450 pts"><span>1</span>AS</div>
-                                            <div class="quiz-leader" title="#2 Dr. James L. - 2,100 pts"><span>2</span>JL</div>
-                                            <div class="quiz-leader" title="#3 Dr. Maria K. - 1,890 pts"><span>3</span>MK</div>
+                                            <div class="quiz-leader" data-i18n-title="quiz.lbYou" title="You"><span>1</span><i class="fas fa-user" style="font-size:12px;"></i></div>
+                                            <div class="quiz-leader is-empty" data-i18n-title="quiz.lbAwaiting" title="Member rankings appear as more members play" style="opacity:.5;background:var(--paper-2,rgba(0,0,0,.08));color:var(--muted);"><span>2</span>&ndash;</div>
+                                            <div class="quiz-leader is-empty" data-i18n-title="quiz.lbAwaiting" title="Member rankings appear as more members play" style="opacity:.5;background:var(--paper-2,rgba(0,0,0,.08));color:var(--muted);"><span>3</span>&ndash;</div>
                                         </div>
                                     </div>
                                 </div>
@@ -79793,19 +79796,30 @@ You can use variables like {first_name} that will be personalized for each recip
                 win.document.close();
             },
 
-            // Share stub — copies a record link client-side. No new public pages.
+            // Copies the member's real, read-only Med&X record link (server page at /r/:token).
+            // Falls back to a friendly error toast if the link cannot be prepared.
             shareRecord() {
-                var link = window.location.origin + '/#my-record';
-                var done = function(){ if (typeof Toast !== 'undefined' && Toast.success) Toast.success(t('toast.recordCopied')); };
-                try {
-                    if (navigator.clipboard && navigator.clipboard.writeText) {
-                        navigator.clipboard.writeText(link).then(done).catch(function(){ done(); });
-                    } else {
-                        var ta = document.createElement('textarea'); ta.value = link; document.body.appendChild(ta); ta.select();
-                        try { document.execCommand('copy'); } catch (e) {}
-                        document.body.removeChild(ta); done();
-                    }
-                } catch (e) { done(); }
+                var copy = function(link){
+                    var done = function(){ if (typeof Toast !== 'undefined' && Toast.success) Toast.success(t('toast.recordCopied')); };
+                    try {
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(link).then(done).catch(function(){ done(); });
+                        } else {
+                            var ta = document.createElement('textarea'); ta.value = link; document.body.appendChild(ta); ta.select();
+                            try { document.execCommand('copy'); } catch (e) {}
+                            document.body.removeChild(ta); done();
+                        }
+                    } catch (e) { done(); }
+                };
+                var tkn = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
+                var base = (typeof API_BASE !== 'undefined' ? API_BASE : '');
+                fetch(base + '/api/member/share-record-link', { headers: tkn ? { 'Authorization': 'Bearer ' + tkn } : {} })
+                    .then(function(r){ return r.ok ? r.json() : null; })
+                    .then(function(d){
+                        if (d && d.path) { copy(window.location.origin + d.path); }
+                        else if (typeof Toast !== 'undefined' && Toast.error) Toast.error(t('mmx.shareErr'));
+                    })
+                    .catch(function(){ if (typeof Toast !== 'undefined' && Toast.error) Toast.error(t('mmx.shareErr')); });
             },
 
             // ===== Share your membership: public verify link + LinkedIn credential =====
@@ -127818,25 +127832,19 @@ By applying to this program, I give the following consents:
 
                 const user = typeof UserPortal !== 'undefined' ? UserPortal.user : null;
                 const userScore = this.progress.totalCorrect * 10;
-                const userName = user?.name || user?.first_name || 'You';
-                const initials = userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'YO';
+                const userName = user?.name || user?.first_name || t('quiz.lbYou');
+                const initials = (userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()) || 'YO';
 
-                // Build sorted leaderboard: user + 2 demo entries that stay below user's score
-                const demoEntries = [
-                    { name: 'Dr. James L.', initials: 'JL', score: Math.max(50, Math.floor(userScore * 0.82)) },
-                    { name: 'Dr. Maria K.', initials: 'MK', score: Math.max(30, Math.floor(userScore * 0.65)) }
-                ];
-                const entries = [
-                    { name: userName, initials: initials, score: userScore, isUser: true },
-                    ...demoEntries
-                ].sort((a, b) => b.score - a.score);
-
-                container.innerHTML = entries.map((e, i) => {
-                    const rank = i + 1;
-                    const title = '#' + rank + ' ' + e.name + ' - ' + e.score.toLocaleString() + ' pts';
-                    const style = e.isUser ? ' style="box-shadow:0 0 0 2px var(--accent-gold);"' : '';
-                    return '<div class="quiz-leader" title="' + title + '"' + style + '><span>' + rank + '</span>' + e.initials + '</div>';
-                }).join('');
+                // Only the member's OWN score is real and consented. We never invent peer names or
+                // scores — the remaining slots stay anonymous until a real consented peer
+                // leaderboard exists. (Replaces the old fabricated "Dr. James L." / "Dr. Maria K.".)
+                const awaiting = t('quiz.lbAwaiting');
+                const youTitle = escapeHtml(userName + ' \u2014 ' + userScore.toLocaleString() + ' ' + t('quiz.lbPts'));
+                let html = '<div class="quiz-leader" title="' + youTitle + '" style="box-shadow:0 0 0 2px var(--accent-gold);"><span>1</span>' + escapeHtml(initials) + '</div>';
+                const emptyStyle = ' style="opacity:.5;background:var(--paper-2,rgba(0,0,0,.08));color:var(--muted);"';
+                html += '<div class="quiz-leader is-empty" title="' + escapeHtml(awaiting) + '"' + emptyStyle + '><span>2</span>\u2013</div>';
+                html += '<div class="quiz-leader is-empty" title="' + escapeHtml(awaiting) + '"' + emptyStyle + '><span>3</span>\u2013</div>';
+                container.innerHTML = html;
             }
         };
 
