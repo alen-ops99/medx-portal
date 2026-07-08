@@ -268,6 +268,17 @@ function buildMeetingIcs(opts) {
 }
 
 const MEDX_LOGO_URL = 'https://medx-user-portal.onrender.com/assets/logo.png';
+// Press releases render as standalone documents (web page, PDF, Word) that can be viewed from a
+// different origin than the logo host, so the letterhead logo is inlined as an origin-independent
+// data URI. That avoids a cross-origin resource-policy block on the public release page and a
+// missing logo in the PDF and Word exports. Falls back to the hosted URL if the asset is missing.
+let PRESS_LOGO_DATA_URI = MEDX_LOGO_URL;
+try {
+    const _pressLogoPath = path.join(__dirname, '../frontend/assets/logo.png');
+    if (fs.existsSync(_pressLogoPath)) {
+        PRESS_LOGO_DATA_URI = 'data:image/png;base64,' + fs.readFileSync(_pressLogoPath).toString('base64');
+    }
+} catch (e) {}
 const MEDX_EMAIL_ACCENTS = {
     crimson: { bar: '#9b1b22', text: '#ffffff', soft: '#f7ebec', line: '#9b1b22' },
     ink: { bar: '#0f172a', text: '#ffffff', soft: '#eef1f6', line: '#0f172a' },
@@ -514,6 +525,220 @@ async function publishToPubler(post) {
     }
 }
 
+// ============================================================================
+// SPEAKER FLIGHT DEEP-LINKS  (queue 5a5i — pivoted: LIVE prices via human click,
+// NO paid flight APIs). We NEVER assert or estimate a fare. We only PREFILL a
+// Google Flights / Skyscanner search so a staffer opens it, reads the live board,
+// and pastes the real price + airline back into the per-speaker quote table.
+// ----------------------------------------------------------------------------
+// Institution/city -> primary IATA. Deterministic + offline; it only PREFILLS an
+// editable field, so a miss just means the staffer types the code once. Longest
+// keys match first (so "new york" wins over "york").
+const CITY_IATA = {
+    'zagreb': 'ZAG', 'split': 'SPU', 'dubrovnik': 'DBV', 'rijeka': 'RJK', 'zadar': 'ZAD', 'pula': 'PUY', 'osijek': 'OSI',
+    'ljubljana': 'LJU', 'belgrade': 'BEG', 'sarajevo': 'SJJ', 'vienna': 'VIE', 'wien': 'VIE', 'graz': 'GRZ', 'salzburg': 'SZG',
+    'munich': 'MUC', 'muenchen': 'MUC', 'frankfurt': 'FRA', 'berlin': 'BER', 'hamburg': 'HAM', 'cologne': 'CGN',
+    'koeln': 'CGN', 'dusseldorf': 'DUS', 'stuttgart': 'STR', 'heidelberg': 'FRA', 'freiburg': 'BSL', 'hannover': 'HAJ',
+    'zurich': 'ZRH', 'geneva': 'GVA', 'geneve': 'GVA', 'basel': 'BSL', 'bern': 'BRN', 'lausanne': 'GVA',
+    'milan': 'MXP', 'milano': 'MXP', 'rome': 'FCO', 'roma': 'FCO', 'turin': 'TRN', 'torino': 'TRN', 'venice': 'VCE',
+    'venezia': 'VCE', 'bologna': 'BLQ', 'florence': 'FLR', 'firenze': 'FLR', 'naples': 'NAP', 'napoli': 'NAP', 'trieste': 'TRS',
+    'padua': 'VCE', 'padova': 'VCE', 'pisa': 'PSA',
+    'paris': 'CDG', 'lyon': 'LYS', 'marseille': 'MRS', 'toulouse': 'TLS', 'nice': 'NCE', 'bordeaux': 'BOD', 'strasbourg': 'SXB',
+    'london': 'LHR', 'oxford': 'LHR', 'cambridge': 'STN', 'manchester': 'MAN', 'edinburgh': 'EDI', 'glasgow': 'GLA',
+    'birmingham': 'BHX', 'bristol': 'BRS', 'leeds': 'LBA', 'liverpool': 'LPL', 'newcastle': 'NCL', 'dublin': 'DUB',
+    'amsterdam': 'AMS', 'rotterdam': 'AMS', 'utrecht': 'AMS', 'leiden': 'AMS', 'nijmegen': 'AMS', 'brussels': 'BRU',
+    'bruxelles': 'BRU', 'leuven': 'BRU', 'antwerp': 'BRU', 'ghent': 'BRU', 'luxembourg': 'LUX',
+    'madrid': 'MAD', 'barcelona': 'BCN', 'valencia': 'VLC', 'seville': 'SVQ', 'sevilla': 'SVQ', 'bilbao': 'BIO', 'malaga': 'AGP',
+    'lisbon': 'LIS', 'lisboa': 'LIS', 'porto': 'OPO',
+    'copenhagen': 'CPH', 'kobenhavn': 'CPH', 'aarhus': 'AAR', 'stockholm': 'ARN', 'gothenburg': 'GOT', 'goteborg': 'GOT',
+    'uppsala': 'ARN', 'lund': 'CPH', 'oslo': 'OSL', 'bergen': 'BGO', 'helsinki': 'HEL', 'reykjavik': 'KEF',
+    'prague': 'PRG', 'praha': 'PRG', 'brno': 'BRQ', 'bratislava': 'BTS', 'budapest': 'BUD', 'warsaw': 'WAW', 'warszawa': 'WAW',
+    'krakow': 'KRK', 'wroclaw': 'WRO', 'gdansk': 'GDN', 'poznan': 'POZ',
+    'bucharest': 'OTP', 'bucuresti': 'OTP', 'cluj': 'CLJ', 'sofia': 'SOF', 'athens': 'ATH', 'thessaloniki': 'SKG',
+    'istanbul': 'IST', 'ankara': 'ESB', 'izmir': 'ADB',
+    'tallinn': 'TLL', 'riga': 'RIX', 'vilnius': 'VNO', 'skopje': 'SKP', 'podgorica': 'TGD', 'tirana': 'TIA',
+    'moscow': 'SVO', 'saint petersburg': 'LED', 'st petersburg': 'LED', 'kyiv': 'KBP', 'kiev': 'KBP',
+    'boston': 'BOS', 'cambridge, ma': 'BOS', 'new york': 'JFK', 'manhattan': 'JFK', 'brooklyn': 'JFK', 'new haven': 'JFK',
+    'philadelphia': 'PHL', 'baltimore': 'BWI', 'washington': 'IAD', 'bethesda': 'IAD', 'pittsburgh': 'PIT',
+    'chicago': 'ORD', 'ann arbor': 'DTW', 'detroit': 'DTW', 'cleveland': 'CLE', 'columbus': 'CMH', 'minneapolis': 'MSP',
+    'madison': 'MSN', 'st louis': 'STL', 'saint louis': 'STL', 'nashville': 'BNA', 'atlanta': 'ATL', 'miami': 'MIA',
+    'houston': 'IAH', 'dallas': 'DFW', 'austin': 'AUS', 'denver': 'DEN', 'phoenix': 'PHX', 'seattle': 'SEA',
+    'portland': 'PDX', 'san francisco': 'SFO', 'stanford': 'SFO', 'berkeley': 'SFO', 'palo alto': 'SFO', 'san diego': 'SAN',
+    'los angeles': 'LAX', 'pasadena': 'LAX', 'san jose': 'SJC', 'las vegas': 'LAS', 'salt lake city': 'SLC',
+    'toronto': 'YYZ', 'montreal': 'YUL', 'vancouver': 'YVR', 'ottawa': 'YOW', 'calgary': 'YYC',
+    'tokyo': 'HND', 'kyoto': 'KIX', 'osaka': 'KIX', 'seoul': 'ICN', 'beijing': 'PEK', 'shanghai': 'PVG', 'hong kong': 'HKG',
+    'singapore': 'SIN', 'sydney': 'SYD', 'melbourne': 'MEL', 'tel aviv': 'TLV', 'jerusalem': 'TLV', 'dubai': 'DXB',
+    'sao paulo': 'GRU', 'rio de janeiro': 'GIG', 'buenos aires': 'EZE', 'mexico city': 'MEX',
+    'new delhi': 'DEL', 'delhi': 'DEL', 'mumbai': 'BOM', 'bangalore': 'BLR', 'bengaluru': 'BLR'
+};
+function suggestOriginIata(text) {
+    const s = String(text || '').toLowerCase();
+    if (!s.trim()) return '';
+    const keys = Object.keys(CITY_IATA).sort((a, b) => b.length - a.length);
+    for (const k of keys) { if (s.includes(k)) return CITY_IATA[k]; }
+    return '';
+}
+function cleanIata(v, fallback) {
+    const m = String(v || '').toUpperCase().match(/[A-Z]{3}/);
+    return m ? m[0] : (fallback || '');
+}
+function cleanFlightDate(v) {
+    const m = String(v || '').match(/(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[1]}-${m[2]}-${m[3]}` : '';
+}
+// Google Flights PREFILLED search. Verified format:
+//   https://www.google.com/travel/flights?q=Flights%20from%20BOS%20to%20ZAG%20on%202026-12-03
+function buildGoogleFlightsUrl(origin, dest, depart, ret) {
+    let q = `Flights from ${origin} to ${dest}`;
+    if (depart) q += ` on ${depart}`;
+    if (ret) q += ` returning ${ret}`;
+    return 'https://www.google.com/travel/flights?q=' + encodeURIComponent(q);
+}
+// Skyscanner PREFILLED search. Path format (lowercase IATA + yymmdd):
+//   https://www.skyscanner.net/transport/flights/bos/zag/261203/261206/
+function buildSkyscannerUrl(origin, dest, depart, ret) {
+    const o = String(origin || '').toLowerCase(), d = String(dest || '').toLowerCase();
+    if (o.length !== 3 || d.length !== 3) return 'https://www.skyscanner.net/';
+    const yymmdd = (iso) => { const m = String(iso || '').match(/(\d{4})-(\d{2})-(\d{2})/); return m ? (m[1].slice(2) + m[2] + m[3]) : ''; };
+    let url = `https://www.skyscanner.net/transport/flights/${o}/${d}/`;
+    const dd = yymmdd(depart), rr = yymmdd(ret);
+    if (dd) url += dd + '/';
+    if (dd && rr) url += rr + '/';
+    return url;
+}
+// Resolve a speaker's flight search context: destination defaults to ZAG (editable),
+// origin suggested from the institution, dates as stored. Both deep links are prefilled.
+function speakerFlightContext(sp) {
+    const origin = cleanIata(sp.origin_iata, '') || suggestOriginIata(sp.institution || '');
+    const dest = cleanIata(sp.flight_dest_iata, 'ZAG');
+    const depart = cleanFlightDate(sp.flight_depart_date);
+    const ret = cleanFlightDate(sp.flight_return_date);
+    return {
+        origin_iata: origin,
+        origin_suggested: suggestOriginIata(sp.institution || ''),
+        dest_iata: dest,
+        depart_date: depart,
+        return_date: ret,
+        google_url: (origin && dest) ? buildGoogleFlightsUrl(origin, dest, depart, ret) : null,
+        skyscanner_url: (origin && dest) ? buildSkyscannerUrl(origin, dest, depart, ret) : null
+    };
+}
+
+// ============================================================================
+// META (Instagram / Facebook) PUBLISHING BOUNDARY  (queue 5a8)
+// The pr_posts scheduler can push a post straight to a Med&X Facebook Page and
+// Instagram Business account via the Graph API. The real calls are fully wired
+// but require owner-provided credentials (a long-lived Page access token, the
+// Page ID, and the linked IG Business account id — see docs/social_api_spec.md).
+// With those UNSET the boundary is a MOCK that names EXACTLY what the owner must
+// provide. A global kill switch (pr_meta_settings.enabled) gates every real send;
+// dry-run works regardless and LOGS the exact ordered Graph calls it WOULD make.
+// A per-post drip_log marker (meta:<platform>:<id>) makes a real publish idempotent.
+const META_GRAPH_BASE = 'https://graph.facebook.com/v21.0';
+function getMetaSettings() {
+    try {
+        const r = query.get('SELECT * FROM pr_meta_settings WHERE id = 1');
+        if (r) return r;
+    } catch (e) {}
+    return { id: 1, page_id: null, page_access_token: null, ig_user_id: null, enabled: 0 };
+}
+function metaHasToken() { const s = getMetaSettings(); return !!(s.page_access_token && String(s.page_access_token).trim()); }
+function metaCanPublish(platform) {
+    const s = getMetaSettings();
+    if (!s.page_access_token) return false;
+    if (platform === 'instagram') return !!s.ig_user_id;
+    return !!s.page_id; // facebook
+}
+// Exact ordered actions the owner still owes us. Mirrors docs/social_api_spec.md.
+function metaMissingActions() {
+    const s = getMetaSettings();
+    const out = [];
+    if (!s.page_access_token) out.push('A long-lived Facebook Page access token from a Meta app with pages_manage_posts, pages_read_engagement, instagram_basic and instagram_content_publish.');
+    if (!s.page_id) out.push('The numeric Facebook Page ID of the Med&X Page (enables Facebook publishing).');
+    if (!s.ig_user_id) out.push('The Instagram Business account ID linked to that Page (enables Instagram publishing).');
+    return out;
+}
+// Redact a token to its last 4 chars for logs/UI (never echo the secret).
+function redactToken(t) { const s = String(t || ''); return s ? `****${s.slice(-4)}` : '(none)'; }
+// Build the EXACT ordered Graph calls for one post, WITHOUT sending. IG needs a
+// two-step container->publish; FB is a single feed/photos call. Bodies carry a
+// redacted token so a dry-run is safe to display and log.
+function buildMetaCalls(post) {
+    const s = getMetaSettings();
+    const platform = String(post.platform || '').toLowerCase();
+    const message = [post.content_text || post.caption || '', post.hashtags || ''].filter(Boolean).join('\n\n').trim();
+    const imageUrl = post.image_url || null;
+    const calls = [];
+    if (platform === 'instagram') {
+        const ig = s.ig_user_id || '{IG_USER_ID}';
+        if (!imageUrl) {
+            calls.push({ step: 'blocked', note: 'Instagram requires an image or video. Add a hosted image to this post before publishing to Instagram.' });
+            return { platform, calls };
+        }
+        calls.push({ step: 1, label: 'Create media container', method: 'POST',
+            url: `${META_GRAPH_BASE}/${ig}/media`,
+            body: { image_url: imageUrl, caption: message, access_token: redactToken(s.page_access_token) } });
+        calls.push({ step: 2, label: 'Publish container', method: 'POST',
+            url: `${META_GRAPH_BASE}/${ig}/media_publish`,
+            body: { creation_id: '{from step 1: id}', access_token: redactToken(s.page_access_token) } });
+    } else { // facebook (default)
+        const pg = s.page_id || '{PAGE_ID}';
+        if (imageUrl) {
+            calls.push({ step: 1, label: 'Publish Page photo', method: 'POST',
+                url: `${META_GRAPH_BASE}/${pg}/photos`,
+                body: { url: imageUrl, caption: message, access_token: redactToken(s.page_access_token) } });
+        } else {
+            calls.push({ step: 1, label: 'Publish Page feed post', method: 'POST',
+                url: `${META_GRAPH_BASE}/${pg}/feed`,
+                body: { message, access_token: redactToken(s.page_access_token) } });
+        }
+    }
+    return { platform, calls };
+}
+// Execute (or dry-run) the Graph calls for one post. NEVER throws. dryRun always
+// works (logs + returns the planned calls, sends nothing). A real send is refused
+// unless the kill switch is ON and the platform is fully configured.
+async function publishToMeta(post, opts) {
+    opts = opts || {};
+    const platform = String(post.platform || '').toLowerCase();
+    const plan = buildMetaCalls(post);
+    const s = getMetaSettings();
+    const blocked = plan.calls.find(c => c.step === 'blocked');
+    if (blocked) return { ok: false, dryRun: !!opts.dryRun, status: 'blocked', note: blocked.note, calls: plan.calls };
+
+    if (opts.dryRun) {
+        console.log(`[Meta DryRun] ${platform} — would make ${plan.calls.length} Graph call(s):`, JSON.stringify(plan.calls));
+        return {
+            ok: true, dryRun: true, status: 'dry_run', configured: metaCanPublish(platform),
+            note: metaCanPublish(platform)
+                ? `Dry run only — nothing was sent. ${plan.calls.length} Graph call(s) logged. Turn the kill switch on to publish for real.`
+                : `Dry run only — Meta is not fully connected yet. Still needed: ${metaMissingActions().join(' ')}`,
+            calls: plan.calls
+        };
+    }
+    // Real send path (untestable here without live credentials).
+    if (!s.enabled) return { ok: false, dryRun: false, status: 'kill_switch_off', note: 'Meta publishing is turned off (kill switch). Turn it on in PR & Media, Meta publishing, to send for real.', calls: plan.calls };
+    if (!metaCanPublish(platform)) return { ok: false, dryRun: false, status: 'not_configured', note: `Cannot publish to ${platform} yet. Still needed: ${metaMissingActions().join(' ')}`, calls: plan.calls };
+    try {
+        let creationId = null, externalId = null;
+        for (const call of plan.calls) {
+            const body = { ...call.body };
+            if ('access_token' in body) body.access_token = s.page_access_token;
+            if (body.creation_id === '{from step 1: id}') body.creation_id = creationId;
+            const resp = await fetch(call.url, { method: call.method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            const text = await resp.text().catch(() => '');
+            let json = {}; try { json = JSON.parse(text); } catch (_) {}
+            if (!resp.ok) return { ok: false, dryRun: false, status: 'failed', note: `Graph HTTP ${resp.status}: ${text.slice(0, 300)}`, calls: plan.calls };
+            if (call.step === 1) creationId = json.id || null;
+            externalId = json.id || externalId;
+        }
+        return { ok: true, dryRun: false, status: 'published', external_post_id: externalId, note: `Published to ${platform} via the Graph API.`, calls: plan.calls };
+    } catch (e) {
+        return { ok: false, dryRun: false, status: 'failed', note: 'Meta publish error: ' + e.message, calls: plan.calls };
+    }
+}
+
+
 // ---- Hosted ticket-QR helpers (mirror of user-portal; the /qr/:id.png route lives there) ----
 // Emails reference a hosted QR URL instead of a data: URI because Gmail/Outlook strip data: URIs.
 // The PNG is also attached so the ticket survives image-blocking clients.
@@ -575,7 +800,7 @@ app.use(helmet({
         directives: {
             "default-src": ["'self'"],
             "script-src": [
-                "'self'", "'unsafe-inline'",
+                "'self'", "'unsafe-inline'", "'wasm-unsafe-eval'",
                 "https://js.stripe.com", "https://m.stripe.network", "https://m.stripe.com",
                 "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com",
                 "https://unpkg.com"
@@ -589,11 +814,13 @@ app.use(helmet({
             "font-src": ["'self'", "data:", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
             "img-src": ["'self'", "data:", "blob:", "https:"],
             "connect-src": [
-                "'self'",
+                "'self'", "blob:",
                 "https://api.stripe.com", "https://m.stripe.network", "https://r.stripe.com",
                 "https://*.cloudinary.com",
-                "https://api.resend.com"
+                "https://api.resend.com",
+                "https://www.gstatic.com"
             ],
+            "worker-src": ["'self'", "blob:"],
             "frame-src": [
                 "'self'",
                 "https://js.stripe.com", "https://hooks.stripe.com", "https://checkout.stripe.com"
@@ -646,7 +873,7 @@ app.use((req, res, next) => {
 
 // Create uploads directory
 const uploadsDir = path.join(__dirname, 'uploads');
-['abstracts', 'posters', 'documents', 'badges', 'photos', 'tickets', 'accelerator', 'chat', 'content-studio'].forEach(dir => {
+['abstracts', 'posters', 'documents', 'badges', 'photos', 'tickets', 'accelerator', 'chat', 'content-studio', 'spatial'].forEach(dir => {
     const dirPath = path.join(uploadsDir, dir);
     if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
 });
@@ -1501,6 +1728,62 @@ function plannerWeekday(iso) { return new Date(iso + 'T00:00:00Z').getUTCDay(); 
 function plannerProjectName(key) {
     return ({ plexus: 'Plexus 2026', gala: 'Med&X Gala', accelerator: 'Med&X Accelerator', forum: 'Biomedical Forum', bridges: 'Building Bridges', medx: 'Med&X' })[key] || 'Med&X';
 }
+
+// ===== CME / HLK ACCREDITATION helpers (queue 5a5c) — identical in both portal server.js files =====
+// Support for the Croatian Medical Chamber CME feature. Deliberately free of app state so the block
+// stays byte-identical across portals. Nothing here touches the rewards/points system.
+function cmeIsValidOIB(oib) {
+    // OIB (Osobni identifikacijski broj) — ISO 7064 Mod 11,10 check digit over 11 digits.
+    const s = String(oib == null ? '' : oib);
+    if (!/^\d{11}$/.test(s)) return false;
+    let a = 10;
+    for (let i = 0; i < 10; i++) {
+        a = (a + parseInt(s[i], 10)) % 10;
+        if (a === 0) a = 10;
+        a = (a * 2) % 11;
+    }
+    const check = (11 - a) % 10;
+    return check === parseInt(s[10], 10);
+}
+function cmeEncKey() {
+    // 32-byte key derived from CME_ENC_KEY (hex or any string). No key => null (plaintext fallback).
+    const raw = process.env.CME_ENC_KEY;
+    if (!raw) return null;
+    try { return require('crypto').scryptSync(String(raw), 'medx-cme-hlk-v1', 32); } catch (e) { return null; }
+}
+function cmeEncrypt(plain) {
+    if (plain == null || plain === '') return { value: '', enc: 0 };
+    const key = cmeEncKey();
+    if (!key) return { value: String(plain), enc: 0 };
+    try {
+        const c = require('crypto');
+        const iv = c.randomBytes(12);
+        const cipher = c.createCipheriv('aes-256-gcm', key, iv);
+        const ct = Buffer.concat([cipher.update(String(plain), 'utf8'), cipher.final()]);
+        const tag = cipher.getAuthTag();
+        return { value: 'gcm:' + iv.toString('base64') + ':' + tag.toString('base64') + ':' + ct.toString('base64'), enc: 1 };
+    } catch (e) { return { value: String(plain), enc: 0 }; }
+}
+function cmeDecrypt(stored) {
+    if (stored == null || stored === '') return '';
+    const s = String(stored);
+    if (s.indexOf('gcm:') !== 0) return s; // plaintext (no key when written)
+    const key = cmeEncKey();
+    if (!key) return '[encrypted]'; // ciphertext present but this process has no key — never throw
+    try {
+        const c = require('crypto');
+        const p = s.split(':');
+        const iv = Buffer.from(p[1], 'base64');
+        const tag = Buffer.from(p[2], 'base64');
+        const ct = Buffer.from(p[3], 'base64');
+        const d = c.createDecipheriv('aes-256-gcm', key, iv);
+        d.setAuthTag(tag);
+        return Buffer.concat([d.update(ct), d.final()]).toString('utf8');
+    } catch (e) { return '[encrypted]'; }
+}
+// The exact purpose recorded with every consent (GDPR audit trail), bilingual.
+const CME_CONSENT_PURPOSE = 'Reporting CME credit to the Croatian Medical Chamber (HLK) / Prijava CME bodova Hrvatskoj liječničkoj komori (HLK)';
+
 function plannerPhotoLabel(file) {
     return String(file).replace(/\.[a-z0-9]+$/i, '').replace(/[_\-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
@@ -3986,6 +4269,48 @@ async function initializeApp() {
     )`);
     // ====================== SCHEMA-MIRROR:END ======================
 
+    // ====================== CME / HLK ACCREDITATION (queue 5a5c) ======================
+    // Croatian Medical Chamber (Hrvatska liječnička komora / HLK) CME accreditation. These two
+    // tables live OUTSIDE the SCHEMA-MIRROR block but are declared IDENTICALLY in BOTH portal
+    // server.js files: the user portal writes physician CME submissions (post-registration attach)
+    // and reads a member's own record plus the active event's accreditation status; the admin
+    // portal sets the per-edition accreditation flag and exports consented attendees for chamber
+    // reporting. Idempotent (CREATE TABLE IF NOT EXISTS). CME credit is OFFICIAL chamber credit and
+    // is deliberately DECOUPLED from the internal rewards/points gamification — nothing here ever
+    // writes points_ledger and no rewards code reads these tables.
+    db.run(`CREATE TABLE IF NOT EXISTS cme_accreditations (
+        conference_id TEXT PRIMARY KEY,
+        is_accredited INTEGER DEFAULT 0,
+        points_value REAL,
+        accreditation_number TEXT,
+        updated_by TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    // One physician CME record per registration (registration_id UNIQUE — post-submit attach, upsert).
+    // date_of_birth + oib are sensitive personal data collected ONLY with the member's explicit,
+    // un-pre-ticked consent (consent = 1 + consent_at timestamp + consent_purpose) for the sole stated
+    // purpose of reporting CME credit to the chamber. When CME_ENC_KEY is set they are stored
+    // AES-256-GCM-encrypted at rest (enc = 1, value carries the 'gcm:' scheme prefix); with no key they
+    // fall back to plaintext (enc = 0) — see cmeEncrypt/cmeDecrypt. Admin-only visibility; the member
+    // reads their own row via /api/plexus/cme/my.
+    db.run(`CREATE TABLE IF NOT EXISTS cme_submissions (
+        id TEXT PRIMARY KEY,
+        registration_id TEXT UNIQUE,
+        conference_id TEXT,
+        user_id TEXT,
+        date_of_birth TEXT,
+        oib TEXT,
+        enc INTEGER DEFAULT 0,
+        consent INTEGER DEFAULT 0,
+        consent_at TEXT,
+        consent_purpose TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_cme_sub_conf ON cme_submissions(conference_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_cme_sub_user ON cme_submissions(user_id)`);
+
+
     // ========================================================================
     // EVENT-DAY STAFF TRACKING (queue 5a5j) — ADMIN-ONLY, OUTSIDE the SCHEMA-MIRROR block.
     // Live, event-day-scoped location sharing for the ops team. Every tracked person is a
@@ -4069,6 +4394,80 @@ async function initializeApp() {
     try { db.run("ALTER TABLE nag_items ADD COLUMN claimed_by TEXT"); } catch (e) { /* column exists */ }
     try { db.run("ALTER TABLE nag_items ADD COLUMN claimed_by_name TEXT"); } catch (e) { /* column exists */ }
     try { db.run("ALTER TABLE nag_items ADD COLUMN claimed_at TEXT"); } catch (e) { /* column exists */ }
+
+    // ============ SPEAKER FLIGHT QUOTES (queue 5a5i) — ADMIN-ONLY ============
+    // Per-speaker LIVE-fare quotes a staffer pastes back after opening the prefilled
+    // Google Flights / Skyscanner deep link. price is ALWAYS a real number a human
+    // read off a live board — nothing here is ever an estimate. One quote per speaker
+    // can be `chosen`; the event travel-budget roll-up sums the chosen fares. Lives
+    // OUTSIDE the SCHEMA-MIRROR block (admin-only; the user portal never reads it).
+    try { db.run('ALTER TABLE speakers ADD COLUMN origin_iata TEXT'); } catch (e) {}
+    try { db.run('ALTER TABLE speakers ADD COLUMN flight_dest_iata TEXT'); } catch (e) {}
+    try { db.run('ALTER TABLE speakers ADD COLUMN flight_depart_date TEXT'); } catch (e) {}
+    try { db.run('ALTER TABLE speakers ADD COLUMN flight_return_date TEXT'); } catch (e) {}
+    db.run(`CREATE TABLE IF NOT EXISTS speaker_flight_quotes (
+        id TEXT PRIMARY KEY,
+        speaker_id TEXT NOT NULL,
+        conference_id TEXT,
+        price REAL NOT NULL,
+        currency TEXT DEFAULT 'EUR',
+        airline TEXT,
+        notes TEXT,
+        chosen INTEGER DEFAULT 0,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_flight_quotes_speaker ON speaker_flight_quotes(speaker_id)`);
+
+    // ============ LIDAR / 3D SPATIAL ASSETS SHELF — ADMIN-ONLY ============
+    // Content-Studio shelf for GLB/USDZ scans Alen captures with an iPhone (Scaniverse /
+    // Luma / Object Capture). Uploaded through the existing multipart boundary (50MB cap),
+    // previewed with the vendored <model-viewer> web component + AR. attach_target /
+    // attach_ref are the clean stubs for wiring a scan onto a surface (gala venue,
+    // auction item) later. Lives OUTSIDE the SCHEMA-MIRROR block (admin-only).
+    db.run(`CREATE TABLE IF NOT EXISTS spatial_assets (
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        kind TEXT DEFAULT 'glb',
+        asset_url TEXT NOT NULL,
+        poster_url TEXT,
+        mime TEXT,
+        bytes INTEGER DEFAULT 0,
+        attach_target TEXT,
+        attach_ref TEXT,
+        notes TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // ============ META (IG/FB) PUBLISHING SETTINGS (queue 5a8) — ADMIN-ONLY ============
+    // One-row settings for the owner-provided Graph credentials + the publishing kill
+    // switch, plus an audit log of every publish/dry-run. Tokens are owner secrets and
+    // are never mirrored to the user portal. Lives OUTSIDE the SCHEMA-MIRROR block.
+    db.run(`CREATE TABLE IF NOT EXISTS pr_meta_settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        page_id TEXT,
+        page_access_token TEXT,
+        ig_user_id TEXT,
+        enabled INTEGER DEFAULT 0,
+        updated_by TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run("INSERT OR IGNORE INTO pr_meta_settings (id, enabled) VALUES (1, 0)");
+    db.run(`CREATE TABLE IF NOT EXISTS pr_meta_publish_log (
+        id TEXT PRIMARY KEY,
+        calendar_id TEXT,
+        post_id TEXT,
+        platform TEXT,
+        mode TEXT,
+        status TEXT,
+        external_post_id TEXT,
+        note TEXT,
+        calls_json TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
 
     // ============ LIVE AUCTION ENGINE (ADMIN-ONLY, event-agnostic) ============
     // A reusable charity-auction capability: the admin creates an auction, attaches it to ANY event
@@ -6435,6 +6834,69 @@ async function initializeApp() {
         created_by TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+
+    // ===================== PRESS / MEDIA SYSTEM (queue 5b) — admin-only tables =====================
+    // TWO outputs from ONE conversational composer: (1) an investor-relations format press release
+    // (dateline, Med&X logo, About-Med&X boilerplate, contact block) drafted in EN then HR, editable
+    // template AND text, exported to PDF + Word-editable; (2) that same release, once published,
+    // served to the public website press page through /api/public/press (EN + HR mirror). Plus a
+    // media_contacts list with per-outlet include/exclude, an importer, and an approval-outbox send.
+    // press_releases is authored/published in the admin portal and READ publicly (no auth) by the
+    // static site; media_contacts is admin-only. Both live OUTSIDE the SCHEMA-MIRROR block by design
+    // (the user portal never reads or writes them). Every statement is idempotent.
+    db.run(`CREATE TABLE IF NOT EXISTS press_releases (
+        id TEXT PRIMARY KEY,
+        pair_id TEXT,
+        lang TEXT DEFAULT 'en',
+        slug TEXT UNIQUE,
+        status TEXT DEFAULT 'draft',
+        project TEXT DEFAULT 'medx',
+        tag TEXT DEFAULT 'Announcement',
+        title TEXT,
+        subtitle TEXT,
+        dateline_city TEXT DEFAULT 'Zagreb',
+        dateline_date TEXT,
+        summary TEXT,
+        body TEXT,
+        boilerplate TEXT,
+        contact_block TEXT,
+        template_json TEXT,
+        seed_ref TEXT,
+        ai_generated INTEGER DEFAULT 0,
+        published_at TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_press_releases_status ON press_releases(status)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_press_releases_pair ON press_releases(pair_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_press_releases_slug ON press_releases(slug)`);
+
+    // Per-outlet media list. included = the send flag (1 = in the list, 0 = excluded from sends).
+    // language routes the send: 'hr' outlets get the Croatian release, 'en' outlets the English one.
+    db.run(`CREATE TABLE IF NOT EXISTS media_contacts (
+        id TEXT PRIMARY KEY,
+        outlet TEXT,
+        contact_name TEXT,
+        email TEXT,
+        beat TEXT,
+        country TEXT,
+        language TEXT DEFAULT 'hr',
+        included INTEGER DEFAULT 1,
+        notes TEXT,
+        source TEXT DEFAULT 'manual',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_media_contacts_included ON media_contacts(included)`);
+
+    // Single-row settings for the press-release send kill switch (send_paused = 1 halts all staging).
+    db.run(`CREATE TABLE IF NOT EXISTS press_settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        send_paused INTEGER DEFAULT 0,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    try { db.run(`INSERT OR IGNORE INTO press_settings (id, send_paused) VALUES (1, 0)`); } catch (e) {}
 
     // ========== BUILDING BRIDGES MINI-EVENTS ==========
 
@@ -10399,6 +10861,47 @@ async function initializeApp() {
             res.json(payload);
         } catch (e) {
             res.status(500).json({ error: 'Failed to load status' });
+        }
+    });
+
+    // Public press feed for the website newsroom (press.html EN + /hr/press.html HR). The static
+    // site polls this cross-origin from the admin origin; applyPress() filters by locale client-side
+    // (EN pages show lang!='hr', /hr/ shows lang='hr') and only overwrites its baked fallback cards
+    // when this returns a non-empty array for the locale. Published rows only. Never throws.
+    app.get('/api/public/press', publicLimiter, (req, res) => {
+        try {
+            const base = seatPublicBase(req);
+            const rows = query.all("SELECT lang, slug, tag, title, summary, dateline_date, published_at FROM press_releases WHERE status = 'published' ORDER BY COALESCE(dateline_date, published_at) DESC LIMIT 60");
+            const releases = rows.map((r) => {
+                const iso = String(r.dateline_date || r.published_at || '').slice(0, 10);
+                return {
+                    lang: (r.lang === 'hr') ? 'hr' : 'en',
+                    tag: r.tag || '',
+                    title: r.title || '',
+                    summary: r.summary || '',
+                    date: iso,
+                    datetime: iso,
+                    date_label: pressDateLabel(iso, r.lang),
+                    url: r.slug ? (base + '/api/public/press/' + encodeURIComponent(r.slug)) : ''
+                };
+            });
+            publicCacheHeaders(res);
+            res.json({ releases, generated_at: new Date().toISOString() });
+        } catch (e) {
+            res.json({ releases: [] });
+        }
+    });
+
+    // Individual release page (site-styled), served publicly for the newsroom "Read the announcement" link.
+    app.get('/api/public/press/:slug', publicLimiter, (req, res) => {
+        try {
+            const row = query.get("SELECT * FROM press_releases WHERE slug = ? AND status = 'published'", [String(req.params.slug)]);
+            if (!row) { res.status(404).set('Content-Type', 'text/html; charset=utf-8'); return res.send('<!doctype html><meta charset="utf-8"><title>Not found</title><body style="font-family:Inter,Arial,sans-serif;padding:60px;text-align:center;color:#6b5d52">This announcement is not available.</body>'); }
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.setHeader('Cache-Control', 'public, max-age=120, stale-while-revalidate=600');
+            res.send(pressReleaseHtml(row, { web: true }));
+        } catch (e) {
+            res.status(500).set('Content-Type', 'text/html; charset=utf-8').send('<!doctype html><meta charset="utf-8"><body>Unavailable</body>');
         }
     });
 
@@ -18149,6 +18652,277 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
+    // ============================================================================
+    // SPEAKER FLIGHT DEEP-LINKS — per-speaker travel panel + event budget roll-up.
+    // No paid APIs: we PREFILL Google Flights / Skyscanner searches and store the
+    // real fares a staffer pastes back. NEVER an estimate. See speakerFlightContext.
+    // ============================================================================
+    // GET one speaker's flight search context + quote rows + subtotal (chosen fare).
+    app.get('/api/admin/plexus/speakers/:id/flight', auth, adminOnly, (req, res) => {
+        try {
+            const sp = query.get('SELECT * FROM speakers WHERE id = ?', [req.params.id]);
+            if (!sp) return res.status(404).json({ error: 'Speaker not found' });
+            const ctx = speakerFlightContext(sp);
+            const quotes = query.all('SELECT * FROM speaker_flight_quotes WHERE speaker_id = ? ORDER BY created_at DESC', [req.params.id]);
+            const chosen = quotes.find(q => q.chosen) || null;
+            res.json({
+                speaker: { id: sp.id, name: sp.name, institution: sp.institution },
+                context: ctx, quotes,
+                chosen_id: chosen ? chosen.id : null,
+                subtotal: chosen ? chosen.price : 0,
+                currency: chosen ? chosen.currency : 'EUR'
+            });
+        } catch (e) { console.error('[flight] get', e.message); res.status(500).json({ error: e.message }); }
+    });
+    // Save the editable origin/dest/dates for a speaker (no price here).
+    app.put('/api/admin/plexus/speakers/:id/flight', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const origin = cleanIata(b.origin_iata, '');
+            const dest = cleanIata(b.flight_dest_iata, '');
+            const depart = cleanFlightDate(b.flight_depart_date);
+            const ret = cleanFlightDate(b.flight_return_date);
+            db.run('UPDATE speakers SET origin_iata = ?, flight_dest_iata = ?, flight_depart_date = ?, flight_return_date = ? WHERE id = ?',
+                [origin || null, dest || null, depart || null, ret || null, req.params.id]);
+            saveDb();
+            const sp = query.get('SELECT * FROM speakers WHERE id = ?', [req.params.id]);
+            res.json({ success: true, context: speakerFlightContext(sp) });
+        } catch (e) { console.error('[flight] put', e.message); res.status(500).json({ error: e.message }); }
+    });
+    // Add a real fare quote (price + airline + notes). First quote for a speaker is
+    // auto-chosen; staff can re-choose. Estimates are impossible — price is required numeric.
+    app.post('/api/admin/plexus/speakers/:id/flight/quotes', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const price = Number(b.price);
+            if (!isFinite(price) || price <= 0) return res.status(400).json({ error: 'Enter the real fare you read on the live board (a number greater than 0).' });
+            const sp = query.get('SELECT id, conference_id FROM speakers WHERE id = ?', [req.params.id]);
+            if (!sp) return res.status(404).json({ error: 'Speaker not found' });
+            const existing = query.get('SELECT COUNT(*) AS c FROM speaker_flight_quotes WHERE speaker_id = ?', [req.params.id]);
+            const chosen = (existing && existing.c) ? 0 : 1;
+            const id = uuidv4();
+            db.run(`INSERT INTO speaker_flight_quotes (id, speaker_id, conference_id, price, currency, airline, notes, chosen, created_by, created_at)
+                    VALUES (?,?,?,?,?,?,?,?,?, datetime('now'))`,
+                [id, req.params.id, sp.conference_id || null, Math.round(price * 100) / 100,
+                 String(b.currency || 'EUR').slice(0, 4).toUpperCase(), String(b.airline || '').slice(0, 80) || null,
+                 String(b.notes || '').slice(0, 400) || null, chosen, req.user && req.user.id || null]);
+            saveDb();
+            logAudit(req, 'flight.quote', `${req.params.id} ${price} ${b.airline || ''}`);
+            res.json({ success: true, id, chosen: !!chosen });
+        } catch (e) { console.error('[flight] quote add', e.message); res.status(500).json({ error: e.message }); }
+    });
+    // Mark one quote as the chosen fare (clears the others for that speaker).
+    app.put('/api/admin/plexus/speakers/:id/flight/quotes/:qid/choose', auth, adminOnly, (req, res) => {
+        try {
+            db.run('UPDATE speaker_flight_quotes SET chosen = 0 WHERE speaker_id = ?', [req.params.id]);
+            db.run('UPDATE speaker_flight_quotes SET chosen = 1 WHERE id = ? AND speaker_id = ?', [req.params.qid, req.params.id]);
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    // Delete a quote. If it was the chosen one, promote the newest remaining quote.
+    app.delete('/api/admin/plexus/speakers/:id/flight/quotes/:qid', auth, adminOnly, (req, res) => {
+        try {
+            const q = query.get('SELECT chosen FROM speaker_flight_quotes WHERE id = ? AND speaker_id = ?', [req.params.qid, req.params.id]);
+            db.run('DELETE FROM speaker_flight_quotes WHERE id = ? AND speaker_id = ?', [req.params.qid, req.params.id]);
+            if (q && q.chosen) {
+                const next = query.get('SELECT id FROM speaker_flight_quotes WHERE speaker_id = ? ORDER BY created_at DESC LIMIT 1', [req.params.id]);
+                if (next) db.run('UPDATE speaker_flight_quotes SET chosen = 1 WHERE id = ?', [next.id]);
+            }
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    // Event travel-budget roll-up: sum of the chosen fare per speaker across the edition.
+    app.get('/api/admin/plexus/travel-budget', auth, adminOnly, (req, res) => {
+        try {
+            const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+            const { year } = req.query;
+            let sql = 'SELECT * FROM speakers WHERE conference_id = ?';
+            const params = [conf && conf.id || ''];
+            if (year && year !== 'all') { sql += ' AND year = ?'; params.push(parseInt(year)); }
+            sql += ' ORDER BY is_keynote DESC, name';
+            const speakers = query.all(sql, params);
+            const rows = [];
+            const totals = {}; // currency -> summed chosen fare
+            let quoted = 0;
+            for (const sp of speakers) {
+                const quotes = query.all('SELECT * FROM speaker_flight_quotes WHERE speaker_id = ? ORDER BY created_at DESC', [sp.id]);
+                if (!quotes.length) { rows.push({ speaker_id: sp.id, name: sp.name, price: null, currency: null, airline: null }); continue; }
+                const chosen = quotes.find(q => q.chosen) || quotes[0];
+                totals[chosen.currency] = Math.round(((totals[chosen.currency] || 0) + chosen.price) * 100) / 100;
+                quoted++;
+                rows.push({ speaker_id: sp.id, name: sp.name, price: chosen.price, currency: chosen.currency, airline: chosen.airline });
+            }
+            res.json({ speakers: rows, totals, quoted, speaker_count: speakers.length });
+        } catch (e) { console.error('[flight] budget', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ============================================================================
+    // LIDAR / 3D SPATIAL ASSETS SHELF (Content Studio). GLB/USDZ upload (50MB),
+    // <model-viewer> preview + AR, attach-to-surface stubs. Uses the existing
+    // multipart boundary (STORAGE_IS_EPHEMERAL still guards prod without Cloudinary).
+    // ============================================================================
+    const spatialUpload = multer({
+        storage: multer.diskStorage({
+            destination: (req, file, cb) => {
+                const dir = path.join(uploadsDir, 'spatial');
+                try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); } catch (e) {}
+                cb(null, dir);
+            },
+            filename: (req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname || '').toLowerCase()}`)
+        }),
+        limits: { fileSize: 50 * 1024 * 1024 },
+        fileFilter: (req, file, cb) => {
+            const ext = path.extname(file.originalname || '').toLowerCase();
+            const okExt = ['.glb', '.usdz', '.gltf'];
+            // SECURITY: the stored file keeps its ORIGINAL extension and /uploads is served by
+            // express.static, so the EXTENSION — not the client-supplied MIME — decides the
+            // Content-Type a browser sees. application/octet-stream is the browser default and is
+            // trivially attacker-set, so MIME must NEVER be a sole pass (that let evil.html through
+            // and be served back as an executable text/html document). Gate strictly on the
+            // allow-listed 3D extension, which is the only thing that governs how the file is served.
+            if (okExt.includes(ext)) return cb(null, true);
+            cb(new Error('Only 3D scans are accepted here: a .glb, .usdz or .gltf file.'));
+        }
+    });
+    // Multer error -> clean JSON (size-cap message included).
+    function spatialUploadHandler(req, res, next) {
+        spatialUpload.single('file')(req, res, (err) => {
+            if (err) {
+                const msg = err.code === 'LIMIT_FILE_SIZE'
+                    ? 'That scan is over the 50 MB limit. Export a lighter GLB (decimate the mesh or lower the texture resolution) and try again.'
+                    : (err.message || 'Upload failed.');
+                return res.status(400).json({ error: msg });
+            }
+            next();
+        });
+    }
+    app.post('/api/admin/spatial/assets', auth, adminOnly, spatialUploadHandler, (req, res) => {
+        try {
+            if (!req.file) return res.status(400).json({ error: 'No 3D scan received. Choose a .glb or .usdz file.' });
+            const ext = path.extname(req.file.filename).toLowerCase().replace('.', '');
+            const kind = ext === 'usdz' ? 'usdz' : (ext === 'gltf' ? 'gltf' : 'glb');
+            const url = `${seatPublicBase(req)}/uploads/spatial/${req.file.filename}`;
+            const id = uuidv4();
+            db.run(`INSERT INTO spatial_assets (id, title, kind, asset_url, mime, bytes, created_by, created_at)
+                    VALUES (?,?,?,?,?,?,?, datetime('now'))`,
+                [id, String(req.body.title || req.file.originalname || 'Scan').slice(0, 160), kind, url, req.file.mimetype || null, req.file.size || 0, req.user && req.user.id || null]);
+            saveDb();
+            logAudit(req, 'spatial.upload', `${kind} ${req.file.filename} (${req.file.size} bytes)`);
+            res.json({ success: true, id, url, kind, bytes: req.file.size });
+        } catch (e) { console.error('[spatial] upload', e.message); res.status(500).json({ error: e.message }); }
+    });
+    app.get('/api/admin/spatial/assets', auth, adminOnly, (req, res) => {
+        try {
+            const rows = query.all('SELECT * FROM spatial_assets ORDER BY created_at DESC LIMIT 100');
+            res.json({ assets: rows });
+        } catch (e) { console.error('[spatial] list', e.message); res.status(500).json({ error: e.message }); }
+    });
+    app.put('/api/admin/spatial/assets/:id', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            db.run('UPDATE spatial_assets SET title = COALESCE(?, title), notes = COALESCE(?, notes) WHERE id = ?',
+                [b.title != null ? String(b.title).slice(0, 160) : null, b.notes != null ? String(b.notes).slice(0, 400) : null, req.params.id]);
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    // Attach-to-surface STUB: records the intended surface; wiring the render onto the
+    // gala venue block / an auction item is a later step (kept a clean, explicit stub).
+    app.put('/api/admin/spatial/assets/:id/attach', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const target = ['gala_venue', 'auction_item', 'none'].includes(b.attach_target) ? b.attach_target : 'none';
+            db.run('UPDATE spatial_assets SET attach_target = ?, attach_ref = ? WHERE id = ?',
+                [target === 'none' ? null : target, b.attach_ref ? String(b.attach_ref).slice(0, 80) : null, req.params.id]);
+            saveDb();
+            logAudit(req, 'spatial.attach', `${req.params.id} -> ${target}`);
+            res.json({ success: true, attach_target: target === 'none' ? null : target,
+                note: target === 'none' ? 'Detached.' : `Surface saved. Rendering this scan onto the ${target === 'gala_venue' ? 'gala venue section' : 'auction item'} is wired next — the pipeline home is ready.` });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.delete('/api/admin/spatial/assets/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = query.get('SELECT asset_url FROM spatial_assets WHERE id = ?', [req.params.id]);
+            db.run('DELETE FROM spatial_assets WHERE id = ?', [req.params.id]);
+            if (row && row.asset_url) {
+                try { const fn = row.asset_url.split('/uploads/spatial/')[1]; if (fn) fs.unlinkSync(path.join(uploadsDir, 'spatial', fn)); } catch (e) {}
+            }
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ============================================================================
+    // META (IG/FB) PUBLISHING BOUNDARY endpoints. Owner provides the Page token +
+    // IG account id; absent = a mock that names the exact owner actions; present =
+    // real Graph calls (dry-run logs the exact calls). Kill switch + drip_log per post.
+    // ============================================================================
+    app.get('/api/admin/pr/meta/status', auth, adminOnly, (req, res) => {
+        try {
+            const s = getMetaSettings();
+            res.json({
+                configured_facebook: metaCanPublish('facebook'),
+                configured_instagram: metaCanPublish('instagram'),
+                has_token: metaHasToken(),
+                enabled: !!s.enabled,
+                page_id: s.page_id || null,
+                ig_user_id: s.ig_user_id || null,
+                token_hint: redactToken(s.page_access_token),
+                missing: metaMissingActions(),
+                updated_at: s.updated_at || null
+            });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.put('/api/admin/pr/meta/settings', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const cur = getMetaSettings();
+            // Empty token field = keep the existing token (the UI never re-shows the secret).
+            const token = (b.page_access_token != null && String(b.page_access_token).trim() !== '') ? String(b.page_access_token).trim() : cur.page_access_token;
+            const pageId = b.page_id != null ? (String(b.page_id).trim().slice(0, 40) || null) : cur.page_id;
+            const igId = b.ig_user_id != null ? (String(b.ig_user_id).trim().slice(0, 40) || null) : cur.ig_user_id;
+            const enabled = b.enabled != null ? (b.enabled ? 1 : 0) : cur.enabled;
+            db.run(`INSERT INTO pr_meta_settings (id, page_id, page_access_token, ig_user_id, enabled, updated_by, updated_at)
+                    VALUES (1, ?, ?, ?, ?, ?, datetime('now'))
+                    ON CONFLICT(id) DO UPDATE SET page_id = excluded.page_id, page_access_token = excluded.page_access_token,
+                        ig_user_id = excluded.ig_user_id, enabled = excluded.enabled, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
+                [pageId, token || null, igId, enabled, req.user && req.user.id || null]);
+            saveDb();
+            logAudit(req, 'meta.settings', `page=${pageId || '-'} ig=${igId || '-'} enabled=${enabled}`);
+            res.json({ success: true });
+        } catch (e) { console.error('[meta] settings', e.message); res.status(500).json({ error: e.message }); }
+    });
+    // Publish (or dry-run) one calendar post to Meta. dryRun=1 -> logs the exact calls, sends nothing.
+    app.post('/api/admin/pr/meta/publish/:calendarId', auth, adminOnly, async (req, res) => {
+        try {
+            const cal = query.get('SELECT * FROM pr_content_calendar WHERE id = ?', [req.params.calendarId]);
+            if (!cal) return res.status(404).json({ error: 'Calendar post not found' });
+            const dryRun = req.query.dryRun === '1' || (req.body && req.body.dryRun === true);
+            const result = await publishToMeta(cal, { dryRun });
+            // drip_log: one REAL publish per post (dry-runs never mark it).
+            let dripBlocked = false;
+            if (!dryRun && result.ok && result.status === 'published') {
+                const marker = `meta:${(cal.platform || '').toLowerCase()}:${cal.id}`;
+                const before = query.get('SELECT id FROM drip_log WHERE user_id = ? AND kind = ?', ['meta-publish', marker]);
+                if (before) { dripBlocked = true; }
+                else { db.run('INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?,?,?,?)', [uuidv4(), 'meta-publish', null, marker]); }
+            }
+            db.run(`INSERT INTO pr_meta_publish_log (id, calendar_id, platform, mode, status, external_post_id, note, calls_json, created_by, created_at)
+                    VALUES (?,?,?,?,?,?,?,?,?, datetime('now'))`,
+                [uuidv4(), cal.id, cal.platform || null, dryRun ? 'dry_run' : 'live', result.status, result.external_post_id || null, result.note || null, JSON.stringify(result.calls || []), req.user && req.user.id || null]);
+            if (!dryRun && result.ok && result.status === 'published' && !dripBlocked) {
+                db.run(`INSERT INTO pr_posts (id, project, platform, content_text, image_url, external_post_id, published_at, calendar_id) VALUES (?,?,?,?,?,?,?,?)`,
+                    [uuidv4(), cal.project, cal.platform, cal.content_text, cal.image_url, result.external_post_id || null, new Date().toISOString(), cal.id]);
+            }
+            saveDb();
+            logAudit(req, 'meta.publish', `${cal.platform} ${dryRun ? 'dry_run' : 'live'} -> ${result.status}`);
+            res.json({ success: result.ok, dryRun, drip_blocked: dripBlocked, status: result.status, note: result.note, calls: result.calls, external_post_id: result.external_post_id || null });
+        } catch (e) { console.error('[meta] publish', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+
     // Admin: Publish/unpublish speaker
     app.put('/api/admin/plexus/speakers/:id/publish', auth, adminOnly, (req, res) => {
         const { is_published } = req.body;
@@ -24051,6 +24825,570 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         res.json({ success: true });
     });
 
+    // ===================== PRESS / MEDIA SYSTEM (queue 5b) — API =====================
+    // ONE conversational composer -> TWO outputs: an investor-relations press release (PDF + Word)
+    // and, on publish, the public website press page (/api/public/press, EN + HR mirror). Plus a
+    // media list with per-outlet include/exclude, an importer, and an approval-outbox BCC send.
+    // AI drafting is live when ANTHROPIC_API_KEY is set (aiDraft) and falls through to a clean
+    // deterministic template baseline otherwise. Nothing here ever sends directly.
+
+    const PRESS_MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const PRESS_MONTHS_HR = ['siječnja', 'veljače', 'ožujka', 'travnja', 'svibnja', 'lipnja', 'srpnja', 'kolovoza', 'rujna', 'listopada', 'studenoga', 'prosinca'];
+    function pressDateLabel(iso, lang) {
+        const m = String(iso == null ? '' : iso).match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) return '';
+        const y = +m[1], mo = +m[2], d = +m[3];
+        if (String(lang || 'en').toLowerCase() === 'hr') return `${d}. ${PRESS_MONTHS_HR[mo - 1]} ${y}.`;
+        return `${PRESS_MONTHS_EN[mo - 1]} ${d}, ${y}`;
+    }
+    function pressSlugify(s) {
+        return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+            .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'release';
+    }
+    function pressUniqueSlug(base, excludeId) {
+        let slug = base, n = 2;
+        while (true) {
+            const hit = query.get('SELECT id FROM press_releases WHERE slug = ?', [slug]);
+            if (!hit || (excludeId && hit.id === excludeId)) return slug;
+            slug = base + '-' + n; n++;
+            if (n > 999) return base + '-' + uuidv4().slice(0, 6);
+        }
+    }
+    function pressBoilerplateDefault(lang) {
+        if (String(lang).toLowerCase() === 'hr') {
+            return 'O Med&X-u: Med&X je hrvatska neprofitna organizacija posvećena povezivanju u biomedicini. Kroz konferenciju Plexus, Plexus Gala večer, Med&X Accelerator i Biomedicinski forum, Med&X okuplja nobelovce, kliničke predvodnike i novu generaciju istraživača u Hrvatskoj i dijaspori. Više na medx.hr.';
+        }
+        return 'About Med&X: Med&X is a Croatian non-profit organization dedicated to building bridges in biomedicine. Through the Plexus Conference, the Plexus Gala, the Med&X Accelerator, and the Biomedical Forum, Med&X brings together Nobel laureates, clinical leaders, and the next generation of researchers across Croatia and the global diaspora. Learn more at medx.hr.';
+    }
+    function pressContactDefault(lang) {
+        if (String(lang).toLowerCase() === 'hr') {
+            return 'Kontakt za medije: Ured za odnose s medijima Med&X · president@medx.hr · medx.hr';
+        }
+        return 'Media contact: Med&X Press Office · president@medx.hr · medx.hr';
+    }
+    // Plain text (with blank-line paragraph breaks) -> escaped <p> blocks.
+    function pressParagraphs(text) {
+        const blocks = String(text == null ? '' : text).split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+        if (!blocks.length) return '';
+        return blocks.map((b) => `<p>${seatEsc(b).replace(/\n/g, '<br>')}</p>`).join('\n');
+    }
+    // Deterministic template baseline for the body (first-class fallback when aiDraft is in mock mode).
+    function pressDeterministicBody(description, city, dateLabel, lang) {
+        const hr = String(lang).toLowerCase() === 'hr';
+        const desc = String(description == null ? '' : description).trim();
+        const blocks = desc ? desc.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean) : [];
+        const lead = blocks.shift() || (hr ? 'Med&X objavljuje novu vijest.' : 'Med&X shares an announcement.');
+        const dateline = `${city}, ${dateLabel}`.replace(/^, |, $/g, '');
+        let html = `<p><strong>${seatEsc(dateline)}</strong> — ${seatEsc(lead).replace(/\n/g, '<br>')}</p>`;
+        if (blocks.length) html += '\n' + blocks.map((b) => `<p>${seatEsc(b).replace(/\n/g, '<br>')}</p>`).join('\n');
+        html += hr
+            ? '\n<p>Med&X i dalje gradi mostove u biomedicini u Hrvatskoj i dijaspori.</p>'
+            : '\n<p>Med&X continues to build bridges in biomedicine across Croatia and the global diaspora.</p>';
+        return html;
+    }
+    function pressSummaryFrom(text, lang) {
+        const plain = String(text == null ? '' : text).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        if (!plain) return '';
+        if (plain.length <= 240) return plain;
+        const cut = plain.slice(0, 240);
+        const lastStop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+        return (lastStop > 120 ? cut.slice(0, lastStop + 1) : cut.replace(/\s+\S*$/, '')).trim();
+    }
+    // AI-assisted body draft for one language. Returns { body, summary, mock }.
+    async function pressDraftForLang({ description, lang, city, dateLabel, title }) {
+        const hr = String(lang).toLowerCase() === 'hr';
+        const purpose = hr
+            ? 'Write the body of an investor-relations style press release in formal Croatian (Vi register). Return 2 to 4 short paragraphs of plain prose only, no headline, no dateline, no contact block, no bullet points.'
+            : 'Write the body of an investor-relations style press release in American English. Return 2 to 4 short paragraphs of plain prose only, no headline, no dateline, no contact block, no bullet points.';
+        let bodyText = '';
+        let mock = true;
+        try {
+            const r = await aiDraft({ purpose, context: { announcement: description, headline: title || '', organization: 'Med&X, a Croatian biomedical non-profit', location: city, date: dateLabel }, maxTokens: 700 });
+            if (r && r.text && !r.mock) { bodyText = r.text.trim(); mock = false; }
+        } catch (e) { bodyText = ''; }
+        let bodyHtml;
+        if (bodyText) {
+            const dateline = `${city}, ${dateLabel}`.replace(/^, |, $/g, '');
+            const paras = pressParagraphs(bodyText);
+            // Prepend the dateline to the first paragraph.
+            bodyHtml = paras.replace(/^<p>/, `<p><strong>${seatEsc(dateline)}</strong> — `);
+        } else {
+            bodyHtml = pressDeterministicBody(description, city, dateLabel, lang);
+        }
+        return { body: bodyHtml, summary: pressSummaryFrom(bodyHtml, lang), mock };
+    }
+
+    // Full investor-relations render used by preview, PDF, Word, and the public web page.
+    // opts.web = site-styled public page (Fraunces/Inter, paper + crimson) with a newsroom link.
+    function pressReleaseHtml(row, opts) {
+        opts = opts || {};
+        const web = !!opts.web;
+        const hr = String(row.lang || 'en').toLowerCase() === 'hr';
+        let tj = {}; try { tj = row.template_json ? JSON.parse(row.template_json) : {}; } catch (e) { tj = {}; }
+        const accent = /^#[0-9a-fA-F]{3,8}$/.test(String(tj.accent || '')) ? tj.accent : '#9b1b22';
+        const showBoiler = tj.show_boilerplate !== false;
+        const showContact = tj.show_contact !== false;
+        const showLogo = tj.logo !== false;
+        const dateLabel = pressDateLabel(row.dateline_date, row.lang) || (row.dateline_date || '');
+        const dateline = [row.dateline_city, dateLabel].filter(Boolean).join(', ');
+        const forImmediate = hr ? 'ZA TRENUTAČNU OBJAVU' : 'FOR IMMEDIATE RELEASE';
+        const endMark = '###';
+        const boilerLabel = hr ? 'O Med&X-u' : 'About Med&X';
+        const contactLabel = hr ? 'Kontakt za medije' : 'Media contact';
+        const newsroomLabel = hr ? 'Povratak na press' : 'Back to the newsroom';
+        const boiler = seatEsc(row.boilerplate || pressBoilerplateDefault(row.lang));
+        const contact = seatEsc(row.contact_block || pressContactDefault(row.lang));
+        const bodyHtml = row.body || '';
+        const subtitle = row.subtitle ? `<p class="pr-sub">${seatEsc(row.subtitle)}</p>` : '';
+        const logo = showLogo ? `<img class="pr-logo" src="${PRESS_LOGO_DATA_URI}" alt="Med&amp;X" width="150" height="33">` : `<div class="pr-word">Med&amp;X</div>`;
+        const siteBase = (process.env.SITE_PUBLIC_URL || 'https://medx.hr').replace(/\/+$/, '');
+        const newsroomHref = siteBase + (hr ? '/hr/press.html' : '/press.html');
+
+        if (web) {
+            return `<!doctype html><html lang="${hr ? 'hr' : 'en'}"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${seatEsc(row.title || 'Press release')} — Med&X</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23faf7f2'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='19' font-weight='700' text-anchor='middle' fill='%239b1b22'%3EX%3C/text%3E%3C/svg%3E">
+<meta name="description" content="${seatEsc(row.summary || '')}">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1c140f;--ink-soft:#6b5d52;--paper:#faf7f2;--line:#e7ddd0;--crimson:${accent}}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,Arial,sans-serif;line-height:1.7}
+.pr-wrap{max-width:760px;margin:0 auto;padding:38px 22px 90px}
+.pr-top{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:34px}
+.pr-logo{height:33px;width:auto;display:block}.pr-word{font-family:Fraunces,Georgia,serif;font-size:24px;font-weight:600;color:var(--crimson)}
+.pr-back{font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);text-decoration:none}
+.pr-back:hover{color:var(--crimson)}
+.pr-fir{font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--crimson);margin:0 0 14px}
+.pr-tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--crimson);border:1px solid var(--line);border-radius:999px;padding:5px 12px;margin-bottom:16px}
+h1{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:clamp(1.9rem,4vw,2.7rem);line-height:1.1;margin:0 0 14px;text-wrap:balance}
+.pr-sub{font-size:1.16rem;color:var(--ink-soft);margin:0 0 26px;font-weight:400}
+.pr-body p{font-size:1.03rem;margin:0 0 18px}
+.pr-end{text-align:center;letter-spacing:.4em;color:var(--ink-soft);margin:34px 0}
+.pr-block{border-top:1px solid var(--line);padding-top:22px;margin-top:30px}
+.pr-block h4{font-family:Inter;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--crimson);margin:0 0 8px}
+.pr-block p{margin:0;color:var(--ink-soft);font-size:.96rem}
+</style></head><body>
+<div class="pr-wrap">
+  <div class="pr-top">${logo}<a class="pr-back" href="${newsroomHref}">${newsroomLabel} &rarr;</a></div>
+  <p class="pr-fir">${forImmediate}</p>
+  ${row.tag ? `<span class="pr-tag">${seatEsc(row.tag)}</span>` : ''}
+  <h1>${seatEsc(row.title || '')}</h1>
+  ${subtitle}
+  <div class="pr-body">${bodyHtml}</div>
+  <div class="pr-end">${endMark}</div>
+  ${showBoiler ? `<div class="pr-block"><h4>${boilerLabel}</h4><p>${boiler}</p></div>` : ''}
+  ${showContact ? `<div class="pr-block"><h4>${contactLabel}</h4><p>${contact}</p></div>` : ''}
+</div>
+</body></html>`;
+        }
+        // Print / PDF / Word (A4 investor-relations sheet).
+        return `<!DOCTYPE html><html lang="${hr ? 'hr' : 'en'}"><head><meta charset="UTF-8"><style>
+@page{size:A4;margin:22mm}*{box-sizing:border-box}
+body{font-family:Georgia,'Times New Roman',serif;color:#15110f;margin:0;line-height:1.55;font-size:12pt}
+.h{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid ${accent};padding-bottom:12px;margin-bottom:20px}
+.h .word{font-family:Georgia,serif;font-size:22px;font-weight:700;color:${accent}}
+.h img{height:34px}
+.fir{font-family:Arial,sans-serif;font-size:9pt;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:${accent};margin:0 0 10px}
+.tag{font-family:Arial,sans-serif;font-size:8pt;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${accent};border:1px solid #d8cdbd;border-radius:999px;padding:3px 9px}
+h1{font-size:20pt;line-height:1.15;margin:12px 0 6px}
+.sub{color:#5b5148;font-size:12.5pt;margin:0 0 16px;font-style:italic}
+.body p{margin:0 0 11px}
+.end{text-align:center;letter-spacing:.5em;color:#8a8178;margin:22px 0}
+.block{border-top:1px solid #e6e0d6;padding-top:12px;margin-top:16px}
+.block h4{font-family:Arial,sans-serif;font-size:8.5pt;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:${accent};margin:0 0 5px}
+.block p{margin:0;color:#3f382f;font-size:10.5pt}
+</style></head><body>
+<div class="h">${logo.replace('pr-logo', '').replace('pr-word', 'word')}<div style="font-family:Arial,sans-serif;font-size:8.5pt;letter-spacing:.16em;text-transform:uppercase;color:#8a8178">Press release</div></div>
+<p class="fir">${forImmediate}</p>
+${row.tag ? `<span class="tag">${seatEsc(row.tag)}</span>` : ''}
+<h1>${seatEsc(row.title || '')}</h1>
+${row.subtitle ? `<p class="sub">${seatEsc(row.subtitle)}</p>` : ''}
+<div class="body">${bodyHtml}</div>
+<div class="end">${endMark}</div>
+${showBoiler ? `<div class="block"><h4>${boilerLabel}</h4><p>${boiler}</p></div>` : ''}
+${showContact ? `<div class="block"><h4>${contactLabel}</h4><p>${contact}</p></div>` : ''}
+</body></html>`;
+    }
+
+    // ---- Composer: seeds (recent portal announcements / social posts to draft from) ----
+    app.get('/api/pr/press-seeds', auth, adminOnly, (req, res) => {
+        const seeds = [];
+        try {
+            const cal = query.all("SELECT id, title, content_text, scheduled_date, project FROM pr_content_calendar WHERE COALESCE(title,'') <> '' OR COALESCE(content_text,'') <> '' ORDER BY COALESCE(scheduled_date, created_at) DESC LIMIT 8");
+            cal.forEach((c) => seeds.push({ kind: 'planned post', title: c.title || (c.content_text || '').slice(0, 60), text: c.content_text || c.title || '', project: c.project || '', date: c.scheduled_date || '' }));
+        } catch (e) {}
+        try {
+            const posts = query.all("SELECT id, content_text, project, published_at FROM pr_posts WHERE COALESCE(content_text,'') <> '' ORDER BY COALESCE(published_at, created_at) DESC LIMIT 6");
+            posts.forEach((p) => seeds.push({ kind: 'social post', title: (p.content_text || '').slice(0, 60), text: p.content_text || '', project: p.project || '', date: p.published_at || '' }));
+        } catch (e) {}
+        try {
+            const st = query.all("SELECT project_key, status_label, detail_line FROM project_status WHERE COALESCE(detail_line,'') <> '' LIMIT 8");
+            st.forEach((s) => seeds.push({ kind: 'project update', title: `${s.project_key}: ${s.status_label || ''}`.trim(), text: s.detail_line || '', project: s.project_key || '', date: '' }));
+        } catch (e) {}
+        res.json({ seeds });
+    });
+
+    // ---- Composer: AI-assisted draft (EN then HR) — does NOT persist. Composer edits, then saves. ----
+    app.post('/api/pr/press-releases/draft', auth, adminOnly, async (req, res) => {
+        try {
+            const b = req.body || {};
+            const description = String(b.description || '').slice(0, 6000);
+            if (!description.trim() && !b.title) return res.status(400).json({ error: 'Describe the announcement first.' });
+            const city = String(b.dateline_city || 'Zagreb').slice(0, 80);
+            const isoDate = /^\d{4}-\d{2}-\d{2}/.test(String(b.dateline_date || '')) ? String(b.dateline_date).slice(0, 10) : new Date().toISOString().slice(0, 10);
+            const tag = String(b.tag || 'Announcement').slice(0, 40);
+            const project = String(b.project || 'medx').slice(0, 40);
+            const wantLangs = Array.isArray(b.langs) && b.langs.length ? b.langs : ['en', 'hr'];
+            const title = String(b.title || '').slice(0, 200);
+            const out = { ok: true, mock: false };
+            for (const lang of wantLangs) {
+                if (lang !== 'en' && lang !== 'hr') continue;
+                const dateLabel = pressDateLabel(isoDate, lang);
+                const draft = await pressDraftForLang({ description, lang, city, dateLabel, title });
+                out[lang] = {
+                    lang, title, subtitle: '', tag, project,
+                    dateline_city: city, dateline_date: isoDate,
+                    summary: draft.summary, body: draft.body,
+                    boilerplate: pressBoilerplateDefault(lang), contact_block: pressContactDefault(lang),
+                    mock: draft.mock
+                };
+                if (draft.mock) out.mock = true;
+            }
+            res.json(out);
+        } catch (e) { console.error('[press.draft]', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ---- List / read ----
+    app.get('/api/pr/press-releases', auth, adminOnly, (req, res) => {
+        const rows = query.all("SELECT id, pair_id, lang, slug, status, project, tag, title, subtitle, dateline_city, dateline_date, summary, published_at, updated_at, created_at FROM press_releases ORDER BY COALESCE(published_at, updated_at, created_at) DESC");
+        // Group EN + HR versions of the same announcement under one pair.
+        const byPair = {};
+        const order = [];
+        rows.forEach((r) => {
+            const key = r.pair_id || r.id;
+            if (!byPair[key]) { byPair[key] = { pair_id: key, versions: {}, latest: r.updated_at || r.created_at, status: r.status }; order.push(key); }
+            byPair[key].versions[r.lang] = r;
+            if ((r.published_at || '') && byPair[key].status !== 'published') byPair[key].status = 'published';
+        });
+        res.json({ releases: order.map((k) => byPair[k]) });
+    });
+    app.get('/api/pr/press-releases/:id', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT * FROM press_releases WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Release not found' });
+        const pair = row.pair_id ? query.all('SELECT * FROM press_releases WHERE pair_id = ?', [row.pair_id]) : [row];
+        res.json({ release: row, versions: pair });
+    });
+
+    // ---- Create a release pair (EN and/or HR). Body: { versions: [{lang,title,...}], ... } ----
+    app.post('/api/pr/press-releases', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const versions = Array.isArray(b.versions) ? b.versions : [];
+            if (!versions.length) return res.status(400).json({ error: 'Nothing to save. Add at least one language version.' });
+            const pairId = b.pair_id || uuidv4();
+            const created = [];
+            for (const v of versions) {
+                const lang = (v.lang === 'hr') ? 'hr' : 'en';
+                const title = String(v.title || '').slice(0, 200);
+                if (!title && !v.body) continue;
+                const baseSlug = pressSlugify((title || 'release') + (lang === 'hr' ? '-hr' : ''));
+                const slug = pressUniqueSlug(baseSlug);
+                const id = uuidv4();
+                const isoDate = /^\d{4}-\d{2}-\d{2}/.test(String(v.dateline_date || '')) ? String(v.dateline_date).slice(0, 10) : new Date().toISOString().slice(0, 10);
+                db.run(`INSERT INTO press_releases (id, pair_id, lang, slug, status, project, tag, title, subtitle, dateline_city, dateline_date, summary, body, boilerplate, contact_block, template_json, seed_ref, ai_generated, created_by)
+                        VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [id, pairId, lang, slug, String(v.project || 'medx').slice(0, 40), String(v.tag || 'Announcement').slice(0, 40),
+                     title, String(v.subtitle || '').slice(0, 300), String(v.dateline_city || 'Zagreb').slice(0, 80), isoDate,
+                     String(v.summary || pressSummaryFrom(v.body, lang)).slice(0, 600), String(v.body || ''),
+                     v.boilerplate != null ? String(v.boilerplate) : pressBoilerplateDefault(lang),
+                     v.contact_block != null ? String(v.contact_block) : pressContactDefault(lang),
+                     v.template_json ? JSON.stringify(v.template_json) : null, String(b.seed_ref || '').slice(0, 200) || null,
+                     v.mock === false ? 1 : (b.ai_generated ? 1 : 0), req.user?.email || req.user?.id || null]);
+                created.push({ id, lang, slug });
+            }
+            if (!created.length) return res.status(400).json({ error: 'Each version needs at least a title or body.' });
+            logAudit(req, 'press_release_create', `${created.length} version(s), pair ${pairId}`);
+            saveDb();
+            res.json({ success: true, pair_id: pairId, created });
+        } catch (e) { console.error('[press.create]', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ---- Edit one version (template AND text) ----
+    app.put('/api/pr/press-releases/:id', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT * FROM press_releases WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Release not found' });
+        const b = req.body || {};
+        const fields = [];
+        const params = [];
+        const set = (col, val) => { fields.push(`${col} = ?`); params.push(val); };
+        if (b.title != null) set('title', String(b.title).slice(0, 200));
+        if (b.subtitle != null) set('subtitle', String(b.subtitle).slice(0, 300));
+        if (b.tag != null) set('tag', String(b.tag).slice(0, 40));
+        if (b.project != null) set('project', String(b.project).slice(0, 40));
+        if (b.dateline_city != null) set('dateline_city', String(b.dateline_city).slice(0, 80));
+        if (b.dateline_date != null && /^\d{4}-\d{2}-\d{2}/.test(String(b.dateline_date))) set('dateline_date', String(b.dateline_date).slice(0, 10));
+        if (b.summary != null) set('summary', String(b.summary).slice(0, 600));
+        if (b.body != null) set('body', String(b.body));
+        if (b.boilerplate != null) set('boilerplate', String(b.boilerplate));
+        if (b.contact_block != null) set('contact_block', String(b.contact_block));
+        if (b.template_json != null) set('template_json', typeof b.template_json === 'string' ? b.template_json : JSON.stringify(b.template_json));
+        if (!fields.length) return res.json({ success: true, unchanged: true });
+        set('updated_at', new Date().toISOString());
+        params.push(row.id);
+        db.run(`UPDATE press_releases SET ${fields.join(', ')} WHERE id = ?`, params);
+        logAudit(req, 'press_release_edit', `Release ${row.id} (${row.lang}) edited`);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    // ---- Publish / unpublish (writes to the public press page via /api/public/press) ----
+    app.post('/api/pr/press-releases/:id/publish', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT * FROM press_releases WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Release not found' });
+        // Publish this version AND its paired sibling of the other language, if present.
+        const targets = row.pair_id ? query.all('SELECT id FROM press_releases WHERE pair_id = ?', [row.pair_id]) : [{ id: row.id }];
+        const scope = (req.body && req.body.this_only) ? [{ id: row.id }] : targets;
+        const now = new Date().toISOString();
+        scope.forEach((t) => db.run("UPDATE press_releases SET status = 'published', published_at = COALESCE(published_at, ?), updated_at = ? WHERE id = ?", [now, now, t.id]));
+        logAudit(req, 'press_release_publish', `Release ${row.id} published (${scope.length} version(s))`);
+        saveDb();
+        res.json({ success: true, published: scope.length });
+    });
+    app.post('/api/pr/press-releases/:id/unpublish', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT * FROM press_releases WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Release not found' });
+        const targets = row.pair_id ? query.all('SELECT id FROM press_releases WHERE pair_id = ?', [row.pair_id]) : [{ id: row.id }];
+        const scope = (req.body && req.body.this_only) ? [{ id: row.id }] : targets;
+        scope.forEach((t) => db.run("UPDATE press_releases SET status = 'draft', published_at = NULL, updated_at = ? WHERE id = ?", [new Date().toISOString(), t.id]));
+        logAudit(req, 'press_release_unpublish', `Release ${row.id} unpublished (${scope.length})`);
+        saveDb();
+        res.json({ success: true });
+    });
+    app.delete('/api/pr/press-releases/:id', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT * FROM press_releases WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Release not found' });
+        db.run('DELETE FROM press_releases WHERE id = ?', [row.id]);
+        logAudit(req, 'press_release_delete', `Release ${row.id} (${row.lang}) deleted`);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    // ---- Preview (HTML), PDF export (print-suite), Word-editable export (.doc-as-HTML) ----
+    app.get('/api/pr/press-releases/:id/preview', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT * FROM press_releases WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Release not found' });
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(pressReleaseHtml(row, { web: req.query.web === '1' }));
+    });
+    app.get('/api/pr/press-releases/:id/export.doc', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT * FROM press_releases WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Release not found' });
+        const html = pressReleaseHtml(row, { web: false });
+        res.setHeader('Content-Type', 'application/msword');
+        res.setHeader('Content-Disposition', `attachment; filename="press-release-${row.slug || row.id}.doc"`);
+        res.send('﻿' + html);
+    });
+    app.get('/api/pr/press-releases/:id/export.pdf', auth, adminOnly, async (req, res) => {
+        const row = query.get('SELECT * FROM press_releases WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Release not found' });
+        if (typeof psChromeBinary === 'function' && !psChromeBinary()) {
+            return res.status(503).json({ error: 'print_engine_unavailable', message: 'The print engine (headless Chrome) is not available here. Set CHROME_PATH to enable PDF export. The Word export and preview still work.' });
+        }
+        try {
+            const os = require('os'); const pathMod = require('path');
+            const outPath = pathMod.join(os.tmpdir(), 'press-release-' + row.id + '.pdf');
+            await psRenderPdf(pressReleaseHtml(row, { web: false }), outPath);
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="press-release-${row.slug || row.id}.pdf"`);
+            require('fs').createReadStream(outPath).pipe(res);
+        } catch (e) {
+            res.status(503).json({ error: 'print_engine_unavailable', message: String(e && e.message || e) });
+        }
+    });
+
+    // ===================== MEDIA CONTACTS (admin-only) =====================
+    const pressImportUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+    const MEDIA_FIELD_SYNONYMS = {
+        outlet:       ['outlet', 'media', 'publication', 'medij', 'portal', 'newspaper', 'magazine', 'organization', 'organisation', 'company'],
+        contact_name: ['contactname', 'contact', 'name', 'journalist', 'reporter', 'editor', 'novinar', 'urednik', 'person', 'fullname'],
+        email:        ['email', 'emailaddress', 'mail', 'epota', 'emailid'],
+        beat:         ['beat', 'desk', 'topic', 'section', 'rubrika', 'category', 'coverage'],
+        country:      ['country', 'nation', 'drzava', 'zemlja'],
+        language:     ['language', 'lang', 'jezik'],
+        notes:        ['notes', 'note', 'comment', 'comments', 'napomena', 'remark']
+    };
+    function suggestMediaMapping(columns) {
+        const map = {}; const used = new Set();
+        for (const [field, syns] of Object.entries(MEDIA_FIELD_SYNONYMS)) {
+            for (const col of columns) {
+                if (used.has(col)) continue;
+                const n = String(col == null ? '' : col).toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (syns.includes(n)) { map[field] = col; used.add(col); break; }
+            }
+        }
+        return map;
+    }
+    function mediaDefaultLanguage(country) {
+        const c = String(country || '').toLowerCase();
+        if (!c) return 'hr';
+        if (/(croat|hrvat|^hr$|^hrv$)/.test(c)) return 'hr';
+        return 'en';
+    }
+
+    app.get('/api/pr/media-contacts', auth, adminOnly, (req, res) => {
+        const rows = query.all('SELECT * FROM media_contacts ORDER BY included DESC, outlet ASC, contact_name ASC');
+        let paused = 0; try { paused = query.get('SELECT send_paused FROM press_settings WHERE id = 1')?.send_paused ? 1 : 0; } catch (e) {}
+        res.json({ contacts: rows, send_paused: paused });
+    });
+    app.post('/api/pr/media-contacts', auth, adminOnly, (req, res) => {
+        const b = req.body || {};
+        if (!b.outlet && !b.email) return res.status(400).json({ error: 'An outlet name or an email is required.' });
+        const id = uuidv4();
+        const country = String(b.country || '').slice(0, 80);
+        const language = (b.language === 'en' || b.language === 'hr') ? b.language : mediaDefaultLanguage(country);
+        db.run(`INSERT INTO media_contacts (id, outlet, contact_name, email, beat, country, language, included, notes, source)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')`,
+            [id, String(b.outlet || '').slice(0, 160), String(b.contact_name || '').slice(0, 160), String(b.email || '').slice(0, 200),
+             String(b.beat || '').slice(0, 80), country, language, b.included === false ? 0 : 1, String(b.notes || '').slice(0, 500)]);
+        logAudit(req, 'media_contact_add', `${b.outlet || b.email}`);
+        saveDb();
+        res.json({ success: true, id });
+    });
+    app.put('/api/pr/media-contacts/:id', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT * FROM media_contacts WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Contact not found' });
+        const b = req.body || {};
+        const fields = []; const params = [];
+        const set = (c, v) => { fields.push(`${c} = ?`); params.push(v); };
+        if (b.outlet != null) set('outlet', String(b.outlet).slice(0, 160));
+        if (b.contact_name != null) set('contact_name', String(b.contact_name).slice(0, 160));
+        if (b.email != null) set('email', String(b.email).slice(0, 200));
+        if (b.beat != null) set('beat', String(b.beat).slice(0, 80));
+        if (b.country != null) set('country', String(b.country).slice(0, 80));
+        if (b.language != null && (b.language === 'en' || b.language === 'hr')) set('language', b.language);
+        if (b.included != null) set('included', b.included ? 1 : 0);
+        if (b.notes != null) set('notes', String(b.notes).slice(0, 500));
+        if (!fields.length) return res.json({ success: true, unchanged: true });
+        set('updated_at', new Date().toISOString());
+        params.push(row.id);
+        db.run(`UPDATE media_contacts SET ${fields.join(', ')} WHERE id = ?`, params);
+        saveDb();
+        res.json({ success: true });
+    });
+    app.delete('/api/pr/media-contacts/:id', auth, adminOnly, (req, res) => {
+        db.run('DELETE FROM media_contacts WHERE id = ?', [req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    // Kill switch for press sends.
+    app.post('/api/pr/media-contacts/pause', auth, adminOnly, (req, res) => {
+        const paused = (req.body && req.body.send_paused) ? 1 : 0;
+        db.run('UPDATE press_settings SET send_paused = ?, updated_at = ? WHERE id = 1', [paused, new Date().toISOString()]);
+        logAudit(req, 'press_send_pause', paused ? 'paused' : 'resumed');
+        saveDb();
+        res.json({ success: true, send_paused: paused });
+    });
+
+    // Import a CSV / XLSX of outlets (reuses the shared file->rows machinery).
+    app.post('/api/pr/media-contacts/import/preview', auth, adminOnly, pressImportUpload.single('file'), (req, res) => {
+        try {
+            if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+            let aoa;
+            try { aoa = contactFileToAoa(req.file); }
+            catch (e) { return res.status(400).json({ error: 'Could not read that file. Please upload a CSV or XLSX with a header row.' }); }
+            const { columns, rows } = aoaToTable(aoa);
+            if (!columns.length) return res.status(400).json({ error: 'The file appears to be empty.' });
+            res.json({ columns, rows, total: rows.length, sample: rows.slice(0, 8), suggested_mapping: suggestMediaMapping(columns), fields: Object.keys(MEDIA_FIELD_SYNONYMS), filename: req.file.originalname });
+        } catch (e) { console.error('[media.import.preview]', e.message); res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/pr/media-contacts/import/commit', auth, adminOnly, (req, res) => {
+        try {
+            const mapping = (req.body && req.body.mapping) || {};
+            const rows = Array.isArray(req.body && req.body.rows) ? req.body.rows : [];
+            if (!rows.length) return res.status(400).json({ error: 'No rows to import' });
+            const val = (row, field) => (mapping[field] && row[mapping[field]] != null) ? String(row[mapping[field]]).trim() : '';
+            const seen = new Set();
+            let added = 0, merged = 0, skipped = 0;
+            for (const row of rows) {
+                const outlet = val(row, 'outlet');
+                const email = val(row, 'email');
+                const emailKey = email.toLowerCase();
+                if (!outlet && !email) { skipped++; continue; }
+                if (emailKey && seen.has(emailKey)) { skipped++; continue; }
+                if (emailKey) seen.add(emailKey);
+                const country = val(row, 'country');
+                const langRaw = val(row, 'language').toLowerCase();
+                const language = (langRaw === 'en' || langRaw.startsWith('eng')) ? 'en' : (langRaw === 'hr' || langRaw.startsWith('cro') || langRaw.startsWith('hrv')) ? 'hr' : mediaDefaultLanguage(country);
+                const existing = emailKey ? query.get('SELECT * FROM media_contacts WHERE lower(email) = ? LIMIT 1', [emailKey]) : null;
+                if (existing) {
+                    db.run(`UPDATE media_contacts SET outlet = COALESCE(NULLIF(?, ''), outlet), contact_name = COALESCE(NULLIF(?, ''), contact_name), beat = COALESCE(NULLIF(?, ''), beat), country = COALESCE(NULLIF(?, ''), country), notes = COALESCE(NULLIF(?, ''), notes), updated_at = ? WHERE id = ?`,
+                        [outlet, val(row, 'contact_name'), val(row, 'beat'), country, val(row, 'notes'), new Date().toISOString(), existing.id]);
+                    merged++;
+                } else {
+                    db.run(`INSERT INTO media_contacts (id, outlet, contact_name, email, beat, country, language, included, notes, source)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, 'import')`,
+                        [uuidv4(), outlet, val(row, 'contact_name'), email, val(row, 'beat'), country, language, val(row, 'notes')]);
+                    added++;
+                }
+            }
+            logAudit(req, 'media_contacts_import', `${added} added, ${merged} merged, ${skipped} skipped`);
+            saveDb();
+            res.json({ success: true, added, merged, skipped });
+        } catch (e) { console.error('[media.import.commit]', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ---- Send a release to the media list (BCC-style, one outbox row per included outlet) ----
+    app.post('/api/pr/press-releases/:id/send', auth, adminOnly, (req, res) => {
+        try {
+            const row = query.get('SELECT * FROM press_releases WHERE id = ?', [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Release not found' });
+            let paused = 0; try { paused = query.get('SELECT send_paused FROM press_settings WHERE id = 1')?.send_paused ? 1 : 0; } catch (e) {}
+            if (paused) return res.status(423).json({ error: 'send_paused', message: 'Sending is paused. Resume it in the media list before staging a send.' });
+
+            const pairId = row.pair_id || row.id;
+            const versions = query.all('SELECT * FROM press_releases WHERE pair_id = ? OR id = ?', [pairId, row.id]);
+            const byLang = {}; versions.forEach((v) => { byLang[v.lang] = v; });
+            const pickVersion = (lang) => byLang[lang] || byLang.en || byLang.hr || row;
+
+            const contacts = query.all("SELECT * FROM media_contacts WHERE included = 1 AND COALESCE(email,'') <> '' AND email LIKE '%@%'");
+            const excluded = query.get('SELECT COUNT(*) AS c FROM media_contacts WHERE included = 0')?.c || 0;
+            if (!contacts.length) return res.status(400).json({ error: 'No included outlets with an email. Add outlets or include some first.' });
+
+            const batchId = 'press-release-' + pairId;
+            let staged = 0, already = 0;
+            for (const c of contacts) {
+                const lang = (c.language === 'en') ? 'en' : 'hr';
+                const rel = pickVersion(lang);
+                const marker = `press:${pairId}:${c.id}`;
+                db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'press-media', ?, ?)", [uuidv4(), c.email, marker]);
+                if (db.getRowsModified() !== 1) { already++; continue; }
+                const hr = lang === 'hr';
+                const dateLabel = pressDateLabel(rel.dateline_date, lang);
+                const dateline = [rel.dateline_city, dateLabel].filter(Boolean).join(', ');
+                const first = seatEsc(((c.contact_name || '').trim().split(/\s+/)[0]) || (hr ? 'poštovani' : 'there'));
+                const greeting = hr ? `Poštovani ${first},` : `Dear ${first},`;
+                const intro = hr
+                    ? `u nastavku Vam dostavljamo priopćenje za medije organizacije Med&X. Slobodno nas kontaktirajte za dodatne informacije ili razgovor.`
+                    : `please find below a press release from Med&X. We would be glad to answer any questions or arrange an interview.`;
+                const bodyBlock = `<p><strong>${seatEsc(dateline)}</strong></p><h2 style="font-family:Georgia,serif;font-size:20px;color:#15110f;margin:6px 0 4px;">${seatEsc(rel.title || '')}</h2>${rel.subtitle ? `<p style="color:#5b5148;font-style:italic;margin:0 0 12px;">${seatEsc(rel.subtitle)}</p>` : ''}<div style="color:#334155;font-size:15px;line-height:1.7;">${rel.body || ''}</div><div style="text-align:center;letter-spacing:.4em;color:#94a3b8;margin:18px 0;">###</div><p style="color:#64748b;font-size:13px;">${seatEsc(rel.boilerplate || pressBoilerplateDefault(lang))}</p><p style="color:#64748b;font-size:13px;">${seatEsc(rel.contact_block || pressContactDefault(lang))}</p>`;
+                const mail = {
+                    subject: (hr ? 'Priopćenje za medije: ' : 'Press release: ') + (rel.title || 'Med&X'),
+                    html: buildEmailTemplate(hr ? 'Priopćenje za medije' : 'Press release', `<p>${greeting}</p><p>${intro}</p><div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin:16px 0;background:#fbfaf8;">${bodyBlock}</div><p style="color:#64748b;font-size:13px;">${hr ? 'S poštovanjem, Med&X' : 'Best regards, the Med&X team'}</p>`)
+                };
+                db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                        VALUES (?, 'pending_approval', ?, 'press-release', 'press_release', ?, ?, ?, 'press-media-engine', datetime('now'))`,
+                    [uuidv4(), batchId, JSON.stringify({ to: c.email, subject: mail.subject, html: mail.html, outlet: c.outlet, lang }), c.email, mail.subject]);
+                staged++;
+            }
+            logAudit(req, 'press_release_send', `Release ${row.id} staged to ${staged} outlet(s), ${already} already staged, ${excluded} excluded (pending approval)`);
+            saveDb();
+            res.json({ success: true, outbox_batch: batchId, staged, already_staged: already, excluded, note: 'Staged into the approval outbox as pending. Nothing sends until you approve the batch.' });
+        } catch (e) { console.error('[press.send]', e.message); res.status(500).json({ error: e.message }); }
+    });
+
     // ========== CONTACTS/NETWORK API ENDPOINTS ==========
 
     // Get all contacts
@@ -24514,6 +25852,11 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     function assistTok(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2 && !ASSIST_STOP.has(w)); }
 
     const ASSIST_KB = [
+        { id:'cme-hlk', source:'handbook', title:'Accredit an event for CME (HLK)', lead:'flag an event as accredited by the Croatian Medical Chamber and collect physician CME details',
+          where:'CME / HLK in the sidebar', deepLink:{ label:'Open CME / HLK', target:'cme' },
+          kws:'cme hlk accreditation accredited croatian medical chamber komora bodovi points physician doctor oib date of birth continuing education credit report chamber liječnička',
+          steps:['Open CME / HLK in the sidebar and find the conference edition.','Tick Accredited by HLK, then enter the CME points and the accreditation number, and click Save.','The registration form then shows physicians an optional section for date of birth and OIB, collected only with their explicit consent.','When you need to report to the chamber, open the event here and click Export CSV for the consented attendees.'],
+          watch:'CME credit is official chamber credit and is separate from the internal rewards points. Date of birth and OIB are collected only with explicit consent and are visible only to admins.' },
         { id:'newsletter', source:'handbook', title:'Send a newsletter', lead:'send a newsletter',
           where:'Newsletter in the sidebar', deepLink:{ label:'Open Newsletter', target:'newsletter' },
           kws:'newsletter newsletters email members announcement announce update monthly broadcast mass email everyone message members send email blast',
@@ -28596,6 +29939,97 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     // ========== PLEXUS SETTINGS (admin) ==========
 
     // Get plexus settings (admin)
+
+    // ===== CME / HLK ACCREDITATION — admin endpoints (queue 5a5c) =====
+    // Per conference edition: flag it as accredited by the Croatian Medical Chamber (HLK), set the
+    // CME points value + accreditation number, review consented physician submissions, and export
+    // them as CSV for chamber reporting. CME credit is DISTINCT from the internal rewards points.
+    app.get('/api/admin/cme/events', auth, adminOnly, (req, res) => {
+        try {
+            const confs = query.all('SELECT id, name, year, slug, is_active, start_date FROM conferences ORDER BY is_active DESC, year DESC');
+            const out = confs.map(function (c) {
+                const acc = query.get('SELECT * FROM cme_accreditations WHERE conference_id = ?', [c.id]) || {};
+                const counts = query.get('SELECT COUNT(*) AS total, SUM(CASE WHEN consent = 1 THEN 1 ELSE 0 END) AS consented FROM cme_submissions WHERE conference_id = ?', [c.id]) || {};
+                return {
+                    conference_id: c.id, name: c.name, year: c.year, is_active: !!c.is_active, start_date: c.start_date,
+                    is_accredited: !!acc.is_accredited,
+                    points_value: acc.points_value != null ? acc.points_value : null,
+                    accreditation_number: acc.accreditation_number || null,
+                    updated_by: acc.updated_by || null,
+                    updated_at: acc.updated_at || null,
+                    submissions: counts.total || 0,
+                    consented: counts.consented || 0
+                };
+            });
+            res.json(out);
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    app.put('/api/admin/cme/events/:conferenceId', auth, adminOnly, (req, res) => {
+        try {
+            const cid = req.params.conferenceId;
+            const conf = query.get('SELECT id FROM conferences WHERE id = ?', [cid]);
+            if (!conf) return res.status(404).json({ error: 'Conference not found' });
+            const b = req.body || {};
+            const acc = b.is_accredited ? 1 : 0;
+            let pts = null;
+            if (b.points_value !== undefined && b.points_value !== null && b.points_value !== '') {
+                pts = Number(b.points_value);
+                if (!isFinite(pts) || pts < 0) return res.status(400).json({ error: 'Points value must be a non-negative number' });
+            }
+            const num = b.accreditation_number ? String(b.accreditation_number).trim() : null;
+            const now = new Date().toISOString();
+            const existing = query.get('SELECT conference_id FROM cme_accreditations WHERE conference_id = ?', [cid]);
+            if (existing) {
+                db.run('UPDATE cme_accreditations SET is_accredited = ?, points_value = ?, accreditation_number = ?, updated_by = ?, updated_at = ? WHERE conference_id = ?',
+                    [acc, pts, num, (req.user && (req.user.email || req.user.id)) || 'admin', now, cid]);
+            } else {
+                db.run('INSERT INTO cme_accreditations (conference_id, is_accredited, points_value, accreditation_number, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+                    [cid, acc, pts, num, (req.user && (req.user.email || req.user.id)) || 'admin', now]);
+            }
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    app.get('/api/admin/cme/events/:conferenceId/attendees', auth, adminOnly, (req, res) => {
+        try {
+            const cid = req.params.conferenceId;
+            const rows = query.all('SELECT s.*, u.first_name, u.last_name, u.email FROM cme_submissions s LEFT JOIN users u ON u.id = s.user_id WHERE s.conference_id = ? AND s.consent = 1 ORDER BY s.created_at ASC', [cid]);
+            const out = rows.map(function (r) {
+                return {
+                    registration_id: r.registration_id,
+                    name: [r.first_name, r.last_name].filter(Boolean).join(' '),
+                    email: r.email,
+                    date_of_birth: cmeDecrypt(r.date_of_birth),
+                    oib: cmeDecrypt(r.oib),
+                    consent_at: r.consent_at,
+                    encrypted_at_rest: !!r.enc
+                };
+            });
+            res.json(out);
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    app.get('/api/admin/cme/events/:conferenceId/export.csv', auth, adminOnly, (req, res) => {
+        try {
+            const cid = req.params.conferenceId;
+            const conf = query.get('SELECT name FROM conferences WHERE id = ?', [cid]) || {};
+            const acc = query.get('SELECT points_value, accreditation_number FROM cme_accreditations WHERE conference_id = ?', [cid]) || {};
+            const rows = query.all('SELECT s.*, u.first_name, u.last_name, u.email FROM cme_submissions s LEFT JOIN users u ON u.id = s.user_id WHERE s.conference_id = ? AND s.consent = 1 ORDER BY s.created_at ASC', [cid]);
+            const esc = function (v) { const s = String(v == null ? '' : v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+            const header = ['First name', 'Last name', 'Email', 'Date of birth', 'OIB', 'CME points', 'Accreditation number', 'Consent timestamp'];
+            const lines = [header.map(esc).join(',')];
+            rows.forEach(function (r) {
+                lines.push([r.first_name || '', r.last_name || '', r.email || '', cmeDecrypt(r.date_of_birth), cmeDecrypt(r.oib), acc.points_value != null ? acc.points_value : '', acc.accreditation_number || '', r.consent_at || ''].map(esc).join(','));
+            });
+            const csv = '﻿' + lines.join('\r\n');
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader('Content-Disposition', 'attachment; filename="cme-hlk-' + String(conf.name || 'event').replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '.csv"');
+            res.send(csv);
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
     app.get('/api/admin/plexus/settings', auth, adminOnly, (req, res) => {
         let settings = query.get("SELECT * FROM plexus_settings WHERE id = 'default'");
         if (!settings) {

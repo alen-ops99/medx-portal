@@ -57776,7 +57776,24 @@ button,input,select,textarea{font-family:var(--sans);}
             'gala.toBeAnnounced':{en:'To be announced', hr:'Uskoro objavljujemo'},
             'gala.aboutBody1':{en:"The anchor dinner of Plexus 2026. The people who lead the world's foremost hospitals and universities join Croatia's rising clinicians and researchers for the Biomedical Forum Awards, a five-course dinner, keynote addresses, and live music.", hr:'Središnja večera Plexusa 2026. Ljudi koji vode vodeće svjetske bolnice i sveučilišta pridružuju se hrvatskim kliničarima i istraživačima u usponu na dodjeli nagrada Biomedicinskog foruma, uz večeru u pet slijedova, plenarna izlaganja i glazbu uživo.'},
             'gala.aboutBody2':{en:'Seating is limited by design. The evening is kept intimate so every guest is within reach of the people who lead their field, and so the conversations that start here can carry on long afterward.', hr:'Broj mjesta namjerno je ograničen. Večer ostaje prisna kako bi svaki gost bio nadohvat ljudima koji predvode svoje područje i kako bi se razgovori započeti ovdje mogli nastaviti još dugo nakon nje.'},
-            'gala.dressCodeVal':{en:'Black Tie / Formal Evening Attire', hr:'Black Tie / svečana večernja odjeća'}
+            'gala.dressCodeVal':{en:'Black Tie / Formal Evening Attire', hr:'Black Tie / svečana večernja odjeća'},
+            // ===== Cluster HR-CME: Croatian Medical Chamber (HLK) CME accreditation (queue 5a5c) =====
+            'cme.title':{en:'Continuing Medical Education (CME)', hr:'Trajno medicinsko usavršavanje (CME)'},
+            'cme.intro':{en:'This event is accredited by the Croatian Medical Chamber (HLK). Physicians can receive official CME credit. These details are optional and are used only to report your credit to the chamber.', hr:'Ovaj je događaj akreditiran pri Hrvatskoj liječničkoj komori (HLK). Liječnici mogu ostvariti službene CME bodove. Ovi su podaci neobavezni i koriste se isključivo za prijavu Vaših bodova komori.'},
+            'cme.pointsUnit':{en:'CME points', hr:'CME bodova'},
+            'cme.consent':{en:'I consent to Med&X collecting my date of birth and OIB for the sole purpose of reporting my CME credit to the Croatian Medical Chamber (HLK).', hr:'Pristajem da Med&X prikuplja moj datum rođenja i OIB isključivo u svrhu prijave mojih CME bodova Hrvatskoj liječničkoj komori (HLK).'},
+            'cme.dob':{en:'Date of birth', hr:'Datum rođenja'},
+            'cme.oib':{en:'OIB (personal identification number)', hr:'OIB (osobni identifikacijski broj)'},
+            'cme.oibPh':{en:'11 digits', hr:'11 znamenki'},
+            'cme.errConsent':{en:'Please tick the consent box to submit your CME details, or clear the date of birth and OIB fields.', hr:'Označite polje privole za slanje CME podataka ili ispraznite polja datuma rođenja i OIB-a.'},
+            'cme.errDob':{en:'Please enter your date of birth for CME reporting.', hr:'Unesite svoj datum rođenja za prijavu CME bodova.'},
+            'cme.errOib':{en:'OIB must be 11 digits and pass the check-digit validation.', hr:'OIB mora imati 11 znamenki i zadovoljiti kontrolnu znamenku.'},
+            'cme.saved':{en:'Your CME details were saved.', hr:'Vaši su CME podaci spremljeni.'},
+            'cme.saveFailed':{en:'Your registration is confirmed, but we could not save your CME details. Please contact us.', hr:'Vaša je prijava potvrđena, ali nismo mogli spremiti Vaše CME podatke. Molimo javite nam se.'},
+            'cme.myTitle':{en:'Your CME credit', hr:'Vaši CME bodovi'},
+            'cme.myIntro':{en:'Official continuing-education credit reported to the Croatian Medical Chamber (HLK). This is separate from your Med&X rewards points.', hr:'Službeni bodovi trajnog usavršavanja prijavljeni Hrvatskoj liječničkoj komori (HLK). Odvojeni su od Vaših Med&X nagradnih bodova.'},
+            'cme.myConsentedOn':{en:'consent given', hr:'privola dana'},
+            'cme.myProtected':{en:'Stored securely and visible only to you and Med&X administrators.', hr:'Pohranjeno sigurno i vidljivo samo Vama i administratorima Med&X-a.'}
           };
 
           var _locale='en';
@@ -62738,6 +62755,29 @@ button,input,select,textarea{font-family:var(--sans);}
                                             <div class="auth-form-group">
                                                 <label class="auth-form-label" data-i18n="f.accessibility">Accessibility Needs</label>
                                                 <textarea class="auth-form-input" id="pxRegAccessibility" rows="2" placeholder="Any special requirements..." maxlength="2000"></textarea>
+                                            </div>
+                                            <!-- CME / HLK physician section (queue 5a5c) — shown only when the active event is chamber-accredited -->
+                                            <div class="auth-form-group" id="pxCmeSection" style="display:none; margin-top:20px; border:1px solid var(--up-border,#e5e0d8); border-radius:12px; padding:18px; background:var(--up-bg-soft,rgba(201,169,98,.06));">
+                                                <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+                                                    <i class="fas fa-user-md" style="color:var(--crimson,#9b1b22);"></i>
+                                                    <span style="font-weight:700; color:var(--up-text,#1d1d1f);" data-i18n="cme.title">Continuing Medical Education (CME)</span>
+                                                    <span id="pxCmePointsChip" style="display:none; margin-left:auto; font-size:12px; font-weight:600; color:var(--crimson,#9b1b22); background:rgba(155,27,34,.08); border:1px solid rgba(155,27,34,.2); border-radius:999px; padding:3px 10px;"><b id="pxCmePointsNum">0</b> <span data-i18n="cme.pointsUnit">CME points</span></span>
+                                                </div>
+                                                <p style="font-size:13px; color:var(--up-text-muted,#6b6b70); margin:0 0 14px;" data-i18n="cme.intro">This event is accredited by the Croatian Medical Chamber (HLK). Physicians can receive official CME credit. These details are optional and are used only to report your credit to the chamber.</p>
+                                                <label style="display:flex; gap:10px; align-items:flex-start; cursor:pointer; margin-bottom:14px;">
+                                                    <input type="checkbox" id="pxCmeConsent" style="margin-top:3px; width:18px; height:18px; flex:0 0 auto;">
+                                                    <span style="font-size:13px; color:var(--up-text,#1d1d1f);" data-i18n="cme.consent">I consent to Med&amp;X collecting my date of birth and OIB for the sole purpose of reporting my CME credit to the Croatian Medical Chamber (HLK).</span>
+                                                </label>
+                                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+                                                    <div>
+                                                        <label class="auth-form-label" data-i18n="cme.dob">Date of birth</label>
+                                                        <input type="date" class="auth-form-input" id="pxCmeDob" style="width:100%;">
+                                                    </div>
+                                                    <div>
+                                                        <label class="auth-form-label" data-i18n="cme.oib">OIB (personal identification number)</label>
+                                                        <input type="text" class="auth-form-input" id="pxCmeOib" maxlength="11" inputmode="numeric" autocomplete="off" placeholder="11 digits" data-i18n-placeholder="cme.oibPh" style="width:100%;">
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -71483,6 +71523,9 @@ button,input,select,textarea{font-family:var(--sans);}
                         <!-- Populated by GuestPass.renderHub() -->
                     </div>
 
+                    <!-- CME / HLK credit (queue 5a5c) — populated by MyMedXPortal.renderMyCme(); hidden when the member has no CME record -->
+                    <div id="mymedxCme" style="display:none; margin-bottom:24px;"></div>
+
                     <!-- Past purchases (orders + refund / ask-the-team, via the messages inbox) -->
                     <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0 0 8px; padding-left: 4px;" data-i18n="mmx.pastPurchases">Past purchases</h3>
                     <p class="mmx-purchase-intro" data-i18n="mmx.purchaseIntro">Every Med&amp;X purchase matters to us. Ask us anything about an order and our team will get back to you quickly.</p>
@@ -79370,6 +79413,38 @@ You can use variables like {first_name} that will be personalized for each recip
                 this.renderRecord();
                 this.renderGuestPasses();
                 this.renderGiving();
+                this.renderMyCme();
+            },
+
+            // The member's own CME record (queue 5a5c) — read-only self-view. Official chamber
+            // credit, kept distinct from rewards points. Hidden entirely when there is no record.
+            renderMyCme() {
+                var el = document.getElementById('mymedxCme');
+                if (!el) return;
+                var token = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
+                var apiBase = (typeof API_BASE !== 'undefined') ? API_BASE : '';
+                fetch(apiBase + '/api/plexus/cme/my', { headers: token ? { 'Authorization': 'Bearer ' + token } : {} })
+                    .then(function(r){ return r.ok ? r.json() : []; })
+                    .then(function(rows){
+                        if (!Array.isArray(rows) || !rows.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+                        var esc = function(x){ return String(x == null ? '' : x).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); };
+                        var items = rows.map(function(r){
+                            var when = r.consent_at ? String(r.consent_at).slice(0,10) : '';
+                            var pts = (r.points_value != null) ? ('<span style="font-weight:700;color:var(--crimson,#9b1b22);">' + esc(r.points_value) + '</span> <span style="font-size:12px;color:var(--up-text-muted,#6b6b70);">' + esc(t('cme.pointsUnit')) + '</span>') : '';
+                            return '<div style="border:1px solid var(--up-border,#e5e0d8);border-radius:12px;padding:14px 16px;">'
+                                + '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">'
+                                + '<div style="font-weight:600;color:var(--up-text,#1d1d1f);">' + esc(r.conference_name || '') + '</div>'
+                                + '<div>' + pts + '</div></div>'
+                                + '<div style="font-size:12px;color:var(--up-text-muted,#6b6b70);margin-top:8px;">OIB ' + esc(r.oib || '') + ' &middot; ' + esc(t('cme.myConsentedOn')) + ' ' + esc(when) + '</div>'
+                                + '</div>';
+                        }).join('');
+                        el.innerHTML = '<h3 style="font-size:16px;font-weight:600;color:var(--up-text,#1d1d1f);margin:0 0 8px;padding-left:4px;">' + esc(t('cme.myTitle')) + '</h3>'
+                            + '<p class="mmx-purchase-intro">' + esc(t('cme.myIntro')) + '</p>'
+                            + '<div style="display:flex;flex-direction:column;gap:12px;">' + items + '</div>'
+                            + '<p style="font-size:11px;color:var(--up-text-muted,#6b6b70);margin:10px 0 0;padding-left:4px;">' + esc(t('cme.myProtected')) + '</p>';
+                        el.style.display = '';
+                    })
+                    .catch(function(){ el.style.display = 'none'; });
             },
 
             // Member-initiated guest passes ("Bring a colleague") — renders the plexus + bridges hub.
@@ -85617,6 +85692,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 this.syncTimelineSelection();
                 // Load dynamic content from API
                 this.loadPlexusSettings();
+                this.loadCMEStatus();
                 this.loadSpeakersFromDB();
                 this.loadScheduleFromDB();
                 this.loadRegistrationCount();
@@ -86204,6 +86280,53 @@ You can use variables like {first_name} that will be personalized for each recip
                     console.warn('Could not load plexus settings, using defaults:', e.message);
                     this.showSettingsLoadWarning();
                 }
+            },
+
+            // ===== CME / HLK ACCREDITATION (queue 5a5c) — physician registration section =====
+            // Show the physician CME section only when the active event is accredited by the
+            // Croatian Medical Chamber. Additive + display-only — never touches the frozen
+            // registration submit. CME credit is separate from Med&X rewards points.
+            async loadCMEStatus() {
+                try {
+                    const res = await fetch('/api/plexus/cme/status');
+                    if (!res.ok) return;
+                    const s = await res.json();
+                    const section = document.getElementById('pxCmeSection');
+                    if (!section) return;
+                    if (s && s.accredited) {
+                        section.style.display = '';
+                        if (s.points_value != null) {
+                            const chip = document.getElementById('pxCmePointsChip');
+                            const num = document.getElementById('pxCmePointsNum');
+                            if (num) num.textContent = s.points_value;
+                            if (chip) chip.style.display = '';
+                        }
+                    } else {
+                        section.style.display = 'none';
+                    }
+                } catch (e) { /* accreditation status is best-effort; the section stays hidden */ }
+            },
+
+            // Attach the physician CME record AFTER the registration succeeds, keyed by its id.
+            // Only attaches when the member ticked consent and filled both fields (pre-validated
+            // in submitRegistration). Best-effort: never blocks the confirmed registration.
+            async _attachCMEIfNeeded(registrationId) {
+                try {
+                    if (!registrationId) return;
+                    const section = document.getElementById('pxCmeSection');
+                    if (!section || section.style.display === 'none') return;
+                    const consent = document.getElementById('pxCmeConsent')?.checked;
+                    const dob = document.getElementById('pxCmeDob')?.value || '';
+                    const oib = document.getElementById('pxCmeOib')?.value?.trim() || '';
+                    if (!consent || !dob || !oib) return;
+                    const res = await fetch('/api/plexus/cme/attach', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + UserPortal.token },
+                        body: JSON.stringify({ registration_id: registrationId, date_of_birth: dob, oib: oib, consent: true })
+                    });
+                    if (res.ok) { if (window.Toast) Toast.success(t('cme.saved')); }
+                    else { if (window.Toast) Toast.error(t('cme.saveFailed')); }
+                } catch (e) { if (window.Toast) Toast.error(t('cme.saveFailed')); }
             },
 
             showSettingsLoadWarning() {
@@ -86893,6 +87016,21 @@ You can use variables like {first_name} that will be personalized for each recip
                     }
                 }
 
+                // CME (physician) section validation — only when the active event is chamber-accredited.
+                // Consent gates collection: ticked => DOB + valid OIB required; filled but unticked => block.
+                const cmeSection = document.getElementById('pxCmeSection');
+                if (cmeSection && cmeSection.style.display !== 'none') {
+                    const cmeConsent = document.getElementById('pxCmeConsent')?.checked;
+                    const cmeDob = document.getElementById('pxCmeDob')?.value || '';
+                    const cmeOib = document.getElementById('pxCmeOib')?.value?.trim() || '';
+                    if (cmeConsent) {
+                        if (!cmeDob) { Toast.error(t('cme.errDob')); this._submittingRegistration = false; document.getElementById('pxCmeDob')?.focus(); return; }
+                        if (!/^\d{11}$/.test(cmeOib) || !this._isValidOIB(cmeOib)) { Toast.error(t('cme.errOib')); this._submittingRegistration = false; document.getElementById('pxCmeOib')?.focus(); return; }
+                    } else if (cmeDob || cmeOib) {
+                        Toast.error(t('cme.errConsent')); this._submittingRegistration = false; document.getElementById('pxCmeConsent')?.focus(); return;
+                    }
+                }
+
                 const data = {
                     first_name: document.getElementById('pxRegFirstName')?.value || '',
                     last_name: document.getElementById('pxRegLastName')?.value || '',
@@ -86948,6 +87086,8 @@ You can use variables like {first_name} that will be personalized for each recip
                     const res = await rawRes.json();
 
                     if (res.success) {
+                        // Attach physician CME details (queue 5a5c) before any redirect — additive, keyed by registration id.
+                        await this._attachCMEIfNeeded(res.registration_id);
                         // Card payment: redirect to Stripe Checkout
                         if (res.payment_method === 'card' && res.amount > 0) {
                             this._pendingRegistrationId = res.registration_id;

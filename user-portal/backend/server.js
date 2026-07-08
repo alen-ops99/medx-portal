@@ -3551,6 +3551,62 @@ function activePlexusConf() {
         || query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
 }
 
+// ===== CME / HLK ACCREDITATION helpers (queue 5a5c) — identical in both portal server.js files =====
+// Support for the Croatian Medical Chamber CME feature. Deliberately free of app state so the block
+// stays byte-identical across portals. Nothing here touches the rewards/points system.
+function cmeIsValidOIB(oib) {
+    // OIB (Osobni identifikacijski broj) — ISO 7064 Mod 11,10 check digit over 11 digits.
+    const s = String(oib == null ? '' : oib);
+    if (!/^\d{11}$/.test(s)) return false;
+    let a = 10;
+    for (let i = 0; i < 10; i++) {
+        a = (a + parseInt(s[i], 10)) % 10;
+        if (a === 0) a = 10;
+        a = (a * 2) % 11;
+    }
+    const check = (11 - a) % 10;
+    return check === parseInt(s[10], 10);
+}
+function cmeEncKey() {
+    // 32-byte key derived from CME_ENC_KEY (hex or any string). No key => null (plaintext fallback).
+    const raw = process.env.CME_ENC_KEY;
+    if (!raw) return null;
+    try { return require('crypto').scryptSync(String(raw), 'medx-cme-hlk-v1', 32); } catch (e) { return null; }
+}
+function cmeEncrypt(plain) {
+    if (plain == null || plain === '') return { value: '', enc: 0 };
+    const key = cmeEncKey();
+    if (!key) return { value: String(plain), enc: 0 };
+    try {
+        const c = require('crypto');
+        const iv = c.randomBytes(12);
+        const cipher = c.createCipheriv('aes-256-gcm', key, iv);
+        const ct = Buffer.concat([cipher.update(String(plain), 'utf8'), cipher.final()]);
+        const tag = cipher.getAuthTag();
+        return { value: 'gcm:' + iv.toString('base64') + ':' + tag.toString('base64') + ':' + ct.toString('base64'), enc: 1 };
+    } catch (e) { return { value: String(plain), enc: 0 }; }
+}
+function cmeDecrypt(stored) {
+    if (stored == null || stored === '') return '';
+    const s = String(stored);
+    if (s.indexOf('gcm:') !== 0) return s; // plaintext (no key when written)
+    const key = cmeEncKey();
+    if (!key) return '[encrypted]'; // ciphertext present but this process has no key — never throw
+    try {
+        const c = require('crypto');
+        const p = s.split(':');
+        const iv = Buffer.from(p[1], 'base64');
+        const tag = Buffer.from(p[2], 'base64');
+        const ct = Buffer.from(p[3], 'base64');
+        const d = c.createDecipheriv('aes-256-gcm', key, iv);
+        d.setAuthTag(tag);
+        return Buffer.concat([d.update(ct), d.final()]).toString('utf8');
+    } catch (e) { return '[encrypted]'; }
+}
+// The exact purpose recorded with every consent (GDPR audit trail), bilingual.
+const CME_CONSENT_PURPOSE = 'Reporting CME credit to the Croatian Medical Chamber (HLK) / Prijava CME bodova Hrvatskoj liječničkoj komori (HLK)';
+
+
 // Composable pricing: sum the DB price of the selected components for an event.
 // Returns null when there are no resolvable components (caller then falls through to the
 // existing single-price logic, so legacy links and non-composed events are unchanged).
@@ -7467,6 +7523,48 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
     // ====================== SCHEMA-MIRROR:END ======================
+
+    // ====================== CME / HLK ACCREDITATION (queue 5a5c) ======================
+    // Croatian Medical Chamber (Hrvatska liječnička komora / HLK) CME accreditation. These two
+    // tables live OUTSIDE the SCHEMA-MIRROR block but are declared IDENTICALLY in BOTH portal
+    // server.js files: the user portal writes physician CME submissions (post-registration attach)
+    // and reads a member's own record plus the active event's accreditation status; the admin
+    // portal sets the per-edition accreditation flag and exports consented attendees for chamber
+    // reporting. Idempotent (CREATE TABLE IF NOT EXISTS). CME credit is OFFICIAL chamber credit and
+    // is deliberately DECOUPLED from the internal rewards/points gamification — nothing here ever
+    // writes points_ledger and no rewards code reads these tables.
+    db.run(`CREATE TABLE IF NOT EXISTS cme_accreditations (
+        conference_id TEXT PRIMARY KEY,
+        is_accredited INTEGER DEFAULT 0,
+        points_value REAL,
+        accreditation_number TEXT,
+        updated_by TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    // One physician CME record per registration (registration_id UNIQUE — post-submit attach, upsert).
+    // date_of_birth + oib are sensitive personal data collected ONLY with the member's explicit,
+    // un-pre-ticked consent (consent = 1 + consent_at timestamp + consent_purpose) for the sole stated
+    // purpose of reporting CME credit to the chamber. When CME_ENC_KEY is set they are stored
+    // AES-256-GCM-encrypted at rest (enc = 1, value carries the 'gcm:' scheme prefix); with no key they
+    // fall back to plaintext (enc = 0) — see cmeEncrypt/cmeDecrypt. Admin-only visibility; the member
+    // reads their own row via /api/plexus/cme/my.
+    db.run(`CREATE TABLE IF NOT EXISTS cme_submissions (
+        id TEXT PRIMARY KEY,
+        registration_id TEXT UNIQUE,
+        conference_id TEXT,
+        user_id TEXT,
+        date_of_birth TEXT,
+        oib TEXT,
+        enc INTEGER DEFAULT 0,
+        consent INTEGER DEFAULT 0,
+        consent_at TEXT,
+        consent_purpose TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_cme_sub_conf ON cme_submissions(conference_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_cme_sub_user ON cme_submissions(user_id)`);
+
     // pr_posts drifted between portals (admin CREATE has status, user CREATE lacked it) — heal existing DBs.
     try { db.exec("ALTER TABLE pr_posts ADD COLUMN status TEXT DEFAULT 'published'"); } catch (e) { /* column exists */ }
     // i18n (cluster HR1): the member's preferred portal locale ('en'|'hr'). Additive,
@@ -18055,6 +18153,85 @@ By applying to this program, I provide the following consents:
     });
 
     // Get my registration
+
+    // ===== CME / HLK ACCREDITATION — member endpoints (queue 5a5c) =====
+    // Additive alongside the FROZEN registration path. The frozen POST /api/registrations and
+    // /api/plexus/register are NOT modified; physician CME details are ATTACHED to an existing
+    // registration through this parallel endpoint, keyed by registration_id (supplemental table).
+    // Is the active edition chamber-accredited? Drives whether the registration form shows the
+    // physician section. Public + benign (no PII); never exposes the accreditation number.
+    app.get('/api/plexus/cme/status', (req, res) => {
+        try {
+            const conf = activePlexusConf();
+            if (!conf) return res.json({ accredited: false });
+            const acc = query.get('SELECT * FROM cme_accreditations WHERE conference_id = ?', [conf.id]);
+            if (!acc || !acc.is_accredited) return res.json({ accredited: false, conference_id: conf.id });
+            res.json({
+                accredited: true,
+                conference_id: conf.id,
+                conference_name: conf.name,
+                points_value: acc.points_value != null ? acc.points_value : null,
+                purpose: CME_CONSENT_PURPOSE
+            });
+        } catch (e) { res.json({ accredited: false }); }
+    });
+
+    // Attach the physician CME record to the member's OWN registration. Consent is mandatory and
+    // must be an explicit true; DOB required; OIB validated (ISO 7064 Mod 11,10). Upsert by
+    // registration_id so a resubmit is idempotent. Never writes points_ledger (CME is not rewards).
+    app.post('/api/plexus/cme/attach', auth, (req, res) => {
+        try {
+            const { registration_id, date_of_birth, oib, consent } = req.body || {};
+            if (!registration_id) return res.status(400).json({ error: 'registration_id is required' });
+            const reg = query.get('SELECT * FROM registrations WHERE id = ? AND user_id = ?', [registration_id, req.user.id]);
+            if (!reg) return res.status(404).json({ error: 'Registration not found' });
+            const acc = query.get('SELECT * FROM cme_accreditations WHERE conference_id = ?', [reg.conference_id]);
+            if (!acc || !acc.is_accredited) return res.status(400).json({ error: 'This event is not accredited by the Croatian Medical Chamber' });
+            if (consent !== true && consent !== 1 && consent !== 'true') return res.status(400).json({ error: 'Explicit consent is required to submit CME details' });
+            const dob = String(date_of_birth || '').trim();
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) return res.status(400).json({ error: 'A valid date of birth is required' });
+            const oibClean = String(oib || '').trim();
+            if (!cmeIsValidOIB(oibClean)) return res.status(400).json({ error: 'OIB must be 11 digits and pass the check-digit validation' });
+            const encDob = cmeEncrypt(dob);
+            const encOib = cmeEncrypt(oibClean);
+            const encFlag = (encDob.enc && encOib.enc) ? 1 : 0;
+            const now = new Date().toISOString();
+            const existing = query.get('SELECT id FROM cme_submissions WHERE registration_id = ?', [registration_id]);
+            if (existing) {
+                db.run('UPDATE cme_submissions SET date_of_birth = ?, oib = ?, enc = ?, consent = 1, consent_at = ?, consent_purpose = ?, updated_at = ? WHERE registration_id = ?',
+                    [encDob.value, encOib.value, encFlag, now, CME_CONSENT_PURPOSE, now, registration_id]);
+            } else {
+                db.run('INSERT INTO cme_submissions (id, registration_id, conference_id, user_id, date_of_birth, oib, enc, consent, consent_at, consent_purpose, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)',
+                    [require('crypto').randomUUID(), registration_id, reg.conference_id, req.user.id, encDob.value, encOib.value, encFlag, now, CME_CONSENT_PURPOSE, now, now]);
+            }
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { console.error('CME attach error:', e.message); res.status(500).json({ error: 'Could not save CME details' }); }
+    });
+
+    // The member views their OWN CME record(s) — decrypted, since it is their own data.
+    app.get('/api/plexus/cme/my', auth, (req, res) => {
+        try {
+            const rows = query.all('SELECT s.*, c.name AS conference_name FROM cme_submissions s LEFT JOIN conferences c ON c.id = s.conference_id WHERE s.user_id = ? ORDER BY s.created_at DESC', [req.user.id]);
+            const out = rows.map(function (r) {
+                const acc = query.get('SELECT points_value, is_accredited FROM cme_accreditations WHERE conference_id = ?', [r.conference_id]) || {};
+                return {
+                    registration_id: r.registration_id,
+                    conference_name: r.conference_name,
+                    date_of_birth: cmeDecrypt(r.date_of_birth),
+                    oib: cmeDecrypt(r.oib),
+                    consent: !!r.consent,
+                    consent_at: r.consent_at,
+                    consent_purpose: r.consent_purpose,
+                    points_value: acc.points_value != null ? acc.points_value : null,
+                    still_accredited: !!acc.is_accredited,
+                    encrypted_at_rest: !!r.enc
+                };
+            });
+            res.json(out);
+        } catch (e) { res.json([]); }
+    });
+
     app.get('/api/plexus/my-registration', auth, (req, res) => {
         const conf = activePlexusConf();
         const reg = query.get(`SELECT r.*, t.name as ticket_name, t.includes_gala, u.first_name, u.last_name, u.email

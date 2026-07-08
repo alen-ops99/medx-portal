@@ -6636,6 +6636,8 @@
     <!-- Leaflet (vendored locally — free OSM tiles, no key) for the Live Ops Map -->
     <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
     <script src="/vendor/leaflet/leaflet.js"></script>
+    <!-- model-viewer (vendored locally) for GLB/USDZ LiDAR scan preview + AR in Content Studio -->
+    <script type="module" src="/vendor/model-viewer/model-viewer.min.js"></script>
     <style id="medx-admin-brand-v2">
       /* Sidebar section icons: one restrained neutral, crimson only on the active row */
       .sidebar .nav-item > i { color: #a89e92 !important; }
@@ -7001,6 +7003,11 @@
                 <a class="nav-item" data-section="editions" onclick="App.showSection('editions', this)">
                     <i class="fas fa-layer-group" style="color: #9b1b22;"></i>
                     <span>Editions</span>
+                </a>
+
+                <a class="nav-item" data-section="cme" onclick="App.showSection('cme', this)">
+                    <i class="fas fa-award" style="color: #0ea5a4;"></i>
+                    <span>CME / HLK</span>
                 </a>
 
                 <a class="nav-item" data-section="finances" onclick="App.showSection('finances', this)">
@@ -7933,6 +7940,7 @@
                                 </div>
                             </div>
                             <div class="card-body">
+                                <div id="pxTravelBudget" style="display:none;margin-bottom:14px;padding:10px 14px;background:var(--bg-secondary);border-radius:8px;font-size:14px;"></div>
                                 <div class="speakers-grid" id="pxSpeakersGrid"></div>
                             </div>
                         </div>
@@ -10664,6 +10672,9 @@ President, Med&amp;X</textarea>
                         <button class="tab-btn" onclick="PRApp.showTab('subscribers', this)" style="padding: 10px 16px; background: transparent; color: var(--text-secondary); border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
                             <i class="fas fa-users"></i> Subscribers
                         </button>
+                        <button class="tab-btn" onclick="PRApp.showTab('press', this)" style="padding: 10px 16px; background: transparent; color: var(--text-secondary); border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
+                            <i class="fas fa-newspaper"></i> Press releases
+                        </button>
                     </div>
 
                     <!-- Dashboard Tab -->
@@ -10739,6 +10750,8 @@ President, Med&amp;X</textarea>
                     <div class="pr-tab" id="pr-tab-calendar">
                         <!-- Publer connection status card — publishing is handled by Publer; this shows whether it is wired up. -->
                         <div id="prPublerStatus" style="margin-bottom: 16px;"></div>
+                        <!-- Meta (IG/FB) publishing boundary status + settings + dry-run -->
+                        <div id="prMetaStatus" style="margin-bottom: 16px;"></div>
                         <!-- View Toggle + Navigation -->
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                             <div style="display: flex; align-items: center; gap: 12px;">
@@ -11059,6 +11072,21 @@ President, Med&amp;X</textarea>
                                 </table>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- ============ PRESS RELEASES (queue 5b) ============ -->
+                    <div class="pr-tab" id="pr-tab-press">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button class="btn btn-primary" onclick="PRApp.pressNew()"><i class="fas fa-plus"></i> New press release</button>
+                                <button class="btn btn-secondary" id="prPressTabList" onclick="PRApp.pressShowPanel('list')"><i class="fas fa-list"></i> Releases</button>
+                                <button class="btn btn-secondary" id="prPressTabMedia" onclick="PRApp.pressShowPanel('media')"><i class="fas fa-address-book"></i> Media list</button>
+                            </div>
+                            <div id="prPressSendState" style="font-size:12.5px;color:var(--text-muted);"></div>
+                        </div>
+                        <div id="prPressComposer" style="display:none;"></div>
+                        <div id="prPressListPanel"><div id="prPressList"><p style="color:var(--text-muted);">Loading...</p></div></div>
+                        <div id="prPressMediaPanel" style="display:none;"></div>
                     </div>
 
                     <!-- ============ CONTENT PLANNER (conversational wizard + calendar review) ============ -->
@@ -11734,6 +11762,21 @@ President, Med&amp;X</textarea>
                     <div class="cs-drawer" id="csDrawer" aria-hidden="true">
                         <div class="cs-drawer-backdrop" onclick="ContentStudio.closeDrawer()"></div>
                         <div class="cs-drawer-panel" id="csDrawerPanel"></div>
+                    </div>
+                    <!-- LiDAR / 3D spatial assets shelf -->
+                    <div class="card" id="spatialShelfCard" style="margin-top:22px;">
+                        <div class="card-header" style="flex-wrap:wrap;gap:8px;">
+                            <span class="card-title"><i class="fas fa-cubes" style="margin-right:8px;color:#c9a962;"></i>3D &amp; spatial (LiDAR scans)</span>
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                <input type="file" id="spatialFileInput" accept=".glb,.usdz,.gltf,model/gltf-binary" style="display:none;" onchange="App.uploadSpatialAsset(this)">
+                                <button class="btn btn-primary" style="font-size:12px;" onclick="document.getElementById('spatialFileInput').click()"><i class="fas fa-upload"></i> Upload GLB / USDZ</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <p style="color:var(--text-muted);font-size:13px;margin:0 0 14px;">Upload a room or object scan (GLB or USDZ, up to 50 MB) from Scaniverse, Luma or Object Capture. It previews here in 3D and can be opened in AR on a phone. The pipeline home is ready for when the first scan arrives.</p>
+                            <div id="spatialUploadMsg" style="display:none;margin-bottom:12px;font-size:13px;"></div>
+                            <div id="spatialShelfGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -12868,6 +12911,38 @@ President, Med&amp;X</textarea>
                     <div id="editionsModalHost"></div>
                 </div>
                 <!-- ============ /EVENT EDITION CYCLING ============ -->
+
+                <!-- ============ CME / HLK ACCREDITATION (admin-only, queue 5a5c) ============ -->
+                <div class="section" id="section-cme">
+                    <style>
+                    #section-cme .cme-head h1{font-size:28px;font-weight:700;margin-bottom:4px;}
+                    #section-cme .cme-sub{font-size:14px;color:var(--text-muted);margin-bottom:18px;max-width:720px;line-height:1.55;}
+                    #section-cme .cme-card{border:1px solid var(--border);border-radius:14px;background:var(--bg-secondary);padding:16px 18px;margin:0 0 14px;}
+                    #section-cme .cme-card.on{border-color:rgba(155,27,34,.4);}
+                    #section-cme .cme-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+                    #section-cme .cme-title{font-family:'Fraunces',Georgia,serif;font-size:18px;font-weight:700;}
+                    #section-cme .cme-meta{font-size:12.5px;color:var(--text-muted);}
+                    #section-cme .cme-badge{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:3px 9px;border-radius:999px;color:#fff;}
+                    #section-cme .cme-toggle{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;font-weight:600;}
+                    #section-cme .cme-toggle input{width:18px;height:18px;cursor:pointer;}
+                    #section-cme .cme-fields{display:grid;grid-template-columns:170px 1fr;gap:12px;margin:14px 0 6px;max-width:540px;align-items:center;}
+                    #section-cme .cme-fields label{font-size:12px;font-weight:600;color:var(--text-secondary);}
+                    #section-cme .cme-fields input{width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;box-sizing:border-box;}
+                    #section-cme .cme-stats{display:flex;gap:16px;flex-wrap:wrap;margin:6px 0 12px;}
+                    #section-cme .cme-stats span{font-size:12.5px;color:var(--text-secondary);}
+                    #section-cme .cme-stats b{color:var(--text-primary);}
+                    #section-cme .cme-acts{display:flex;gap:8px;flex-wrap:wrap;}
+                    #section-cme .cme-acts .btn{font-size:13px;padding:8px 13px;}
+                    #section-cme .cme-empty{padding:40px 20px;text-align:center;color:var(--text-muted);}
+                    #section-cme .cme-att{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px;}
+                    #section-cme .cme-att th,#section-cme .cme-att td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--border);}
+                    #section-cme .cme-att th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);}
+                    </style>
+                    <div class="cme-head"><h1>CME / HLK accreditation</h1></div>
+                    <p class="cme-sub">Flag a conference edition as accredited by the Croatian Medical Chamber (Hrvatska liječnička komora). Accredited events additively collect physician date of birth and OIB, with explicit consent, on the registration form. Export consented attendees for chamber reporting. CME credit is official chamber credit and is kept separate from the internal rewards points.</p>
+                    <div id="cmeBody"><div class="cme-empty">Loading…</div></div>
+                </div>
+                <!-- ============ /CME / HLK ACCREDITATION ============ -->
 
                 <!-- ============ EVENT INVITATION ENGINE (admin-only, queue 5a4) ============ -->
                 <div class="section" id="section-event-invites">
@@ -18580,6 +18655,7 @@ President, Med&amp;X</textarea>
                     'finances': 'Finances',
                     'year-calendar': 'Year Calendar',
                     'editions': 'Editions',
+                    'cme': 'CME / HLK',
                     'pr-media': 'PR & Media',
                     'user-notifications': 'Message members',
                     'newsletter': 'Newsletter',
@@ -18701,6 +18777,7 @@ President, Med&amp;X</textarea>
                     this.currentView = 'content-studio';
                     this.switchChatPanel('team');
                     if (typeof ContentStudio !== 'undefined') ContentStudio.init();
+                    this.loadSpatialShelf();
                 } else if (sectionId === 'announce') {
                     this.currentView = 'announce';
                     this.switchChatPanel('team');
@@ -18755,6 +18832,10 @@ President, Med&amp;X</textarea>
                     this.currentView = 'editions';
                     this.switchChatPanel('team');
                     if (typeof EditionsAdmin !== 'undefined') EditionsAdmin.init();
+                } else if (sectionId === 'cme') {
+                    this.currentView = 'cme';
+                    this.switchChatPanel('team');
+                    if (typeof CmeAdmin !== 'undefined') CmeAdmin.init();
                 } else {
                     // Switch chat panel to team chat mode
                     this.currentView = 'dashboard';
@@ -22384,6 +22465,7 @@ President, Med&amp;X</textarea>
                     await this.loadSpeakerDocSummary();
                     this.loadSpeakerYears();
                     this.renderPlexusSpeakers();
+                    this.loadTravelBudget();
                 } catch (err) {
                     console.error('Failed to load speakers:', err);
                 }
@@ -22622,6 +22704,9 @@ President, Med&amp;X</textarea>
                                 <div class="form-group"><label>Hotel Details</label><textarea id="spkHotelDetails" rows="2" placeholder="Hotel name, check-in/out, room, etc.">${speaker.hotel_details || ''}</textarea></div>
                                 <div class="form-group"><label>Notes</label><textarea id="spkNotes" rows="2" placeholder="Any special requirements or notes...">${speaker.notes || ''}</textarea></div>
                                 <hr style="border:none;border-top:1px solid var(--border);margin:16px 0;">
+                                <h4 style="margin-bottom:8px;color:var(--text-primary);"><i class="fas fa-plane-departure" style="margin-right:8px;color:var(--accent-gold);"></i>Flight search &amp; fares</h4>
+                                <div id="spkFlightPanel" style="min-height:40px;"><p style="color:var(--text-muted);font-size:13px;">Loading flight search</p></div>
+                                <hr style="border:none;border-top:1px solid var(--border);margin:16px 0;">
                                 <h4 style="margin-bottom:12px;color:var(--text-primary);"><i class="fas fa-file-alt" style="margin-right:8px;"></i>Uploaded Documents</h4>
                                 <div id="spkDocumentsList" style="min-height:40px;"><p style="color:var(--text-muted);font-size:13px;">Loading documents...</p></div>
                             </div>
@@ -22635,6 +22720,7 @@ President, Med&amp;X</textarea>
                         </div>
                     </div>`;
                 document.body.insertAdjacentHTML('beforeend', modalHtml);
+                this.loadSpeakerFlight(speakerId);
                 setTimeout(() => { const fa = document.getElementById('spkFlightAssigned'); const ha = document.getElementById('spkHotelAssigned'); if (fa) fa.value = speaker.flight_assigned_to || ''; if (ha) ha.value = speaker.hotel_assigned_to || ''; }, 0);
                 this.loadSpeakerDocuments(speakerId).then(docs => {
                     const container = document.getElementById('spkDocumentsList');
@@ -22644,6 +22730,151 @@ President, Med&amp;X</textarea>
                     container.innerHTML = docs.map(d => `<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:6px;background:var(--bg-tertiary);margin-bottom:6px;"><i class="fas ${typeIcons[d.type] || 'fa-file'}" style="color:var(--accent);font-size:16px;"></i><div style="flex:1;"><div style="font-size:13px;font-weight:500;">${this.escapeHtml(d.original_name)}</div><div style="font-size:11px;color:var(--text-muted);">${d.type} &bull; ${d.file_size ? (d.file_size / 1024).toFixed(0) + ' KB' : ''} &bull; ${new Date(d.uploaded_at).toLocaleDateString()}</div></div><button onclick="App.downloadFile('/api/admin/plexus/speakers/${speakerId}/documents/${d.id}/download', '${this.escapeHtml(d.original_name)}')" class="btn btn-secondary" style="padding:4px 10px;font-size:12px;" title="Download"><i class="fas fa-download"></i></button></div>`).join('');
                 });
             },
+
+            // ===== SPEAKER FLIGHT DEEP-LINKS (queue 5a5i) — per-speaker travel panel =====
+            async loadSpeakerFlight(speakerId) {
+                const panel = document.getElementById('spkFlightPanel');
+                if (!panel) return;
+                let d;
+                try { d = await this.api(`/api/admin/plexus/speakers/${speakerId}/flight`); }
+                catch (e) { panel.innerHTML = '<p style="color:#ef4444;font-size:13px;">Could not load flight search.</p>'; return; }
+                const c = d.context || {};
+                const money = (n, cur) => `${cur || 'EUR'} ${Number(n).toFixed(2)}`;
+                const rows = (d.quotes || []).map(q => `
+                    <tr style="border-top:1px solid var(--border);">
+                        <td style="padding:6px 8px;"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;"><input type="radio" name="spkChosenQuote" ${q.chosen ? 'checked' : ''} onchange="App.chooseFlightQuote('${speakerId}','${q.id}')"><span style="font-weight:${q.chosen ? '700' : '400'};">${q.currency || 'EUR'} ${Number(q.price).toFixed(2)}</span></label></td>
+                        <td style="padding:6px 8px;">${this.escapeHtml(q.airline || '-')}</td>
+                        <td style="padding:6px 8px;color:var(--text-muted);font-size:12px;">${this.escapeHtml(q.notes || '')}</td>
+                        <td style="padding:6px 8px;color:var(--text-muted);font-size:11px;white-space:nowrap;">${q.created_at ? String(q.created_at).slice(0, 16).replace('T', ' ') : ''}</td>
+                        <td style="padding:6px 8px;text-align:right;"><button class="btn" style="padding:2px 6px;font-size:11px;color:#ef4444;" onclick="App.deleteFlightQuote('${speakerId}','${q.id}')" title="Remove"><i class="fas fa-trash"></i></button></td>
+                    </tr>`).join('');
+                panel.innerHTML = `
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;">
+                        <div class="form-group" style="margin:0;"><label style="font-size:11px;">From (IATA)</label><input id="spkFlightOrigin" value="${this.escapeHtml(c.origin_iata || '')}" placeholder="${this.escapeHtml(c.origin_suggested || 'BOS')}" maxlength="3" style="text-transform:uppercase;"></div>
+                        <div class="form-group" style="margin:0;"><label style="font-size:11px;">To (IATA)</label><input id="spkFlightDest" value="${this.escapeHtml(c.dest_iata || 'ZAG')}" maxlength="3" style="text-transform:uppercase;"></div>
+                        <div class="form-group" style="margin:0;"><label style="font-size:11px;">Depart</label><input id="spkFlightDepart" type="date" value="${this.escapeHtml(c.depart_date || '')}"></div>
+                        <div class="form-group" style="margin:0;"><label style="font-size:11px;">Return</label><input id="spkFlightReturn" type="date" value="${this.escapeHtml(c.return_date || '')}"></div>
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center;">
+                        <button class="btn btn-secondary" style="font-size:12px;" onclick="App.saveSpeakerFlightRoute('${speakerId}')"><i class="fas fa-sync"></i> Update links</button>
+                        <a id="spkFlightGoogle" class="btn btn-primary" style="font-size:12px;${c.google_url ? '' : 'pointer-events:none;opacity:.5;'}" href="${c.google_url || '#'}" target="_blank" rel="noopener"><i class="fas fa-plane-departure"></i> Google Flights</a>
+                        <a id="spkFlightSky" class="btn btn-secondary" style="font-size:12px;${c.skyscanner_url ? '' : 'pointer-events:none;opacity:.5;'}" href="${c.skyscanner_url || '#'}" target="_blank" rel="noopener"><i class="fas fa-plane"></i> Skyscanner</a>
+                        ${(c.origin_suggested && c.origin_suggested !== c.origin_iata) ? `<span style="font-size:11px;color:var(--text-muted);">Suggested from institution: ${this.escapeHtml(c.origin_suggested)}</span>` : ''}
+                    </div>
+                    <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;">
+                        <div style="font-size:12px;font-weight:700;margin-bottom:4px;">Fares you found</div>
+                        <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Open a search, read the live board, then paste the fare you choose. No estimates, only fares you actually see.</div>
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr) auto;gap:8px;margin-bottom:10px;">
+                            <input id="spkQuotePrice" type="number" step="0.01" min="0" placeholder="Fare (e.g. 749.00)" style="padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);">
+                            <input id="spkQuoteAirline" placeholder="Airline" style="padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);">
+                            <input id="spkQuoteNotes" placeholder="Notes (stops, times)" style="padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);">
+                            <button class="btn btn-primary" style="font-size:12px;white-space:nowrap;" onclick="App.addFlightQuote('${speakerId}')"><i class="fas fa-plus"></i> Add fare</button>
+                        </div>
+                        ${(d.quotes && d.quotes.length) ? `<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="text-align:left;color:var(--text-muted);font-size:11px;"><th style="padding:4px 8px;">Chosen / fare</th><th style="padding:4px 8px;">Airline</th><th style="padding:4px 8px;">Notes</th><th style="padding:4px 8px;">Added</th><th></th></tr></thead><tbody>${rows}</tbody></table><div style="margin-top:10px;text-align:right;font-size:13px;">Chosen fare for this speaker: <strong>${d.chosen_id ? money(d.subtotal, d.currency) : '-'}</strong></div>` : '<p style="color:var(--text-muted);font-size:12px;margin:0;">No fares saved yet. Open a search above, then add the fare you choose.</p>'}
+                    </div>`;
+            },
+            async saveSpeakerFlightRoute(speakerId) {
+                const body = {
+                    origin_iata: document.getElementById('spkFlightOrigin')?.value || '',
+                    flight_dest_iata: document.getElementById('spkFlightDest')?.value || '',
+                    flight_depart_date: document.getElementById('spkFlightDepart')?.value || '',
+                    flight_return_date: document.getElementById('spkFlightReturn')?.value || ''
+                };
+                try { await this.api(`/api/admin/plexus/speakers/${speakerId}/flight`, { method: 'PUT', body: JSON.stringify(body) }); await this.loadSpeakerFlight(speakerId); }
+                catch (e) { Toast.error('Could not update flight links'); }
+            },
+            async addFlightQuote(speakerId) {
+                const price = document.getElementById('spkQuotePrice')?.value;
+                const airline = document.getElementById('spkQuoteAirline')?.value || '';
+                const notes = document.getElementById('spkQuoteNotes')?.value || '';
+                if (!price || Number(price) <= 0) { Toast.error('Enter the real fare you read on the live board.'); return; }
+                try { await this.api(`/api/admin/plexus/speakers/${speakerId}/flight/quotes`, { method: 'POST', body: JSON.stringify({ price: Number(price), airline, notes }) }); await this.loadSpeakerFlight(speakerId); this.loadTravelBudget(); }
+                catch (e) { Toast.error(e.message || 'Could not add fare'); }
+            },
+            async chooseFlightQuote(speakerId, qid) {
+                try { await this.api(`/api/admin/plexus/speakers/${speakerId}/flight/quotes/${qid}/choose`, { method: 'PUT' }); await this.loadSpeakerFlight(speakerId); this.loadTravelBudget(); }
+                catch (e) { Toast.error('Could not choose fare'); }
+            },
+            async deleteFlightQuote(speakerId, qid) {
+                try { await this.api(`/api/admin/plexus/speakers/${speakerId}/flight/quotes/${qid}`, { method: 'DELETE' }); await this.loadSpeakerFlight(speakerId); this.loadTravelBudget(); }
+                catch (e) { Toast.error('Could not remove fare'); }
+            },
+            async loadTravelBudget() {
+                const el = document.getElementById('pxTravelBudget');
+                if (!el) return;
+                try {
+                    const year = document.getElementById('pxSpeakerYearFilter')?.value || 'all';
+                    const d = await this.api(`/api/admin/plexus/travel-budget?year=${year}`);
+                    const totals = d.totals || {};
+                    const parts = Object.keys(totals).map(cur => `${cur} ${Number(totals[cur]).toFixed(2)}`);
+                    if (!parts.length) { el.style.display = 'none'; return; }
+                    el.style.display = '';
+                    el.innerHTML = `<i class="fas fa-plane-departure" style="margin-right:8px;color:var(--accent-gold);"></i><strong>Speaker travel budget:</strong> ${parts.join(' + ')} <span style="color:var(--text-muted);font-size:12px;">(${d.quoted} of ${d.speaker_count} speakers with a chosen fare)</span>`;
+                } catch (e) { el.style.display = 'none'; }
+            },
+
+            // ===== LIDAR / 3D SPATIAL ASSETS SHELF (Content Studio) =====
+            async loadSpatialShelf() {
+                const grid = document.getElementById('spatialShelfGrid');
+                if (!grid) return;
+                let d;
+                try { d = await this.api('/api/admin/spatial/assets'); }
+                catch (e) { grid.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Could not load the 3D shelf.</p>'; return; }
+                const assets = (d && d.assets) || [];
+                if (!assets.length) {
+                    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:28px;color:var(--text-muted);"><i class="fas fa-cube" style="font-size:28px;opacity:.5;"></i><p style="margin-top:10px;font-size:13px;">No scans yet. Upload a GLB or USDZ to see it here in 3D.</p></div>';
+                    return;
+                }
+                grid.innerHTML = assets.map(a => {
+                    const mb = a.bytes ? (a.bytes / 1024 / 1024).toFixed(1) + ' MB' : '';
+                    const attach = a.attach_target ? (a.attach_target === 'gala_venue' ? 'Gala venue' : (a.attach_target === 'auction_item' ? 'Auction item' : a.attach_target)) : '';
+                    return `<div class="card" style="padding:12px;">
+                        <model-viewer src="${this.escapeHtml(a.asset_url)}" ${a.kind === 'usdz' ? `ios-src="${this.escapeHtml(a.asset_url)}"` : ''} camera-controls auto-rotate ar ar-modes="webxr scene-viewer quick-look" shadow-intensity="1" style="width:100%;height:200px;background:var(--bg-secondary);border-radius:8px;" loading="lazy" reveal="auto"></model-viewer>
+                        <div style="margin-top:10px;font-weight:600;font-size:13px;">${this.escapeHtml(a.title || 'Scan')}</div>
+                        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${(a.kind || 'glb').toUpperCase()} &middot; ${mb}${attach ? ' &middot; attached: ' + this.escapeHtml(attach) : ''}</div>
+                        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
+                            <select id="spatialAttach_${a.id}" style="flex:1;min-width:110px;padding:6px;border-radius:6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:12px;">
+                                <option value="none" ${!a.attach_target ? 'selected' : ''}>Not attached</option>
+                                <option value="gala_venue" ${a.attach_target === 'gala_venue' ? 'selected' : ''}>Gala venue section</option>
+                                <option value="auction_item" ${a.attach_target === 'auction_item' ? 'selected' : ''}>Auction item</option>
+                            </select>
+                            <button class="btn btn-secondary" style="font-size:12px;" onclick="App.attachSpatialAsset('${a.id}')" title="Attach to a surface"><i class="fas fa-link"></i></button>
+                            <a class="btn btn-secondary" style="font-size:12px;" href="${this.escapeHtml(a.asset_url)}" download title="Download"><i class="fas fa-download"></i></a>
+                            <button class="btn" style="font-size:12px;color:#ef4444;" onclick="App.deleteSpatialAsset('${a.id}')" title="Delete"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>`;
+                }).join('');
+            },
+            async uploadSpatialAsset(input) {
+                const file = input.files && input.files[0];
+                if (!file) return;
+                const msg = document.getElementById('spatialUploadMsg');
+                const show = (html, ok) => { if (msg) { msg.style.display = 'block'; msg.style.color = ok ? 'var(--success)' : '#ef4444'; msg.innerHTML = html; } };
+                if (file.size > 50 * 1024 * 1024) { show('That scan is over the 50 MB limit. Export a lighter GLB and try again.', false); input.value = ''; return; }
+                show('<i class="fas fa-spinner fa-spin"></i> Uploading ' + this.escapeHtml(file.name), true);
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('title', file.name.replace(/\.[^.]+$/, ''));
+                try {
+                    const resp = await fetch('/api/admin/spatial/assets', { method: 'POST', headers: this.token ? { 'Authorization': 'Bearer ' + this.token } : {}, body: fd });
+                    const data = await resp.json().catch(() => ({}));
+                    if (!resp.ok) { show(this.escapeHtml(data.error || 'Upload failed.'), false); }
+                    else { show('<i class="fas fa-check"></i> Uploaded.', true); await this.loadSpatialShelf(); setTimeout(() => { if (msg) msg.style.display = 'none'; }, 2500); }
+                } catch (e) { show('Upload failed: ' + this.escapeHtml(e.message), false); }
+                input.value = '';
+            },
+            async attachSpatialAsset(id) {
+                const sel = document.getElementById('spatialAttach_' + id);
+                const target = sel ? sel.value : 'none';
+                try { const r = await this.api(`/api/admin/spatial/assets/${id}/attach`, { method: 'PUT', body: JSON.stringify({ attach_target: target }) }); Toast.success(r.note || 'Saved.'); await this.loadSpatialShelf(); }
+                catch (e) { Toast.error('Could not attach'); }
+            },
+            async deleteSpatialAsset(id) {
+                if (!confirm('Delete this scan?')) return;
+                try { await this.api(`/api/admin/spatial/assets/${id}`, { method: 'DELETE' }); await this.loadSpatialShelf(); }
+                catch (e) { Toast.error('Could not delete'); }
+            },
+
 
             async saveSpeakerDetails(speakerId) {
                 const data = {
@@ -33422,6 +33653,127 @@ By applying to this program, I give the following consents:
         };
         window.AuctionAdmin = AuctionAdmin;
 
+        // ===== CME / HLK ACCREDITATION admin module (queue 5a5c) =====
+        // Per conference edition: flag HLK accreditation, set CME points + accreditation number,
+        // review consented physician submissions, and export them as CSV for chamber reporting.
+        // Top-level const (accessed bare by inline handlers, same pattern as EditionsAdmin) and
+        // also mirrored on window for safety.
+        const CmeAdmin = {
+            data: null,
+            token() { return (window.App && App.token) || localStorage.getItem('medx_token') || localStorage.getItem('token'); },
+            async api(ep, method, body) {
+                const opt = { method: method || 'GET', headers: { 'Authorization': 'Bearer ' + this.token() } };
+                if (body !== undefined && body !== null) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+                const r = await fetch(ep, opt);
+                const d = await r.json().catch(function () { return {}; });
+                if (!r.ok) throw new Error(d.error || ('Error ' + r.status));
+                return d;
+            },
+            esc(x) { return (window.escapeHtml ? escapeHtml(String(x == null ? '' : x)) : String(x == null ? '' : x).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; })); },
+            toast(m, t) { if (window.App && App.showToast) App.showToast(m, t || 'success'); },
+            init() { this.load(); },
+            async load() {
+                const host = document.getElementById('cmeBody');
+                if (!host) return;
+                try {
+                    const rows = await this.api('/api/admin/cme/events');
+                    this.data = rows;
+                    host.innerHTML = this.render(rows);
+                } catch (e) { host.innerHTML = '<div class="cme-empty" style="color:#b91c1c;">' + this.esc(e.message) + '</div>'; }
+            },
+            render(rows) {
+                if (!rows || !rows.length) return '<div class="cme-empty">No conference editions yet.</div>';
+                const self = this;
+                return rows.map(function (r) { return self.card(r); }).join('');
+            },
+            card(r) {
+                const on = !!r.is_accredited;
+                const badge = on
+                    ? '<span class="cme-badge" style="background:#1f9d55;">Accredited</span>'
+                    : '<span class="cme-badge" style="background:#64748b;">Not accredited</span>';
+                const active = r.is_active ? ' &middot; <span style="color:#1f9d55;">Active edition</span>' : '';
+                const cid = this.esc(r.conference_id);
+                let fields = '';
+                if (on) {
+                    fields = '<div class="cme-fields">'
+                        + '<label>CME points</label><input type="number" min="0" step="0.5" id="cmePts_' + cid + '" value="' + (r.points_value != null ? this.esc(r.points_value) : '') + '" placeholder="e.g. 5">'
+                        + '<label>Accreditation number</label><input type="text" id="cmeNum_' + cid + '" value="' + (r.accreditation_number ? this.esc(r.accreditation_number) : '') + '" placeholder="e.g. HLK-2026-1234">'
+                        + '</div>'
+                        + '<div class="cme-stats"><span><b>' + (r.consented || 0) + '</b> consented physician submission(s)</span><span><b>' + (r.submissions || 0) + '</b> total on file</span></div>'
+                        + '<div class="cme-acts">'
+                        + '<button class="btn btn-primary" onclick="CmeAdmin.save(\'' + cid + '\')"><i class="fas fa-save"></i> Save</button>'
+                        + '<button class="btn btn-secondary" onclick="CmeAdmin.viewAttendees(\'' + cid + '\')"><i class="fas fa-users"></i> View submissions</button>'
+                        + '<button class="btn btn-secondary" onclick="CmeAdmin.exportCsv(\'' + cid + '\')"><i class="fas fa-file-csv"></i> Export CSV</button>'
+                        + '</div>'
+                        + '<div id="cmeAtt_' + cid + '"></div>';
+                }
+                return '<div class="cme-card' + (on ? ' on' : '') + '">'
+                    + '<div class="cme-row">'
+                    + '<span class="cme-title">' + this.esc(r.name || '') + '</span>'
+                    + badge
+                    + '<span class="cme-meta">' + this.esc(r.year || '') + active + '</span>'
+                    + '<label class="cme-toggle" style="margin-left:auto;"><input type="checkbox" ' + (on ? 'checked' : '') + ' onchange="CmeAdmin.toggle(\'' + cid + '\', this.checked)"> Accredited by HLK</label>'
+                    + '</div>'
+                    + fields
+                    + '</div>';
+            },
+            async toggle(cid, checked) {
+                try {
+                    const cur = (this.data || []).find(function (x) { return x.conference_id === cid; }) || {};
+                    await this.api('/api/admin/cme/events/' + encodeURIComponent(cid), 'PUT', {
+                        is_accredited: checked,
+                        points_value: cur.points_value,
+                        accreditation_number: cur.accreditation_number
+                    });
+                    this.toast(checked ? 'Marked as HLK-accredited' : 'Accreditation removed');
+                    this.load();
+                } catch (e) { this.toast(e.message, 'error'); this.load(); }
+            },
+            async save(cid) {
+                const pts = (document.getElementById('cmePts_' + cid) || {}).value;
+                const num = (document.getElementById('cmeNum_' + cid) || {}).value;
+                try {
+                    await this.api('/api/admin/cme/events/' + encodeURIComponent(cid), 'PUT', {
+                        is_accredited: true,
+                        points_value: pts,
+                        accreditation_number: num
+                    });
+                    this.toast('Saved');
+                    this.load();
+                } catch (e) { this.toast(e.message, 'error'); }
+            },
+            async viewAttendees(cid) {
+                const host = document.getElementById('cmeAtt_' + cid);
+                if (!host) return;
+                if (host.getAttribute('data-open') === '1') { host.innerHTML = ''; host.setAttribute('data-open', '0'); return; }
+                try {
+                    const rows = await this.api('/api/admin/cme/events/' + encodeURIComponent(cid) + '/attendees');
+                    if (!rows.length) { host.innerHTML = '<div class="cme-meta" style="margin-top:10px;">No consented submissions yet.</div>'; host.setAttribute('data-open', '1'); return; }
+                    const self = this;
+                    const body = rows.map(function (r) {
+                        return '<tr><td>' + self.esc(r.name) + '</td><td>' + self.esc(r.email) + '</td><td>' + self.esc(r.date_of_birth) + '</td><td>' + self.esc(r.oib) + '</td><td>' + self.esc((r.consent_at || '').slice(0, 10)) + '</td></tr>';
+                    }).join('');
+                    host.innerHTML = '<table class="cme-att"><thead><tr><th>Name</th><th>Email</th><th>Date of birth</th><th>OIB</th><th>Consent</th></tr></thead><tbody>' + body + '</tbody></table>';
+                    host.setAttribute('data-open', '1');
+                } catch (e) { host.innerHTML = '<div class="cme-meta" style="color:#b91c1c;margin-top:10px;">' + this.esc(e.message) + '</div>'; }
+            },
+            exportCsv(cid) {
+                const self = this;
+                fetch('/api/admin/cme/events/' + encodeURIComponent(cid) + '/export.csv', { headers: { 'Authorization': 'Bearer ' + this.token() } })
+                    .then(function (r) { if (!r.ok) throw new Error('Export failed'); return r.blob(); })
+                    .then(function (blob) {
+                        const a = document.createElement('a');
+                        a.href = URL.createObjectURL(blob);
+                        a.download = 'cme-hlk-' + cid + '.csv';
+                        document.body.appendChild(a); a.click();
+                        setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+                    })
+                    .catch(function (e) { self.toast(e.message, 'error'); });
+            }
+        };
+        window.CmeAdmin = CmeAdmin;
+
+
         // ===== APPROVAL OUTBOX (all pending batches, source-engine agnostic) =====
         const PendingOutbox = {
             LABELS: {
@@ -35028,7 +35380,448 @@ By applying to this program, I give the following consents:
                 else if (tabId === 'ai-studio') this.loadAiHistory();
                 else if (tabId === 'campaigns') this.loadCampaigns();
                 else if (tabId === 'subscribers') this.loadSubscribers();
+                else if (tabId === 'press') this.pressInit();
             },
+
+            // ===================== PRESS RELEASES (queue 5b) =====================
+            pressState: { editMode: false, pairId: null, versionIds: {}, aiGenerated: false, seedRef: '' },
+
+            async pressInit() {
+                this.pressShowPanel('list');
+                await this.pressLoadSendState();
+            },
+            pressShowPanel(which) {
+                const c = document.getElementById('prPressComposer');
+                const l = document.getElementById('prPressListPanel');
+                const m = document.getElementById('prPressMediaPanel');
+                if (c) c.style.display = (which === 'composer') ? 'block' : 'none';
+                if (l) l.style.display = (which === 'list') ? 'block' : 'none';
+                if (m) m.style.display = (which === 'media') ? 'block' : 'none';
+                if (which === 'media') this.pressLoadMedia();
+                if (which === 'list') this.pressLoadList();
+            },
+            async pressLoadSendState() {
+                try {
+                    const d = await this.api('/api/pr/media-contacts');
+                    const el = document.getElementById('prPressSendState');
+                    if (!el) return;
+                    const inc = (d.contacts || []).filter(c => c.included).length;
+                    el.innerHTML = 'Media list ' + (d.contacts || []).length + ' outlets, ' + inc + ' included'
+                        + (d.send_paused ? ' <span style="color:#c0392b;font-weight:600;">sending paused</span>' : '');
+                } catch (e) {}
+            },
+            pressStatusChip(status) {
+                const pub = status === 'published';
+                return '<span style="background:' + (pub ? 'rgba(31,122,68,0.15);color:#1f7a44' : 'rgba(155,27,34,0.12);color:var(--pr-media)') + ';padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">' + (pub ? 'Published' : 'Draft') + '</span>';
+            },
+            async pressLoadList() {
+                const host = document.getElementById('prPressList');
+                if (!host) return;
+                try {
+                    const d = await this.api('/api/pr/press-releases');
+                    if (!d.releases || !d.releases.length) {
+                        host.innerHTML = '<div class="card"><div class="card-body"><p style="color:var(--text-muted);">No press releases yet. Click New press release to compose one.</p></div></div>';
+                        return;
+                    }
+                    host.innerHTML = d.releases.map(p => this.pressCardHtml(p)).join('');
+                } catch (e) {
+                    host.innerHTML = '<p style="color:#c0392b;">Could not load releases.</p>';
+                }
+            },
+            pressCardHtml(p) {
+                const en = p.versions.en, hr = p.versions.hr;
+                const primary = en || hr;
+                if (!primary) return '';
+                const pub = p.status === 'published';
+                const date = primary.dateline_date || '';
+                const btn = (label, icon, fn, style) => '<button class="btn btn-secondary" style="padding:5px 10px;font-size:12px;' + (style || '') + '" onclick="' + fn + '"><i class="fas ' + icon + '"></i> ' + label + '</button>';
+                const verRow = (v) => {
+                    if (!v) return '';
+                    return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--border);">'
+                        + '<span style="font-weight:700;font-size:12px;background:var(--bg-secondary);padding:2px 8px;border-radius:5px;">' + (v.lang === 'hr' ? 'HR' : 'EN') + '</span>'
+                        + '<span style="flex:1;min-width:180px;color:var(--text-secondary);font-size:13px;">' + escapeHtml(v.title || '(untitled)') + '</span>'
+                        + btn('Preview', 'fa-eye', "PRApp.pressOpen('" + v.id + "','preview')")
+                        + btn('PDF', 'fa-file-pdf', "PRApp.pressOpen('" + v.id + "','pdf')")
+                        + btn('Word', 'fa-file-word', "PRApp.pressOpen('" + v.id + "','doc')")
+                        + '</div>';
+                };
+                return '<div class="card" style="margin-bottom:14px;"><div class="card-body">'
+                    + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">'
+                    + '<div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">'
+                    + this.pressStatusChip(p.status)
+                    + '<span style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--pr-media);">' + escapeHtml(primary.tag || '') + '</span>'
+                    + '<span style="font-size:12px;color:var(--text-muted);">' + escapeHtml(date) + '</span></div>'
+                    + '<div style="font-family:\'Fraunces\',Georgia,serif;font-size:18px;font-weight:600;">' + escapeHtml(primary.title || '(untitled)') + '</div></div>'
+                    + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+                    + btn('Edit', 'fa-pen', "PRApp.pressEdit('" + primary.id + "')", 'background:var(--pr-media);color:#fff;border-color:var(--pr-media);')
+                    + (pub ? btn('Unpublish', 'fa-eye-slash', "PRApp.pressPublish('" + primary.id + "',false)") : btn('Publish', 'fa-upload', "PRApp.pressPublish('" + primary.id + "',true)", 'background:#1f7a44;color:#fff;border-color:#1f7a44;'))
+                    + btn('Send to media', 'fa-paper-plane', "PRApp.pressSend('" + primary.id + "')")
+                    + btn('Delete', 'fa-trash', "PRApp.pressDelete('" + primary.id + "')", 'color:#c0392b;')
+                    + '</div>'
+                    + '</div>'
+                    + verRow(en) + verRow(hr)
+                    + '</div></div>';
+            },
+            async pressOpen(id, kind) {
+                try {
+                    const path = kind === 'preview' ? ('/api/pr/press-releases/' + id + '/preview')
+                        : kind === 'pdf' ? ('/api/pr/press-releases/' + id + '/export.pdf')
+                        : ('/api/pr/press-releases/' + id + '/export.doc');
+                    const res = await fetch(path, { headers: { 'Authorization': 'Bearer ' + App.token } });
+                    if (!res.ok) {
+                        let msg = 'Could not open that export.';
+                        try { const j = await res.json(); if (j && j.message) msg = j.message; } catch (e) {}
+                        Toast.show(msg, 'error');
+                        return;
+                    }
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    if (kind === 'preview') {
+                        window.open(url, '_blank');
+                    } else {
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'press-release-' + id + (kind === 'pdf' ? '.pdf' : '.doc');
+                        document.body.appendChild(a); a.click(); a.remove();
+                    }
+                    setTimeout(() => URL.revokeObjectURL(url), 60000);
+                } catch (e) { Toast.show('Could not open that export.', 'error'); }
+            },
+            async pressPublish(id, publish) {
+                try {
+                    await this.api('/api/pr/press-releases/' + id + '/' + (publish ? 'publish' : 'unpublish'), { method: 'POST', body: JSON.stringify({}) });
+                    Toast.show(publish ? 'Published to the website press page.' : 'Moved back to draft.', 'success');
+                    this.pressLoadList();
+                } catch (e) { Toast.show('Could not update the release.', 'error'); }
+            },
+            async pressDelete(id) {
+                if (!confirm('Delete this press release and all its language versions? This cannot be undone.')) return;
+                try {
+                    const d = await this.api('/api/pr/press-releases/' + id);
+                    const ids = (d.versions || [d.release]).map(v => v.id);
+                    for (const vid of ids) { await this.api('/api/pr/press-releases/' + vid, { method: 'DELETE' }); }
+                    Toast.show('Press release deleted.', 'success');
+                    this.pressLoadList();
+                } catch (e) { Toast.show('Could not delete the release.', 'error'); }
+            },
+            async pressSend(id) {
+                if (!confirm('Stage this release to every included media outlet? Nothing sends until you approve the batch in the outbox.')) return;
+                try {
+                    const r = await this.api('/api/pr/press-releases/' + id + '/send', { method: 'POST', body: JSON.stringify({}) });
+                    Toast.show('Staged to ' + r.staged + ' outlet(s), ' + r.excluded + ' excluded. Pending approval in the outbox.', 'success');
+                    this.pressLoadSendState();
+                } catch (e) {
+                    let msg = 'Could not stage the send.';
+                    const m = String(e && e.message || '');
+                    if (m.indexOf('423') >= 0 || m.toLowerCase().indexOf('paused') >= 0) msg = 'Sending is paused. Resume it in the media list first.';
+                    Toast.show(msg, 'error');
+                }
+            },
+
+            // ---- Composer ----
+            async pressNew() {
+                this.pressState = { editMode: false, pairId: null, versionIds: {}, aiGenerated: false, seedRef: '' };
+                this.pressShowPanel('composer');
+                this.pressRenderDescribe();
+                try {
+                    const d = await this.api('/api/pr/press-seeds');
+                    const sel = document.getElementById('pfSeed');
+                    if (sel && d.seeds && d.seeds.length) {
+                        sel.innerHTML = '<option value="">Or start from a recent portal update...</option>'
+                            + d.seeds.map((s, i) => '<option value="' + i + '">' + escapeHtml('[' + s.kind + '] ' + (s.title || '').slice(0, 60)) + '</option>').join('');
+                        sel.style.display = 'block';
+                        this._pressSeeds = d.seeds;
+                    }
+                } catch (e) {}
+            },
+            pressUseSeed() {
+                const sel = document.getElementById('pfSeed');
+                if (!sel || !this._pressSeeds) return;
+                const s = this._pressSeeds[+sel.value];
+                if (!s) return;
+                const ta = document.getElementById('pfDescribe'); if (ta) ta.value = s.text || '';
+                const pr = document.getElementById('pfProject'); if (pr && s.project) pr.value = s.project;
+                this.pressState.seedRef = (s.kind || '') + ': ' + (s.title || '');
+            },
+            pressRenderDescribe() {
+                const today = new Date().toISOString().slice(0, 10);
+                const host = document.getElementById('prPressComposer');
+                host.innerHTML = '<div class="card"><div class="card-body">'
+                    + '<h2 style="font-family:\'Fraunces\',Georgia,serif;font-size:22px;font-weight:600;margin-bottom:4px;">New press release</h2>'
+                    + '<p style="color:var(--text-muted);margin-bottom:18px;">Describe the announcement in your own words. The composer drafts a formal release in English and Croatian, and you edit both before saving.</p>'
+                    + '<select id="pfSeed" onchange="PRApp.pressUseSeed()" style="display:none;width:100%;margin-bottom:12px;padding:9px;border-radius:8px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);"></select>'
+                    + '<textarea id="pfDescribe" rows="5" placeholder="For example: Med and X announces that eleven Nobel laureates will speak at the Plexus Conference in Zagreb on 4 and 5 December 2026." style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:14px;"></textarea>'
+                    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:14px;">'
+                    +   this.pressInput('pfTitleSeed', 'Headline (optional)', 'text', '')
+                    +   this.pressInput('pfCity', 'Dateline city', 'text', 'Zagreb')
+                    +   this.pressInput('pfDate', 'Dateline date', 'date', today)
+                    +   this.pressSelect('pfTag', 'Category', ['Announcement', 'Event', 'Partnership', 'Award', 'Statement'], 'Announcement')
+                    +   this.pressSelect('pfProject', 'Project', ['medx', 'plexus', 'gala', 'accelerator', 'forum', 'bridges'], 'medx')
+                    + '</div>'
+                    + '<div style="margin-top:14px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;">'
+                    +   '<label style="display:flex;gap:7px;align-items:center;"><input type="checkbox" id="pfLangEn" checked> English</label>'
+                    +   '<label style="display:flex;gap:7px;align-items:center;"><input type="checkbox" id="pfLangHr" checked> Croatian</label>'
+                    + '</div>'
+                    + '<div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">'
+                    +   '<button class="btn btn-primary" id="pfGenBtn" onclick="PRApp.pressGenerate()"><i class="fas fa-wand-magic-sparkles"></i> Generate draft</button>'
+                    +   '<button class="btn btn-secondary" onclick="PRApp.pressManual()"><i class="fas fa-pen"></i> Write manually</button>'
+                    +   '<button class="btn btn-secondary" onclick="PRApp.pressShowPanel(\'list\')">Cancel</button>'
+                    + '</div>'
+                    + '</div></div>';
+            },
+            pressInput(id, label, type, val) {
+                return '<div><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">' + label + '</label>'
+                    + '<input id="' + id + '" type="' + type + '" value="' + escapeHtml(val || '') + '" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);"></div>';
+            },
+            pressSelect(id, label, opts, val) {
+                return '<div><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">' + label + '</label>'
+                    + '<select id="' + id + '" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);">'
+                    + opts.map(o => '<option value="' + escapeHtml(o) + '"' + (o === val ? ' selected' : '') + '>' + escapeHtml(o) + '</option>').join('')
+                    + '</select></div>';
+            },
+            async pressGenerate() {
+                const btn = document.getElementById('pfGenBtn');
+                const description = (document.getElementById('pfDescribe').value || '').trim();
+                if (!description && !(document.getElementById('pfTitleSeed').value || '').trim()) { Toast.show('Describe the announcement first.', 'error'); return; }
+                const langs = [];
+                if (document.getElementById('pfLangEn').checked) langs.push('en');
+                if (document.getElementById('pfLangHr').checked) langs.push('hr');
+                if (!langs.length) { Toast.show('Choose at least one language.', 'error'); return; }
+                const payload = {
+                    description,
+                    title: document.getElementById('pfTitleSeed').value || '',
+                    dateline_city: document.getElementById('pfCity').value || 'Zagreb',
+                    dateline_date: document.getElementById('pfDate').value || new Date().toISOString().slice(0, 10),
+                    tag: document.getElementById('pfTag').value, project: document.getElementById('pfProject').value, langs
+                };
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Drafting...'; }
+                try {
+                    const d = await this.api('/api/pr/press-releases/draft', { method: 'POST', body: JSON.stringify(payload) });
+                    this.pressState.aiGenerated = !d.mock;
+                    this.pressRenderEditor({ en: d.en || null, hr: d.hr || null });
+                    if (d.mock) Toast.show('Drafted from the template baseline. Add your live AI key for a richer first draft.', 'info');
+                } catch (e) {
+                    Toast.show('Could not draft the release. You can still write it manually.', 'error');
+                } finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Generate draft'; } }
+            },
+            pressManual() {
+                const base = {
+                    title: document.getElementById('pfTitleSeed').value || '',
+                    tag: document.getElementById('pfTag').value, project: document.getElementById('pfProject').value,
+                    dateline_city: document.getElementById('pfCity').value || 'Zagreb',
+                    dateline_date: document.getElementById('pfDate').value || new Date().toISOString().slice(0, 10)
+                };
+                const en = document.getElementById('pfLangEn').checked ? Object.assign({ lang: 'en', body: '', summary: '' }, base) : null;
+                const hr = document.getElementById('pfLangHr').checked ? Object.assign({ lang: 'hr', body: '', summary: '' }, base) : null;
+                this.pressState.aiGenerated = false;
+                this.pressRenderEditor({ en, hr });
+            },
+            async pressEdit(id) {
+                try {
+                    const d = await this.api('/api/pr/press-releases/' + id);
+                    const versions = d.versions || [d.release];
+                    const byLang = {}; versions.forEach(v => { byLang[v.lang] = v; });
+                    this.pressState = { editMode: true, pairId: (d.release.pair_id || d.release.id), versionIds: { en: byLang.en && byLang.en.id, hr: byLang.hr && byLang.hr.id }, aiGenerated: false, seedRef: '' };
+                    this.pressShowPanel('composer');
+                    this.pressRenderEditor({ en: byLang.en || null, hr: byLang.hr || null });
+                } catch (e) { Toast.show('Could not load that release.', 'error'); }
+            },
+            pressTemplateFrom(v) {
+                try { return v && v.template_json ? (typeof v.template_json === 'string' ? JSON.parse(v.template_json) : v.template_json) : {}; } catch (e) { return {}; }
+            },
+            pressRenderEditor(data) {
+                const tpl = this.pressTemplateFrom(data.en || data.hr || {});
+                const accent = tpl.accent || '#9b1b22';
+                const col = (lang, v) => {
+                    const on = !!v;
+                    const g = (k, dflt) => (v && v[k] != null && v[k] !== '') ? v[k] : (dflt || '');
+                    const flag = lang === 'hr' ? 'Croatian (HR)' : 'English (EN)';
+                    return '<div style="flex:1;min-width:320px;border:1px solid var(--border);border-radius:12px;padding:16px;background:var(--bg-secondary);">'
+                        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><span style="font-weight:700;">' + flag + '</span>'
+                        + (on ? '' : '<label style="font-size:12px;"><input type="checkbox" id="pf_' + lang + '_use"> add this language</label>') + '</div>'
+                        + '<div id="pf_' + lang + '_fields" style="' + (on ? '' : 'opacity:0.5;') + '">'
+                        + this.pressField('pf_' + lang + '_title', 'Headline', g('title'), false)
+                        + this.pressField('pf_' + lang + '_subtitle', 'Subheadline', g('subtitle'), false)
+                        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
+                        +   this.pressField('pf_' + lang + '_city', 'Dateline city', g('dateline_city', 'Zagreb'), false)
+                        +   this.pressFieldRaw('pf_' + lang + '_date', 'Dateline date', 'date', g('dateline_date', new Date().toISOString().slice(0, 10)))
+                        + '</div>'
+                        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
+                        +   this.pressField('pf_' + lang + '_tag', 'Category', g('tag', 'Announcement'), false)
+                        +   this.pressField('pf_' + lang + '_project', 'Project', g('project', 'medx'), false)
+                        + '</div>'
+                        + this.pressArea('pf_' + lang + '_body', 'Body (HTML paragraphs)', g('body'), 8)
+                        + this.pressArea('pf_' + lang + '_summary', 'Summary (list card)', g('summary'), 2)
+                        + this.pressArea('pf_' + lang + '_boiler', 'About Med and X boilerplate', g('boilerplate'), 3)
+                        + this.pressArea('pf_' + lang + '_contact', 'Media contact block', g('contact_block'), 2)
+                        + '</div></div>';
+                };
+                const host = document.getElementById('prPressComposer');
+                host.innerHTML = '<div class="card"><div class="card-body">'
+                    + '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">'
+                    +   '<h2 style="font-family:\'Fraunces\',Georgia,serif;font-size:22px;font-weight:600;">' + (this.pressState.editMode ? 'Edit press release' : 'Review and edit the draft') + '</h2>'
+                    +   '<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">'
+                    +     '<label style="font-size:12px;display:flex;gap:6px;align-items:center;">Accent <input type="color" id="pf_accent" value="' + accent + '" style="width:34px;height:26px;border:none;background:none;"></label>'
+                    +     '<label style="font-size:12px;"><input type="checkbox" id="pf_show_boiler"' + (tpl.show_boilerplate === false ? '' : ' checked') + '> Boilerplate</label>'
+                    +     '<label style="font-size:12px;"><input type="checkbox" id="pf_show_contact"' + (tpl.show_contact === false ? '' : ' checked') + '> Contact</label>'
+                    +     '<label style="font-size:12px;"><input type="checkbox" id="pf_show_logo"' + (tpl.logo === false ? '' : ' checked') + '> Logo</label>'
+                    +   '</div>'
+                    + '</div>'
+                    + '<div style="display:flex;gap:16px;flex-wrap:wrap;">' + col('en', data.en) + col('hr', data.hr) + '</div>'
+                    + '<div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">'
+                    +   '<button class="btn btn-primary" onclick="PRApp.pressSave()"><i class="fas fa-save"></i> ' + (this.pressState.editMode ? 'Save changes' : 'Save draft') + '</button>'
+                    +   (this.pressState.editMode ? '' : '<button class="btn btn-secondary" onclick="PRApp.pressRenderDescribe()"><i class="fas fa-arrow-left"></i> Back</button>')
+                    +   '<button class="btn btn-secondary" onclick="PRApp.pressShowPanel(\'list\')">Cancel</button>'
+                    + '</div>'
+                    + '</div></div>';
+                ['en', 'hr'].forEach(lang => {
+                    const cb = document.getElementById('pf_' + lang + '_use');
+                    if (cb) cb.addEventListener('change', () => { const f = document.getElementById('pf_' + lang + '_fields'); if (f) f.style.opacity = cb.checked ? '1' : '0.5'; });
+                });
+            },
+            pressField(id, label, val, req) {
+                return '<div style="margin-bottom:10px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">' + label + '</label>'
+                    + '<input id="' + id + '" type="text" value="' + escapeHtml(val || '') + '" style="width:100%;padding:8px;border-radius:7px;border:1px solid var(--border);background:var(--bg-primary,#fff);color:var(--text-primary);"></div>';
+            },
+            pressFieldRaw(id, label, type, val) {
+                return '<div style="margin-bottom:10px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">' + label + '</label>'
+                    + '<input id="' + id + '" type="' + type + '" value="' + escapeHtml(val || '') + '" style="width:100%;padding:8px;border-radius:7px;border:1px solid var(--border);background:var(--bg-primary,#fff);color:var(--text-primary);"></div>';
+            },
+            pressArea(id, label, val, rows) {
+                return '<div style="margin-bottom:10px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">' + label + '</label>'
+                    + '<textarea id="' + id + '" rows="' + (rows || 3) + '" style="width:100%;padding:8px;border-radius:7px;border:1px solid var(--border);background:var(--bg-primary,#fff);color:var(--text-primary);font-size:13px;">' + escapeHtml(val || '') + '</textarea></div>';
+            },
+            pressTemplateJson() {
+                return {
+                    accent: (document.getElementById('pf_accent') || {}).value || '#9b1b22',
+                    show_boilerplate: !!(document.getElementById('pf_show_boiler') || {}).checked,
+                    show_contact: !!(document.getElementById('pf_show_contact') || {}).checked,
+                    logo: !!(document.getElementById('pf_show_logo') || {}).checked
+                };
+            },
+            pressCollect(lang) {
+                const g = (n) => { const el = document.getElementById('pf_' + lang + '_' + n); return el ? el.value : ''; };
+                const use = document.getElementById('pf_' + lang + '_use');
+                if (use && !use.checked && !this.pressState.versionIds[lang]) return null;
+                const title = (g('title') || '').trim();
+                const body = (g('body') || '').trim();
+                if (!title && !body) return null;
+                return {
+                    lang, title, subtitle: g('subtitle'), tag: g('tag') || 'Announcement', project: g('project') || 'medx',
+                    dateline_city: g('city') || 'Zagreb', dateline_date: g('date') || new Date().toISOString().slice(0, 10),
+                    summary: g('summary'), body, boilerplate: g('boiler'), contact_block: g('contact'),
+                    template_json: this.pressTemplateJson()
+                };
+            },
+            async pressSave() {
+                const en = this.pressCollect('en');
+                const hr = this.pressCollect('hr');
+                if (!en && !hr) { Toast.show('Add a headline or body in at least one language.', 'error'); return; }
+                try {
+                    if (this.pressState.editMode) {
+                        for (const v of [en, hr].filter(Boolean)) {
+                            const vid = this.pressState.versionIds[v.lang];
+                            if (vid) { await this.api('/api/pr/press-releases/' + vid, { method: 'PUT', body: JSON.stringify(v) }); }
+                            else { await this.api('/api/pr/press-releases', { method: 'POST', body: JSON.stringify({ pair_id: this.pressState.pairId, versions: [v] }) }); }
+                        }
+                        Toast.show('Changes saved.', 'success');
+                    } else {
+                        await this.api('/api/pr/press-releases', { method: 'POST', body: JSON.stringify({ ai_generated: this.pressState.aiGenerated, seed_ref: this.pressState.seedRef, versions: [en, hr].filter(Boolean) }) });
+                        Toast.show('Draft saved. Publish it when it is ready.', 'success');
+                    }
+                    this.pressShowPanel('list');
+                } catch (e) { Toast.show('Could not save the release.', 'error'); }
+            },
+
+            // ---- Media list ----
+            async pressLoadMedia() {
+                const host = document.getElementById('prPressMediaPanel');
+                if (!host) return;
+                try {
+                    const d = await this.api('/api/pr/media-contacts');
+                    const rows = (d.contacts || []).map(c => {
+                        return '<tr style="border-bottom:1px solid var(--border);">'
+                            + '<td style="padding:9px;">' + escapeHtml(c.outlet || '') + '</td>'
+                            + '<td style="padding:9px;">' + escapeHtml(c.contact_name || '') + '</td>'
+                            + '<td style="padding:9px;color:var(--text-muted);">' + escapeHtml(c.email || '') + '</td>'
+                            + '<td style="padding:9px;text-align:center;"><span style="font-weight:700;font-size:11px;background:var(--bg-secondary);padding:2px 7px;border-radius:5px;">' + (c.language === 'en' ? 'EN' : 'HR') + '</span></td>'
+                            + '<td style="padding:9px;text-align:center;"><label style="cursor:pointer;"><input type="checkbox"' + (c.included ? ' checked' : '') + ' onchange="PRApp.pressToggleMedia(\'' + c.id + '\',this.checked)"></label></td>'
+                            + '<td style="padding:9px;text-align:center;"><button class="btn btn-secondary" style="padding:4px 8px;font-size:12px;color:#c0392b;" onclick="PRApp.pressDeleteMedia(\'' + c.id + '\')"><i class="fas fa-trash"></i></button></td>'
+                            + '</tr>';
+                    }).join('');
+                    host.innerHTML = '<div class="card"><div class="card-body">'
+                        + '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">'
+                        +   '<div><span class="card-title">Media list</span><div style="font-size:12.5px;color:var(--text-muted);margin-top:2px;">Croatian outlets receive the Croatian release, others the English one. Excluded outlets are skipped when you send.</div></div>'
+                        +   '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'
+                        +     '<label style="font-size:12.5px;display:flex;gap:6px;align-items:center;"><input type="checkbox" id="pfSendPause"' + (d.send_paused ? ' checked' : '') + ' onchange="PRApp.pressPauseSends(this.checked)"> Pause all sends</label>'
+                        +     '<button class="btn btn-secondary" onclick="PRApp.pressImportMedia()"><i class="fas fa-file-import"></i> Import list</button>'
+                        +     '<button class="btn btn-primary" onclick="PRApp.pressAddMedia()"><i class="fas fa-plus"></i> Add outlet</button>'
+                        +   '</div>'
+                        + '</div>'
+                        + '<div id="pfMediaForm"></div>'
+                        + '<table style="width:100%;border-collapse:collapse;"><thead><tr style="border-bottom:2px solid var(--border);text-align:left;">'
+                        +   '<th style="padding:9px;">Outlet</th><th style="padding:9px;">Contact</th><th style="padding:9px;">Email</th><th style="padding:9px;text-align:center;">Lang</th><th style="padding:9px;text-align:center;">Include</th><th style="padding:9px;text-align:center;">Remove</th>'
+                        + '</tr></thead><tbody>' + (rows || '<tr><td colspan="6" style="padding:16px;color:var(--text-muted);">No outlets yet. Add one or import your list.</td></tr>') + '</tbody></table>'
+                        + '<input type="file" id="pfMediaFile" accept=".csv,.xlsx,.xls" style="display:none;" onchange="PRApp.pressMediaFilePicked(event)">'
+                        + '</div></div>';
+                } catch (e) { host.innerHTML = '<p style="color:#c0392b;">Could not load the media list.</p>'; }
+                this.pressLoadSendState();
+            },
+            pressAddMedia() {
+                const f = document.getElementById('pfMediaForm');
+                if (!f) return;
+                f.innerHTML = '<div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;background:var(--bg-secondary);">'
+                    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">'
+                    +   this.pressInput('pfmOutlet', 'Outlet', 'text', '')
+                    +   this.pressInput('pfmName', 'Contact name', 'text', '')
+                    +   this.pressInput('pfmEmail', 'Email', 'email', '')
+                    +   this.pressInput('pfmCountry', 'Country', 'text', 'Croatia')
+                    +   this.pressSelect('pfmLang', 'Send language', ['hr', 'en'], 'hr')
+                    + '</div>'
+                    + '<div style="margin-top:10px;display:flex;gap:8px;"><button class="btn btn-primary" onclick="PRApp.pressSaveMedia()"><i class="fas fa-check"></i> Save outlet</button>'
+                    + '<button class="btn btn-secondary" onclick="document.getElementById(\'pfMediaForm\').innerHTML=\'\'">Cancel</button></div></div>';
+            },
+            async pressSaveMedia() {
+                const body = {
+                    outlet: document.getElementById('pfmOutlet').value,
+                    contact_name: document.getElementById('pfmName').value,
+                    email: document.getElementById('pfmEmail').value,
+                    country: document.getElementById('pfmCountry').value,
+                    language: document.getElementById('pfmLang').value
+                };
+                if (!body.outlet && !body.email) { Toast.show('Enter an outlet name or an email.', 'error'); return; }
+                try { await this.api('/api/pr/media-contacts', { method: 'POST', body: JSON.stringify(body) }); Toast.show('Outlet added.', 'success'); this.pressLoadMedia(); }
+                catch (e) { Toast.show('Could not add the outlet.', 'error'); }
+            },
+            async pressToggleMedia(id, included) {
+                try { await this.api('/api/pr/media-contacts/' + id, { method: 'PUT', body: JSON.stringify({ included }) }); this.pressLoadSendState(); }
+                catch (e) { Toast.show('Could not update the outlet.', 'error'); }
+            },
+            async pressDeleteMedia(id) {
+                if (!confirm('Remove this outlet from the media list?')) return;
+                try { await this.api('/api/pr/media-contacts/' + id, { method: 'DELETE' }); this.pressLoadMedia(); }
+                catch (e) { Toast.show('Could not remove the outlet.', 'error'); }
+            },
+            async pressPauseSends(paused) {
+                try { await this.api('/api/pr/media-contacts/pause', { method: 'POST', body: JSON.stringify({ send_paused: paused }) }); Toast.show(paused ? 'Sending paused.' : 'Sending resumed.', 'info'); this.pressLoadSendState(); }
+                catch (e) { Toast.show('Could not change the send state.', 'error'); }
+            },
+            pressImportMedia() { const el = document.getElementById('pfMediaFile'); if (el) el.click(); },
+            async pressMediaFilePicked(ev) {
+                const file = ev.target.files && ev.target.files[0];
+                if (!file) return;
+                const fd = new FormData(); fd.append('file', file);
+                try {
+                    const res = await fetch('/api/pr/media-contacts/import/preview', { method: 'POST', headers: { 'Authorization': 'Bearer ' + App.token }, body: fd });
+                    const prev = await res.json();
+                    if (!res.ok) { Toast.show(prev.error || 'Could not read that file.', 'error'); ev.target.value = ''; return; }
+                    const commit = await this.api('/api/pr/media-contacts/import/commit', { method: 'POST', body: JSON.stringify({ mapping: prev.suggested_mapping, rows: prev.rows }) });
+                    Toast.show('Imported ' + commit.added + ' outlet(s), ' + commit.merged + ' updated, ' + commit.skipped + ' skipped.', 'success');
+                    this.pressLoadMedia();
+                } catch (e) { Toast.show('Could not import the list.', 'error'); }
+                ev.target.value = '';
+            },
+
 
             filterByProject(project) {
                 this.currentProject = project;
@@ -35233,6 +36026,80 @@ By applying to this program, I give the following consents:
                             </div>
                         </div>`;
                 }
+                this.loadMetaStatus();
+            },
+
+            // ===== META (IG/FB) PUBLISHING BOUNDARY (queue 5a8) — status + settings + dry-run =====
+            async loadMetaStatus() {
+                const el = document.getElementById('prMetaStatus');
+                if (!el) return;
+                let s;
+                try { s = await this.api('/api/admin/pr/meta/status'); }
+                catch (e) { s = null; }
+                if (!s) { el.innerHTML = ''; return; }
+                const missing = (s.missing || []).map(m => `<li>${escapeHtml(m)}</li>`).join('');
+                const fullyReady = s.configured_facebook || s.configured_instagram;
+                const border = fullyReady ? (s.enabled ? 'var(--success)' : '#c9a962') : '#c9a962';
+                el.innerHTML = `
+                    <div class="card" style="padding:14px 16px;border-left:3px solid ${border};">
+                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between;">
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <i class="fab fa-facebook" style="color:#1877f2;"></i><i class="fab fa-instagram" style="color:#c13584;"></i>
+                                <strong style="font-size:14px;">Meta publishing (Facebook &amp; Instagram)</strong>
+                            </div>
+                            <button class="btn btn-secondary" style="font-size:12px;" onclick="PRApp.toggleMetaPanel()"><i class="fas fa-sliders-h"></i> Settings</button>
+                        </div>
+                        <div style="margin-top:10px;font-size:12.5px;color:var(--text-secondary);">
+                            Facebook: <strong style="color:${s.configured_facebook ? 'var(--success)' : 'var(--text-muted)'};">${s.configured_facebook ? 'ready' : 'not connected'}</strong> &middot;
+                            Instagram: <strong style="color:${s.configured_instagram ? 'var(--success)' : 'var(--text-muted)'};">${s.configured_instagram ? 'ready' : 'not connected'}</strong> &middot;
+                            Publishing: <strong style="color:${s.enabled ? 'var(--success)' : '#c9a962'};">${s.enabled ? 'ON' : 'OFF (kill switch)'}</strong>
+                        </div>
+                        ${missing ? `<div style="margin-top:10px;font-size:12.5px;color:var(--text-secondary);">The owner still needs to provide:<ul style="margin:6px 0 0;padding-left:20px;">${missing}</ul>See <code>docs/social_api_spec.md</code> for exactly where to get each one.</div>` : `<div style="margin-top:10px;font-size:12px;color:var(--text-muted);">Token on file: ${escapeHtml(s.token_hint || '(none)')}. Real publishing calls the Graph API (create container then publish for Instagram, page feed or photos for Facebook).</div>`}
+                        <div id="prMetaPanel" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                                <div><label style="font-size:11px;color:var(--text-muted);">Facebook Page ID</label><input id="metaPageId" value="${escapeHtml(s.page_id || '')}" placeholder="e.g. 1234567890" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
+                                <div><label style="font-size:11px;color:var(--text-muted);">Instagram Business account ID</label><input id="metaIgId" value="${escapeHtml(s.ig_user_id || '')}" placeholder="e.g. 1789990000" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
+                            </div>
+                            <div style="margin-top:10px;"><label style="font-size:11px;color:var(--text-muted);">Page access token (long-lived)</label><input id="metaToken" type="password" placeholder="${s.has_token ? 'Saved - leave blank to keep' : 'Paste the long-lived Page token'}" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
+                            <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;cursor:pointer;"><input type="checkbox" id="metaEnabled" ${s.enabled ? 'checked' : ''}> Kill switch ON (allow real sends). Leave off to stay in dry-run only.</label>
+                            <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+                                <button class="btn btn-primary" style="font-size:12px;" onclick="PRApp.saveMetaSettings()"><i class="fas fa-save"></i> Save credentials</button>
+                                <button class="btn btn-secondary" style="font-size:12px;" onclick="PRApp.metaDryRun()"><i class="fas fa-vial"></i> Dry-run newest post</button>
+                            </div>
+                            <div id="prMetaDryRun" style="margin-top:12px;"></div>
+                        </div>
+                    </div>`;
+            },
+            toggleMetaPanel() { const p = document.getElementById('prMetaPanel'); if (p) p.style.display = (p.style.display === 'none' ? 'block' : 'none'); },
+            async saveMetaSettings() {
+                const body = {
+                    page_id: document.getElementById('metaPageId')?.value || '',
+                    ig_user_id: document.getElementById('metaIgId')?.value || '',
+                    enabled: document.getElementById('metaEnabled')?.checked ? 1 : 0
+                };
+                const tok = document.getElementById('metaToken')?.value || '';
+                if (tok.trim()) body.page_access_token = tok.trim();
+                try { await this.api('/api/admin/pr/meta/settings', { method: 'PUT', body: JSON.stringify(body) }); Toast.success('Meta credentials saved.'); await this.loadMetaStatus(); }
+                catch (e) { Toast.error('Could not save Meta settings'); }
+            },
+            async metaDryRun() {
+                const out = document.getElementById('prMetaDryRun');
+                if (out) out.innerHTML = '<span style="font-size:12px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Building the exact Graph calls</span>';
+                let cal;
+                try { cal = await this.api('/api/pr/calendar'); } catch (e) { cal = []; }
+                const posts = Array.isArray(cal) ? cal : (cal.calendar || cal.posts || []);
+                const post = posts.find(p => (p.platform || '').toLowerCase() === 'facebook')
+                    || posts.find(p => (p.platform || '').toLowerCase() === 'instagram' && p.image_url)
+                    || posts.find(p => ['facebook', 'instagram'].includes((p.platform || '').toLowerCase()))
+                    || posts[0];
+                if (!post) { if (out) out.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">Add a Facebook or Instagram post to the calendar first, then dry-run it here.</span>'; return; }
+                try {
+                    const r = await this.api(`/api/admin/pr/meta/publish/${post.id}?dryRun=1`, { method: 'POST' });
+                    const calls = (r.calls || []).map((c, i) => c.step === 'blocked'
+                        ? `<div style="font-size:12px;color:#c9a962;padding:6px 0;">${escapeHtml(c.note)}</div>`
+                        : `<div style="font-family:monospace;font-size:11.5px;background:var(--bg-secondary);border-radius:6px;padding:8px;margin-bottom:6px;"><div><strong>${i + 1}. ${escapeHtml(c.label || '')}</strong></div><div>${escapeHtml(c.method)} ${escapeHtml(c.url)}</div><div style="color:var(--text-muted);word-break:break-all;">${escapeHtml(JSON.stringify(c.body))}</div></div>`).join('');
+                    if (out) out.innerHTML = `<div style="font-size:12px;margin-bottom:6px;color:var(--text-secondary);">Dry-run for <strong>${escapeHtml(post.platform)}</strong> post, nothing was sent. Exact Graph calls:</div>${calls}<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${escapeHtml(r.note || '')}</div>`;
+                } catch (e) { if (out) out.innerHTML = '<span style="font-size:12px;color:#ef4444;">Dry-run failed.</span>'; }
             },
 
             // Live character counter + IG image hint for the composer.
