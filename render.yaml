@@ -94,6 +94,17 @@ services:
         sync: false
       - key: EMAIL_FROM
         value: "Med&X <noreply@medx.hr>"
+      # Amadeus Self-Service (LIVE speaker flight-offer search) — owner action:
+      # create a free app at developers.amadeus.com and set both keys in the
+      # Render dashboard. Until set, the admin portal shows a clean key-gate and
+      # keeps the deep-links + manual fare table working (never a fake offer).
+      # Set AMADEUS_ENV=production once the Amadeus app is promoted.
+      - key: AMADEUS_API_KEY
+        sync: false
+      - key: AMADEUS_API_SECRET
+        sync: false
+      - key: AMADEUS_ENV
+        value: test
       # Turso cloud database (persistent SQLite)
       - key: TURSO_DATABASE_URL
         sync: false

@@ -625,6 +625,147 @@ function speakerFlightContext(sp) {
 }
 
 // ============================================================================
+// AMADEUS LIVE FLIGHT OFFERS (queue 5a5i — the LIVE layer over the deep-links).
+// Real flight-offer search per speaker: current airlines, times, layovers and
+// EUR prices from the Amadeus Self-Service API. This is the "live search, not
+// assumption search" boundary — we NEVER estimate, cache-fake or AI-guess a
+// fare. With no key set every live route returns a clean 503 gate naming the
+// exact owner actions, and the deep-links + manual quote table keep working.
+//
+// OWNER ACTION (mirrors the Meta boundary pattern):
+//   1. Create a free Self-Service app at https://developers.amadeus.com
+//   2. Set AMADEUS_API_KEY + AMADEUS_API_SECRET on the medx-admin-portal
+//      Render service. Default host is the free test environment; set
+//      AMADEUS_ENV=production once the Amadeus app is promoted.
+// AMADEUS_BASE_URL exists ONLY so the local test harness can point the client
+// at a mock — never set it in production.
+const AMADEUS_ENV = (process.env.AMADEUS_ENV || 'test').toLowerCase() === 'production' ? 'production' : 'test';
+const AMADEUS_BASE_URL = process.env.AMADEUS_BASE_URL
+    || (AMADEUS_ENV === 'production' ? 'https://api.amadeus.com' : 'https://test.api.amadeus.com');
+function amadeusConfigured() {
+    return !!(process.env.AMADEUS_API_KEY && String(process.env.AMADEUS_API_KEY).trim()
+        && process.env.AMADEUS_API_SECRET && String(process.env.AMADEUS_API_SECRET).trim());
+}
+// Exact ordered actions the owner still owes us — surfaced verbatim in the gate.
+function amadeusMissingActions() {
+    if (amadeusConfigured()) return [];
+    return [
+        'Create a free Amadeus Self-Service app at developers.amadeus.com (Flight Offers Search API).',
+        'Set AMADEUS_API_KEY and AMADEUS_API_SECRET on the medx-admin-portal Render service.'
+    ];
+}
+// OAuth2 client_credentials token, cached until 60s before expiry (~30 min tokens).
+let amadeusTokenCache = { token: null, expiresAt: 0 };
+async function amadeusToken() {
+    if (amadeusTokenCache.token && Date.now() < amadeusTokenCache.expiresAt) return amadeusTokenCache.token;
+    const body = new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: process.env.AMADEUS_API_KEY,
+        client_secret: process.env.AMADEUS_API_SECRET
+    });
+    const resp = await fetch(`${AMADEUS_BASE_URL}/v1/security/oauth2/token`, {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString()
+    });
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok || !json.access_token) {
+        throw new Error(`Amadeus auth failed (HTTP ${resp.status}) — check AMADEUS_API_KEY / AMADEUS_API_SECRET.`);
+    }
+    amadeusTokenCache = { token: json.access_token, expiresAt: Date.now() + Math.max(0, (json.expires_in || 1799) - 60) * 1000 };
+    return amadeusTokenCache.token;
+}
+// ISO-8601 duration (PT11H20M) -> minutes. Amadeus uses it on itineraries + segments.
+function isoDurationMinutes(d) {
+    const m = String(d || '').match(/P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?/);
+    if (!m) return 0;
+    return (parseInt(m[1] || 0) * 1440) + (parseInt(m[2] || 0) * 60) + parseInt(m[3] || 0);
+}
+function fmtMinutes(min) {
+    const h = Math.floor(min / 60), m = min % 60;
+    return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`;
+}
+// Normalize the raw Amadeus payload into the compact shape the panel renders and
+// the pin endpoint snapshots. Carrier codes resolve through dictionaries.carriers.
+function normalizeAmadeusOffers(payload) {
+    const carriers = (payload.dictionaries && payload.dictionaries.carriers) || {};
+    const carrierName = (code) => {
+        const n = carriers[code];
+        return n ? n.split(' ').map(w => w ? w[0] + w.slice(1).toLowerCase() : w).join(' ') : code;
+    };
+    return (payload.data || []).map(o => {
+        const itineraries = (o.itineraries || []).map(it => {
+            const segs = (it.segments || []).map(s => ({
+                from: s.departure && s.departure.iataCode,
+                to: s.arrival && s.arrival.iataCode,
+                depart_at: s.departure && s.departure.at,
+                arrive_at: s.arrival && s.arrival.at,
+                carrier: s.carrierCode,
+                carrier_name: carrierName(s.carrierCode),
+                flight_number: `${s.carrierCode}${s.number || ''}`
+            }));
+            const stops = Math.max(0, segs.length - 1);
+            const vias = segs.slice(0, -1).map(s => s.to).filter(Boolean);
+            return {
+                duration_minutes: isoDurationMinutes(it.duration),
+                duration_label: fmtMinutes(isoDurationMinutes(it.duration)),
+                stops, vias, segments: segs,
+                summary: segs.length
+                    ? `${segs[0].from}→${segs[segs.length - 1].to} · ${stops === 0 ? 'non-stop' : stops + ' stop' + (stops > 1 ? 's' : '') + (vias.length ? ' (' + vias.join(', ') + ')' : '')}`
+                    : ''
+            };
+        });
+        const airlines = [...new Set((o.validatingAirlineCodes || []).map(carrierName))];
+        return {
+            offer_id: o.id,
+            price: Math.round(Number(o.price && (o.price.grandTotal || o.price.total)) * 100) / 100,
+            currency: (o.price && o.price.currency) || 'EUR',
+            airline: airlines.join(' / ') || (itineraries[0] && itineraries[0].segments[0] && itineraries[0].segments[0].carrier_name) || '',
+            total_duration_minutes: itineraries.reduce((a, it) => a + it.duration_minutes, 0),
+            max_stops: itineraries.reduce((a, it) => Math.max(a, it.stops), 0),
+            itineraries
+        };
+    }).filter(o => isFinite(o.price) && o.price > 0);
+}
+// Tag the cheapest offer and the best price/duration/stops balance. Deterministic:
+// balance score = price ratio + 0.9 * duration ratio + 0.15 per stop.
+function tagFlightOffers(offers) {
+    if (!offers.length) return offers;
+    const minPrice = Math.min(...offers.map(o => o.price));
+    const minDur = Math.max(1, Math.min(...offers.map(o => o.total_duration_minutes || 1)));
+    let cheapest = null, best = null, bestScore = Infinity;
+    for (const o of offers) {
+        if (!cheapest || o.price < cheapest.price) cheapest = o;
+        const score = (o.price / minPrice) + 0.9 * ((o.total_duration_minutes || minDur) / minDur) + 0.15 * (o.max_stops || 0);
+        if (score < bestScore) { bestScore = score; best = o; }
+    }
+    if (cheapest) cheapest.tag_cheapest = true;
+    if (best) best.tag_best = true;
+    return offers;
+}
+// One live flight-offers search. Throws with a clean message on any API failure —
+// callers translate that into a 502, never into a made-up fare.
+async function amadeusSearchOffers({ origin, dest, depart, ret }) {
+    const token = await amadeusToken();
+    const params = new URLSearchParams({
+        originLocationCode: origin,
+        destinationLocationCode: dest,
+        departureDate: depart,
+        adults: '1',
+        currencyCode: 'EUR',
+        max: '20'
+    });
+    if (ret) params.set('returnDate', ret);
+    const resp = await fetch(`${AMADEUS_BASE_URL}/v2/shopping/flight-offers?${params}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+        const detail = json.errors && json.errors[0] && (json.errors[0].detail || json.errors[0].title);
+        throw new Error(detail ? `Amadeus: ${detail}` : `Amadeus search failed (HTTP ${resp.status}).`);
+    }
+    return tagFlightOffers(normalizeAmadeusOffers(json));
+}
+
+// ============================================================================
 // META (Instagram / Facebook) PUBLISHING BOUNDARY  (queue 5a8)
 // The pr_posts scheduler can push a post straight to a Med&X Facebook Page and
 // Instagram Business account via the Graph API. The real calls are fully wired
@@ -4418,6 +4559,13 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_flight_quotes_speaker ON speaker_flight_quotes(speaker_id)`);
+    // LIVE Amadeus layer (queue 5a5i): a pinned live offer is snapshotted into the
+    // same quote table — source 'amadeus', the full normalized offer JSON, and the
+    // search timestamp — so the budget roll-up and price-drift tracking share one
+    // source of truth with the manual fares. Admin-only, outside the mirror block.
+    try { db.run("ALTER TABLE speaker_flight_quotes ADD COLUMN source TEXT DEFAULT 'manual'"); } catch (e) {}
+    try { db.run('ALTER TABLE speaker_flight_quotes ADD COLUMN offer_json TEXT'); } catch (e) {}
+    try { db.run('ALTER TABLE speaker_flight_quotes ADD COLUMN searched_at TEXT'); } catch (e) {}
 
     // ============ LIDAR / 3D SPATIAL ASSETS SHELF — ADMIN-ONLY ============
     // Content-Studio shelf for GLB/USDZ scans Alen captures with an iPhone (Scaniverse /
@@ -18694,7 +18842,8 @@ By applying to this program, I provide the following consents:
                 context: ctx, quotes,
                 chosen_id: chosen ? chosen.id : null,
                 subtotal: chosen ? chosen.price : 0,
-                currency: chosen ? chosen.currency : 'EUR'
+                currency: chosen ? chosen.currency : 'EUR',
+                live: { available: amadeusConfigured(), env: AMADEUS_ENV, missing: amadeusMissingActions() }
             });
         } catch (e) { console.error('[flight] get', e.message); res.status(500).json({ error: e.message }); }
     });
@@ -18780,6 +18929,86 @@ By applying to this program, I provide the following consents:
             }
             res.json({ speakers: rows, totals, quoted, speaker_count: speakers.length });
         } catch (e) { console.error('[flight] budget', e.message); res.status(500).json({ error: e.message }); }
+    });
+    // ------------------------------------------------------------------------
+    // LIVE AMADEUS SEARCH (queue 5a5i). POST because it saves the edited route
+    // before searching. Without keys this is a clean 503 gate naming the owner
+    // actions — never a fake offer, never an estimate.
+    app.post('/api/admin/plexus/speakers/:id/flight/search', auth, adminOnly, async (req, res) => {
+        try {
+            if (!amadeusConfigured()) {
+                return res.status(503).json({
+                    error: 'live_search_unavailable',
+                    message: 'Live fare search is ready to switch on — it activates the moment the Amadeus key is added.',
+                    missing: amadeusMissingActions()
+                });
+            }
+            const sp = query.get('SELECT * FROM speakers WHERE id = ?', [req.params.id]);
+            if (!sp) return res.status(404).json({ error: 'Speaker not found' });
+            const b = req.body || {};
+            // Persist the (possibly edited) route first, so deep links + live search agree.
+            const origin = cleanIata(b.origin_iata, '') || cleanIata(sp.origin_iata, '') || suggestOriginIata(sp.institution || '');
+            const dest = cleanIata(b.dest_iata, '') || cleanIata(sp.flight_dest_iata, 'ZAG');
+            const depart = cleanFlightDate(b.depart_date) || cleanFlightDate(sp.flight_depart_date);
+            const ret = cleanFlightDate(b.return_date) || cleanFlightDate(sp.flight_return_date);
+            if (!origin || !dest) return res.status(400).json({ error: 'Set the origin and destination airports (3-letter IATA codes) first.' });
+            if (!depart) return res.status(400).json({ error: 'Set the departure date first — the live search needs the event-date window.' });
+            db.run('UPDATE speakers SET origin_iata = ?, flight_dest_iata = ?, flight_depart_date = ?, flight_return_date = ? WHERE id = ?',
+                [origin, dest, depart, ret || null, req.params.id]);
+            saveDb();
+            let offers;
+            try { offers = await amadeusSearchOffers({ origin, dest, depart, ret }); }
+            catch (apiErr) {
+                console.error('[flight] live search', apiErr.message);
+                return res.status(502).json({ error: apiErr.message });
+            }
+            // Price drift vs the pinned live pick for this speaker (if any).
+            let drift = null;
+            const pinned = query.get("SELECT * FROM speaker_flight_quotes WHERE speaker_id = ? AND source = 'amadeus' AND chosen = 1", [req.params.id]);
+            if (pinned && offers.length) {
+                const cheapest = Math.min(...offers.map(o => o.price));
+                drift = {
+                    pinned_price: pinned.price, pinned_currency: pinned.currency,
+                    pinned_at: pinned.searched_at || pinned.created_at,
+                    cheapest_now: cheapest,
+                    delta: Math.round((cheapest - pinned.price) * 100) / 100
+                };
+            }
+            logAudit(req, 'flight.search', `${req.params.id} ${origin}->${dest} ${depart}${ret ? '/' + ret : ''} (${offers.length} offers)`);
+            res.json({
+                success: true, searched_at: new Date().toISOString(), env: AMADEUS_ENV,
+                route: { origin_iata: origin, dest_iata: dest, depart_date: depart, return_date: ret || null },
+                offers, count: offers.length, drift
+            });
+        } catch (e) { console.error('[flight] search', e.message); res.status(500).json({ error: e.message }); }
+    });
+    // Pin one live offer as this speaker's pick: snapshot price + itinerary + search
+    // timestamp into the shared quote table and mark it chosen, so the travel-budget
+    // roll-up counts it exactly like a manual fare. Pinning = choosing, by design.
+    app.post('/api/admin/plexus/speakers/:id/flight/offers/pin', auth, adminOnly, (req, res) => {
+        try {
+            const sp = query.get('SELECT id, conference_id FROM speakers WHERE id = ?', [req.params.id]);
+            if (!sp) return res.status(404).json({ error: 'Speaker not found' });
+            const b = req.body || {};
+            const offer = b.offer || {};
+            const price = Number(offer.price);
+            if (!isFinite(price) || price <= 0) return res.status(400).json({ error: 'That offer has no valid price — run the search again and pin a listed offer.' });
+            const itinSummary = (offer.itineraries || []).map(it => it.summary).filter(Boolean).join(' | ');
+            const notes = [itinSummary, (offer.itineraries && offer.itineraries[0] && offer.itineraries[0].duration_label) || '']
+                .filter(Boolean).join(' · ').slice(0, 400);
+            const searchedAt = String(b.searched_at || new Date().toISOString()).slice(0, 40);
+            const id = uuidv4();
+            db.run('UPDATE speaker_flight_quotes SET chosen = 0 WHERE speaker_id = ?', [req.params.id]);
+            db.run(`INSERT INTO speaker_flight_quotes (id, speaker_id, conference_id, price, currency, airline, notes, chosen, created_by, created_at, source, offer_json, searched_at)
+                    VALUES (?,?,?,?,?,?,?,1,?, datetime('now'), 'amadeus', ?, ?)`,
+                [id, req.params.id, sp.conference_id || null, Math.round(price * 100) / 100,
+                 String(offer.currency || 'EUR').slice(0, 4).toUpperCase(), String(offer.airline || '').slice(0, 80) || null,
+                 notes || null, req.user && req.user.id || null,
+                 JSON.stringify(offer).slice(0, 8000), searchedAt]);
+            saveDb();
+            logAudit(req, 'flight.pin', `${req.params.id} ${offer.currency || 'EUR'} ${price} ${offer.airline || ''}`);
+            res.json({ success: true, id });
+        } catch (e) { console.error('[flight] pin', e.message); res.status(500).json({ error: e.message }); }
     });
 
     // ============================================================================

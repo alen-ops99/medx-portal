@@ -22985,12 +22985,38 @@ President, Med&amp;X</textarea>
                 const money = (n, cur) => `${cur || 'EUR'} ${Number(n).toFixed(2)}`;
                 const rows = (d.quotes || []).map(q => `
                     <tr style="border-top:1px solid var(--border);">
-                        <td style="padding:6px 8px;"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;"><input type="radio" name="spkChosenQuote" ${q.chosen ? 'checked' : ''} onchange="App.chooseFlightQuote('${speakerId}','${q.id}')"><span style="font-weight:${q.chosen ? '700' : '400'};">${q.currency || 'EUR'} ${Number(q.price).toFixed(2)}</span></label></td>
+                        <td style="padding:6px 8px;"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;"><input type="radio" name="spkChosenQuote" ${q.chosen ? 'checked' : ''} onchange="App.chooseFlightQuote('${speakerId}','${q.id}')"><span style="font-weight:${q.chosen ? '700' : '400'};">${q.currency || 'EUR'} ${Number(q.price).toFixed(2)}</span>${q.source === 'amadeus' ? '<span style="font-size:9px;font-weight:700;letter-spacing:0.06em;color:var(--accent-gold);border:1px solid var(--accent-gold);border-radius:4px;padding:1px 5px;">LIVE</span>' : ''}</label></td>
                         <td style="padding:6px 8px;">${this.escapeHtml(q.airline || '-')}</td>
                         <td style="padding:6px 8px;color:var(--text-muted);font-size:12px;">${this.escapeHtml(q.notes || '')}</td>
-                        <td style="padding:6px 8px;color:var(--text-muted);font-size:11px;white-space:nowrap;">${q.created_at ? String(q.created_at).slice(0, 16).replace('T', ' ') : ''}</td>
+                        <td style="padding:6px 8px;color:var(--text-muted);font-size:11px;white-space:nowrap;" title="${q.source === 'amadeus' && q.searched_at ? 'Live price snapshot from ' + this.escapeHtml(String(q.searched_at).slice(0, 16).replace('T', ' ')) + ' UTC' : ''}">${q.created_at ? String(q.created_at).slice(0, 16).replace('T', ' ') : ''}</td>
                         <td style="padding:6px 8px;text-align:right;"><button class="btn" style="padding:2px 6px;font-size:11px;color:#ef4444;" onclick="App.deleteFlightQuote('${speakerId}','${q.id}')" title="Remove"><i class="fas fa-trash"></i></button></td>
                     </tr>`).join('');
+                const live = d.live || { available: false, missing: [] };
+                const liveBlock = live.available ? `
+                    <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;margin-bottom:14px;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                            <div style="font-size:12px;font-weight:700;">Live fares</div>
+                            ${live.env === 'test' ? '<span style="font-size:9px;font-weight:700;letter-spacing:0.06em;color:var(--text-muted);border:1px solid var(--border);border-radius:4px;padding:1px 5px;" title="The Amadeus app is still on the free test environment — promote it and set AMADEUS_ENV=production for the full live feed.">AMADEUS TEST FEED</span>' : '<span style="font-size:9px;font-weight:700;letter-spacing:0.06em;color:var(--accent-gold);border:1px solid var(--accent-gold);border-radius:4px;padding:1px 5px;">LIVE</span>'}
+                        </div>
+                        <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Current offers straight from Amadeus — real airlines, times and prices in EUR for the route and dates above. Pin the pick you would book; it lands in the fare table below with its price snapshot.</div>
+                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                            <button class="btn btn-primary" style="font-size:12px;" data-fx="live-search" data-spk="${speakerId}"><i class="fas fa-bolt"></i> Search live fares</button>
+                            <span id="spkLiveMeta" style="font-size:11px;color:var(--text-muted);"></span>
+                        </div>
+                        <div id="spkLiveResults" style="margin-top:10px;"></div>
+                    </div>` : `
+                    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-left:3px solid var(--accent-gold);border-radius:8px;padding:14px;margin-bottom:14px;">
+                        <div style="display:flex;gap:10px;align-items:flex-start;">
+                            <i class="fas fa-bolt" style="color:var(--accent-gold);margin-top:3px;"></i>
+                            <div style="flex:1;">
+                                <div style="font-size:12px;font-weight:700;margin-bottom:4px;">Live fare search is ready to switch on</div>
+                                <div style="font-size:12px;color:var(--text-muted);line-height:1.55;margin-bottom:8px;">Real-time offers — airlines, times, layovers and current EUR prices — appear right here the moment the Amadeus key is added. Two owner steps:</div>
+                                <ol style="margin:0 0 8px;padding-left:18px;font-size:12px;color:var(--text-muted);line-height:1.6;">${(live.missing || []).map(m => `<li>${this.escapeHtml(m)}</li>`).join('')}</ol>
+                                <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Until then the prefilled Google Flights / Skyscanner links and the fare table below keep working exactly as before. This panel never shows an estimated price.</div>
+                                <button class="btn btn-secondary" style="font-size:12px;" data-fx="live-recheck" data-spk="${speakerId}"><i class="fas fa-sync"></i> Re-check</button>
+                            </div>
+                        </div>
+                    </div>`;
                 panel.innerHTML = `
                     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;">
                         <div class="form-group" style="margin:0;"><label style="font-size:11px;">From (IATA)</label><input id="spkFlightOrigin" value="${this.escapeHtml(c.origin_iata || '')}" placeholder="${this.escapeHtml(c.origin_suggested || 'BOS')}" maxlength="3" style="text-transform:uppercase;"></div>
@@ -23004,6 +23030,7 @@ President, Med&amp;X</textarea>
                         <a id="spkFlightSky" class="btn btn-secondary" style="font-size:12px;${c.skyscanner_url ? '' : 'pointer-events:none;opacity:.5;'}" href="${c.skyscanner_url || '#'}" target="_blank" rel="noopener"><i class="fas fa-plane"></i> Skyscanner</a>
                         ${(c.origin_suggested && c.origin_suggested !== c.origin_iata) ? `<span style="font-size:11px;color:var(--text-muted);">Suggested from institution: ${this.escapeHtml(c.origin_suggested)}</span>` : ''}
                     </div>
+                    ${liveBlock}
                     <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;">
                         <div style="font-size:12px;font-weight:700;margin-bottom:4px;">Fares you found</div>
                         <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Open a search, read the live board, then paste the fare you choose. No estimates, only fares you actually see.</div>
@@ -23015,6 +23042,74 @@ President, Med&amp;X</textarea>
                         </div>
                         ${(d.quotes && d.quotes.length) ? `<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="text-align:left;color:var(--text-muted);font-size:11px;"><th style="padding:4px 8px;">Chosen / fare</th><th style="padding:4px 8px;">Airline</th><th style="padding:4px 8px;">Notes</th><th style="padding:4px 8px;">Added</th><th></th></tr></thead><tbody>${rows}</tbody></table><div style="margin-top:10px;text-align:right;font-size:13px;">Chosen fare for this speaker: <strong>${d.chosen_id ? money(d.subtotal, d.currency) : '-'}</strong></div>` : '<p style="color:var(--text-muted);font-size:12px;margin:0;">No fares saved yet. Open a search above, then add the fare you choose.</p>'}
                     </div>`;
+                // Delegated handlers for the live-fares controls (never inline on*= attributes).
+                // The panel div is rebuilt with each speaker modal, so the dataset flag dies with it.
+                if (!panel.dataset.fxBound) {
+                    panel.dataset.fxBound = '1';
+                    panel.addEventListener('click', (e) => {
+                        const el = e.target.closest('[data-fx]');
+                        if (!el || !panel.contains(el)) return;
+                        const spk = el.dataset.spk || el.dataset.spkId;
+                        if (el.dataset.fx === 'live-search') App.searchLiveFares(spk);
+                        else if (el.dataset.fx === 'live-recheck') App.loadSpeakerFlight(spk);
+                        else if (el.dataset.fx === 'live-pin') App.pinLiveOffer(spk, parseInt(el.dataset.idx, 10));
+                    });
+                }
+            },
+            // ===== LIVE AMADEUS FARES (queue 5a5i — the live layer) =====
+            _liveOffers: null,
+            async searchLiveFares(speakerId) {
+                const results = document.getElementById('spkLiveResults');
+                const meta = document.getElementById('spkLiveMeta');
+                if (results) results.innerHTML = '<p style="color:var(--text-muted);font-size:12px;margin:0;"><i class="fas fa-spinner fa-spin"></i> Searching live offers…</p>';
+                const body = {
+                    origin_iata: document.getElementById('spkFlightOrigin')?.value || '',
+                    dest_iata: document.getElementById('spkFlightDest')?.value || '',
+                    depart_date: document.getElementById('spkFlightDepart')?.value || '',
+                    return_date: document.getElementById('spkFlightReturn')?.value || ''
+                };
+                let d;
+                try { d = await this.api(`/api/admin/plexus/speakers/${speakerId}/flight/search`, { method: 'POST', body: JSON.stringify(body) }); }
+                catch (e) {
+                    if (results) results.innerHTML = `<p style="color:#ef4444;font-size:12px;margin:0;">${this.escapeHtml(e.message || 'Live search failed.')}</p>`;
+                    return;
+                }
+                this._liveOffers = { speakerId, searched_at: d.searched_at, offers: d.offers || [] };
+                if (meta) meta.textContent = `${d.count} offer${d.count === 1 ? '' : 's'} · ${String(d.searched_at || '').slice(0, 16).replace('T', ' ')} UTC`;
+                if (!results) return;
+                if (!d.offers || !d.offers.length) {
+                    results.innerHTML = '<p style="color:var(--text-muted);font-size:12px;margin:0;">No offers came back for this route and date window. Adjust the dates or airports and search again.</p>';
+                    return;
+                }
+                const fmtLeg = (it) => {
+                    const dep = it.segments && it.segments[0] && it.segments[0].depart_at;
+                    const when = dep ? `${String(dep).slice(0, 10)} ${String(dep).slice(11, 16)}` : '';
+                    return `${this.escapeHtml(it.summary || '')}${when ? ' · dep ' + when : ''} · ${this.escapeHtml(it.duration_label || '')}`;
+                };
+                const drift = d.drift ? `
+                    <div style="font-size:11px;margin-bottom:8px;color:${d.drift.delta < 0 ? 'var(--success)' : (d.drift.delta > 0 ? '#ef4444' : 'var(--text-muted)')};">
+                        <i class="fas fa-chart-line"></i> Pinned ${this.escapeHtml(d.drift.pinned_currency || 'EUR')} ${Number(d.drift.pinned_price).toFixed(2)} on ${this.escapeHtml(String(d.drift.pinned_at || '').slice(0, 10))} — cheapest now ${Number(d.drift.cheapest_now).toFixed(2)} (${d.drift.delta > 0 ? '▲ +' : (d.drift.delta < 0 ? '▼ −' : '')}${Math.abs(Number(d.drift.delta)).toFixed(2)})
+                    </div>` : '';
+                results.innerHTML = drift + `<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="text-align:left;color:var(--text-muted);font-size:11px;"><th style="padding:4px 8px;">Price</th><th style="padding:4px 8px;">Airline</th><th style="padding:4px 8px;">Itinerary</th><th></th></tr></thead><tbody>` +
+                    d.offers.map((o, i) => `
+                        <tr style="border-top:1px solid var(--border);">
+                            <td style="padding:6px 8px;white-space:nowrap;"><strong>${this.escapeHtml(o.currency || 'EUR')} ${Number(o.price).toFixed(2)}</strong>${o.tag_cheapest ? '<span style="margin-left:6px;font-size:9px;font-weight:700;letter-spacing:0.06em;color:var(--accent-gold);border:1px solid var(--accent-gold);border-radius:4px;padding:1px 5px;">CHEAPEST</span>' : ''}${o.tag_best && !o.tag_cheapest ? '<span style="margin-left:6px;font-size:9px;font-weight:700;letter-spacing:0.06em;color:var(--text-muted);border:1px solid var(--border);border-radius:4px;padding:1px 5px;">BEST BALANCE</span>' : ''}</td>
+                            <td style="padding:6px 8px;">${this.escapeHtml(o.airline || '-')}</td>
+                            <td style="padding:6px 8px;color:var(--text-muted);font-size:12px;">${(o.itineraries || []).map(fmtLeg).join('<br>')}</td>
+                            <td style="padding:6px 8px;text-align:right;"><button class="btn btn-secondary" style="padding:3px 8px;font-size:11px;white-space:nowrap;" data-fx="live-pin" data-spk="${speakerId}" data-idx="${i}" title="Pin this offer as the pick — it counts in the travel budget"><i class="fas fa-thumbtack"></i> Pin</button></td>
+                        </tr>`).join('') + '</tbody></table>';
+            },
+            async pinLiveOffer(speakerId, idx) {
+                const st = this._liveOffers;
+                if (!st || st.speakerId !== speakerId || !st.offers[idx]) { Toast.error('Run the live search again, then pin an offer from the fresh list.'); return; }
+                try {
+                    await this.api(`/api/admin/plexus/speakers/${speakerId}/flight/offers/pin`, {
+                        method: 'POST', body: JSON.stringify({ offer: st.offers[idx], searched_at: st.searched_at })
+                    });
+                    Toast.success('Pinned — this fare now counts in the travel budget');
+                    await this.loadSpeakerFlight(speakerId);
+                    this.loadTravelBudget();
+                } catch (e) { Toast.error(e.message || 'Could not pin the offer'); }
             },
             async saveSpeakerFlightRoute(speakerId) {
                 const body = {
