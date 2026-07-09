@@ -16530,7 +16530,7 @@ President, Med&amp;X</textarea>
                 // Filter static nav items (Finances, PR & Media). Core member-ops tools
                 // (Announce, Member Ops) are always visible — they are not part of the
                 // per-user onboarding toggle, so never hide them for already-onboarded users.
-                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter'];
+                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter', 'auctions', 'editions'];
                 // Item 11/13: 'user-notifications' merged into "Message members" (announce); Portal Content,
                 // Website content and Member Feed merged into "Content studio". IA restructure: 'announce'
                 // (Message members) and 'messages' now live UNDER Member Ops, so their top-level nav entries
@@ -33461,6 +33461,11 @@ By applying to this program, I give the following consents:
             async refresh() {
                 if (!this.current) return;
                 if (document.getElementById('auctionModal')) return; // do not re-render under an open modal
+                // Never re-render while the admin is typing in the detail view (the 4s poll
+                // would otherwise yank the cursor out of the "Add a lot" form mid-word).
+                const ae = document.activeElement;
+                const detail = document.getElementById('auctionDetailView');
+                if (ae && detail && detail.contains(ae) && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
                 try {
                     const d = await this.api('/api/admin/auctions/' + this.current.auction.id);
                     this.current = d;
@@ -33472,6 +33477,15 @@ By applying to this program, I give the following consents:
                 const a = d.auction, s = d.stats;
                 const ccy = (d.items[0] && d.items[0].currency) || 'EUR';
                 const base = d.public_url;
+                // Preserve any in-progress "Add a lot" input across the live re-render —
+                // the poll rewrites this whole view every 4s and must never eat typed work.
+                const keep = {};
+                ['acItTitle', 'acItStory', 'acItStart', 'acItInc', 'acItCcy', 'acItPhotoUrl'].forEach((id) => {
+                    const el = document.getElementById(id);
+                    if (el) keep[id] = el.value;
+                });
+                const keepMsg = document.getElementById('acItPhotoMsg');
+                if (keepMsg) keep.acItPhotoMsg = keepMsg.textContent;
                 let ctrl = '';
                 if (a.status === 'live') ctrl += '<button class="btn btn-secondary" onclick="AuctionAdmin.setStatus(\'paused\')"><i class="fas fa-pause"></i> Pause bidding</button>';
                 if (a.status === 'paused') ctrl += '<button class="btn btn-primary" onclick="AuctionAdmin.setStatus(\'live\')"><i class="fas fa-play"></i> Resume bidding</button>';
@@ -33512,6 +33526,11 @@ By applying to this program, I give the following consents:
                     + '<div style="margin-top:14px;"><button class="btn btn-primary" onclick="AuctionAdmin.addItem()"><i class="fas fa-plus"></i> Add lot</button></div>'
                     + '</div>'
                     + (items || '<div style="text-align:center;padding:26px;color:var(--text-muted);">No lots yet. Add one above, then open it for bidding.</div>');
+                Object.keys(keep).forEach((id) => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    if (id === 'acItPhotoMsg') el.textContent = keep[id]; else el.value = keep[id];
+                });
             },
 
             stat(v, label) { return '<div class="stat-item"><div class="stat-value" style="font-size:22px;">' + v + '</div><div class="stat-label">' + label + '</div></div>'; },
@@ -33574,7 +33593,14 @@ By applying to this program, I give the following consents:
                 const title = (document.getElementById('acItTitle').value || '').trim();
                 if (!title) { Toast.error('Enter a lot title.'); return; }
                 const body = { title: title, story: (document.getElementById('acItStory').value || '').trim(), starting_bid: Number(document.getElementById('acItStart').value) || 0, min_increment: Number(document.getElementById('acItInc').value) || 10, currency: (document.getElementById('acItCcy').value || 'EUR').trim(), photo_url: document.getElementById('acItPhotoUrl').value || '' };
-                try { await this.api('/api/admin/auctions/' + this.current.auction.id + '/items', 'POST', body); Toast.success('Lot added.'); this.refresh(); } catch (e) { Toast.error(e.message); }
+                try {
+                    await this.api('/api/admin/auctions/' + this.current.auction.id + '/items', 'POST', body);
+                    Toast.success('Lot added.');
+                    // Clear the form so the preserved-input restore never re-fills a lot that was just added.
+                    ['acItTitle', 'acItStory', 'acItPhotoUrl'].forEach((id) => { const el = document.getElementById(id); if (el) el.value = ''; });
+                    const msg = document.getElementById('acItPhotoMsg'); if (msg) msg.textContent = '';
+                    this.refresh();
+                } catch (e) { Toast.error(e.message); }
             },
             async pickPhoto(input) {
                 if (!input.files || !input.files[0]) return;
