@@ -19601,6 +19601,7 @@
             border-radius: 999px; color: var(--ink-soft, #4a4440);
             font-family: var(--sans, 'Inter', sans-serif); font-size: 13px; font-weight: 600;
             letter-spacing: .01em; line-height: 1; cursor: pointer;
+            white-space: nowrap; flex-shrink: 0;
             transition: background .18s ease, border-color .18s ease, color .18s ease;
         }
         .mx-home-crumb i { font-size: 11px; color: var(--crimson, #9b1b22); transition: transform .18s ease; }
@@ -29229,30 +29230,30 @@
         }
 
         .af-step-circle {
-            width: 32px;
-            height: 32px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             background: var(--up-surface, var(--emph-bg-2));
             border: 2px solid var(--up-text-muted, var(--ink-soft));
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: 700;
             color: var(--up-text-muted, var(--ink-soft));
             transition: all 0.3s;
         }
 
         .af-step.active .af-step-circle {
-            background: var(--gold);
-            border-color: var(--gold);
-            color: #1a1a2e;
+            background: var(--emph-bg);
+            border-color: var(--ink);
+            color: #fff;
         }
 
         .af-step.completed .af-step-circle {
-            background: rgba(201, 169, 98, 0.2);
-            border-color: var(--gold);
-            color: var(--gold);
+            background: var(--up-success);
+            border-color: var(--up-success);
+            color: #fff;
         }
 
         .af-step span {
@@ -48783,8 +48784,8 @@
     position: fixed;
     bottom: 24px;
     right: 24px;
-    width: 48px;
-    height: 48px;
+    width: 56px;
+    height: 56px;
     border-radius: 50%;
     background: var(--surface);
     color: var(--ink);
@@ -68898,7 +68899,7 @@ button,input,select,textarea{font-family:var(--sans);}
                             <strong style="color:var(--up-text,#1d1d1f);" data-i18n="net.completeProfile">Complete your profile</strong>
                             <p style="color:var(--up-text-secondary,var(--muted)); font-size:13px; margin:4px 0 0;" data-i18n="net.completeProfileSub">Add your institution and bio to be discoverable by other members.</p>
                         </div>
-                        <button onclick="UserPortal.showSection('settings'); setTimeout(() => { const profileTab = document.querySelector('[data-settings-tab=&quot;profile&quot;]'); if (profileTab) profileTab.click(); }, 200);" style="background:var(--up-gold,var(--gold)); color: var(--ink); border:none; border-radius:8px; padding:8px 16px; font-weight:600; font-size:13px; cursor:pointer; white-space:nowrap;" data-i18n="net.editProfile">Edit Profile</button>
+                        <button onclick="UserPortal.showSection('settings'); setTimeout(() => { const profileTab = document.querySelector('[data-settings-tab=&quot;profile&quot;]'); if (profileTab) profileTab.click(); }, 200);" style="background:var(--crimson); color:#fff; border:none; border-radius:10px; padding:8px 16px; font-weight:600; font-size:13px; cursor:pointer; white-space:nowrap;" data-i18n="net.editProfile">Edit Profile</button>
                     </div>
 
                     <!-- Connections Panel -->
@@ -71419,7 +71420,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     .mmx-card-right{width:120px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;}
                     .mmx-card-qr{width:100px;height:100px;background:#fff;border:1px solid #e2dcd3;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#c9bfb0;font-size:34px;box-shadow:0 6px 18px rgba(21,17,15,.08);}
                     .mmx-card-qr-label{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#8a827a;font-weight:700;}
-                    .mmx-card-dl{display:inline-flex;align-items:center;justify-content:center;gap:9px;background:var(--crimson,#9b1b22);color:#fff;border:none;border-radius:12px;padding:14px 18px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:transform .15s ease,box-shadow .15s ease;box-shadow:0 8px 22px rgba(155,27,34,.24);}
+                    .mmx-card-dl{display:inline-flex;align-items:center;justify-content:center;gap:9px;background:var(--crimson,#9b1b22);color:#fff;border:none;border-radius:var(--radius,10px);padding:14px 18px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:transform .15s ease,box-shadow .15s ease;box-shadow:0 8px 22px rgba(155,27,34,.24);}
                     .mmx-card-dl:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(155,27,34,.32);}
                     .mmx-card-note{font-size:12px;color:var(--muted,#6b6258);display:flex;align-items:flex-start;gap:7px;line-height:1.5;}
                     .mmx-card-note i{color:var(--gold,#c9a962);margin-top:2px;}
@@ -79984,16 +79985,16 @@ You can use variables like {first_name} that will be personalized for each recip
                         + '</div>'
                         + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
                             + '<div style="font-size:12px;color:var(--muted);">' + (amount ? ('<strong style="color:var(--ink);">' + amount + '</strong>') : '') + (r.invoice_number ? (' · #' + r.invoice_number) : '') + '</div>'
-                            + (r.start_date ? '<button onclick="MyMedXPortal.addToCalendar(' + i + ')" style="background:transparent;border:1px solid var(--line-strong);color:var(--ink);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-calendar-plus"></i> ' + t('tk.addToCalendar') + '</button>' : '')
+                            + (r.start_date ? '<button onclick="MyMedXPortal.addToCalendar(' + i + ')" style="background:transparent;border:1px solid var(--line-strong);color:var(--ink);border-radius:10px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-calendar-plus"></i> ' + t('tk.addToCalendar') + '</button>' : '')
                         + '</div>'
                         + '<div style="display:flex;gap:8px;margin-top:2px;">'
-                            + '<button onclick="MyMedXPortal.downloadTicket(' + i + ')" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;background:var(--crimson);color:#fff;border:none;border-radius:9px;padding:10px 12px;font-size:13px;font-weight:700;cursor:pointer;"><i class="fas fa-download"></i> ' + t('tk.downloadTicket') + '</button>'
-                            + '<button onclick="MyMedXPortal.saveTicketPdf(' + i + ')" style="display:inline-flex;align-items:center;justify-content:center;gap:7px;background:transparent;color:var(--ink);border:1px solid var(--line-strong);border-radius:9px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-file-pdf"></i> PDF</button>'
+                            + '<button onclick="MyMedXPortal.downloadTicket(' + i + ')" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;background:var(--crimson);color:#fff;border:none;border-radius:10px;padding:10px 12px;font-size:13px;font-weight:700;cursor:pointer;"><i class="fas fa-download"></i> ' + t('tk.downloadTicket') + '</button>'
+                            + '<button onclick="MyMedXPortal.saveTicketPdf(' + i + ')" style="display:inline-flex;align-items:center;justify-content:center;gap:7px;background:transparent;color:var(--ink);border:1px solid var(--line-strong);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-file-pdf"></i> PDF</button>'
                         + '</div>'
-                        + '<button onclick="MyMedXPortal.openPresentMode(' + i + ')" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#14110f;color:#e8d5a8;border:1px solid #14110f;border-radius:9px;padding:11px 12px;font-size:13px;font-weight:700;cursor:pointer;margin-top:2px;"><i class="fas fa-qrcode"></i> ' + t('tk.present') + '</button>'
+                        + '<button onclick="MyMedXPortal.openPresentMode(' + i + ')" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#14110f;color:#e8d5a8;border:1px solid #14110f;border-radius:10px;padding:11px 12px;font-size:13px;font-weight:700;cursor:pointer;margin-top:2px;"><i class="fas fa-qrcode"></i> ' + t('tk.present') + '</button>'
                         + '<div style="display:flex;gap:8px;">'
-                            + '<button onclick="MyMedXPortal.addTicketToGoogleWallet(' + i + ')" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;background:transparent;color:var(--ink);border:1px solid var(--line-strong);border-radius:9px;padding:9px 10px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fab fa-google"></i> Google Wallet</button>'
-                            + '<button onclick="MyMedXPortal.addTicketToAppleWallet(' + i + ')" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;background:transparent;color:var(--ink);border:1px solid var(--line-strong);border-radius:9px;padding:9px 10px;font-size:12px;font-weight:600;cursor:pointer;opacity:.55;"><i class="fab fa-apple"></i> Apple Wallet</button>'
+                            + '<button onclick="MyMedXPortal.addTicketToGoogleWallet(' + i + ')" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;background:transparent;color:var(--ink);border:1px solid var(--line-strong);border-radius:10px;padding:9px 10px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fab fa-google"></i> Google Wallet</button>'
+                            + '<button onclick="MyMedXPortal.addTicketToAppleWallet(' + i + ')" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;background:transparent;color:var(--ink);border:1px solid var(--line-strong);border-radius:10px;padding:9px 10px;font-size:12px;font-weight:600;cursor:pointer;opacity:.55;"><i class="fab fa-apple"></i> Apple Wallet</button>'
                         + '</div>'
                         + '<div style="text-align:center;font-size:11px;color:var(--muted);margin-top:2px;"><i class="fas fa-circle-check" style="color:var(--success);"></i> ' + t('tk.offlineReady') + '</div>'
                     + '</div>';
@@ -131767,7 +131768,7 @@ By applying to this program, I give the following consents:
              facts, warm hand-off to the team when unsure, bilingual EN/HR via MedXI18n. Available to all
              members (a utility) and quiet-safe: it never surfaces points or gamification. -->
         <style id="mxaStyles">
-          .mxa-fab{position:fixed;right:24px;bottom:152px;z-index:9999;width:56px;height:56px;border-radius:18px;border:none;cursor:pointer;
+          .mxa-fab{position:fixed;right:24px;bottom:152px;z-index:9999;width:56px;height:56px;border-radius:50%;border:none;cursor:pointer;
             background:linear-gradient(135deg,var(--up-gold,#c9a962) 0%,#d4b876 100%);color:var(--ink,#14110f);
             box-shadow:0 8px 28px rgba(20,15,12,.22);display:none;align-items:center;justify-content:center;font-size:22px;
             transition:transform .25s cubic-bezier(.4,0,.2,1),box-shadow .25s;}
@@ -132409,7 +132410,7 @@ By applying to this program, I give the following consents:
     </div>
 
     <!-- Global Floating Contact/Support Button (visible in ALL sections) -->
-    <div class="floating-help-btn" onclick="ContactForm.toggle()" style="position: fixed; bottom: 24px; right: 24px; z-index: 10000; width: 48px; height: 48px; border-radius: 50%; background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: var(--shadow-sm); transition: all 0.3s ease; font-size: 18px; font-weight: 700;">
+    <div class="floating-help-btn" onclick="ContactForm.toggle()" style="position: fixed; bottom: 24px; right: 24px; z-index: 10000; width: 56px; height: 56px; border-radius: 50%; background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: var(--shadow-sm); transition: all 0.3s ease; font-size: 18px; font-weight: 700;">
         ?
     </div>
     <script>
