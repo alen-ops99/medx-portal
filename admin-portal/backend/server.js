@@ -28205,6 +28205,7 @@ ${showContact ? `<div class="block"><h4>${contactLabel}</h4><p>${contact}</p></d
     function auctionNoticePage(heading, sub) {
         return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">'
             + '<title>Med&X</title>'
+            + '<link rel="icon" type="image/png" href="/assets/favicon-x.png">'
             + '<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">'
             + '<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#fbf9f6;color:#15110f;font-family:Inter,-apple-system,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:30px}'
             + '.b{max-width:520px;text-align:center}h1{font-family:Fraunces,Georgia,serif;font-size:32px;font-weight:600;margin-bottom:12px}p{color:#5c5650;font-size:16px;line-height:1.6}</style></head>'
@@ -28216,6 +28217,7 @@ ${showContact ? `<div class="block"><h4>${contactLabel}</h4><p>${contact}</p></d
         const cfg = { token: a.token, accent: accent, eventName: a.event_name || '', title: a.title, subtitle: a.subtitle || '', i18n: AUCTION_I18N };
         return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">'
             + '<title>' + nagEscape(a.title) + ' — Med&X</title>'
+            + '<link rel="icon" type="image/png" href="/assets/favicon-x.png">'
             + '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
             + '<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">'
             + '<style>'
@@ -28289,6 +28291,7 @@ ${showContact ? `<div class="block"><h4>${contactLabel}</h4><p>${contact}</p></d
         const cfg = { token: a.token, eventName: a.event_name || '', title: a.title, subtitle: a.subtitle || '', i18n: AUCTION_I18N };
         return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">'
             + '<title>' + nagEscape(a.title) + ' — Med&X</title>'
+            + '<link rel="icon" type="image/png" href="/assets/favicon-x.png">'
             + '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
             + '<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">'
             + '<style>'
