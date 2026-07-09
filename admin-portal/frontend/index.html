@@ -7088,6 +7088,11 @@
                     <span>Event reminders</span>
                 </a>
 
+                <a class="nav-item" data-section="postevent" onclick="App.showSection('postevent', this)">
+                    <i class="fas fa-flag-checkered" style="color: #16a34a;"></i>
+                    <span>Post-event</span>
+                </a>
+
                 <a class="nav-item" data-section="croatians-abroad" onclick="App.showSection('croatians-abroad', this)">
                     <i class="fas fa-globe-europe" style="color: #ef4444;"></i>
                     <span>Croatians Abroad</span>
@@ -8128,7 +8133,7 @@ President, Med&amp;X</textarea>
                                     <button class="btn btn-primary" style="font-size:12px;" onclick="PostEventAdmin.runRound('plexus')"><i class="fas fa-flag-checkered"></i> Run post-event round</button>
                                 </div>
                                 <div id="postEventBatches-plexus" style="margin-top:14px;"></div>
-                                <p style="font-size:11px;color:var(--text-muted);margin:14px 0 0;line-height:1.5;">Re-running the round never duplicates a certificate or an email — every attendee is handled exactly once. Certificates appear in each attendee's My Med&amp;X the moment the round runs.</p>
+                                <p style="font-size:11px;color:var(--text-muted);margin:14px 0 0;line-height:1.5;">Re-running the round never duplicates a certificate or an email — every attendee is handled exactly once. Certificates appear in each attendee's My Med&amp;X the moment the round runs. Recap drafts, testimonials, speaker kits, early-bird codes and sponsor reports live in the <a href="#" onclick="App.showSection('postevent', document.querySelector('.nav-item[data-section=postevent]')); return false;" style="color:var(--text-primary);font-weight:700;">Post-event engine</a>.</p>
                             </div>
                         </div>
                         <div class="card" id="surveyCard-plexus" style="margin-top:20px;">
@@ -12491,7 +12496,7 @@ President, Med&amp;X</textarea>
                                 <button class="btn btn-primary" style="font-size:12px;" onclick="PostEventAdmin.runRound('gala')"><i class="fas fa-flag-checkered"></i> Run post-event round</button>
                             </div>
                             <div id="postEventBatches-gala" style="margin-top:14px;"></div>
-                            <p style="font-size:11px;color:var(--text-muted);margin:14px 0 0;line-height:1.5;">Re-running the round never duplicates a certificate or an email — every guest is handled exactly once.</p>
+                            <p style="font-size:11px;color:var(--text-muted);margin:14px 0 0;line-height:1.5;">Re-running the round never duplicates a certificate or an email — every guest is handled exactly once. Recap drafts, testimonials, speaker kits, early-bird codes and sponsor reports live in the <a href="#" onclick="App.showSection('postevent', document.querySelector('.nav-item[data-section=postevent]')); return false;" style="color:var(--text-primary);font-weight:700;">Post-event engine</a>.</p>
                         </div>
                     </div>
                     <div class="card" id="surveyCard-gala" style="margin-top:20px;">
@@ -13276,6 +13281,189 @@ President, Med&amp;X</textarea>
                         </div>
                     </div>
                 </div>
+
+                <!-- ============ POST-EVENT ENGINE (queue 5a5g — admin UI over the six shipped engines) ============ -->
+                <div class="section" id="section-postevent">
+                    <style>
+                        #section-postevent .pex-wrap{max-width:1120px;}
+                        #section-postevent .pex-sub{font-size:14px;color:var(--text-muted);max-width:740px;margin-top:4px;line-height:1.6;}
+                        #section-postevent .pex-evrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:18px 0 6px;}
+                        #section-postevent .pex-evbtn{border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-secondary);border-radius:999px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;}
+                        #section-postevent .pex-evbtn.active{background:#9b1b22;border-color:#9b1b22;color:#fff;}
+                        #section-postevent .pex-note{display:flex;gap:10px;align-items:center;font-size:12.5px;color:var(--text-secondary);background:rgba(201,169,98,.10);border:1px solid rgba(201,169,98,.28);border-radius:10px;padding:10px 14px;margin:10px 0 20px;line-height:1.5;}
+                        #section-postevent .pex-card{border:1px solid var(--border);border-radius:14px;background:var(--bg-secondary);padding:18px;margin-bottom:16px;}
+                        #section-postevent .pex-hd{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;}
+                        #section-postevent .pex-hd h3{margin:0 0 4px;font-size:16px;font-weight:700;}
+                        #section-postevent .pex-hd p{font-size:12.5px;color:var(--text-muted);margin:0;max-width:640px;line-height:1.55;}
+                        #section-postevent .pex-acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+                        #section-postevent .pex-acts .btn{font-size:12.5px;padding:8px 13px;}
+                        #section-postevent .pex-stats{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 4px;}
+                        #section-postevent .pex-stat{border:1px solid var(--border);border-radius:10px;background:var(--bg-primary);padding:10px 16px;min-width:104px;text-align:center;}
+                        #section-postevent .pex-stat .n{font-family:'Fraunces',Georgia,serif;font-size:22px;font-weight:700;line-height:1;color:var(--text-primary);}
+                        #section-postevent .pex-stat .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-top:5px;}
+                        #section-postevent .pex-row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bg-primary);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-top:8px;}
+                        #section-postevent .pex-row .t{font-size:13px;font-weight:600;color:var(--text-primary);}
+                        #section-postevent .pex-row .m{font-size:12px;color:var(--text-muted);}
+                        #section-postevent .pex-chip{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 9px;border-radius:999px;}
+                        #section-postevent .pex-quote{font-size:13px;color:var(--text-secondary);line-height:1.5;font-style:italic;max-width:560px;}
+                        #section-postevent .pex-empty{padding:16px;color:var(--text-muted);font-size:13px;text-align:center;}
+                        #section-postevent .pex-field{margin-bottom:12px;}
+                        #section-postevent .pex-field label{display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;}
+                        #section-postevent .pex-field input,#section-postevent .pex-field select,#section-postevent .pex-field textarea{width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;box-sizing:border-box;font-family:inherit;}
+                        #section-postevent .pex-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+                        @media (max-width:640px){#section-postevent .pex-grid2{grid-template-columns:1fr;}}
+                    </style>
+                    <div class="pex-wrap">
+                    <div class="back-link" onclick="App.showSection('dashboard')"><i class="fas fa-arrow-left"></i> Back to Dashboard</div>
+                    <div class="section-header" style="margin-bottom:4px;">
+                        <div>
+                            <h1><i class="fas fa-flag-checkered" style="color:#16a34a;margin-right:12px;"></i>Post-event engine</h1>
+                            <p class="pex-sub">The first 48 hours after an event decide how it is remembered. Assemble the recap while it is warm, collect testimonials with consent, thank each speaker with their own numbers, give attendees a reason to come back next year, and show every sponsor exactly what their support delivered.</p>
+                        </div>
+                    </div>
+                    <div class="pex-evrow">
+                        <span style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700;">Event</span>
+                        <button class="pex-evbtn active" data-ek="plexus" onclick="PostEventEngine.setEvent('plexus', this)">Plexus Conference 2026</button>
+                        <button class="pex-evbtn" data-ek="gala" onclick="PostEventEngine.setEvent('gala', this)">Plexus Gala Evening 2026</button>
+                    </div>
+                    <div class="pex-note"><i class="fas fa-envelope-circle-check" style="color:#C9A962;font-size:16px;"></i><span>Everything on this page stages emails into the <a href="#" onclick="App.openOutbox(); return false;" style="color:var(--text-primary);font-weight:700;">approval outbox</a> — nothing sends on its own. Certificates and the thank-you / we-missed-you round live on each event&rsquo;s own dashboard.</span></div>
+
+                    <!-- 1. 48-hour recap assembly -->
+                    <div class="pex-card">
+                        <div class="pex-hd">
+                            <div>
+                                <h3><i class="fas fa-newspaper" style="color:#9b1b22;margin-right:8px;"></i>48-hour recap</h3>
+                                <p>Drafts a recap article, a thank-you photo post and a by-the-numbers graphic from the real event data — attendance, speakers, sessions, photos. All three land in the content calendar as drafts for one approval.</p>
+                            </div>
+                            <div class="pex-acts">
+                                <button class="btn btn-primary" onclick="PostEventEngine.assemble()"><i class="fas fa-wand-magic-sparkles"></i> Assemble recap drafts</button>
+                            </div>
+                        </div>
+                        <div class="pex-stats" id="pexFacts"></div>
+                        <div id="pexAssembleOut"></div>
+                    </div>
+
+                    <!-- 2. Testimonials with consent -->
+                    <div class="pex-card">
+                        <div class="pex-hd">
+                            <div>
+                                <h3><i class="fas fa-quote-left" style="color:#C9A962;margin-right:8px;"></i>Testimonials</h3>
+                                <p>Attendees who left a high survey rating are asked — with their consent — whether we may quote them by name. Approved quotes become the real testimonials for the website and next year&rsquo;s brochures.</p>
+                            </div>
+                            <div class="pex-acts">
+                                <select id="pexTMin" style="padding:8px 10px;border-radius:9px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:12.5px;">
+                                    <option value="4" selected>4+ stars</option>
+                                    <option value="5">5 stars only</option>
+                                </select>
+                                <button class="btn btn-primary" onclick="PostEventEngine.harvest()"><i class="fas fa-hand-holding-heart"></i> Ask for permission</button>
+                                <button class="btn btn-secondary" onclick="PostEventEngine.exportTestimonials()"><i class="fas fa-file-csv"></i> Export approved</button>
+                            </div>
+                        </div>
+                        <div class="pex-stats" id="pexTStats"></div>
+                        <div id="pexTList"></div>
+                    </div>
+
+                    <!-- 3. Speaker + attendee thank-you kits -->
+                    <div class="pex-card">
+                        <div class="pex-hd">
+                            <div>
+                                <h3><i class="fas fa-microphone" style="color:#0ea5e9;margin-right:8px;"></i>Thank-you kits</h3>
+                                <p>Each speaker receives a personal thank-you with their audience size and star rating. Attendees receive a warm bilingual thank-you with their certificate and a one-tap LinkedIn share. Both are approve-once outbox batches.</p>
+                            </div>
+                            <div class="pex-acts">
+                                <button class="btn btn-secondary" onclick="PostEventEngine.generateKits()"><i class="fas fa-box-open"></i> Prepare speaker kits</button>
+                                <button class="btn btn-primary" onclick="PostEventEngine.sendKits()"><i class="fas fa-paper-plane"></i> Stage speaker thank-yous</button>
+                                <button class="btn btn-primary" onclick="PostEventEngine.attendeeThankyou()"><i class="fas fa-heart"></i> Stage attendee thank-yous</button>
+                            </div>
+                        </div>
+                        <div id="pexKitList"></div>
+                    </div>
+
+                    <!-- 4. Early-bird bridge to the next edition -->
+                    <div class="pex-card">
+                        <div class="pex-hd">
+                            <div>
+                                <h3><i class="fas fa-ticket" style="color:#b45309;margin-right:8px;"></i>Early-bird bridge</h3>
+                                <p>Thank this year&rsquo;s attendees with a personal early-bird code for the next edition. Codes are real promo codes riding the existing checkout — and they reach an inbox only after two approvals: the bridge itself, then the outbox batch.</p>
+                            </div>
+                            <div class="pex-acts">
+                                <button class="btn btn-primary" onclick="PostEventEngine.openBridgeModal()"><i class="fas fa-plus"></i> New bridge</button>
+                            </div>
+                        </div>
+                        <div id="pexBridgeList"></div>
+                    </div>
+
+                    <!-- 5. Sponsor fulfilment reports -->
+                    <div class="pex-card">
+                        <div class="pex-hd">
+                            <div>
+                                <h3><i class="fas fa-handshake" style="color:#16a34a;margin-right:8px;"></i>Sponsor fulfilment reports</h3>
+                                <p>A per-sponsor report of what their partnership delivered — placements, mentions, reach — drafted from the real event data, exportable as a PDF, and sent through the outbox to open the renewal conversation.</p>
+                            </div>
+                            <div class="pex-acts">
+                                <button class="btn btn-primary" onclick="PostEventEngine.generateReports()"><i class="fas fa-file-lines"></i> Draft reports</button>
+                            </div>
+                        </div>
+                        <div id="pexReportList"></div>
+                    </div>
+                    </div>
+
+                    <!-- Early-bird bridge editor -->
+                    <div class="modal-overlay" id="pexBridgeModal" onclick="if(event.target===this) App.closeModal('pexBridgeModal')">
+                        <div class="modal" style="max-width:560px;max-height:92vh;overflow-y:auto;">
+                            <div class="modal-header"><h3><i class="fas fa-ticket" style="color:#b45309;margin-right:8px;"></i> <span id="pexBridgeModalTitle">New early-bird bridge</span></h3><button class="modal-close" onclick="App.closeModal('pexBridgeModal')">&times;</button></div>
+                            <div class="modal-body">
+                                <div class="pex-field"><label>Label</label><input type="text" id="pexBrLabel" maxlength="160" placeholder="e.g. Early-bird for the next Plexus edition"></div>
+                                <div class="pex-grid2">
+                                    <div class="pex-field"><label>Discount</label><select id="pexBrType"><option value="fixed">Fixed amount (EUR)</option><option value="percentage">Percentage (%)</option></select></div>
+                                    <div class="pex-field"><label>Value</label><input type="number" id="pexBrValue" min="0" step="1" placeholder="30"></div>
+                                </div>
+                                <div class="pex-grid2">
+                                    <div class="pex-field"><label>Code prefix</label><input type="text" id="pexBrPrefix" maxlength="20" placeholder="PLEXUSEB"></div>
+                                    <div class="pex-field"><label>How many codes</label><input type="number" id="pexBrQty" min="1" max="5000" step="1" placeholder="200"></div>
+                                </div>
+                                <div class="pex-field"><label>Codes valid until (optional)</label><input type="date" id="pexBrValid"><p style="font-size:11.5px;color:var(--text-muted);margin:5px 0 0;">Leave empty for no expiry. This date is yours to set — it is never guessed.</p></div>
+                                <div class="pex-field"><label>Terms shown in the email (optional)</label><textarea id="pexBrTerms" rows="3" maxlength="600" placeholder="e.g. One code per person, valid for the next edition only."></textarea></div>
+                                <p style="font-size:12px;color:var(--text-muted);margin:2px 0 0;"><i class="fas fa-circle-info"></i> Editing an approved bridge returns it to draft, so a changed discount can never ride an old approval.</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn btn-secondary" onclick="App.closeModal('pexBridgeModal')">Cancel</button>
+                                <button class="btn btn-primary" style="background:#b45309;border:none;" onclick="PostEventEngine.saveBridge(this)"><i class="fas fa-check"></i> Save bridge</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Testimonial editor -->
+                    <div class="modal-overlay" id="pexTEditModal" onclick="if(event.target===this) App.closeModal('pexTEditModal')">
+                        <div class="modal" style="max-width:520px;">
+                            <div class="modal-header"><h3><i class="fas fa-quote-left" style="color:#C9A962;margin-right:8px;"></i> Edit testimonial</h3><button class="modal-close" onclick="App.closeModal('pexTEditModal')">&times;</button></div>
+                            <div class="modal-body">
+                                <div class="pex-field"><label>Quote</label><textarea id="pexTQuote" rows="4" maxlength="500"></textarea></div>
+                                <div class="pex-grid2">
+                                    <div class="pex-field"><label>Name</label><input type="text" id="pexTName" maxlength="160"></div>
+                                    <div class="pex-field"><label>Role / affiliation (optional)</label><input type="text" id="pexTRole" maxlength="120" placeholder="e.g. Resident, KBC Zagreb"></div>
+                                </div>
+                                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);cursor:pointer;margin:2px 0 4px;"><input type="checkbox" id="pexTConsent"> The name may be shown publicly (their consent choice — change only on their request)</label>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn btn-secondary" onclick="App.closeModal('pexTEditModal')">Cancel</button>
+                                <button class="btn btn-primary" onclick="PostEventEngine.saveTestimonial(this)"><i class="fas fa-check"></i> Save</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sponsor report preview -->
+                    <div class="modal-overlay" id="pexPreviewModal" onclick="if(event.target===this) App.closeModal('pexPreviewModal')">
+                        <div class="modal" style="max-width:760px;max-height:92vh;overflow-y:auto;">
+                            <div class="modal-header"><h3><i class="fas fa-handshake" style="color:#16a34a;margin-right:8px;"></i> <span id="pexPreviewTitle">Sponsor report</span></h3><button class="modal-close" onclick="App.closeModal('pexPreviewModal')">&times;</button></div>
+                            <div class="modal-body">
+                                <iframe id="pexPreviewFrame" sandbox="" style="width:100%;height:62vh;border:1px solid var(--border);border-radius:8px;background:#fff;"></iframe>
+                            </div>
+                            <div class="modal-footer"><button class="btn btn-secondary" onclick="App.closeModal('pexPreviewModal')">Close</button></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- ============ /POST-EVENT ENGINE ============ -->
 
                 <div class="section" id="section-conferences">
                     <div class="back-link" onclick="App.showSection('dashboard')">
@@ -16530,7 +16718,7 @@ President, Med&amp;X</textarea>
                 // Filter static nav items (Finances, PR & Media). Core member-ops tools
                 // (Announce, Member Ops) are always visible — they are not part of the
                 // per-user onboarding toggle, so never hide them for already-onboarded users.
-                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter', 'auctions', 'editions'];
+                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter', 'auctions', 'editions', 'postevent'];
                 // Item 11/13: 'user-notifications' merged into "Message members" (announce); Portal Content,
                 // Website content and Member Feed merged into "Content studio". IA restructure: 'announce'
                 // (Message members) and 'messages' now live UNDER Member Ops, so their top-level nav entries
@@ -18716,6 +18904,7 @@ President, Med&amp;X</textarea>
                     'event-tracking': 'Live Ops Map',
                     'event-invites': 'Event invitations',
                     'event-reminders': 'Event reminders',
+                    'postevent': 'Post-event',
                     'conferences': 'Conferences',
                     'email-blast': 'Email Registrants',
                     'audit': 'Audit Log',
@@ -18886,6 +19075,10 @@ President, Med&amp;X</textarea>
                     this.currentView = 'transparency';
                     this.switchChatPanel('team');
                     if (typeof TransparencyAdmin !== 'undefined') TransparencyAdmin.init();
+                } else if (sectionId === 'postevent') {
+                    this.currentView = 'postevent';
+                    this.switchChatPanel('team');
+                    if (typeof PostEventEngine !== 'undefined') PostEventEngine.init();
                 } else {
                     // Switch chat panel to team chat mode
                     this.currentView = 'dashboard';
@@ -44989,6 +45182,309 @@ By applying to this program, I give the following consents:
                 const r = await this.api(`/api/admin/outbox/${encodeURIComponent(batch)}/cancel`, { method: 'POST' });
                 if (r.d && r.d.success) { Toast.success('Discarded'); this.load(ek); }
                 else Toast.error((r.d && r.d.error) || 'Failed');
+            }
+        };
+
+        // ==================== POST-EVENT ENGINE (queue 5a5g admin UI) ====================
+        // One section over the five admin-facing engines that shipped backend-first in QW8:
+        // 48h recap assembly, testimonial harvesting, speaker/attendee thank-you kits, the
+        // early-bird bridge, and sponsor fulfilment reports. Every send below stages
+        // pending_approval rows into the ONE outbox — this UI never sends anything itself.
+        const PostEventEngine = {
+            ek: 'plexus',
+            _editBridge: null,
+            _editTestimonial: null,
+            esc(s) { return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); },
+            async api(path, opts = {}) {
+                const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}`, ...(opts.headers || {}) } });
+                let d = null; try { d = await res.json(); } catch (e) {}
+                return { ok: res.ok, status: res.status, d };
+            },
+            init() { this.load(); },
+            setEvent(ek, btn) {
+                this.ek = ek;
+                document.querySelectorAll('#section-postevent .pex-evbtn').forEach(b => b.classList.toggle('active', b === btn));
+                const out = document.getElementById('pexAssembleOut'); if (out) out.innerHTML = '';
+                this.load();
+            },
+            load() {
+                this.loadFacts();
+                this.loadTestimonials();
+                this.loadKits();
+                this.loadBridges();
+                this.loadReports();
+            },
+            stat(label, val) {
+                return `<div class="pex-stat"><div class="n">${val == null ? '&mdash;' : val}</div><div class="l">${label}</div></div>`;
+            },
+            chip(text, color) {
+                return `<span class="pex-chip" style="background:${color}22;color:${color};">${this.esc(text)}</span>`;
+            },
+
+            // ---- 1. 48h recap assembly ----
+            async loadFacts() {
+                const host = document.getElementById('pexFacts'); if (!host) return;
+                const r = await this.api('/api/admin/post-event/assemble/facts?event_key=' + encodeURIComponent(this.ek));
+                const f = r.d || {};
+                host.innerHTML = this.stat('Participants', f.attendees || f.registered || 0)
+                    + this.stat('Speakers', f.speakers_count)
+                    + this.stat('Sessions', f.sessions_count)
+                    + this.stat('Photos', f.photos)
+                    + this.stat('End date', f.end_date ? this.esc(f.end_date) : null);
+            },
+            async assemble(force) {
+                const r = await this.api('/api/admin/post-event/assemble', { method: 'POST', body: JSON.stringify({ event_key: this.ek, force: !!force }) });
+                const d = r.d || {};
+                if (!d.eligible && !force) {
+                    if (confirm('This event has not ended within the last 48 hours, so the automatic window does not apply.\n\nDraft the recap content anyway?')) this.assemble(true);
+                    return;
+                }
+                if (!d.success) { Toast.error(d.error || d.message || 'Failed'); return; }
+                const out = document.getElementById('pexAssembleOut');
+                const rows = (d.drafts || []).map(x =>
+                    `<div class="pex-row"><div><div class="t">${this.esc(x.title)}</div><div class="m">${this.esc(x.platform || '')}</div></div>
+                     ${x.status === 'exists' ? this.chip('already drafted', '#64748b') : this.chip('draft', '#16a34a')}</div>`).join('');
+                if (out) out.innerHTML = rows + `<p style="font-size:12px;color:var(--text-muted);margin:10px 0 0;">Review and approve them in <a href="#" onclick="App.showSection('pr-media', document.querySelector('.nav-item[data-section=pr-media]')); return false;" style="color:var(--text-primary);font-weight:700;">PR &amp; Media &rarr; Content calendar</a>.</p>`;
+                const fresh = (d.drafts || []).filter(x => x.status === 'draft').length;
+                Toast.success(fresh ? `${fresh} content draft(s) assembled from the real event data` : 'All recap drafts already exist — nothing duplicated');
+            },
+
+            // ---- 2. Testimonials ----
+            async loadTestimonials() {
+                const stats = document.getElementById('pexTStats'), list = document.getElementById('pexTList');
+                if (!stats || !list) return;
+                const r = await this.api('/api/admin/testimonials');
+                const rows = Array.isArray(r.d) ? r.d : [];
+                const by = (s) => rows.filter(x => x.status === s).length;
+                stats.innerHTML = this.stat('Asked', rows.length) + this.stat('Consented', by('consented')) + this.stat('Approved', by('approved')) + this.stat('Declined', by('declined'));
+                if (!rows.length) { list.innerHTML = '<div class="pex-empty">No testimonials yet. After the survey round, ask the highest-rated attendees for permission to quote them.</div>'; return; }
+                const chipFor = (s) => ({ invited: this.chip('awaiting reply', '#f59e0b'), consented: this.chip('consented', '#0ea5e9'), approved: this.chip('approved', '#16a34a'), declined: this.chip('declined', '#6b7280') }[s] || this.chip(s, '#64748b'));
+                list.innerHTML = rows.map(t => {
+                    const name = t.consent_name ? (t.author_name || 'Name on file') : 'Anonymous (their choice)';
+                    const acts = [];
+                    if (t.status === 'consented') acts.push(`<button class="btn btn-primary" style="font-size:11px;padding:5px 12px;" onclick="PostEventEngine.approveTestimonial('${t.id}')"><i class="fas fa-check"></i> Approve</button>`);
+                    if (t.status === 'consented' || t.status === 'approved') acts.push(`<button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;" onclick="PostEventEngine.openTestimonialModal('${t.id}')"><i class="fas fa-pen"></i> Edit</button>`);
+                    return `<div class="pex-row"><div style="flex:1;min-width:220px;">
+                        ${t.quote ? `<div class="pex-quote">&ldquo;${this.esc(t.quote)}&rdquo;</div>` : '<div class="m">No quote yet.</div>'}
+                        <div class="m" style="margin-top:4px;">${this.esc(name)}${t.author_role ? ' &middot; ' + this.esc(t.author_role) : ''}${t.rating ? ' &middot; ' + t.rating + '&#9733;' : ''} &middot; ${this.esc(t.event_key || '')}</div></div>
+                        <div style="display:flex;gap:6px;align-items:center;">${chipFor(t.status)}${acts.join('')}</div></div>`;
+                }).join('');
+                this._testimonials = rows;
+            },
+            async harvest() {
+                const min = document.getElementById('pexTMin')?.value || '4';
+                if (!confirm(`Ask attendees who rated the event ${min}+ stars for permission to be quoted?\n\nA consent email is staged in the outbox for each new high rating. Nothing sends until you approve the batch.`)) return;
+                const r = await this.api('/api/admin/testimonials/harvest', { method: 'POST', body: JSON.stringify({ event_key: this.ek, min_rating: parseInt(min, 10) }) });
+                const d = r.d || {};
+                if (!d.success) { Toast.error(d.error || 'Failed'); return; }
+                Toast.success(d.staged ? `${d.staged} consent ask(s) staged — approve them in the outbox` : 'No new high ratings to ask — everyone is already covered');
+                this.loadTestimonials();
+            },
+            approveTestimonial(id) {
+                this.api('/api/admin/testimonials/' + encodeURIComponent(id) + '/approve', { method: 'POST' }).then(r => {
+                    if (r.d && r.d.success) { Toast.success('Approved — ready for the website and brochures'); this.loadTestimonials(); }
+                    else Toast.error((r.d && r.d.error) || 'Failed');
+                });
+            },
+            openTestimonialModal(id) {
+                const t = (this._testimonials || []).find(x => x.id === id); if (!t) return;
+                this._editTestimonial = id;
+                document.getElementById('pexTQuote').value = t.quote || '';
+                document.getElementById('pexTName').value = t.author_name || '';
+                document.getElementById('pexTRole').value = t.author_role || '';
+                document.getElementById('pexTConsent').checked = !!t.consent_name;
+                App.openModal('pexTEditModal');
+            },
+            async saveTestimonial(btn) {
+                if (!this._editTestimonial) return;
+                btn.disabled = true;
+                const r = await this.api('/api/admin/testimonials/' + encodeURIComponent(this._editTestimonial), { method: 'POST', body: JSON.stringify({
+                    quote: document.getElementById('pexTQuote').value,
+                    author_name: document.getElementById('pexTName').value,
+                    author_role: document.getElementById('pexTRole').value,
+                    consent_name: document.getElementById('pexTConsent').checked,
+                }) });
+                btn.disabled = false;
+                if (r.d && r.d.success) { App.closeModal('pexTEditModal'); Toast.success('Saved'); this.loadTestimonials(); }
+                else Toast.error((r.d && r.d.error) || 'Failed');
+            },
+            async exportTestimonials() {
+                const res = await fetch('/api/admin/testimonials/export?format=csv', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                if (!res.ok) { Toast.error('Export failed'); return; }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = 'testimonials.csv'; a.click();
+                URL.revokeObjectURL(url);
+            },
+
+            // ---- 3. Speaker + attendee thank-you kits ----
+            async loadKits() {
+                const list = document.getElementById('pexKitList'); if (!list) return;
+                const r = await this.api('/api/admin/speaker-kits');
+                const rows = (Array.isArray(r.d) ? r.d : []).filter(k => k.event_key === this.ek);
+                if (!rows.length) { list.innerHTML = '<div class="pex-empty">No speaker kits yet. Prepare them first — each kit gathers that speaker&rsquo;s audience and rating from the real data.</div>'; return; }
+                list.innerHTML = rows.map(k => {
+                    let kit = {}; try { kit = JSON.parse(k.kit_json || '{}'); } catch (e) {}
+                    const stars = (kit.stars && kit.stars.avg != null) ? `${kit.stars.avg}/5 (${kit.stars.count})` : 'no ratings yet';
+                    const st = k.status === 'sent' ? this.chip('staged to outbox', '#0ea5e9') : this.chip('draft', '#64748b');
+                    return `<div class="pex-row"><div><div class="t">${this.esc(k.speaker_name || 'Speaker')}</div>
+                        <div class="m">${this.esc(kit.talk_title || '')}${kit.talk_title ? ' &middot; ' : ''}${kit.participants || 0} participants &middot; ${this.esc(stars)}${k.email ? '' : ' &middot; no email on file'}</div></div>${st}</div>`;
+                }).join('');
+            },
+            async generateKits() {
+                const r = await this.api('/api/admin/speaker-kits/generate', { method: 'POST', body: JSON.stringify({ event_key: this.ek }) });
+                const d = r.d || {};
+                if (!d.success) { Toast.error(d.error || 'Failed'); return; }
+                Toast.success(`${d.count} kit(s) ready &middot; ${d.created} new`.replace('&middot;', '·'));
+                this.loadKits();
+            },
+            async sendKits() {
+                if (!confirm('Stage a personal thank-you for every speaker with an email on file?\n\nThe emails are staged in the outbox for your approval. Each speaker is thanked exactly once.')) return;
+                const r = await this.api('/api/admin/speaker-kits/send', { method: 'POST', body: JSON.stringify({ event_key: this.ek }) });
+                const d = r.d || {};
+                if (!d.success) { Toast.error(d.error || 'Failed'); return; }
+                Toast.success(d.staged ? `${d.staged} speaker thank-you(s) staged — approve them in the outbox` : 'Nothing new to stage — every speaker is already covered');
+                this.loadKits();
+            },
+            async attendeeThankyou() {
+                if (!confirm('Stage a warm thank-you (with certificate link and LinkedIn share) for every checked-in attendee?\n\nThe emails are staged in the outbox for your approval. Each attendee is thanked exactly once.')) return;
+                const r = await this.api('/api/admin/post-event/attendee-thankyou', { method: 'POST', body: JSON.stringify({ event_key: this.ek }) });
+                const d = r.d || {};
+                if (!d.success) { Toast.error(d.error || 'Failed'); return; }
+                Toast.success(d.staged ? `${d.staged} attendee thank-you(s) staged — approve them in the outbox` : 'Nothing new to stage — everyone is already covered');
+            },
+
+            // ---- 4. Early-bird bridge ----
+            async loadBridges() {
+                const list = document.getElementById('pexBridgeList'); if (!list) return;
+                const r = await this.api('/api/admin/early-bird');
+                const rows = Array.isArray(r.d) ? r.d : [];
+                this._bridges = rows;
+                if (!rows.length) { list.innerHTML = '<div class="pex-empty">No bridges yet. Create one to thank this year&rsquo;s attendees with a code for the next edition.</div>'; return; }
+                list.innerHTML = rows.map(b => {
+                    const disc = b.discount_type === 'percentage' ? `${b.discount_value}%` : `${b.discount_value} EUR`;
+                    const st = b.status === 'approved' ? this.chip('approved', '#16a34a') : this.chip('draft', '#f59e0b');
+                    const acts = [`<button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;" onclick="PostEventEngine.openBridgeModal('${b.id}')"><i class="fas fa-pen"></i> Edit</button>`];
+                    if (b.codes_minted < b.quantity) acts.push(`<button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;" onclick="PostEventEngine.generateCodes('${b.id}')"><i class="fas fa-ticket"></i> Generate codes</button>`);
+                    if (b.status !== 'approved' && b.codes_minted > 0) acts.push(`<button class="btn btn-primary" style="font-size:11px;padding:5px 12px;" onclick="PostEventEngine.approveBridge('${b.id}')"><i class="fas fa-check"></i> Approve</button>`);
+                    if (b.status === 'approved') acts.push(`<button class="btn btn-primary" style="font-size:11px;padding:5px 12px;" onclick="PostEventEngine.stageBridge('${b.id}')"><i class="fas fa-paper-plane"></i> Stage thank-you emails</button>`);
+                    return `<div class="pex-row"><div><div class="t">${this.esc(b.label)}</div>
+                        <div class="m">${this.esc(disc)} off &middot; ${b.codes_minted}/${b.quantity} codes minted &middot; ${b.codes_used} used${b.valid_until ? ' &middot; valid until ' + this.esc(b.valid_until) : ''}</div></div>
+                        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${st}${acts.join('')}</div></div>`;
+                }).join('');
+            },
+            openBridgeModal(id) {
+                const b = id ? (this._bridges || []).find(x => x.id === id) : null;
+                this._editBridge = b ? b.id : null;
+                document.getElementById('pexBridgeModalTitle').textContent = b ? 'Edit early-bird bridge' : 'New early-bird bridge';
+                document.getElementById('pexBrLabel').value = b ? (b.label || '') : '';
+                document.getElementById('pexBrType').value = b ? (b.discount_type || 'fixed') : 'fixed';
+                document.getElementById('pexBrValue').value = b ? (b.discount_value || '') : '';
+                document.getElementById('pexBrPrefix').value = b ? (b.code_prefix || '') : '';
+                document.getElementById('pexBrQty').value = b ? (b.quantity || '') : '';
+                document.getElementById('pexBrValid').value = b ? (b.valid_until || '') : '';
+                document.getElementById('pexBrTerms').value = b ? (b.terms || '') : '';
+                App.openModal('pexBridgeModal');
+            },
+            async saveBridge(btn) {
+                const label = document.getElementById('pexBrLabel').value.trim();
+                const value = Number(document.getElementById('pexBrValue').value);
+                const qty = parseInt(document.getElementById('pexBrQty').value, 10);
+                if (!label) { Toast.error('Give the bridge a label'); return; }
+                if (!value || value <= 0) { Toast.error('Set a discount value'); return; }
+                if (!qty || qty <= 0) { Toast.error('Set how many codes to mint'); return; }
+                btn.disabled = true;
+                const r = await this.api('/api/admin/early-bird', { method: 'POST', body: JSON.stringify({
+                    id: this._editBridge || undefined,
+                    label,
+                    discount_type: document.getElementById('pexBrType').value,
+                    discount_value: value,
+                    code_prefix: document.getElementById('pexBrPrefix').value.trim() || undefined,
+                    quantity: qty,
+                    valid_until: document.getElementById('pexBrValid').value || null,
+                    terms: document.getElementById('pexBrTerms').value.trim(),
+                }) });
+                btn.disabled = false;
+                if (r.d && r.d.success) { App.closeModal('pexBridgeModal'); Toast.success('Saved as draft — generate codes, then approve'); this.loadBridges(); }
+                else Toast.error((r.d && r.d.error) || 'Failed');
+            },
+            async generateCodes(id) {
+                const b = (this._bridges || []).find(x => x.id === id);
+                if (b && !confirm(`Mint the code batch for "${b.label}"?\n\nCodes are real single-use promo codes; minting tops up to ${b.quantity} total and never duplicates.`)) return;
+                const r = await this.api('/api/admin/early-bird/' + encodeURIComponent(id) + '/generate', { method: 'POST' });
+                const d = r.d || {};
+                if (!d.success) { Toast.error(d.error || 'Failed'); return; }
+                Toast.success(`${d.minted} code(s) minted &middot; ${d.total} total`.replace('&middot;', '·'));
+                this.loadBridges();
+            },
+            async approveBridge(id) {
+                if (!confirm('Approve this bridge?\n\nOnly an approved bridge can stage code emails — and those still wait for your outbox approval before anything sends.')) return;
+                const r = await this.api('/api/admin/early-bird/' + encodeURIComponent(id) + '/approve', { method: 'POST' });
+                const d = r.d || {};
+                if (!d.success) { Toast.error(d.error || 'Failed'); return; }
+                Toast.success('Bridge approved');
+                this.loadBridges();
+            },
+            async stageBridge(id) {
+                if (!confirm('Stage a code-carrying thank-you for every checked-in attendee of this event?\n\nOne unused code per person, each person exactly once. The emails wait in the outbox for your approval.')) return;
+                const r = await this.api('/api/admin/early-bird/' + encodeURIComponent(id) + '/stage-thankyou', { method: 'POST', body: JSON.stringify({ source_event_key: this.ek }) });
+                const d = r.d || {};
+                if (!d.success) { Toast.error(d.error || 'Failed'); return; }
+                Toast.success(d.staged ? `${d.staged} code email(s) staged — approve them in the outbox` : (d.message || 'Nothing new to stage'));
+                this.loadBridges();
+            },
+
+            // ---- 5. Sponsor fulfilment reports ----
+            async loadReports() {
+                const list = document.getElementById('pexReportList'); if (!list) return;
+                const r = await this.api('/api/admin/sponsor-reports');
+                const rows = Array.isArray(r.d) ? r.d : [];
+                if (!rows.length) { list.innerHTML = '<div class="pex-empty">No reports yet. Draft them once the event is over — one per confirmed sponsor, built from the real numbers.</div>'; return; }
+                list.innerHTML = rows.map(x => {
+                    const st = x.status === 'sent' ? this.chip('staged to outbox', '#0ea5e9') : this.chip('draft', '#64748b');
+                    return `<div class="pex-row"><div><div class="t">${this.esc(x.sponsor_name || x.title || 'Sponsor')}</div>
+                        <div class="m">${this.esc(x.event_key || '')}${x.contact_email ? ' &middot; ' + this.esc(x.contact_email) : ' &middot; no contact email on file'}</div></div>
+                        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${st}
+                        <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;" onclick="PostEventEngine.previewReport('${x.id}')"><i class="fas fa-eye"></i> Preview</button>
+                        <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;" onclick="PostEventEngine.downloadReportPdf('${x.id}')"><i class="fas fa-file-pdf"></i> PDF</button>
+                        ${x.status !== 'sent' && x.contact_email ? `<button class="btn btn-primary" style="font-size:11px;padding:5px 12px;" onclick="PostEventEngine.sendReport('${x.id}', '${this.esc(x.contact_email)}')"><i class="fas fa-paper-plane"></i> Send</button>` : ''}
+                        </div></div>`;
+                }).join('');
+            },
+            async generateReports() {
+                const r = await this.api('/api/admin/sponsor-reports/generate', { method: 'POST', body: JSON.stringify({ event_key: this.ek }) });
+                const d = r.d || {};
+                if (!d.success) { Toast.error(d.error || 'Failed'); return; }
+                Toast.success(d.count ? `${d.count} report(s) drafted from the real event data` : 'No confirmed sponsors on file yet');
+                this.loadReports();
+            },
+            async previewReport(id) {
+                const r = await this.api('/api/admin/sponsor-reports/' + encodeURIComponent(id));
+                if (!r.d || r.d.error) { Toast.error((r.d && r.d.error) || 'Failed'); return; }
+                document.getElementById('pexPreviewTitle').textContent = r.d.title || 'Sponsor report';
+                document.getElementById('pexPreviewFrame').srcdoc = r.d.html || '<p style="font-family:sans-serif;padding:20px;">This report is empty.</p>';
+                App.openModal('pexPreviewModal');
+            },
+            async downloadReportPdf(id) {
+                const res = await fetch('/api/admin/sponsor-reports/' + encodeURIComponent(id) + '/pdf', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                if (res.status === 503) {
+                    let d = null; try { d = await res.json(); } catch (e) {}
+                    Toast.info((d && d.message) || 'The PDF engine is not available here — the report preview is still ready to use.');
+                    return;
+                }
+                if (!res.ok) { Toast.error('PDF export failed'); return; }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = 'sponsor-report-' + id + '.pdf'; a.click();
+                URL.revokeObjectURL(url);
+            },
+            async sendReport(id, to) {
+                if (!confirm(`Send this fulfilment report to ${to}?\n\nThe email is staged in the outbox for your approval — nothing sends until you approve it.`)) return;
+                const r = await this.api('/api/admin/sponsor-reports/' + encodeURIComponent(id) + '/send', { method: 'POST' });
+                const d = r.d || {};
+                if (!d.success) { Toast.error(d.error || 'Failed'); return; }
+                Toast.success('Report staged to ' + (d.recipient || to) + ' — approve it in the outbox');
+                this.loadReports();
             }
         };
 
