@@ -4563,6 +4563,15 @@ async function initializeApp() {
         updated_at TEXT
     )`);
 
+    // ADMIN-ONLY: Council Invitations settings (key/value — currently only 'signature_url', the
+    // founder's uploaded real-signature PNG that replaces the built-in script signature on every
+    // invitation render). OUTSIDE the SCHEMA-MIRROR block, same as council_invitations above.
+    db.run(`CREATE TABLE IF NOT EXISTS council_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TEXT
+    )`);
+
     // pr_posts drifted between portals (admin CREATE has status, user CREATE lacked it) — heal existing DBs.
     try { db.exec("ALTER TABLE pr_posts ADD COLUMN status TEXT DEFAULT 'published'"); } catch (e) { /* column exists */ }
 
@@ -33710,11 +33719,16 @@ ${extraCss || ''}
         try { if (assetId) db.run('DELETE FROM content_studio_assets WHERE id = ?', [String(assetId)]); } catch (e) {}
     }
 
-    // List saved invitations, newest first.
+    // The founder-signature setting (relative /uploads URL, same-origin so the canvas never taints).
+    function councilSignatureUrl() {
+        try { const r = query.get("SELECT value FROM council_settings WHERE key = 'signature_url'"); return (r && r.value) || null; } catch (e) { return null; }
+    }
+
+    // List saved invitations, newest first (+ the signature setting the renderer needs).
     app.get('/api/admin/council/list', auth, adminOnly, (req, res) => {
         try {
             const rows = query.all('SELECT * FROM council_invitations ORDER BY created_at DESC LIMIT 200');
-            res.json({ invitations: (rows || []).map(councilRow) });
+            res.json({ invitations: (rows || []).map(councilRow), signature_url: councilSignatureUrl() });
         } catch (e) { res.status(500).json({ error: 'list_failed' }); }
     });
 
@@ -33768,6 +33782,44 @@ ${extraCss || ''}
             saveDb();
             res.json({ success: true, url: asset.url, id: asset.id });
         } catch (e) { console.error('[council] asset', e.message); res.status(500).json({ error: 'asset_failed' }); }
+    });
+
+    // Upload the founder's REAL signature PNG (admin setting — replaces the built-in script signature
+    // on every future invitation render). Body is RAW image/png bytes, the same big-upload idiom as
+    // /api/admin/council/asset above. Stored under /uploads/content-studio with a RELATIVE URL, so the
+    // renderer's canvas stays same-origin regardless of host or proxy scheme.
+    app.post('/api/admin/council/signature', auth, adminOnly, express.raw({ type: () => true, limit: '4mb' }), (req, res) => {
+        try {
+            const buf = Buffer.isBuffer(req.body) ? req.body : null;
+            if (!buf || !buf.length) return res.status(400).json({ error: 'no_bytes', message: 'No image bytes received.' });
+            if (buf.length > 3 * 1024 * 1024) return res.status(400).json({ error: 'too_large', message: 'Keep the signature PNG under 3 MB.' });
+            const isPng = buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47;
+            if (!isPng) return res.status(400).json({ error: 'png_required', message: 'Upload a PNG image of the signature.' });
+            const dir = path.join(uploadsDir, 'content-studio');
+            try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); } catch (e) {}
+            const fname = 'council-signature-' + uuidv4() + '.png';
+            fs.writeFileSync(path.join(dir, fname), buf);
+            // Remove the previous signature file (best-effort), then point the setting at the new one.
+            const prev = councilSignatureUrl();
+            if (prev) { try { const local = psLocalPathForUrl(prev); if (local && fs.existsSync(local)) fs.unlinkSync(local); } catch (e) {} }
+            const url = '/uploads/content-studio/' + fname;
+            db.run("INSERT OR REPLACE INTO council_settings (key, value, updated_at) VALUES ('signature_url', ?, datetime('now'))", [url]);
+            try { logAudit(req, 'council.signature', 'uploaded the founder signature PNG'); } catch (e) {}
+            saveDb();
+            res.json({ success: true, signature_url: url });
+        } catch (e) { console.error('[council] signature', e.message); res.status(500).json({ error: 'signature_failed' }); }
+    });
+
+    // Remove the uploaded signature — future renders return to the built-in script signature.
+    app.post('/api/admin/council/signature/delete', auth, adminOnly, (req, res) => {
+        try {
+            const prev = councilSignatureUrl();
+            if (prev) { try { const local = psLocalPathForUrl(prev); if (local && fs.existsSync(local)) fs.unlinkSync(local); } catch (e) {} }
+            db.run("DELETE FROM council_settings WHERE key = 'signature_url'");
+            try { logAudit(req, 'council.signature', 'removed the founder signature PNG'); } catch (e) {}
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { console.error('[council] signature delete', e.message); res.status(500).json({ error: 'signature_delete_failed' }); }
     });
 
     // Stage ONE invitation email into the approval outbox (pending_approval — never auto-sent). Requires

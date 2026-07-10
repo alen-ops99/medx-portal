@@ -20,6 +20,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
     <style id="medx-admin-brand">
       /* Brand match with the website + user portal (presentation-only) */
       h1,h2,h3,.welcome-title,.section-title,.card-title,.modal-title{font-family:'Fraunces',Georgia,serif !important;letter-spacing:-.01em;}
@@ -45260,25 +45261,33 @@ By applying to this program, I give the following consents:
 
         // ==================== ADVISORY COUNCIL INVITATION — print-grade renderer ====================
         // A single-page A4 invitation drawn CLIENT-SIDE at print resolution (2480x3508 = A4 @ 300dpi).
-        // OWNER SPEC (~14:05 respec): SIMPLE AND WARM — "We're happy to invite you to join. These are the
-        // obligations. That's about it." Clean paper ground, the real med&X wordmark, the invitee's name in
-        // a dark serif, a short warm paragraph, the four obligations as a PLAIN list, one thin gold rule,
-        // and two small real event photos above a modest footer. No navy field, no pleter, no theatrics.
-        // Bilingual (EN / formal-Vi HR). Dependency-free — no headless Chrome — renders identically on prod.
+        // OWNER SPEC (~14:05 respec + ~14:35/~15:10 refinements): SIMPLE AND WARM, text-only elegance.
+        // Clean paper ground; the real med&X wordmark flanked by two fine gold letterhead rules; the
+        // invitee's name in a dark serif; a short warm paragraph; the four obligations as a PLAIN list
+        // ("One gathering a year, in Croatia" — the Plexus-week detail lives in the concept one-pager);
+        // an elegant script signature ("Alen Juginović" in Great Vibes) above the typed block, replaced
+        // by the founder's real signature PNG once uploaded (admin setting, setSignature()); NO photos —
+        // one understated footer ornament (thin gold rule, tiny pleter tab centered) above the
+        // "medx.hr · Split, Croatia" footer (Med&X is founded in Split). The layout is measured and
+        // compressed to fit the page in BOTH locales (formal-Vi HR runs longer than EN).
+        // Dependency-free — no headless Chrome — renders identically on prod.
         window.MedxInvite = (function(){
             var W=2480, H=3508;
             var PAL={ paper:'#FDFCF9', ink:'#23262B', body:'#33363C', muted:'#7A756B', gold:'#C9A227', hairline:'#E4DFD4' };
             var DISPLAY="'Fraunces', Georgia, 'Times New Roman', serif";
             var SERIF="'Cormorant Garamond', Georgia, 'Times New Roman', serif";
             var LABEL="'Inter', -apple-system, 'Helvetica Neue', Arial, sans-serif";
-            // Real assets, same-origin (express.static serves ../frontend) so the canvas never taints:
-            // the med&X wordmark + two real Med&X moments (Plexus Gala 2025, Plexus 2023 conference).
-            var ASSETS={ logo:'/assets/logo.png', photo1:'/resources/assets/plexus_25_gala.jpg', photo2:'/resources/assets/plexus_23_george_daley.jpg' };
+            var SCRIPT="'Great Vibes', 'Snell Roundhand', 'Apple Chancery', cursive";
+            // Real assets, same-origin (express.static serves ../frontend) so the canvas never taints.
+            var ASSETS={ logo:'/assets/logo.png' };
             var IMGS={}, _readyPromise=null;
             function loadImg(src){ return new Promise(function(res){ var im=new Image(); im.onload=function(){ res(im); }; im.onerror=function(){ res(null); }; im.src=src; }); }
             // ready(): images + the fonts AT DRAW SIZES with a Croatian-diacritic sample, so the
             // latin-ext subsets are in before any canvas draw (else č/ć/š/đ fall back to Georgia).
-            function ready(){ if(!_readyPromise){ var sample='ČĆŽŠĐčćžšđ Med&X'; var fonts=(document.fonts&&document.fonts.load)?Promise.all(['500 116px '+DISPLAY,'500 64px '+DISPLAY,'400 56px '+SERIF,'italic 400 46px '+SERIF,'500 58px '+SERIF,'600 40px '+LABEL].map(function(f){ return document.fonts.load(f,sample).catch(function(){}); })).catch(function(){}):Promise.resolve(); _readyPromise=Promise.all([loadImg(ASSETS.logo),loadImg(ASSETS.photo1),loadImg(ASSETS.photo2),fonts]).then(function(r){ IMGS.logo=r[0]; IMGS.photo1=r[1]; IMGS.photo2=r[2]; }); } return _readyPromise; }
+            function ready(){ if(!_readyPromise){ var sample='ČĆŽŠĐčćžšđ Med&X'; var fonts=(document.fonts&&document.fonts.load)?Promise.all(['500 116px '+DISPLAY,'500 64px '+DISPLAY,'400 56px '+SERIF,'italic 400 46px '+SERIF,'500 58px '+SERIF,'600 40px '+LABEL,'400 150px '+SCRIPT].map(function(f){ return document.fonts.load(f,sample+' Alen Juginović').catch(function(){}); })).catch(function(){}):Promise.resolve(); _readyPromise=Promise.all([loadImg(ASSETS.logo),fonts]).then(function(r){ IMGS.logo=r[0]; }); } return _readyPromise; }
+            // The founder's real signature PNG (admin setting). When set it replaces the script
+            // signature on ALL renders; url=null returns to the built-in script. Same-origin (/uploads).
+            function setSignature(url){ if(!url){ IMGS.signature=null; return Promise.resolve(); } return loadImg(url).then(function(im){ IMGS.signature=im||null; }); }
             // Warmest core of the approved letter, trimmed to two sentences + the one personalized slot.
             var COPY={
                 en:{
@@ -45286,20 +45295,20 @@ By applying to this program, I give the following consents:
                     namePlaceholder:'Full Name',
                     para:function(s){ var lead=(s&&s.trim())?(s.trim().replace(/[\s.]+$/,'')+'. '):''; return lead+'We are forming the Med&X Advisory Council, a small standing circle of people who have shaped medicine in their own countries. I would be glad, and honoured, to count you among its founding members.'; },
                     askLabel:'WHAT MEMBERSHIP ASKS OF YOU',
-                    ask:['Your name','One gathering a year, during Plexus week in Zagreb','A door, when we ask','Counsel, when you offer it'],
+                    ask:['Your name','One gathering a year, in Croatia','A door, when we ask','Counsel, when you offer it'],
                     reassure:'The seat is honorary, with no legal duties and no part in how the association is run.',
                     signName:'Alen Juginović, MD', signRole:'FOUNDER & PRESIDENT, MED&X',
-                    footer:'MEDX.HR   ·   ZAGREB'
+                    footer:'MEDX.HR   ·   SPLIT, CROATIA'
                 },
                 hr:{
                     council:'SAVJETODAVNO VIJEĆE',
                     namePlaceholder:'Ime i prezime',
                     para:function(s){ var lead=(s&&s.trim())?(s.trim().replace(/[\s.]+$/,'')+'. '):''; return lead+'Osnivamo Savjetodavno vijeće Med&X-a, mali stalni krug ljudi koji su oblikovali medicinu u svojim zemljama. Bilo bi mi drago, i bila bi mi čast, ubrojiti Vas među njegove osnivače.'; },
                     askLabel:'ŠTO ČLANSTVO OD VAS TRAŽI',
-                    ask:['Vaše ime','Jedan susret godišnje, tijekom Plexus tjedna u Zagrebu','Vrata, kada zamolimo','Savjet, kada ga ponudite'],
+                    ask:['Vaše ime','Jedan susret godišnje, u Hrvatskoj','Vrata, kada zamolimo','Savjet, kada ga ponudite'],
                     reassure:'Mjesto je počasno, bez pravnih obveza i bez udjela u upravljanju udrugom.',
                     signName:'Alen Juginović, dr. med.', signRole:'OSNIVAČ I PREDSJEDNIK, MED&X',
-                    footer:'MEDX.HR   ·   ZAGREB'
+                    footer:'MEDX.HR   ·   SPLIT, HRVATSKA'
                 }
             };
             function label(ctx,text,x,y,spacing,size,color,align,weight){ ctx.save(); ctx.fillStyle=color; ctx.textBaseline='alphabetic'; ctx.font=(weight||'600')+' '+size+'px '+LABEL; var s=String(text||''),total=0,i; for(i=0;i<s.length;i++){ total+=ctx.measureText(s[i]).width+spacing; } total-=spacing; var cx=align==='center'?x-total/2:(align==='right'?x-total:x); ctx.textAlign='left'; for(i=0;i<s.length;i++){ ctx.fillText(s[i],cx,y); cx+=ctx.measureText(s[i]).width+spacing; } ctx.restore(); }
@@ -45308,8 +45317,8 @@ By applying to this program, I give the following consents:
             function clip(ctx,text,maxW,font){ ctx.save(); ctx.font=font; var s=String(text||''); if(ctx.measureText(s).width<=maxW){ctx.restore();return s;} while(s.length>1&&ctx.measureText(s+'…').width>maxW) s=s.slice(0,-1); ctx.restore(); return s+'…'; }
             // Centered paragraph (a short warm letter block). Returns the last baseline.
             function drawCentered(ctx,text,cx,y,maxW,font,lineH,color){ ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=color; var lines=wrap(ctx,text,maxW,font); var yy=y; for(var i=0;i<lines.length;i++){ ctx.font=font; ctx.fillText(lines[i],cx,yy); yy+=lineH; } ctx.restore(); return yy-lineH; }
-            // Cover-crop an image into a rect, with a quiet hairline border.
-            function drawCover(ctx,img,x,y,w,h){ if(!img){ ctx.save(); ctx.fillStyle='#F2EFE8'; ctx.fillRect(x,y,w,h); ctx.restore(); } else { var s=Math.max(w/img.width,h/img.height); var sw=w/s, sh=h/s, sx=(img.width-sw)/2, sy=(img.height-sh)/2; ctx.save(); ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip(); ctx.drawImage(img,sx,sy,sw,sh,x,y,w,h); ctx.restore(); } ctx.save(); ctx.strokeStyle=PAL.hairline; ctx.lineWidth=2; ctx.strokeRect(x+1,y+1,w-2,h-2); ctx.restore(); }
+            // The tiny pleter tab — a small three-strand gold interlace, the ONE ornament on the page.
+            function drawPleterTab(ctx,cx,cy,w,h){ ctx.save(); ctx.lineCap='round'; var strands=3, amp=h*0.32, lam=h*2.4; for(var s=0;s<strands;s++){ var ph=(Math.PI*2/strands)*s; ctx.beginPath(); for(var u=0;u<=w;u+=4){ var yy=cy+amp*Math.sin((Math.PI*2*u/lam)+ph); if(u===0)ctx.moveTo(cx-w/2+u,yy); else ctx.lineTo(cx-w/2+u,yy); } ctx.lineWidth=h*0.16; ctx.strokeStyle=PAL.gold; ctx.globalAlpha=0.85-s*0.18; ctx.stroke(); } ctx.restore(); }
 
             function render(opts){
                 opts=opts||{};
@@ -45323,47 +45332,97 @@ By applying to this program, I give the following consents:
                 // ---- clean paper ground ----
                 ctx.fillStyle=PAL.paper; ctx.fillRect(0,0,W,H);
                 // ---- the real med&X wordmark, modest, centered ----
-                var lw=520, lh, ly=360;
+                var lw=520, lh, ly=340;
                 if(IMGS.logo){ lh=lw*(IMGS.logo.height/IMGS.logo.width); ctx.drawImage(IMGS.logo,cx-lw/2,ly,lw,lh); }
                 else { lh=114; ctx.save(); ctx.fillStyle=PAL.ink; ctx.font='600 118px '+DISPLAY; ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillText('med&X',cx,ly+96); ctx.restore(); }
-                // ---- small caps: the council ----
-                label(ctx,C.council,cx,ly+lh+150,16,40,PAL.muted,'center','600');
-                // ---- invitee name, elegant dark serif (respectfully sized) ----
+                // ---- two fine gold letterhead rules flanking the wordmark ----
+                var midY=Math.round(ly+lh/2), flankGap=88, flankFrom=330;
+                ctx.save(); ctx.fillStyle=PAL.gold; ctx.globalAlpha=0.9;
+                ctx.fillRect(flankFrom,midY-1,(cx-lw/2-flankGap)-flankFrom,3);
+                ctx.fillRect(cx+lw/2+flankGap,midY-1,(W-flankFrom)-(cx+lw/2+flankGap),3);
+                ctx.restore();
+                // ---- FIXED footer zone (drawn last): ornament + footer line. Content NEVER crosses it ----
+                var ornY=H-410, footY=H-292, contentFloor=ornY-120;
+                // ---- measured, compressible content plan so BOTH locales fit the page ----
                 var fn=fitName(ctx,name,1900,[116,102,90,78]);
+                var sigH, sigImg=IMGS.signature||null, sigW=0;
+                if(sigImg){ var ss=Math.min(640/sigImg.width,200/sigImg.height); sigW=Math.round(sigImg.width*ss); sigH=Math.round(sigImg.height*ss); }
+                else sigH=118; // visual ascent of the 150px script signature
+                // The title/institution small-caps line: if the pair overflows, break at the separator
+                // (title above, institution below) — never clip an invitee's institution mid-word.
+                var titleLines=[];
+                if(titleLine){
+                    ctx.font='600 38px '+LABEL;
+                    var spacedW=ctx.measureText(titleLine.toUpperCase()).width+8*Math.max(0,titleLine.length-1);
+                    if(spacedW>1780 && title && inst) titleLines=[title.toUpperCase(),inst.toUpperCase()];
+                    else titleLines=[titleLine.toUpperCase()];
+                }
+                function plan(k,pf){
+                    var g=function(v){ return Math.round(v*k); };
+                    var p={ k:k, paraFont:'400 '+pf+'px '+SERIF, paraLineH:Math.max(72,Math.round(86*k)), askLineH:Math.max(82,Math.round(98*k)) };
+                    p.councilY=ly+lh+g(146);
+                    p.nameY=p.councilY+g(206);
+                    var nameBottom=p.nameY+(fn.lines.length-1)*Math.round(fn.size*1.14);
+                    p.titleY=titleLines.length?nameBottom+g(94):nameBottom;
+                    p.titleLineH=g(64);
+                    var titleBottom=titleLines.length?p.titleY+(titleLines.length-1)*p.titleLineH:p.titleY;
+                    p.ruleY=titleBottom+g(94);
+                    p.paraY=p.ruleY+g(148);
+                    var paraLines=wrap(ctx,C.para(opts.personal),1560,p.paraFont);
+                    var paraEnd=p.paraY+(paraLines.length-1)*p.paraLineH;
+                    p.askLabelY=paraEnd+g(172);
+                    p.askStartY=p.askLabelY+g(108);
+                    var askEnd=p.askStartY+(C.ask.length-1)*p.askLineH;
+                    p.reassureY=askEnd+g(126);
+                    p.sigBase=p.reassureY+g(150)+sigH;
+                    p.signNameY=p.sigBase+g(110);
+                    p.signRoleY=p.signNameY+g(68);
+                    p.bottom=p.signRoleY;
+                    return p;
+                }
+                var P=null, ks=[1,0.93,0.86,0.79,0.72], sizes=[56,52,48], si, ki;
+                for(si=0;si<sizes.length&&!P;si++){ for(ki=0;ki<ks.length&&!P;ki++){ var t=plan(ks[ki],sizes[si]); if(t.bottom<=contentFloor) P=t; } }
+                if(!P) P=plan(0.72,48); // extreme inputs: draw at maximum compression
+                // Gentle vertical balance: share part of any leftover room above the footer zone,
+                // so a short letter sits composed on the page instead of crowding the letterhead.
+                var shift=Math.max(0,Math.min(Math.round((contentFloor-P.bottom)/2),300));
+                ['councilY','nameY','titleY','ruleY','paraY','askLabelY','askStartY','reassureY','sigBase','signNameY','signRoleY'].forEach(function(kk){ P[kk]+=shift; });
+                // ---- small caps: the council ----
+                label(ctx,clip(ctx,C.council,1700,'600 40px '+LABEL),cx,P.councilY,16,40,PAL.muted,'center','600');
+                // ---- invitee name, elegant dark serif (respectfully sized) ----
                 ctx.save(); ctx.fillStyle=PAL.ink; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
-                var ny=ly+lh+150+210; fn.lines.forEach(function(ln){ ctx.font='500 '+fn.size+'px '+DISPLAY; ctx.fillText(ln,cx,ny); ny+=Math.round(fn.size*1.14); });
+                var ny=P.nameY; fn.lines.forEach(function(ln){ ctx.font='500 '+fn.size+'px '+DISPLAY; ctx.fillText(ln,cx,ny); ny+=Math.round(fn.size*1.14); });
                 ctx.restore();
-                var nameBottom=ny-Math.round(fn.size*1.14);
-                // ---- title / institution in small caps ----
-                var yy=nameBottom;
-                if(titleLine){ yy=nameBottom+96; label(ctx,clip(ctx,titleLine.toUpperCase(),2000,'600 38px '+LABEL),cx,yy,8,38,PAL.muted,'center','600'); }
-                // ---- the ONE thin gold rule ----
-                var ruleY=yy+96; ctx.save(); ctx.fillStyle=PAL.gold; ctx.fillRect(cx-110,ruleY,220,3); ctx.restore();
+                // ---- title / institution in small caps (wraps at the separator, never mid-word) ----
+                titleLines.forEach(function(tl,ti){ label(ctx,clip(ctx,tl,1780,'600 38px '+LABEL),cx,P.titleY+ti*P.titleLineH,8,38,PAL.muted,'center','600'); });
+                // ---- the ONE thin gold rule of the letter body ----
+                ctx.save(); ctx.fillStyle=PAL.gold; ctx.fillRect(cx-110,P.ruleY,220,3); ctx.restore();
                 // ---- the short warm invitation paragraph (personalized slot + warmest core) ----
-                var paraEnd=drawCentered(ctx, C.para(opts.personal), cx, ruleY+150, 1560, '400 56px '+SERIF, 86, PAL.body);
+                drawCentered(ctx,C.para(opts.personal),cx,P.paraY,1560,P.paraFont,P.paraLineH,PAL.body);
                 // ---- what membership asks of you — a PLAIN four-line list ----
-                label(ctx,C.askLabel,cx,paraEnd+180,12,38,PAL.muted,'center','600');
+                label(ctx,clip(ctx,C.askLabel,1700,'600 38px '+LABEL),cx,P.askLabelY,12,38,PAL.muted,'center','600');
                 ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=PAL.ink; ctx.font='500 58px '+SERIF;
-                var ay=paraEnd+180+110;
-                for(var i=0;i<C.ask.length;i++){ ctx.fillText(C.ask[i],cx,ay); ay+=100; }
+                var ay=P.askStartY;
+                for(var i=0;i<C.ask.length;i++){ ctx.fillText(clip(ctx,C.ask[i],1880,'500 58px '+SERIF),cx,ay); ay+=P.askLineH; }
                 ctx.restore();
-                var askEnd=ay-100;
                 // ---- one line of reassurance ----
                 ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=PAL.muted; ctx.font='italic 400 46px '+SERIF;
-                ctx.fillText(clip(ctx,C.reassure,2000,'italic 400 46px '+SERIF),cx,askEnd+130); ctx.restore();
-                // ---- signature ----
-                var signY=askEnd+130+200;
-                ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=PAL.ink; ctx.font='500 64px '+DISPLAY; ctx.fillText(C.signName,cx,signY); ctx.restore();
-                label(ctx,C.signRole,cx,signY+70,7,34,PAL.muted,'center','600');
-                // ---- a quiet strip of two small real Med&X moments, above the footer ----
-                var pw=520, ph=347, gap=36, py=H-780;
-                drawCover(ctx,IMGS.photo1,cx-pw-gap/2,py,pw,ph);
-                drawCover(ctx,IMGS.photo2,cx+gap/2,py,pw,ph);
-                // ---- modest footer ----
-                label(ctx,C.footer,cx,H-300,10,34,PAL.muted,'center','600');
+                ctx.fillText(clip(ctx,C.reassure,1880,'italic 400 46px '+SERIF),cx,P.reassureY); ctx.restore();
+                // ---- signature: the uploaded real signature PNG, or the elegant script rendering ----
+                if(sigImg){ ctx.drawImage(sigImg,cx-sigW/2,P.sigBase-sigH,sigW,sigH); }
+                else { ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle='#2B2E33'; ctx.font='400 150px '+SCRIPT; ctx.fillText('Alen Juginović',cx,P.sigBase); ctx.restore(); }
+                ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=PAL.ink; ctx.font='500 64px '+DISPLAY; ctx.fillText(C.signName,cx,P.signNameY); ctx.restore();
+                label(ctx,clip(ctx,C.signRole,1700,'600 34px '+LABEL),cx,P.signRoleY,7,34,PAL.muted,'center','600');
+                // ---- the ONE footer ornament: a thin gold rule with the tiny pleter tab centered ----
+                ctx.save(); ctx.fillStyle=PAL.gold; ctx.globalAlpha=0.9;
+                ctx.fillRect(cx-330,ornY-1,260,3); ctx.fillRect(cx+70,ornY-1,260,3);
+                ctx.restore();
+                drawPleterTab(ctx,cx,ornY,116,26);
+                // ---- modest footer — Med&X is founded in Split ----
+                label(ctx,clip(ctx,C.footer,1780,'600 34px '+LABEL),cx,footY,10,34,PAL.muted,'center','600');
                 return cv;
             }
-            return { render:render, ready:ready, COPY:COPY, W:W, H:H };
+            return { render:render, ready:ready, setSignature:setSignature, COPY:COPY, W:W, H:H };
         })();
 
         // ---- Dependency-free canvas -> single-page A4 PDF (embeds a baseline JPEG via /DCTDecode). ----
@@ -45395,7 +45454,7 @@ By applying to this program, I give the following consents:
         // SAME approval outbox (never auto-send). CSP-clean: delegated addEventListener, no inline on* handlers.
         const CouncilInvites = {
             _built:false, _overlay:null, _busy:false, _t:null,
-            state:{ language:'en', name:'', title:'', institution:'', personal:'', email:'', editingId:null, list:[] },
+            state:{ language:'en', name:'', title:'', institution:'', personal:'', email:'', editingId:null, list:[], signatureUrl:null },
             esc(s){ return (typeof escapeHtml==='function') ? escapeHtml(s==null?'':String(s)) : String(s==null?'':s); },
             toast(m,t){ if(typeof App!=='undefined'&&App.showToast) App.showToast(m,t); },
             async api(path,opts){ const r=await fetch(path, Object.assign({ headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+App.token } }, opts||{})); let d=null; try{ d=await r.json(); }catch(e){} return { ok:r.ok, status:r.status, d }; },
@@ -45465,6 +45524,9 @@ By applying to this program, I give the following consents:
                 +'      <button class="ci-btn ghost" id="ciSave"><i class="fas fa-bookmark"></i> Save to list</button>'
                 +'      <button class="ci-btn ghost" id="ciStage"><i class="fas fa-paper-plane"></i> Stage in outbox</button>'
                 +'      <div class="ci-note" id="ciNote">The invitation is a print-grade A4 page. Staging places one email in the approval outbox — nothing sends until you approve it there.</div>'
+                +'      <div class="ci-sidehd">Founder signature</div>'
+                +'      <div id="ciSigBlock"></div>'
+                +'      <input type="file" id="ciSigFile" accept="image/png" style="display:none">'
                 +'      <div class="ci-sidehd">Saved invitations</div>'
                 +'      <div id="ciList" style="display:flex;flex-direction:column;gap:9px;"></div>'
                 +'    </div>'
@@ -45484,6 +45546,9 @@ By applying to this program, I give the following consents:
                 ov.querySelector('#ciStage').addEventListener('click', function(){ self.stageOutbox(); });
                 // list actions (delegated)
                 ov.querySelector('#ciList').addEventListener('click', function(e){ var el=e.target.closest && e.target.closest('[data-act]'); if(!el) return; var id=el.getAttribute('data-id'); if(el.getAttribute('data-act')==='edit') self.editRow(id); else if(el.getAttribute('data-act')==='del') self.deleteRow(id); });
+                // founder-signature setting (delegated + a once-wired file input)
+                ov.querySelector('#ciSigBlock').addEventListener('click', function(e){ var el=e.target.closest && e.target.closest('[data-sig]'); if(!el) return; if(el.getAttribute('data-sig')==='upload'){ var f=ov.querySelector('#ciSigFile'); if(f) f.click(); } else if(el.getAttribute('data-sig')==='remove') self.removeSignature(); });
+                ov.querySelector('#ciSigFile').addEventListener('change', function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=''; if(f) self.uploadSignature(f); });
             },
             async start(){ this.ensureBuilt(); this._overlay.classList.add('active'); document.body.style.overflow='hidden'; this._syncForm(); this._preview(); this._refreshActions(); await this.loadList(); },
             close(){ if(this._overlay) this._overlay.classList.remove('active'); document.body.style.overflow=''; try{ ContentStudio.init(); }catch(e){} },
@@ -45551,7 +45616,40 @@ By applying to this program, I give the following consents:
                 }catch(e){ console.error('stage failed',e); this.toast('Could not stage the invitation','error'); }
                 this._busy=false; if(btn){ btn.innerHTML='<i class="fas fa-paper-plane"></i> Stage in outbox'; } this._refreshActions();
             },
-            async loadList(){ var r=await this.api('/api/admin/council/list'); this.state.list=(r.ok&&r.d&&r.d.invitations)?r.d.invitations:[]; this._paintList(); },
+            async loadList(){ var r=await this.api('/api/admin/council/list'); this.state.list=(r.ok&&r.d&&r.d.invitations)?r.d.invitations:[]; var sig=(r.ok&&r.d&&r.d.signature_url)?r.d.signature_url:null; if(sig!==this.state.signatureUrl){ this.state.signatureUrl=sig; await window.MedxInvite.setSignature(sig); this._paintPreview(); } this._paintSigRow(); this._paintList(); },
+            // ---- founder signature (admin setting): a real signature PNG replaces the script rendering on ALL renders ----
+            _paintSigRow(){ var host=this._overlay&&this._overlay.querySelector('#ciSigBlock'); if(!host) return; var url=this.state.signatureUrl;
+                if(url){ host.innerHTML='<div class="ci-row"><img src="'+this.esc(url)+'" alt="Signature" style="height:34px;max-width:110px;object-fit:contain;background:#fff;border:1px solid var(--border);border-radius:6px;padding:2px 6px;flex-shrink:0;">'
+                    +'<span style="min-width:0;flex:1;"><span class="nm">Uploaded signature</span><br><span class="mt">Used on every invitation render</span></span>'
+                    +'<button class="ci-ico" data-sig="upload" title="Replace"><i class="fas fa-upload"></i></button>'
+                    +'<button class="ci-ico" data-sig="remove" title="Remove"><i class="fas fa-trash"></i></button></div>'; }
+                else { host.innerHTML='<div class="ci-row"><span style="min-width:0;flex:1;"><span class="nm">Script signature</span><br><span class="mt">Elegant built-in script until the real one is uploaded</span></span>'
+                    +'<button class="ci-ico" data-sig="upload" title="Upload a signature PNG"><i class="fas fa-upload"></i></button></div>'
+                    +'<div class="ci-note" style="margin-top:6px;">Upload a PNG of the real signature (dark ink on white or transparent) and every future invitation carries it.</div>'; } },
+            async uploadSignature(file){
+                if(this._busy) return;
+                if(!file || file.type!=='image/png'){ this.toast('Upload a PNG image of the signature','warning'); return; }
+                if(file.size>3*1024*1024){ this.toast('Keep the signature PNG under 3 MB','warning'); return; }
+                this._busy=true;
+                try{
+                    var r=await fetch('/api/admin/council/signature',{ method:'POST', headers:{ 'Content-Type':'image/png', 'Authorization':'Bearer '+App.token }, body:file });
+                    var d=null; try{ d=await r.json(); }catch(e){}
+                    if(r.ok&&d&&d.success){ this.state.signatureUrl=d.signature_url; await window.MedxInvite.setSignature(d.signature_url); this._paintSigRow(); this._paintPreview(); this.toast('Signature saved — every future invitation now carries it','success'); }
+                    else this.toast((d&&d.message)||'Could not store the signature','error');
+                }catch(e){ console.error('signature upload failed',e); this.toast('Could not store the signature','error'); }
+                this._busy=false;
+            },
+            async removeSignature(){
+                if(this._busy) return;
+                if(!(await adminConfirm({ destructive:true, title:'Remove the uploaded signature?', message:'Future invitations return to the elegant script signature until a new PNG is uploaded.', confirmText:'Remove' }))) return;
+                this._busy=true;
+                try{
+                    var r=await this.api('/api/admin/council/signature/delete',{ method:'POST', body:JSON.stringify({}) });
+                    if(r.ok&&r.d&&r.d.success){ this.state.signatureUrl=null; await window.MedxInvite.setSignature(null); this._paintSigRow(); this._paintPreview(); this.toast('Signature removed','success'); }
+                    else this.toast('Could not remove the signature','error');
+                }catch(e){ console.error('signature remove failed',e); this.toast('Could not remove the signature','error'); }
+                this._busy=false;
+            },
             _paintList(){ var host=this._overlay&&this._overlay.querySelector('#ciList'); if(!host) return; var self=this;
                 if(!this.state.list.length){ host.innerHTML='<div class="ci-note" style="padding:6px 2px;">No invitations saved yet. Design one, then Save to list.</div>'; return; }
                 host.innerHTML=this.state.list.map(function(inv){ var mt=[inv.title,inv.institution].filter(Boolean).join(' · '); var pill=inv.status==='sent'?'<span class="ci-pill sent">Sent</span>':'<span class="ci-pill draft">Draft</span>';
