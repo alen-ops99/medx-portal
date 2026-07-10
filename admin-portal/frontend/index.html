@@ -6629,6 +6629,72 @@
             .gala-program-row .gpr-move { align-self: center; }
             .gala-program-row .gpr-del { height: 34px; padding: 0 10px; }
         }
+
+        /* === Designed dialogs — native alert/confirm/prompt replacements === */
+        .adm-dlg-overlay {
+            position: fixed; inset: 0;
+            background: rgba(21, 17, 15, 0.45);
+            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 100200; padding: 20px;
+            opacity: 0; transition: opacity 0.18s ease;
+        }
+        .adm-dlg-overlay.active { opacity: 1; }
+        .adm-dlg {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            width: 100%; max-width: 420px;
+            box-shadow: 0 24px 64px rgba(21, 17, 15, 0.18), 0 4px 16px rgba(21, 17, 15, 0.08);
+            transform: translateY(8px) scale(0.97);
+            transition: transform 0.18s ease;
+            overflow: hidden;
+        }
+        .adm-dlg-overlay.active .adm-dlg { transform: none; }
+        .adm-dlg-icon { display: flex; justify-content: center; padding: 28px 24px 0; }
+        .adm-dlg-circle {
+            width: 52px; height: 52px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px;
+        }
+        .adm-dlg-circle.info     { background: rgba(155, 27, 34, 0.08);  color: var(--accent-gold); }
+        .adm-dlg-circle.question { background: rgba(155, 27, 34, 0.08);  color: var(--accent-gold); }
+        .adm-dlg-circle.warning  { background: rgba(180, 83, 9, 0.10);   color: var(--warning); }
+        .adm-dlg-circle.danger   { background: rgba(220, 38, 38, 0.10);  color: var(--danger); }
+        .adm-dlg-circle.success  { background: rgba(21, 128, 61, 0.10);  color: var(--success); }
+        .adm-dlg-body { padding: 16px 26px 22px; text-align: center; }
+        .adm-dlg-title {
+            font-size: 17px; font-weight: 650; letter-spacing: -0.01em;
+            color: var(--text-primary); margin: 0 0 6px;
+        }
+        .adm-dlg-msg {
+            font-size: 14px; line-height: 1.55; color: var(--text-secondary);
+            margin: 0; white-space: pre-line; overflow-wrap: break-word;
+        }
+        .adm-dlg-input {
+            width: 100%; margin-top: 14px; padding: 10px 14px;
+            background: var(--input-bg); border: 1px solid var(--border);
+            border-radius: 8px; color: var(--text-primary);
+            font-size: 14px; font-family: inherit; text-align: left;
+        }
+        .adm-dlg-input:focus {
+            outline: none; border-color: var(--accent-gold);
+            box-shadow: 0 0 0 3px rgba(155, 27, 34, 0.10);
+        }
+        .adm-dlg-actions { display: flex; gap: 10px; padding: 0 26px 26px; }
+        .adm-dlg-btn {
+            flex: 1; padding: 11px 16px; border-radius: 10px;
+            font-size: 14px; font-weight: 600; font-family: inherit;
+            cursor: pointer; border: 1px solid transparent;
+            transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+        }
+        .adm-dlg-btn:active { transform: scale(0.98); }
+        .adm-dlg-btn.cancel { background: var(--bg-tertiary); border-color: var(--border); color: var(--text-secondary); }
+        .adm-dlg-btn.cancel:hover { background: var(--bg-hover); }
+        .adm-dlg-btn.confirm { background: var(--accent-gold); color: #ffffff; }
+        .adm-dlg-btn.confirm:hover { background: var(--accent-gold-dim); }
+        .adm-dlg-btn.confirm.danger { background: var(--danger); }
+        .adm-dlg-btn.confirm.danger:hover { background: #b91c1c; }
     </style>
     <!-- Self-hosted (was CDN) so ad-blockers / restricted networks can't block the scanner libs -->
     <script src="/vendor/html5-qrcode.min.js"></script>
@@ -15910,6 +15976,172 @@ President, Med&amp;X</textarea>
             }
         }
 
+        // =========================================
+        // DESIGNED DIALOGS — native alert/confirm/prompt replacements
+        //   adminConfirm(opts|string) -> Promise<boolean>  (destructive: red confirm)
+        //   adminAlert(opts|string)   -> Promise<true>
+        //   adminPrompt(opts|string)  -> Promise<string|null>  (null = cancelled)
+        // Promise-based, self-contained overlays on the admin design system
+        // (cream card, ink text, brand-red accent). Esc = cancel, backdrop
+        // click = cancel, focus-trapped, delegated listeners only.
+        // =========================================
+        (function () {
+            function defaultIcon(type) {
+                if (type === 'danger' || type === 'warning') return 'fa-triangle-exclamation';
+                if (type === 'success') return 'fa-circle-check';
+                if (type === 'question') return 'fa-circle-question';
+                return 'fa-circle-info';
+            }
+
+            // mode: 'confirm' | 'alert' | 'prompt'
+            function openDialog(mode, cfg) {
+                return new Promise(function (resolve) {
+                    var isPrompt = (mode === 'prompt');
+                    var prevFocus = document.activeElement;
+
+                    var overlay = document.createElement('div');
+                    overlay.className = 'adm-dlg-overlay';
+                    overlay.setAttribute('role', 'dialog');
+                    overlay.setAttribute('aria-modal', 'true');
+
+                    var box = document.createElement('div');
+                    box.className = 'adm-dlg';
+
+                    var iconWrap = document.createElement('div');
+                    iconWrap.className = 'adm-dlg-icon';
+                    var circle = document.createElement('div');
+                    circle.className = 'adm-dlg-circle ' + (cfg.type || 'info');
+                    var ic = document.createElement('i');
+                    ic.className = 'fas ' + (cfg.icon || defaultIcon(cfg.type));
+                    circle.appendChild(ic);
+                    iconWrap.appendChild(circle);
+                    box.appendChild(iconWrap);
+
+                    var body = document.createElement('div');
+                    body.className = 'adm-dlg-body';
+                    var h = document.createElement('h3');
+                    h.className = 'adm-dlg-title';
+                    h.textContent = cfg.title || '';
+                    body.appendChild(h);
+                    if (cfg.message) {
+                        var p = document.createElement('p');
+                        p.className = 'adm-dlg-msg';
+                        p.textContent = cfg.message;
+                        body.appendChild(p);
+                    }
+                    var field = null;
+                    if (isPrompt) {
+                        field = document.createElement(cfg.multiline ? 'textarea' : 'input');
+                        field.className = 'adm-dlg-input';
+                        if (!cfg.multiline) field.type = 'text';
+                        field.placeholder = cfg.placeholder || '';
+                        field.value = (cfg.defaultValue != null) ? String(cfg.defaultValue) : '';
+                        body.appendChild(field);
+                    }
+                    box.appendChild(body);
+
+                    var actions = document.createElement('div');
+                    actions.className = 'adm-dlg-actions';
+                    var cancelBtn = null;
+                    if (mode !== 'alert') {
+                        cancelBtn = document.createElement('button');
+                        cancelBtn.type = 'button';
+                        cancelBtn.className = 'adm-dlg-btn cancel';
+                        cancelBtn.textContent = cfg.cancelText || 'Cancel';
+                        actions.appendChild(cancelBtn);
+                    }
+                    var okBtn = document.createElement('button');
+                    okBtn.type = 'button';
+                    okBtn.className = 'adm-dlg-btn confirm' + (cfg.danger ? ' danger' : '');
+                    okBtn.textContent = cfg.confirmText || 'OK';
+                    actions.appendChild(okBtn);
+                    box.appendChild(actions);
+
+                    overlay.appendChild(box);
+                    document.body.appendChild(overlay);
+                    requestAnimationFrame(function () { overlay.classList.add('active'); });
+
+                    var settled = false;
+                    function finish(result) {
+                        if (settled) return;
+                        settled = true;
+                        overlay.classList.remove('active');
+                        document.removeEventListener('keydown', onKey, true);
+                        setTimeout(function () { try { overlay.remove(); } catch (e) {} }, 200);
+                        try { if (prevFocus && typeof prevFocus.focus === 'function') prevFocus.focus(); } catch (e) {}
+                        resolve(result);
+                    }
+                    function accept() { finish(isPrompt ? field.value : true); }
+                    function dismiss() { finish(isPrompt ? null : (mode === 'confirm' ? false : true)); }
+
+                    okBtn.addEventListener('click', accept);
+                    if (cancelBtn) cancelBtn.addEventListener('click', dismiss);
+                    overlay.addEventListener('click', function (e) { if (e.target === overlay) dismiss(); });
+
+                    function onKey(e) {
+                        if (e.key === 'Escape') { e.preventDefault(); dismiss(); return; }
+                        if (e.key === 'Enter' && isPrompt && !cfg.multiline) { e.preventDefault(); accept(); return; }
+                        if (e.key === 'Tab') {
+                            var f = overlay.querySelectorAll('button, input, textarea');
+                            if (!f.length) return;
+                            var first = f[0], last = f[f.length - 1];
+                            if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+                            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+                        }
+                    }
+                    document.addEventListener('keydown', onKey, true);
+
+                    // Safe default focus: prompt -> field, confirm -> cancel, alert -> ok.
+                    setTimeout(function () {
+                        var target = isPrompt ? field : (mode === 'confirm' && cancelBtn ? cancelBtn : okBtn);
+                        try { target.focus(); } catch (e) {}
+                    }, 50);
+                });
+            }
+
+            window.adminConfirm = function (opts) {
+                if (typeof opts === 'string') opts = { message: opts };
+                opts = opts || {};
+                var danger = !!(opts.destructive || opts.danger || opts.type === 'danger');
+                return openDialog('confirm', {
+                    danger: danger,
+                    type: danger ? 'danger' : (opts.type || 'question'),
+                    icon: opts.icon,
+                    title: (opts.title != null) ? opts.title : 'Please confirm',
+                    message: (opts.message != null) ? opts.message : '',
+                    confirmText: (opts.confirmText != null) ? opts.confirmText : (danger ? 'Delete' : 'Confirm'),
+                    cancelText: (opts.cancelText != null) ? opts.cancelText : 'Cancel'
+                });
+            };
+            window.adminAlert = function (opts) {
+                if (typeof opts === 'string') opts = { message: opts };
+                opts = opts || {};
+                return openDialog('alert', {
+                    danger: false,
+                    type: opts.type || 'info',
+                    icon: opts.icon,
+                    title: (opts.title != null) ? opts.title : 'Notice',
+                    message: (opts.message != null) ? opts.message : '',
+                    confirmText: (opts.confirmText != null) ? opts.confirmText : 'OK'
+                });
+            };
+            window.adminPrompt = function (opts) {
+                if (typeof opts === 'string') opts = { message: opts };
+                opts = opts || {};
+                return openDialog('prompt', {
+                    type: opts.type || 'question',
+                    icon: opts.icon,
+                    title: (opts.title != null) ? opts.title : 'Enter a value',
+                    message: (opts.message != null) ? opts.message : '',
+                    placeholder: opts.placeholder || '',
+                    defaultValue: (opts.defaultValue != null) ? opts.defaultValue : '',
+                    multiline: !!opts.multiline,
+                    confirmText: (opts.confirmText != null) ? opts.confirmText : 'OK',
+                    cancelText: (opts.cancelText != null) ? opts.cancelText : 'Cancel'
+                });
+            };
+        })();
+
         const Toast = {
             show(message, type = 'info', duration = 3500) {
                 const container = document.getElementById('toastContainer');
@@ -16053,7 +16285,7 @@ President, Med&amp;X</textarea>
                         this.token = null;
                         this.user = null;
                         if (e.message === 'Not admin') {
-                            alert('Access denied. Admin privileges required.');
+                            await adminAlert({ type: "danger", title: "Access denied", message: "Admin privileges are required." });
                         }
                         this.showLogin();
                         return;
@@ -16949,17 +17181,17 @@ President, Med&amp;X</textarea>
                 const t = stats.tasks || {};
                 const pills = [];
                 const money = (label, onClick) => pills.push({ label, onClick, cls: 'na-money', icon: 'fa-credit-card' });
-                const alert = (label, onClick) => pills.push({ label, onClick, cls: 'na-alert', icon: 'fa-circle-exclamation' });
+                const alertPill = (label, onClick) => pills.push({ label, onClick, cls: 'na-alert', icon: 'fa-circle-exclamation' });
                 const plain = (label, onClick) => pills.push({ label, onClick, cls: '', icon: 'fa-arrow-right' });
 
                 if (p.galaAwaiting > 0) money(`${p.galaAwaiting} payment${p.galaAwaiting===1?'':'s'} to chase`, "App.openGalaAwaiting()");
-                if (p.unreadMessages > 0) alert(`${p.unreadMessages} unread message${p.unreadMessages===1?'':'s'}`, "App.showSection('messages')");
+                if (p.unreadMessages > 0) alertPill(`${p.unreadMessages} unread message${p.unreadMessages===1?'':'s'}`, "App.showSection('messages')");
                 if (p.abstracts > 0) plain(`${p.abstracts} abstract${p.abstracts===1?'':'s'} to review`, "App.showProject('plexus'); App.showPlexusTab('abstracts')");
                 if (p.speakerApps > 0) plain(`${p.speakerApps} speaker application${p.speakerApps===1?'':'s'}`, "App.showProject('plexus'); App.showPlexusTab('pending')");
                 if (p.scholarships > 0) plain(`${p.scholarships} scholarship${p.scholarships===1?'':'s'} to review`, "App.showProject('plexus'); App.showPlexusTab('pending')");
                 if (p.visas > 0) plain(`${p.visas} visa request${p.visas===1?'':'s'}`, "App.showProject('plexus'); App.showPlexusTab('pending')");
                 if (p.refunds > 0) money(`${p.refunds} refund${p.refunds===1?'':'s'} pending`, "App.showProject('plexus'); App.showPlexusTab('pending')");
-                if (t.overdue > 0) alert(`${t.overdue} overdue task${t.overdue===1?'':'s'}`, "App.showSection('dashboard')");
+                if (t.overdue > 0) alertPill(`${t.overdue} overdue task${t.overdue===1?'':'s'}`, "App.showSection('dashboard')");
                 if (t.urgent > 0) plain(`${t.urgent} urgent task${t.urgent===1?'':'s'}`, "App.showSection('dashboard')");
 
                 // Approaching milestones (next 21 days) become gentle deadline pills.
@@ -19720,7 +19952,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteSubtask(subtaskId) {
-                if (!confirm('Delete this subtask?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this subtask?", confirmText: "Delete" }))) return;
                 try {
                     await this.api(`/api/tasks/${subtaskId}`, { method: 'DELETE' });
                     await this.loadAllTasks();
@@ -19760,7 +19992,7 @@ President, Med&amp;X</textarea>
             },
 
             async removeTaskFile(fileId) {
-                if (!confirm('Remove this file?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Remove this file?", confirmText: "Remove" }))) return;
                 try {
                     await this.api(`/api/tasks/files/${fileId}`, { method: 'DELETE' });
                     await this.loadAllTasks();
@@ -19980,7 +20212,7 @@ President, Med&amp;X</textarea>
                 if (!group) { Toast.warning('Please select a target group'); return; }
                 if (!content) { Toast.warning('Message content is required'); return; }
 
-                if (!confirm(`Send this message to all ${group} users? This cannot be undone.`)) return;
+                if (!(await adminConfirm({ destructive: true, title: "Send to all users", message: `Send this message to all ${group} users? This cannot be undone.`, confirmText: "Send" }))) return;
 
                 try {
                     const result = await this.api('/api/admin/messages/bulk', {
@@ -20162,7 +20394,7 @@ President, Med&amp;X</textarea>
             async deleteTask() {
                 const taskId = document.getElementById('taskEditId').value;
                 if (!taskId) return;
-                if (!confirm('Delete this task?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this task?", confirmText: "Delete" }))) return;
 
                 try {
                     await this.api(`/api/tasks/${taskId}`, { method: 'DELETE' });
@@ -20626,7 +20858,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteSequence(seqId) {
-                if (!confirm('Delete this sequence? This cannot be undone.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this sequence?", message: "This cannot be undone.", confirmText: "Delete" }))) return;
 
                 try {
                     await this.api(`/api/sequences/${seqId}`, { method: 'DELETE' });
@@ -20819,7 +21051,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteTimelineEvent(project, eventId) {
-                if (!confirm('Delete this event?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this event?", confirmText: "Delete" }))) return;
 
                 try {
                     await this.api(`/api/timeline/${project}/${eventId}`, { method: 'DELETE' });
@@ -20847,19 +21079,18 @@ President, Med&amp;X</textarea>
                 window.open(shortcut.url, '_blank');
             },
 
-            editCustomShortcut() {
+            async editCustomShortcut() {
                 document.getElementById('quickActionDropdown').classList.remove('active');
                 const saved = localStorage.getItem('medxCustomShortcut');
                 const current = saved ? JSON.parse(saved) : this.defaultShortcut;
 
-                const label = prompt('Shortcut name:', current.label);
+                const label = (await adminPrompt({ title: "Shortcut name", defaultValue: current.label }));
                 if (!label) return;
 
-                const url = prompt('URL to open:', current.url);
+                const url = (await adminPrompt({ title: "URL to open", defaultValue: current.url }));
                 if (!url) return;
 
-                const iconChoice = prompt('Icon (video, link, globe, rocket, paper-plane, bolt):',
-                    current.icon.replace('fa-', ''));
+                const iconChoice = (await adminPrompt({ title: "Choose an icon", message: "One of: video, link, globe, rocket, paper-plane, bolt", defaultValue: current.icon.replace('fa-', '') }));
                 const icon = iconChoice ? 'fa-' + iconChoice : 'fa-link';
 
                 const shortcut = { label, url, icon };
@@ -21008,7 +21239,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteFile(fileId, project) {
-                if (!confirm('Delete this file?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this file?", confirmText: "Delete" }))) return;
 
                 try {
                     await this.api(`/api/files/${fileId}`, { method: 'DELETE' });
@@ -21022,7 +21253,7 @@ President, Med&amp;X</textarea>
             currentFolders: {},
 
             async createFolder(project) {
-                const name = prompt('Folder name:');
+                const name = (await adminPrompt({ title: "Folder name" }));
                 if (!name) return;
 
                 try {
@@ -21047,7 +21278,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteFolder(folderId, project) {
-                if (!confirm('Delete this folder? Files will be moved to parent.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this folder?", message: "Files will be moved to parent.", confirmText: "Delete" }))) return;
 
                 try {
                     await this.api(`/api/folders/${folderId}`, { method: 'DELETE' });
@@ -21164,7 +21395,7 @@ President, Med&amp;X</textarea>
 
             async addSubChannel(project, parentId, event) {
                 if (event) event.stopPropagation();
-                const name = prompt('Sub-channel name:');
+                const name = (await adminPrompt({ title: "Sub-channel name" }));
                 if (!name || !name.trim()) return;
                 try {
                     await this.api('/api/channels', {
@@ -22050,7 +22281,7 @@ President, Med&amp;X</textarea>
                 finally { if (btn) { btn.disabled = false; btn.innerHTML = orig; } }
             },
             async regAddNote(type, id) {
-                const note = prompt('Internal note for this registrant:');
+                const note = (await adminPrompt({ title: "Internal note for this registrant" }));
                 if (note === null) return;
                 try {
                     const res = await fetch(`/api/admin/registrant/${type}/${id}/note`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.token}` }, body: JSON.stringify({ note }) });
@@ -22634,7 +22865,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteSession(id) {
-                if (!confirm('Delete this session and remove it from all attendees\' saved schedules? This cannot be undone.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Please confirm", message: "Delete this session and remove it from all attendees' saved schedules? This cannot be undone.", confirmText: "Delete" }))) return;
                 try {
                     await this.api(`/api/admin/plexus/sessions/${id}`, { method: 'DELETE' });
                     await this.loadPlexusSchedule();
@@ -22658,7 +22889,7 @@ President, Med&amp;X</textarea>
             async bulkPublishSessions() {
                 const unpublished = (this.plexusSessions || []).filter(s => !s.is_published);
                 if (unpublished.length === 0) { Toast.success('All sessions are already published'); return; }
-                if (!confirm(`Publish ${unpublished.length} unpublished session(s) to the attendee-facing schedule? All registered users will be notified.`)) return;
+                if (!(await adminConfirm({ title: "Publish sessions", message: `Publish ${unpublished.length} unpublished session(s) to the attendee-facing schedule? All registered users will be notified.`, confirmText: "Publish" }))) return;
                 try {
                     const result = await this.api('/api/admin/plexus/sessions/bulk-publish', {
                         method: 'POST', body: JSON.stringify({ session_ids: unpublished.map(s => s.id) })
@@ -22680,7 +22911,7 @@ President, Med&amp;X</textarea>
                     ? `This will publish ${unpublished.length} unpublished session(s) out of ${totalSessions} total. The full schedule will be visible to all attendees on the user portal.\n\nContinue?`
                     : `All ${totalSessions} session(s) are already published. The schedule is live on the user portal.\n\nRe-publish to refresh?`;
 
-                if (!confirm(msg)) return;
+                if (!(await adminConfirm({ title: "Publish schedule", message: msg, confirmText: "Publish" }))) return;
 
                 try {
                     if (unpublished.length > 0) {
@@ -22829,7 +23060,7 @@ President, Med&amp;X</textarea>
             async notifySpeaker(speakerId) {
                 const speaker = this.plexusSpeakers.find(s => s.id === speakerId);
                 if (!speaker) return;
-                if (!confirm(`Push notification about ${speaker.name} to all users?`)) return;
+                if (!(await adminConfirm({ title: "Send push notification", message: `Push notification about ${speaker.name} to all users?`, confirmText: "Send" }))) return;
                 try { await this.api(`/api/admin/plexus/speakers/${speakerId}/notify`, { method: 'POST' }); Toast.success('Notification sent to all users'); } catch (err) { console.error('Failed to send notification:', err); Toast.error('Failed to send notification'); }
             },
 
@@ -22890,7 +23121,7 @@ President, Med&amp;X</textarea>
             async reinviteSpeaker(speakerId) {
                 const speaker = this.plexusSpeakers.find(s => s.id === speakerId);
                 if (!speaker) return;
-                const year = prompt('Re-invite for which year?', new Date().getFullYear());
+                const year = (await adminPrompt({ title: "Re-invite speaker", message: "Re-invite for which year?", defaultValue: new Date().getFullYear() }));
                 if (!year) return;
                 try { await this.api(`/api/admin/plexus/speakers/${speakerId}/reinvite`, { method: 'POST', body: JSON.stringify({ year: parseInt(year) }) }); await this.loadPlexusSpeakers(); Toast.success(`${speaker.name} copied to ${year}`); } catch (err) { console.error('Failed to reinvite speaker:', err); Toast.error('Failed to re-invite speaker'); }
             },
@@ -23209,7 +23440,7 @@ President, Med&amp;X</textarea>
                 catch (e) { Toast.error('Could not attach'); }
             },
             async deleteSpatialAsset(id) {
-                if (!confirm('Delete this scan?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this scan?", confirmText: "Delete" }))) return;
                 try { await this.api(`/api/admin/spatial/assets/${id}`, { method: 'DELETE' }); await this.loadSpatialShelf(); }
                 catch (e) { Toast.error('Could not delete'); }
             },
@@ -23248,7 +23479,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteSpeaker(speakerId) {
-                if (!confirm('Delete this speaker?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this speaker?", confirmText: "Delete" }))) return;
                 try { await this.api(`/api/admin/plexus/speakers/${speakerId}`, { method: 'DELETE' }); document.getElementById('speakerDetailModal')?.remove(); await this.loadPlexusSpeakers(); } catch (err) { console.error('Failed to delete speaker:', err); }
             },
 
@@ -23285,7 +23516,7 @@ President, Med&amp;X</textarea>
                     Toast.success(`${name} added`);
                     // Item 3/15: one-click, prefill-only announcement to interested members. Nothing sends.
                     const kw = data.is_keynote ? 'keynote' : 'speaker';
-                    if (confirm(`Announce ${name} to members interested in Plexus?\n\nThis opens the composer prefilled — nothing is sent until you review and publish.`)) {
+                    if ((await adminConfirm({ title: "Announce speaker", message: `Announce ${name} to members interested in Plexus?\n\nThis opens the composer prefilled — nothing is sent until you review and publish.`, confirmText: "Open composer" }))) {
                         const title = `New ${kw} announced: ${name}`;
                         const body = [data.talk_title ? `"${data.talk_title}"` : '', data.institution || ''].filter(Boolean).join(' — ');
                         if (typeof AnnounceApp !== 'undefined') AnnounceApp.prefill({ project: 'plexus', scope: 'interested', title, body });
@@ -23424,7 +23655,7 @@ President, Med&amp;X</textarea>
             // RENEWAL WRAP — draft a thank-you + renewal invite for every fulfilled sponsor into the
             // approval-gated outbox. Never sends; the human approves the batch in the outbox.
             async generateRenewalWraps() {
-                if (!confirm('Draft a renewal wrap email for every fulfilled sponsor? Drafts land in the outbox for your approval — nothing sends automatically.')) return;
+                if (!(await adminConfirm({ title: "Draft a renewal wrap email for every fulfilled sponsor?", message: "Drafts land in the outbox for your approval — nothing sends automatically.", confirmText: "Draft" }))) return;
                 try {
                     const r = await this.api('/api/admin/plexus/sponsors/renewal-wrap', { method: 'POST', body: JSON.stringify({}) });
                     if (r && r.count > 0) Toast.success(`${r.count} renewal wrap draft${r.count === 1 ? '' : 's'} staged in the outbox — approve there to send.`);
@@ -23757,7 +23988,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteSponsor(id) {
-                if (!confirm('Delete this sponsor? This will also remove all associated tasks.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this sponsor?", message: "This will also remove all associated tasks.", confirmText: "Delete" }))) return;
                 try {
                     await this.api(`/api/admin/plexus/sponsors/${id}`, { method: 'DELETE' });
                     await this.loadPlexusSponsors();
@@ -23861,7 +24092,7 @@ President, Med&amp;X</textarea>
             },
 
             async rejectVolunteer(id) {
-                if (!confirm('Reject this volunteer application?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Reject this volunteer application?", confirmText: "Reject" }))) return;
                 try {
                     await this.api(`/api/admin/plexus/volunteers/${id}/reject`, { method: 'POST' });
                     await this.loadPlexusVolunteers();
@@ -23924,10 +24155,10 @@ President, Med&amp;X</textarea>
                 `;
             },
 
-            openShiftModal() {
-                const title = prompt('Shift Name:');
+            async openShiftModal() {
+                const title = (await adminPrompt({ title: "Shift Name" }));
                 if (!title) return;
-                alert('Shift creation coming soon. For now, shifts are managed manually.');
+                await adminAlert({ type: "info", title: "Coming soon", message: "Shift creation is coming soon. For now, shifts are managed manually." });
             },
 
             async loadPlexusCheckinStats() {
@@ -24579,7 +24810,7 @@ President, Med&amp;X</textarea>
             },
 
             async deactivateExistingLink(source, id, eventType) {
-                if (!confirm('Remove this link? It will disappear from this list permanently and stop working — anyone who already has it can no longer register.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Remove this link?", message: "It will disappear from this list permanently and stop working — anyone who already has it can no longer register.", confirmText: "Remove" }))) return;
                 try {
                     if (source === 'gala') await this.api(`/api/admin/gala/invite-links/${id}`, { method: 'DELETE' });
                     else await this.api(`/api/admin/registration-links/${id}/deactivate`, { method: 'PUT' });
@@ -24646,7 +24877,7 @@ President, Med&amp;X</textarea>
                 } catch(e) { Toast.error('Could not add: ' + e.message); }
             },
             async deleteCustomQuestion(id, eventType) {
-                if (!confirm('Delete this question? Answers already collected stay on past registrations.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this question?", message: "Answers already collected stay on past registrations.", confirmText: "Delete" }))) return;
                 try { await this.api(`/api/admin/custom-fields/${id}`, { method: 'DELETE' }); Toast.success('Deleted'); this.loadCustomQuestions(eventType); }
                 catch(e) { Toast.error('Could not delete'); }
             },
@@ -24690,7 +24921,7 @@ President, Med&amp;X</textarea>
                 } catch(e) { Toast.error('Could not add: ' + e.message); }
             },
             async deleteCoupon(id, eventType) {
-                if (!confirm('Deactivate this coupon? It will stop working immediately.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Deactivate this coupon?", message: "It will stop working immediately.", confirmText: "Deactivate" }))) return;
                 try { await this.api(`/api/admin/coupons/${id}`, { method: 'DELETE' }); Toast.success('Coupon deactivated'); this.loadCoupons(eventType); }
                 catch(e) { Toast.error('Could not deactivate'); }
             },
@@ -26066,7 +26297,7 @@ President, Med&amp;X</textarea>
             },
 
             async rejectPendingItem(type, id) {
-                if (!confirm('Reject this request?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Reject this request?", confirmText: "Reject" }))) return;
                 try {
                     await this.api(`/api/admin/plexus/${type}/${id}/reject`, { method: 'POST' });
                     await this.loadPlexusPending();
@@ -26262,7 +26493,7 @@ President, Med&amp;X</textarea>
             async removeForumMember(id) {
                 const member = this.forumMembers.find(m => m.id === id);
                 if (!member) return;
-                if (!confirm(`Remove ${member.first_name} ${member.last_name} from the Forum?\n\nThis action cannot be undone.`)) return;
+                if (!(await adminConfirm({ destructive: true, title: "Remove member", message: `Remove ${member.first_name} ${member.last_name} from the Forum?\n\nThis action cannot be undone.`, confirmText: "Remove" }))) return;
                 try {
                     await this.api(`/api/admin/forum/members/${id}`, { method: 'DELETE' });
                     this.forumMembers = this.forumMembers.filter(m => m.id !== id);
@@ -26331,7 +26562,7 @@ President, Med&amp;X</textarea>
             },
 
             viewPostComments(id) {
-                alert('Comments view coming soon.');
+                adminAlert({ type: "info", title: "Coming soon", message: "The comments view is coming soon." });
             },
 
             openPostModal() {
@@ -26572,7 +26803,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteForumEvent(id) {
-                if (!confirm('Delete this event? This will also delete all registrations.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this event?", message: "This will also delete all registrations.", confirmText: "Delete" }))) return;
                 try {
                     await this.api(`/api/admin/forum/events/${id}`, { method: 'DELETE' });
                     await this.loadForumEvents();
@@ -26705,7 +26936,7 @@ President, Med&amp;X</textarea>
                                                 ? '<button class="btn btn-primary" style="padding:3px 8px;font-size:11px;" onclick="App.checkinForumRegistrant(\'' + eventId + '\',\'' + r.id + '\');setTimeout(()=>App.renderEventDetailRegistrations(document.getElementById(\'eventDetailContent\')),500)"><i class="fas fa-check"></i></button>'
                                                 : '<button class="btn btn-secondary" style="padding:3px 8px;font-size:11px;" onclick="App.uncheckForumRegistrant(\'' + eventId + '\',\'' + r.id + '\')"><i class="fas fa-undo"></i></button>'
                                             }
-                                            <button class="btn btn-danger" style="padding:3px 8px;font-size:11px;margin-left:4px;" onclick="if(confirm(\'Delete this registration?\'))App.deleteForumRegistrant(\'${eventId}\',\'${r.id}\')"><i class="fas fa-trash"></i></button>
+                                            <button class="btn btn-danger" style="padding:3px 8px;font-size:11px;margin-left:4px;" onclick="App.deleteForumRegistrant(\'${eventId}\',\'${r.id}\')"><i class="fas fa-trash"></i></button>
                                         </td>
                                     </tr>`;
                                 }).join('')}
@@ -26931,7 +27162,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteScheduleItem(itemId) {
-                if (!confirm('Delete this schedule item?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this schedule item?", confirmText: "Delete" }))) return;
                 try {
                     await this.api(`/api/admin/forum/events/${this.currentForumEventId}/schedule/${itemId}`, { method: 'DELETE' });
                     this.forumEventSchedule = await this.api(`/api/admin/forum/events/${this.currentForumEventId}/schedule`) || [];
@@ -27011,7 +27242,7 @@ President, Med&amp;X</textarea>
                                                     ? '<button class="btn btn-primary" style="padding:3px 8px;font-size:11px;" onclick="App.checkinForumRegistrant(\'' + eventId + '\',\'' + r.id + '\')"><i class="fas fa-check"></i></button>'
                                                     : '<button class="btn btn-secondary" style="padding:3px 8px;font-size:11px;" onclick="App.uncheckForumRegistrant(\'' + eventId + '\',\'' + r.id + '\')"><i class="fas fa-undo"></i></button>'
                                                 }
-                                                <button class="btn btn-danger" style="padding:3px 8px;font-size:11px;margin-left:3px;" onclick="if(confirm(\'Delete?\'))App.deleteForumRegistrant(\'${eventId}\',\'${r.id}\')"><i class="fas fa-trash"></i></button>
+                                                <button class="btn btn-danger" style="padding:3px 8px;font-size:11px;margin-left:3px;" onclick="App.deleteForumRegistrant(\'${eventId}\',\'${r.id}\')"><i class="fas fa-trash"></i></button>
                                             </td>
                                         </tr>`;
                                     }).join('')}
@@ -27057,6 +27288,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteForumRegistrant(eventId, regId) {
+                if (!(await adminConfirm({ destructive: true, title: "Delete this registration?", confirmText: "Delete" }))) return;
                 try {
                     await this.api(`/api/admin/forum/events/${eventId}/registrations/${regId}`, { method: 'DELETE' });
                     Toast.success('Registration deleted');
@@ -27145,7 +27377,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteForumGroup(id) {
-                if (!confirm('Delete this group? This cannot be undone.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this group?", message: "This cannot be undone.", confirmText: "Delete" }))) return;
                 try {
                     await this.api(`/api/admin/forum/groups/${id}`, { method: 'DELETE' });
                     await this.loadForumGroups();
@@ -27157,7 +27389,7 @@ President, Med&amp;X</textarea>
             },
 
             async inviteToForumGroup(groupId) {
-                const email = prompt('Enter member email to invite:');
+                const email = (await adminPrompt({ title: "Enter member email to invite" }));
                 if (!email) return;
                 try {
                     await this.api(`/api/admin/forum/groups/${groupId}/invite`, { method: 'POST', body: JSON.stringify({ email }) });
@@ -27168,12 +27400,12 @@ President, Med&amp;X</textarea>
                 }
             },
 
-            openGroupModal() {
-                const name = prompt('Group Name:');
+            async openGroupModal() {
+                const name = (await adminPrompt({ title: "Group Name" }));
                 if (!name) return;
 
-                const description = prompt('Description:');
-                const category = prompt('Category (e.g., specialty, research, networking):');
+                const description = (await adminPrompt({ title: "Description" }));
+                const category = (await adminPrompt({ title: "Category", placeholder: "e.g. specialty, research, networking" }));
 
                 this.createForumGroup({ name, description, category });
             },
@@ -27214,7 +27446,7 @@ President, Med&amp;X</textarea>
             },
 
             async createMediaFolder() {
-                const name = prompt('Folder name:');
+                const name = (await adminPrompt({ title: "Folder name" }));
                 if (!name) return;
                 try {
                     await this.api('/api/admin/forum/media/folders', {
@@ -27230,7 +27462,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteMediaFolder(id) {
-                if (!confirm('Delete this folder? Media inside will be moved to root.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this folder?", message: "Media inside will be moved to root.", confirmText: "Delete" }))) return;
                 try {
                     await this.api(`/api/admin/forum/media/folders/${id}`, { method: 'DELETE' });
                     if (this.forumCurrentFolder === id) this.forumCurrentFolder = null;
@@ -27274,7 +27506,7 @@ President, Med&amp;X</textarea>
                 // Folder grid
                 if (subfolders.length > 0) {
                     subfolders.forEach(f => {
-                        html += `<div style="aspect-ratio: 1; padding: 16px; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 8px; text-align: center; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center;" onclick="App.navigateMediaFolder('${f.id}')" oncontextmenu="event.preventDefault(); if(confirm('Delete folder: ${this.escapeHtml(f.name)}?')) App.deleteMediaFolder('${f.id}')">
+                        html += `<div style="aspect-ratio: 1; padding: 16px; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 8px; text-align: center; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center;" onclick="App.navigateMediaFolder('${f.id}')" oncontextmenu="event.preventDefault(); App.deleteMediaFolder('${f.id}')">
                             <i class="fas fa-folder" style="font-size: 32px; color: var(--accent-gold); margin-bottom: 8px;"></i>
                             <div style="font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%;">${this.escapeHtml(f.name)}</div>
                         </div>`;
@@ -27305,7 +27537,7 @@ President, Med&amp;X</textarea>
                     const file = input.files[0];
                     if (!file) return;
 
-                    const title = prompt('Photo title (optional):') || '';
+                    const title = (await adminPrompt({ title: "Photo title (optional)" })) || '';
 
                     try {
                         Toast.info('Uploading photo...');
@@ -27398,7 +27630,7 @@ President, Med&amp;X</textarea>
                 } catch (e) { Toast.error((e && e.message) || 'Could not approve.'); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Approve & invite'; } }
             },
             async declineConsideration(id, btn) {
-                if (!confirm('Send a courteous decline for this application?')) return;
+                if (!(await adminConfirm({ title: "Send a courteous decline for this application?", confirmText: "Send" }))) return;
                 if (btn) { btn.disabled = true; }
                 try {
                     await this.api('/api/admin/forum/considerations/' + id + '/decline', { method: 'POST', body: JSON.stringify({}) });
@@ -27707,7 +27939,7 @@ President, Med&amp;X</textarea>
                 finally { if (btn) btn.disabled = false; }
             },
             async candEscalate(id, btn) {
-                const note = prompt('Add a short note for the president and Laura (optional):', '');
+                const note = (await adminPrompt({ title: "Add a note (optional)", message: "A short note for the president and Laura.", defaultValue: '' }));
                 if (note === null) return;
                 if (btn) btn.disabled = true;
                 try {
@@ -27720,7 +27952,7 @@ President, Med&amp;X</textarea>
                 finally { if (btn) btn.disabled = false; }
             },
             async candDelete(id, btn) {
-                if (!confirm('Remove this candidate from the pipeline? This cannot be undone.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Remove this candidate from the pipeline?", message: "This cannot be undone.", confirmText: "Remove" }))) return;
                 if (btn) btn.disabled = true;
                 try {
                     await this.api('/api/admin/forum/candidates/' + id, { method: 'DELETE' });
@@ -28137,7 +28369,7 @@ President, Med&amp;X</textarea>
             },
             async candAccept(id, btn) {
                 const c = this.candAll.find(x => x.id === id) || {};
-                if (!confirm('Accept ' + (c.name || c.email || 'this candidate') + ' into the Forum? This sends the personal magic-link invitation.')) return;
+                if (!(await adminConfirm({ title: "Accept candidate", message: 'Accept ' + (c.name || c.email || 'this candidate') + ' into the Forum? This sends the personal magic-link invitation.', confirmText: "Accept" }))) return;
                 if (btn) btn.disabled = true;
                 try {
                     const r = await this.api('/api/admin/forum/candidates/' + id + '/accept', { method: 'POST', body: JSON.stringify({}) });
@@ -28150,8 +28382,8 @@ President, Med&amp;X</textarea>
             },
             async candDecline(id, btn) {
                 const c = this.candAll.find(x => x.id === id) || {};
-                if (!confirm('Decline ' + (c.name || c.email || 'this candidate') + '?')) return;
-                const sendRegret = confirm('Stage a courteous regret note in the outbox?\n\nOK = yes, stage a regret note.\nCancel = decline quietly, no email.');
+                if (!(await adminConfirm({ destructive: true, title: "Decline candidate", message: 'Decline ' + (c.name || c.email || 'this candidate') + '?', confirmText: "Decline" }))) return;
+                const sendRegret = (await adminConfirm({ type: "question", title: "Stage a regret note?", message: "The regret note waits in the outbox for your approval. Choosing \"Decline quietly\" records the decline without sending any email.", confirmText: "Stage note", cancelText: "Decline quietly" }));
                 if (btn) btn.disabled = true;
                 try {
                     const r = await this.api('/api/admin/forum/candidates/' + id + '/decline', { method: 'POST', body: JSON.stringify({ send_regret: sendRegret }) });
@@ -28402,7 +28634,7 @@ President, Med&amp;X</textarea>
             },
 
             async rejectForumApplication(id) {
-                const reason = prompt('Rejection reason (optional):');
+                const reason = (await adminPrompt({ title: "Rejection reason (optional)" }));
                 try {
                     await this.api(`/api/admin/forum/applications/${id}`, {
                         method: 'PUT',
@@ -29016,7 +29248,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteKeyDate(id) {
-                if (!confirm('Delete this date?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this date?", confirmText: "Delete" }))) return;
                 await this.api(`/api/accelerator/dates/${id}`, { method: 'DELETE' });
                 this.loadKeyDates();
             },
@@ -29990,7 +30222,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteCriterion(id) {
-                if (!confirm('Delete this criterion?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this criterion?", confirmText: "Delete" }))) return;
                 await this.api(`/api/accelerator/criteria/${id}`, { method: 'DELETE' });
                 this.loadCriteria();
             },
@@ -30181,7 +30413,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteInterviewer(id) {
-                if (!confirm('Delete this interviewer?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this interviewer?", confirmText: "Delete" }))) return;
                 await this.api(`/api/accelerator/interviewers/${id}`, { method: 'DELETE' });
                 this.loadInterviewers();
             },
@@ -30253,7 +30485,7 @@ President, Med&amp;X</textarea>
             },
 
             async regenerateToken(id) {
-                if (!confirm('Regenerate access token? The old link will no longer work.')) return;
+                if (!(await adminConfirm({ title: "Regenerate access token?", message: "The old link will no longer work.", confirmText: "Regenerate" }))) return;
 
                 try {
                     await this.api(`/api/accelerator/interviewers/${id}/regenerate-token`, { method: 'POST' });
@@ -30469,7 +30701,7 @@ President, Med&amp;X</textarea>
             },
 
             async publishRankings() {
-                if (!confirm('Publish rankings? This will notify all applicants with their rank position.')) return;
+                if (!(await adminConfirm({ title: "Publish rankings?", message: "This will notify all applicants with their rank position.", confirmText: "Publish" }))) return;
 
                 try {
                     const result = await this.api(`/api/accelerator/years/${this.currentYear}/publish-rankings`, { method: 'POST' });
@@ -30949,7 +31181,7 @@ By applying to this program, I give the following consents:
                 const requiredDocs = this.documentTypes.filter(d => d.required);
                 const missingDocs = requiredDocs.filter(d => !this.uploadedDocs[d.key]);
                 if (missingDocs.length > 0) {
-                    alert(`Missing required documents:\n${missingDocs.map(d => '- ' + d.label).join('\n')}`);
+                    await adminAlert({ type: "warning", title: "Missing required documents", message: `Missing required documents:\n${missingDocs.map(d => '- ' + d.label).join('\n')}` });
                     return;
                 }
 
@@ -31559,7 +31791,7 @@ By applying to this program, I give the following consents:
             },
 
             async deleteBankBalance(id) {
-                if (!confirm('Delete this entry?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this entry?", confirmText: "Delete" }))) return;
                 await this.api(`/api/finance/bank-balance/${id}`, { method: 'DELETE' });
                 this.loadBankBalance();
                 this.loadDashboard();
@@ -31663,7 +31895,7 @@ By applying to this program, I give the following consents:
             },
 
             async deleteTransaction(id) {
-                if (!confirm('Delete this transaction?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this transaction?", confirmText: "Delete" }))) return;
                 await this.api(`/api/finance/transactions/${id}`, { method: 'DELETE' });
                 this.loadTransactions();
                 this.loadDashboard();
@@ -31760,7 +31992,7 @@ By applying to this program, I give the following consents:
             },
 
             async deleteWorkUnit(id) {
-                if (!confirm('Delete this work unit?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this work unit?", confirmText: "Delete" }))) return;
                 const result = await this.api(`/api/finance/work-units/${id}`, { method: 'DELETE' });
                 if (result.error) {
                     Toast.error(result.error);
@@ -32003,14 +32235,14 @@ By applying to this program, I give the following consents:
             },
 
             async issueInvoice(id) {
-                if (!confirm('Issue this invoice?')) return;
+                if (!(await adminConfirm({ title: "Issue this invoice?", confirmText: "Issue" }))) return;
                 await this.api(`/api/finance/invoices/${id}/issue`, { method: 'POST' });
                 this.loadInvoices();
                 this.loadDashboard();
             },
 
             async markInvoicePaid(id) {
-                if (!confirm('Mark this invoice as paid? This will create a transaction.')) return;
+                if (!(await adminConfirm({ title: "Mark this invoice as paid?", message: "This will create a transaction.", confirmText: "Confirm" }))) return;
                 await this.api(`/api/finance/invoices/${id}/mark-paid`, { method: 'POST' });
                 this.loadInvoices();
                 this.loadDashboard();
@@ -32019,7 +32251,7 @@ By applying to this program, I give the following consents:
             },
 
             async deleteInvoice(id) {
-                if (!confirm('Delete this invoice?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this invoice?", confirmText: "Delete" }))) return;
                 await this.api(`/api/finance/invoices/${id}`, { method: 'DELETE' });
                 this.loadInvoices();
                 this.loadDashboard();
@@ -32108,7 +32340,7 @@ By applying to this program, I give the following consents:
             },
 
             async deletePaymentOrder(id) {
-                if (!confirm('Delete this payment order?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this payment order?", confirmText: "Delete" }))) return;
                 await this.api(`/api/finance/payment-orders/${id}`, { method: 'DELETE' });
                 this.loadPaymentOrders();
                 this.loadDashboard();
@@ -32305,7 +32537,7 @@ By applying to this program, I give the following consents:
             },
 
             async approveTravelOrder(id) {
-                if (!confirm('Approve this travel order?')) return;
+                if (!(await adminConfirm({ title: "Approve this travel order?", confirmText: "Approve" }))) return;
                 await this.api(`/api/finance/travel-orders/${id}/approve`, { method: 'POST' });
                 this.closeModal('finTravelOrderDetailModal');
                 this.loadTravelOrders();
@@ -32313,7 +32545,7 @@ By applying to this program, I give the following consents:
             },
 
             async rejectTravelOrder(id) {
-                const reason = prompt('Rejection reason:');
+                const reason = (await adminPrompt({ title: "Rejection reason" }));
                 if (reason === null) return;
                 await this.api(`/api/finance/travel-orders/${id}/reject`, {
                     method: 'POST',
@@ -32331,7 +32563,7 @@ By applying to this program, I give the following consents:
                 const advance = order.advance_amount || 0;
                 const reimbursement = totalExpenses - advance;
                 const msg = `Calculate final amount?\n\nTotal Expenses: €${totalExpenses.toFixed(2)}\nAdvance Paid: €${advance.toFixed(2)}\n─────────────\nFinal Reimbursement: €${reimbursement.toFixed(2)}\n\nThis will mark the order as "Calculated" and ready for payment.`;
-                if (!confirm(msg)) return;
+                if (!(await adminConfirm({ title: "Calculate final amount", message: msg, confirmText: "Calculate" }))) return;
                 await this.api(`/api/finance/travel-orders/${id}/calculate`, {
                     method: 'POST',
                     body: JSON.stringify({ reimbursement_amount: reimbursement })
@@ -32342,7 +32574,7 @@ By applying to this program, I give the following consents:
             },
 
             async payTravelOrder(id) {
-                if (!confirm('Mark this travel order as paid? This will create an expense transaction.')) return;
+                if (!(await adminConfirm({ title: "Mark this travel order as paid?", message: "This will create an expense transaction.", confirmText: "Confirm" }))) return;
                 await this.api(`/api/finance/travel-orders/${id}/pay`, { method: 'POST' });
                 this.closeModal('finTravelOrderDetailModal');
                 this.loadTravelOrders();
@@ -32462,7 +32694,7 @@ By applying to this program, I give the following consents:
             },
 
             async confirmConferencePayment(regId, attendeeName) {
-                if (!confirm(`Confirm bank transfer received from ${attendeeName}?`)) return;
+                if (!(await adminConfirm({ title: "Confirm bank transfer", message: `Confirm bank transfer received from ${attendeeName}?`, confirmText: "Confirm" }))) return;
 
                 const res = await this.api(`/api/finance/conference-payments/${regId}/confirm`, {
                     method: 'POST'
@@ -32752,7 +32984,7 @@ By applying to this program, I give the following consents:
             async confirmReconHigh() {
                 const high = (this._recon.lines || []).filter(l => l.status === 'suggested' && l.best && l.best.confidence >= this._recon.highThreshold).length;
                 if (!high) { Toast.error('No high-confidence matches to confirm.'); return; }
-                if (!confirm(`Confirm ${high} high-confidence match${high === 1 ? '' : 'es'}? Each fires the existing mark-paid flow for that registration.`)) return;
+                if (!(await adminConfirm({ title: "Confirm matches", message: `Confirm ${high} high-confidence match${high === 1 ? '' : 'es'}? Each fires the existing mark-paid flow for that registration.`, confirmText: "Confirm" }))) return;
                 try {
                     const res = await this.api(`/api/finance/reconcile/batch/${this._recon.batchId}/confirm-high`, { method: 'POST', body: JSON.stringify({ threshold: this._recon.highThreshold }) });
                     Toast.success(`Confirmed ${res.confirmed} registration${res.confirmed === 1 ? '' : 's'} as paid.`);
@@ -32872,7 +33104,7 @@ By applying to this program, I give the following consents:
 
             // Close year
             async closeYear() {
-                if (!confirm(`Close fiscal year ${this.currentYear}? This will close all work units for this year.`)) return;
+                if (!(await adminConfirm({ title: "Close fiscal year", message: `Close fiscal year ${this.currentYear}? This will close all work units for this year.`, confirmText: "Close year" }))) return;
                 await this.api(`/api/finance/years/${this.currentYear}`, {
                     method: 'PUT',
                     body: JSON.stringify({ status: 'closed' })
@@ -33147,7 +33379,7 @@ By applying to this program, I give the following consents:
             },
 
             async deleteContact(contactId) {
-                if (!confirm('Delete this contact?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this contact?", confirmText: "Delete" }))) return;
                 await this.api(`/api/contacts/${contactId}`, { method: 'DELETE' });
                 this.loadContacts();
             },
@@ -33904,7 +34136,7 @@ By applying to this program, I give the following consents:
                 } catch (e) { msg.textContent = e.message; }
             },
             async voidBid(bidId) {
-                if (!confirm('Void this bid? It will no longer count toward the current price.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Void this bid?", message: "It will no longer count toward the current price.", confirmText: "Void" }))) return;
                 try { await this.api('/api/admin/auctions/' + this.current.auction.id + '/bids/' + bidId + '/void', 'POST', {}); this.refresh(); } catch (e) { Toast.error(e.message); }
             },
             async markPaid(itemId) {
@@ -33914,7 +34146,7 @@ By applying to this program, I give the following consents:
                 try { const d = await this.api('/api/admin/auctions/' + this.current.auction.id + '/items/' + itemId + '/remind', 'POST', {}); Toast.success('Reminder staged in the outbox for your approval.'); this.refresh(); } catch (e) { Toast.error(e.message); }
             },
             async delItem(itemId) {
-                if (!confirm('Delete this lot and its bids?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this lot and its bids?", confirmText: "Delete" }))) return;
                 try { await this.api('/api/admin/auctions/' + this.current.auction.id + '/items/' + itemId, 'DELETE'); this.refresh(); } catch (e) { Toast.error(e.message); }
             },
 
@@ -33992,7 +34224,7 @@ By applying to this program, I give the following consents:
                 try { const d = await this.api('/api/admin/auctions/' + this.current.auction.id, 'PUT', body); this.current = d; this.closeModal(); this.renderDetail(d); Toast.success('Settings saved.'); } catch (e) { Toast.error(e.message); }
             },
             async del() {
-                if (!confirm('Delete this entire auction, its lots and bids? This cannot be undone.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this entire auction, its lots and bids?", message: "This cannot be undone.", confirmText: "Delete" }))) return;
                 try { await this.api('/api/admin/auctions/' + this.current.auction.id, 'DELETE'); this.closeModal(); Toast.success('Auction deleted.'); this.showList(); } catch (e) { Toast.error(e.message); }
             },
 
@@ -34257,12 +34489,12 @@ By applying to this program, I give the following consents:
                 } catch (e) { host.innerHTML = `<div style="color:#ef4444;font-size:12px;">${escapeHtml(e.message)}</div>`; }
             },
             async approve(batch) {
-                if (!confirm('Approve this batch? The emails will be sent.')) return;
+                if (!(await adminConfirm({ title: "Approve this batch?", message: "The emails will be sent.", confirmText: "Approve" }))) return;
                 try { const r = await this.api(`/api/admin/outbox/${encodeURIComponent(batch)}/approve`, { method: 'POST' }); Toast.success(`Approved ${r.approved} email${r.approved === 1 ? '' : 's'}`); this.load(); }
                 catch (e) { Toast.error(e.message || 'Approve failed'); }
             },
             async discard(batch) {
-                if (!confirm('Discard this batch? It will never be sent.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Discard this batch?", message: "It will never be sent.", confirmText: "Discard" }))) return;
                 try { const r = await this.api(`/api/admin/outbox/${encodeURIComponent(batch)}/cancel`, { method: 'POST' }); Toast.success(`Discarded ${r.cancelled} email${r.cancelled === 1 ? '' : 's'}`); this.load(); }
                 catch (e) { Toast.error(e.message || 'Discard failed'); }
             }
@@ -34623,7 +34855,7 @@ By applying to this program, I give the following consents:
             },
 
             async deleteCurrentEvent() {
-                if (!confirm('Delete this event and all its registrations?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this event and all its registrations?", confirmText: "Delete" }))) return;
                 await this.api(`/api/bridges/events/${this.currentEvent.id}`, { method: 'DELETE' });
                 this.showEventsList();
             },
@@ -34631,7 +34863,7 @@ By applying to this program, I give the following consents:
             async togglePublish() {
                 if (!this.currentEvent) return;
                 const action = this.currentEvent.is_published ? 'unpublish' : 'publish';
-                if (!confirm(`Are you sure you want to ${action} this event? ${action === 'publish' ? 'It will be visible on the user portal.' : 'It will be hidden from the user portal.'}`)) return;
+                if (!(await adminConfirm({ title: "Please confirm", message: `Are you sure you want to ${action} this event? ${action === 'publish' ? 'It will be visible on the user portal.' : 'It will be hidden from the user portal.'}`, confirmText: "Yes" }))) return;
                 const result = await this.api(`/api/bridges/events/${this.currentEvent.id}/publish`, { method: 'PUT' });
                 if (result.success) {
                     this.showEventDetail(this.currentEvent.id);
@@ -34686,7 +34918,7 @@ By applying to this program, I give the following consents:
             },
 
             async deleteRegistration(regId) {
-                if (!confirm('Delete this registration?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this registration?", confirmText: "Delete" }))) return;
                 await this.api(`/api/bridges/registrations/${regId}`, { method: 'DELETE' });
                 this.showEventDetail(this.currentEvent.id);
             },
@@ -34817,7 +35049,7 @@ By applying to this program, I give the following consents:
             },
 
             async deleteSpeaker(speakerId) {
-                if (!confirm('Delete this speaker?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this speaker?", confirmText: "Delete" }))) return;
                 await this.api(`/api/bridges/speakers/${speakerId}`, { method: 'DELETE' });
                 this.loadSpeakers();
             },
@@ -34935,7 +35167,7 @@ By applying to this program, I give the following consents:
             },
 
             async deleteProgramItem(itemId) {
-                if (!confirm('Delete this program item?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this program item?", confirmText: "Delete" }))) return;
                 await this.api(`/api/bridges/program/${itemId}`, { method: 'DELETE' });
                 this.loadProgram();
             },
@@ -35087,7 +35319,7 @@ By applying to this program, I give the following consents:
             },
 
             async deleteNotif(id) {
-                if (!confirm('Delete this notification?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this notification?", confirmText: "Delete" }))) return;
                 try {
                     await fetch(`/api/admin/notifications/user-notifications/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${App.token}` } });
                     this.load();
@@ -35299,7 +35531,7 @@ By applying to this program, I give the following consents:
                 const confirmMsg = segmentSend
                     ? `Stage this newsletter for the "${audienceLabel}" segment? It resolves to recipient emails and waits for your approval in the outbox — nothing sends yet.`
                     : `Send this newsletter to ${audienceLabel}?`;
-                if (!confirm(confirmMsg)) return;
+                if (!(await adminConfirm({ title: "Send newsletter", message: confirmMsg, confirmText: "Send" }))) return;
 
                 try {
                     let nlId = editId;
@@ -35358,7 +35590,7 @@ By applying to this program, I give the following consents:
             },
 
             async deleteNewsletter(id) {
-                if (!confirm('Delete this newsletter?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this newsletter?", confirmText: "Delete" }))) return;
                 try {
                     await fetch(`/api/admin/newsletters/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${App.token}` } });
                     Toast.success('Newsletter deleted');
@@ -35383,7 +35615,7 @@ By applying to this program, I give the following consents:
                 const confirmMsg = segmentSend
                     ? `Stage "${nl.title}" for the "${audienceLabel}" segment? It waits for your approval in the outbox — nothing sends yet.`
                     : `Send "${nl.title}" to ${audienceLabel}?`;
-                if (!confirm(confirmMsg)) return;
+                if (!(await adminConfirm({ title: "Send newsletter", message: confirmMsg, confirmText: "Send" }))) return;
                 try {
                     const resp = await fetch(`/api/admin/newsletters/${id}/send`, { method: 'POST', headers: { 'Authorization': `Bearer ${App.token}` } });
                     const data = await resp.json();
@@ -35727,7 +35959,7 @@ By applying to this program, I give the following consents:
             },
 
             async remove(id) {
-                if (!confirm('Delete this content item?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this content item?", confirmText: "Delete" }))) return;
                 try {
                     await App.api(`/api/portal-content/${id}`, { method: 'DELETE' });
                     await this.load();
@@ -35937,7 +36169,7 @@ By applying to this program, I give the following consents:
                 } catch (e) { Toast.show('Could not update the release.', 'error'); }
             },
             async pressDelete(id) {
-                if (!confirm('Delete this press release and all its language versions? This cannot be undone.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this press release and all its language versions?", message: "This cannot be undone.", confirmText: "Delete" }))) return;
                 try {
                     const d = await this.api('/api/pr/press-releases/' + id);
                     const ids = (d.versions || [d.release]).map(v => v.id);
@@ -35947,7 +36179,7 @@ By applying to this program, I give the following consents:
                 } catch (e) { Toast.show('Could not delete the release.', 'error'); }
             },
             async pressSend(id) {
-                if (!confirm('Stage this release to every included media outlet? Nothing sends until you approve the batch in the outbox.')) return;
+                if (!(await adminConfirm({ title: "Stage this release to every included media outlet?", message: "Nothing sends until you approve the batch in the outbox.", confirmText: "Stage" }))) return;
                 try {
                     const r = await this.api('/api/pr/press-releases/' + id + '/send', { method: 'POST', body: JSON.stringify({}) });
                     Toast.show('Staged to ' + r.staged + ' outlet(s), ' + r.excluded + ' excluded. Pending approval in the outbox.', 'success');
@@ -36240,7 +36472,7 @@ By applying to this program, I give the following consents:
                 catch (e) { Toast.show('Could not update the outlet.', 'error'); }
             },
             async pressDeleteMedia(id) {
-                if (!confirm('Remove this outlet from the media list?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Remove this outlet from the media list?", confirmText: "Remove" }))) return;
                 try { await this.api('/api/pr/media-contacts/' + id, { method: 'DELETE' }); this.pressLoadMedia(); }
                 catch (e) { Toast.show('Could not remove the outlet.', 'error'); }
             },
@@ -36825,7 +37057,7 @@ By applying to this program, I give the following consents:
             },
 
             async sendNewsletter(id) {
-                if (!confirm('Send this newsletter to all active subscribers?')) return;
+                if (!(await adminConfirm({ title: "Send this newsletter to all active subscribers?", confirmText: "Send" }))) return;
                 const result = await this.api(`/api/pr/newsletters/${id}/send`, { method: 'POST' });
                 Toast.success(`Newsletter sent to ${result.recipientCount} subscribers!`);
                 this.loadNewsletters();
@@ -36848,7 +37080,7 @@ By applying to this program, I give the following consents:
                     if (!segments.length) { Toast.info('Pick an audience first — open Review or recreate the draft with segments.'); return; }
                     const prev = await this.api('/api/admin/pr-newsletters/audience-preview', { method: 'POST', body: JSON.stringify({ segments }) });
                     const dedupNote = prev.deduped > 0 ? ` ${prev.deduped} duplicate match(es) across segments were folded into one email each.` : '';
-                    if (!confirm(`Send "${n.subject}" to ${prev.unique} unique recipient(s) across ${segments.length} segment(s)?${dedupNote}\n\nThe batch waits for your approval in the outbox — nothing sends yet.`)) return;
+                    if (!(await adminConfirm({ title: "Send newsletter", message: `Send "${n.subject}" to ${prev.unique} unique recipient(s) across ${segments.length} segment(s)?${dedupNote}\n\nThe batch waits for your approval in the outbox — nothing sends yet.`, confirmText: "Send" }))) return;
                     const r = await this.api(`/api/admin/pr-newsletters/${id}/stage`, { method: 'POST', body: JSON.stringify({}) });
                     Toast.success(r.message || `${r.staged} recipient(s) staged for approval in the outbox.`);
                     this.loadNewsletters();
@@ -36916,7 +37148,7 @@ By applying to this program, I give the following consents:
             },
 
             async deleteMedia(id) {
-                if (!confirm('Delete this media file?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this media file?", confirmText: "Delete" }))) return;
                 try {
                     await this.api(`/api/pr/media/${id}`, { method: 'DELETE' });
                     this.loadMedia();
@@ -37095,7 +37327,7 @@ By applying to this program, I give the following consents:
             },
 
             async unsubscribe(id) {
-                if (!confirm('Unsubscribe this user?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Unsubscribe this user?", confirmText: "Unsubscribe" }))) return;
                 await this.api(`/api/pr/subscribers/${id}/unsubscribe`, { method: 'POST' });
                 this.loadSubscribers();
             },
@@ -37948,7 +38180,7 @@ By applying to this program, I give the following consents:
                 finally { btn.disabled = false; }
             },
             async revoke(id) {
-                if (!confirm('Revoke this combo link? The public page stops working. Links you shared elsewhere are unaffected.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Revoke this combo link?", message: "The public page stops working. Links you shared elsewhere are unaffected.", confirmText: "Revoke" }))) return;
                 try { await this.api('/api/admin/plexus/combo-links/' + id, { method: 'DELETE' }); Toast.success('Combo link revoked.'); this.load(); }
                 catch (e) { Toast.error(e.message || 'Could not revoke the link.'); }
             }
@@ -38039,7 +38271,7 @@ By applying to this program, I give the following consents:
             removeTestimonial(i) { this.testimonials.splice(i, 1); this.renderTestimonialsEditor(); },
 
             async saveAndPublish() {
-                if (!confirm('Save all Plexus settings and publish changes to the user portal?\n\nThis will immediately update pricing, dates, key dates, and testimonials visible to users.')) return;
+                if (!(await adminConfirm({ title: "Save all Plexus settings and publish changes to the user portal?", message: "This will immediately update pricing, dates, key dates, and testimonials visible to users.", confirmText: "Save" }))) return;
                 await this.saveSettings();
             },
 
@@ -38111,11 +38343,11 @@ By applying to this program, I give the following consents:
             },
 
             async addRoom() {
-                const name = prompt('Room name (e.g., "Main Hall", "Room A"):');
+                const name = (await adminPrompt({ title: "Room name", placeholder: "e.g. Main Hall, Room A" }));
                 if (!name) return;
-                const floor = prompt('Floor (e.g., "Ground", "1st"):') || '';
-                const capacity = parseInt(prompt('Capacity (number of seats):')) || 0;
-                const equipment = prompt('Equipment (e.g., "Projector, Microphone, Whiteboard"):') || '';
+                const floor = (await adminPrompt({ title: "Floor", placeholder: "e.g. Ground, 1st" })) || '';
+                const capacity = parseInt((await adminPrompt({ title: "Capacity", placeholder: "Number of seats" }))) || 0;
+                const equipment = (await adminPrompt({ title: "Equipment", placeholder: "e.g. Projector, Microphone, Whiteboard" })) || '';
 
                 try {
                     const res = await fetch('/api/admin/plexus/rooms', {
@@ -38133,11 +38365,11 @@ By applying to this program, I give the following consents:
             async editRoom(id) {
                 const room = this.rooms.find(r => r.id === id);
                 if (!room) return;
-                const name = prompt('Room name:', room.name);
+                const name = (await adminPrompt({ title: "Room name", defaultValue: room.name }));
                 if (name === null) return;
-                const floor = prompt('Floor:', room.floor || '');
-                const capacity = parseInt(prompt('Capacity:', room.capacity || 0)) || 0;
-                const equipment = prompt('Equipment:', room.equipment || '');
+                const floor = (await adminPrompt({ title: "Floor", defaultValue: room.floor || '' }));
+                const capacity = parseInt((await adminPrompt({ title: "Capacity", defaultValue: room.capacity || 0 }))) || 0;
+                const equipment = (await adminPrompt({ title: "Equipment", defaultValue: room.equipment || '' }));
 
                 try {
                     const res = await fetch(`/api/admin/plexus/rooms/${id}`, {
@@ -38153,7 +38385,7 @@ By applying to this program, I give the following consents:
             },
 
             async deleteRoom(id) {
-                if (!confirm('Delete this room?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this room?", confirmText: "Delete" }))) return;
                 try {
                     const res = await fetch(`/api/admin/plexus/rooms/${id}`, {
                         method: 'DELETE',
@@ -38199,9 +38431,9 @@ By applying to this program, I give the following consents:
                         body: JSON.stringify(body)
                     });
                     const d = await res.json().catch(() => ({}));
-                    if (res.ok) { (typeof Toast !== 'undefined' ? Toast.success('Saved — live on the /plexus page') : alert('Saved')); }
-                    else { (typeof Toast !== 'undefined' ? Toast.error(d.error || 'Save failed') : alert(d.error || 'Save failed')); }
-                } catch (e) { (typeof Toast !== 'undefined' ? Toast.error('Network error') : alert('Network error')); }
+                    if (res.ok) { (typeof Toast !== 'undefined' ? Toast.success('Saved — live on the /plexus page') : await adminAlert({ type: "success", title: "Saved", message: "Room settings saved." })); }
+                    else { (typeof Toast !== 'undefined' ? Toast.error(d.error || 'Save failed') : await adminAlert({ type: "danger", title: "Save failed", message: d.error || 'Save failed' })); }
+                } catch (e) { (typeof Toast !== 'undefined' ? Toast.error('Network error') : await adminAlert({ type: "danger", title: "Network error", message: "Could not reach the server. Please try again." })); }
             }
         };
 
@@ -38367,11 +38599,11 @@ By applying to this program, I give the following consents:
                         // subsequent "Save Speakers & Schedule" persisted empty arrays.
                         this.settings = { ...this.settings, ...data };
                     } else {
-                        alert('Failed to save settings');
+                        await adminAlert({ type: "danger", title: "Save failed", message: "Failed to save settings." });
                     }
                 } catch (err) {
                     console.error('Failed to save gala settings:', err);
-                    alert('Error saving settings');
+                    await adminAlert({ type: "danger", title: "Save failed", message: "Error saving settings." });
                 }
             },
 
@@ -38641,8 +38873,8 @@ By applying to this program, I give the following consents:
             },
             async deleteTable(id) {
                 const t = this._seat && this._seat.tables.find(x => x.id === id);
-                if (t && t.occupancy > 0 && !confirm(`Table "${t.label}" has ${t.occupancy} seated guest(s). Delete it and unseat them?`)) return;
-                if (!t && !confirm('Delete this table?')) return;
+                if (t && t.occupancy > 0 && !(await adminConfirm({ destructive: true, title: "Delete table", message: `Table "${t.label}" has ${t.occupancy} seated guest(s). Delete it and unseat them?`, confirmText: "Delete" }))) return;
+                if (!t && !(await adminConfirm({ destructive: true, title: "Delete this table?", confirmText: "Delete" }))) return;
                 const r = await this.seatApi(`/api/admin/gala/tables/${id}`, { method: 'DELETE' });
                 if (r.d && r.d.success) { Toast.success('Table deleted'); this.loadSeating(); } else Toast.error('Failed');
             },
@@ -39142,7 +39374,7 @@ By applying to this program, I give the following consents:
             },
 
             async revokeInviteLink(id) {
-                if (!confirm('Revoke this invite link? Anyone who clicks it after this will see a "Link Disabled" page.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Revoke this invite link?", message: "Anyone who clicks it after this will see a \"Link Disabled\" page.", confirmText: "Revoke" }))) return;
                 try {
                     const res = await fetch(`/api/admin/gala/invite-links/${id}`, {
                         method: 'DELETE',
@@ -39334,7 +39566,7 @@ By applying to this program, I give the following consents:
             },
 
             async updateStatus(id, status) {
-                const notes = status === 'rejected' ? prompt('Optional note for rejection:') || '' : '';
+                const notes = status === 'rejected' ? (await adminPrompt({ title: "Optional note for rejection" })) || '' : '';
                 try {
                     const res = await fetch(`/api/gala/registrations/${id}`, {
                         method: 'PUT',
@@ -39345,7 +39577,7 @@ By applying to this program, I give the following consents:
                         Toast.success(`Registration ${status}`);
                         this.loadRegistrations();
                     } else {
-                        alert('Failed to update status');
+                        await adminAlert({ type: "danger", title: "Update failed", message: "Failed to update status." });
                     }
                 } catch (err) {
                     console.error('Failed to update gala status:', err);
@@ -39502,7 +39734,7 @@ By applying to this program, I give the following consents:
             async removeMenuOption(id) {
                 const o = (this.menuOptions || []).find(x => x.id === id);
                 if (!o) return;
-                if (!confirm(`Remove "${o.label}" from the menu?\n\nGuest choices are never changed. Any guest whose recorded choice is no longer offered will be flagged for follow-up.`)) return;
+                if (!(await adminConfirm({ destructive: true, title: "Remove menu option", message: `Remove "${o.label}" from the menu?\n\nGuest choices are never changed. Any guest whose recorded choice is no longer offered will be flagged for follow-up.`, confirmText: "Remove" }))) return;
                 try {
                     const res = await fetch(`/api/admin/gala/menu-options/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${App.token}` } });
                     const d = await res.json();
@@ -39796,7 +40028,7 @@ By applying to this program, I give the following consents:
                     ${passes.length ? rows : '<p style="color:var(--text-muted);font-size:13px;margin:10px 0 0;">No member-invited guests yet. Members can bring a colleague from their portal.</p>'}`;
             },
             async revoke(id, eventKey, containerId) {
-                if (!confirm('Revoke this guest pass? The colleague\'s ticket is cancelled and will no longer scan at the door.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Revoke this guest pass?", message: "The colleague's ticket is cancelled and will no longer scan at the door.", confirmText: "Revoke" }))) return;
                 try {
                     await App.api('/api/admin/guest-passes/' + encodeURIComponent(id) + '/revoke', { method: 'POST' });
                     Toast.success('Guest pass revoked');
@@ -40274,9 +40506,9 @@ By applying to this program, I give the following consents:
                         // Surface the actual error so user sees mock-mode / provider issues clearly
                         const errMsg = data.error || 'Failed to send email';
                         if (data.mock) {
-                            alert('NO EMAIL PROVIDER CONFIGURED ON RENDER\\n\\nThe test registration was created in the database, but no email was actually sent because no email provider is set up.\\n\\nTO FIX: Open Render dashboard → medx-user-portal service → Environment tab → add a new env var:\\n\\n  Key: RESEND_API_KEY\\n  Value: (your Resend API key from resend.com)\\n\\nThen redeploy. Without this, NO emails will go out — not for tests, and not for real registrations either.');
+                            await adminAlert({ type: "warning", title: "No email provider configured", message: 'The test registration was created in the database, but no email was actually sent because no email provider is set up.\n\nTO FIX: open the Render dashboard → medx-user-portal service → Environment tab → add the env var RESEND_API_KEY with your Resend API key, then redeploy.\n\nWithout it no emails go out — not for tests, and not for real registrations either.' });
                         } else {
-                            alert('Could not send email:\\n\\n' + errMsg);
+                            await adminAlert({ type: "danger", title: "Email failed", message: 'Could not send email:\n\n' + errMsg });
                         }
                         Toast.error('Email send failed — see alert for details');
                     }
@@ -40798,7 +41030,7 @@ By applying to this program, I give the following consents:
             },
 
             async revokeLink(id) {
-                if (!confirm('Revoke this diaspora invite link? Anyone who clicks it after this will see a "Link Disabled" page.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Revoke this diaspora invite link?", message: "Anyone who clicks it after this will see a \"Link Disabled\" page.", confirmText: "Revoke" }))) return;
                 try {
                     const res = await fetch(`/api/admin/croatians-abroad/invite-links/${id}`, {
                         method: 'DELETE',
@@ -40964,7 +41196,7 @@ By applying to this program, I give the following consents:
                 } catch (e) { Toast.error('Failed'); }
             },
             async revoke(email) {
-                if (!confirm('Revoke all admin/staff access for ' + email + '?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Revoke access", message: 'Revoke all admin/staff access for ' + email + '?', confirmText: "Revoke" }))) return;
                 try {
                     const res = await fetch('/api/admin/team/revoke', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify({ email }) });
                     const d = await res.json();
@@ -41276,7 +41508,7 @@ By applying to this program, I give the following consents:
                 } catch(e){ Toast.error(e.message || 'Could not save'); }
             },
             async remove(id){
-                if(!confirm('Delete this entry from the calendar?')) return;
+                if(!(await adminConfirm({ destructive: true, title: "Delete this entry from the calendar?", confirmText: "Delete" }))) return;
                 try { await this.api('/api/admin/year-calendar/'+id, { method:'DELETE' }); Toast.success('Entry deleted'); this.closeForm(); await this.init(); }
                 catch(e){ Toast.error(e.message || 'Could not delete'); }
             },
@@ -41464,7 +41696,7 @@ By applying to this program, I give the following consents:
                         ? `\n\n…and send a push to ${reach} member${reach === 1 ? '' : 's'} in that audience.`
                         : `\n\n…and send a push to every member with notifications enabled.`;
                 }
-                if (!confirm(confirmMsg)) return;
+                if (!(await adminConfirm({ title: "Publish announcement", message: confirmMsg, confirmText: "Publish" }))) return;
                 const r = await opsApi('/api/admin/member-announcements', { method: 'POST', body: JSON.stringify(payload) });
                 if (r.ok) {
                     Toast.success('Announcement published');
@@ -41516,7 +41748,7 @@ By applying to this program, I give the following consents:
                 }).join('');
             },
             async del(id) {
-                if (!confirm('Delete this announcement? Members will no longer see it.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this announcement?", message: "Members will no longer see it.", confirmText: "Delete" }))) return;
                 const r = await opsApi('/api/admin/member-announcements/' + id, { method: 'DELETE' });
                 if (r.ok) { Toast.success('Deleted'); this.loadPast(); } else { Toast.error('Could not delete'); }
             }
@@ -41707,9 +41939,9 @@ By applying to this program, I give the following consents:
                 ta.selectionEnd = ta.selectionStart + sel.length;
                 this.onInput(key);
             },
-            linkify(fid, key) {
+            async linkify(fid, key) {
                 const ta = document.getElementById(fid); if (!ta) return;
-                const url = prompt('Link address (must start with http:// or https://)', 'https://');
+                const url = (await adminPrompt({ title: "Link address", message: "Must start with http:// or https://", defaultValue: 'https://' }));
                 if (!url) return;
                 if (!/^https?:\/\/[^\s]+$/i.test(url.trim())) { Toast.error('Enter a valid http(s) link'); return; }
                 const s = ta.selectionStart, e = ta.selectionEnd;
@@ -42012,7 +42244,7 @@ By applying to this program, I give the following consents:
                 const note = (document.getElementById('rwAdjNote')?.value || '').trim();
                 if (!Number.isFinite(delta) || delta === 0) { Toast.error('Enter a non-zero whole number of points.'); return; }
                 const name = ((m.user.first_name || '') + ' ' + (m.user.last_name || '')).trim() || m.user.email;
-                if (!confirm(`Apply ${delta > 0 ? '+' : ''}${delta} points to ${name}? This writes an audited ledger entry.`)) return;
+                if (!(await adminConfirm({ title: "Apply points", message: `Apply ${delta > 0 ? '+' : ''}${delta} points to ${name}? This writes an audited ledger entry.`, confirmText: "Apply" }))) return;
                 const r = await opsApi('/api/admin/rewards/adjust', { method: 'POST', body: JSON.stringify({ user_id: m.user.id, delta, note }) });
                 if (r.ok) { Toast.success(`Adjusted — new balance ${this._rwNum(r.d.balance)}`); await this.rwPickMember(m.user.id); this.loadRewards(); }
                 else { Toast.error((r.d && r.d.error) || 'Could not apply adjustment'); }
@@ -42129,7 +42361,7 @@ By applying to this program, I give the following consents:
                 if (r.ok) { this.loadSites(); } else { Toast.error('Could not update'); }
             },
             async delSite(id) {
-                if (!confirm('Delete this site? Members will no longer see it.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this site?", message: "Members will no longer see it.", confirmText: "Delete" }))) return;
                 const r = await opsApi('/api/admin/accelerator-sites/' + id, { method: 'DELETE' });
                 if (r.ok) { Toast.success('Deleted'); this.loadSites(); } else { Toast.error('Could not delete'); }
             },
@@ -42371,7 +42603,7 @@ By applying to this program, I give the following consents:
                 if (r.d && r.d.success) { Toast.success(f.published ? 'Unpublished' : 'Published'); this.loadFeed(); } else Toast.error('Failed');
             },
             async deleteFeed(id) {
-                if (!confirm('Delete this feed item? This cannot be undone.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this feed item?", message: "This cannot be undone.", confirmText: "Delete" }))) return;
                 const r = await this.api(`/api/admin/feed-items/${id}`, { method: 'DELETE' });
                 if (r.d && r.d.success) { Toast.success('Deleted'); this.loadFeed(); } else Toast.error('Failed');
             },
@@ -42483,7 +42715,7 @@ By applying to this program, I give the following consents:
                 if (r.d && r.d.success) { Toast.success(t.published ? 'Unpublished' : 'Published'); this.loadTalks(); } else Toast.error('Failed');
             },
             async deleteTalk(id) {
-                if (!confirm('Delete this talk? This cannot be undone.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Delete this talk?", message: "This cannot be undone.", confirmText: "Delete" }))) return;
                 const r = await this.api(`/api/admin/talks/${id}`, { method: 'DELETE' });
                 if (r.d && r.d.success) { Toast.success('Deleted'); this.loadTalks(); } else Toast.error('Failed');
             }
@@ -44877,11 +45109,11 @@ By applying to this program, I give the following consents:
                 if (!emails.length) { Toast.warning('No email addresses in the selection'); return; }
                 BulkApp.preloadSelection(emails, this.CFG[s].ctx);
             },
-            remindSelected() {
+            async remindSelected() {
                 const s = this.active; const cfg = this.CFG[s];
                 const emails = this.emails(this.selectedRows(s).filter(r => !cfg.paid(r)));
                 if (!emails.length) { Toast.info('Everyone selected is already paid'); return; }
-                if (!confirm(`Prepare a payment reminder for ${emails.length} unpaid registrant(s)?\n\nThe composer opens preloaded with only those people. Nothing is sent until you press Send.`)) return;
+                if (!(await adminConfirm({ title: "Payment reminder", message: `Prepare a payment reminder for ${emails.length} unpaid registrant(s)?\n\nThe composer opens preloaded with only those people. Nothing is sent until you press Send.`, confirmText: "Open composer" }))) return;
                 BulkApp.preloadSelection(emails, cfg.ctx, {
                     subject: `Payment reminder — ${cfg.ctx}`,
                     message: `We can see your registration for ${cfg.ctx} is still awaiting payment.\n\nTo confirm your place, please complete the payment using the link from your registration email. If the link has expired or you need any help, simply reply to this email and we will send a fresh one.\n\nWarm regards,\nThe Med&X team`
@@ -44892,7 +45124,7 @@ By applying to this program, I give the following consents:
                 if (!cfg.canMarkPaid || !cfg.type) return;
                 const unpaidRows = this.selectedRows(s).filter(r => !cfg.paid(r));
                 if (!unpaidRows.length) { Toast.info('Everyone selected is already paid'); return; }
-                if (!confirm(`Mark ${unpaidRows.length} registrant(s) as PAID (manual or bank-transfer payments)?\n\nEach change goes through the per-registrant mechanism and lands in the audit log.`)) return;
+                if (!(await adminConfirm({ title: "Mark as paid", message: `Mark ${unpaidRows.length} registrant(s) as PAID (manual or bank-transfer payments)?\n\nEach change goes through the per-registrant mechanism and lands in the audit log.`, confirmText: "Mark paid" }))) return;
                 let ok = 0, fail = 0;
                 for (const r of unpaidRows) {
                     try {
@@ -44910,7 +45142,7 @@ By applying to this program, I give the following consents:
                 if (!cfg.canCheckin) return;
                 const rows = this.selectedRows(s).filter(r => !(r.checked_in == 1 || r.checked_in === true));
                 if (!rows.length) { Toast.info('Everyone selected is already checked in'); return; }
-                if (!confirm(`Check in ${rows.length} registrant(s)?\n\nUses the same per-person check-in the scanner fallback uses.`)) return;
+                if (!(await adminConfirm({ title: "Check in registrants", message: `Check in ${rows.length} registrant(s)?\n\nUses the same per-person check-in the scanner fallback uses.`, confirmText: "Check in" }))) return;
                 let ok = 0, fail = 0;
                 for (const r of rows) { try { await cfg.checkin(r.id); ok++; } catch (e) { fail++; } }
                 Toast[fail ? 'warning' : 'success'](`Checked in: ${ok}${fail ? ` · failed: ${fail}` : ''}`);
@@ -44964,11 +45196,11 @@ By applying to this program, I give the following consents:
                     <input type="datetime-local" id="obApproveAt" class="form-input" value="${def}" style="margin-bottom:16px;">
                     <div style="display:flex;gap:8px;justify-content:flex-end;">
                         <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
-                        <button class="btn btn-primary" onclick="OutboxApproveUI.confirm(this)"><i class="fas fa-check"></i> Approve for later</button>
+                        <button class="btn btn-primary" onclick="OutboxApproveUI.approveLater(this)"><i class="fas fa-check"></i> Approve for later</button>
                     </div></div>`;
                 document.body.appendChild(ov);
             },
-            async confirm(btn) {
+            async approveLater(btn) {
                 const at = document.getElementById('obApproveAt');
                 if (!at || !at.value) { Toast.warning('Pick a date and time'); return; }
                 const scheduled_for = at.value.replace('T', ' ') + (at.value.length === 16 ? ':00' : '');
@@ -45028,7 +45260,7 @@ By applying to this program, I give the following consents:
             },
             async startRound(kind) {
                 const label = kind === 'reminder' ? 'reminder' : 'confirmation';
-                if (!confirm(`Stage a ${label} round for Plexus?\n\nEmails are queued in the outbox for your approval — nothing sends until you click Approve.`)) return;
+                if (!(await adminConfirm({ title: "Stage email round", message: `Stage a ${label} round for Plexus?\n\nEmails are queued in the outbox for your approval — nothing sends until you click Approve.`, confirmText: "Stage" }))) return;
                 const r = await this.api('/api/admin/seat-confirmations/start-round', { method: 'POST', body: JSON.stringify({ event_key: 'plexus', kind }) });
                 if (r.d && r.d.success) {
                     if (r.d.count) Toast.success(`${r.d.count} email(s) staged for approval`);
@@ -45042,12 +45274,12 @@ By applying to this program, I give the following consents:
                 else Toast.error((r.d && r.d.error) || 'Failed');
             },
             async cancelBatch(batch) {
-                if (!confirm('Discard this staged round? No emails will be sent.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Discard this staged round?", message: "No emails will be sent.", confirmText: "Discard" }))) return;
                 const r = await this.api(`/api/admin/outbox/${encodeURIComponent(batch)}/cancel`, { method: 'POST' });
                 if (r.d && r.d.success) { Toast.success('Discarded'); this.load(); } else Toast.error((r.d && r.d.error) || 'Failed');
             },
             async release() {
-                if (!confirm('Release every still-unconfirmed Plexus seat?\n\nEach released seat is offered to the next person on the waitlist (a 48-hour claim link).')) return;
+                if (!(await adminConfirm({ title: "Release every still-unconfirmed Plexus seat?", message: "Each released seat is offered to the next person on the waitlist (a 48-hour claim link).", confirmText: "Release" }))) return;
                 const r = await this.api('/api/admin/seat-confirmations/release-unconfirmed', { method: 'POST', body: JSON.stringify({ event_key: 'plexus' }) });
                 if (r.d && r.d.success) { Toast.success(`Released ${r.d.released}, ${r.d.offers} waitlist offer(s) sent`); this.load(); if (window.WaitlistAdmin) WaitlistAdmin.load(); }
                 else Toast.error((r.d && r.d.error) || 'Failed');
@@ -45146,7 +45378,7 @@ By applying to this program, I give the following consents:
                 }).join('');
             },
             async runRound(ek) {
-                if (!confirm('Run the post-event round for this event?\n\nA certificate is issued for every checked-in attendee, and four email batches (thank-you, certificate, feedback, we-missed-you) are staged in the outbox for your approval. Nothing sends until you approve each batch.')) return;
+                if (!(await adminConfirm({ title: "Run the post-event round for this event?", message: "A certificate is issued for every checked-in attendee, and four email batches (thank-you, certificate, feedback, we-missed-you) are staged in the outbox for your approval. Nothing sends until you approve each batch.", confirmText: "Run" }))) return;
                 const r = await this.api('/api/admin/post-event/run-round', { method: 'POST', body: JSON.stringify({ event_key: ek }) });
                 if (r.d && r.d.success) {
                     const issued = (r.d.certs && r.d.certs.issued) || 0;
@@ -45160,7 +45392,7 @@ By applying to this program, I give the following consents:
                 else Toast.error((r.d && r.d.error) || 'Failed');
             },
             async discard(batch, ek) {
-                if (!confirm('Discard this staged batch? No emails will be sent.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Discard this staged batch?", message: "No emails will be sent.", confirmText: "Discard" }))) return;
                 const r = await this.api(`/api/admin/outbox/${encodeURIComponent(batch)}/cancel`, { method: 'POST' });
                 if (r.d && r.d.success) { Toast.success('Discarded'); this.load(ek); }
                 else Toast.error((r.d && r.d.error) || 'Failed');
@@ -45240,7 +45472,7 @@ By applying to this program, I give the following consents:
                     ${bars}${recLine}${cmtHtml}</div>`;
             },
             async send(ek) {
-                if (!confirm('Send the post-event survey to everyone who checked in for this event?\n\nA short survey invite is staged in the outbox for your approval. Nothing sends until you approve the batch.')) return;
+                if (!(await adminConfirm({ title: "Send the post-event survey to everyone who checked in for this event?", message: "A short survey invite is staged in the outbox for your approval. Nothing sends until you approve the batch.", confirmText: "Send" }))) return;
                 const r = await this.api('/api/admin/event-survey/send', { method: 'POST', body: JSON.stringify({ event_key: ek }) });
                 if (r.d && r.d.success) {
                     if (r.d.count) Toast.success(`${r.d.count} survey invite${r.d.count === 1 ? '' : 's'} staged for approval`);
@@ -45274,7 +45506,7 @@ By applying to this program, I give the following consents:
                 else Toast.error((r.d && r.d.error) || 'Failed');
             },
             async discard(batch, ek) {
-                if (!confirm('Discard this staged batch? No emails will be sent.')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Discard this staged batch?", message: "No emails will be sent.", confirmText: "Discard" }))) return;
                 const r = await this.api(`/api/admin/outbox/${encodeURIComponent(batch)}/cancel`, { method: 'POST' });
                 if (r.d && r.d.success) { Toast.success('Discarded'); this.load(ek); }
                 else Toast.error((r.d && r.d.error) || 'Failed');
@@ -45332,7 +45564,7 @@ By applying to this program, I give the following consents:
                 const r = await this.api('/api/admin/post-event/assemble', { method: 'POST', body: JSON.stringify({ event_key: this.ek, force: !!force }) });
                 const d = r.d || {};
                 if (!d.eligible && !force) {
-                    if (confirm('This event has not ended within the last 48 hours, so the automatic window does not apply.\n\nDraft the recap content anyway?')) this.assemble(true);
+                    if ((await adminConfirm({ title: "Outside the 48-hour window", message: "This event has not ended within the last 48 hours, so the automatic window does not apply.\n\nDraft the recap content anyway?", confirmText: "Draft anyway" }))) this.assemble(true);
                     return;
                 }
                 if (!d.success) { Toast.error(d.error || d.message || 'Failed'); return; }
@@ -45369,7 +45601,7 @@ By applying to this program, I give the following consents:
             },
             async harvest() {
                 const min = document.getElementById('pexTMin')?.value || '4';
-                if (!confirm(`Ask attendees who rated the event ${min}+ stars for permission to be quoted?\n\nA consent email is staged in the outbox for each new high rating. Nothing sends until you approve the batch.`)) return;
+                if (!(await adminConfirm({ title: "Request quote permission", message: `Ask attendees who rated the event ${min}+ stars for permission to be quoted?\n\nA consent email is staged in the outbox for each new high rating. Nothing sends until you approve the batch.`, confirmText: "Stage emails" }))) return;
                 const r = await this.api('/api/admin/testimonials/harvest', { method: 'POST', body: JSON.stringify({ event_key: this.ek, min_rating: parseInt(min, 10) }) });
                 const d = r.d || {};
                 if (!d.success) { Toast.error(d.error || 'Failed'); return; }
@@ -45435,7 +45667,7 @@ By applying to this program, I give the following consents:
                 this.loadKits();
             },
             async sendKits() {
-                if (!confirm('Stage a personal thank-you for every speaker with an email on file?\n\nThe emails are staged in the outbox for your approval. Each speaker is thanked exactly once.')) return;
+                if (!(await adminConfirm({ title: "Stage a personal thank-you for every speaker with an email on file?", message: "The emails are staged in the outbox for your approval. Each speaker is thanked exactly once.", confirmText: "Stage" }))) return;
                 const r = await this.api('/api/admin/speaker-kits/send', { method: 'POST', body: JSON.stringify({ event_key: this.ek }) });
                 const d = r.d || {};
                 if (!d.success) { Toast.error(d.error || 'Failed'); return; }
@@ -45443,7 +45675,7 @@ By applying to this program, I give the following consents:
                 this.loadKits();
             },
             async attendeeThankyou() {
-                if (!confirm('Stage a warm thank-you (with certificate link and LinkedIn share) for every checked-in attendee?\n\nThe emails are staged in the outbox for your approval. Each attendee is thanked exactly once.')) return;
+                if (!(await adminConfirm({ title: "Please confirm", message: "Stage a warm thank-you (with certificate link and LinkedIn share) for every checked-in attendee?\n\nThe emails are staged in the outbox for your approval. Each attendee is thanked exactly once.", confirmText: "Stage" }))) return;
                 const r = await this.api('/api/admin/post-event/attendee-thankyou', { method: 'POST', body: JSON.stringify({ event_key: this.ek }) });
                 const d = r.d || {};
                 if (!d.success) { Toast.error(d.error || 'Failed'); return; }
@@ -45506,7 +45738,7 @@ By applying to this program, I give the following consents:
             },
             async generateCodes(id) {
                 const b = (this._bridges || []).find(x => x.id === id);
-                if (b && !confirm(`Mint the code batch for "${b.label}"?\n\nCodes are real single-use promo codes; minting tops up to ${b.quantity} total and never duplicates.`)) return;
+                if (b && !(await adminConfirm({ title: "Mint code batch", message: `Mint the code batch for "${b.label}"?\n\nCodes are real single-use promo codes; minting tops up to ${b.quantity} total and never duplicates.`, confirmText: "Mint" }))) return;
                 const r = await this.api('/api/admin/early-bird/' + encodeURIComponent(id) + '/generate', { method: 'POST' });
                 const d = r.d || {};
                 if (!d.success) { Toast.error(d.error || 'Failed'); return; }
@@ -45514,7 +45746,7 @@ By applying to this program, I give the following consents:
                 this.loadBridges();
             },
             async approveBridge(id) {
-                if (!confirm('Approve this bridge?\n\nOnly an approved bridge can stage code emails — and those still wait for your outbox approval before anything sends.')) return;
+                if (!(await adminConfirm({ title: "Approve this bridge?", message: "Only an approved bridge can stage code emails — and those still wait for your outbox approval before anything sends.", confirmText: "Approve" }))) return;
                 const r = await this.api('/api/admin/early-bird/' + encodeURIComponent(id) + '/approve', { method: 'POST' });
                 const d = r.d || {};
                 if (!d.success) { Toast.error(d.error || 'Failed'); return; }
@@ -45522,7 +45754,7 @@ By applying to this program, I give the following consents:
                 this.loadBridges();
             },
             async stageBridge(id) {
-                if (!confirm('Stage a code-carrying thank-you for every checked-in attendee of this event?\n\nOne unused code per person, each person exactly once. The emails wait in the outbox for your approval.')) return;
+                if (!(await adminConfirm({ title: "Please confirm", message: "Stage a code-carrying thank-you for every checked-in attendee of this event?\n\nOne unused code per person, each person exactly once. The emails wait in the outbox for your approval.", confirmText: "Stage" }))) return;
                 const r = await this.api('/api/admin/early-bird/' + encodeURIComponent(id) + '/stage-thankyou', { method: 'POST', body: JSON.stringify({ source_event_key: this.ek }) });
                 const d = r.d || {};
                 if (!d.success) { Toast.error(d.error || 'Failed'); return; }
@@ -45575,7 +45807,7 @@ By applying to this program, I give the following consents:
                 URL.revokeObjectURL(url);
             },
             async sendReport(id, to) {
-                if (!confirm(`Send this fulfilment report to ${to}?\n\nThe email is staged in the outbox for your approval — nothing sends until you approve it.`)) return;
+                if (!(await adminConfirm({ title: "Send fulfilment report", message: `Send this fulfilment report to ${to}?\n\nThe email is staged in the outbox for your approval — nothing sends until you approve it.`, confirmText: "Send" }))) return;
                 const r = await this.api('/api/admin/sponsor-reports/' + encodeURIComponent(id) + '/send', { method: 'POST' });
                 const d = r.d || {};
                 if (!d.success) { Toast.error(d.error || 'Failed'); return; }
@@ -45695,7 +45927,7 @@ By applying to this program, I give the following consents:
             async promote(id) {
                 const w = this._rows.find(x => x.id === id); if (!w) return;
                 const who = w.name || w.email || 'this person';
-                if (!confirm(`Promote ${who} from the waitlist?\n\nThis opens the existing invite-link editor so you can send them the registration link yourself. They are then marked as promoted here.`)) return;
+                if (!(await adminConfirm({ title: "Promote from waitlist", message: `Promote ${who} from the waitlist?\n\nThis opens the existing invite-link editor so you can send them the registration link yourself. They are then marked as promoted here.`, confirmText: "Promote" }))) return;
                 // EXISTING mechanism only — the invite/registration-link Live Editor.
                 if (w.section === 'forum') App.generateRegistrationLink('forum', '9799cb97-e3a7-493a-ac23-ee2910e8457b', 'Annual Biomedical Forum 2026');
                 else App.generateRegistrationLink(['plexus', 'gala', 'bridges'].includes(w.section) ? w.section : 'plexus');
@@ -45704,7 +45936,7 @@ By applying to this program, I give the following consents:
                 if (r.d && r.d.success) this.load();
             },
             async remove(id) {
-                if (!confirm('Remove this entry from the waitlist?')) return;
+                if (!(await adminConfirm({ destructive: true, title: "Remove this entry from the waitlist?", confirmText: "Remove" }))) return;
                 const r = await this.api(`/api/admin/waitlist/${id}`, { method: 'DELETE' });
                 if (r.d && r.d.success) { Toast.success('Removed'); this.load(); } else Toast.error('Failed');
             }
@@ -45800,7 +46032,7 @@ By applying to this program, I give the following consents:
                 const f = this.filters();
                 const fDesc = Object.keys(f).length ? ` (filters: ${Object.entries(f).map(([k, v]) => k + '=' + v).join(', ')})` : '';
                 const who = custom ? `the ${this._count} selected registrant(s)` : `${this._count} registrant(s)${fDesc}`;
-                if (!confirm(`Send "${subject}" to ${who}? This cannot be undone.`)) return;
+                if (!(await adminConfirm({ destructive: true, title: "Send email", message: `Send "${subject}" to ${who}? This cannot be undone.`, confirmText: "Send" }))) return;
                 if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…'; }
                 try {
                     const res = await fetch('/api/admin/bulk-email/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify({ audience, subject, message, filters: f, emails: this._customEmails || undefined }) });
@@ -46003,7 +46235,7 @@ By applying to this program, I give the following consents:
             },
 
             async activate(id, name) {
-                if (!confirm('Make "' + name + '" the LIVE conference?\n\nThis reroutes registration PRICING and Stripe charges to this year\'s tickets. Make sure its ticket prices and deadlines are set first.\n\nNote: member-area content (schedule, abstracts, check-in, QR) still references Plexus 2026 until those are migrated separately.')) return;
+                if (!(await adminConfirm({ title: "Make this the live conference", message: 'Make "' + name + '" the LIVE conference?\n\nThis reroutes registration PRICING and Stripe charges to this year\'s tickets. Make sure its ticket prices and deadlines are set first.\n\nNote: member-area content (schedule, abstracts, check-in, QR) still references Plexus 2026 until those are migrated separately.', confirmText: "Make live" }))) return;
                 try {
                     const res = await fetch('/api/admin/conferences/' + id + '/activate', { method: 'POST', headers: { 'Authorization': `Bearer ${App.token}` } });
                     const data = await res.json();
@@ -46015,7 +46247,7 @@ By applying to this program, I give the following consents:
                 const sources = this._list.filter(c => c.id !== targetId);
                 if (!sources.length) { Toast.info('No other conference to clone tickets from.'); return; }
                 const list = sources.map((c, i) => `${i + 1}. ${c.name}`).join('\n');
-                const pick = prompt('Clone ticket types INTO this conference FROM which one?\n\n' + list + '\n\nEnter a number:');
+                const pick = (await adminPrompt({ title: "Clone ticket types", message: 'Clone ticket types INTO this conference FROM which one?\n\n' + list + '\n\nEnter a number:', placeholder: "Enter a number" }));
                 const idx = parseInt(pick) - 1;
                 if (isNaN(idx) || !sources[idx]) return;
                 try {
@@ -46038,7 +46270,7 @@ By applying to this program, I give the following consents:
             async sendTestEmail() {
                 const btn = document.getElementById('healthTestEmailBtn');
                 const out = document.getElementById('healthTestEmailResult');
-                const to = prompt('Send a test email (with sample QR) to which address?', (App.user && App.user.email) || '');
+                const to = (await adminPrompt({ title: "Send a test email", message: "Send a test email (with a sample QR code) to which address?", defaultValue: (App.user && App.user.email) || '' }));
                 if (to === null) return;
                 if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…'; }
                 try {
@@ -46776,7 +47008,7 @@ By applying to this program, I give the following consents:
             },
             setFilter(f){ this.invFilter=f; this.loadInvitees(); },
             async deleteInvitee(id){
-                if(!confirm('Remove this invitee from the campaign?')) return;
+                if(!(await adminConfirm({ destructive: true, title: "Remove this invitee from the campaign?", confirmText: "Remove" }))) return;
                 try { await this.api('/api/admin/event-invites/invitees/'+id,{method:'DELETE'}); this.toast('Removed.','info'); this.loadInvitees(); }
                 catch(e){ this.toast(e.message,'error'); }
             },
@@ -46806,7 +47038,7 @@ By applying to this program, I give the following consents:
                 this.loadInvitees();
             },
             async deleteCampaign(){
-                if(!confirm('Delete this campaign and its invitees? This cannot be undone.')) return;
+                if(!(await adminConfirm({ destructive: true, title: "Delete this campaign and its invitees?", message: "This cannot be undone.", confirmText: "Delete" }))) return;
                 try { await this.api('/api/admin/event-invites/campaigns/'+this.current.id,{method:'DELETE'}); this.toast('Campaign deleted.','info'); this.backToList(); }
                 catch(e){ this.toast(e.message,'error'); }
             },
@@ -47298,7 +47530,7 @@ By applying to this program, I give the following consents:
                     this.current = d.sequence || this.current; this.renderDetail(); this.loadAudience();
                 } catch(e){ this.toast(e.message,'error'); } finally { btn.disabled=false; }
             },
-            async del(btn){ if(!confirm('Delete this reminder sequence and its templates? Sent history is unaffected.')) return; btn.disabled=true; try { await this.api('/api/admin/event-reminders/sequences/'+this.current.id,{method:'DELETE'}); this.toast('Sequence deleted.','info'); this.backToList(); } catch(e){ this.toast(e.message,'error'); btn.disabled=false; } },
+            async del(btn){ if(!(await adminConfirm({ destructive: true, title: "Delete this reminder sequence and its templates?", message: "Sent history is unaffected.", confirmText: "Delete" }))) return; btn.disabled=true; try { await this.api('/api/admin/event-reminders/sequences/'+this.current.id,{method:'DELETE'}); this.toast('Sequence deleted.','info'); this.backToList(); } catch(e){ this.toast(e.message,'error'); btn.disabled=false; } },
 
             // ---- Settings ----
             openSettings(){ const sq=this.current; if(!sq) return;
@@ -48326,7 +48558,7 @@ By applying to this program, I give the following consents:
             catch (e) { this.toast(e.message, 'error'); }
         },
         async deleteChannel(id) {
-            if (!confirm('Delete this channel and its messages? This cannot be undone.')) return;
+            if (!(await adminConfirm({ destructive: true, title: "Delete this channel and its messages?", message: "This cannot be undone.", confirmText: "Delete" }))) return;
             try {
                 await this.api('/api/teamchat/channels/' + id, 'DELETE');
                 this.closeModal(); this.current = null; await this.loadOverview();
@@ -48588,7 +48820,7 @@ By applying to this program, I give the following consents:
             catch (e) { this.toast(e.message, 'error'); }
         },
         async unassign(id) {
-            if (!confirm('Remove this reviewer from the submission? Any draft score is deleted.')) return;
+            if (!(await adminConfirm({ destructive: true, title: "Remove this reviewer from the submission?", message: "Any draft score is deleted.", confirmText: "Remove" }))) return;
             try { await this.api('/api/admin/review/assignments/' + id, 'DELETE'); this.toast('Reviewer removed', 'success'); await this.go('assignments'); }
             catch (e) { this.toast(e.message, 'error'); }
         },
@@ -48676,7 +48908,7 @@ By applying to this program, I give the following consents:
             catch (e) { this.toast(e.message, 'error'); }
         },
         async recuseCard() {
-            const c = this._card; const reason = prompt('Recuse yourself from this submission? A short reason helps the committee.'); if (reason === null) return;
+            const c = this._card; const reason = (await adminPrompt({ title: "Recuse yourself?", message: "A short reason helps the committee." })); if (reason === null) return;
             try { await this.api('/api/admin/review/my/assignments/' + c._aid + '/recuse', 'POST', { reason }); this.toast('You have recused yourself', 'success'); this.closeCard(); this.mine = await this.api('/api/admin/review/my/assignments'); this.remount(this.mineHtml()); }
             catch (e) { this.toast(e.message, 'error'); }
         },
@@ -48790,7 +49022,7 @@ By applying to this program, I give the following consents:
             try {
                 let { resp, data } = await doPost(false);
                 if (resp.status === 409 && data.needs_confirm) {
-                    if (!confirm('Scoring is not complete for this submission (' + data.scored + ' of ' + data.assigned + ' reviews in). Record the decision anyway?')) return;
+                    if (!(await adminConfirm({ title: "Scoring incomplete", message: 'Scoring is not complete for this submission (' + data.scored + ' of ' + data.assigned + ' reviews in). Record the decision anyway?', confirmText: "Record anyway" }))) return;
                     ({ resp, data } = await doPost(true));
                 }
                 if (!resp.ok) { this.toast(data.error || 'Could not save the decision', 'error'); await this.go('decisions'); return; }
@@ -48799,7 +49031,7 @@ By applying to this program, I give the following consents:
             } catch (e) { this.toast(e.message, 'error'); }
         },
         async batchLetters() {
-            if (!confirm('Draft decision letters for every decided applicant that does not have one yet? Each letter waits in the outbox for your approval before anything is sent.')) return;
+            if (!(await adminConfirm({ title: "Please confirm", message: "Draft decision letters for every decided applicant that does not have one yet? Each letter waits in the outbox for your approval before anything is sent.", confirmText: "Draft" }))) return;
             try { const r = await this.api('/api/admin/review/decisions/letters/batch', 'POST', {}); this.toast('Queued ' + r.queued + ' letter' + (r.queued === 1 ? '' : 's') + ' in the outbox' + (r.skipped ? ' (' + r.skipped + ' already queued)' : '') + (r.no_email ? ' · ' + r.no_email + ' without an email' : ''), 'success'); await this.go('decisions'); this.renderFunnel(); }
             catch (e) { this.toast(e.message, 'error'); }
         },
@@ -49035,9 +49267,9 @@ By applying to this program, I give the following consents:
                 return '<div class="share-pairing"><div class="share-pairing-name">' + esc(p.with_name || 'Guest') + '</div>'
                   + (p.note ? '<div class="share-pairing-note">' + esc(p.note) + '</div>' : '')
                   + '<div class="share-pairing-btns">'
-                  + '<button class="share-pill yes' + active('with') + '" onclick="StaffShare.confirm(\'' + p.id + '\',\'with\')">Still with them</button>'
-                  + '<button class="share-pill' + active('en_route') + '" onclick="StaffShare.confirm(\'' + p.id + '\',\'en_route\')">En route</button>'
-                  + '<button class="share-pill' + active('done') + '" onclick="StaffShare.confirm(\'' + p.id + '\',\'done\')">Done</button>'
+                  + '<button class="share-pill yes' + active('with') + '" onclick="StaffShare.confirmPairing(\'' + p.id + '\',\'with\')">Still with them</button>'
+                  + '<button class="share-pill' + active('en_route') + '" onclick="StaffShare.confirmPairing(\'' + p.id + '\',\'en_route\')">En route</button>'
+                  + '<button class="share-pill' + active('done') + '" onclick="StaffShare.confirmPairing(\'' + p.id + '\',\'done\')">Done</button>'
                   + '</div></div>';
               }).join('');
             }
@@ -49103,7 +49335,7 @@ By applying to this program, I give the following consents:
           }).catch(() => {});
         },
 
-        async confirm(id, status) {
+        async confirmPairing(id, status) {
           try { const d = await api('/api/staff-tracking/pairing-confirm', 'POST', { pairing_id: id, status });
             const p = this.state.pairings.find(x => x.id === id); if (p) p.status = d.status;
             this.renderPanel(); toast('Thanks — noted', 'success');
@@ -49174,7 +49406,7 @@ By applying to this program, I give the following consents:
         },
         async runScan() { try { const d = await api('/api/admin/staff-tracking/run-scan', 'POST', {}); toast(d.prompted ? ('Sent ' + d.prompted + ' check-in prompt' + (d.prompted === 1 ? '' : 's')) : 'Nobody is stale right now', 'info'); } catch (e) { toast(e.message, 'error'); } },
         async purge() {
-          if (!confirm('Delete every shared location now and switch tracking off? This cannot be undone.')) return;
+          if (!(await adminConfirm({ destructive: true, title: "Delete every shared location now and switch tracking off?", message: "This cannot be undone.", confirmText: "Delete" }))) return;
           try { const d = await api('/api/admin/staff-tracking/purge', 'POST', {}); toast('Purged ' + d.deleted + ' position' + (d.deleted === 1 ? '' : 's'), 'success'); this.loadSettings(); this.refresh(); }
           catch (e) { toast(e.message, 'error'); }
         },
@@ -49241,7 +49473,7 @@ By applying to this program, I give the following consents:
           }).join('');
         },
         async setPairStatus(id, status) { try { await api('/api/admin/staff-tracking/pairings/' + id, 'PATCH', { status }); this.loadPairings(); this.refresh(); } catch (e) { toast(e.message, 'error'); } },
-        async deletePairing(id) { if (!confirm('Remove this pairing?')) return; try { await api('/api/admin/staff-tracking/pairings/' + id, 'DELETE'); this.loadPairings(); this.refresh(); } catch (e) { toast(e.message, 'error'); } },
+        async deletePairing(id) { if (!(await adminConfirm({ destructive: true, title: "Remove this pairing?", confirmText: "Remove" }))) return; try { await api('/api/admin/staff-tracking/pairings/' + id, 'DELETE'); this.loadPairings(); this.refresh(); } catch (e) { toast(e.message, 'error'); } },
 
         openPairingForm() {
           const staffOpts = (this._roster.staff || []).map(u => '<option value="' + esc(u.id) + '">' + esc(u.name) + '</option>').join('');
