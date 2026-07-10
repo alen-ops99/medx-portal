@@ -1143,3 +1143,58 @@ An orchestrated verify lane flagged "admin-home-calm" but delivered an empty fai
 (8c107ad) QR-modal Copy link leaked an unhandled NotAllowedError pageerror when the clipboard is blocked (writeText promise inside a sync try/catch) while still toasting "Link copied." — now the promise is handled, success toasts only on success, blocked copy points to the link shown in the modal.
 
 FINAL LIVE RUN 19/19 PASS (medx-admin-portal.onrender.com serving 8c107ad): login; --danger token #9b1b22; active nav icon crimson; userNotifCount bg crimson; ZERO loud legacy reds (ef4444/dc2626/c14b52) computed on any visible home/sidebar element; Action Center collapsed by default to "Action Center · 7 urgent · 10 items need attention · Expand" -> real-click expand (full list + Collapse, localStorage medx_ac_collapsed=0) -> real-click re-collapse (=1); 6 Live-Overview cards uniform neutral border rgb(216,208,198) + muted icon chips; no fixed install banner after 6s + medxInstallApp/medxShowAppQR exposed; Team Chat All-Team chip = brand crimson with the other 2 chips neutral and zero loud avatar bubbles; Settings > Profile "Install the admin app" row + real Install click -> Add-to-Home-Screen instructions modal (no native prompt headlessly); Resources "The team app" card -> real click -> LIVE 480px QR PNG rendered in the modal from the deployed endpoint + Copy-link real click clean; mobile 390 scrollWidth 390 with the calm summary row and no banner; console 0 entries of any kind. ZERO prod writes: surfaces are read-only and the one auto-fired write (TeamChat read-receipt POST) was stubbed at the Playwright route layer, never reaching the server. GATES per step: node --check both servers OK, check-schema-sync.sh 435 lines byte-identical, frozen Stripe/checkout + calculateTotal + POST /api/registrations + /api/plexus/register + ticket-QR gen/scanner/payload byte-untouched. Harness note for future lanes: '.manage-sections-btn' alone matches the handbook <a> first — the settings gear is 'button.manage-sections-btn'. Evidence (10 screenshots incl. calm home, expanded/re-collapsed Action Center, muted Team Chat, settings install row + instructions modal, team-app card + live QR modal, mobile home) + verify.js + scan-reds.js in ~/Documents/Claude_Code_Projects/MedX_AdminHomeCalm_Verify_2026-07-10/.
+
+## 2026-07-10 — SIGNAGE GENERATOR FAMILY (Event Suite) — ed7bab2 + e88023e + 94d153c
+
+Brief item 2 shipped: three print generators inside Content Studio's Event Suite, all drawn
+CLIENT-SIDE with Canvas2D at print resolution (the card-engine pattern) so they work on prod
+with NO headless Chrome. Admin surface English per convention; every PRINT ARTIFACT bilingual
+EN + HR (formal register). Navy/gold heritage system with the pleter braid and the GOLDEN LINE
+held at one height across the family, after the gala-theming banner kit. No new endpoints, no
+new tables, ZERO server writes — reads the existing GET /api/admin/plexus/sessions (same source
+as the live now/next board), GET /api/plexus/conference, GET /api/admin/print/context.
+
+(a) LECTURE-TOPIC SIGNS (ed7bab2): pick sessions from the real schedule -> one A4/A3 300-DPI
+sign per session (title, speakers, room, time; EN + HR session-type and date lines; Croatian
+formal dates via a built-in day/month table). Multi-page PDF (one page per session) or PNGs
+(ZIP via the existing MedxZip). (b) WAYFINDING SIGNS (e88023e): big gold-gradient arrow
+(up/down/left/right) + destination label in EN with the HR label beneath, eight bilingual
+presets (Registration/Registracija ... Exit/Izlaz), A4/A3, editable. (c) ROLL-UP BANNERS
+(94d153c): true-size 85 x 200 cm (4016 x 9449 px, 120 DPI) in three templates after the
+gala kit — The Event, The Welcome (Welcome / Dobro došli both display), The Paper (light ground
+for bright venues) — with the pleter-woven golden band at the corridor line, bilingual sub/date
+lines, venue, Med&X footer; prefilled per event with a computed formal-HR date range.
+
+ENGINE: window.MedxSignage (unit-based layouts so one layout serves every paper size, diacritic-
+safe font preload) + window.MedxPagePdf (dependency-free multi-page canvas->JPEG /DCTDecode PDF
+at true physical size). CSP-clean: ONE delegated click/input/change listener per studio, zero
+inline on* handlers. GATES per step: 7/7 inline script blocks parse, node --check both servers,
+check-schema-sync 435 lines byte-identical. FROZEN surfaces untouched (Stripe/checkout,
+calculateTotal, POST /api/registrations, /api/plexus/register, ticket-QR gen/scanner/payload).
+
+DEV LANE (throwaway VACUUM copy of the shared DB, port 3103, then deleted): 18/19 — login;
+studio opens through the Event Suite; lecture prefilled from the schedule; real multi-page PDF
+(%PDF, 3 pages) + PNG ZIP (PK); A3 toggle; wayfinding preset+arrow+preview + real PNG; three
+roll-up templates + real true-size PDF; mobile 390 no h-scroll; ZERO write attempts. The one
+non-pass was a pre-existing CSP img-src warning from ContentStudio's recent-asset thumbnails
+(/uploads/content-studio/<uuid>.png at the stale localhost base) — signage loads ZERO external
+images (grep-confirmed), so unrelated. Shared DB verified untouched (3 sessions / 2 assets before
+and after). All temp server + DB removed.
+
+LIVE VERIFICATION (medx-admin-portal.onrender.com serving 94d153c — Roll-up-tab marker present in
+served HTML — owner production admin session, Playwright chromium real clicks, 17/17): login;
+Event Suite = Print & signage | Signage studio | Attendance cards; studio opens under prod CSP
+with all 3 tabs; lecture prefilled from the REAL prod schedule (3 sessions, Plexus Conference
+2026) + preview canvas 640x905 + DEPLOYED multi-page PDF (773,846 bytes, 3 pages, %PDF) + PNG
+ZIP (9.8 MB, PK); wayfinding Registration/Registracija + up arrow + DEPLOYED PDF (216,446 bytes);
+roll-up tall preview + all three templates + DEPLOYED true-size PDF (790,890 bytes); mobile 390
+scrollWidth 390; ZERO prod write attempts; zero signage console errors. The three DEPLOYED PDFs
+were rasterised and READ: lecture sign (navy/gold, "Opening Ceremony", KEYNOTE LECTURE ·
+PLENARNO PREDAVANJE, ROOM · DVORANA, Main Hall, 09:00 – 10:00, "Friday, December 4, 2026" +
+italic "petak, 4. prosinca 2026.", golden line, medx.hr); roll-up ("Plexus Conference" gold
+display, "We are delighted to have you with us." / "Radujemo se što ste s nama.", pleter-woven
+golden band, "December 4-5, 2026" + "4. – 5. prosinca 2026.", Zagreb Croatia, Med&X); wayfinding
+(big gold arrow, "Registration" / "Registracija"). ZERO prod residue — every generator is
+client-side, no cards/send or asset POST ever fired. Evidence (studio UI, three deployed
+artifacts rasterised, all three roll-up templates, mobile, dev+prod results JSON) in
+~/Documents/Claude_Code_Projects/MedX_Signage_2026-07-10/.
