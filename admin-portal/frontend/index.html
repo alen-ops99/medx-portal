@@ -42937,7 +42937,7 @@ By applying to this program, I give the following consents:
                 { key: 'event', name: 'Event Suite', icon: 'fa-calendar-check',
                   blurb: 'Everything a live event needs on the day — name badges, roll-up banners, signage and the guest “I’m attending” cards. Prefilled from the event you choose, exported print-ready.',
                   intro: 'Everything a live event needs on the day. Pick a tool — each one prefills from the event you choose and exports true-size, print-ready files.',
-                  tools: ['print', 'cards'] },
+                  tools: ['print', 'signage', 'cards'] },
                 { key: 'brand', name: 'Brand Suite', icon: 'fa-wand-magic-sparkles',
                   blurb: 'Branded creative to post — announcement and speaker graphics, PDFs, photo slideshows and motion videos, all in the Med&X house style.',
                   intro: 'Branded creative to post, in the Med&X house style. Graphics and PDFs, photo slideshows and motion videos — download or send to the media schedule.',
@@ -42980,6 +42980,12 @@ By applying to this program, I give the following consents:
                             <h3>Print &amp; signage</h3>
                             <p>The last-day print run &mdash; name badges for everyone registered (with a member verify QR), roll-up banners, a photo-booth backdrop and directional signs. Prefilled from the event, exported as true-size, print-ready PDFs.</p>
                             <span class="cs-go">Make print files <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
+                        </button>`,
+                    signage: `<button class="cs-surface" data-signage-open>
+                            <div class="cs-surface-ic" style="background:rgba(201,162,39,.14);color:#9c7c1a;"><i class="fas fa-signs-post"></i></div>
+                            <h3>Signage studio</h3>
+                            <p>Lecture-topic signs for every session on the schedule &mdash; title, speakers, room and time in the navy/gold event system, bilingual EN&nbsp;+&nbsp;HR. Drawn in your browser at print resolution and downloaded as a true-size PDF or PNGs, on any server.</p>
+                            <span class="cs-go">Make signage <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
                         </button>`,
                     cards: `<button class="cs-surface" data-cardstudio-open>
                             <div class="cs-surface-ic" style="background:rgba(201,162,39,.14);color:#9c7c1a;"><i class="fas fa-id-card-clip"></i></div>
@@ -45422,6 +45428,531 @@ By applying to this program, I give the following consents:
         window.CardStudio = CardStudio;
         // CSP-clean trigger (delegated — no inline on* handler on the Content Studio surface button).
         document.addEventListener('click', function(e){ var el=e.target.closest && e.target.closest('[data-cardstudio-open]'); if(el){ e.preventDefault(); try{ CardStudio.start(); }catch(err){ console.error(err); } } });
+
+        // ==================== SIGNAGE GENERATOR FAMILY — Event Suite print studio ====================
+        // Lecture-topic signs from the real schedule, wayfinding arrows and 85 × 200 cm roll-up
+        // banners — ALL drawn CLIENT-SIDE with Canvas2D at print resolution (the card-engine
+        // pattern), so they work on prod with NO headless Chrome. Admin surface is English per
+        // convention; every PRINT ARTIFACT is bilingual EN + HR (formal register). Navy/gold
+        // heritage system: the pleter braid and the golden line held at one height across the
+        // family, after the gala-theming banner kit. CSP-clean: delegated listeners only, zero
+        // inline on* handlers. No new endpoints, no new tables — reads the existing schedule +
+        // print-context APIs; every download is assembled in the browser (multi-page /DCTDecode
+        // PDF below; PNG/ZIP via MedxZip). Zero server writes.
+
+        // ---- Dependency-free multi-page canvas -> PDF: one JPEG per page at true physical size. ----
+        window.MedxPagePdf = {
+            // pages: [{ jpeg:Uint8Array, wPx, hPx, ptW, ptH }] -> Blob (application/pdf)
+            build: function(pages){
+                var parts=[], offsets=[], pos=0;
+                function bytes(str){ var a=new Uint8Array(str.length); for(var i=0;i<str.length;i++) a[i]=str.charCodeAt(i)&0xff; return a; }
+                function push(u8){ parts.push(u8); pos+=u8.length; }
+                function pushStr(str){ push(bytes(str)); }
+                function pad10(n){ n=String(n); while(n.length<10) n='0'+n; return n; }
+                function fmt(n){ return String(Math.round(n*100)/100); }
+                pushStr('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+                var kids=pages.map(function(_,i){ return (3+i*3)+' 0 R'; }).join(' ');
+                offsets[1]=pos; pushStr('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+                offsets[2]=pos; pushStr('2 0 obj\n<< /Type /Pages /Kids ['+kids+'] /Count '+pages.length+' >>\nendobj\n');
+                pages.forEach(function(p,i){
+                    var pageN=3+i*3, imgN=pageN+1, cN=pageN+2;
+                    offsets[pageN]=pos; pushStr(pageN+' 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+fmt(p.ptW)+' '+fmt(p.ptH)+'] /Resources << /XObject << /Im'+i+' '+imgN+' 0 R >> >> /Contents '+cN+' 0 R >>\nendobj\n');
+                    offsets[imgN]=pos; pushStr(imgN+' 0 obj\n<< /Type /XObject /Subtype /Image /Width '+p.wPx+' /Height '+p.hPx+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+p.jpeg.length+' >>\nstream\n'); push(p.jpeg); pushStr('\nendstream\nendobj\n');
+                    var content='q\n'+fmt(p.ptW)+' 0 0 '+fmt(p.ptH)+' 0 0 cm\n/Im'+i+' Do\nQ\n'; var cb=bytes(content);
+                    offsets[cN]=pos; pushStr(cN+' 0 obj\n<< /Length '+cb.length+' >>\nstream\n'); push(cb); pushStr('\nendstream\nendobj\n');
+                });
+                var n=3+pages.length*3, xrefPos=pos;
+                var xref='xref\n0 '+n+'\n0000000000 65535 f \n'; for(var i=1;i<n;i++){ xref+=pad10(offsets[i])+' 00000 n \n'; }
+                pushStr(xref); pushStr('trailer\n<< /Size '+n+' /Root 1 0 R >>\nstartxref\n'+xrefPos+'\n%%EOF');
+                return new Blob(parts, { type:'application/pdf' });
+            }
+        };
+
+        // ---- The signage renderer: unit-based layouts (design width = 1000 units) so one layout ----
+        // ---- serves every paper size; px width picks the print resolution.                      ----
+        window.MedxSignage = (function(){
+            var PAL={ navy:'#0A1E3F', navyDeep:'#061530', navyTop:'#0E2748', gold:'#C9A227', goldLight:'#E6C878', goldDeep:'#9C7C1A', paper:'#F2E8CF', cream:'#EBE1C6', creamDim:'#B9AE8A', mutedPaper:'#8A7F6B', white:'#FFFFFF' };
+            var DISPLAY="'Fraunces', Georgia, 'Times New Roman', serif";
+            var SERIF="'Cormorant Garamond', Georgia, serif";
+            var LABEL="'Inter', -apple-system, 'Helvetica Neue', Arial, sans-serif";
+            // A4/A3 share the ISO layout (H = 1414.21 units); the roll-up is 850 × 2000 mm.
+            // Roll-up renders at 120 DPI true size — the full-scale resolution roll-up printers ask for.
+            var PAPERS={
+                a4:{ id:'a4', name:'A4', px:2480, units:1414.21, ptW:595.28, ptH:841.89, dpi:300 },
+                a3:{ id:'a3', name:'A3', px:3508, units:1414.21, ptW:841.89, ptH:1190.55, dpi:300 },
+                banner:{ id:'banner', name:'85 × 200 cm', px:4016, units:2352.94, ptW:2409.45, ptH:5669.29, dpi:120 }
+            };
+            var EN_DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+            var EN_MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+            var HR_DAYS=['nedjelja','ponedjeljak','utorak','srijeda','četvrtak','petak','subota'];
+            var HR_MONTHS=['siječnja','veljače','ožujka','travnja','svibnja','lipnja','srpnja','kolovoza','rujna','listopada','studenoga','prosinca'];
+            function parseIso(iso){ var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso||'').trim()); return m?new Date(+m[1],+m[2]-1,+m[3],12,0,0):null; }
+            function addDays(d,n){ var x=new Date(d.getTime()); x.setDate(x.getDate()+n); return x; }
+            function dateEn(d){ return d?EN_DAYS[d.getDay()]+', '+EN_MONTHS[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear():''; }
+            function dateHr(d){ return d?HR_DAYS[d.getDay()]+', '+d.getDate()+'. '+HR_MONTHS[d.getMonth()]+' '+d.getFullYear()+'.':''; }
+            // Bilingual session-type line for the print artifact (EN + HR, formal register).
+            var TYPES={ keynote:['KEYNOTE LECTURE','PLENARNO PREDAVANJE'], talk:['LECTURE','PREDAVANJE'], panel:['PANEL DISCUSSION','PANEL RASPRAVA'], workshop:['WORKSHOP','RADIONICA'], poster:['POSTER SESSION','POSTERSKA SEKCIJA'], break:['BREAK','STANKA'], social:['SOCIAL PROGRAMME','DRUŠTVENI PROGRAM'], ceremony:['CEREMONY','SVEČANI PROGRAM'] };
+            function typePair(t){ return TYPES[String(t||'').toLowerCase()]||['SESSION','SESIJA']; }
+
+            function goldGradH(ctx,x0,x1,y){ var g=ctx.createLinearGradient(x0,y,x1,y); g.addColorStop(0,PAL.goldDeep); g.addColorStop(.18,PAL.goldLight); g.addColorStop(.5,PAL.gold); g.addColorStop(.82,PAL.goldLight); g.addColorStop(1,PAL.goldDeep); return g; }
+            function goldGradV(ctx,y0,y1){ var g=ctx.createLinearGradient(0,y0,0,y1); g.addColorStop(0,PAL.goldLight); g.addColorStop(.46,PAL.gold); g.addColorStop(1,PAL.goldDeep); return g; }
+            function navyGround(ctx,W,H){
+                var g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,PAL.navyTop); g.addColorStop(.45,PAL.navy); g.addColorStop(1,PAL.navyDeep);
+                ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+                var r1=ctx.createRadialGradient(W/2,-H*0.1,0,W/2,-H*0.1,H*0.55); r1.addColorStop(0,'rgba(201,162,39,.10)'); r1.addColorStop(1,'rgba(201,162,39,0)'); ctx.fillStyle=r1; ctx.fillRect(0,0,W,H);
+                var r2=ctx.createRadialGradient(W/2,H*1.15,0,W/2,H*1.15,H*0.5); r2.addColorStop(0,'rgba(201,162,39,.06)'); r2.addColorStop(1,'rgba(201,162,39,0)'); ctx.fillStyle=r2; ctx.fillRect(0,0,W,H);
+            }
+            function paperGround(ctx,W,H){
+                ctx.fillStyle=PAL.paper; ctx.fillRect(0,0,W,H);
+                var v=ctx.createRadialGradient(W/2,H*0.42,W*0.2,W/2,H*0.5,H*0.75); v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(120,95,30,.08)'); ctx.fillStyle=v; ctx.fillRect(0,0,W,H);
+            }
+            function keyline(ctx,W,H,m,s,alpha){ ctx.save(); ctx.strokeStyle='rgba(201,162,39,'+(alpha||0.22)+')'; ctx.lineWidth=Math.max(1,1.4*s); ctx.strokeRect(m*s,m*s,W-2*m*s,H-2*m*s); ctx.restore(); }
+            // Letter-spaced tracked caps/lowercase, centered (caller decides the case).
+            function track(ctx,text,cx,y,size,spacing,color,font,weight){
+                ctx.save(); ctx.fillStyle=color; ctx.textBaseline='alphabetic'; ctx.font=(weight||'600')+' '+size+'px '+(font||LABEL);
+                var st=String(text||''); var total=0,i;
+                for(i=0;i<st.length;i++){ total+=ctx.measureText(st[i]).width+spacing; } total-=spacing;
+                var x=cx-total/2; ctx.textAlign='left';
+                for(i=0;i<st.length;i++){ ctx.fillText(st[i],x,y); x+=ctx.measureText(st[i]).width+spacing; }
+                ctx.restore();
+            }
+            // Fit + wrap centered display text: largest size whose wrap fits maxLines and maxW.
+            function fitWrap(ctx,text,maxW,sizes,maxLines,font,weight){
+                var words=String(text||'').trim().split(/\s+/).filter(Boolean); if(!words.length) return { size:sizes[0], lines:[] };
+                function wrapAt(sz){
+                    ctx.font=(weight||'600')+' '+sz+'px '+(font||DISPLAY);
+                    var lines=[],cur='';
+                    for(var w=0;w<words.length;w++){ var t=cur?cur+' '+words[w]:words[w]; if(ctx.measureText(t).width>maxW&&cur){ lines.push(cur); cur=words[w]; } else cur=t; }
+                    if(cur) lines.push(cur);
+                    return lines;
+                }
+                for(var i=0;i<sizes.length;i++){
+                    var lines=wrapAt(sizes[i]);
+                    var over=lines.some(function(l){ return ctx.measureText(l).width>maxW; });
+                    if(lines.length<=maxLines&&!over) return { size:sizes[i], lines:lines };
+                }
+                var sz=sizes[sizes.length-1], ls=wrapAt(sz);
+                if(ls.length>maxLines){
+                    ls=ls.slice(0,maxLines); var last=ls[maxLines-1];
+                    ctx.font=(weight||'600')+' '+sz+'px '+(font||DISPLAY);
+                    while(last.length>1&&ctx.measureText(last+'…').width>maxW){ last=last.slice(0,-1); }
+                    ls[maxLines-1]=last+'…';
+                }
+                return { size:sz, lines:ls };
+            }
+            function clipTo(ctx,text,maxW,font){ ctx.save(); ctx.font=font; var st=String(text||''); if(ctx.measureText(st).width<=maxW){ ctx.restore(); return st; } while(st.length>1&&ctx.measureText(st+'…').width>maxW){ st=st.slice(0,-1); } ctx.restore(); return st+'…'; }
+            // THE GOLDEN LINE — full-bleed gradient band; wide bands carry the pleter braid woven through.
+            function goldenBand(ctx,W,y,h){
+                ctx.save();
+                var g=ctx.createLinearGradient(0,y,0,y+h); g.addColorStop(0,PAL.goldLight); g.addColorStop(.5,PAL.gold); g.addColorStop(1,PAL.goldDeep);
+                ctx.fillStyle=g; ctx.fillRect(0,y,W,h);
+                if(h>=10){
+                    var mid=y+h/2, amp=h*0.26, lam=h*3.4;
+                    ctx.lineCap='round';
+                    for(var sN=0;sN<3;sN++){
+                        var ph=(Math.PI*2/3)*sN;
+                        ctx.beginPath();
+                        for(var x=0;x<=W;x+=Math.max(2,h/6)){ var yy=mid+amp*Math.sin((Math.PI*2*x/lam)+ph); if(x===0)ctx.moveTo(x,yy); else ctx.lineTo(x,yy); }
+                        ctx.lineWidth=h*0.16; ctx.strokeStyle='rgba(6,21,48,.20)'; ctx.globalAlpha=0.9-sN*0.2; ctx.stroke();
+                    }
+                }
+                ctx.restore();
+            }
+            function thinGoldLine(ctx,cx,y,w,h){ ctx.save(); ctx.fillStyle=goldGradH(ctx,cx-w/2,cx+w/2,y); ctx.fillRect(cx-w/2,y,w,h); ctx.restore(); }
+
+            // ---- LECTURE-TOPIC SIGN (A4/A3 portrait, navy). Fixed anchors for the where/when block ----
+            // ---- and the golden line, so a corridor of these signs reads as ONE system.            ----
+            function drawLecture(ctx,W,H,s,o){
+                navyGround(ctx,W,H); keyline(ctx,W,H,40,s);
+                var cx=W/2, sess=o.session||{};
+                track(ctx,String(o.event||'Med&X').toUpperCase(),cx,128*s,17*s,8*s,PAL.creamDim,LABEL,'600');
+                var tp=typePair(sess.type);
+                track(ctx,tp[0]+'  ·  '+tp[1],cx,192*s,14.5*s,5.5*s,PAL.goldLight,LABEL,'700');
+                var fw=fitWrap(ctx,sess.title||'Session',840*s,[64,56,48,42,36].map(function(z){ return z*s; }),3,DISPLAY,'600');
+                ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=PAL.paper; ctx.font='600 '+fw.size+'px '+DISPLAY;
+                var ty=352*s;
+                fw.lines.forEach(function(ln){ ctx.fillText(ln,cx,ty); ty+=fw.size*1.12; });
+                ctx.restore();
+                var lastBase=ty-fw.size*1.12;
+                thinGoldLine(ctx,cx,lastBase+34*s,150*s,2.6*s);
+                if(sess.speakers){
+                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=PAL.goldLight; ctx.font='500 '+(30*s)+'px '+DISPLAY;
+                    ctx.fillText(clipTo(ctx,sess.speakers,860*s,'500 '+(30*s)+'px '+DISPLAY),cx,lastBase+98*s);
+                    ctx.restore();
+                }
+                track(ctx,'ROOM  ·  DVORANA',cx,872*s,12.5*s,5*s,PAL.creamDim,LABEL,'700');
+                ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=PAL.white; ctx.font='600 '+(52*s)+'px '+DISPLAY;
+                ctx.fillText(clipTo(ctx,sess.room||'—',700*s,'600 '+(52*s)+'px '+DISPLAY),cx,942*s); ctx.restore();
+                if(sess.timeRange){ ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=PAL.goldLight; ctx.font='500 '+(42*s)+'px '+DISPLAY; ctx.fillText(sess.timeRange,cx,1014*s); ctx.restore(); }
+                if(sess.dateEn){
+                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=PAL.cream; ctx.font='400 '+(20*s)+'px '+LABEL; ctx.fillText(sess.dateEn,cx,1068*s); ctx.restore();
+                } else if(sess.dayLabel){
+                    track(ctx,sess.dayLabel,cx,1068*s,14*s,5*s,PAL.cream,LABEL,'600');
+                }
+                if(sess.dateHr){ ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle='rgba(230,200,120,.88)'; ctx.font='italic 500 '+(24*s)+'px '+SERIF; ctx.fillText(sess.dateHr,cx,1106*s); ctx.restore(); }
+                goldenBand(ctx,W,1250*s,7*s);
+                track(ctx,'medx.hr',cx,1312*s,12*s,4*s,PAL.creamDim,LABEL,'600');
+            }
+
+            function render(kind,opts){
+                opts=opts||{};
+                var paper=PAPERS[kind==='banner'?'banner':(opts.paper==='a3'?'a3':'a4')];
+                var px=opts.px||paper.px;
+                var W=Math.round(px), H=Math.round(px*paper.units/1000), s=W/1000;
+                var cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+                var ctx=cv.getContext('2d');
+                if(kind==='lecture') drawLecture(ctx,W,H,s,opts);
+                return cv;
+            }
+            var _readyPromise=null;
+            function ready(){
+                if(!_readyPromise){
+                    var sample='ČĆŽŠĐčćžšđ Dobro došli 0123456789';
+                    _readyPromise=(document.fonts&&document.fonts.load)?Promise.all([
+                        '600 90px '+DISPLAY,'500 60px '+DISPLAY,'400 30px '+LABEL,'600 30px '+LABEL,'700 30px '+LABEL,
+                        '500 60px '+SERIF,'italic 500 60px '+SERIF,'italic 600 60px '+SERIF
+                    ].map(function(f){ return document.fonts.load(f,sample).catch(function(){}); })).catch(function(){}):Promise.resolve();
+                }
+                return _readyPromise;
+            }
+            return { render:render, ready:ready, PAPERS:PAPERS, PAL:PAL, dateEn:dateEn, dateHr:dateHr, parseIso:parseIso, addDays:addDays, typePair:typePair, HR_MONTHS:HR_MONTHS };
+        })();
+
+        // ---- The studio (admin surface, English). Tabs grow with the family. ----
+        const SignageStudio = {
+            _built:false,_overlay:null,_busy:false,_t:0,
+            TABS:[ ['lecture','fa-chalkboard-user','Lecture signs'] ],
+            state:{
+                tab:'lecture', event:'conference', ctx:null,
+                conf:null, sessions:[], schedLoaded:false, sel:{}, pvIdx:0,
+                paper:'a4',
+                way:{ arrow:'right', en:'Registration', hr:'Registracija' },
+                ban:{ template:'event', fields:{} }
+            },
+            esc(s){ return (typeof escapeHtml==='function')?escapeHtml(s==null?'':String(s)):String(s==null?'':s); },
+            toast(m,t){ if(typeof App!=='undefined'&&App.showToast) App.showToast(m,t); },
+            async api(path,opts){ const r=await fetch(path,Object.assign({ headers:{ 'Content-Type':'application/json','Authorization':'Bearer '+App.token } },opts||{})); let d=null; try{ d=await r.json(); }catch(e){} return { ok:r.ok, status:r.status, d }; },
+            _slug(t){ return String(t||'sign').toLowerCase().replace(/[čć]/g,'c').replace(/ž/g,'z').replace(/š/g,'s').replace(/đ/g,'d').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,48)||'sign'; },
+
+            ensureStyle(){
+                if(document.getElementById('sgnStyle')) return;
+                var css=''
+                +'.sgn-overlay{position:fixed;inset:0;z-index:4300;display:none;background:rgba(9,14,24,.64);backdrop-filter:blur(3px);}'
+                +'.sgn-overlay.active{display:block;}'
+                +'.sgn-shell{position:absolute;inset:2.2vh 2.2vw;background:var(--bg-primary,#fbf9f6);border-radius:18px;box-shadow:0 30px 90px rgba(0,0,0,.42);display:flex;flex-direction:column;overflow:hidden;}'
+                +'.sgn-top{display:flex;align-items:center;justify-content:space-between;padding:13px 22px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,rgba(201,162,39,.10),transparent);flex-shrink:0;}'
+                +'.sgn-brand{font-family:\'Fraunces\',Georgia,serif;font-size:19px;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:10px;}'
+                +'.sgn-brand i{color:var(--gold,#c9a227);}'
+                +'.sgn-chip{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:20px;background:rgba(31,122,68,.14);color:#1f7a44;}'
+                +'.sgn-x{background:none;border:none;font-size:26px;line-height:1;color:var(--text-muted);cursor:pointer;padding:0 4px;}'
+                +'.sgn-body{flex:1;display:grid;grid-template-columns:392px minmax(0,1fr);min-height:0;}'
+                +'.sgn-rail{border-right:1px solid var(--border);overflow-y:auto;padding:16px 18px 44px;background:var(--bg-secondary);}'
+                +'.sgn-stage{display:flex;flex-direction:column;min-height:0;overflow-y:auto;padding:20px 22px 26px;align-items:center;gap:12px;background:repeating-linear-gradient(45deg,rgba(14,33,64,.02),rgba(14,33,64,.02) 12px,transparent 12px,transparent 24px);}'
+                +'.sgn-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;}'
+                +'.sgn-tab{flex:1;min-width:86px;padding:9px 6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-secondary);border-radius:9px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:4px;}'
+                +'.sgn-tab i{color:var(--gold,#c9a227);font-size:14px;}'
+                +'.sgn-tab.on{background:#0f1c2e;color:#fff;border-color:#0f1c2e;}'
+                +'.sgn-tab.on i{color:#e6c878;}'
+                +'.sgn-sec{margin-bottom:14px;}'
+                +'.sgn-sec>label{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:7px;}'
+                +'.sgn-sec input[type=text],.sgn-sec select{width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;font-family:inherit;}'
+                +'.sgn-seg{display:flex;gap:6px;flex-wrap:wrap;}'
+                +'.sgn-seg button{flex:1;min-width:54px;padding:8px 6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-secondary);border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;}'
+                +'.sgn-seg button.on{background:#0f1c2e;color:#fff;border-color:#0f1c2e;}'
+                +'.sgn-summary{background:linear-gradient(135deg,rgba(201,162,39,.10),rgba(15,28,46,.05));border:1px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:14px;}'
+                +'.sgn-summary .big{font-family:\'Fraunces\',Georgia,serif;font-size:24px;font-weight:700;color:var(--text-primary);line-height:1;}'
+                +'.sgn-summary .lbl{font-size:12px;color:var(--text-muted);margin-top:4px;line-height:1.5;}'
+                +'.sgn-quick{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}'
+                +'.sgn-quick button{flex:1;min-width:58px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-secondary);border-radius:8px;padding:7px 6px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;}'
+                +'.sgn-list{display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto;margin-bottom:14px;border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--bg-primary);}'
+                +'.sgn-sess{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;border:1px solid transparent;text-align:left;background:none;font-family:inherit;width:100%;}'
+                +'.sgn-sess:hover{background:var(--bg-secondary);}'
+                +'.sgn-sess.on{background:rgba(201,162,39,.10);border-color:rgba(201,162,39,.4);}'
+                +'.sgn-sess .tick{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;}'
+                +'.sgn-sess.on .tick{background:#0f1c2e;border-color:#0f1c2e;}'
+                +'.sgn-sess .nm{font-size:12.5px;font-weight:600;color:var(--text-primary);line-height:1.3;}'
+                +'.sgn-sess .mt{font-size:11px;color:var(--text-muted);}'
+                +'.sgn-pill{font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:2px 6px;border-radius:20px;margin-left:auto;flex-shrink:0;background:rgba(15,28,46,.12);color:#0f1c2e;}'
+                +'.sgn-btn{border:none;border-radius:11px;padding:13px;font-size:13.5px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-bottom:9px;}'
+                +'.sgn-btn.primary{background:#0f1c2e;color:#fff;}'
+                +'.sgn-btn.ghost{background:var(--bg-primary);border:1px solid var(--border);color:var(--text-secondary);}'
+                +'.sgn-btn:disabled{opacity:.5;cursor:default;}'
+                +'.sgn-note{font-size:11.5px;color:var(--text-muted);line-height:1.55;}'
+                +'.sgn-canvaswrap{width:100%;max-width:430px;border-radius:8px;overflow:hidden;box-shadow:0 16px 44px rgba(9,14,24,.24);background:#0A1E3F;border:1px solid var(--border);}'
+                +'.sgn-canvaswrap.sgn-banner{max-width:250px;}'
+                +'.sgn-canvaswrap canvas{width:100%;height:auto;display:block;}'
+                +'.sgn-meta{font-size:11.5px;color:var(--text-muted);text-align:center;}'
+                +'.sgn-pvnav{display:flex;gap:8px;align-items:center;}'
+                +'.sgn-pvnav button{border:1px solid var(--border);background:var(--bg-primary);color:var(--text-secondary);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;}'
+                +'.sgn-empty{padding:36px 22px;color:var(--text-muted);font-size:13px;text-align:center;max-width:340px;}'
+                +'@media(max-width:960px){.sgn-body{grid-template-columns:1fr;}.sgn-rail{border-right:none;border-bottom:1px solid var(--border);max-height:52vh;}}';
+                var st=document.createElement('style'); st.id='sgnStyle'; st.textContent=css; document.head.appendChild(st);
+            },
+            ensureBuilt(){
+                if(this._built) return; this.ensureStyle();
+                var ov=document.createElement('div'); ov.className='sgn-overlay'; ov.id='sgnOverlay';
+                ov.innerHTML=''
+                +'<div class="sgn-shell">'
+                +'  <div class="sgn-top"><div class="sgn-brand"><i class="fas fa-signs-post"></i> Signage studio <span class="sgn-chip">Renders in your browser</span></div><button class="sgn-x" data-sg="close" aria-label="Close">&times;</button></div>'
+                +'  <div class="sgn-body">'
+                +'    <div class="sgn-rail" id="sgnRail"></div>'
+                +'    <div class="sgn-stage"><div class="sgn-canvaswrap" id="sgPreviewWrap"></div><div class="sgn-pvnav" id="sgPvNav"></div><div class="sgn-meta" id="sgMeta"></div></div>'
+                +'  </div>'
+                +'</div>';
+                document.body.appendChild(ov); this._overlay=ov; this._built=true;
+                var self=this;
+                // ONE delegated click listener for the whole studio (CSP-clean, survives re-renders).
+                ov.addEventListener('click', function(e){
+                    if(e.target===ov){ self.close(); return; }
+                    var el=e.target.closest('[data-sg]'); if(!el) return;
+                    e.preventDefault();
+                    self.act(el.getAttribute('data-sg'), el.getAttribute('data-v')||'', el);
+                });
+                ov.addEventListener('input', function(e){
+                    var el=e.target.closest('[data-sgf]'); if(!el) return;
+                    self.setField(el.getAttribute('data-sgf'), el.value);
+                });
+                ov.addEventListener('change', function(e){ if(e.target&&e.target.id==='sgEvent') self.setEvent(e.target.value); });
+                document.addEventListener('keydown', function(e){ if(e.key==='Escape'&&self._overlay&&self._overlay.classList.contains('active')) self.close(); });
+            },
+            async start(){
+                this.ensureBuilt();
+                this._overlay.classList.add('active'); document.body.style.overflow='hidden';
+                try{ window.MedxSignage.ready(); }catch(e){}
+                var rail=this._overlay.querySelector('#sgnRail');
+                if(rail&&!this.state.ctx) rail.innerHTML='<div style="padding:26px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading…</div>';
+                if(!this.state.ctx) await this.loadContext(this.state.event);
+                if(!this.state.schedLoaded) await this.loadSchedule();
+                this.render();
+            },
+            close(){ if(this._overlay) this._overlay.classList.remove('active'); document.body.style.overflow=''; try{ ContentStudio.init(); }catch(e){} },
+
+            async loadContext(eventKey){
+                var r=await this.api('/api/admin/print/context?event='+encodeURIComponent(eventKey));
+                if(r.ok&&r.d){
+                    this.state.ctx=r.d;
+                    var f=r.d.event||{};
+                    this.state.ban.fields={
+                        eyebrow:'Med&X presents',
+                        headline:f.name||'Med&X',
+                        subEn:'We are delighted to have you with us.',
+                        subHr:'Radujemo se što ste s nama.',
+                        dateLine:f.date||'', dateHr:this._dateHrGuess(),
+                        venueLine:f.venue||'', url:'medx.hr'
+                    };
+                }
+            },
+            async loadSchedule(){
+                var self=this;
+                var r=await this.api('/api/admin/plexus/sessions');
+                var sessions=Array.isArray(r.d)?r.d:[];
+                var c=await this.api('/api/plexus/conference');
+                this.state.conf=(c.ok&&c.d)?c.d:null;
+                this.state.sessions=sessions;
+                this.state.schedLoaded=true;
+                this.state.sel={};
+                sessions.forEach(function(x){ var t=String(x.session_type||'').toLowerCase(); if(t!=='break') self.state.sel[x.id]=true; });
+                if(this.state.conf) this.state.ban.fields.dateHr=this.state.ban.fields.dateHr||this._dateHrGuess();
+            },
+            // "4. – 5. prosinca 2026." from the conference dates (same-month range or one day).
+            _dateHrGuess(){
+                var conf=this.state.conf; if(!conf) return '';
+                var S=window.MedxSignage, d1=S.parseIso(conf.start_date), d2=S.parseIso(conf.end_date);
+                if(!d1) return '';
+                if(!d2||d1.getTime()===d2.getTime()) return d1.getDate()+'. '+S.HR_MONTHS[d1.getMonth()]+' '+d1.getFullYear()+'.';
+                if(d1.getMonth()===d2.getMonth()&&d1.getFullYear()===d2.getFullYear()) return d1.getDate()+'. – '+d2.getDate()+'. '+S.HR_MONTHS[d1.getMonth()]+' '+d1.getFullYear()+'.';
+                return d1.getDate()+'. '+S.HR_MONTHS[d1.getMonth()]+' – '+d2.getDate()+'. '+S.HR_MONTHS[d2.getMonth()]+' '+d2.getFullYear()+'.';
+            },
+            setEvent(k){ var self=this; this.state.event=k; this.loadContext(k).then(function(){ self.render(); }); },
+            setField(k,v){
+                var st=this.state;
+                if(k==='way.en') st.way.en=v; else if(k==='way.hr') st.way.hr=v;
+                else if(k.indexOf('ban.')===0) st.ban.fields[k.slice(4)]=v;
+                clearTimeout(this._t); var self=this; this._t=setTimeout(function(){ self._preview(); },350);
+            },
+            act(a,v){
+                var st=this.state, self=this;
+                if(a==='close'){ this.close(); return; }
+                if(a==='tab'){ st.tab=v; st.pvIdx=0; this.render(); return; }
+                if(a==='paper'){ st.paper=(v==='a3'?'a3':'a4'); this.render(); return; }
+                if(a==='sess'){ st.sel[v]=!st.sel[v]; st.pvIdx=0; this.render(); return; }
+                if(a==='quick'){ this._quick(v); return; }
+                if(a==='pv'){ var jobs=this._jobs(); if(!jobs.length) return; st.pvIdx=Math.max(0,Math.min(jobs.length-1,(st.pvIdx||0)+parseInt(v,10))); this._paintNav(); this._preview(); return; }
+                if(a==='arrow'){ st.way.arrow=v; this.render(); return; }
+                if(a==='preset'){ var p=this.PRESETS[parseInt(v,10)]; if(p){ st.way.en=p[0]; st.way.hr=p[1]; this.render(); } return; }
+                if(a==='tpl'){ st.ban.template=v; this.render(); return; }
+                if(a==='pdf'){ this.downloadPdf(); return; }
+                if(a==='png'){ this.downloadPng(); return; }
+            },
+            _quick(v){
+                var st=this.state; st.sel={};
+                if(v==='all') st.sessions.forEach(function(x){ st.sel[x.id]=true; });
+                else if(v==='talks') st.sessions.forEach(function(x){ var t=String(x.session_type||'').toLowerCase(); if(t!=='break'&&t!=='social') st.sel[x.id]=true; });
+                else if(v.indexOf('day:')===0){ var d=v.slice(4); st.sessions.forEach(function(x){ if(String(x.day)===d) st.sel[x.id]=true; }); }
+                st.pvIdx=0; this.render();
+            },
+
+            // ---------- jobs: what would print right now (drives preview + downloads) ----------
+            _selectedSessions(){ var st=this.state; return (st.sessions||[]).filter(function(x){ return st.sel[x.id]; }); },
+            _sessionJob(x){
+                var S=window.MedxSignage, conf=this.state.conf||{};
+                var start=S.parseIso(conf.start_date);
+                var d=(x.day&&start)?S.addDays(start,(parseInt(x.day,10)||1)-1):null;
+                var timeRange=[x.start_time,x.end_time].filter(Boolean).join(' – ');
+                var speakers=String(x.speaker_names||'').split(',').map(function(t){ return t.trim(); }).filter(Boolean).join(' · ');
+                return { kind:'lecture', name:this._slug(x.title), opts:{ paper:this.state.paper, event:conf.name||'Plexus Conference',
+                    session:{ title:x.title||'Session', type:x.session_type, room:x.room||'', speakers:speakers, timeRange:timeRange,
+                        dateEn:S.dateEn(d), dateHr:S.dateHr(d), dayLabel:x.day?('DAY '+x.day+'  ·  '+x.day+'. DAN'):'' } } };
+            },
+            _jobs(){
+                var self=this, st=this.state;
+                if(st.tab==='lecture') return this._selectedSessions().map(function(x){ return self._sessionJob(x); });
+                return [];
+            },
+            _paperFor(kind){ var P=window.MedxSignage.PAPERS; return kind==='banner'?P.banner:P[this.state.paper==='a3'?'a3':'a4']; },
+            _fileBase(){
+                var st=this.state;
+                if(st.tab==='lecture') return 'lecture-signs-'+st.paper;
+                if(st.tab==='way') return 'wayfinding-'+this._slug(st.way.en)+'-'+st.paper;
+                return 'rollup-'+st.ban.template+'-85x200';
+            },
+
+            // ---------- render (rail + stage) ----------
+            render(){ this.renderRail(); this._paintNav(); this._preview(); },
+            renderRail(){
+                var rail=this._overlay.querySelector('#sgnRail'); if(!rail) return;
+                var st=this.state, self=this;
+                var tabs=this.TABS.map(function(t){ return '<button class="sgn-tab'+(st.tab===t[0]?' on':'')+'" data-sg="tab" data-v="'+t[0]+'"><i class="fas '+t[1]+'"></i>'+t[2]+'</button>'; }).join('');
+                var body='';
+                if(st.tab==='lecture') body=this.railLecture();
+                rail.innerHTML='<div class="sgn-tabs">'+tabs+'</div>'+body;
+            },
+            _paperSeg(){
+                var st=this.state;
+                return '<div class="sgn-sec"><label>Paper size</label><div class="sgn-seg">'
+                    +'<button class="'+(st.paper==='a4'?'on':'')+'" data-sg="paper" data-v="a4">A4 · 300 DPI</button>'
+                    +'<button class="'+(st.paper==='a3'?'on':'')+'" data-sg="paper" data-v="a3">A3 · 300 DPI</button>'
+                    +'</div></div>';
+            },
+            _dlButtons(n,pngLabel){
+                var dis=n?'':' disabled';
+                return '<button class="sgn-btn primary" id="sgPdf" data-sg="pdf"'+dis+'><i class="fas fa-file-pdf"></i> Download PDF'+(n>1?' ('+n+' pages)':'')+'</button>'
+                    +'<button class="sgn-btn ghost" id="sgPng" data-sg="png"'+dis+'><i class="fas fa-file-image"></i> '+(pngLabel||'Download PNG')+'</button>';
+            },
+            railLecture(){
+                var st=this.state, self=this;
+                var conf=st.conf||{};
+                var sel=this._selectedSessions();
+                var days={}; (st.sessions||[]).forEach(function(x){ if(x.day) days[x.day]=true; });
+                var dayBtns=Object.keys(days).sort().map(function(d){ return '<button data-sg="quick" data-v="day:'+d+'">Day '+d+'</button>'; }).join('');
+                var rows=(st.sessions||[]).map(function(x){
+                    var on=!!st.sel[x.id];
+                    var meta=['Day '+(x.day||'?'), [x.start_time,x.end_time].filter(Boolean).join('–'), x.room||''].filter(Boolean).join(' · ');
+                    return '<button class="sgn-sess'+(on?' on':'')+'" data-sg="sess" data-v="'+self.esc(x.id)+'">'
+                        +'<span class="tick">'+(on?'<i class="fas fa-check"></i>':'')+'</span>'
+                        +'<span style="min-width:0;flex:1;"><span class="nm">'+self.esc(x.title||'Session')+'</span><br><span class="mt">'+self.esc(meta)+'</span></span>'
+                        +(x.is_published?'':'<span class="sgn-pill">Draft</span>')
+                        +'</button>';
+                }).join('');
+                var list=rows||'<div class="sgn-empty">No sessions on the schedule yet. Add sessions in the Plexus schedule manager and they appear here.</div>';
+                return ''
+                +'<div class="sgn-summary"><div class="big">'+sel.length+' sign'+(sel.length===1?'':'s')+'</div>'
+                +'<div class="lbl">One A-size sign per selected session, prefilled from the '+this.esc(conf.name||'conference')+' schedule — title, speakers, room and time, bilingual EN + HR.</div></div>'
+                +'<div class="sgn-sec"><label>Sessions</label>'
+                +'<div class="sgn-quick"><button data-sg="quick" data-v="all">All</button><button data-sg="quick" data-v="talks">Talks only</button>'+dayBtns+'<button data-sg="quick" data-v="none">Clear</button></div>'
+                +'<div class="sgn-list">'+list+'</div></div>'
+                +this._paperSeg()
+                +this._dlButtons(sel.length, sel.length>1?'Download PNGs (ZIP)':'Download PNG')
+                +'<div class="sgn-note">True-size, print-ready pages drawn in your browser at 300 DPI — hand the PDF straight to the print shop. Draft sessions print without the draft mark.</div>';
+            },
+
+            _paintNav(){
+                var nav=this._overlay.querySelector('#sgPvNav'); if(!nav) return;
+                var jobs=this._jobs();
+                if(this.state.tab!=='lecture'||jobs.length<2){ nav.innerHTML=''; return; }
+                var i=Math.min(this.state.pvIdx||0,jobs.length-1);
+                nav.innerHTML='<button data-sg="pv" data-v="-1"><i class="fas fa-chevron-left"></i></button>'
+                    +'<span style="font-size:12px;color:var(--text-muted);font-weight:700;">'+(i+1)+' / '+jobs.length+'</span>'
+                    +'<button data-sg="pv" data-v="1"><i class="fas fa-chevron-right"></i></button>';
+            },
+            _preview(){
+                var self=this, wrap=this._overlay.querySelector('#sgPreviewWrap'); if(!wrap) return;
+                var meta=this._overlay.querySelector('#sgMeta');
+                var jobs=this._jobs();
+                if(!jobs.length){
+                    wrap.innerHTML='<div class="sgn-empty">'+(this.state.tab==='lecture'?'Select at least one session to preview its sign.':'Nothing to preview yet.')+'</div>';
+                    if(meta) meta.textContent=''; return;
+                }
+                var idx=Math.min(this.state.pvIdx||0,jobs.length-1); this.state.pvIdx=idx;
+                var job=jobs[idx];
+                window.MedxSignage.ready().then(function(){
+                    try{
+                        var opts=Object.assign({},job.opts,{ px: job.kind==='banner'?520:640 });
+                        var cv=window.MedxSignage.render(job.kind,opts);
+                        wrap.innerHTML=''; wrap.appendChild(cv);
+                        wrap.classList.toggle('sgn-banner', job.kind==='banner');
+                        if(meta){
+                            var p=self._paperFor(job.kind);
+                            var full=Math.round(p.px)+' × '+Math.round(p.px*p.units/1000)+' px';
+                            meta.textContent=p.name+' · '+p.dpi+' DPI on download ('+full+') · bilingual EN + HR';
+                        }
+                    }catch(e){ console.error('signage preview failed',e); }
+                });
+            },
+
+            // ---------- downloads (all client-side; zero server writes) ----------
+            _save(blob,name){ var url=URL.createObjectURL(blob); var a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){ URL.revokeObjectURL(url); },2500); },
+            _btn(id,html,dis){ var b=this._overlay.querySelector('#'+id); if(b){ b.innerHTML=html; b.disabled=!!dis; } },
+            async _canvasJpeg(cv,q){ var blob=await new Promise(function(res){ cv.toBlob(res,'image/jpeg',q||0.92); }); if(!blob) throw new Error('canvas too large to encode'); return new Uint8Array(await blob.arrayBuffer()); },
+            async downloadPdf(){
+                if(this._busy) return;
+                var jobs=this._jobs(); if(!jobs.length){ this.toast('Nothing selected to render','warning'); return; }
+                this._busy=true; this._btn('sgPdf','<i class="fas fa-spinner fa-spin"></i> Rendering…',true);
+                try{
+                    await window.MedxSignage.ready();
+                    var pages=[];
+                    for(var i=0;i<jobs.length;i++){
+                        var p=this._paperFor(jobs[i].kind);
+                        var cv=window.MedxSignage.render(jobs[i].kind,jobs[i].opts);
+                        pages.push({ jpeg:await this._canvasJpeg(cv), wPx:cv.width, hPx:cv.height, ptW:p.ptW, ptH:p.ptH });
+                        this._btn('sgPdf','<i class="fas fa-spinner fa-spin"></i> Rendering '+(i+1)+'/'+jobs.length,true);
+                    }
+                    this._save(window.MedxPagePdf.build(pages), this._fileBase()+'.pdf');
+                    this.toast('Print-ready PDF downloaded — '+pages.length+' page'+(pages.length===1?'':'s'),'success');
+                }catch(e){ console.error('signage pdf failed',e); this.toast('Could not build the PDF','error'); }
+                this._busy=false; this.renderRail();
+            },
+            async downloadPng(){
+                if(this._busy) return;
+                var jobs=this._jobs(); if(!jobs.length){ this.toast('Nothing selected to render','warning'); return; }
+                this._busy=true; this._btn('sgPng','<i class="fas fa-spinner fa-spin"></i> Rendering…',true);
+                try{
+                    await window.MedxSignage.ready();
+                    if(jobs.length===1){
+                        var cv=window.MedxSignage.render(jobs[0].kind,jobs[0].opts);
+                        var blob=await new Promise(function(res){ cv.toBlob(res,'image/png'); });
+                        if(!blob) throw new Error('canvas too large to encode');
+                        this._save(blob, jobs[0].name+'-'+this._fileBase()+'.png');
+                    } else {
+                        var files=[], used={};
+                        for(var i=0;i<jobs.length;i++){
+                            var c2=window.MedxSignage.render(jobs[i].kind,jobs[i].opts);
+                            var b2=await new Promise(function(res){ c2.toBlob(res,'image/png'); });
+                            if(!b2) throw new Error('canvas too large to encode');
+                            var nm=jobs[i].name, k=2; while(used[nm]){ nm=jobs[i].name+'-'+k; k++; } used[nm]=true;
+                            files.push({ name:nm+'.png', data:new Uint8Array(await b2.arrayBuffer()) });
+                            this._btn('sgPng','<i class="fas fa-spinner fa-spin"></i> Rendering '+(i+1)+'/'+jobs.length,true);
+                        }
+                        this._save(window.MedxZip.build(files), this._fileBase()+'.zip');
+                    }
+                    this.toast(jobs.length+' PNG'+(jobs.length===1?'':'s')+' downloaded','success');
+                }catch(e){ console.error('signage png failed',e); this.toast('Could not render the PNG','error'); }
+                this._busy=false; this.renderRail();
+            }
+        };
+        window.SignageStudio = SignageStudio;
+        // CSP-clean trigger (delegated — no inline on* handler on the Content Studio surface button).
+        document.addEventListener('click', function(e){ var el=e.target.closest && e.target.closest('[data-signage-open]'); if(el){ e.preventDefault(); try{ SignageStudio.start(); }catch(err){ console.error(err); } } });
 
 
         // ==================== ADVISORY COUNCIL INVITATION — print-grade renderer ====================
