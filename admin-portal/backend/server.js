@@ -928,6 +928,20 @@ process.on('unhandledRejection', (reason) => { console.error('[unhandledRejectio
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'development' ? 'medx-dev-secret' : (() => { console.error('FATAL: JWT_SECRET environment variable is required in production'); process.exit(1); })());
 
+// Public marketing-website API (/api/public/*) is fetched cross-origin by the Med&X
+// website (Netlify preview + production). Scope an explicit origin allowlist to these
+// read-only endpoints ONLY, and register it BEFORE the global CORS policy so it owns the
+// preflight for this path (the global policy is env-restricted in production and would
+// otherwise short-circuit the OPTIONS request without an Access-Control-Allow-Origin
+// header). This never opens CORS globally and never touches the Stripe/checkout/
+// registration surfaces. See website audit B5.
+const PUBLIC_API_ORIGINS = [
+  'https://medx-website-preview.netlify.app',
+  'https://www.medx.hr',
+  'https://medx.hr'
+];
+app.use('/api/public', cors({ origin: PUBLIC_API_ORIGINS }));
+
 app.use(cors({
   origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : true,
   credentials: true
