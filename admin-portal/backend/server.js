@@ -33690,7 +33690,11 @@ ${extraCss || ''}
             const id = uuidv4(); const ext = isPng ? 'png' : 'jpg';
             const fname = 'council-' + id + '.' + ext;
             fs.writeFileSync(path.join(dir, fname), buf);
-            const url = `${seatPublicBase(req)}/uploads/content-studio/${fname}`;
+            // Behind Render's proxy req.protocol reads http (no app-wide trust proxy); force https for
+            // non-local hosts so the stored URL is fetchable from https pages (no mixed content).
+            let base = seatPublicBase(req);
+            if (!/^https?:\/\/(localhost|127\.)/.test(base)) base = base.replace(/^http:\/\//, 'https://');
+            const url = `${base}/uploads/content-studio/${fname}`;
             try {
                 db.run(`INSERT INTO content_studio_assets (id, kind, template, aspect, project, title, caption, asset_url, mime, bytes, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?, datetime('now'))`,
                     [id, 'invitation', 'council', 'a4-portrait', 'advisory-council', ('Advisory Council — ' + (invName || '')).slice(0, 200), '', url, isPng ? 'image/png' : 'image/jpeg', buf.length, (req.user && req.user.id) || null]);
