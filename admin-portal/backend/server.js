@@ -33202,7 +33202,7 @@ ${showContact ? `<div class="block"><h4>${contactLabel}</h4><p>${contact}</p></d
             let role = row.role || 'attendee';
             if (role === 'attendee' && email && staffEmails.has(email)) role = 'staff';
             const mq = psMemberQr(req, row.user_id, email);
-            people.push({ name: nm || email, institution: String(row.institution || '').trim(), role, qr: mq.qr, quiet: mq.quiet, member: mq.member, source: row.source || key });
+            people.push({ name: nm || email, email, institution: String(row.institution || '').trim(), role, qr: mq.qr, quiet: mq.quiet, member: mq.member, source: row.source || key });
         };
         // Confirmed speakers first (so a registrant who is also a speaker keeps the speaker badge).
         if (opts.speakers !== false) {
@@ -33537,6 +33537,93 @@ ${extraCss || ''}
 
     // ============================ /EVENT PRINT SUITE ============================
 
+
+    // ==================== "I'M ATTENDING" CARD ENGINE — batch generator ====================
+    // A Content Studio sibling of the badge suite. Cards are MARKETING assets (NO QR — never the
+    // frozen ticket QR, never a credential). Rendering happens CLIENT-SIDE on a dependency-free
+    // Canvas2D renderer shared with the member portal, so it works on prod with no headless Chrome.
+    // These two routes only (a) hand the client the roster + resolved photos and (b) optionally stage
+    // the rendered cards to speakers/registrants through the SAME approval-outbox + drip_log flow the
+    // speaker kits use. Photos are resolved server-side to data URIs ONLY when the file is local, so
+    // the client canvas never taints (a remote-only photo falls back to an elegant monogram).
+    function cardResolvePhoto(url) {
+        try { const local = psLocalPathForUrl(url); if (local && fs.existsSync(local)) return psDataUri(local); } catch (e) {}
+        return null;
+    }
+    app.get('/api/admin/cards/roster', auth, adminOnly, asyncHandler(async (req, res) => {
+        const eventKey = String(req.query.event || 'conference');
+        const facts = psEventFacts(eventKey);
+        const people = psEventPeople(req, eventKey, { staff: false, speakers: true });
+        const speakerMap = {};
+        try { psSpeakers(80).forEach(s => { if (s.name) speakerMap[String(s.name).trim().toLowerCase()] = s; }); } catch (e) {}
+        const roster = people.map(p => {
+            let sub = p.institution || '';
+            let photo = null;
+            if (p.role === 'speaker') {
+                const s = speakerMap[String(p.name).trim().toLowerCase()];
+                if (s) { sub = [s.title, s.institution].filter(Boolean).join(' · ') || sub; photo = cardResolvePhoto(s.photo_url); }
+            }
+            return { name: p.name, email: p.email || '', role: p.role, sub, quiet: !!p.quiet, member: !!p.member, photo, hasEmail: !!p.email };
+        });
+        const counts = { total: roster.length, speaker: 0, attendee: 0, guest: 0, withPhoto: 0, withEmail: 0 };
+        roster.forEach(r => { counts[r.role] = (counts[r.role] || 0) + 1; if (r.photo) counts.withPhoto++; if (r.hasEmail) counts.withEmail++; });
+        res.json({ event: facts, events: psEvents(), roster, counts });
+    }));
+
+    // Stage rendered cards into the approval outbox (approve-once), one warm bilingual email per
+    // recipient linking to their hosted card image. Idempotent per (event, email) via drip_log.
+    app.post('/api/admin/cards/send', auth, adminOnly, express.json({ limit: '30mb' }), (req, res) => {
+        const b = req.body || {};
+        const eventKey = String(b.event_key || 'conference');
+        const facts = psEventFacts(eventKey);
+        const items = Array.isArray(b.items) ? b.items.slice(0, 60) : [];
+        if (!items.length) return res.status(400).json({ error: 'no_recipients', message: 'Select at least one recipient with an email address.' });
+        const batchId = 'attendance-cards-' + eventKey;
+        const dir = path.join(uploadsDir, 'content-studio');
+        try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); } catch (e) {}
+        let staged = 0, saved = 0, skipped = 0;
+        for (const it of items) {
+            const email = String(it && it.email || '').trim().toLowerCase();
+            const name = String(it && it.name || '').trim();
+            const img = String(it && it.img || '');
+            if (!email || !/^data:image\/(png|jpe?g);base64,/.test(img)) { skipped++; continue; }
+            const marker = `attendance_card:${eventKey}:${email}`;
+            if (query.get("SELECT 1 AS x FROM drip_log WHERE user_id = 'attendance-card' AND kind = ?", [marker])) { skipped++; continue; }
+            // persist the card image as a content-studio asset
+            let url = '';
+            try {
+                const ext = /png/.test(img.slice(0, 20)) ? 'png' : 'jpg';
+                const buf = Buffer.from(img.replace(/^data:image\/[^;]+;base64,/, ''), 'base64');
+                if (buf.length > 6 * 1024 * 1024) { skipped++; continue; }
+                const id = uuidv4(); const fname = 'card-' + id + '.' + ext;
+                fs.writeFileSync(path.join(dir, fname), buf);
+                url = `${seatPublicBase(req)}/uploads/content-studio/${fname}`;
+                try { db.run(`INSERT INTO content_studio_assets (id, kind, template, aspect, project, title, caption, asset_url, mime, bytes, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?, datetime('now'))`,
+                    [id, 'card', 'attending', String(it.orientation || 'portrait').slice(0, 16), eventKey, (facts.name + ' — ' + name).slice(0, 200), '', url, ext === 'png' ? 'image/png' : 'image/jpeg', buf.length, (req.user && req.user.id) || null]); } catch (e) {}
+                saved++;
+            } catch (e) { skipped++; continue; }
+            const first = seatEsc((name.split(' ')[0]) || 'there');
+            const evName = seatEsc(facts.name || 'our event');
+            const subject = `Your ${facts.name || 'Med&X'} card is ready to share`;
+            const html = buildEmailTemplate('Your card is ready', `
+                <p>Dear ${first},</p>
+                <p>We have prepared a card you can share to announce that you will be at <strong>${evName}</strong>. It is yours to post on LinkedIn or Instagram.</p>
+                <p style="text-align:center;margin:22px 0;"><img src="${url}" alt="${seatEsc(facts.name || '')} card" style="max-width:320px;width:100%;border-radius:14px;border:1px solid #e2e8f0;"></p>
+                <p style="text-align:center;"><a href="${url}" style="display:inline-block;background:#0E2140;color:#fff;text-decoration:none;padding:11px 22px;border-radius:9px;font-weight:700;">Download your card</a></p>
+                <hr style="border:none;border-top:1px solid #e2e8f0;margin:22px 0;">
+                <p style="color:#64748b;">Dragi/draga ${first}, pripremili smo Vam karticu kojom možete najaviti svoj dolazak na skup <strong>${evName}</strong>. Slobodno je podijelite na LinkedInu ili Instagramu.</p>
+                <p style="color:#64748b;font-size:13px;margin-top:18px;">Med&amp;X tim</p>
+            `);
+            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                    VALUES (?, 'pending_approval', ?, 'attendance-cards', 'attendance_card', ?, ?, ?, 'attendance-card-engine', datetime('now'))`,
+                [uuidv4(), batchId, JSON.stringify({ to: email, subject, html }), email, subject]);
+            db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'attendance-card', ?, ?)", [uuidv4(), email, marker]);
+            staged++;
+        }
+        try { logAudit(req, 'cards.send', `${eventKey}: staged ${staged} attendance card email(s), ${saved} asset(s), ${skipped} skipped`); } catch (e) {}
+        saveDb();
+        res.json({ success: true, staged, saved, skipped, outbox_batch: batchId });
+    });
 
     // ========== OUTBOX (batch approval + send drainer surface) ==========
     // The drainer (in the app.listen block below) sends scheduled_emails rows whose

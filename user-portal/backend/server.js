@@ -7881,6 +7881,22 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    // ===== "I'm attending" CARD ENGINE (growth feature) — user-portal only, OUTSIDE the mirror =====
+    // The member card is a MARKETING asset (no QR, not a credential). When a member chooses to put
+    // their own photo/likeness on a shareable card we record their explicit, un-pre-ticked consent
+    // here for the sole stated purpose of generating that image on their own device. The card itself
+    // is rendered entirely client-side (canvas) and never leaves the browser, so we store only the
+    // consent flag — never the photo. One row per member, upserted. Idempotent.
+    db.run(`CREATE TABLE IF NOT EXISTS card_photo_consents (
+        user_id TEXT PRIMARY KEY,
+        email TEXT,
+        consent INTEGER DEFAULT 0,
+        consent_at TEXT,
+        source TEXT DEFAULT 'im-attending-card',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
     // ============ ACCELERATOR / ABSTRACT SUBMISSION-AND-SCORING PIPELINE (SHARED) ============
     // Generic intake + review pipeline. The applicant surface (user portal) writes drafts and
     // submissions here; the review surface (admin portal) reads them, assigns reviewers, and records
@@ -10874,6 +10890,24 @@ async function submitReset(e){
                 has_data: hasData
             });
         } catch (e) { console.error('wrapped failed:', e); res.status(500).json({ error: 'Failed to load your recap' }); }
+    });
+
+    // "I'm attending" card — record the member's explicit consent to place their photo on a
+    // shareable marketing card. The card renders entirely on the member's device (canvas); the photo
+    // never leaves the browser, so we persist only the consent flag (GDPR data-minimisation). Sending
+    // consent=false clears a prior consent. Never a credential, never a QR.
+    app.post('/api/member/card-consent', auth, (req, res) => {
+        try {
+            const consent = (req.body && (req.body.consent === true || req.body.consent === 1 || req.body.consent === '1')) ? 1 : 0;
+            const user = query.get('SELECT id, email FROM users WHERE id = ?', [req.user.id]);
+            if (!user) return res.status(404).json({ error: 'User not found' });
+            db.run(`INSERT INTO card_photo_consents (user_id, email, consent, consent_at, updated_at)
+                    VALUES (?, ?, ?, ?, datetime('now'))
+                    ON CONFLICT(user_id) DO UPDATE SET consent = excluded.consent, consent_at = excluded.consent_at, email = excluded.email, updated_at = datetime('now')`,
+                [user.id, user.email || '', consent, consent ? new Date().toISOString() : null]);
+            saveDb();
+            res.json({ success: true, consent: !!consent });
+        } catch (e) { console.error('card-consent failed:', e); res.status(500).json({ error: 'Could not record your choice' }); }
     });
 
     // Google Wallet "Save to Wallet" link (queue 5a5l) — a signed generic-pass JWT built server-side.

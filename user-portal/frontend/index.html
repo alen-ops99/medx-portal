@@ -57239,6 +57239,35 @@ button,input,select,textarea{font-family:var(--sans);}
             'mmx.lcGoogleSoon':   {en:'Google Wallet is not set up yet. Your team can enable it shortly.', hr:'Google Wallet još nije postavljen. Vaš ga tim može uskoro omogućiti.'},
             'mmx.lcWalletErr':    {en:'We could not prepare your wallet pass. Please try again in a moment.', hr:'Nismo mogli pripremiti vašu propusnicu za novčanik. Pokušajte ponovno za trenutak.'},
 
+            // --- "I'm attending" card engine (growth feature) ---
+            'imc.blockTitle':     {en:'Announce you’re attending', hr:'Najavite svoj dolazak'},
+            'imc.blockNote':      {en:'A card you can share on LinkedIn or Instagram. Your face, our line, one tap to post.', hr:'Kartica koju možete podijeliti na LinkedInu ili Instagramu. Vaše lice, naša nit, objava u jednom dodiru.'},
+            'imc.blockCta':       {en:'Create your attendance card', hr:'Izradite karticu dolaska'},
+            'imc.studioTitle':    {en:'Your attendance card', hr:'Vaša kartica dolaska'},
+            'imc.studioSub':      {en:'Choose a frame, add your photo, and share that you will be there.', hr:'Odaberite okvir, dodajte fotografiju i podijelite da ćete biti ondje.'},
+            'imc.orientPortrait': {en:'Portrait', hr:'Uspravno'},
+            'imc.orientLandscape':{en:'Wide', hr:'Široko'},
+            'imc.frame':          {en:'Frame', hr:'Okvir'},
+            'imc.event':          {en:'Event', hr:'Događaj'},
+            'imc.evtConference':  {en:'Plexus Conference', hr:'Plexus konferencija'},
+            'imc.evtGala':        {en:'Plexus Gala', hr:'Plexus Gala'},
+            'imc.photo':          {en:'Photo', hr:'Fotografija'},
+            'imc.usePhoto':       {en:'Upload a photo', hr:'Učitajte fotografiju'},
+            'imc.useProfile':     {en:'Use my profile photo', hr:'Fotografija s profila'},
+            'imc.noPhoto':        {en:'No photo (monogram)', hr:'Bez fotografije (monogram)'},
+            'imc.photoHint':      {en:'Portraits look best. Your photo stays on your device and is not stored by Med&X.', hr:'Najbolje izgledaju portreti. Vaša fotografija ostaje na Vašem uređaju i Med&X je ne pohranjuje.'},
+            'imc.consentLabel':   {en:'I agree to place my photo on this card. It is created on my device and Med&X does not store it.', hr:'Pristajem staviti svoju fotografiju na ovu karticu. Kartica se izrađuje na mojem uređaju i Med&X je ne pohranjuje.'},
+            'imc.consentNeeded':  {en:'Please tick the photo consent to use your photo. Without it, the card uses an elegant monogram.', hr:'Označite privolu za fotografiju kako biste je upotrijebili. Bez nje kartica koristi elegantan monogram.'},
+            'imc.eyebrow':        {en:'I’m attending', hr:'Sudjelujem'},
+            'imc.dlPortrait':     {en:'Download portrait', hr:'Preuzmite uspravnu'},
+            'imc.dlLandscape':    {en:'Download wide', hr:'Preuzmite široku'},
+            'imc.copyEn':         {en:'Copy caption (EN)', hr:'Kopirajte opis (EN)'},
+            'imc.copyHr':         {en:'Copy caption (HR)', hr:'Kopirajte opis (HR)'},
+            'imc.copied':         {en:'Caption copied', hr:'Opis je kopiran'},
+            'imc.downloaded':     {en:'Card downloaded', hr:'Kartica je preuzeta'},
+            'imc.dlErr':          {en:'We could not create the image. Please try again.', hr:'Nismo mogli izraditi sliku. Pokušajte ponovno.'},
+            'imc.photoErr':       {en:'We could not read that image. Please choose another.', hr:'Nismo mogli učitati tu sliku. Odaberite drugu.'},
+
             // --- MyMedX: purchases + refund inquiry ---
             'mmx.purchasesEmpty': {en:'Your purchases and receipts appear here after you register for a Med&X event.', hr:'Vaše se kupnje i računi ovdje pojavljuju nakon prijave na Med&X događaj.'},
             'mmx.invoiceNo':      {en:'Invoice #', hr:'Račun br. '},
@@ -71570,6 +71599,13 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                             </div>
                             <div class="mmx-share">
+                                <div class="mmx-share-head"><i class="fas fa-id-card-clip"></i><span data-i18n="imc.blockTitle">Announce you’re attending</span></div>
+                                <p class="mmx-share-note" data-i18n="imc.blockNote">A card you can share on LinkedIn or Instagram. Your face, our line, one tap to post.</p>
+                                <div class="mmx-share-actions">
+                                    <button type="button" class="mmx-share-btn" data-imc-open><i class="fas fa-image"></i> <span data-i18n="imc.blockCta">Create your attendance card</span></button>
+                                </div>
+                            </div>
+                            <div class="mmx-share">
                                 <div class="mmx-share-head"><i class="fas fa-share-nodes"></i><span data-i18n="mmx.shareMembTitle">Share your membership</span></div>
                                 <p class="mmx-share-note" data-i18n="mmx.shareMembNote">Prove your active Med&amp;X membership with a public link, or add it to your LinkedIn profile as a credential.</p>
                                 <div class="mmx-share-actions">
@@ -81109,6 +81145,445 @@ You can use variables like {first_name} that will be personalized for each recip
 
             relocalize(){ try{ this.renderPrograms(); this.renderInterests(); this.renderNetworkStats(); if(this._regs){ this.renderRecognition(this._regs); this._renderWalletCards(this._regs); this.renderPurchases(this._regs); } if(this._record!==undefined){ this._renderRecordHtml(this._record); } if(this._giving!==undefined){ this._paintGiving(); } this.loadPoints(); this.renderMembershipCardVisual(); this.renderGuestPasses(); }catch(e){} }
         };
+
+        // ============================================================================
+        // "I'M ATTENDING" CARD ENGINE (the owner's growth feature).
+        // A shareable MARKETING asset — NOT a credential, carries NO QR (never touches the frozen
+        // ticket QR). Rendered entirely on the member's device with a dependency-free Canvas2D
+        // renderer (also reused by the admin batch generator), so it works on prod with no headless
+        // Chrome. Navy/gold heritage system, the Croatian pleter accent, and the "Golden Line"
+        // campaign device. Photos stay on-device (consent flag only is recorded server-side).
+        // ============================================================================
+        window.MedxCard = (function(){
+            var PAL = { navy:'#0E2140', navyDeep:'#0A1730', navy2:'#12305A', gold:'#C9A227', goldLight:'#E6C878', goldPale:'#F0DDA8', goldDeep:'#9C7C1A', paper:'#FBF6EA', cream:'#F4EAD2', crimson:'#9B1B22', ink:'#1C1A14', white:'#FFFFFF', muted:'#8A7F6B' };
+            var DISPLAY = "'Fraunces', Georgia, 'Times New Roman', serif";
+            var LABEL = "'Inter', -apple-system, 'Helvetica Neue', Arial, sans-serif";
+            var FRAMES = [
+                { id:'heritage', name:'Heritage', nameHr:'Baština' },
+                { id:'pleter',   name:'Pleter',   nameHr:'Pleter' },
+                { id:'gala',     name:'Gala',     nameHr:'Gala' }
+            ];
+            function size(orient){ return orient === 'landscape' ? { w:1200, h:630 } : { w:1080, h:1350 }; }
+            function roundRect(ctx,x,y,w,h,r){ if(w<2*r)r=w/2; if(h<2*r)r=h/2; ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+            function goldGrad(ctx,x0,y0,x1,y1){ var g=ctx.createLinearGradient(x0,y0,x1,y1); g.addColorStop(0,'#9C7C1A'); g.addColorStop(.28,PAL.gold); g.addColorStop(.5,PAL.goldLight); g.addColorStop(.72,PAL.gold); g.addColorStop(1,'#9C7C1A'); return g; }
+            function drawCover(ctx,img,x,y,w,h){ try{ var ir=img.width/img.height, r=w/h, sw,sh,sx,sy; if(ir>r){ sh=img.height; sw=sh*r; sx=(img.width-sw)/2; sy=0; } else { sw=img.width; sh=sw/r; sx=0; sy=(img.height-sh)/2; } ctx.drawImage(img,sx,sy,sw,sh,x,y,w,h); }catch(e){} }
+            function initials(name){ var p=String(name||'').trim().split(/\s+/).filter(Boolean); if(!p.length) return 'MX'; return (p[0].charAt(0)+(p.length>1?p[p.length-1].charAt(0):'')).toUpperCase(); }
+            // Golden monogram fallback — a gold-ringed roundel with the member's initials in serif.
+            function drawMonogram(ctx,cx,cy,rad,ini,onDark){
+                ctx.save();
+                ctx.beginPath(); ctx.arc(cx,cy,rad,0,Math.PI*2);
+                ctx.fillStyle = onDark ? PAL.navy2 : PAL.navy; ctx.fill();
+                ctx.lineWidth = Math.max(3, rad*0.05); ctx.strokeStyle = goldGrad(ctx,cx-rad,cy-rad,cx+rad,cy+rad); ctx.stroke();
+                ctx.beginPath(); ctx.arc(cx,cy,rad*0.86,0,Math.PI*2); ctx.lineWidth = Math.max(1, rad*0.012); ctx.strokeStyle='rgba(230,201,135,.45)'; ctx.stroke();
+                ctx.fillStyle = PAL.goldLight; ctx.textAlign='center'; ctx.textBaseline='middle';
+                ctx.font = '600 ' + Math.round(rad*0.9) + "px " + DISPLAY;
+                ctx.fillText(ini, cx, cy+rad*0.04);
+                ctx.restore();
+            }
+            // A braided gold cord — a warm nod to the Croatian pleter (troplet) interlace.
+            function drawPleter(ctx,x,y,w,h,vertical){
+                ctx.save();
+                var strands=3, amp=(vertical?w:h)*0.30, lam=(vertical?w:h)*2.1, mid=(vertical?x+w/2:y+h/2);
+                ctx.lineCap='round';
+                for(var s=0;s<strands;s++){
+                    var ph=(Math.PI*2/strands)*s;
+                    ctx.beginPath();
+                    if(vertical){ for(var t=0;t<=h;t+=6){ var xx=mid+amp*Math.sin((Math.PI*2*t/lam)+ph); if(t===0)ctx.moveTo(xx,y+t); else ctx.lineTo(xx,y+t); } }
+                    else { for(var u=0;u<=w;u+=6){ var yy=mid+amp*Math.sin((Math.PI*2*u/lam)+ph); if(u===0)ctx.moveTo(x+u,yy); else ctx.lineTo(x+u,yy); } }
+                    ctx.lineWidth = (vertical?w:h)*0.12; ctx.strokeStyle = goldGrad(ctx,x,y,x+ (vertical?w:0), y+(vertical?0:h)); ctx.globalAlpha = 0.9 - s*0.16; ctx.stroke();
+                }
+                ctx.restore();
+            }
+            function goldLine(ctx,x,y,w){ ctx.save(); var g=goldGrad(ctx,x,y,x+w,y); ctx.fillStyle=g; ctx.fillRect(x,y,w,3); ctx.restore(); }
+            // Largest size from list that fits maxW on one line; else wrap to 2 lines at the smallest.
+            function fitName(ctx,name,maxW,sizes){
+                for(var i=0;i<sizes.length;i++){ ctx.font='600 '+sizes[i]+'px '+DISPLAY; if(ctx.measureText(name).width<=maxW) return { size:sizes[i], lines:[name] }; }
+                var sz=sizes[sizes.length-1]; ctx.font='600 '+sz+'px '+DISPLAY;
+                var words=String(name).split(/\s+/), lines=[], cur='';
+                for(var w=0;w<words.length;w++){ var test=cur?cur+' '+words[w]:words[w]; if(ctx.measureText(test).width>maxW && cur){ lines.push(cur); cur=words[w]; } else cur=test; if(lines.length>=1 && w<words.length-1){ /* allow 2nd line to keep filling */ } }
+                if(cur) lines.push(cur);
+                if(lines.length>2){ lines=[lines[0], lines.slice(1).join(' ')]; }
+                return { size:sz, lines:lines };
+            }
+            function label(ctx,text,x,y,spacing,size,color,align){
+                ctx.save(); ctx.fillStyle=color; ctx.textAlign=align||'left'; ctx.textBaseline='alphabetic'; ctx.font='700 '+size+'px '+LABEL;
+                var s=String(text||''); if(!spacing){ ctx.fillText(s,x,y); ctx.restore(); return; }
+                // manual letter-spacing for even kerning across browsers
+                var total=0,i; for(i=0;i<s.length;i++){ total+=ctx.measureText(s[i]).width+spacing; } total-=spacing;
+                var cx = align==='center' ? x-total/2 : (align==='right' ? x-total : x);
+                ctx.textAlign='left';
+                for(i=0;i<s.length;i++){ ctx.fillText(s[i],cx,y); cx+=ctx.measureText(s[i]).width+spacing; }
+                ctx.restore();
+            }
+
+            function render(opts){
+                opts = opts || {};
+                var orient = opts.orientation === 'landscape' ? 'landscape' : 'portrait';
+                var d = size(orient);
+                var cv = document.createElement('canvas'); cv.width=d.w; cv.height=d.h;
+                var ctx = cv.getContext('2d');
+                var frame = opts.frame || 'heritage';
+                var name = String(opts.name||'Med&X').trim();
+                var ini = initials(name);
+                if(frame==='pleter') drawPleterFrame(ctx,d,orient,opts,name,ini);
+                else if(frame==='gala') drawGalaFrame(ctx,d,orient,opts,name,ini);
+                else drawHeritageFrame(ctx,d,orient,opts,name,ini);
+                return cv;
+            }
+
+            // ---- Frame 1: Heritage (navy) ---------------------------------------------------------
+            function drawHeritageFrame(ctx,d,orient,o,name,ini){
+                var g=ctx.createLinearGradient(0,0,0,d.h); g.addColorStop(0,PAL.navy); g.addColorStop(1,PAL.navyDeep);
+                ctx.fillStyle=g; ctx.fillRect(0,0,d.w,d.h);
+                var glow=ctx.createRadialGradient(d.w*0.22,d.h*0.16,0,d.w*0.22,d.h*0.16,d.w*0.7);
+                glow.addColorStop(0,'rgba(230,201,135,.16)'); glow.addColorStop(.5,'rgba(230,201,135,.04)'); glow.addColorStop(1,'rgba(230,201,135,0)');
+                ctx.fillStyle=glow; ctx.fillRect(0,0,d.w,d.h);
+                ctx.fillStyle=goldGrad(ctx,0,0,d.w,0); ctx.fillRect(0,0,d.w,10);
+                if(orient==='landscape'){
+                    var pr=200, pcx=250, pcy=d.h/2;
+                    photoRoundel(ctx,o.photo,pcx,pcy,pr,ini,true);
+                    var tx=500;
+                    label(ctx,o.eyebrow||'',tx,pcy-160,7,26,PAL.goldLight,'left');
+                    var fn=fitName(ctx,name,d.w-tx-70,[62,54,46,40]); ctx.fillStyle=PAL.white; ctx.textAlign='left';
+                    var ny=pcy-160+58; fn.lines.forEach(function(ln){ ctx.font='600 '+fn.size+'px '+DISPLAY; ctx.fillText(ln,tx,ny); ny+=fn.size*1.05; });
+                    if(o.sub){ ctx.fillStyle='rgba(230,201,135,.85)'; ctx.font='400 24px '+LABEL; ctx.fillText(clip(ctx,o.sub,d.w-tx-70,'400 24px '+LABEL),tx,ny+8); ny+=40; }
+                    goldLine(ctx,tx,ny+18,150);
+                    ctx.fillStyle=PAL.goldLight; ctx.font='600 22px '+DISPLAY; ctx.fillText(o.lockup||'',tx,ny+64);
+                    if(o.dateline){ ctx.fillStyle='rgba(255,255,255,.66)'; ctx.font='400 17px '+LABEL; ctx.fillText(o.dateline,tx,ny+92); }
+                    return;
+                }
+                var cx=d.w/2;
+                photoRoundel(ctx,o.photo,cx,430,230,ini,true);
+                label(ctx,o.eyebrow||'',cx,760,9,30,PAL.goldLight,'center');
+                var fn2=fitName(ctx,name,d.w-160,[92,78,66,56]); ctx.fillStyle=PAL.white; ctx.textAlign='center';
+                var y=760+118; fn2.lines.forEach(function(ln){ ctx.font='600 '+fn2.size+'px '+DISPLAY; ctx.fillText(ln,cx,y); y+=fn2.size*1.02; });
+                if(o.sub){ ctx.fillStyle='rgba(230,201,135,.85)'; ctx.font='400 30px '+LABEL; ctx.textAlign='center'; ctx.fillText(clip(ctx,o.sub,d.w-200,'400 30px '+LABEL),cx,y+14); y+=52; }
+                ctx.save(); goldLine(ctx,cx-90,y+40,180); ctx.restore();
+                ctx.fillStyle=PAL.goldLight; ctx.font='600 34px '+DISPLAY; ctx.textAlign='center'; ctx.fillText(o.lockup||'',cx,y+112);
+                if(o.dateline){ ctx.fillStyle='rgba(255,255,255,.66)'; ctx.font='400 22px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.dateline,cx,y+150); }
+                ctx.fillStyle='rgba(230,201,135,.6)'; ctx.font='400 20px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.footer||'medx.hr',cx,d.h-48);
+            }
+
+            // ---- Frame 2: Pleter (paper) ----------------------------------------------------------
+            function drawPleterFrame(ctx,d,orient,o,name,ini){
+                ctx.fillStyle=PAL.paper; ctx.fillRect(0,0,d.w,d.h);
+                var vign=ctx.createRadialGradient(d.w/2,d.h*0.4,d.w*0.2,d.w/2,d.h*0.5,d.w*0.8);
+                vign.addColorStop(0,'rgba(0,0,0,0)'); vign.addColorStop(1,'rgba(120,95,30,.07)'); ctx.fillStyle=vign; ctx.fillRect(0,0,d.w,d.h);
+                if(orient==='landscape'){
+                    ctx.fillStyle=PAL.cream; ctx.fillRect(0,0,96,d.h); drawPleter(ctx,20,20,56,d.h-40,true);
+                    ctx.fillStyle=goldGrad(ctx,0,0,d.w,0); ctx.fillRect(96,0,d.w-96,6);
+                    var pr=190, pcx=330, pcy=d.h/2; photoRoundel(ctx,o.photo,pcx,pcy,pr,ini,false,true);
+                    var tx=560;
+                    label(ctx,o.eyebrow||'',tx,pcy-150,6,24,PAL.crimson,'left');
+                    var fn=fitName(ctx,name,d.w-tx-60,[60,52,44,38]); ctx.fillStyle=PAL.navy; ctx.textAlign='left';
+                    var ny=pcy-150+56; fn.lines.forEach(function(ln){ ctx.font='600 '+fn.size+'px '+DISPLAY; ctx.fillText(ln,tx,ny); ny+=fn.size*1.05; });
+                    if(o.sub){ ctx.fillStyle=PAL.muted; ctx.font='400 23px '+LABEL; ctx.fillText(clip(ctx,o.sub,d.w-tx-60,'400 23px '+LABEL),tx,ny+6); ny+=38; }
+                    goldLine(ctx,tx,ny+16,140);
+                    ctx.fillStyle=PAL.navy; ctx.font='600 22px '+DISPLAY; ctx.fillText(o.lockup||'',tx,ny+62);
+                    if(o.dateline){ ctx.fillStyle=PAL.muted; ctx.font='400 17px '+LABEL; ctx.fillText(o.dateline,tx,ny+90); }
+                    return;
+                }
+                ctx.fillStyle=PAL.cream; ctx.fillRect(0,0,110,d.h); drawPleter(ctx,26,40,58,d.h-80,true);
+                ctx.fillStyle=goldGrad(ctx,110,0,d.w,0); ctx.fillRect(110,0,d.w-110,7);
+                var cx=(d.w+110)/2;
+                photoRoundel(ctx,o.photo,cx,410,220,ini,false,true);
+                label(ctx,o.eyebrow||'',cx,720,8,28,PAL.crimson,'center');
+                var fn2=fitName(ctx,name,d.w-260,[86,74,62,52]); ctx.fillStyle=PAL.navy; ctx.textAlign='center';
+                var y=720+112; fn2.lines.forEach(function(ln){ ctx.font='600 '+fn2.size+'px '+DISPLAY; ctx.fillText(ln,cx,y); y+=fn2.size*1.02; });
+                if(o.sub){ ctx.fillStyle=PAL.muted; ctx.font='400 29px '+LABEL; ctx.textAlign='center'; ctx.fillText(clip(ctx,o.sub,d.w-320,'400 29px '+LABEL),cx,y+12); y+=50; }
+                goldLine(ctx,cx-85,y+38,170);
+                ctx.fillStyle=PAL.navy; ctx.font='600 34px '+DISPLAY; ctx.textAlign='center'; ctx.fillText(o.lockup||'',cx,y+108);
+                if(o.dateline){ ctx.fillStyle=PAL.muted; ctx.font='400 22px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.dateline,cx,y+146); }
+                ctx.fillStyle=PAL.goldDeep; ctx.font='400 20px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.footer||'medx.hr',cx,d.h-48);
+            }
+
+            // ---- Frame 3: Gala (dramatic navy, photo-forward) -------------------------------------
+            function drawGalaFrame(ctx,d,orient,o,name,ini){
+                ctx.fillStyle=PAL.navyDeep; ctx.fillRect(0,0,d.w,d.h);
+                if(orient==='landscape'){
+                    var pw=d.w*0.44;
+                    ctx.save(); ctx.beginPath(); ctx.rect(0,0,pw,d.h); ctx.clip();
+                    if(o.photo){ drawCover(ctx,o.photo,0,0,pw,d.h); } else { ctx.fillStyle=PAL.navy2; ctx.fillRect(0,0,pw,d.h); drawMonogram(ctx,pw/2,d.h/2,150,ini,true); }
+                    var sc=ctx.createLinearGradient(pw-160,0,pw,0); sc.addColorStop(0,'rgba(10,23,48,0)'); sc.addColorStop(1,'rgba(10,23,48,1)'); ctx.fillStyle=sc; ctx.fillRect(pw-160,0,160,d.h);
+                    ctx.restore();
+                    ctx.fillStyle=goldGrad(ctx,pw,0,d.w,0); ctx.fillRect(pw,0,d.w-pw,5);
+                    var tx=pw+56;
+                    label(ctx,o.eyebrow||'',tx,d.h/2-140,7,25,PAL.goldLight,'left');
+                    var fn=fitName(ctx,name,d.w-tx-56,[64,54,46,40]); ctx.fillStyle=PAL.white; ctx.textAlign='left';
+                    var ny=d.h/2-140+58; fn.lines.forEach(function(ln){ ctx.font='600 '+fn.size+'px '+DISPLAY; ctx.fillText(ln,tx,ny); ny+=fn.size*1.05; });
+                    if(o.sub){ ctx.fillStyle='rgba(230,201,135,.85)'; ctx.font='400 23px '+LABEL; ctx.fillText(clip(ctx,o.sub,d.w-tx-56,'400 23px '+LABEL),tx,ny+6); ny+=38; }
+                    goldLine(ctx,tx,ny+16,140);
+                    ctx.fillStyle=PAL.goldLight; ctx.font='600 22px '+DISPLAY; ctx.fillText(o.lockup||'',tx,ny+62);
+                    if(o.dateline){ ctx.fillStyle='rgba(255,255,255,.66)'; ctx.font='400 16px '+LABEL; ctx.fillText(o.dateline,tx,ny+90); }
+                    return;
+                }
+                var ph=800;
+                ctx.save(); ctx.beginPath(); ctx.rect(0,0,d.w,ph); ctx.clip();
+                if(o.photo){ drawCover(ctx,o.photo,0,0,d.w,ph); } else { ctx.fillStyle=PAL.navy2; ctx.fillRect(0,0,d.w,ph); drawMonogram(ctx,d.w/2,ph/2-40,180,ini,true); }
+                var scr=ctx.createLinearGradient(0,ph-360,0,ph); scr.addColorStop(0,'rgba(10,23,48,0)'); scr.addColorStop(1,'rgba(10,23,48,1)'); ctx.fillStyle=scr; ctx.fillRect(0,ph-360,d.w,360);
+                ctx.restore();
+                ctx.fillStyle=goldGrad(ctx,0,0,d.w,0); ctx.fillRect(0,0,d.w,10);
+                // gold "golden line" arc rising from the seam
+                ctx.save(); ctx.beginPath(); ctx.arc(d.w/2, ph+520, 640, Math.PI*1.16, Math.PI*1.84); ctx.lineWidth=2.5; ctx.strokeStyle='rgba(201,162,39,.5)'; ctx.stroke(); ctx.restore();
+                var cx=d.w/2, y=ph+18;
+                label(ctx,o.eyebrow||'',cx,y+20,9,30,PAL.goldLight,'center');
+                var fn2=fitName(ctx,name,d.w-160,[90,76,64,54]); ctx.fillStyle=PAL.white; ctx.textAlign='center';
+                var ny2=y+96; fn2.lines.forEach(function(ln){ ctx.font='600 '+fn2.size+'px '+DISPLAY; ctx.fillText(ln,cx,ny2); ny2+=fn2.size*1.02; });
+                if(o.sub){ ctx.fillStyle='rgba(230,201,135,.85)'; ctx.font='400 29px '+LABEL; ctx.textAlign='center'; ctx.fillText(clip(ctx,o.sub,d.w-200,'400 29px '+LABEL),cx,ny2+10); ny2+=48; }
+                goldLine(ctx,cx-85,ny2+34,170);
+                ctx.fillStyle=PAL.goldLight; ctx.font='600 33px '+DISPLAY; ctx.textAlign='center'; ctx.fillText(o.lockup||'',cx,ny2+100);
+                if(o.dateline){ ctx.fillStyle='rgba(255,255,255,.68)'; ctx.font='400 22px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.dateline,cx,ny2+138); }
+                ctx.fillStyle='rgba(230,201,135,.6)'; ctx.font='400 20px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.footer||'medx.hr',cx,d.h-46);
+            }
+
+            // A circular portrait window with a gold ring, or the monogram fallback.
+            function photoRoundel(ctx,img,cx,cy,rad,ini,onDark,paperRing){
+                ctx.save();
+                if(img){
+                    ctx.beginPath(); ctx.arc(cx,cy,rad,0,Math.PI*2); ctx.closePath(); ctx.save(); ctx.clip();
+                    drawCover(ctx,img,cx-rad,cy-rad,rad*2,rad*2); ctx.restore();
+                    ctx.beginPath(); ctx.arc(cx,cy,rad,0,Math.PI*2); ctx.lineWidth=Math.max(4,rad*0.045); ctx.strokeStyle=goldGrad(ctx,cx-rad,cy-rad,cx+rad,cy+rad); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(cx,cy,rad*0.9,0,Math.PI*2); ctx.lineWidth=1.4; ctx.strokeStyle=(paperRing?'rgba(120,95,30,.3)':'rgba(230,201,135,.4)'); ctx.stroke();
+                } else {
+                    drawMonogram(ctx,cx,cy,rad,ini,onDark);
+                }
+                ctx.restore();
+            }
+            function clip(ctx,text,maxW,font){ ctx.save(); ctx.font=font; var s=String(text||''); if(ctx.measureText(s).width<=maxW){ ctx.restore(); return s; } while(s.length>1 && ctx.measureText(s+'…').width>maxW){ s=s.slice(0,-1); } ctx.restore(); return s+'…'; }
+
+            return { render:render, FRAMES:FRAMES, PAL:PAL, initials:initials };
+        })();
+
+        // ---- Member studio: choose a frame, add a photo (consent), preview, download, copy caption.
+        const ImAttendingCard = {
+            _built:false, _overlay:null,
+            state:{ frame:'heritage', event:'conference', photo:null, photoSource:'none', consent:false },
+            EVENTS:{
+                conference:{ lockupEn:'Plexus Conference · by Med&X', lockupHr:'Plexus konferencija · Med&X', dateEn:'Zagreb · December 2026', dateHr:'Zagreb · prosinac 2026.' },
+                gala:{ lockupEn:'Plexus Gala · by Med&X', lockupHr:'Plexus Gala · Med&X', dateEn:'5 December 2026 · Hotel Esplanade, Zagreb', dateHr:'5. prosinca 2026. · Hotel Esplanade, Zagreb' }
+            },
+            _lang(){ return (window.MedXI18n && MedXI18n.get) ? MedXI18n.get() : 'en'; },
+            _T(k){ return (typeof t==='function') ? t(k) : k; },
+            _member(){ try{ return (typeof MyMedXPortal!=='undefined' && MyMedXPortal._currentUser) ? MyMedXPortal._currentUser() : ((typeof UserPortal!=='undefined' && UserPortal.user)||{}); }catch(e){ return {}; } },
+            _name(){ var u=this._member(); return (u.name || ((u.first_name||'')+' '+(u.last_name||'')).trim()) || 'Med&X Member'; },
+            _sub(){ var u=this._member(); return u.institution || u.affiliation || ''; },
+
+            open(){
+                this.ensureBuilt();
+                this._overlay.classList.add('active');
+                document.body.style.overflow='hidden';
+                // default: if the member has a loaded profile photo, offer it pre-selected (still consent-gated)
+                this._profilePhoto = (typeof MyMedXPortal!=='undefined' && MyMedXPortal._photoUrl) ? MyMedXPortal._photoUrl : null;
+                this.renderControls();
+                this.renderPreview();
+            },
+            close(){ if(this._overlay) this._overlay.classList.remove('active'); document.body.style.overflow=''; },
+
+            ensureStyle(){
+                if(document.getElementById('imcStyle')) return;
+                var css = ''
+                + '.imc-overlay{position:fixed;inset:0;z-index:100001;display:none;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;background:radial-gradient(120% 120% at 20% 0%,rgba(18,33,64,.92),rgba(8,14,26,.94));-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}'
+                + '.imc-overlay.active{display:flex;}'
+                + '.imc-shell{width:100%;max-width:940px;max-height:92vh;overflow:auto;background:#fbf9f6;border-radius:20px;box-shadow:0 40px 100px rgba(0,0,0,.5);border:1px solid rgba(201,162,39,.35);}'
+                + '.imc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:22px 26px 6px;}'
+                + '.imc-title{font-family:\'Fraunces\',Georgia,serif;font-size:23px;font-weight:700;color:#0E2140;line-height:1.15;}'
+                + '.imc-sub{font-size:13.5px;color:#6b6455;margin-top:4px;max-width:560px;line-height:1.5;}'
+                + '.imc-x{background:none;border:none;font-size:28px;line-height:1;color:#9a917f;cursor:pointer;padding:0 4px;}'
+                + '.imc-body{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:22px;padding:14px 26px 26px;}'
+                + '.imc-stage{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:14px;}'
+                + '.imc-canvaswrap{width:100%;max-width:340px;border-radius:16px;overflow:hidden;box-shadow:0 20px 50px rgba(14,33,64,.28);background:#0E2140;}'
+                + '.imc-canvaswrap canvas{width:100%;height:auto;display:block;}'
+                + '.imc-orient{display:flex;gap:8px;}'
+                + '.imc-orient button{border:1px solid #e3dccb;background:#fff;color:#6b6455;border-radius:9px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;}'
+                + '.imc-orient button.on{background:#0E2140;color:#fff;border-color:#0E2140;}'
+                + '.imc-rail{display:flex;flex-direction:column;gap:16px;}'
+                + '.imc-sec>label{display:block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#8a8272;margin-bottom:8px;}'
+                + '.imc-frames{display:flex;gap:8px;}'
+                + '.imc-frame{flex:1;border:2px solid #e3dccb;border-radius:12px;padding:6px 6px 8px;background:#fff;cursor:pointer;text-align:center;}'
+                + '.imc-frame.on{border-color:#C9A227;box-shadow:0 4px 14px rgba(201,162,39,.25);}'
+                + '.imc-frame canvas{width:100%;height:auto;border-radius:7px;display:block;}'
+                + '.imc-frame span{display:block;font-size:11px;font-weight:700;color:#5c5646;margin-top:5px;}'
+                + '.imc-seg{display:flex;gap:6px;flex-wrap:wrap;}'
+                + '.imc-seg button{flex:1;min-width:80px;border:1px solid #e3dccb;background:#fff;color:#6b6455;border-radius:9px;padding:9px 8px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;}'
+                + '.imc-seg button.on{background:#9B1B22;color:#fff;border-color:#9B1B22;}'
+                + '.imc-consent{display:flex;gap:10px;align-items:flex-start;background:#f6f1e6;border:1px solid #e6ddc7;border-radius:12px;padding:12px 13px;font-size:12.5px;color:#5c5646;line-height:1.5;}'
+                + '.imc-consent input{width:18px;height:18px;margin-top:1px;accent-color:#9B1B22;flex-shrink:0;}'
+                + '.imc-hint{font-size:11.5px;color:#9a917f;line-height:1.5;}'
+                + '.imc-actions{display:flex;flex-direction:column;gap:9px;}'
+                + '.imc-btn{border:none;border-radius:11px;padding:13px;font-size:13.5px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;}'
+                + '.imc-btn.primary{background:#0E2140;color:#fff;}'
+                + '.imc-btn.gold{background:linear-gradient(120deg,#9C7C1A,#C9A227,#E6C878,#C9A227);color:#1c1a14;}'
+                + '.imc-btn.ghost{background:#fff;border:1px solid #d9d2c1;color:#5c5646;}'
+                + '.imc-btn2{display:flex;gap:9px;}.imc-btn2 .imc-btn{flex:1;}'
+                + '.imc-file{display:none;}'
+                + '@media(max-width:760px){.imc-body{grid-template-columns:1fr;}.imc-canvaswrap{max-width:260px;}}';
+                var st=document.createElement('style'); st.id='imcStyle'; st.textContent=css; document.head.appendChild(st);
+            },
+            ensureBuilt(){
+                if(this._built) return; this.ensureStyle();
+                var ov=document.createElement('div'); ov.className='imc-overlay'; ov.id='imcOverlay';
+                ov.innerHTML = ''
+                + '<div class="imc-shell" role="dialog" aria-modal="true">'
+                + '  <div class="imc-top"><div><div class="imc-title" id="imcTitle"></div><div class="imc-sub" id="imcSubtitle"></div></div><button class="imc-x" id="imcClose" aria-label="Close">&times;</button></div>'
+                + '  <div class="imc-body">'
+                + '    <div class="imc-stage">'
+                + '      <div class="imc-orient" id="imcOrient"></div>'
+                + '      <div class="imc-canvaswrap" id="imcCanvasWrap"></div>'
+                + '    </div>'
+                + '    <div class="imc-rail" id="imcRail"></div>'
+                + '  </div>'
+                + '  <input type="file" accept="image/*" class="imc-file" id="imcFile">'
+                + '</div>';
+                document.body.appendChild(ov); this._overlay=ov; this._built=true; this._orient='portrait';
+                var self=this;
+                ov.addEventListener('click', function(e){ if(e.target===ov) self.close(); });
+                ov.querySelector('#imcClose').addEventListener('click', function(){ self.close(); });
+                ov.querySelector('#imcFile').addEventListener('change', function(e){ self._onFile(e); });
+                document.addEventListener('keydown', function(e){ if(e.key==='Escape' && self._overlay && self._overlay.classList.contains('active')) self.close(); });
+            },
+
+            renderControls(){
+                var self=this, lang=this._lang();
+                var ov=this._overlay;
+                ov.querySelector('#imcTitle').textContent=this._T('imc.studioTitle');
+                ov.querySelector('#imcSubtitle').textContent=this._T('imc.studioSub');
+                // orientation toggle
+                var orient=ov.querySelector('#imcOrient');
+                orient.innerHTML='';
+                [['portrait','imc.orientPortrait'],['landscape','imc.orientLandscape']].forEach(function(p){
+                    var b=document.createElement('button'); b.textContent=self._T(p[1]); if(self._orient===p[0])b.className='on';
+                    b.addEventListener('click', function(){ self._orient=p[0]; self.renderControls(); self.renderPreview(); }); orient.appendChild(b);
+                });
+                // frames
+                var framesHtml = MedxCard.FRAMES.map(function(f){
+                    var nm = lang==='hr' ? f.nameHr : f.name;
+                    return '<div class="imc-frame'+(self.state.frame===f.id?' on':'')+'" data-frame="'+f.id+'"><div class="imc-fcv" data-fcv="'+f.id+'"></div><span>'+nm+'</span></div>';
+                }).join('');
+                var rail=ov.querySelector('#imcRail');
+                rail.innerHTML = ''
+                + '<div class="imc-sec"><label>'+this._T('imc.frame')+'</label><div class="imc-frames" id="imcFrames">'+framesHtml+'</div></div>'
+                + '<div class="imc-sec"><label>'+this._T('imc.event')+'</label><div class="imc-seg" id="imcEvent">'
+                +   '<button data-evt="conference" class="'+(this.state.event==='conference'?'on':'')+'">'+this._T('imc.evtConference')+'</button>'
+                +   '<button data-evt="gala" class="'+(this.state.event==='gala'?'on':'')+'">'+this._T('imc.evtGala')+'</button>'
+                + '</div></div>'
+                + '<div class="imc-sec"><label>'+this._T('imc.photo')+'</label><div class="imc-seg" id="imcPhoto">'
+                +   '<button data-ph="upload" class="'+(this.state.photoSource==='upload'?'on':'')+'">'+this._T('imc.usePhoto')+'</button>'
+                +   (this._profilePhoto?'<button data-ph="profile" class="'+(this.state.photoSource==='profile'?'on':'')+'">'+this._T('imc.useProfile')+'</button>':'')
+                +   '<button data-ph="none" class="'+(this.state.photoSource==='none'?'on':'')+'">'+this._T('imc.noPhoto')+'</button>'
+                + '</div><div class="imc-hint">'+this._T('imc.photoHint')+'</div></div>'
+                + '<label class="imc-consent"><input type="checkbox" id="imcConsent" '+(this.state.consent?'checked':'')+'><span>'+this._T('imc.consentLabel')+'</span></label>'
+                + '<div class="imc-actions">'
+                +   '<div class="imc-btn2"><button class="imc-btn primary" data-dl="portrait"><i class="fas fa-download"></i> '+this._T('imc.dlPortrait')+'</button>'
+                +   '<button class="imc-btn primary" data-dl="landscape"><i class="fas fa-download"></i> '+this._T('imc.dlLandscape')+'</button></div>'
+                +   '<div class="imc-btn2"><button class="imc-btn ghost" data-cap="en"><i class="fas fa-copy"></i> '+this._T('imc.copyEn')+'</button>'
+                +   '<button class="imc-btn ghost" data-cap="hr"><i class="fas fa-copy"></i> '+this._T('imc.copyHr')+'</button></div>'
+                + '</div>';
+                // wire (delegated within rail — no inline handlers)
+                rail.querySelectorAll('#imcFrames .imc-frame').forEach(function(el){ el.addEventListener('click', function(){ self.state.frame=el.getAttribute('data-frame'); self.renderControls(); self.renderPreview(); }); });
+                rail.querySelectorAll('#imcEvent button').forEach(function(b){ b.addEventListener('click', function(){ self.state.event=b.getAttribute('data-evt'); self.renderControls(); self.renderPreview(); }); });
+                rail.querySelectorAll('#imcPhoto button').forEach(function(b){ b.addEventListener('click', function(){ self._pickPhotoSource(b.getAttribute('data-ph')); }); });
+                rail.querySelector('#imcConsent').addEventListener('change', function(e){ self.state.consent=!!e.target.checked; if(!self.state.consent){/*keep photo obj but preview will drop it*/} self.renderPreview(); self._syncConsent(); });
+                rail.querySelectorAll('[data-dl]').forEach(function(b){ b.addEventListener('click', function(){ self.download(b.getAttribute('data-dl')); }); });
+                rail.querySelectorAll('[data-cap]').forEach(function(b){ b.addEventListener('click', function(){ self.copyCaption(b.getAttribute('data-cap')); }); });
+                this._renderFrameThumbs();
+            },
+
+            _pickPhotoSource(src){
+                var self=this;
+                if(src==='upload'){ this._overlay.querySelector('#imcFile').click(); return; }
+                if(src==='profile' && this._profilePhoto){
+                    var img=new Image(); img.crossOrigin='anonymous';
+                    img.onload=function(){ self.state.photo=img; self.state.photoSource='profile'; self.renderControls(); self.renderPreview(); };
+                    img.onerror=function(){ if(typeof Toast!=='undefined'&&Toast.error) Toast.error(self._T('imc.photoErr')); };
+                    img.src=this._profilePhoto; return;
+                }
+                this.state.photo=null; this.state.photoSource='none'; this.renderControls(); this.renderPreview();
+            },
+            _onFile(e){
+                var self=this, file=e.target.files && e.target.files[0]; if(!file) return;
+                if(!/^image\//.test(file.type)){ if(typeof Toast!=='undefined'&&Toast.error) Toast.error(self._T('imc.photoErr')); return; }
+                var rd=new FileReader();
+                rd.onload=function(ev){ var img=new Image(); img.onload=function(){ self.state.photo=img; self.state.photoSource='upload'; self.renderControls(); self.renderPreview(); }; img.onerror=function(){ if(typeof Toast!=='undefined'&&Toast.error) Toast.error(self._T('imc.photoErr')); }; img.src=ev.target.result; };
+                rd.readAsDataURL(file);
+                e.target.value='';
+            },
+
+            _opts(orient){
+                var lang=this._lang(), ev=this.EVENTS[this.state.event]||this.EVENTS.conference;
+                var usePhoto = this.state.photo && this.state.consent;
+                return {
+                    frame:this.state.frame, orientation:orient||this._orient,
+                    eyebrow:this._T('imc.eyebrow').toUpperCase(),
+                    name:this._name(), sub:this._sub(),
+                    lockup: lang==='hr'?ev.lockupHr:ev.lockupEn,
+                    dateline: lang==='hr'?ev.dateHr:ev.dateEn,
+                    footer:'medx.hr',
+                    photo: usePhoto ? this.state.photo : null
+                };
+            },
+            renderPreview(){
+                var wrap=this._overlay.querySelector('#imcCanvasWrap'); if(!wrap) return;
+                var self=this;
+                var draw=function(){ try{ var cv=MedxCard.render(self._opts(self._orient)); wrap.innerHTML=''; wrap.appendChild(cv); }catch(e){ console.error('card preview failed',e); } };
+                if(document.fonts && document.fonts.ready){ document.fonts.ready.then(draw); setTimeout(draw,60); } else draw();
+            },
+            _renderFrameThumbs(){
+                var self=this;
+                var run=function(){ MedxCard.FRAMES.forEach(function(f){ var host=self._overlay.querySelector('[data-fcv="'+f.id+'"]'); if(!host)return; try{ var o=self._opts('portrait'); o.frame=f.id; var cv=MedxCard.render(o); cv.style.width='100%'; host.innerHTML=''; host.appendChild(cv); }catch(e){} }); };
+                if(document.fonts && document.fonts.ready){ document.fonts.ready.then(run); setTimeout(run,60); } else run();
+            },
+
+            download(orient){
+                var self=this;
+                if(this.state.photo && !this.state.consent){ if(typeof Toast!=='undefined'&&Toast.warning) Toast.warning(this._T('imc.consentNeeded')); return; }
+                var run=function(){
+                    try{
+                        var cv=MedxCard.render(self._opts(orient));
+                        cv.toBlob(function(blob){
+                            if(!blob){ if(typeof Toast!=='undefined'&&Toast.error) Toast.error(self._T('imc.dlErr')); return; }
+                            var fname='plexus-attending-'+(orient==='landscape'?'wide':'portrait')+'.png';
+                            var url=URL.createObjectURL(blob); var a=document.createElement('a'); a.href=url; a.download=fname; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){ URL.revokeObjectURL(url); },1500);
+                            if(typeof Toast!=='undefined'&&Toast.success) Toast.success(self._T('imc.downloaded'));
+                            if(self.state.photo && self.state.consent) self._syncConsent();
+                        }, 'image/png');
+                    }catch(e){ console.error('card download failed',e); if(typeof Toast!=='undefined'&&Toast.error) Toast.error(self._T('imc.dlErr')); }
+                };
+                if(document.fonts && document.fonts.ready){ document.fonts.ready.then(run); } else run();
+            },
+
+            // Assembled captions from the brand blueprint social framework (four beats: hook, story,
+            // belonging, invite). Formal Vi in the Croatian invite.
+            _caption(lang){
+                var gala=this.state.event==='gala';
+                if(lang==='hr'){
+                    return gala
+                    ? 'Godine 1377. hrvatski je grad donio prvi zakon o karanteni na svijetu. Petog prosinca bit ću u dvorani u kojoj se ta priča nastavlja.\n\nPetog prosinca bit ću na Plexus Gali u hotelu Esplanade u Zagrebu, među ljudima koji oblikuju medicinu u ovoj zemlji, ne napuštajući je.\n\nOvo je tradicija koju Med&X nosi dalje, i ove godine ja sam njezin dio. Ako radite u medicini u Hrvatskoj, nađimo se ondje.\n\n@Med&X #PlexusGala #CroatianMedicine'
+                    : 'Hrvatska medicina svijetu je dala dva nobelovca i jednog od utemeljitelja SZO-a. Ove godine stajat ću unutar te tradicije.\n\nBit ću na Plexus konferenciji u Zagrebu, među ljudima koji oblikuju medicinu u ovoj zemlji, ne napuštajući je.\n\nOvo je tradicija koju Med&X nosi dalje, i ove godine ja sam njezin dio. Ako radite u medicini u Hrvatskoj, nađimo se ondje.\n\n@Med&X #Plexus2026 #CroatianMedicine';
+                }
+                return gala
+                ? "In 1377, a Croatian city wrote the world's first quarantine law. On 5 December, I will be in the room where that story keeps going.\n\nOn 5 December I will be at the Plexus Gala at Hotel Esplanade in Zagreb, among the people shaping medicine in this country, without leaving it.\n\nThis is the tradition Med&X was built to carry forward, and this year I am part of it. If you work in medicine in Croatia, come find me there.\n\n@Med&X #PlexusGala #CroatianMedicine"
+                : "Croatian medicine gave the world two Nobel laureates and a founder of the WHO. This year I get to stand inside that tradition.\n\nI will be at the Plexus Conference in Zagreb, among the people shaping medicine in this country, without leaving it.\n\nThis is the tradition Med&X was built to carry forward, and this year I am part of it. If you work in medicine in Croatia, come find me there.\n\n@Med&X #Plexus2026 #CroatianMedicine";
+            },
+            copyCaption(lang){
+                var self=this, text=this._caption(lang);
+                var done=function(){ if(typeof Toast!=='undefined'&&Toast.success) Toast.success(self._T('imc.copied')); };
+                if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done).catch(function(){ self._fallbackCopy(text); done(); }); }
+                else { this._fallbackCopy(text); done(); }
+            },
+            _fallbackCopy(text){ try{ var ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }catch(e){} },
+
+            _syncConsent(){
+                try{
+                    var tkn=(typeof UserPortal!=='undefined'&&UserPortal.token)||localStorage.getItem('medx_user_token');
+                    var base=(typeof API_BASE!=='undefined'?API_BASE:'');
+                    fetch(base+'/api/member/card-consent',{ method:'POST', headers:Object.assign({'Content-Type':'application/json'}, tkn?{'Authorization':'Bearer '+tkn}:{}), body:JSON.stringify({ consent:!!this.state.consent }) }).catch(function(){});
+                }catch(e){}
+            },
+            relocalize(){ if(this._overlay && this._overlay.classList.contains('active')){ this.renderControls(); this.renderPreview(); } }
+        };
+        // Single delegated trigger (CSP-clean — no inline on* handler on the button).
+        document.addEventListener('click', function(e){ var el=e.target.closest && e.target.closest('[data-imc-open]'); if(el){ e.preventDefault(); try{ ImAttendingCard.open(); }catch(err){ console.error(err); } } });
+        document.addEventListener('medx:localechange', function(){ try{ ImAttendingCard.relocalize(); }catch(e){} });
 
         document.addEventListener('medx:localechange', function(){ try{ if(typeof MyMedXPortal!=='undefined' && MyMedXPortal.relocalize) MyMedXPortal.relocalize(); }catch(e){} });
         document.addEventListener('medx:localechange', function(){ try{ if(typeof RewardsPortal!=='undefined' && RewardsPortal.data) RewardsPortal.render(); }catch(e){} });
