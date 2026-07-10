@@ -57203,6 +57203,11 @@ button,input,select,textarea{font-family:var(--sans);}
             'mmx.eventsEmpty':    {en:'Your events appear here after you register.', hr:'Vaši se događaji ovdje pojavljuju nakon prijave.'},
             'mmx.certificate':    {en:'Certificate', hr:'Potvrda'},
             'mmx.certOfAttendance':{en:'Certificate of Attendance', hr:'Potvrda o sudjelovanju'},
+            'mmx.certBody':       {en:'has attended {event} and is recognized for their participation.', hr:'sudjelovao/la je na događaju {event} te mu/joj se priznaje sudjelovanje.'},
+            'mmx.certNo':         {en:'Certificate No.', hr:'Potvrda br.'},
+            'mmx.certIssued':     {en:'Issued', hr:'Izdano'},
+            'mmx.certSignName':   {en:'Alen Juginović, MD', hr:'Alen Juginović, dr. med.'},
+            'mmx.certSignRole':   {en:'Founder & President, Med&X', hr:'Osnivač i predsjednik, Med&X'},
             'mmx.example':        {en:'Example', hr:'Primjer'},
             'mmx.certsEmpty':     {en:'Certificates appear here after events you attend.', hr:'Potvrde se ovdje pojavljuju nakon događaja na kojima sudjelujete.'},
             'mmx.download':       {en:'Download', hr:'Preuzmite'},
@@ -79838,6 +79843,10 @@ You can use variables like {first_name} that will be personalized for each recip
             },
 
             // Client-side certificate render — printable page from the stored cert data.
+            // Attendance/participation certificate. Bilingual (EN + formal-Vi HR) print artifact. The ONE
+            // org-level founder signature (org_settings, shared with the admin portal via GET
+            // /api/org/signature) is rendered above the typed name; until one is uploaded the signature line
+            // shows clean blank space above the typed name. Same-origin data:image/png URL — no taint.
             downloadCertificate(certId) {
                 var cert = ((this._record && this._record.certificates) || []).filter(function(c){ return c.id === certId; })[0];
                 if (!cert) { if (typeof Toast !== 'undefined') Toast.error(t('toast.certNotFound')); return; }
@@ -79845,7 +79854,24 @@ You can use variables like {first_name} that will be personalized for each recip
                 var name = (user.name || ((user.first_name||'') + ' ' + (user.last_name||'')).trim() || 'Med&X Member');
                 var win = window.open('', '_blank');
                 if (!win) { if (typeof Toast !== 'undefined') Toast.error(t('toast.allowPopupsDl')); return; }
-                var issued = cert.issue_date ? new Date(cert.issue_date).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}) : '';
+                var self = this;
+                var render = function(sig){ self._writeCertificate(win, cert, name, sig); };
+                // Fetch the shared org signature once, then cache it for subsequent downloads.
+                if (self._orgSig !== undefined) { render(self._orgSig); }
+                else {
+                    var base = (typeof API_BASE !== 'undefined' ? API_BASE : '');
+                    fetch(base + '/api/org/signature').then(function(r){ return r.ok ? r.json() : null; })
+                        .then(function(d){ self._orgSig = (d && d.signature) || null; render(self._orgSig); })
+                        .catch(function(){ self._orgSig = null; render(null); });
+                }
+            },
+            _writeCertificate(win, cert, name, sig) {
+                var dloc = (window.MedXI18n && MedXI18n.dateLocale) ? MedXI18n.dateLocale() : 'en-US';
+                var issued = cert.issue_date ? new Date(cert.issue_date).toLocaleDateString(dloc,{year:'numeric',month:'long',day:'numeric'}) : '';
+                var rawEvent = cert.title.replace(' — Certificate of Attendance','');
+                var sigMark = sig ? ('<img src="' + sig + '" alt="Signature">') : '';
+                var meta = (cert.number ? (escapeHtml(t('mmx.certNo')) + ' ' + escapeHtml(cert.number)) : '')
+                    + (issued ? (' &nbsp;·&nbsp; ' + escapeHtml(t('mmx.certIssued')) + ' ' + escapeHtml(issued)) : '');
                 win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + escapeHtml(cert.title) + '</title>'
                     + '<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">'
                     + '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Inter,sans-serif;color:#15110f;padding:0}'
@@ -79855,12 +79881,21 @@ You can use variables like {first_name} that will be personalized for each recip
                     + '.kicker{font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:#6b6258;margin:28px 0 12px}'
                     + '.name{font-family:Fraunces,serif;font-size:40px;font-weight:600;margin:8px 0 18px}'
                     + '.body{font-size:15px;color:#403a36;line-height:1.7;max-width:560px;margin:0 auto}'
-                    + '.meta{margin-top:36px;font-size:13px;color:#6b6258}@media print{body{padding:0}.cert{margin:0;border:2px solid #c9a962}}</style></head><body>'
+                    + '.sign{margin:44px auto 0;max-width:330px}'
+                    + '.sign-mark{height:60px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:6px}'
+                    + '.sign-mark img{max-height:60px;max-width:280px;object-fit:contain}'
+                    + '.sign-rule{width:230px;height:1px;background:#c9a962;margin:0 auto 8px}'
+                    + '.sign-name{font-family:Fraunces,serif;font-size:17px;font-weight:600;color:#15110f}'
+                    + '.sign-role{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#6b6258;margin-top:3px}'
+                    + '.meta{margin-top:30px;font-size:13px;color:#6b6258}@media print{body{padding:0}.cert{margin:0;border:2px solid #c9a962}}</style></head><body>'
                     + '<div class="cert"><div class="brand">Med&amp;X</div>'
-                    + '<div class="kicker">Certificate of Attendance</div>'
+                    + '<div class="kicker">' + escapeHtml(t('mmx.certOfAttendance')) + '</div>'
                     + '<div class="name">' + escapeHtml(name) + '</div>'
-                    + '<div class="body">has attended ' + escapeHtml(cert.title.replace(' — Certificate of Attendance','')) + ' and is recognized for their participation.</div>'
-                    + '<div class="meta">' + (cert.number ? ('Certificate No. ' + escapeHtml(cert.number)) : '') + (issued ? (' &nbsp;·&nbsp; Issued ' + issued) : '') + '</div>'
+                    + '<div class="body">' + escapeHtml(t('mmx.certBody', { event: rawEvent })) + '</div>'
+                    + '<div class="sign"><div class="sign-mark">' + sigMark + '</div><div class="sign-rule"></div>'
+                    + '<div class="sign-name">' + escapeHtml(t('mmx.certSignName')) + '</div>'
+                    + '<div class="sign-role">' + escapeHtml(t('mmx.certSignRole')) + '</div></div>'
+                    + '<div class="meta">' + meta + '</div>'
                     + '</div><script>setTimeout(function(){window.print();},400);<\/script></body></html>');
                 win.document.close();
             },
