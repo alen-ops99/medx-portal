@@ -42984,7 +42984,7 @@ By applying to this program, I give the following consents:
                     signage: `<button class="cs-surface" data-signage-open>
                             <div class="cs-surface-ic" style="background:rgba(201,162,39,.14);color:#9c7c1a;"><i class="fas fa-signs-post"></i></div>
                             <h3>Signage studio</h3>
-                            <p>Lecture-topic signs for every session on the schedule &mdash; title, speakers, room and time in the navy/gold event system, bilingual EN&nbsp;+&nbsp;HR. Drawn in your browser at print resolution and downloaded as a true-size PDF or PNGs, on any server.</p>
+                            <p>Lecture-topic signs for every session on the schedule and wayfinding arrows for the venue &mdash; navy/gold event system, bilingual EN&nbsp;+&nbsp;HR. Drawn in your browser at print resolution and downloaded as a true-size PDF or PNGs, on any server.</p>
                             <span class="cs-go">Make signage <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
                         </button>`,
                     cards: `<button class="cs-surface" data-cardstudio-open>
@@ -45594,6 +45594,42 @@ By applying to this program, I give the following consents:
                 track(ctx,'medx.hr',cx,1312*s,12*s,4*s,PAL.creamDim,LABEL,'600');
             }
 
+            // ---- WAYFINDING SIGN (A4/A3 portrait, navy): one premium gold arrow + bilingual label. ----
+            // Arrow pointing up, centered at (0,0); half extents ±150 × ±300 units before rotation.
+            function arrowPath(ctx,u){
+                ctx.beginPath();
+                ctx.moveTo(0,-300*u);
+                ctx.lineTo(150*u,-128*u); ctx.lineTo(62*u,-128*u); ctx.lineTo(62*u,300*u);
+                ctx.lineTo(-62*u,300*u); ctx.lineTo(-62*u,-128*u); ctx.lineTo(-150*u,-128*u);
+                ctx.closePath();
+            }
+            function drawWayfinding(ctx,W,H,s,o){
+                navyGround(ctx,W,H); keyline(ctx,W,H,40,s);
+                var cx=W/2;
+                track(ctx,String(o.event||'Med&X').toUpperCase(),cx,128*s,17*s,8*s,PAL.creamDim,LABEL,'600');
+                var rot={ up:0, right:Math.PI/2, down:Math.PI, left:-Math.PI/2 }[String(o.arrow||'right')]||0;
+                var u=s*0.92;
+                ctx.save(); ctx.translate(cx,520*s); ctx.rotate(rot);
+                ctx.shadowColor='rgba(201,162,39,.35)'; ctx.shadowBlur=46*s;
+                arrowPath(ctx,u); ctx.fillStyle=goldGradV(ctx,-300*u,300*u); ctx.fill();
+                ctx.shadowBlur=0; ctx.lineJoin='round'; ctx.lineWidth=3*s; ctx.strokeStyle='rgba(230,200,120,.85)';
+                arrowPath(ctx,u); ctx.stroke();
+                ctx.restore();
+                var en=String(o.en||'').trim(), hr=String(o.hr||'').trim();
+                var fw=fitWrap(ctx,en||hr||'—',840*s,[78,66,56,46].map(function(z){ return z*s; }),2,DISPLAY,'600');
+                ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=PAL.white; ctx.font='600 '+fw.size+'px '+DISPLAY;
+                var y=986*s;
+                fw.lines.forEach(function(ln){ ctx.fillText(ln,cx,y); y+=fw.size*1.08; });
+                ctx.restore();
+                if(hr && en && hr.toLowerCase()!==en.toLowerCase()){
+                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=PAL.goldLight; ctx.font='italic 600 '+(44*s)+'px '+SERIF;
+                    ctx.fillText(clipTo(ctx,hr,840*s,'italic 600 '+(44*s)+'px '+SERIF),cx,y+8*s);
+                    ctx.restore();
+                }
+                goldenBand(ctx,W,1250*s,7*s);
+                track(ctx,'medx.hr',cx,1312*s,12*s,4*s,PAL.creamDim,LABEL,'600');
+            }
+
             function render(kind,opts){
                 opts=opts||{};
                 var paper=PAPERS[kind==='banner'?'banner':(opts.paper==='a3'?'a3':'a4')];
@@ -45602,6 +45638,7 @@ By applying to this program, I give the following consents:
                 var cv=document.createElement('canvas'); cv.width=W; cv.height=H;
                 var ctx=cv.getContext('2d');
                 if(kind==='lecture') drawLecture(ctx,W,H,s,opts);
+                else if(kind==='way') drawWayfinding(ctx,W,H,s,opts);
                 return cv;
             }
             var _readyPromise=null;
@@ -45621,7 +45658,9 @@ By applying to this program, I give the following consents:
         // ---- The studio (admin surface, English). Tabs grow with the family. ----
         const SignageStudio = {
             _built:false,_overlay:null,_busy:false,_t:0,
-            TABS:[ ['lecture','fa-chalkboard-user','Lecture signs'] ],
+            TABS:[ ['lecture','fa-chalkboard-user','Lecture signs'], ['way','fa-diamond-turn-right','Wayfinding'] ],
+            // Bilingual wayfinding presets (EN + HR, guest-facing print artifact).
+            PRESETS:[ ['Registration','Registracija'], ['Lecture Hall','Predavaonica'], ['Main Hall','Velika dvorana'], ['Gala Evening','Gala večer'], ['Cloakroom','Garderoba'], ['Restrooms','Toaleti'], ['Coffee & Refreshments','Kava i osvježenje'], ['Exit','Izlaz'] ],
             state:{
                 tab:'lecture', event:'conference', ctx:null,
                 conf:null, sessions:[], schedLoaded:false, sel:{}, pvIdx:0,
@@ -45807,6 +45846,10 @@ By applying to this program, I give the following consents:
             _jobs(){
                 var self=this, st=this.state;
                 if(st.tab==='lecture') return this._selectedSessions().map(function(x){ return self._sessionJob(x); });
+                if(st.tab==='way'){
+                    var evName=(st.ctx&&st.ctx.event&&st.ctx.event.name)||'Med&X';
+                    return [{ kind:'way', name:this._slug(st.way.en||st.way.hr||'sign'), opts:{ paper:st.paper, event:evName, arrow:st.way.arrow, en:st.way.en, hr:st.way.hr } }];
+                }
                 return [];
             },
             _paperFor(kind){ var P=window.MedxSignage.PAPERS; return kind==='banner'?P.banner:P[this.state.paper==='a3'?'a3':'a4']; },
@@ -45825,7 +45868,13 @@ By applying to this program, I give the following consents:
                 var tabs=this.TABS.map(function(t){ return '<button class="sgn-tab'+(st.tab===t[0]?' on':'')+'" data-sg="tab" data-v="'+t[0]+'"><i class="fas '+t[1]+'"></i>'+t[2]+'</button>'; }).join('');
                 var body='';
                 if(st.tab==='lecture') body=this.railLecture();
+                else if(st.tab==='way') body=this.railWay();
                 rail.innerHTML='<div class="sgn-tabs">'+tabs+'</div>'+body;
+            },
+            _eventSelect(){
+                var st=this.state, self=this;
+                var events=((st.ctx&&st.ctx.events)||[]).map(function(e){ return '<option value="'+self.esc(e.key)+'"'+(e.key===st.event?' selected':'')+'>'+self.esc(e.name)+'</option>'; }).join('');
+                return events?'<div class="sgn-sec"><label>Event</label><select id="sgEvent">'+events+'</select></div>':'';
             },
             _paperSeg(){
                 var st=this.state;
@@ -45866,6 +45915,21 @@ By applying to this program, I give the following consents:
                 +'<div class="sgn-note">True-size, print-ready pages drawn in your browser at 300 DPI — hand the PDF straight to the print shop. Draft sessions print without the draft mark.</div>';
             },
 
+            railWay(){
+                var st=this.state, self=this, w=st.way;
+                var arrows=[ ['up','fa-arrow-up'], ['down','fa-arrow-down'], ['left','fa-arrow-left'], ['right','fa-arrow-right'] ]
+                    .map(function(a){ return '<button class="'+(w.arrow===a[0]?'on':'')+'" data-sg="arrow" data-v="'+a[0]+'" aria-label="'+a[0]+'"><i class="fas '+a[1]+'"></i></button>'; }).join('');
+                var presets=this.PRESETS.map(function(p,i){ return '<button data-sg="preset" data-v="'+i+'">'+self.esc(p[0])+'</button>'; }).join('');
+                return ''
+                +this._eventSelect()
+                +'<div class="sgn-sec"><label>Arrow</label><div class="sgn-seg">'+arrows+'</div></div>'
+                +'<div class="sgn-sec"><label>Label — English</label><input type="text" data-sgf="way.en" value="'+this.esc(w.en)+'" maxlength="60" placeholder="e.g. Registration"></div>'
+                +'<div class="sgn-sec"><label>Label — Croatian</label><input type="text" data-sgf="way.hr" value="'+this.esc(w.hr)+'" maxlength="60" placeholder="npr. Registracija"></div>'
+                +'<div class="sgn-sec"><label>Common destinations</label><div class="sgn-quick">'+presets+'</div></div>'
+                +this._paperSeg()
+                +this._dlButtons(1)
+                +'<div class="sgn-note">One big gold arrow with the destination in both languages, under the event name. Print a set and the golden footer line runs level across every sign on the wall.</div>';
+            },
             _paintNav(){
                 var nav=this._overlay.querySelector('#sgPvNav'); if(!nav) return;
                 var jobs=this._jobs();
