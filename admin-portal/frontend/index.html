@@ -49161,7 +49161,12 @@ By applying to this program, I give the following consents:
                 document.body.appendChild(m);
                 m.onclick = function (e) { if (e.target === m || e.target.id === 'medxAppQrClose') m.remove(); };
                 document.getElementById('medxAppQrCopy').onclick = function () {
-                    try { navigator.clipboard && navigator.clipboard.writeText(url); if (window.Toast) Toast.success('Link copied.'); } catch (e) {}
+                    // writeText is a promise — handle the rejection (permission denied /
+                    // insecure context) instead of leaking it, and only claim success on success.
+                    var p = (navigator.clipboard && navigator.clipboard.writeText)
+                        ? navigator.clipboard.writeText(url) : Promise.reject(new Error('clipboard unavailable'));
+                    p.then(function () { if (window.Toast) Toast.success('Link copied.'); })
+                     .catch(function () { if (window.Toast) Toast.info('Copying is blocked here — the link is shown above the buttons.'); });
                 };
                 document.getElementById('medxAppQrPrint').onclick = function () {
                     var w = window.open('', '_blank'); if (!w) return;
