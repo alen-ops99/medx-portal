@@ -52031,6 +52031,11 @@ button:focus-visible, .btn:focus-visible, [class*="-btn"]:focus-visible {
     color: var(--accent);
 }
 
+.confirmation-modal-icon .icon-circle.success {
+    background: rgba(47, 107, 58, 0.15);
+    color: #2f6b3a;
+}
+
 .confirmation-modal-body {
     padding: 0 24px 24px;
     text-align: center;
@@ -52117,7 +52122,7 @@ button:focus-visible, .btn:focus-visible, [class*="-btn"]:focus-visible {
     box-shadow: none;
 }
 
-/* === Input Modal (prompt() replacement) === */
+/* === Input Modal (native prompt replacement) === */
 .input-modal-overlay {
     position: fixed;
     inset: 0;
@@ -58057,7 +58062,7 @@ button,input,select,textarea{font-family:var(--sans);}
             </div>
         </div>
 
-        <!-- Input Modal (prompt() replacement) -->
+        <!-- Input Modal (native prompt replacement) -->
         <div class="input-modal-overlay" id="inputModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="inputModalTitle">
             <div class="input-modal">
                 <div class="input-modal-body">
@@ -79784,7 +79789,7 @@ You can use variables like {first_name} that will be personalized for each recip
                     var btn = e.target.closest('[data-act]'); if (!btn) return;
                     var act = btn.getAttribute('data-act');
                     if (act === 'close') return close();
-                    if (act === 'copy') { try { navigator.clipboard.writeText(verifyUrl); if (typeof Toast !== 'undefined') Toast.success(t('mmx.linkCopied')); } catch(err){ window.prompt('', verifyUrl); } return close(); }
+                    if (act === 'copy') { try { navigator.clipboard.writeText(verifyUrl); if (typeof Toast !== 'undefined') Toast.success(t('mmx.linkCopied')); } catch(err){ mxPrompt({ title: t('mmx.copyLinkTitle'), message: t('mmx.copyLinkManual'), defaultValue: verifyUrl }); } return close(); }
                     if (links[act]) { window.open(links[act], '_blank', 'noopener,width=680,height=640'); return close(); }
                 });
                 document.body.appendChild(ov);
@@ -80903,8 +80908,8 @@ You can use variables like {first_name} that will be personalized for each recip
                 this.renderInterests();
             },
 
-            addInterest() {
-                const tag = prompt(t('mmx.addInterestPrompt'));
+            async addInterest() {
+                const tag = await mxPrompt({ title: t('mmx.addInterestTitle'), message: t('mmx.addInterestPrompt'), confirmText: t('dlg.confirm') });
                 if (!tag || !tag.trim()) return;
                 const trimmed = tag.trim();
                 let interests = JSON.parse(localStorage.getItem('mymedx_interests') || '[]');
@@ -81846,7 +81851,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 const emailInput = document.getElementById('userLoginEmail');
                 let email = (emailInput && emailInput.value || '').trim();
                 if (!email) {
-                    email = (prompt('Enter your account email and we\'ll send a reset link:') || '').trim();
+                    email = ((await mxPrompt({ title: MedXI18n.t('auth.forgotEmailTitle'), message: MedXI18n.t('auth.forgotEmailPrompt') })) || '').trim();
                 }
                 if (!email) return;
                 if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -82121,7 +82126,7 @@ You can use variables like {first_name} that will be personalized for each recip
 
                         if (storedEmail) {
                             // Simulate biometric verification with a confirmation
-                            const confirmed = confirm('Authenticate with biometrics?\n\n(In production, this would trigger Face ID / Touch ID)');
+                            const confirmed = await mxConfirm({ type: 'info', icon: 'fa-fingerprint', title: MedXI18n.t('auth.biometricTitle'), message: MedXI18n.t('auth.biometricMsg'), confirmText: MedXI18n.t('dlg.confirm'), cancelText: MedXI18n.t('dlg.cancel') });
 
                             if (confirmed) {
                                 const email = atob(storedEmail);
@@ -92598,7 +92603,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 };
                 if (typeof ConfirmationModal !== 'undefined' && ConfirmationModal.show) {
                     try { await ConfirmationModal.show({ type: 'warning', icon: 'fa-circle-minus', title: t('axi.withdraw'), message: t('axi.withdrawConfirm'), confirmText: t('axi.withdraw'), cancelText: t('axi.back') }); await go(); } catch (e) { /* cancelled */ }
-                } else if (window.confirm(t('axi.withdrawConfirm'))) { await go(); }
+                } else if (await mxConfirm({ type: 'warning', icon: 'fa-circle-minus', title: t('axi.withdraw'), message: t('axi.withdrawConfirm'), confirmText: t('axi.withdraw'), cancelText: t('axi.back') })) { await go(); }
             }
         };
 
@@ -92854,7 +92859,7 @@ You can use variables like {first_name} that will be personalized for each recip
                     }
                 } catch (err) {
                     console.error('Forum verifyInviteCode error:', err);
-                    alert('Something went wrong. Please try again or contact forum@medx.hr for assistance.');
+                    mxAlert({ type: 'warning', title: MedXI18n.t('forum.errTitle'), message: MedXI18n.t('forum.errGenericContact') });
                 }
             },
 
@@ -92970,7 +92975,7 @@ You can use variables like {first_name} that will be personalized for each recip
                 document.body.appendChild(modal);
             } catch (err) {
                 console.error('Forum registerEvent error:', err);
-                alert('Something went wrong. Please try again.');
+                mxAlert({ type: 'warning', title: MedXI18n.t('forum.errTitle'), message: MedXI18n.t('forum.errGeneric') });
             }
             },
 
@@ -108511,7 +108516,7 @@ ${'='.repeat(70)}
             editBridgesSpeaker(speakerId) { const s = this.bridgesSpeakers.find(s => s.id === speakerId); if (s) this.openBridgesSpeakerModal(s); },
 
             async deleteBridgesSpeaker(speakerId) {
-                if (!confirm('Delete this speaker?')) return;
+                if (!(await mxConfirm({ destructive: true, title: 'Delete speaker', message: 'Delete this speaker? This action cannot be undone.', confirmText: 'Delete' }))) return;
                 await fetch(`/api/bridges/speakers/${speakerId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${this.token}` } });
                 Toast.success('Speaker deleted'); this.loadBridgesSpeakers();
             },
@@ -108586,7 +108591,7 @@ ${'='.repeat(70)}
             editBridgesProgramItem(itemId) { const item = this.bridgesProgramItems.find(p => p.id === itemId); if (item) this.openBridgesProgramModal(item); },
 
             async deleteBridgesProgramItem(itemId) {
-                if (!confirm('Delete this program item?')) return;
+                if (!(await mxConfirm({ destructive: true, title: 'Delete program item', message: 'Delete this program item? This action cannot be undone.', confirmText: 'Delete' }))) return;
                 await fetch(`/api/bridges/program/${itemId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${this.token}` } });
                 Toast.success('Program item deleted'); this.loadBridgesProgram();
             },
@@ -109788,7 +109793,7 @@ ${'='.repeat(70)}
             async removeForumMember(id) {
                 const member = this.forumMembers.find(m => m.id === id);
                 if (!member) return;
-                if (!confirm(`Remove ${member.first_name} ${member.last_name} from the Forum?\n\nThis action cannot be undone.`)) return;
+                if (!(await mxConfirm({ destructive: true, title: 'Remove member', message: `Remove ${member.first_name} ${member.last_name} from the Forum? This action cannot be undone.`, confirmText: 'Remove' }))) return;
                 try {
                     await this.api(`/api/admin/forum/members/${id}`, { method: 'DELETE' });
                     this.forumMembers = this.forumMembers.filter(m => m.id !== id);
@@ -112850,7 +112855,7 @@ ${'='.repeat(70)}
 
             exportApplicationsCsv() {
                 const data = this.accAppsFiltered && this.accAppsFiltered.length > 0 ? this.accAppsFiltered : this.applications;
-                if (!data || data.length === 0) { alert('No applications to export'); return; }
+                if (!data || data.length === 0) { mxAlert({ message: 'No applications to export' }); return; }
 
                 const headers = ['Candidate ID', 'First Name', 'Last Name', 'Email', 'Phone', 'Institution', 'Year of Study', 'GPA', 'Program Type', 'Selected Institution', 'Status', 'Validity', 'Total Score', 'Submitted At'];
                 const rows = data.map(a => [
@@ -114316,10 +114321,10 @@ By applying to this program, I give the following consents:
                         method: 'PUT',
                         body: JSON.stringify({ fields })
                     });
-                    alert('Form configuration saved to database.');
+                    await mxAlert({ type: 'success', message: 'Form configuration saved to database.' });
                     await this.loadFormConfig();
                 } catch (err) {
-                    alert('Error saving form config: ' + err.message);
+                    await mxAlert({ type: 'danger', title: 'Error', message: 'Error saving form config: ' + err.message });
                 }
             }
         };
@@ -124577,8 +124582,8 @@ By applying to this program, I give the following consents:
                 Toast.success('Session updated');
             },
 
-            deleteSession(id) {
-                if (!confirm('Delete this session?')) return;
+            async deleteSession(id) {
+                if (!(await mxConfirm({ destructive: true, title: 'Delete session', message: 'Delete this session? This action cannot be undone.', confirmText: 'Delete' }))) return;
                 ConferenceData.deleteSession(id);
                 if (typeof App !== 'undefined') App.loadPlexusSchedule();
                 Toast.success('Session deleted');
@@ -124623,8 +124628,8 @@ By applying to this program, I give the following consents:
                 Toast.success('Speaker updated');
             },
 
-            deleteSpeaker(id) {
-                if (!confirm('Delete this speaker?')) return;
+            async deleteSpeaker(id) {
+                if (!(await mxConfirm({ destructive: true, title: 'Delete speaker', message: 'Delete this speaker? This action cannot be undone.', confirmText: 'Delete' }))) return;
                 ConferenceData.deleteSpeaker(id);
                 if (typeof App !== 'undefined') App.loadPlexusSpeakers();
                 Toast.success('Speaker deleted');
@@ -124791,8 +124796,8 @@ By applying to this program, I give the following consents:
 
             editItem(id) { this.openModal(id); },
 
-            deleteItem(id) {
-                if (!confirm('Delete this item?')) return;
+            async deleteItem(id) {
+                if (!(await mxConfirm({ destructive: true, title: 'Delete item', message: 'Delete this item? This action cannot be undone.', confirmText: 'Delete' }))) return;
                 ConferenceData.deleteZagrebItem(id);
                 this.render();
                 Toast.success('Item deleted');
@@ -125804,10 +125809,10 @@ By applying to this program, I give the following consents:
                     region: document.getElementById('connectionsRegion')?.value || ''
                 };
             },
-            saveCurrentSearch() {
+            async saveCurrentSearch() {
                 const f = this._currentFilters();
                 const suggested = f.search || (f.filter ? f.filter.replace(/_/g, ' ') : '') || 'My search';
-                const name = (prompt('Name this search', suggested) || '').trim();
+                const name = ((await mxPrompt({ title: MedXI18n.t('conn.saveSearchTitle'), message: MedXI18n.t('conn.nameSearchPrompt'), defaultValue: suggested })) || '').trim();
                 if (!name) return;
                 const list = this._read();
                 const existing = list.findIndex(s => (s.name || '').toLowerCase() === name.toLowerCase());
@@ -129169,7 +129174,7 @@ By applying to this program, I give the following consents:
                     overlay.classList.add('active');
 
                     // Set up event listeners (cleanup on close)
-                    this._confirmHandler = () => this.confirm();
+                    this._confirmHandler = () => this.accept();
                     this._cancelHandler = () => this.cancel();
                     this._escHandler = (e) => { if (e.key === 'Escape') this.cancel(); };
 
@@ -129199,7 +129204,7 @@ By applying to this program, I give the following consents:
                 });
             },
 
-            confirm() {
+            accept() {
                 this.close();
                 if (this.resolveCallback) this.resolveCallback(true);
             },
@@ -129230,7 +129235,7 @@ By applying to this program, I give the following consents:
         };
 
         // =========================================
-        // PHASE 4: INPUT MODAL (prompt() replacement)
+        // PHASE 4: INPUT MODAL (native prompt replacement)
         // =========================================
         const InputModal = {
             _resolve: null,
@@ -129329,6 +129334,212 @@ By applying to this program, I give the following consents:
                 }
             }
         };
+
+        // =========================================
+        // PHASE 5: mx* — DESIGNED NATIVE-DIALOG REPLACEMENTS
+        // One Promise-based dialog layer that replaces the native
+        // browser confirm / alert / prompt dialogs. Navy/gold, focus-trapped,
+        // Esc = cancel, backdrop click = cancel, EN+HR via MedXI18n.
+        // Builds on the existing Confirmation/Input modal DESIGN SYSTEM:
+        // each call creates a self-contained overlay from the SAME css
+        // classes (navy/gold, icon circle, gold/red buttons) — so it needs
+        // no pre-rendered markup and also works on pages that replace
+        // document.body (e.g. the direct-registration flow).
+        //   mxConfirm(opts) -> Promise<boolean>   (destructive = red confirm)
+        //   mxAlert(opts)   -> Promise<true>
+        //   mxPrompt(opts)  -> Promise<string|null>
+        // =========================================
+        (function(){
+            // Register dialog + migrated dialog strings (EN + HR, formal Vi).
+            try {
+                if (window.MedXI18n && MedXI18n.extend) MedXI18n.extend({
+                    'dlg.confirmTitle': { en: 'Are you sure?',   hr: 'Jeste li sigurni?' },
+                    'dlg.noticeTitle':  { en: 'Notice',          hr: 'Obavijest' },
+                    'dlg.promptTitle':  { en: 'Enter a value',   hr: 'Unesite vrijednost' },
+                    'dlg.ok':           { en: 'OK',              hr: 'U redu' },
+                    'dlg.cancel':       { en: 'Cancel',          hr: 'Odustani' },
+                    'dlg.confirm':      { en: 'Confirm',         hr: 'Potvrdi' },
+                    'dlg.delete':       { en: 'Delete',          hr: 'Izbriši' },
+                    'auth.forgotEmailTitle':  { en: 'Reset password', hr: 'Ponovno postavljanje lozinke' },
+                    'auth.forgotEmailPrompt': { en: "Enter your account email and we'll send a reset link:", hr: 'Unesite e-adresu svojeg računa i poslat ćemo Vam poveznicu za ponovno postavljanje lozinke:' },
+                    'auth.biometricTitle': { en: 'Sign in with biometrics?', hr: 'Prijava biometrijom?' },
+                    'auth.biometricMsg':   { en: 'In a production environment this would trigger Face ID / Touch ID.', hr: 'U produkcijskom okruženju ovo bi pokrenulo Face ID / Touch ID.' },
+                    'forum.errTitle':          { en: 'Something went wrong', hr: 'Došlo je do pogreške' },
+                    'forum.errGenericContact': { en: 'Something went wrong. Please try again, or contact forum@medx.hr for assistance.', hr: 'Došlo je do pogreške. Pokušajte ponovno ili se za pomoć obratite na forum@medx.hr.' },
+                    'forum.errGeneric':        { en: 'Something went wrong. Please try again.', hr: 'Došlo je do pogreške. Pokušajte ponovno.' },
+                    'conn.saveSearchTitle':  { en: 'Save search',   hr: 'Spremanje pretrage' },
+                    'conn.nameSearchPrompt': { en: 'Name this search', hr: 'Nazovite ovu pretragu' },
+                    'reg.failedGeneric': { en: 'Registration failed. Please try again.', hr: 'Prijava nije uspjela. Pokušajte ponovno.' },
+                    'mmx.addInterestTitle': { en: 'Add an interest', hr: 'Dodavanje interesa' },
+                    'mmx.copyLinkTitle':    { en: 'Copy link',       hr: 'Kopiranje poveznice' },
+                    'mmx.copyLinkManual':   { en: 'Copy this link:', hr: 'Kopirajte ovu poveznicu:' },
+                    'gp.revokeTitle': { en: 'Revoke guest pass', hr: 'Opoziv ulaznice za gosta' }
+                });
+            } catch (e) {}
+
+            function tt(key, fallback, vars){
+                try {
+                    if (window.MedXI18n && MedXI18n.t) {
+                        var v = MedXI18n.t(key, vars);
+                        if (v != null && v !== key) return v;
+                    }
+                } catch (e) {}
+                return fallback;
+            }
+
+            function defaultIcon(type){
+                if (type === 'danger')  return 'fa-triangle-exclamation';
+                if (type === 'warning') return 'fa-triangle-exclamation';
+                if (type === 'success') return 'fa-circle-check';
+                return 'fa-circle-info';
+            }
+
+            // Self-contained overlay reusing the design-system css classes.
+            // mode: 'confirm' | 'alert' | 'prompt'
+            function buildDynamic(mode, cfg){
+                return new Promise(function(resolve){
+                    var isPrompt = (mode === 'prompt');
+                    var prevFocus = document.activeElement;
+
+                    var overlay = document.createElement('div');
+                    overlay.className = isPrompt ? 'input-modal-overlay' : 'confirmation-modal-overlay';
+                    overlay.setAttribute('role', 'dialog');
+                    overlay.setAttribute('aria-modal', 'true');
+
+                    var box = document.createElement('div');
+                    box.className = isPrompt ? 'input-modal' : 'confirmation-modal';
+
+                    var field = null, okBtn, cancelBtn = null;
+
+                    if (isPrompt) {
+                        var body = document.createElement('div'); body.className = 'input-modal-body';
+                        var h = document.createElement('h3'); h.className = 'input-modal-title'; h.textContent = cfg.title || ''; body.appendChild(h);
+                        if (cfg.message) { var p = document.createElement('p'); p.className = 'input-modal-message'; p.textContent = cfg.message; body.appendChild(p); }
+                        field = document.createElement(cfg.multiline ? 'textarea' : 'input');
+                        field.className = 'input-modal-input';
+                        if (!cfg.multiline) field.type = 'text';
+                        field.placeholder = cfg.placeholder || '';
+                        field.value = cfg.defaultValue || '';
+                        field.setAttribute('maxlength', '200');
+                        body.appendChild(field);
+                        box.appendChild(body);
+                        var acts = document.createElement('div'); acts.className = 'input-modal-actions';
+                        cancelBtn = document.createElement('button'); cancelBtn.type = 'button'; cancelBtn.className = 'confirmation-modal-btn cancel'; cancelBtn.textContent = cfg.cancelText;
+                        okBtn = document.createElement('button'); okBtn.type = 'button'; okBtn.className = 'confirmation-modal-btn confirm'; okBtn.textContent = cfg.confirmText;
+                        acts.appendChild(cancelBtn); acts.appendChild(okBtn);
+                        box.appendChild(acts);
+                    } else {
+                        var iconWrap = document.createElement('div'); iconWrap.className = 'confirmation-modal-icon';
+                        var circle = document.createElement('div'); circle.className = 'icon-circle ' + (cfg.type || 'info');
+                        var ic = document.createElement('i'); ic.className = 'fas ' + (cfg.icon || defaultIcon(cfg.type)); circle.appendChild(ic); iconWrap.appendChild(circle);
+                        box.appendChild(iconWrap);
+                        var body2 = document.createElement('div'); body2.className = 'confirmation-modal-body';
+                        var h2 = document.createElement('h3'); h2.className = 'confirmation-modal-title'; h2.textContent = cfg.title || ''; body2.appendChild(h2);
+                        var p2 = document.createElement('p'); p2.className = 'confirmation-modal-message'; p2.textContent = cfg.message || ''; body2.appendChild(p2);
+                        if (cfg.item) { var it = document.createElement('div'); it.className = 'confirmation-modal-item'; it.textContent = cfg.item; body2.appendChild(it); }
+                        box.appendChild(body2);
+                        var acts2 = document.createElement('div'); acts2.className = 'confirmation-modal-actions';
+                        if (mode === 'confirm') { cancelBtn = document.createElement('button'); cancelBtn.type = 'button'; cancelBtn.className = 'confirmation-modal-btn cancel'; cancelBtn.textContent = cfg.cancelText; acts2.appendChild(cancelBtn); }
+                        okBtn = document.createElement('button'); okBtn.type = 'button'; okBtn.className = 'confirmation-modal-btn confirm' + (cfg.danger ? ' danger' : ''); okBtn.textContent = cfg.confirmText; acts2.appendChild(okBtn);
+                        box.appendChild(acts2);
+                    }
+
+                    overlay.appendChild(box);
+                    document.body.appendChild(overlay);
+                    requestAnimationFrame(function(){ overlay.classList.add('active'); });
+
+                    var settled = false;
+                    function finish(result){
+                        if (settled) return; settled = true;
+                        overlay.classList.remove('active');
+                        document.removeEventListener('keydown', onKey, true);
+                        setTimeout(function(){ try { overlay.remove(); } catch (e) {} }, 240);
+                        try { if (prevFocus && typeof prevFocus.focus === 'function') prevFocus.focus(); } catch (e) {}
+                        resolve(result);
+                    }
+                    function accept(){
+                        if (isPrompt) {
+                            var val = (field.value || '').trim();
+                            if (cfg.validate) { var err = cfg.validate(val); if (err) { field.style.borderColor = '#ef4444'; return; } }
+                            finish(val || null);
+                        } else {
+                            finish(true);
+                        }
+                    }
+                    function dismiss(){ finish(isPrompt ? null : (mode === 'confirm' ? false : true)); }
+
+                    okBtn.addEventListener('click', accept);
+                    if (cancelBtn) cancelBtn.addEventListener('click', dismiss);
+                    overlay.addEventListener('click', function(e){ if (e.target === overlay) dismiss(); });
+
+                    function onKey(e){
+                        if (e.key === 'Escape') { e.preventDefault(); dismiss(); return; }
+                        if (e.key === 'Enter' && isPrompt && !cfg.multiline) { e.preventDefault(); accept(); return; }
+                        if (e.key === 'Tab') {
+                            var f = overlay.querySelectorAll('button, input, textarea, [tabindex]');
+                            if (!f.length) return;
+                            var first = f[0], last = f[f.length - 1];
+                            if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+                            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+                        }
+                    }
+                    document.addEventListener('keydown', onKey, true);
+
+                    // Safe default focus: prompt -> field, confirm -> cancel, alert -> ok.
+                    setTimeout(function(){
+                        var target = isPrompt ? field : (mode === 'confirm' && cancelBtn ? cancelBtn : okBtn);
+                        try { target.focus(); } catch (e) {}
+                    }, 60);
+                });
+            }
+
+            window.mxConfirm = function(opts){
+                if (typeof opts === 'string') opts = { message: opts };
+                opts = opts || {};
+                var danger = !!(opts.destructive || opts.danger || opts.type === 'danger');
+                var cfg = {
+                    danger: danger,
+                    type: danger ? 'danger' : (opts.type || 'warning'),
+                    icon: opts.icon,
+                    title: (opts.title != null) ? opts.title : tt('dlg.confirmTitle', 'Are you sure?'),
+                    message: (opts.message != null) ? opts.message : '',
+                    item: opts.item || null,
+                    confirmText: (opts.confirmText != null) ? opts.confirmText : (danger ? tt('dlg.delete', 'Delete') : tt('dlg.confirm', 'Confirm')),
+                    cancelText: (opts.cancelText != null) ? opts.cancelText : tt('dlg.cancel', 'Cancel')
+                };
+                return buildDynamic('confirm', cfg);
+            };
+
+            window.mxAlert = function(opts){
+                if (typeof opts === 'string') opts = { message: opts };
+                opts = opts || {};
+                var cfg = {
+                    danger: false,
+                    type: opts.type || 'info',
+                    icon: opts.icon,
+                    title: (opts.title != null) ? opts.title : tt('dlg.noticeTitle', 'Notice'),
+                    message: (opts.message != null) ? opts.message : '',
+                    confirmText: (opts.confirmText != null) ? opts.confirmText : tt('dlg.ok', 'OK')
+                };
+                return buildDynamic('alert', cfg);
+            };
+
+            window.mxPrompt = function(opts){
+                if (typeof opts === 'string') opts = { message: opts };
+                opts = opts || {};
+                var cfg = {
+                    title: (opts.title != null) ? opts.title : tt('dlg.promptTitle', 'Enter a value'),
+                    message: (opts.message != null) ? opts.message : '',
+                    placeholder: opts.placeholder || '',
+                    defaultValue: (opts.defaultValue != null) ? opts.defaultValue : '',
+                    multiline: !!opts.multiline,
+                    confirmText: (opts.confirmText != null) ? opts.confirmText : tt('dlg.ok', 'OK'),
+                    cancelText: (opts.cancelText != null) ? opts.cancelText : tt('dlg.cancel', 'Cancel'),
+                    validate: opts.validate || null
+                };
+                return buildDynamic('prompt', cfg);
+            };
+        })();
 
         // =========================================
         // PHASE 1: TOAST NOTIFICATION SYSTEM
@@ -131459,12 +131670,12 @@ By applying to this program, I give the following consents:
                 } else {
                     btn.disabled = false;
                     btn.textContent = 'Register Now';
-                    alert(result.error || 'Registration failed. Please try again.');
+                    await mxAlert({ type: 'warning', message: result.error || MedXI18n.t('reg.failedGeneric') });
                 }
             } catch(err) {
                 btn.disabled = false;
                 btn.textContent = 'Register Now';
-                alert('Registration failed. Please try again.');
+                await mxAlert({ type: 'warning', message: MedXI18n.t('reg.failedGeneric') });
             }
         }
     </script>
@@ -131752,8 +131963,8 @@ By applying to this program, I give the following consents:
                 });
         }
 
-        function revoke(id){
-            if (!window.confirm(t('gp.confirmRevoke'))) return;
+        async function revoke(id){
+            if (!(await mxConfirm({ destructive: true, title: t('gp.revokeTitle'), message: t('gp.confirmRevoke'), confirmText: t('gp.revoke') }))) return;
             api('/api/guest-passes/' + encodeURIComponent(id) + '/revoke', { method: 'POST' })
                 .then(function(){ toast('success', t('gp.revokedToast')); refresh(); })
                 .catch(function(err){ toast('error', (err && err.body && err.body.error) || t('gp.loadError')); });
