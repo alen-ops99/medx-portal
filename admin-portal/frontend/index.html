@@ -11830,6 +11830,8 @@ President, Med&amp;X</textarea>
                     .cs-surface h3 { font-size: 21px; font-weight: 700; margin: 0; color: var(--text-primary); }
                     .cs-surface p { color: var(--text-muted); font-size: 14px; margin: 0; line-height: 1.55; }
                     .cs-go { margin-top: 4px; color: var(--accent-primary); font-weight: 700; font-size: 13px; }
+                    .cs-suite-back { display: inline-flex; align-items: center; gap: 7px; background: none; border: none; padding: 0; margin: 0 0 18px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--text-muted); transition: color .15s; }
+                    .cs-suite-back:hover { color: var(--text-primary); }
                     .cs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(304px, 1fr)); gap: 18px; }
                     .cs-page { border: 1px solid var(--border); background: var(--bg-secondary); border-radius: 14px; overflow: hidden; }
                     .cs-page-hd { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
@@ -42820,6 +42822,7 @@ By applying to this program, I give the following consents:
         // return them home on close. No new backend — every save routes through an existing endpoint.
         const ContentStudio = {
             surface: null,        // null | 'website' | 'member'
+            suite: null,          // null | 'event' | 'brand' | 'comms' — the home groups the tools into suites
             _stash: null,         // { id, parent, next, display } of a borrowed member panel
 
             // Website page map. Flexible config — add or remove a page/slot here (item 14).
@@ -42888,10 +42891,12 @@ By applying to this program, I give the following consents:
             init() {
                 this.onLeave();          // restore any borrowed panel + close the drawer
                 this.surface = null;
+                this.suite = null;
                 this.render();
             },
             back() {
                 if (this.surface) { this.surface = null; this.render(); }
+                else if (this.suite) { this.suite = null; this.render(); }
                 else App.showSection('dashboard');
             },
             onLeave() { this.closeDrawer(); },
@@ -42899,10 +42904,12 @@ By applying to this program, I give the following consents:
             render() {
                 const root = document.getElementById('csRoot'); if (!root) return;
                 const back = document.getElementById('csBackLabel');
-                if (back) back.textContent = this.surface ? 'Back to Content studio' : 'Back to Dashboard';
-                if (!this.surface) { root.innerHTML = this.pickerHtml(); try { if (typeof ContentCreator !== 'undefined') ContentCreator.loadRecent(); } catch (e) {} return; }
+                if (back) back.textContent = (this.surface || this.suite) ? 'Back to Content studio' : 'Back to Dashboard';
                 if (this.surface === 'website') { this.renderWebsite(root); return; }
                 if (this.surface === 'member') { root.innerHTML = this.memberHtml(); return; }
+                if (this.suite) { root.innerHTML = this.suiteHtml(this.suite); return; }
+                root.innerHTML = this.pickerHtml();
+                try { if (typeof ContentCreator !== 'undefined') ContentCreator.loadRecent(); } catch (e) {}
             },
             pick(s) {
                 this.surface = s;
@@ -42913,58 +42920,100 @@ By applying to this program, I give the following consents:
                     this.ensureBlocks().then(() => { if (this.surface === 'website') this.renderWebsite(document.getElementById('csRoot')); });
                 } else this.render();
             },
+            openSuite(key) {
+                if (!this.SUITES.some(s => s.key === key)) return;
+                this.surface = null;
+                this.suite = key;
+                this.render();
+                try { window.scrollTo(0, 0); } catch (e) {}
+            },
+            backToSuites() { this.surface = null; this.suite = null; this.render(); },
 
-            // ---------- Step 1: surface picker ----------
-            pickerHtml() {
-                return `<div class="cs-wrap">
-                    <div class="cs-hd">
-                        <h1><i class="fas fa-wand-magic-sparkles" style="color:var(--gold);margin-right:12px;"></i>Content studio</h1>
-                        <p class="cs-sub">Make something to post. Describe what you want and the studio builds a branded graphic, a photo slideshow video, or a PDF — ready to download or send to the media schedule.</p>
-                    </div>
-                    <div class="cs-picker">
-                        <button class="cs-surface" onclick="ContentCreator.start('wizard')">
+            // ---------- The studio home is grouped into named suites ----------
+            // Each suite is a calm card that opens into its tools; the name predicts the contents.
+            // Every existing studio tool maps into exactly one suite — nothing is orphaned. The
+            // per-tool triggers below are UNCHANGED (deep-links preserved), only regrouped.
+            SUITES: [
+                { key: 'event', name: 'Event Suite', icon: 'fa-calendar-check',
+                  blurb: 'Everything a live event needs on the day — name badges, roll-up banners, signage and the guest “I’m attending” cards. Prefilled from the event you choose, exported print-ready.',
+                  intro: 'Everything a live event needs on the day. Pick a tool — each one prefills from the event you choose and exports true-size, print-ready files.',
+                  tools: ['print', 'cards'] },
+                { key: 'brand', name: 'Brand Suite', icon: 'fa-wand-magic-sparkles',
+                  blurb: 'Branded creative to post — announcement and speaker graphics, PDFs, photo slideshows and motion videos, all in the Med&X house style.',
+                  intro: 'Branded creative to post, in the Med&X house style. Graphics and PDFs, photo slideshows and motion videos — download or send to the media schedule.',
+                  tools: ['wizard', 'graphic', 'slideshow', 'video'] },
+                { key: 'comms', name: 'Communications Suite', icon: 'fa-feather-pointed',
+                  blurb: 'Personal correspondence sent under the Med&X name — starting with the Advisory Council invitation, in English and formal Croatian.',
+                  intro: 'Personal correspondence sent under the Med&X name. Design it here, download the PDF, or stage it in the outbox — English and formal Croatian.',
+                  tools: ['council'] }
+            ],
+
+            // The individual tool cards — exact markup and triggers preserved from the old flat grid.
+            toolCardHtml(id) {
+                const T = {
+                    wizard: `<button class="cs-surface" onclick="ContentCreator.start('wizard')">
                             <div class="cs-surface-ic" style="background:rgba(155,27,34,.12);color:#9b1b22;"><i class="fas fa-comments"></i></div>
                             <h3>Guided wizard</h3>
                             <p>Just say what you want — “a 30-second video from the gala photos,” “a post about early-bird tickets.” The studio asks a couple of questions and builds it. Refine by chatting.</p>
                             <span class="cs-go">Start a conversation <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
-                        </button>
-                        <button class="cs-surface" onclick="ContentCreator.start('slideshow')">
+                        </button>`,
+                    slideshow: `<button class="cs-surface" onclick="ContentCreator.start('slideshow')">
                             <div class="cs-surface-ic" style="background:rgba(155,27,34,.12);color:#9b1b22;"><i class="fas fa-film"></i></div>
                             <h3>Slideshow video</h3>
                             <p>Turn event photos into a short moving slideshow with gentle pan and zoom and text overlays. Square, story, or wide. Downloads as a video file.</p>
                             <span class="cs-go">Build a video <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
-                        </button>
-                        <button class="cs-surface" onclick="ContentCreator.start('graphic')">
+                        </button>`,
+                    graphic: `<button class="cs-surface" onclick="ContentCreator.start('graphic')">
                             <div class="cs-surface-ic" style="background:rgba(201,169,98,.20);color:#9a7b2f;"><i class="fas fa-image"></i></div>
                             <h3>Graphic &amp; PDF</h3>
                             <p>Branded post graphics — announcement, countdown, speaker card, quote, program card — styled as siblings of the Plexus event invitations (gold frame, serif display, editorial rules). Every element stays editable. Export a PNG or a simple PDF.</p>
                             <span class="cs-go">Design a graphic <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
-                        </button>
-                        <button class="cs-surface" onclick="VideoStudio.start()">
+                        </button>`,
+                    video: `<button class="cs-surface" onclick="VideoStudio.start()">
                             <div class="cs-surface-ic" style="background:rgba(15,28,46,.12);color:#0f1c2e;"><i class="fas fa-clapperboard"></i></div>
                             <h3>Video studio</h3>
                             <p>Motion graphics from your event data &mdash; a teaser, a speaker reveal, a countdown or registration stinger, or a by-the-numbers recap. Prefilled from real speakers, dates and photos. Plays live, downloads as a video.</p>
                             <span class="cs-go">Make a motion video <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
-                        </button>
-                        <button class="cs-surface" onclick="PrintSuite.start()">
+                        </button>`,
+                    print: `<button class="cs-surface" onclick="PrintSuite.start()">
                             <div class="cs-surface-ic" style="background:rgba(155,27,34,.12);color:#9b1b22;"><i class="fas fa-print"></i></div>
                             <h3>Print &amp; signage</h3>
                             <p>The last-day print run &mdash; name badges for everyone registered (with a member verify QR), roll-up banners, a photo-booth backdrop and directional signs. Prefilled from the event, exported as true-size, print-ready PDFs.</p>
                             <span class="cs-go">Make print files <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
-                        </button>
-                        <button class="cs-surface" data-cardstudio-open>
+                        </button>`,
+                    cards: `<button class="cs-surface" data-cardstudio-open>
                             <div class="cs-surface-ic" style="background:rgba(201,162,39,.14);color:#9c7c1a;"><i class="fas fa-id-card-clip"></i></div>
                             <h3>Attendance cards</h3>
                             <p>The &ldquo;I&rsquo;m attending&rdquo; card, in bulk &mdash; navy/gold heritage frames for every registrant and speaker (professional SPEAKER variants with name, title and institution). No QR, a marketing asset. Download a ZIP or send each one from the outbox.</p>
                             <span class="cs-go">Generate cards <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
-                        </button>
-                        <button class="cs-surface" data-council-open>
+                        </button>`,
+                    council: `<button class="cs-surface" data-council-open>
                             <div class="cs-surface-ic" style="background:rgba(14,33,64,.12);color:#0E2140;"><i class="fas fa-feather-pointed"></i></div>
                             <h3>Council Invitations</h3>
                             <p>A one-page invitation to join the Med&amp;X Advisory Council &mdash; a warm letter on clean paper: the wordmark, the invitee&rsquo;s name, a short invitation, the four asks as a plain list. Design it here, download the A4 PDF, or stage it in the outbox. EN &amp; formal Croatian.</p>
                             <span class="cs-go">Design an invitation <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
-                        </button>
+                        </button>`
+                };
+                return T[id] || '';
+            },
+
+            // ---------- Studio home: the suites ----------
+            pickerHtml() {
+                const suiteCards = this.SUITES.map(s => {
+                    const n = s.tools.length;
+                    return `<button class="cs-surface" data-suite-open="${s.key}">
+                            <div class="cs-surface-ic" style="background:rgba(201,169,98,.18);color:#9a7b2f;"><i class="fas ${s.icon}"></i></div>
+                            <h3>${this.esc(s.name)}</h3>
+                            <p>${this.esc(s.blurb)}</p>
+                            <span class="cs-go">Open the suite &middot; ${n} tool${n === 1 ? '' : 's'} <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
+                        </button>`;
+                }).join('');
+                return `<div class="cs-wrap">
+                    <div class="cs-hd">
+                        <h1><i class="fas fa-wand-magic-sparkles" style="color:var(--gold);margin-right:12px;"></i>Content studio</h1>
+                        <p class="cs-sub">Everything you make for Med&amp;X, grouped into suites. Open a suite to find its tools — event print and guest cards, branded posts and videos, or written invitations.</p>
                     </div>
+                    <div class="cs-picker">${suiteCards}</div>
                     <div id="csRecent" style="margin-top:32px;"></div>
                     <div class="cs-manage">
                         <div class="cs-manage-hd"><i class="fas fa-sliders" style="margin-right:8px;color:var(--text-muted);"></i>Manage published text</div>
@@ -42982,6 +43031,21 @@ By applying to this program, I give the following consents:
                             </button>
                         </div>
                     </div>
+                </div>`;
+            },
+
+            // ---------- A suite's tools ----------
+            suiteHtml(key) {
+                const s = this.SUITES.find(x => x.key === key);
+                if (!s) return this.pickerHtml();
+                const cards = s.tools.map(id => this.toolCardHtml(id)).join('');
+                return `<div class="cs-wrap">
+                    <button class="cs-suite-back" data-suite-back><i class="fas fa-arrow-left" style="font-size:11px;"></i> All suites</button>
+                    <div class="cs-hd">
+                        <h1><i class="fas ${s.icon}" style="color:#9a7b2f;margin-right:12px;"></i>${this.esc(s.name)}</h1>
+                        <p class="cs-sub">${this.esc(s.intro)}</p>
+                    </div>
+                    <div class="cs-picker">${cards}</div>
                 </div>`;
             },
 
@@ -43153,6 +43217,15 @@ By applying to this program, I give the following consents:
                 }
             }
         };
+
+        // CSP-clean suite navigation (delegated — no inline on* handlers on the studio home cards).
+        document.addEventListener('click', function(e){
+            if(!e.target.closest) return;
+            var open=e.target.closest('[data-suite-open]');
+            if(open){ e.preventDefault(); try{ ContentStudio.openSuite(open.getAttribute('data-suite-open')); }catch(err){ console.error(err); } return; }
+            var back=e.target.closest('[data-suite-back]');
+            if(back){ e.preventDefault(); try{ ContentStudio.backToSuites(); }catch(err){ console.error(err); } }
+        });
 
 
         // ==================== CONTENT CREATOR — make graphics, slideshow videos & PDFs ====================
