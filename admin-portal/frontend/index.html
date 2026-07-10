@@ -598,6 +598,29 @@
         .settings-feedback.success { color: var(--success); }
         .settings-feedback.error { color: var(--danger); }
 
+        /* Organisation signature pane — one accent family; the one-red token only on the danger action. */
+        .org-sig-row, .org-sig-empty {
+            display: flex; align-items: center; gap: 14px;
+            padding: 16px; border: 1px solid var(--border); border-radius: 12px;
+            background: var(--bg-tertiary);
+        }
+        .org-sig-preview {
+            height: 56px; max-width: 200px; object-fit: contain;
+            background: var(--bg-secondary); border: 1px solid var(--border);
+            border-radius: 8px; padding: 6px 10px; flex-shrink: 0;
+        }
+        .org-sig-emptyicon {
+            width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            background: var(--bg-secondary); color: var(--text-muted); font-size: 18px;
+        }
+        .org-sig-meta { flex: 1; min-width: 0; }
+        .org-sig-name { font-weight: 600; font-size: 14px; color: var(--text-primary); }
+        .org-sig-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .org-sig-actions { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+        .org-sig-danger { color: var(--red); border-color: rgba(var(--red-rgb), 0.35); }
+        .org-sig-hint { font-size: 12px; color: var(--text-muted); margin-top: 12px; line-height: 1.55; }
+
         @media (max-width: 600px) {
             .settings-card { margin: 12px; }
             .settings-header, .settings-tabs, .settings-body { padding-left: 20px; padding-right: 20px; }
@@ -6842,6 +6865,7 @@
                 <button class="settings-tab active" data-tab="profile" onclick="App.switchSettingsTab('profile')">Profile</button>
                 <button class="settings-tab" data-tab="security" onclick="App.switchSettingsTab('security')">Security</button>
                 <button class="settings-tab" data-tab="sections" onclick="App.switchSettingsTab('sections')">Sections</button>
+                <button class="settings-tab" data-tab="signature" onclick="App.switchSettingsTab('signature')">Signature</button>
             </div>
             <div class="settings-body">
                 <!-- Profile Tab -->
@@ -6902,6 +6926,13 @@
                     <div class="section-grid" id="settingsSectionsGrid"></div>
                     <div class="settings-feedback" id="sectionsFeedback"></div>
                     <button class="onboarding-btn onboarding-btn-primary" onclick="App.saveSections()" style="margin-top: 16px;">Save Sections</button>
+                </div>
+                <!-- Signature Tab — the ONE organisation signature, shared by every signed artifact -->
+                <div class="settings-pane" id="settingsSignature">
+                    <p class="onboarding-subtitle" style="margin-bottom: 16px;">The organisation signature. Upload it once and it appears above the typed name on every signed artifact — council invitations, attendance certificates, and any future signed page.</p>
+                    <div id="orgSigBlock"></div>
+                    <input type="file" id="orgSigFile" accept="image/png" style="display:none">
+                    <div class="settings-feedback" id="signatureFeedback"></div>
                 </div>
             </div>
         </div>
@@ -16214,6 +16245,78 @@ President, Med&amp;X</textarea>
             info(msg) { this.show(msg, 'info'); }
         };
 
+        // ==================== ORGANISATION SIGNATURE (Settings -> Signature) ====================
+        // The ONE org-level founder signature, shared by every signed artifact (council invitations,
+        // attendance certificates, any future signed page). Upload once, preview, delete. Base64 data URL
+        // lives in the shared DB via /api/admin/org/signature. CSP-clean: delegated listeners, adminConfirm.
+        const OrgSignature = {
+            _wired: false, _busy: false, _url: null,
+            toast(m, t) { if (typeof Toast === 'undefined') return; if (t === 'error') Toast.error(m); else Toast.success(m); },
+            ensureWired() {
+                if (this._wired) return; this._wired = true; var self = this;
+                var block = document.getElementById('orgSigBlock');
+                var file = document.getElementById('orgSigFile');
+                if (block) block.addEventListener('click', function (e) {
+                    var el = e.target.closest && e.target.closest('[data-sig]'); if (!el) return;
+                    var a = el.getAttribute('data-sig');
+                    if (a === 'upload') { if (file) file.click(); }
+                    else if (a === 'remove') self.remove();
+                });
+                if (file) file.addEventListener('change', function (e) {
+                    var f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) self.upload(f);
+                });
+            },
+            load() {
+                this.ensureWired(); var self = this;
+                fetch('/api/org/signature', { headers: { 'Authorization': 'Bearer ' + App.token } })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (d) { self._url = (d && d.signature) || null; self._paint(); })
+                    .catch(function () { self._paint(); });
+            },
+            _paint() {
+                var host = document.getElementById('orgSigBlock'); if (!host) return; var url = this._url;
+                if (url) {
+                    host.innerHTML = '<div class="org-sig-row"><img src="' + url + '" alt="Signature" class="org-sig-preview">'
+                        + '<div class="org-sig-meta"><div class="org-sig-name">Signature uploaded</div><div class="org-sig-sub">On every council invitation, attendance certificate and signed page.</div></div>'
+                        + '<div class="org-sig-actions"><button class="btn btn-secondary" data-sig="upload"><i class="fas fa-upload"></i> Replace</button>'
+                        + '<button class="btn btn-secondary org-sig-danger" data-sig="remove"><i class="fas fa-trash"></i> Remove</button></div></div>';
+                } else {
+                    host.innerHTML = '<div class="org-sig-empty"><div class="org-sig-emptyicon"><i class="fas fa-signature"></i></div>'
+                        + '<div class="org-sig-meta"><div class="org-sig-name">No signature uploaded</div><div class="org-sig-sub">Signed artifacts show clean blank space above the typed name until you upload one.</div></div>'
+                        + '<button class="btn btn-primary" data-sig="upload"><i class="fas fa-upload"></i> Upload PNG</button></div>'
+                        + '<div class="org-sig-hint">Upload a PNG of the real signature — dark ink on a transparent or white background works best. Keep it under 3 MB.</div>';
+                }
+            },
+            upload(file) {
+                if (this._busy) return;
+                if (!file || file.type !== 'image/png') { this.toast('Upload a PNG image of the signature', 'error'); return; }
+                if (file.size > 3 * 1024 * 1024) { this.toast('Keep the signature PNG under 3 MB', 'error'); return; }
+                this._busy = true; var self = this;
+                fetch('/api/admin/org/signature', { method: 'POST', headers: { 'Content-Type': 'image/png', 'Authorization': 'Bearer ' + App.token }, body: file })
+                    .then(function (r) { return r.json().catch(function () { return null; }).then(function (d) { return { ok: r.ok, d: d }; }); })
+                    .then(function (x) {
+                        self._busy = false;
+                        if (x.ok && x.d && x.d.success) { self._url = x.d.signature; self._paint(); self.toast('Signature saved — every signed artifact now carries it', 'success'); }
+                        else self.toast((x.d && x.d.message) || 'Could not store the signature', 'error');
+                    })
+                    .catch(function () { self._busy = false; self.toast('Could not store the signature', 'error'); });
+            },
+            async remove() {
+                if (this._busy) return;
+                if (!(await adminConfirm({ destructive: true, title: 'Remove the organisation signature?', message: 'Every signed artifact returns to clean blank space above the typed name until a new PNG is uploaded.', confirmText: 'Remove' }))) return;
+                this._busy = true; var self = this;
+                fetch('/api/admin/org/signature/delete', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + App.token }, body: '{}' })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (d) {
+                        self._busy = false;
+                        if (d && d.success) { self._url = null; self._paint(); self.toast('Signature removed', 'success'); }
+                        else self.toast('Could not remove the signature', 'error');
+                    })
+                    .catch(function () { self._busy = false; self.toast('Could not remove the signature', 'error'); });
+            }
+        };
+        window.OrgSignature = OrgSignature;
+
         function showSkeleton(containerId, type = 'cards', count = 3) {
             const el = document.getElementById(containerId);
             if (!el) return;
@@ -17086,8 +17189,9 @@ President, Med&amp;X</textarea>
             switchSettingsTab(tab) {
                 document.querySelectorAll('.settings-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
                 document.querySelectorAll('.settings-pane').forEach(p => p.classList.remove('active'));
-                const paneId = { profile: 'settingsProfile', security: 'settingsSecurity', sections: 'settingsSections' }[tab];
+                const paneId = { profile: 'settingsProfile', security: 'settingsSecurity', sections: 'settingsSections', signature: 'settingsSignature' }[tab];
                 document.getElementById(paneId)?.classList.add('active');
+                if (tab === 'signature' && typeof OrgSignature !== 'undefined') OrgSignature.load();
             },
 
             renderSettingsSections() {
@@ -46367,7 +46471,6 @@ By applying to this program, I give the following consents:
                 +'      <div class="ci-note" id="ciNote">The invitation is a print-grade A4 page. Staging places one email in the approval outbox — nothing sends until you approve it there.</div>'
                 +'      <div class="ci-sidehd">Founder signature</div>'
                 +'      <div id="ciSigBlock"></div>'
-                +'      <input type="file" id="ciSigFile" accept="image/png" style="display:none">'
                 +'      <div class="ci-sidehd">Saved invitations</div>'
                 +'      <div id="ciList" style="display:flex;flex-direction:column;gap:9px;"></div>'
                 +'    </div>'
@@ -46387,9 +46490,7 @@ By applying to this program, I give the following consents:
                 ov.querySelector('#ciStage').addEventListener('click', function(){ self.stageOutbox(); });
                 // list actions (delegated)
                 ov.querySelector('#ciList').addEventListener('click', function(e){ var el=e.target.closest && e.target.closest('[data-act]'); if(!el) return; var id=el.getAttribute('data-id'); if(el.getAttribute('data-act')==='edit') self.editRow(id); else if(el.getAttribute('data-act')==='del') self.deleteRow(id); });
-                // founder-signature setting (delegated + a once-wired file input)
-                ov.querySelector('#ciSigBlock').addEventListener('click', function(e){ var el=e.target.closest && e.target.closest('[data-sig]'); if(!el) return; if(el.getAttribute('data-sig')==='upload'){ var f=ov.querySelector('#ciSigFile'); if(f) f.click(); } else if(el.getAttribute('data-sig')==='remove') self.removeSignature(); });
-                ov.querySelector('#ciSigFile').addEventListener('change', function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=''; if(f) self.uploadSignature(f); });
+                // founder signature is READ-ONLY here — it is the ONE org signature, managed in Settings -> Signature.
             },
             async start(){ this.ensureBuilt(); this._overlay.classList.add('active'); document.body.style.overflow='hidden'; this._syncForm(); this._preview(); this._refreshActions(); await this.loadList(); },
             close(){ if(this._overlay) this._overlay.classList.remove('active'); document.body.style.overflow=''; try{ ContentStudio.init(); }catch(e){} },
@@ -46458,39 +46559,11 @@ By applying to this program, I give the following consents:
                 this._busy=false; if(btn){ btn.innerHTML='<i class="fas fa-paper-plane"></i> Stage in outbox'; } this._refreshActions();
             },
             async loadList(){ var r=await this.api('/api/admin/council/list'); this.state.list=(r.ok&&r.d&&r.d.invitations)?r.d.invitations:[]; var sig=(r.ok&&r.d&&r.d.signature_url)?r.d.signature_url:null; if(sig!==this.state.signatureUrl){ this.state.signatureUrl=sig; await window.MedxInvite.setSignature(sig); this._paintPreview(); } this._paintSigRow(); this._paintList(); },
-            // ---- founder signature (admin setting): a real signature PNG replaces the script rendering on ALL renders ----
+            // ---- founder signature: READ-ONLY reflection of the ONE org signature (managed in Settings -> Signature) ----
             _paintSigRow(){ var host=this._overlay&&this._overlay.querySelector('#ciSigBlock'); if(!host) return; var url=this.state.signatureUrl;
                 if(url){ host.innerHTML='<div class="ci-row"><img src="'+this.esc(url)+'" alt="Signature" style="height:34px;max-width:110px;object-fit:contain;background:#fff;border:1px solid var(--border);border-radius:6px;padding:2px 6px;flex-shrink:0;">'
-                    +'<span style="min-width:0;flex:1;"><span class="nm">Uploaded signature</span><br><span class="mt">Used on every invitation render</span></span>'
-                    +'<button class="ci-ico" data-sig="upload" title="Replace"><i class="fas fa-upload"></i></button>'
-                    +'<button class="ci-ico" data-sig="remove" title="Remove"><i class="fas fa-trash"></i></button></div>'; }
-                else { host.innerHTML='<div class="ci-row"><span style="min-width:0;flex:1;"><span class="nm">Script signature</span><br><span class="mt">Elegant built-in script until the real one is uploaded</span></span>'
-                    +'<button class="ci-ico" data-sig="upload" title="Upload a signature PNG"><i class="fas fa-upload"></i></button></div>'
-                    +'<div class="ci-note" style="margin-top:6px;">Upload a PNG of the real signature (dark ink on white or transparent) and every future invitation carries it.</div>'; } },
-            async uploadSignature(file){
-                if(this._busy) return;
-                if(!file || file.type!=='image/png'){ this.toast('Upload a PNG image of the signature','warning'); return; }
-                if(file.size>3*1024*1024){ this.toast('Keep the signature PNG under 3 MB','warning'); return; }
-                this._busy=true;
-                try{
-                    var r=await fetch('/api/admin/council/signature',{ method:'POST', headers:{ 'Content-Type':'image/png', 'Authorization':'Bearer '+App.token }, body:file });
-                    var d=null; try{ d=await r.json(); }catch(e){}
-                    if(r.ok&&d&&d.success){ this.state.signatureUrl=d.signature_url; await window.MedxInvite.setSignature(d.signature_url); this._paintSigRow(); this._paintPreview(); this.toast('Signature saved — every future invitation now carries it','success'); }
-                    else this.toast((d&&d.message)||'Could not store the signature','error');
-                }catch(e){ console.error('signature upload failed',e); this.toast('Could not store the signature','error'); }
-                this._busy=false;
-            },
-            async removeSignature(){
-                if(this._busy) return;
-                if(!(await adminConfirm({ destructive:true, title:'Remove the uploaded signature?', message:'Future invitations return to the elegant script signature until a new PNG is uploaded.', confirmText:'Remove' }))) return;
-                this._busy=true;
-                try{
-                    var r=await this.api('/api/admin/council/signature/delete',{ method:'POST', body:JSON.stringify({}) });
-                    if(r.ok&&r.d&&r.d.success){ this.state.signatureUrl=null; await window.MedxInvite.setSignature(null); this._paintSigRow(); this._paintPreview(); this.toast('Signature removed','success'); }
-                    else this.toast('Could not remove the signature','error');
-                }catch(e){ console.error('signature remove failed',e); this.toast('Could not remove the signature','error'); }
-                this._busy=false;
-            },
+                    +'<span style="min-width:0;flex:1;"><span class="nm">Organisation signature</span><br><span class="mt">Shared by every signed artifact &middot; manage it in Settings &rarr; Signature</span></span></div>'; }
+                else { host.innerHTML='<div class="ci-row"><span style="min-width:0;flex:1;"><span class="nm">Script signature</span><br><span class="mt">Elegant built-in script until a signature is uploaded in Settings &rarr; Signature</span></span></div>'; } },
             _paintList(){ var host=this._overlay&&this._overlay.querySelector('#ciList'); if(!host) return; var self=this;
                 if(!this.state.list.length){ host.innerHTML='<div class="ci-note" style="padding:6px 2px;">No invitations saved yet. Design one, then Save to list.</div>'; return; }
                 host.innerHTML=this.state.list.map(function(inv){ var mt=[inv.title,inv.institution].filter(Boolean).join(' · '); var pill=inv.status==='sent'?'<span class="ci-pill sent">Sent</span>':'<span class="ci-pill draft">Draft</span>';
