@@ -42865,6 +42865,12 @@ By applying to this program, I give the following consents:
                             <p>The &ldquo;I&rsquo;m attending&rdquo; card, in bulk &mdash; navy/gold heritage frames for every registrant and speaker (professional SPEAKER variants with name, title and institution). No QR, a marketing asset. Download a ZIP or send each one from the outbox.</p>
                             <span class="cs-go">Generate cards <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
                         </button>
+                        <button class="cs-surface" data-council-open>
+                            <div class="cs-surface-ic" style="background:rgba(14,33,64,.12);color:#0E2140;"><i class="fas fa-feather-pointed"></i></div>
+                            <h3>Council Invitations</h3>
+                            <p>A one-page invitation to join the Med&amp;X Advisory Council &mdash; a warm letter on clean paper: the wordmark, the invitee&rsquo;s name, a short invitation, the four asks as a plain list. Design it here, download the A4 PDF, or stage it in the outbox. EN &amp; formal Croatian.</p>
+                            <span class="cs-go">Design an invitation <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
+                        </button>
                     </div>
                     <div id="csRecent" style="margin-top:32px;"></div>
                     <div class="cs-manage">
@@ -45251,6 +45257,299 @@ By applying to this program, I give the following consents:
         // CSP-clean trigger (delegated — no inline on* handler on the Content Studio surface button).
         document.addEventListener('click', function(e){ var el=e.target.closest && e.target.closest('[data-cardstudio-open]'); if(el){ e.preventDefault(); try{ CardStudio.start(); }catch(err){ console.error(err); } } });
 
+
+        // ==================== ADVISORY COUNCIL INVITATION — print-grade renderer ====================
+        // A single-page A4 invitation drawn CLIENT-SIDE at print resolution (2480x3508 = A4 @ 300dpi).
+        // OWNER SPEC (~14:05 respec): SIMPLE AND WARM — "We're happy to invite you to join. These are the
+        // obligations. That's about it." Clean paper ground, the real med&X wordmark, the invitee's name in
+        // a dark serif, a short warm paragraph, the four obligations as a PLAIN list, one thin gold rule,
+        // and two small real event photos above a modest footer. No navy field, no pleter, no theatrics.
+        // Bilingual (EN / formal-Vi HR). Dependency-free — no headless Chrome — renders identically on prod.
+        window.MedxInvite = (function(){
+            var W=2480, H=3508;
+            var PAL={ paper:'#FDFCF9', ink:'#23262B', body:'#33363C', muted:'#7A756B', gold:'#C9A227', hairline:'#E4DFD4' };
+            var DISPLAY="'Fraunces', Georgia, 'Times New Roman', serif";
+            var SERIF="'Cormorant Garamond', Georgia, 'Times New Roman', serif";
+            var LABEL="'Inter', -apple-system, 'Helvetica Neue', Arial, sans-serif";
+            // Real assets, same-origin (express.static serves ../frontend) so the canvas never taints:
+            // the med&X wordmark + two real Med&X moments (Plexus Gala 2025, Plexus 2023 conference).
+            var ASSETS={ logo:'/assets/logo.png', photo1:'/resources/assets/plexus_25_gala.jpg', photo2:'/resources/assets/plexus_23_george_daley.jpg' };
+            var IMGS={}, _readyPromise=null;
+            function loadImg(src){ return new Promise(function(res){ var im=new Image(); im.onload=function(){ res(im); }; im.onerror=function(){ res(null); }; im.src=src; }); }
+            // ready(): images + the fonts AT DRAW SIZES with a Croatian-diacritic sample, so the
+            // latin-ext subsets are in before any canvas draw (else č/ć/š/đ fall back to Georgia).
+            function ready(){ if(!_readyPromise){ var sample='ČĆŽŠĐčćžšđ Med&X'; var fonts=(document.fonts&&document.fonts.load)?Promise.all(['500 116px '+DISPLAY,'500 64px '+DISPLAY,'400 56px '+SERIF,'italic 400 46px '+SERIF,'500 58px '+SERIF,'600 40px '+LABEL].map(function(f){ return document.fonts.load(f,sample).catch(function(){}); })).catch(function(){}):Promise.resolve(); _readyPromise=Promise.all([loadImg(ASSETS.logo),loadImg(ASSETS.photo1),loadImg(ASSETS.photo2),fonts]).then(function(r){ IMGS.logo=r[0]; IMGS.photo1=r[1]; IMGS.photo2=r[2]; }); } return _readyPromise; }
+            // Warmest core of the approved letter, trimmed to two sentences + the one personalized slot.
+            var COPY={
+                en:{
+                    council:'THE ADVISORY COUNCIL',
+                    namePlaceholder:'Full Name',
+                    para:function(s){ var lead=(s&&s.trim())?(s.trim().replace(/[\s.]+$/,'')+'. '):''; return lead+'We are forming the Med&X Advisory Council, a small standing circle of people who have shaped medicine in their own countries. I would be glad, and honoured, to count you among its founding members.'; },
+                    askLabel:'WHAT MEMBERSHIP ASKS OF YOU',
+                    ask:['Your name','One gathering a year, during Plexus week in Zagreb','A door, when we ask','Counsel, when you offer it'],
+                    reassure:'The seat is honorary, with no legal duties and no part in how the association is run.',
+                    signName:'Alen Juginović, MD', signRole:'FOUNDER & PRESIDENT, MED&X',
+                    footer:'MEDX.HR   ·   ZAGREB'
+                },
+                hr:{
+                    council:'SAVJETODAVNO VIJEĆE',
+                    namePlaceholder:'Ime i prezime',
+                    para:function(s){ var lead=(s&&s.trim())?(s.trim().replace(/[\s.]+$/,'')+'. '):''; return lead+'Osnivamo Savjetodavno vijeće Med&X-a, mali stalni krug ljudi koji su oblikovali medicinu u svojim zemljama. Bilo bi mi drago, i bila bi mi čast, ubrojiti Vas među njegove osnivače.'; },
+                    askLabel:'ŠTO ČLANSTVO OD VAS TRAŽI',
+                    ask:['Vaše ime','Jedan susret godišnje, tijekom Plexus tjedna u Zagrebu','Vrata, kada zamolimo','Savjet, kada ga ponudite'],
+                    reassure:'Mjesto je počasno, bez pravnih obveza i bez udjela u upravljanju udrugom.',
+                    signName:'Alen Juginović, dr. med.', signRole:'OSNIVAČ I PREDSJEDNIK, MED&X',
+                    footer:'MEDX.HR   ·   ZAGREB'
+                }
+            };
+            function label(ctx,text,x,y,spacing,size,color,align,weight){ ctx.save(); ctx.fillStyle=color; ctx.textBaseline='alphabetic'; ctx.font=(weight||'600')+' '+size+'px '+LABEL; var s=String(text||''),total=0,i; for(i=0;i<s.length;i++){ total+=ctx.measureText(s[i]).width+spacing; } total-=spacing; var cx=align==='center'?x-total/2:(align==='right'?x-total:x); ctx.textAlign='left'; for(i=0;i<s.length;i++){ ctx.fillText(s[i],cx,y); cx+=ctx.measureText(s[i]).width+spacing; } ctx.restore(); }
+            function fitName(ctx,name,maxW,sizes){ for(var i=0;i<sizes.length;i++){ ctx.font='500 '+sizes[i]+'px '+DISPLAY; if(ctx.measureText(name).width<=maxW) return {size:sizes[i],lines:[name]}; } var sz=sizes[sizes.length-1]; ctx.font='500 '+sz+'px '+DISPLAY; var words=String(name).split(/\s+/),lines=[],cur=''; for(var w=0;w<words.length;w++){ var t=cur?cur+' '+words[w]:words[w]; if(ctx.measureText(t).width>maxW&&cur){ lines.push(cur); cur=words[w]; } else cur=t; } if(cur)lines.push(cur); if(lines.length>2)lines=[lines[0],lines.slice(1).join(' ')]; return {size:sz,lines:lines}; }
+            function wrap(ctx,text,maxW,font){ ctx.font=font; var words=String(text).split(/\s+/),lines=[],cur=''; for(var i=0;i<words.length;i++){ var t=cur?cur+' '+words[i]:words[i]; if(ctx.measureText(t).width>maxW&&cur){ lines.push(cur); cur=words[i]; } else cur=t; } if(cur)lines.push(cur); return lines; }
+            function clip(ctx,text,maxW,font){ ctx.save(); ctx.font=font; var s=String(text||''); if(ctx.measureText(s).width<=maxW){ctx.restore();return s;} while(s.length>1&&ctx.measureText(s+'…').width>maxW) s=s.slice(0,-1); ctx.restore(); return s+'…'; }
+            // Centered paragraph (a short warm letter block). Returns the last baseline.
+            function drawCentered(ctx,text,cx,y,maxW,font,lineH,color){ ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=color; var lines=wrap(ctx,text,maxW,font); var yy=y; for(var i=0;i<lines.length;i++){ ctx.font=font; ctx.fillText(lines[i],cx,yy); yy+=lineH; } ctx.restore(); return yy-lineH; }
+            // Cover-crop an image into a rect, with a quiet hairline border.
+            function drawCover(ctx,img,x,y,w,h){ if(!img){ ctx.save(); ctx.fillStyle='#F2EFE8'; ctx.fillRect(x,y,w,h); ctx.restore(); } else { var s=Math.max(w/img.width,h/img.height); var sw=w/s, sh=h/s, sx=(img.width-sw)/2, sy=(img.height-sh)/2; ctx.save(); ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip(); ctx.drawImage(img,sx,sy,sw,sh,x,y,w,h); ctx.restore(); } ctx.save(); ctx.strokeStyle=PAL.hairline; ctx.lineWidth=2; ctx.strokeRect(x+1,y+1,w-2,h-2); ctx.restore(); }
+
+            function render(opts){
+                opts=opts||{};
+                var lang=(opts.language==='hr')?'hr':'en'; var C=COPY[lang];
+                var name=String(opts.name||'').trim()||C.namePlaceholder;
+                var title=String(opts.title||'').trim();
+                var inst=String(opts.institution||'').trim();
+                var titleLine=[title,inst].filter(Boolean).join('   ·   ');
+                var cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+                var ctx=cv.getContext('2d'); var cx=W/2;
+                // ---- clean paper ground ----
+                ctx.fillStyle=PAL.paper; ctx.fillRect(0,0,W,H);
+                // ---- the real med&X wordmark, modest, centered ----
+                var lw=520, lh, ly=360;
+                if(IMGS.logo){ lh=lw*(IMGS.logo.height/IMGS.logo.width); ctx.drawImage(IMGS.logo,cx-lw/2,ly,lw,lh); }
+                else { lh=114; ctx.save(); ctx.fillStyle=PAL.ink; ctx.font='600 118px '+DISPLAY; ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillText('med&X',cx,ly+96); ctx.restore(); }
+                // ---- small caps: the council ----
+                label(ctx,C.council,cx,ly+lh+150,16,40,PAL.muted,'center','600');
+                // ---- invitee name, elegant dark serif (respectfully sized) ----
+                var fn=fitName(ctx,name,1900,[116,102,90,78]);
+                ctx.save(); ctx.fillStyle=PAL.ink; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+                var ny=ly+lh+150+210; fn.lines.forEach(function(ln){ ctx.font='500 '+fn.size+'px '+DISPLAY; ctx.fillText(ln,cx,ny); ny+=Math.round(fn.size*1.14); });
+                ctx.restore();
+                var nameBottom=ny-Math.round(fn.size*1.14);
+                // ---- title / institution in small caps ----
+                var yy=nameBottom;
+                if(titleLine){ yy=nameBottom+96; label(ctx,clip(ctx,titleLine.toUpperCase(),2000,'600 38px '+LABEL),cx,yy,8,38,PAL.muted,'center','600'); }
+                // ---- the ONE thin gold rule ----
+                var ruleY=yy+96; ctx.save(); ctx.fillStyle=PAL.gold; ctx.fillRect(cx-110,ruleY,220,3); ctx.restore();
+                // ---- the short warm invitation paragraph (personalized slot + warmest core) ----
+                var paraEnd=drawCentered(ctx, C.para(opts.personal), cx, ruleY+150, 1560, '400 56px '+SERIF, 86, PAL.body);
+                // ---- what membership asks of you — a PLAIN four-line list ----
+                label(ctx,C.askLabel,cx,paraEnd+180,12,38,PAL.muted,'center','600');
+                ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=PAL.ink; ctx.font='500 58px '+SERIF;
+                var ay=paraEnd+180+110;
+                for(var i=0;i<C.ask.length;i++){ ctx.fillText(C.ask[i],cx,ay); ay+=100; }
+                ctx.restore();
+                var askEnd=ay-100;
+                // ---- one line of reassurance ----
+                ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=PAL.muted; ctx.font='italic 400 46px '+SERIF;
+                ctx.fillText(clip(ctx,C.reassure,2000,'italic 400 46px '+SERIF),cx,askEnd+130); ctx.restore();
+                // ---- signature ----
+                var signY=askEnd+130+200;
+                ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=PAL.ink; ctx.font='500 64px '+DISPLAY; ctx.fillText(C.signName,cx,signY); ctx.restore();
+                label(ctx,C.signRole,cx,signY+70,7,34,PAL.muted,'center','600');
+                // ---- a quiet strip of two small real Med&X moments, above the footer ----
+                var pw=520, ph=347, gap=36, py=H-780;
+                drawCover(ctx,IMGS.photo1,cx-pw-gap/2,py,pw,ph);
+                drawCover(ctx,IMGS.photo2,cx+gap/2,py,pw,ph);
+                // ---- modest footer ----
+                label(ctx,C.footer,cx,H-300,10,34,PAL.muted,'center','600');
+                return cv;
+            }
+            return { render:render, ready:ready, COPY:COPY, W:W, H:H };
+        })();
+
+        // ---- Dependency-free canvas -> single-page A4 PDF (embeds a baseline JPEG via /DCTDecode). ----
+        window.MedxInvitePdf = {
+            build: function(jpegBytes, wPx, hPx){
+                var A4W='595.28', A4H='841.89';
+                var parts=[], offsets=[], pos=0;
+                function bytes(s){ var a=new Uint8Array(s.length); for(var i=0;i<s.length;i++) a[i]=s.charCodeAt(i)&0xff; return a; }
+                function push(u8){ parts.push(u8); pos+=u8.length; }
+                function pushStr(s){ push(bytes(s)); }
+                function pad10(n){ n=String(n); while(n.length<10) n='0'+n; return n; }
+                pushStr('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+                offsets[1]=pos; pushStr('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+                offsets[2]=pos; pushStr('2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n');
+                offsets[3]=pos; pushStr('3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+A4W+' '+A4H+'] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n');
+                offsets[4]=pos; pushStr('4 0 obj\n<< /Type /XObject /Subtype /Image /Width '+wPx+' /Height '+hPx+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+jpegBytes.length+' >>\nstream\n'); push(jpegBytes); pushStr('\nendstream\nendobj\n');
+                var content='q\n'+A4W+' 0 0 '+A4H+' 0 0 cm\n/Im0 Do\nQ\n'; var cb=bytes(content);
+                offsets[5]=pos; pushStr('5 0 obj\n<< /Length '+cb.length+' >>\nstream\n'); push(cb); pushStr('\nendstream\nendobj\n');
+                var xrefPos=pos, n=6;
+                var xref='xref\n0 '+n+'\n0000000000 65535 f \n'; for(var i=1;i<n;i++){ xref+=pad10(offsets[i])+' 00000 n \n'; }
+                pushStr(xref); pushStr('trailer\n<< /Size '+n+' /Root 1 0 R >>\nstartxref\n'+xrefPos+'\n%%EOF');
+                return new Blob(parts, { type:'application/pdf' });
+            }
+        };
+
+        // ==================== COUNCIL INVITATIONS — admin generator (Content Studio sibling) ====================
+        // English admin surface (convention); the invitation ARTIFACT is bilingual. Live Canvas2D preview at
+        // print resolution, download the A4 PDF client-side, save to a list, or stage one invitation into the
+        // SAME approval outbox (never auto-send). CSP-clean: delegated addEventListener, no inline on* handlers.
+        const CouncilInvites = {
+            _built:false, _overlay:null, _busy:false, _t:null,
+            state:{ language:'en', name:'', title:'', institution:'', personal:'', email:'', editingId:null, list:[] },
+            esc(s){ return (typeof escapeHtml==='function') ? escapeHtml(s==null?'':String(s)) : String(s==null?'':s); },
+            toast(m,t){ if(typeof App!=='undefined'&&App.showToast) App.showToast(m,t); },
+            async api(path,opts){ const r=await fetch(path, Object.assign({ headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+App.token } }, opts||{})); let d=null; try{ d=await r.json(); }catch(e){} return { ok:r.ok, status:r.status, d }; },
+            _fontsReady(){ var fonts=(document.fonts&&document.fonts.ready)?document.fonts.ready.catch(function(){}):Promise.resolve(); return Promise.all([fonts, window.MedxInvite.ready()]).catch(function(){}); },
+            _slug(s){ return String(s||'invitation').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,48)||'invitation'; },
+            _validEmail(e){ return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(e||'').trim()); },
+            _invOpts(){ return { language:this.state.language, name:this.state.name, title:this.state.title, institution:this.state.institution, personal:this.state.personal }; },
+            _invPayload(){ return { name:this.state.name.trim(), title:this.state.title.trim(), institution:this.state.institution.trim(), language:this.state.language, personal_sentence:this.state.personal.trim(), email:this.state.email.trim() }; },
+
+            ensureStyle(){
+                if(document.getElementById('ciStyle')) return;
+                var css=''
+                +'.ci-overlay{position:fixed;inset:0;z-index:4300;display:none;background:rgba(9,14,24,.66);backdrop-filter:blur(3px);}'
+                +'.ci-overlay.active{display:block;}'
+                +'.ci-shell{position:absolute;inset:2.2vh 2.2vw;background:var(--bg-primary,#fbf9f6);border-radius:18px;box-shadow:0 30px 90px rgba(0,0,0,.42);display:flex;flex-direction:column;overflow:hidden;}'
+                +'.ci-top{display:flex;align-items:center;justify-content:space-between;padding:13px 22px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,rgba(14,33,64,.10),transparent);flex-shrink:0;}'
+                +'.ci-brand{font-family:\'Fraunces\',Georgia,serif;font-size:19px;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:10px;}'
+                +'.ci-brand i{color:var(--gold,#c9a227);}'
+                +'.ci-x{background:none;border:none;font-size:26px;line-height:1;color:var(--text-muted);cursor:pointer;padding:0 4px;}'
+                +'.ci-body{flex:1;display:grid;grid-template-columns:330px minmax(0,1fr) 372px;min-height:0;}'
+                +'.ci-form{border-right:1px solid var(--border);overflow-y:auto;padding:18px 18px 44px;background:var(--bg-secondary);}'
+                +'.ci-stage{display:flex;flex-direction:column;min-height:0;overflow-y:auto;padding:22px;align-items:center;background:repeating-linear-gradient(45deg,rgba(14,33,64,.02),rgba(14,33,64,.02) 12px,transparent 12px,transparent 24px);}'
+                +'.ci-side{border-left:1px solid var(--border);overflow-y:auto;padding:18px 18px 44px;display:flex;flex-direction:column;gap:12px;}'
+                +'.ci-fld{margin-bottom:14px;}'
+                +'.ci-fld>label{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px;}'
+                +'.ci-fld input,.ci-fld textarea{width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13.5px;font-family:inherit;}'
+                +'.ci-fld textarea{resize:vertical;min-height:78px;line-height:1.5;}'
+                +'.ci-hint{font-size:11px;color:var(--text-muted);margin-top:5px;line-height:1.5;}'
+                +'.ci-lang{display:flex;gap:8px;}'
+                +'.ci-lang button{flex:1;border:2px solid var(--border);background:var(--bg-primary);color:var(--text-secondary);border-radius:9px;padding:9px 6px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;}'
+                +'.ci-lang button.on{border-color:#c9a227;color:var(--text-primary);box-shadow:0 3px 12px rgba(201,162,39,.22);}'
+                +'.ci-canvaswrap{width:100%;max-width:520px;border-radius:6px;overflow:hidden;box-shadow:0 14px 44px rgba(9,14,24,.18);background:#FDFCF9;border:1px solid var(--border);}'
+                +'.ci-canvaswrap canvas{width:100%;height:auto;display:block;}'
+                +'.ci-btn{border:none;border-radius:11px;padding:13px;font-size:13.5px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;}'
+                +'.ci-btn.primary{background:#0E2140;color:#fff;}.ci-btn.ghost{background:var(--bg-primary);border:1px solid var(--border);color:var(--text-secondary);}'
+                +'.ci-btn:disabled{opacity:.5;cursor:default;}'
+                +'.ci-note{font-size:11.5px;color:var(--text-muted);line-height:1.5;}'
+                +'.ci-sidehd{font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text-secondary);margin-top:6px;}'
+                +'.ci-row{display:flex;align-items:center;gap:9px;padding:10px 11px;border:1px solid var(--border);border-radius:10px;background:var(--bg-primary);}'
+                +'.ci-row .nm{font-size:13px;font-weight:700;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}'
+                +'.ci-row .mt{font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}'
+                +'.ci-pill{font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:20px;flex-shrink:0;}'
+                +'.ci-pill.draft{background:rgba(15,28,46,.12);color:#0f1c2e;}.ci-pill.sent{background:rgba(31,122,68,.14);color:#1f7a44;}'
+                +'.ci-ico{background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;padding:4px 6px;border-radius:7px;}'
+                +'.ci-ico:hover{background:var(--bg-secondary);color:var(--text-primary);}'
+                +'@media(max-width:1040px){.ci-body{grid-template-columns:1fr;}.ci-form,.ci-side{border:none;border-bottom:1px solid var(--border);}.ci-stage{order:-1;}}';
+                var st=document.createElement('style'); st.id='ciStyle'; st.textContent=css; document.head.appendChild(st);
+            },
+            ensureBuilt(){
+                if(this._built) return; this.ensureStyle();
+                var ov=document.createElement('div'); ov.className='ci-overlay'; ov.id='ciOverlay';
+                ov.innerHTML=''
+                +'<div class="ci-shell">'
+                +'  <div class="ci-top"><div class="ci-brand"><i class="fas fa-feather-pointed"></i> Council Invitations</div><button class="ci-x" id="ciClose" aria-label="Close">&times;</button></div>'
+                +'  <div class="ci-body">'
+                +'    <div class="ci-form">'
+                +'      <div class="ci-fld"><label>Name (with honorifics)</label><input id="ciName" type="text" placeholder="e.g. Prof. Ana Marković, MD" autocomplete="off"></div>'
+                +'      <div class="ci-fld"><label>Title</label><input id="ciTitle" type="text" placeholder="e.g. Professor of Cardiology" autocomplete="off"></div>'
+                +'      <div class="ci-fld"><label>Institution</label><input id="ciInst" type="text" placeholder="e.g. University of Zagreb" autocomplete="off"></div>'
+                +'      <div class="ci-fld"><label>Language of the invitation</label><div class="ci-lang" id="ciLang"><button data-lang="en" class="on">English</button><button data-lang="hr">Hrvatski (Vi)</button></div></div>'
+                +'      <div class="ci-fld"><label>Personalized opening sentence</label><textarea id="ciPersonal" maxlength="240" placeholder="One warm line, specific to the invitee — what they have done for medicine, said with precision and without flattery."></textarea><div class="ci-hint">Optional. It becomes the opening line of the invitation paragraph, before &ldquo;We are forming the Med&amp;X Advisory Council&hellip;&rdquo;</div></div>'
+                +'      <div class="ci-fld"><label>Email (optional)</label><input id="ciEmail" type="email" placeholder="name@institution.edu" autocomplete="off"><div class="ci-hint">Needed only to stage the invitation in the outbox.</div></div>'
+                +'    </div>'
+                +'    <div class="ci-stage"><div class="ci-canvaswrap" id="ciCanvasWrap"></div></div>'
+                +'    <div class="ci-side">'
+                +'      <button class="ci-btn primary" id="ciPdf"><i class="fas fa-file-pdf"></i> Download A4 PDF</button>'
+                +'      <button class="ci-btn ghost" id="ciSave"><i class="fas fa-bookmark"></i> Save to list</button>'
+                +'      <button class="ci-btn ghost" id="ciStage"><i class="fas fa-paper-plane"></i> Stage in outbox</button>'
+                +'      <div class="ci-note" id="ciNote">The invitation is a print-grade A4 page. Staging places one email in the approval outbox — nothing sends until you approve it there.</div>'
+                +'      <div class="ci-sidehd">Saved invitations</div>'
+                +'      <div id="ciList" style="display:flex;flex-direction:column;gap:9px;"></div>'
+                +'    </div>'
+                +'  </div>'
+                +'</div>';
+                document.body.appendChild(ov); this._overlay=ov; this._built=true;
+                var self=this;
+                ov.querySelector('#ciClose').addEventListener('click', function(){ self.close(); });
+                ov.addEventListener('click', function(e){ if(e.target===ov) self.close(); });
+                document.addEventListener('keydown', function(e){ if(e.key==='Escape' && self._overlay && self._overlay.classList.contains('active')) self.close(); });
+                // form inputs (static — wired once)
+                var bind=function(id,key){ var el=ov.querySelector(id); if(el) el.addEventListener('input', function(){ self.state[key]=el.value; self._preview(); self._refreshActions(); }); };
+                bind('#ciName','name'); bind('#ciTitle','title'); bind('#ciInst','institution'); bind('#ciPersonal','personal'); bind('#ciEmail','email');
+                ov.querySelectorAll('#ciLang button').forEach(function(b){ b.addEventListener('click', function(){ self.state.language=b.getAttribute('data-lang'); ov.querySelectorAll('#ciLang button').forEach(function(x){ x.classList.toggle('on', x===b); }); self._preview(); }); });
+                ov.querySelector('#ciPdf').addEventListener('click', function(){ self.downloadPdf(); });
+                ov.querySelector('#ciSave').addEventListener('click', function(){ self.saveDraft(); });
+                ov.querySelector('#ciStage').addEventListener('click', function(){ self.stageOutbox(); });
+                // list actions (delegated)
+                ov.querySelector('#ciList').addEventListener('click', function(e){ var el=e.target.closest && e.target.closest('[data-act]'); if(!el) return; var id=el.getAttribute('data-id'); if(el.getAttribute('data-act')==='edit') self.editRow(id); else if(el.getAttribute('data-act')==='del') self.deleteRow(id); });
+            },
+            async start(){ this.ensureBuilt(); this._overlay.classList.add('active'); document.body.style.overflow='hidden'; this._syncForm(); this._preview(); this._refreshActions(); await this.loadList(); },
+            close(){ if(this._overlay) this._overlay.classList.remove('active'); document.body.style.overflow=''; try{ ContentStudio.init(); }catch(e){} },
+
+            _syncForm(){ var ov=this._overlay; if(!ov) return; var set=function(id,v){ var el=ov.querySelector(id); if(el) el.value=v||''; };
+                set('#ciName',this.state.name); set('#ciTitle',this.state.title); set('#ciInst',this.state.institution); set('#ciPersonal',this.state.personal); set('#ciEmail',this.state.email);
+                ov.querySelectorAll('#ciLang button').forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-lang')===this.state.language); }.bind(this)); },
+            _refreshActions(){ var ov=this._overlay; if(!ov) return; var stage=ov.querySelector('#ciStage'); if(stage){ var ok=this._validEmail(this.state.email); stage.disabled=!ok; stage.title=ok?'':'Add a valid email to stage'; } var save=ov.querySelector('#ciSave'); var name=this.state.name.trim(); if(save) save.disabled=!name; },
+            _preview(){ var self=this; clearTimeout(this._t); this._t=setTimeout(function(){ self._paintPreview(); }, 200); },
+            _paintPreview(){ var wrap=this._overlay&&this._overlay.querySelector('#ciCanvasWrap'); if(!wrap) return; var self=this; var draw=function(){ try{ var cv=window.MedxInvite.render(self._invOpts()); wrap.innerHTML=''; wrap.appendChild(cv); }catch(e){ console.error('invite render failed',e); } }; this._fontsReady().then(draw); },
+
+            async _payloadJpeg(targetW, quality){ await this._fontsReady(); var full=window.MedxInvite.render(this._invOpts()); var scale=targetW/full.width; var c2=document.createElement('canvas'); c2.width=targetW; c2.height=Math.round(full.height*scale); var g=c2.getContext('2d'); g.drawImage(full,0,0,c2.width,c2.height); return await new Promise(function(res){ c2.toBlob(function(b){ var fr=new FileReader(); fr.onload=function(){ res(fr.result); }; fr.readAsDataURL(b); },'image/jpeg',quality||0.9); }); },
+
+            async downloadPdf(){
+                if(this._busy) return; if(!this.state.name.trim()){ this.toast('Enter a name first','warning'); return; }
+                this._busy=true; var btn=this._overlay.querySelector('#ciPdf'); if(btn){ btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Rendering…'; }
+                try{
+                    await this._fontsReady();
+                    var cv=window.MedxInvite.render(this._invOpts());
+                    var jpeg=await new Promise(function(res){ cv.toBlob(function(b){ res(b); },'image/jpeg',0.94); });
+                    var arr=new Uint8Array(await jpeg.arrayBuffer());
+                    var pdf=window.MedxInvitePdf.build(arr, cv.width, cv.height);
+                    var url=URL.createObjectURL(pdf); var a=document.createElement('a'); a.href=url; a.download='medx-council-invitation-'+this._slug(this.state.name)+'.pdf'; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){ URL.revokeObjectURL(url); },2000);
+                    this.toast('Invitation PDF downloaded','success');
+                }catch(e){ console.error('pdf failed',e); this.toast('Could not build the PDF','error'); }
+                this._busy=false; if(btn){ btn.disabled=false; btn.innerHTML='<i class="fas fa-file-pdf"></i> Download A4 PDF'; }
+            },
+            async saveDraft(){
+                if(this._busy) return; if(!this.state.name.trim()){ this.toast('Enter a name first','warning'); return; }
+                this._busy=true; var btn=this._overlay.querySelector('#ciSave'); if(btn){ btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Saving…'; }
+                try{
+                    var img=await this._payloadJpeg(1400,0.9);
+                    var body=Object.assign({}, this._invPayload(), { img:img }); if(this.state.editingId) body.id=this.state.editingId;
+                    var r=await this.api('/api/admin/council/save',{ method:'POST', body:JSON.stringify(body) });
+                    if(r.ok&&r.d&&r.d.success){ this.state.editingId=r.d.invitation.id; this.toast('Saved to the list','success'); await this.loadList(); }
+                    else this.toast((r.d&&r.d.message)||'Could not save the invitation','error');
+                }catch(e){ console.error('save failed',e); this.toast('Could not save the invitation','error'); }
+                this._busy=false; if(btn){ btn.innerHTML='<i class="fas fa-bookmark"></i> Save to list'; } this._refreshActions();
+            },
+            async stageOutbox(){
+                if(this._busy) return; if(!this.state.name.trim()){ this.toast('Enter a name first','warning'); return; }
+                if(!this._validEmail(this.state.email)){ this.toast('Add a valid email to stage an invitation','warning'); return; }
+                if(!(await adminConfirm({ title:'Stage this invitation?', message:'One invitation email to '+this.state.email+' will be placed in the approval outbox. Nothing sends until you approve it there.', confirmText:'Stage in outbox' }))) return;
+                this._busy=true; var btn=this._overlay.querySelector('#ciStage'); if(btn){ btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Staging…'; }
+                try{
+                    var img=await this._payloadJpeg(1400,0.9);
+                    var body=Object.assign({}, this._invPayload(), { img:img }); if(this.state.editingId) body.id=this.state.editingId;
+                    var r=await this.api('/api/admin/council/send',{ method:'POST', body:JSON.stringify(body) });
+                    if(r.ok&&r.d&&r.d.success){ this.state.editingId=r.d.invitation.id; this.toast(r.d.already?'Already staged for this invitation':'Staged in the outbox for approval','success'); await this.loadList(); }
+                    else this.toast((r.d&&r.d.message)||'Could not stage the invitation','error');
+                }catch(e){ console.error('stage failed',e); this.toast('Could not stage the invitation','error'); }
+                this._busy=false; if(btn){ btn.innerHTML='<i class="fas fa-paper-plane"></i> Stage in outbox'; } this._refreshActions();
+            },
+            async loadList(){ var r=await this.api('/api/admin/council/list'); this.state.list=(r.ok&&r.d&&r.d.invitations)?r.d.invitations:[]; this._paintList(); },
+            _paintList(){ var host=this._overlay&&this._overlay.querySelector('#ciList'); if(!host) return; var self=this;
+                if(!this.state.list.length){ host.innerHTML='<div class="ci-note" style="padding:6px 2px;">No invitations saved yet. Design one, then Save to list.</div>'; return; }
+                host.innerHTML=this.state.list.map(function(inv){ var mt=[inv.title,inv.institution].filter(Boolean).join(' · '); var pill=inv.status==='sent'?'<span class="ci-pill sent">Sent</span>':'<span class="ci-pill draft">Draft</span>';
+                    return '<div class="ci-row"><span style="min-width:0;flex:1;"><span class="nm">'+self.esc(inv.name)+'</span><br><span class="mt">'+self.esc(mt||(inv.language==='hr'?'Croatian':'English'))+'</span></span>'+pill
+                        +'<button class="ci-ico" data-act="edit" data-id="'+inv.id+'" title="Edit"><i class="fas fa-pen"></i></button>'
+                        +'<button class="ci-ico" data-act="del" data-id="'+inv.id+'" title="Delete"><i class="fas fa-trash"></i></button></div>';
+                }).join(''); },
+            editRow(id){ var inv=this.state.list.filter(function(x){ return x.id===id; })[0]; if(!inv) return; this.state.editingId=inv.id; this.state.name=inv.name||''; this.state.title=inv.title||''; this.state.institution=inv.institution||''; this.state.language=(inv.language==='hr')?'hr':'en'; this.state.personal=inv.personal_sentence||''; this.state.email=inv.email||''; this._syncForm(); this._preview(); this._refreshActions(); this.toast('Loaded into the designer','info'); },
+            async deleteRow(id){ if(!(await adminConfirm({ destructive:true, title:'Delete this invitation?', message:'It will be removed from the saved list. Any already-approved outbox email is unaffected.', confirmText:'Delete' }))) return; var r=await this.api('/api/admin/council/delete',{ method:'POST', body:JSON.stringify({ id:id }) }); if(r.ok&&r.d&&r.d.success){ if(this.state.editingId===id) this.state.editingId=null; this.toast('Invitation deleted','success'); await this.loadList(); } else this.toast('Could not delete','error'); }
+        };
+        window.CouncilInvites = CouncilInvites;
+        document.addEventListener('click', function(e){ var el=e.target.closest && e.target.closest('[data-council-open]'); if(el){ e.preventDefault(); try{ CouncilInvites.start(); }catch(err){ console.error(err); } } });
 
 
 

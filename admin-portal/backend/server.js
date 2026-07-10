@@ -4540,6 +4540,29 @@ async function initializeApp() {
         created_by TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+
+    // ADMIN-ONLY: Advisory Council invitations — the print-grade invitation artifact generated in the
+    // Content Studio ("Council Invitations"). One row per designed invitation. The rendered artifact
+    // lives under /uploads/content-studio (as a content_studio_assets 'invitation' row too); this row
+    // is the saved list the studio shows, and carries status draft|sent. NOT shared with the user
+    // portal (it sits OUTSIDE the SCHEMA-MIRROR block, so scripts/check-schema-sync.sh stays green).
+    db.run(`CREATE TABLE IF NOT EXISTS council_invitations (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        title TEXT,
+        institution TEXT,
+        language TEXT DEFAULT 'en',
+        personal_sentence TEXT,
+        email TEXT,
+        status TEXT DEFAULT 'draft',
+        asset_url TEXT,
+        asset_id TEXT,
+        outbox_batch TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT
+    )`);
+
     // pr_posts drifted between portals (admin CREATE has status, user CREATE lacked it) — heal existing DBs.
     try { db.exec("ALTER TABLE pr_posts ADD COLUMN status TEXT DEFAULT 'published'"); } catch (e) { /* column exists */ }
 
@@ -33637,6 +33660,173 @@ ${extraCss || ''}
         try { logAudit(req, 'cards.send', `${eventKey}: staged ${staged} attendance card email(s), ${saved} asset(s), ${skipped} skipped`); } catch (e) {}
         saveDb();
         res.json({ success: true, staged, saved, skipped, outbox_batch: batchId });
+    });
+
+    // ==================== ADVISORY COUNCIL INVITATIONS — generator + saved list ====================
+    // A Content Studio sibling of the attendance-card + badge suites. The invitation is a single-page,
+    // print-grade artifact designed and rendered CLIENT-SIDE on a dependency-free Canvas2D renderer
+    // (so it works on prod with no headless Chrome). These routes only (a) keep the saved list of
+    // generated invitations (council_invitations, status draft|sent), (b) persist the rendered image as
+    // a content_studio_assets row, and (c) OPTIONALLY stage one warm invitation email per invitee into
+    // the SAME approval outbox everything else uses (never auto-send). The admin surface is English by
+    // convention; the invitation ARTIFACT itself is bilingual (EN / formal-Vi HR).
+    function councilRow(r) {
+        if (!r) return null;
+        return {
+            id: r.id, name: r.name, title: r.title || '', institution: r.institution || '',
+            language: r.language || 'en', personal_sentence: r.personal_sentence || '', email: r.email || '',
+            status: r.status || 'draft', asset_url: r.asset_url || '', outbox_batch: r.outbox_batch || '',
+            created_at: r.created_at, updated_at: r.updated_at || null
+        };
+    }
+    // Persist a data-URL invitation image as a content-studio asset. Returns { url, id } or null.
+    function councilPersistImage(req, inv, img) {
+        if (!img || !/^data:image\/(png|jpe?g);base64,/.test(String(img))) return null;
+        const dir = path.join(uploadsDir, 'content-studio');
+        try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); } catch (e) {}
+        try {
+            const isPng = /^data:image\/png/.test(img);
+            const buf = Buffer.from(String(img).replace(/^data:image\/[^;]+;base64,/, ''), 'base64');
+            if (buf.length > 8 * 1024 * 1024) return null;
+            const id = uuidv4(); const ext = isPng ? 'png' : 'jpg';
+            const fname = 'council-' + id + '.' + ext;
+            fs.writeFileSync(path.join(dir, fname), buf);
+            const url = `${seatPublicBase(req)}/uploads/content-studio/${fname}`;
+            try {
+                db.run(`INSERT INTO content_studio_assets (id, kind, template, aspect, project, title, caption, asset_url, mime, bytes, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?, datetime('now'))`,
+                    [id, 'invitation', 'council', 'a4-portrait', 'advisory-council', ('Advisory Council — ' + (inv.name || '')).slice(0, 200), '', url, isPng ? 'image/png' : 'image/jpeg', buf.length, (req.user && req.user.id) || null]);
+            } catch (e) {}
+            return { url, id };
+        } catch (e) { return null; }
+    }
+    // Remove the content-studio asset (row + file) linked to an invitation. Best-effort, for clean delete.
+    function councilRemoveAsset(assetId, assetUrl) {
+        try {
+            if (assetUrl) { const local = psLocalPathForUrl(assetUrl); if (local && fs.existsSync(local)) fs.unlinkSync(local); }
+        } catch (e) {}
+        try { if (assetId) db.run('DELETE FROM content_studio_assets WHERE id = ?', [String(assetId)]); } catch (e) {}
+    }
+
+    // List saved invitations, newest first.
+    app.get('/api/admin/council/list', auth, adminOnly, (req, res) => {
+        try {
+            const rows = query.all('SELECT * FROM council_invitations ORDER BY created_at DESC LIMIT 200');
+            res.json({ invitations: (rows || []).map(councilRow) });
+        } catch (e) { res.status(500).json({ error: 'list_failed' }); }
+    });
+
+    // Create or update a draft invitation. Optional img (data URL) is persisted as the preview asset.
+    app.post('/api/admin/council/save', auth, adminOnly, express.json({ limit: '12mb' }), (req, res) => {
+        const b = req.body || {};
+        const name = String(b.name || '').trim();
+        if (!name) return res.status(400).json({ error: 'name_required', message: 'A name is required.' });
+        const inv = {
+            name: name.slice(0, 200),
+            title: String(b.title || '').trim().slice(0, 300),
+            institution: String(b.institution || '').trim().slice(0, 300),
+            language: (String(b.language || 'en').toLowerCase() === 'hr') ? 'hr' : 'en',
+            personal_sentence: String(b.personal_sentence || '').trim().slice(0, 1000),
+            email: String(b.email || '').trim().toLowerCase().slice(0, 200)
+        };
+        const asset = councilPersistImage(req, inv, b.img);
+        const existing = b.id ? query.get('SELECT * FROM council_invitations WHERE id = ?', [String(b.id)]) : null;
+        let id;
+        if (existing) {
+            id = existing.id;
+            if (asset) councilRemoveAsset(existing.asset_id, existing.asset_url);
+            db.run(`UPDATE council_invitations SET name=?, title=?, institution=?, language=?, personal_sentence=?, email=?, asset_url=COALESCE(?, asset_url), asset_id=COALESCE(?, asset_id), updated_at=datetime('now') WHERE id=?`,
+                [inv.name, inv.title, inv.institution, inv.language, inv.personal_sentence, inv.email, asset ? asset.url : null, asset ? asset.id : null, id]);
+        } else {
+            id = uuidv4();
+            db.run(`INSERT INTO council_invitations (id, name, title, institution, language, personal_sentence, email, status, asset_url, asset_id, created_by, created_at, updated_at)
+                    VALUES (?,?,?,?,?,?,?, 'draft', ?, ?, ?, datetime('now'), datetime('now'))`,
+                [id, inv.name, inv.title, inv.institution, inv.language, inv.personal_sentence, inv.email, asset ? asset.url : null, asset ? asset.id : null, (req.user && req.user.id) || null]);
+        }
+        try { logAudit(req, 'council.save', `${existing ? 'updated' : 'created'} invitation for ${inv.name}`); } catch (e) {}
+        saveDb();
+        const row = query.get('SELECT * FROM council_invitations WHERE id = ?', [id]);
+        res.json({ success: true, invitation: councilRow(row) });
+    });
+
+    // Stage ONE invitation email into the approval outbox (pending_approval — never auto-sent). Requires
+    // an email. Idempotent per invitation id via drip_log. Marks the row status='sent'. Saves/refreshes
+    // the preview asset when an image is supplied.
+    app.post('/api/admin/council/send', auth, adminOnly, express.json({ limit: '12mb' }), (req, res) => {
+        const b = req.body || {};
+        // Resolve or create the invitation row from an id, or from inline fields.
+        let row = b.id ? query.get('SELECT * FROM council_invitations WHERE id = ?', [String(b.id)]) : null;
+        const inv = {
+            name: String((row && row.name) || b.name || '').trim().slice(0, 200),
+            title: String((row && row.title) || b.title || '').trim().slice(0, 300),
+            institution: String((row && row.institution) || b.institution || '').trim().slice(0, 300),
+            language: (String((row && row.language) || b.language || 'en').toLowerCase() === 'hr') ? 'hr' : 'en',
+            personal_sentence: String((row && row.personal_sentence) || b.personal_sentence || '').trim().slice(0, 1000),
+            email: String((row && row.email) || b.email || '').trim().toLowerCase().slice(0, 200)
+        };
+        if (!inv.name) return res.status(400).json({ error: 'name_required', message: 'A name is required.' });
+        if (!inv.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(inv.email)) return res.status(400).json({ error: 'email_required', message: 'A valid email address is required to stage an invitation.' });
+        const asset = councilPersistImage(req, inv, b.img);
+        if (!row) {
+            const id = uuidv4();
+            db.run(`INSERT INTO council_invitations (id, name, title, institution, language, personal_sentence, email, status, asset_url, asset_id, created_by, created_at, updated_at)
+                    VALUES (?,?,?,?,?,?,?, 'draft', ?, ?, ?, datetime('now'), datetime('now'))`,
+                [id, inv.name, inv.title, inv.institution, inv.language, inv.personal_sentence, inv.email, asset ? asset.url : null, asset ? asset.id : null, (req.user && req.user.id) || null]);
+            row = query.get('SELECT * FROM council_invitations WHERE id = ?', [id]);
+        } else if (asset) {
+            councilRemoveAsset(row.asset_id, row.asset_url);
+            db.run('UPDATE council_invitations SET asset_url=?, asset_id=?, updated_at=datetime(\'now\') WHERE id=?', [asset.url, asset.id, row.id]);
+            row = query.get('SELECT * FROM council_invitations WHERE id = ?', [row.id]);
+        }
+        const imgUrl = (asset && asset.url) || row.asset_url || '';
+        const batchId = 'council-invitations';
+        const marker = `council_invite:${row.id}`;
+        if (query.get("SELECT 1 AS x FROM drip_log WHERE user_id = 'council-invite' AND kind = ?", [marker])) {
+            return res.json({ success: true, staged: 0, already: true, invitation: councilRow(row) });
+        }
+        const hr = inv.language === 'hr';
+        const L = hr ? {
+            subject: 'Poziv Med&X-a', greet: 'Poštovani ' + seatEsc(inv.name) + ',',
+            lead: 'bila bi mi čast pozvati Vas da posudite svoje ime Savjetodavnom vijeću Med&X-a. Vaš poziv nalazi se u nastavku.',
+            cta: 'Preuzmite poziv', sign: 'Sa srdačnim pozdravom,',
+            signName: 'Alen Juginović, dr. med.', signRole: 'Osnivač i predsjednik, Med&X', title: 'Poziv za Vijeće'
+        } : {
+            subject: 'An invitation from Med&X', greet: 'Dear ' + seatEsc(inv.name) + ',',
+            lead: 'it would be an honour to invite you to lend your name to the Med&X Advisory Council. Your invitation is below.',
+            cta: 'Open your invitation', sign: 'With warm regards,',
+            signName: 'Alen Juginović, MD', signRole: 'Founder & President, Med&X', title: 'An invitation'
+        };
+        const imgBlock = imgUrl ? `<p style="text-align:center;margin:24px 0;"><img src="${imgUrl}" alt="Med&amp;X Advisory Council invitation" style="max-width:420px;width:100%;border-radius:10px;border:1px solid #e2e8f0;box-shadow:0 8px 30px rgba(14,33,64,.16);"></p>
+                <p style="text-align:center;margin:0 0 8px;"><a href="${imgUrl}" style="display:inline-block;background:#0E2140;color:#fff;text-decoration:none;padding:11px 24px;border-radius:9px;font-weight:700;">${L.cta}</a></p>` : '';
+        const html = buildEmailTemplate(L.title, `
+                <p>${L.greet}</p>
+                <p>${L.lead}</p>
+                ${imgBlock}
+                <p style="margin-top:22px;">${L.sign}</p>
+                <p style="margin:2px 0;"><strong>${L.signName}</strong><br><span style="color:#64748b;">${L.signRole}</span></p>
+            `);
+        db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                VALUES (?, 'pending_approval', ?, 'council-invites', 'council_invitation', ?, ?, ?, 'council-invite-engine', datetime('now'))`,
+            [uuidv4(), batchId, JSON.stringify({ to: inv.email, subject: L.subject, html }), inv.email, L.subject]);
+        db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'council-invite', ?, ?)", [uuidv4(), inv.email, marker]);
+        db.run("UPDATE council_invitations SET status='sent', outbox_batch=?, updated_at=datetime('now') WHERE id=?", [batchId, row.id]);
+        try { logAudit(req, 'council.send', `staged Advisory Council invitation email for ${inv.name} <${inv.email}>`); } catch (e) {}
+        saveDb();
+        row = query.get('SELECT * FROM council_invitations WHERE id = ?', [row.id]);
+        res.json({ success: true, staged: 1, outbox_batch: batchId, invitation: councilRow(row) });
+    });
+
+    // Delete an invitation and its linked asset + idempotency marker (leaves zero residue).
+    app.post('/api/admin/council/delete', auth, adminOnly, (req, res) => {
+        const id = String((req.body && req.body.id) || '').trim();
+        if (!id) return res.status(400).json({ error: 'id_required' });
+        const row = query.get('SELECT * FROM council_invitations WHERE id = ?', [id]);
+        if (!row) return res.json({ success: true, deleted: 0 });
+        councilRemoveAsset(row.asset_id, row.asset_url);
+        try { db.run("DELETE FROM drip_log WHERE user_id = 'council-invite' AND kind = ?", [`council_invite:${id}`]); } catch (e) {}
+        db.run('DELETE FROM council_invitations WHERE id = ?', [id]);
+        try { logAudit(req, 'council.delete', `deleted invitation for ${row.name}`); } catch (e) {}
+        saveDb();
+        res.json({ success: true, deleted: 1 });
     });
 
     // ========== OUTBOX (batch approval + send drainer surface) ==========
