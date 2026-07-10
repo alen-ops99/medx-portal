@@ -1201,7 +1201,7 @@
             width: 1px;
             height: 12px;
             margin-left: -0.5px;
-            background: #ef4444;
+            background: var(--danger);
         }
 
         .swiss-clock .center-dot {
@@ -1235,8 +1235,8 @@
         }
 
         .clock-timer.warning {
-            background: rgba(239, 68, 68, 0.15);
-            color: #ef4444;
+            background: rgba(var(--red-rgb), 0.15);
+            color: var(--danger);
             animation: pulse 1s infinite;
         }
 
@@ -1297,10 +1297,10 @@
         .timer-cancel {
             width: 100%;
             padding: 6px;
-            background: rgba(239, 68, 68, 0.1);
+            background: rgba(var(--red-rgb), 0.1);
             border: none;
             border-radius: 4px;
-            color: #ef4444;
+            color: var(--danger);
             font-size: 11px;
             cursor: pointer;
             display: none;
@@ -1447,8 +1447,8 @@
 
         .pinned-item:hover .unpin-btn {
             opacity: 1;
-            background: rgba(239, 68, 68, 0.15);
-            color: #ef4444;
+            background: rgba(var(--red-rgb), 0.15);
+            color: var(--danger);
         }
 
         .pinned-item.dragging {
@@ -7353,7 +7353,7 @@
                                 <i class="fas fa-star" style="color:#9b1b22;"></i> New VIP Link
                             </button>
                             <button class="btn btn-secondary" onclick="App.showSection('croatians-abroad');" style="padding: 7px 14px; font-size: 12px;">
-                                <i class="fas fa-globe-europe" style="color:#ef4444;"></i> New Diaspora Link
+                                <i class="fas fa-globe-europe" style="color:var(--danger);"></i> New Diaspora Link
                             </button>
                             <button class="btn btn-secondary" onclick="App.showSection('gala'); setTimeout(()=>GalaAdmin.showTab('settings'),200);" style="padding: 7px 14px; font-size: 12px;">
                                 <i class="fas fa-cog" style="color:var(--text-muted);"></i> Edit Event Details
@@ -40635,7 +40635,7 @@ By applying to this program, I give the following consents:
 
             areaMeta(a) {
                 return ({
-                    'website': { label: 'Website', color: '#c14b52' },
+                    'website': { label: 'Website', color: '#9b1b22' },
                     'member-portal': { label: 'Member portal', color: '#c9a962' },
                     'admin': { label: 'Admin', color: '#6b7280' }
                 })[a] || { label: a || 'Website', color: '#6b7280' };
@@ -50061,11 +50061,11 @@ By applying to this program, I give the following consents:
         box-shadow: 0 4px 14px rgba(15,118,110,.4); z-index: 900; display: none; align-items: center; justify-content: center;
         transition: transform .2s, box-shadow .2s; }
       .share-fab:hover { transform: scale(1.08); }
-      .share-fab.sharing { background: #dc2626; box-shadow: 0 0 0 0 rgba(220,38,38,.6); animation: sharePulse 1.8s infinite; }
-      @keyframes sharePulse { 0% { box-shadow: 0 0 0 0 rgba(220,38,38,.55); } 70% { box-shadow: 0 0 0 16px rgba(220,38,38,0); } 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); } }
+      .share-fab.sharing { background: var(--danger); box-shadow: 0 0 0 0 rgba(var(--red-rgb),.6); animation: sharePulse 1.8s infinite; }
+      @keyframes sharePulse { 0% { box-shadow: 0 0 0 0 rgba(var(--red-rgb),.55); } 70% { box-shadow: 0 0 0 16px rgba(var(--red-rgb),0); } 100% { box-shadow: 0 0 0 0 rgba(var(--red-rgb),0); } }
       .share-indicator { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 1200;
-        background: #dc2626; color: #fff; padding: 7px 16px; border-radius: 999px; font-size: 13px; font-weight: 600;
-        display: none; align-items: center; gap: 9px; cursor: pointer; box-shadow: 0 6px 20px rgba(220,38,38,.35); }
+        background: var(--danger); color: #fff; padding: 7px 16px; border-radius: 999px; font-size: 13px; font-weight: 600;
+        display: none; align-items: center; gap: 9px; cursor: pointer; box-shadow: 0 6px 20px rgba(var(--red-rgb),.35); }
       .share-dot { width: 9px; height: 9px; border-radius: 50%; background: #fff; animation: sharePulseDot 1.4s infinite; }
       @keyframes sharePulseDot { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
       .share-panel-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 2400; display: none;
