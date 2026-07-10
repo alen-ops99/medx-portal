@@ -7814,6 +7814,18 @@ async function initializeApp() {
         status TEXT DEFAULT 'draft',
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+
+    // org_settings: ONE org-level key/value store shared by BOTH portals (Turso). Currently one key,
+    // 'signature' — the founder's real signature stored as a self-contained data:image/png base64 URL so
+    // EVERY signed artifact (council invitations, attendance certificates, any future signed page) renders
+    // it same-origin with no canvas taint and no dependence on a per-service disk (Render disks are
+    // ephemeral; the shared DB is the durable, cross-portal source of truth). The admin portal writes it
+    // (Settings -> Signature); both portals read it via GET /api/org/signature.
+    db.run(`CREATE TABLE IF NOT EXISTS org_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TEXT
+    )`);
     // ====================== SCHEMA-MIRROR:END ======================
 
     // ====================== CME / HLK ACCREDITATION (queue 5a5c) ======================
@@ -9810,6 +9822,14 @@ async function submitReset(e){
         } catch (e) {
             res.status(500).json({ error: 'Failed to load content' });
         }
+    });
+
+    // The ONE org-level founder signature (org_settings 'signature'), shared with the admin portal via the
+    // same Turso DB. Read-only, public — every attendance certificate this portal renders carries it above
+    // the typed name. Returns { signature: <data:image/png url|null> }; managed in the admin portal.
+    app.get('/api/org/signature', publicLimiter, (req, res) => {
+        try { const r = query.get("SELECT value FROM org_settings WHERE key = 'signature'"); res.json({ signature: (r && r.value) || null }); }
+        catch (e) { res.json({ signature: null }); }
     });
 
     // Public mirror of the member project-status cards (same rows, no auth, no waiting counts).

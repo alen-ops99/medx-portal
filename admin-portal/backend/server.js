@@ -4422,6 +4422,18 @@ async function initializeApp() {
         status TEXT DEFAULT 'draft',
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+
+    // org_settings: ONE org-level key/value store shared by BOTH portals (Turso). Currently one key,
+    // 'signature' — the founder's real signature stored as a self-contained data:image/png base64 URL so
+    // EVERY signed artifact (council invitations, attendance certificates, any future signed page) renders
+    // it same-origin with no canvas taint and no dependence on a per-service disk (Render disks are
+    // ephemeral; the shared DB is the durable, cross-portal source of truth). The admin portal writes it
+    // (Settings -> Signature); both portals read it via GET /api/org/signature.
+    db.run(`CREATE TABLE IF NOT EXISTS org_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TEXT
+    )`);
     // ====================== SCHEMA-MIRROR:END ======================
 
     // ====================== CME / HLK ACCREDITATION (queue 5a5c) ======================
@@ -4571,6 +4583,27 @@ async function initializeApp() {
         value TEXT,
         updated_at TEXT
     )`);
+
+    // One-time migration: promote the old per-feature council signature (a PNG file under /uploads, from
+    // 8616d9c) into the ONE org-level signature (org_settings 'signature', a self-contained base64 data
+    // URL). Runs only when the org signature is not yet set; best-effort — a missing file simply leaves
+    // the org unset, and every artifact falls back to clean blank space above the typed name.
+    try {
+        const haveOrg = query.get("SELECT value FROM org_settings WHERE key = 'signature'");
+        const legacy = query.get("SELECT value FROM council_settings WHERE key = 'signature_url'");
+        if ((!haveOrg || !haveOrg.value) && legacy && legacy.value) {
+            const local = path.join(__dirname, String(legacy.value).replace(/^\/+/, ''));
+            if (fs.existsSync(local)) {
+                const b = fs.readFileSync(local);
+                const isPng = b.length > 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47;
+                if (isPng) {
+                    db.run("INSERT OR REPLACE INTO org_settings (key, value, updated_at) VALUES ('signature', ?, datetime('now'))", ['data:image/png;base64,' + b.toString('base64')]);
+                    saveDb();
+                    console.log('[org] migrated council signature -> org_settings');
+                }
+            }
+        }
+    } catch (e) { /* migration is best-effort */ }
 
     // pr_posts drifted between portals (admin CREATE has status, user CREATE lacked it) — heal existing DBs.
     try { db.exec("ALTER TABLE pr_posts ADD COLUMN status TEXT DEFAULT 'published'"); } catch (e) { /* column exists */ }
@@ -33719,10 +33752,44 @@ ${extraCss || ''}
         try { if (assetId) db.run('DELETE FROM content_studio_assets WHERE id = ?', [String(assetId)]); } catch (e) {}
     }
 
-    // The founder-signature setting (relative /uploads URL, same-origin so the canvas never taints).
-    function councilSignatureUrl() {
-        try { const r = query.get("SELECT value FROM council_settings WHERE key = 'signature_url'"); return (r && r.value) || null; } catch (e) { return null; }
+    // ============ ORG-LEVEL SIGNATURE (shared by every signed artifact) ============
+    // ONE founder signature, stored in org_settings as a self-contained data:image/png base64 URL so
+    // council invitations, attendance certificates and any future signed page render the same mark
+    // same-origin (no canvas taint) and survive Render's ephemeral disks (the shared DB is the store).
+    function orgSignatureUrl() {
+        try { const r = query.get("SELECT value FROM org_settings WHERE key = 'signature'"); return (r && r.value) || null; } catch (e) { return null; }
     }
+    // Public read — consumed by the council renderer (admin) and the attendance certificate (user portal).
+    app.get('/api/org/signature', (req, res) => { res.json({ signature: orgSignatureUrl() }); });
+    // Admin: set the ONE org signature. RAW image/png bytes (same big-upload idiom as /council/asset).
+    // Stored as a base64 data URL in the shared DB — no file on disk, so it is identical across portals.
+    app.post('/api/admin/org/signature', auth, adminOnly, express.raw({ type: () => true, limit: '4mb' }), (req, res) => {
+        try {
+            const buf = Buffer.isBuffer(req.body) ? req.body : null;
+            if (!buf || !buf.length) return res.status(400).json({ error: 'no_bytes', message: 'No image bytes received.' });
+            if (buf.length > 3 * 1024 * 1024) return res.status(400).json({ error: 'too_large', message: 'Keep the signature PNG under 3 MB.' });
+            const isPng = buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47;
+            if (!isPng) return res.status(400).json({ error: 'png_required', message: 'Upload a PNG image of the signature.' });
+            const dataUrl = 'data:image/png;base64,' + buf.toString('base64');
+            db.run("INSERT OR REPLACE INTO org_settings (key, value, updated_at) VALUES ('signature', ?, datetime('now'))", [dataUrl]);
+            try { logAudit(req, 'org.signature', 'uploaded the organisation signature'); } catch (e) {}
+            saveDb();
+            res.json({ success: true, signature: dataUrl });
+        } catch (e) { console.error('[org] signature', e.message); res.status(500).json({ error: 'signature_failed' }); }
+    });
+    // Admin: remove the org signature — signed artifacts return to clean blank space above the typed name.
+    app.post('/api/admin/org/signature/delete', auth, adminOnly, (req, res) => {
+        try {
+            db.run("DELETE FROM org_settings WHERE key = 'signature'");
+            try { logAudit(req, 'org.signature', 'removed the organisation signature'); } catch (e) {}
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { console.error('[org] signature delete', e.message); res.status(500).json({ error: 'signature_delete_failed' }); }
+    });
+
+    // The council renderer reads the ONE org-level signature (shared by every signed artifact). Returns
+    // a self-contained data:image/png URL (no taint, no disk dependency) — managed in Settings -> Signature.
+    function councilSignatureUrl() { return orgSignatureUrl(); }
 
     // List saved invitations, newest first (+ the signature setting the renderer needs).
     app.get('/api/admin/council/list', auth, adminOnly, (req, res) => {
@@ -33784,43 +33851,9 @@ ${extraCss || ''}
         } catch (e) { console.error('[council] asset', e.message); res.status(500).json({ error: 'asset_failed' }); }
     });
 
-    // Upload the founder's REAL signature PNG (admin setting — replaces the built-in script signature
-    // on every future invitation render). Body is RAW image/png bytes, the same big-upload idiom as
-    // /api/admin/council/asset above. Stored under /uploads/content-studio with a RELATIVE URL, so the
-    // renderer's canvas stays same-origin regardless of host or proxy scheme.
-    app.post('/api/admin/council/signature', auth, adminOnly, express.raw({ type: () => true, limit: '4mb' }), (req, res) => {
-        try {
-            const buf = Buffer.isBuffer(req.body) ? req.body : null;
-            if (!buf || !buf.length) return res.status(400).json({ error: 'no_bytes', message: 'No image bytes received.' });
-            if (buf.length > 3 * 1024 * 1024) return res.status(400).json({ error: 'too_large', message: 'Keep the signature PNG under 3 MB.' });
-            const isPng = buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47;
-            if (!isPng) return res.status(400).json({ error: 'png_required', message: 'Upload a PNG image of the signature.' });
-            const dir = path.join(uploadsDir, 'content-studio');
-            try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); } catch (e) {}
-            const fname = 'council-signature-' + uuidv4() + '.png';
-            fs.writeFileSync(path.join(dir, fname), buf);
-            // Remove the previous signature file (best-effort), then point the setting at the new one.
-            const prev = councilSignatureUrl();
-            if (prev) { try { const local = psLocalPathForUrl(prev); if (local && fs.existsSync(local)) fs.unlinkSync(local); } catch (e) {} }
-            const url = '/uploads/content-studio/' + fname;
-            db.run("INSERT OR REPLACE INTO council_settings (key, value, updated_at) VALUES ('signature_url', ?, datetime('now'))", [url]);
-            try { logAudit(req, 'council.signature', 'uploaded the founder signature PNG'); } catch (e) {}
-            saveDb();
-            res.json({ success: true, signature_url: url });
-        } catch (e) { console.error('[council] signature', e.message); res.status(500).json({ error: 'signature_failed' }); }
-    });
-
-    // Remove the uploaded signature — future renders return to the built-in script signature.
-    app.post('/api/admin/council/signature/delete', auth, adminOnly, (req, res) => {
-        try {
-            const prev = councilSignatureUrl();
-            if (prev) { try { const local = psLocalPathForUrl(prev); if (local && fs.existsSync(local)) fs.unlinkSync(local); } catch (e) {} }
-            db.run("DELETE FROM council_settings WHERE key = 'signature_url'");
-            try { logAudit(req, 'council.signature', 'removed the founder signature PNG'); } catch (e) {}
-            saveDb();
-            res.json({ success: true });
-        } catch (e) { console.error('[council] signature delete', e.message); res.status(500).json({ error: 'signature_delete_failed' }); }
-    });
+    // (The founder signature is no longer a per-council upload — it is the ONE org-level signature set in
+    // Settings -> Signature and served by GET /api/org/signature above. The council renderer reads it via
+    // councilSignatureUrl(); /api/admin/council/list still returns it so the preview reflects the shared mark.)
 
     // Stage ONE invitation email into the approval outbox (pending_approval — never auto-sent). Requires
     // an email. Idempotent per invitation id via drip_log. Marks the row status='sent'. The email embeds
