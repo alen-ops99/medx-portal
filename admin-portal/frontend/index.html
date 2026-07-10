@@ -52,7 +52,12 @@
             --border-light: #d8d0c6;
             --success: #15803d;
             --warning: #b45309;
-            --danger: #dc2626;
+            /* ONE SEMANTIC RED — the brand crimson family. Every urgent / overdue /
+               alert / notification-count accent inherits this single token so the
+               admin home never shows two competing reds (2026-07-10 calm-down). */
+            --red: #9b1b22;
+            --red-rgb: 155, 27, 34;
+            --danger: #9b1b22;
             --plexus: #9b1b22;
             --accelerator: #b06a1f;
             --forum: #3f5d52;
@@ -67,9 +72,9 @@
             --accent-primary: #9b1b22;
             --accent-color: #9b1b22;
             --success-color: #15803d;
-            --danger-color: #dc2626;
+            --danger-color: #9b1b22;
             --success-rgb: 22, 163, 74;
-            --danger-rgb: 220, 38, 38;
+            --danger-rgb: 155, 27, 34;
             --pr-media-rgb: 155, 27, 34;
             --plexus-rgb: 155, 27, 34;
             /* small warm-gold accent, kept tiny */
@@ -972,8 +977,8 @@
         }
 
         .sidebar-project .project-days.urgent {
-            background: rgba(239, 68, 68, 0.2);
-            color: #ef4444;
+            background: rgba(var(--red-rgb), 0.16);
+            color: var(--danger);
         }
 
         .sidebar-project .project-actions {
@@ -1739,13 +1744,13 @@
         }
 
         .btn-danger {
-            background: linear-gradient(135deg, #ef4444, #dc2626);
+            background: var(--danger);
             color: white;
         }
 
         .btn-danger:hover {
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+            box-shadow: 0 4px 12px rgba(var(--red-rgb), 0.3);
         }
 
         .plexus-table {
@@ -1839,8 +1844,8 @@
         /* ===== ACTION CENTER (NAG->DO engine — every item has a one-click DO button) ===== */
         .ac-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
         .ac-title { display: inline-flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 700; letter-spacing: .3px; }
-        .ac-title .ac-badge { background: var(--danger, #c14b52); color: #fff; border-radius: 11px; font-size: 11px; font-weight: 700; padding: 1px 8px; }
-        .ac-title .ac-icon { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 6px; background: rgba(193,75,82,0.14); color: #c14b52; }
+        .ac-title .ac-badge { background: var(--danger); color: #fff; border-radius: 11px; font-size: 11px; font-weight: 700; padding: 1px 8px; }
+        .ac-title .ac-icon { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 6px; background: rgba(var(--red-rgb),0.12); color: var(--danger); }
         .ac-head-actions { display: inline-flex; gap: 8px; flex-wrap: wrap; }
         .ac-list { display: flex; flex-direction: column; gap: 10px; }
         .ac-item {
@@ -1848,7 +1853,7 @@
             padding: 13px 15px; border-radius: 12px; background: var(--bg-secondary);
             border: 1px solid var(--border); border-left: 4px solid var(--text-muted);
         }
-        .ac-item.k-task_overdue, .ac-item.k-sponsor_deliverable { border-left-color: var(--danger, #c14b52); }
+        .ac-item.k-task_overdue, .ac-item.k-sponsor_deliverable { border-left-color: var(--danger); }
         .ac-item.k-reg_unpaid, .ac-item.k-gala_unpaid { border-left-color: #c9a962; }
         .ac-item.k-task_due_soon, .ac-item.k-gala_no_diet { border-left-color: var(--warning, #d08a1a); }
         .ac-item.k-message_unanswered { border-left-color: #38bdf8; }
@@ -1867,8 +1872,8 @@
             transition: transform .12s, box-shadow .12s, border-color .12s, background .12s;
         }
         .ac-btn:hover { border-color: var(--text-muted); transform: translateY(-1px); box-shadow: 0 3px 10px rgba(21,17,15,0.08); }
-        .ac-btn-primary { background: #c14b52; border-color: #c14b52; color: #fff; }
-        .ac-btn-primary:hover { background: #a83b42; border-color: #a83b42; }
+        .ac-btn-primary { background: var(--danger); border-color: var(--danger); color: #fff; }
+        .ac-btn-primary:hover { background: var(--accent-gold-dim); border-color: var(--accent-gold-dim); }
         .ac-btn-ghost { color: var(--text-muted); background: transparent; }
         .ac-empty { display: inline-flex; align-items: center; gap: 9px; color: var(--success); font-size: 13px; font-weight: 600; padding: 10px 2px; }
 
@@ -1877,7 +1882,7 @@
         .ac-item-meta .ac-actioned-tag { color: var(--success); font-weight: 600; font-size: 12px; }
         .ac-due { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 20px; border: 1px solid var(--border); color: var(--text-muted); background: var(--bg-primary); white-space: nowrap; }
         .ac-due i { font-size: 10px; }
-        .ac-due.is-overdue { color: #fff; background: var(--danger, #c14b52); border-color: var(--danger, #c14b52); }
+        .ac-due.is-overdue { color: #fff; background: var(--danger); border-color: var(--danger); }
         .ac-due.is-today { color: #8a5a00; background: rgba(208,138,26,0.16); border-color: rgba(208,138,26,0.4); }
         .ac-due.is-soon { color: var(--text-secondary); }
         .ac-assign-wrap { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -1902,7 +1907,7 @@
         .ac-group-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
         .ac-group-head-right { display: inline-flex; align-items: center; gap: 10px; flex-shrink: 0; }
         .ac-group-count { font-size: 12px; font-weight: 700; color: var(--text-muted); background: var(--bg-tertiary); border-radius: 11px; padding: 2px 9px; white-space: nowrap; }
-        .ac-group.has-urgent .ac-group-count { color: #fff; background: var(--danger, #c14b52); }
+        .ac-group.has-urgent .ac-group-count { color: #fff; background: var(--danger); }
         .ac-group-chev { color: var(--text-muted); font-size: 13px; transition: transform .2s; }
         .ac-group.open .ac-group-chev { transform: rotate(90deg); }
         .ac-group-body { display: none; padding: 0 12px 12px; border-top: 1px solid var(--border); }
@@ -1911,6 +1916,24 @@
         .ac-showall-row { margin-top: 14px; display: flex; justify-content: center; }
         .ac-showall { background: transparent; border: 1px solid var(--border); color: var(--text-muted); border-radius: 9px; padding: 8px 16px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; transition: border-color .12s, color .12s; }
         .ac-showall:hover { border-color: var(--text-muted); color: var(--text-primary); }
+
+        /* Action Center — collapsed-by-default summary row (2026-07-10 calm-down).
+           Collapsed, the whole block is one calm line: "N urgent · expand". */
+        .ac-summary { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 15px; border-radius: 12px;
+            background: var(--bg-secondary); border: 1px solid var(--border); cursor: pointer; user-select: none;
+            transition: border-color .12s, box-shadow .12s; text-align: left; }
+        .ac-summary:hover { border-color: var(--border-light); box-shadow: 0 2px 10px rgba(21,17,15,0.05); }
+        .ac-summary:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; }
+        .ac-summary .ac-summary-ico { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 6px; background: var(--bg-tertiary); color: var(--text-muted); flex-shrink: 0; }
+        .ac-summary.has-urgent .ac-summary-ico { background: rgba(var(--red-rgb),0.12); color: var(--danger); }
+        .ac-summary .ac-summary-text { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+        .ac-summary .ac-summary-title { font-size: 14px; font-weight: 700; letter-spacing: .3px; color: var(--text-primary); }
+        .ac-summary .ac-summary-count { font-size: 12.5px; font-weight: 600; color: var(--text-muted); }
+        .ac-summary .ac-summary-urgent { font-size: 11px; font-weight: 700; color: #fff; background: var(--danger); border-radius: 20px; padding: 2px 9px; letter-spacing: .2px; }
+        .ac-summary .ac-summary-expand { font-size: 12px; font-weight: 600; color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        .ac-summary .ac-summary-expand i { transition: transform .2s; }
+        .ac-collapse-btn { background: transparent; border: 1px solid var(--border); color: var(--text-muted); border-radius: 9px; padding: 7px 13px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; transition: border-color .12s, color .12s; }
+        .ac-collapse-btn:hover { border-color: var(--text-muted); color: var(--text-primary); }
 
         .timeline-today-marker {
             display: inline-flex;
@@ -5965,7 +5988,7 @@
             min-width: 20px;
             height: 20px;
             border-radius: 10px;
-            background: #ef4444;
+            background: var(--danger);
             color: #fff;
             font-size: 11px;
             font-weight: 700;
@@ -6708,7 +6731,7 @@
     <style id="medx-admin-brand-v2">
       /* Sidebar section icons: one restrained neutral, crimson only on the active row */
       .sidebar .nav-item > i { color: #a89e92 !important; }
-      .sidebar .nav-item.active > i { color: #c14b52 !important; }
+      .sidebar .nav-item.active > i { color: var(--accent-primary) !important; }
       /* Mobile: keep the floating action buttons clear of the stacked stat cards
          (shrink + tuck into the bottom-right corner, and add scroll room below the last card) */
       @media (max-width: 768px){
@@ -6842,6 +6865,16 @@
                         </div>
                         <div class="settings-feedback" id="profileFeedback"></div>
                         <button class="onboarding-btn onboarding-btn-primary" onclick="App.saveProfile()">Save Changes</button>
+
+                        <!-- Quiet PWA install affordance for admins (moved off the home) -->
+                        <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                            <div style="width:38px;height:38px;border-radius:10px;background:var(--bg-tertiary);color:var(--text-muted);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-mobile-screen"></i></div>
+                            <div style="flex:1;min-width:140px;">
+                                <div style="font-weight:600;font-size:14px;color:var(--text-primary);">Install the admin app</div>
+                                <div style="font-size:12px;color:var(--text-muted);">Scanner and admin tools, one tap from your home screen.</div>
+                            </div>
+                            <button class="btn btn-secondary" style="flex-shrink:0;" onclick="window.medxInstallApp && window.medxInstallApp()"><i class="fas fa-download" style="margin-right:6px;"></i>Install</button>
+                        </div>
                     </div>
                 </div>
                 <!-- Security Tab -->
@@ -7098,7 +7131,7 @@
                 <a class="nav-item" data-section="user-notifications" onclick="App.showSection('user-notifications', this)" style="display:none;">
                     <i class="fas fa-paper-plane" style="color: #b06a1f;"></i>
                     <span>Notifications</span>
-                    <span id="userNotifCount" style="background: #ef4444; color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
+                    <span id="userNotifCount" style="background: var(--danger); color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
                 </a>
 
                 <!-- Item 13: one unified "Content studio" replaces Portal Content + Website content +
@@ -7366,7 +7399,7 @@
                         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                             <span class="card-title">
                                 Content to fill
-                                <span id="contentChecklistBadge" style="display:none; margin-left:8px; background:#c14b52; color:#fff; border-radius:11px; font-size:11px; font-weight:700; padding:1px 8px; vertical-align:middle;">0</span>
+                                <span id="contentChecklistBadge" style="display:none; margin-left:8px; background:var(--danger); color:#fff; border-radius:11px; font-size:11px; font-weight:700; padding:1px 8px; vertical-align:middle;">0</span>
                                 <span style="font-weight:400; color:var(--text-muted); font-size:12px;">&mdash; placeholders still owed across the website and portal</span>
                             </span>
                             <button class="btn btn-secondary" onclick="ContentChecklist.load()" style="font-size: 11px; padding: 5px 12px;" title="Refresh">
@@ -13581,6 +13614,22 @@ President, Med&amp;X</textarea>
                 #section-resources .cat-guide .res-card.is-featured { border-color:var(--gold); background:linear-gradient(180deg,#fffdf7,var(--bg-secondary,#fff)); }
                 </style>
 
+                <!-- THE TEAM APP (volunteer-shareable install) -->
+                <div class="res-cat cat-guide">
+                    <div class="res-cat-head"><h2>The team app</h2><span class="res-count">1 item</span></div>
+                    <div class="res-grid">
+                        <div class="res-card">
+                            <div class="res-card-top"><div class="res-ic" style="background:rgba(21,17,15,.06);color:#4b4540"><i class="fas fa-mobile-screen-button"></i></div><span class="res-badge" style="background:rgba(21,17,15,.06);color:#5b544e">App</span></div>
+                            <h3>Install on a phone</h3>
+                            <p>Scanner and admin tools, one tap from the home screen. Share this with volunteers &mdash; they open the address, then choose &ldquo;Add to Home Screen.&rdquo; Show or print the QR at the door so they can scan it.</p>
+                            <div class="res-acts">
+                                <button class="btn btn-primary" onclick="window.medxShowAppQR && window.medxShowAppQR()"><i class="fas fa-qrcode" style="margin-right:7px"></i>Show / print QR</button>
+                                <button class="btn btn-secondary" onclick="window.medxInstallApp && window.medxInstallApp()"><i class="fas fa-download" style="margin-right:7px"></i>Install on this device</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- PRESENTATIONS -->
                 <div class="res-cat cat-pres">
                     <div class="res-cat-head"><h2>Presentations</h2><span class="res-count">1 item</span></div>
@@ -17384,6 +17433,18 @@ President, Med&amp;X</textarea>
                 if (!body) return;
                 items = items || [];
                 this._acExpanded = this._acExpanded || new Set();
+                // Caught-up: one calm line, no header clutter, no collapse control needed.
+                if (!items.length) {
+                    body.innerHTML = `<div class="ac-empty"><i class="fas fa-circle-check"></i> You are all caught up — nothing needs your attention right now.</div>`;
+                    return;
+                }
+                const urgentCount = items.filter(it => this._nagUrgent(it)).length;
+                // Collapsed by default (remembered per browser): the whole Action Center
+                // folds down to one quiet summary row — "N urgent · expand".
+                if (this._acCollapsed()) {
+                    body.innerHTML = this._acSummaryHtml(items.length, urgentCount);
+                    return;
+                }
                 const head = `
                     <div class="ac-head">
                         <span class="ac-title">
@@ -17393,12 +17454,9 @@ President, Med&amp;X</textarea>
                         <span class="ac-head-actions">
                             <button class="ac-btn" onclick="App.nagRunNow()"><i class="fas fa-sync"></i> Run check now</button>
                             <button class="ac-btn" onclick="App.nagQueueDigest()"><i class="fas fa-paper-plane"></i> Queue team digest</button>
+                            <button class="ac-collapse-btn" onclick="App.acToggleCollapse()"><i class="fas fa-chevron-up"></i> Collapse</button>
                         </span>
                     </div>`;
-                if (!items.length) {
-                    body.innerHTML = head + `<div class="ac-empty"><i class="fas fa-circle-check"></i> You are all caught up — nothing needs your attention right now.</div>`;
-                    return;
-                }
 
                 // A short list is already calm — show it flat, no grouping needed.
                 const FLAT_MAX = 5;
@@ -17478,6 +17536,34 @@ President, Med&amp;X</textarea>
                 }
 
                 body.innerHTML = head + spotHtml + groupsHtml;
+            },
+
+            // Collapsed by default; the choice is remembered across reloads (localStorage).
+            _acCollapsed() {
+                return localStorage.getItem('medx_ac_collapsed') !== '0';
+            },
+            // Toggle the whole Action Center between the quiet summary row and the full list.
+            acToggleCollapse() {
+                const collapsed = this._acCollapsed();
+                localStorage.setItem('medx_ac_collapsed', collapsed ? '0' : '1');
+                this.renderActionCenter(this._nagItems || []);
+            },
+            // The one-line collapsed summary — "Action Center · N urgent · N to review · Expand".
+            _acSummaryHtml(total, urgent) {
+                const urgentChip = urgent > 0 ? `<span class="ac-summary-urgent">${urgent} urgent</span>` : '';
+                const countTxt = urgent > 0
+                    ? `${total} item${total === 1 ? '' : 's'} need attention`
+                    : `${total} item${total === 1 ? '' : 's'} to review`;
+                return `
+                    <button type="button" class="ac-summary${urgent > 0 ? ' has-urgent' : ''}" onclick="App.acToggleCollapse()" aria-expanded="false" title="Expand the Action Center">
+                        <span class="ac-summary-ico"><i class="fas fa-bolt"></i></span>
+                        <span class="ac-summary-text">
+                            <span class="ac-summary-title">Action Center</span>
+                            ${urgentChip}
+                            <span class="ac-summary-count">${countTxt}</span>
+                        </span>
+                        <span class="ac-summary-expand">Expand <i class="fas fa-chevron-down"></i></span>
+                    </button>`;
             },
 
             // Expand or collapse one area group (state survives the periodic re-render).
@@ -40815,8 +40901,10 @@ By applying to this program, I give the following consents:
 
             cardHtml(cfg, m) {
                 const hidden = localStorage.getItem('widget_' + cfg.id) === 'hidden';
+                // Calm, uniform cards (2026-07-10): neutral border + muted icon chip, so the
+                // overview reads as one family. The number carries the identity, not colour.
                 return `
-                    <div class="card" id="${cfg.id}" style="padding:18px;border-left:4px solid ${cfg.color};cursor:pointer;${hidden ? 'display:none;' : ''}" onclick="App.showSection('${cfg.section}')">
+                    <div class="card" id="${cfg.id}" style="padding:18px;border-left:4px solid var(--border-light);cursor:pointer;${hidden ? 'display:none;' : ''}" onclick="App.showSection('${cfg.section}')">
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
                             <div style="min-width:0;">
                                 <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1.5px;font-weight:600;">${cfg.label}</div>
@@ -40824,7 +40912,7 @@ By applying to this program, I give the following consents:
                                 <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">${m.sub}</div>
                                 ${m.foot ? `<div style="font-size:11px;color:var(--warning);margin-top:6px;"><i class="fas fa-calendar-day" style="margin-right:4px;"></i>${escapeHtml(m.foot)}</div>` : ''}
                             </div>
-                            <i class="fas ${cfg.icon}" style="color:${cfg.color};font-size:20px;flex-shrink:0;"></i>
+                            <span style="width:34px;height:34px;border-radius:9px;background:var(--bg-tertiary);color:var(--text-muted);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas ${cfg.icon}" style="font-size:15px;"></i></span>
                         </div>
                     </div>`;
             },
@@ -49017,39 +49105,70 @@ By applying to this program, I give the following consents:
         App.init();
     </script>
 
-    <!-- Self-contained "Install staff app" banner (iOS-aware PWA install). -->
+    <!-- PWA install helper (no loud home banner). The install prompt is captured here and
+         surfaced only on demand: admins from Settings, volunteers from Resources (2026-07-10). -->
     <script>
     (function () {
         try {
-            var STANDALONE = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-            if (STANDALONE) return;
-            if (localStorage.getItem('medx_staff_install_dismissed') === '1') return;
-            var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
-            var deferred = null;
-            window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; showBanner(); });
-            if (isIOS) setTimeout(showBanner, 4000);
-            function showBanner() {
-                if (document.getElementById('medxStaffInstall')) return;
-                var b = document.createElement('div');
-                b.id = 'medxStaffInstall';
-                b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;max-width:520px;margin:0 auto;background:#17120f;color:#fff;border:1px solid rgba(201,169,98,0.4);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 30px rgba(0,0,0,0.4);font-family:system-ui,-apple-system,sans-serif;';
-                b.innerHTML = '<div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#C9A962,#b49650);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#17120f;font-size:18px;">⚕️</div>'
-                    + '<div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:14px;">Install the Staff app</div><div style="font-size:12px;color:#c9c2ba;">Scanner & admin tools, one tap from your home screen.</div></div>'
-                    + '<button id="medxStaffGo" style="background:linear-gradient(135deg,#C9A962,#b49650);color:#17120f;border:none;border-radius:9px;padding:9px 14px;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0;">Install</button>'
-                    + '<button id="medxStaffX" aria-label="Dismiss" style="background:transparent;border:none;color:#8f867c;font-size:18px;cursor:pointer;flex-shrink:0;padding:4px 6px;">×</button>';
-                document.body.appendChild(b);
-                document.getElementById('medxStaffX').onclick = function () { b.remove(); localStorage.setItem('medx_staff_install_dismissed', '1'); };
-                document.getElementById('medxStaffGo').onclick = async function () {
-                    if (deferred) { deferred.prompt(); try { await deferred.userChoice; } catch (e) {} deferred = null; b.remove(); }
-                    else {
-                        var m = document.createElement('div');
-                        m.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;padding:20px;font-family:system-ui,-apple-system,sans-serif;';
-                        m.innerHTML = '<div style="background:#fff;color:#17120f;border-radius:16px;max-width:360px;width:100%;padding:22px;text-align:center;"><div style="font-size:34px;margin-bottom:8px;">📲</div><h3 style="margin:0 0 8px;font-size:18px;">Add to Home Screen</h3><p style="margin:0 0 6px;font-size:14px;color:#3a2f27;line-height:1.6;">1. Tap the <strong>Share</strong> icon ↑ in Safari</p><p style="margin:0 0 16px;font-size:14px;color:#3a2f27;line-height:1.6;">2. Choose <strong>“Add to Home Screen”</strong></p><button id="medxStaffIosClose" style="background:#17120f;color:#fff;border:none;border-radius:10px;padding:10px 22px;font-weight:600;cursor:pointer;">Got it</button></div>';
-                        document.body.appendChild(m);
-                        m.onclick = function (e) { if (e.target === m || e.target.id === 'medxStaffIosClose') m.remove(); };
-                    }
+            window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); window.__medxDeferredInstall = e; });
+            window.medxIsStandalone = function () {
+                return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+            };
+            // Quiet, on-demand install. Uses the native prompt when the browser offers it,
+            // otherwise shows the Add-to-Home-Screen instructions.
+            window.medxInstallApp = async function () {
+                if (window.medxIsStandalone()) {
+                    if (window.Toast) Toast.info('The app is already installed on this device.');
+                    return;
+                }
+                var deferred = window.__medxDeferredInstall;
+                if (deferred) {
+                    deferred.prompt();
+                    try { await deferred.userChoice; } catch (e) {}
+                    window.__medxDeferredInstall = null;
+                    return;
+                }
+                if (document.getElementById('medxStaffInstallHelp')) return;
+                var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+                var steps = isIOS
+                    ? '<p style="margin:0 0 6px;font-size:14px;color:#3a2f27;line-height:1.6;">1. Tap the <strong>Share</strong> icon ↑ in Safari</p><p style="margin:0 0 16px;font-size:14px;color:#3a2f27;line-height:1.6;">2. Choose <strong>“Add to Home Screen”</strong></p>'
+                    : '<p style="margin:0 0 6px;font-size:14px;color:#3a2f27;line-height:1.6;">1. Open your browser menu (⋮)</p><p style="margin:0 0 16px;font-size:14px;color:#3a2f27;line-height:1.6;">2. Choose <strong>“Install app”</strong> or <strong>“Add to Home Screen”</strong></p>';
+                var m = document.createElement('div');
+                m.id = 'medxStaffInstallHelp';
+                m.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;padding:20px;font-family:system-ui,-apple-system,sans-serif;';
+                m.innerHTML = '<div style="background:#fff;color:#17120f;border-radius:16px;max-width:360px;width:100%;padding:22px;text-align:center;"><div style="font-size:34px;margin-bottom:8px;">📲</div><h3 style="margin:0 0 8px;font-size:18px;">Add to Home Screen</h3>' + steps + '<button id="medxStaffIosClose" style="background:#17120f;color:#fff;border:none;border-radius:10px;padding:10px 22px;font-weight:600;cursor:pointer;">Got it</button></div>';
+                document.body.appendChild(m);
+                m.onclick = function (e) { if (e.target === m || e.target.id === 'medxStaffIosClose') m.remove(); };
+            };
+            // Shareable QR + link so admins can hand the app to volunteers (Resources section).
+            window.medxShowAppQR = function () {
+                if (document.getElementById('medxAppQrModal')) return;
+                var url = 'https://medx-admin-portal.onrender.com';
+                var qr = location.origin + '/api/app-install-qr.png';
+                var m = document.createElement('div');
+                m.id = 'medxAppQrModal';
+                m.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(21,17,15,0.55);display:flex;align-items:center;justify-content:center;padding:20px;font-family:Inter,system-ui,sans-serif;';
+                m.innerHTML = '<div style="background:#fff;color:#15110f;border-radius:16px;max-width:380px;width:100%;padding:24px;text-align:center;">'
+                    + '<h3 style="font-family:Fraunces,serif;font-size:19px;margin:0 0 6px;">Get the staff app</h3>'
+                    + '<p style="font-size:13px;color:#6b6258;line-height:1.6;margin:0 0 16px;">Show or print this code. Volunteers scan it, then choose “Add to Home Screen”.</p>'
+                    + '<img src="' + qr + '" alt="Staff app QR code" style="width:220px;height:220px;border:1px solid #e2dcd3;border-radius:12px;padding:8px;background:#fff;">'
+                    + '<div style="font-size:12px;color:#6b6258;margin:12px 0 16px;word-break:break-all;">' + url + '</div>'
+                    + '<div style="display:flex;gap:9px;justify-content:center;flex-wrap:wrap;">'
+                    + '<button id="medxAppQrCopy" class="btn btn-secondary"><i class="fas fa-link" style="margin-right:6px;"></i>Copy link</button>'
+                    + '<button id="medxAppQrPrint" class="btn btn-secondary"><i class="fas fa-print" style="margin-right:6px;"></i>Print</button>'
+                    + '<button id="medxAppQrClose" class="btn btn-primary">Done</button>'
+                    + '</div></div>';
+                document.body.appendChild(m);
+                m.onclick = function (e) { if (e.target === m || e.target.id === 'medxAppQrClose') m.remove(); };
+                document.getElementById('medxAppQrCopy').onclick = function () {
+                    try { navigator.clipboard && navigator.clipboard.writeText(url); if (window.Toast) Toast.success('Link copied.'); } catch (e) {}
                 };
-            }
+                document.getElementById('medxAppQrPrint').onclick = function () {
+                    var w = window.open('', '_blank'); if (!w) return;
+                    w.document.write('<html><head><title>Med&X staff app</title></head><body style="text-align:center;font-family:sans-serif;padding:40px;"><h2>Install the Med&amp;X staff app</h2><p>Scan the code, then choose “Add to Home Screen”.</p><img src="' + qr + '" style="width:320px;height:320px;"><p style="color:#555;">' + url + '</p></body></html>');
+                    w.document.close(); w.focus(); setTimeout(function () { try { w.print(); } catch (e) {} }, 500);
+                };
+            };
         } catch (e) {}
     })();
     </script>
@@ -49070,9 +49189,25 @@ By applying to this program, I give the following consents:
         },
         toast(msg, type) { if (window.Toast) { (Toast[type] || Toast.info || Toast.success)(msg); } else { console.log('[TeamChat]', msg); } },
         esc(s) { return (typeof escapeHtml === 'function') ? escapeHtml(s == null ? '' : s) : String(s == null ? '' : s); },
-        monogram(name, color) {
+        monogram(name /*, color (ignored — see below) */) {
             const initials = String(name || '?').trim().split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
-            return { initials, bg: color || '#9b1b22' };
+            // Calm identity chips (2026-07-10): a small MUTED palette keyed by name, so
+            // teammates stay distinguishable without loud full-colour bubbles. The old loud
+            // per-person avatar_color is intentionally ignored.
+            const palette = [
+                ['#ece7df', '#6b5f52'], // warm stone
+                ['#e6ecea', '#4f6b60'], // sage
+                ['#eae7ef', '#5b5170'], // muted lavender
+                ['#efe7e6', '#8a5551'], // dusty rose
+                ['#e6ecef', '#4f6373'], // slate blue
+                ['#efeade', '#7a6a3f'], // sand
+                ['#e8ece4', '#5c6b4f'], // olive
+                ['#efe8df', '#8a6a4a']  // clay
+            ];
+            let h = 0; const s = String(name || '?');
+            for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+            const pair = palette[h % palette.length];
+            return { initials, bg: pair[0], fg: pair[1] };
         },
         async open() {
             try { await this.loadOverview(); } catch (e) { this.toast(e.message, 'error'); return; }
@@ -49108,11 +49243,12 @@ By applying to this program, I give the following consents:
             const cl = document.getElementById('tcChannelList'); if (!cl) return;
             cl.innerHTML = this.channels.map(c => {
                 const active = this.current && this.current.type === 'channel' && this.current.id === c.id;
-                let icon = '#', bg = 'background:var(--bg-tertiary);color:var(--text-muted)';
-                if (c.is_all) { icon = '<i class="fas fa-users"></i>'; bg = 'background:var(--accent-primary)'; }
-                else if (c.display_name === 'PR') { icon = '<i class="fas fa-bullhorn"></i>'; bg = 'background:#0f172a'; }
-                else if (c.display_name === 'Finances') { icon = '<i class="fas fa-coins"></i>'; bg = 'background:#c9a962'; }
-                else { icon = '<i class="fas fa-hashtag"></i>'; bg = 'background:#6b6258'; }
+                // Calm channel chips: one brand accent for the All-Team home channel; every
+                // other channel uses the same muted neutral chip (2026-07-10 calm-down).
+                let icon = '<i class="fas fa-hashtag"></i>', bg = 'background:var(--bg-tertiary);color:var(--text-muted)';
+                if (c.is_all) { icon = '<i class="fas fa-users"></i>'; bg = 'background:var(--accent-primary);color:#fff'; }
+                else if (c.display_name === 'PR') { icon = '<i class="fas fa-bullhorn"></i>'; }
+                else if (c.display_name === 'Finances') { icon = '<i class="fas fa-coins"></i>'; }
                 return '<div class="tc-chan ' + (active ? 'active' : '') + '" onclick="TeamChat.select(\'channel\',\'' + c.id + '\')">'
                     + '<div class="tc-ic" style="' + bg + '">' + icon + '</div>'
                     + '<div class="tc-nm"><div>' + this.esc(c.display_name) + '</div>' + (c.last_preview ? '<div class="tc-prev">' + this.esc(c.last_preview) + '</div>' : '') + '</div>'
@@ -49124,7 +49260,7 @@ By applying to this program, I give the following consents:
                 const mo = this.monogram(d.other.name, d.other.avatar_color);
                 const av = d.other.photo_url ? '<img src="' + this.esc(d.other.photo_url) + '" onerror="this.style.display=\'none\'">' : mo.initials;
                 return '<div class="tc-chan ' + (active ? 'active' : '') + '" onclick="TeamChat.select(\'dm\',\'' + d.id + '\')">'
-                    + '<div class="tc-ic" style="background:' + mo.bg + '">' + av + '</div>'
+                    + '<div class="tc-ic" style="background:' + mo.bg + ';color:' + mo.fg + '">' + av + '</div>'
                     + '<div class="tc-nm"><div>' + this.esc(d.other.name) + '</div>' + (d.last_preview ? '<div class="tc-prev">' + this.esc(d.last_preview) + '</div>' : '') + '</div>'
                     + (d.unread ? '<span class="tc-badge">' + d.unread + '</span>' : '') + '</div>';
             }).join('') : '<div style="padding:8px 10px;font-size:12px;color:var(--text-muted);">No direct messages yet. Tap + to start one.</div>';
@@ -49191,8 +49327,8 @@ By applying to this program, I give the following consents:
                 const time = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 const mo = this.monogram(m.sender_name, m.avatar_color);
                 const avatar = grouped ? '<div class="tc-av spacer"></div>'
-                    : (m.sender_photo ? '<div class="tc-av" style="background:' + mo.bg + '"><img src="' + this.esc(m.sender_photo) + '" onerror="this.style.display=\'none\'"></div>'
-                        : '<div class="tc-av" style="background:' + mo.bg + '">' + mo.initials + '</div>');
+                    : (m.sender_photo ? '<div class="tc-av" style="background:' + mo.bg + ';color:' + mo.fg + '"><img src="' + this.esc(m.sender_photo) + '" onerror="this.style.display=\'none\'"></div>'
+                        : '<div class="tc-av" style="background:' + mo.bg + ';color:' + mo.fg + '">' + mo.initials + '</div>');
                 const meta = grouped ? '' : '<div class="tc-meta"><span class="tc-sender">' + this.esc(m.sender_name || 'Teammate') + '</span>' + (m.sender_role ? '<span class="tc-role">' + this.esc(m.sender_role) + '</span>' : '') + '<span class="tc-time">' + time + '</span></div>';
                 html += '<div class="tc-msg"' + (grouped ? ' style="padding-top:1px;"' : '') + '>' + avatar + '<div class="tc-body">' + meta + this.renderBody(m) + '</div></div>';
             });
@@ -49331,7 +49467,7 @@ By applying to this program, I give the following consents:
         },
         openNewDM() {
             const others = this.roster.filter(r => !r.is_me);
-            const rows = others.map(r => { const mo = this.monogram(r.name, r.avatar_color); return '<div class="tc-memrow" onclick="TeamChat.startDM(\'' + r.id + '\')"><div class="tc-mono" style="background:' + mo.bg + '">' + (r.photo_url ? '<img src="' + this.esc(r.photo_url) + '" onerror="this.style.display=\'none\'">' : mo.initials) + '</div><div><div style="font-weight:600;font-size:14px;">' + this.esc(r.name) + '</div><div style="font-size:12px;color:var(--text-muted);">' + this.esc(r.role || '') + '</div></div></div>'; }).join('');
+            const rows = others.map(r => { const mo = this.monogram(r.name, r.avatar_color); return '<div class="tc-memrow" onclick="TeamChat.startDM(\'' + r.id + '\')"><div class="tc-mono" style="background:' + mo.bg + ';color:' + mo.fg + '">' + (r.photo_url ? '<img src="' + this.esc(r.photo_url) + '" onerror="this.style.display=\'none\'">' : mo.initials) + '</div><div><div style="font-weight:600;font-size:14px;">' + this.esc(r.name) + '</div><div style="font-size:12px;color:var(--text-muted);">' + this.esc(r.role || '') + '</div></div></div>'; }).join('');
             this.modal('<div class="tc-modal-title">New direct message</div><div class="tc-modal-sub">Pick a teammate to start a private conversation.</div>' + (rows || '<div style="color:var(--text-muted);">No other teammates yet.</div>') + '<div class="tc-modal-foot"><button class="tc-btn tc-ghost" onclick="TeamChat.closeModal()">Cancel</button></div>');
         },
         async startDM(memberId) {
@@ -49364,7 +49500,7 @@ By applying to this program, I give the following consents:
             let members = [];
             try { members = await this.api('/api/teamchat/channels/' + c.id + '/members'); } catch (e) {}
             const memIds = members.map(m => m.member_id);
-            const memRows = members.map(m => { const mo = this.monogram(m.name, m.avatar_color); return '<div class="tc-memrow"><div class="tc-mono" style="background:' + mo.bg + '">' + mo.initials + '</div><div style="flex:1;"><div style="font-weight:600;font-size:14px;">' + this.esc(m.name) + '</div><div style="font-size:12px;color:var(--text-muted);">' + this.esc(m.title || '') + (m.role === 'owner' ? ' · owner' : '') + '</div></div><button class="tc-btn tc-ghost" onclick="TeamChat.removeMember(\'' + c.id + '\',\'' + m.member_id + '\')"><i class="fas fa-user-minus"></i></button></div>'; }).join('');
+            const memRows = members.map(m => { const mo = this.monogram(m.name, m.avatar_color); return '<div class="tc-memrow"><div class="tc-mono" style="background:' + mo.bg + ';color:' + mo.fg + '">' + mo.initials + '</div><div style="flex:1;"><div style="font-weight:600;font-size:14px;">' + this.esc(m.name) + '</div><div style="font-size:12px;color:var(--text-muted);">' + this.esc(m.title || '') + (m.role === 'owner' ? ' · owner' : '') + '</div></div><button class="tc-btn tc-ghost" onclick="TeamChat.removeMember(\'' + c.id + '\',\'' + m.member_id + '\')"><i class="fas fa-user-minus"></i></button></div>'; }).join('');
             const addable = this.roster.filter(r => memIds.indexOf(r.id) === -1);
             const addRows = addable.length ? addable.map(r => '<label class="tc-memrow" style="cursor:pointer;"><input type="checkbox" class="tcMgAdd" value="' + r.id + '" style="width:auto;"> <span style="font-weight:500;">' + this.esc(r.name) + '</span> <span style="font-size:12px;color:var(--text-muted);">' + this.esc(r.role || '') + '</span></label>').join('') : '<div style="color:var(--text-muted);font-size:13px;padding:6px;">Everyone is already in this channel.</div>';
             this.modal('<div class="tc-modal-title">Manage ' + this.esc(c.display_name) + '</div><div class="tc-modal-sub">Rename, add or remove members, or delete this channel.</div>'
