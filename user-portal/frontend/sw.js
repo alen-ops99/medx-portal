@@ -55,6 +55,15 @@ self.addEventListener('fetch', (event) => {
 
     const url = new URL(event.request.url);
 
+    // NEVER intercept cross-origin requests (Google Fonts CSS, CDN scripts). The worker
+    // runs under the server's CSP, whose connect-src does not include those hosts, so a
+    // fetch() re-issued from here is blocked and the .catch(() => null) below turned that
+    // into net::ERR_FAILED on the page (same defect proven + fixed on the admin SW, where
+    // it blanked the Live Ops Map's OSM tiles). Left to the browser, the same requests
+    // pass under the page's own img-src/script-src/style-src. Nothing is lost: the cache
+    // gate below only ever stored type === 'basic' (same-origin) responses anyway.
+    if (url.origin !== self.location.origin) return;
+
     // Never cache API responses — admin edits must reach returning visitors immediately.
     if (url.pathname.startsWith('/api/')) {
         return;

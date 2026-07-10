@@ -18,6 +18,14 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
     if (event.request.method !== 'GET') return;
     const url = new URL(event.request.url);
+    // NEVER intercept cross-origin requests (OSM map tiles, CDN scripts, Google Fonts).
+    // The worker runs under the server's CSP, whose connect-src does not include those
+    // hosts, so a fetch() re-issued from here is blocked and the .catch(() => null)
+    // below turned that into net::ERR_FAILED on the page — the Live Ops Map rendered
+    // grey tiles for every real admin. Left to the browser, the same requests pass
+    // under the page's own img-src/script-src/style-src. Nothing is lost: the cache
+    // gate below only ever stored type === 'basic' (same-origin) responses anyway.
+    if (url.origin !== self.location.origin) return;
     // Never cache API — admin views must reflect live data.
     if (url.pathname.startsWith('/api/')) return;
 
