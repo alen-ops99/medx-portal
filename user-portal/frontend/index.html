@@ -56185,6 +56185,12 @@ button,input,select,textarea{font-family:var(--sans);}
           .pxlb-later-room{ color:var(--up-text-muted,#6b6258); font-size:12.5px; }
           .px-tab.pxlb-tab-live{ position:relative; }
           .px-tab.pxlb-tab-live::after{ content:''; position:absolute; top:7px; right:7px; width:7px; height:7px; border-radius:50%; background:var(--crimson,#9b1b22); animation:pxlbPulse 1.8s infinite; }
+          /* ---- Pre-event state: the quiet "begins on" card outside event days ---- */
+          .pxlb-pre{ display:flex; align-items:center; gap:18px; }
+          .pxlb-pre-icon{ flex:0 0 auto; width:54px; height:54px; border-radius:16px; display:flex; align-items:center; justify-content:center; font-size:20px; color:var(--gold,#c9a962); background:linear-gradient(150deg,var(--emph-bg,#14110f),var(--emph-bg-2,#211d19)); border:1px solid rgba(201,169,98,.28); }
+          .pxlb-pre-eyebrow{ margin-bottom:6px; }
+          .pxlb-pre-line{ font-family:var(--serif,Georgia,serif); font-size:19px; font-weight:600; color:var(--up-text,#15110f); line-height:1.25; margin-bottom:4px; }
+          @media(max-width:560px){ .pxlb-pre{ gap:14px; } .pxlb-pre-icon{ width:46px; height:46px; border-radius:14px; font-size:17px; } .pxlb-pre-line{ font-size:16.5px; } }
           @media(max-width:560px){
             .pxlb-card{ padding:18px; border-radius:18px; }
             .pxlb-title{ font-size:20px; }
@@ -132669,8 +132675,10 @@ By applying to this program, I give the following consents:
         <!-- Plexus LIVE NOW/NEXT board (cluster 5a5b) — see #pxlbStyles for the design system.
              Self-contained module: reads ConferenceData (single source of truth), computes a
              now/next/later/done state machine from each session's start-end vs the clock, ticks
-             every 30s (auto-advances, no reload), gates itself to the event window, and powers a
-             chrome-free ?display=1 projector variant. Bilingual via MedXI18n. No inline handlers. -->
+             every 30s (auto-advances, no reload, visible tab only) and re-polls the schedule
+             API ~60s so admin edits land mid-event, gates itself to the event window with a
+             quiet "begins on" card beforehand, and powers a chrome-free ?display=1 projector
+             variant. Bilingual via MedXI18n. No inline handlers. -->
         <script>
         (function(){
           "use strict";
@@ -132731,7 +132739,8 @@ By applying to this program, I give the following consents:
             'plb.inHrMin':'in {h} h {m} min','plb.inHr':'in {h} h','plb.endsInMin':'ends in {n} min',
             'plb.endsInHrMin':'ends in {h} h {m} min','plb.endsInHr':'ends in {h} h','plb.endingNow':'ending now',
             'plb.dayLabel':'Day {n}','plb.noSessions':'No sessions scheduled','plb.allDone':'The program for today has ended',
-            'plb.viewProgram':'View full program','plb.boardHint':'Live during the conference — where to be, right now'
+            'plb.viewProgram':'View full program','plb.boardHint':'Live during the conference — where to be, right now',
+            'plb.liveProgram':'Live program','plb.beginsOn':'The program begins on {date}'
           };
           function registerI18n(){
             if (!window.MedXI18n || !MedXI18n.extend) return;
@@ -132756,7 +132765,9 @@ By applying to this program, I give the following consents:
               'plb.noSessions':    {en:'No sessions scheduled', hr:'Nema zakazanih sesija'},
               'plb.allDone':       {en:'The program for today has ended', hr:'Program za danas je završen'},
               'plb.viewProgram':   {en:'View full program', hr:'Pogledajte cijeli program'},
-              'plb.boardHint':     {en:'Live during the conference — where to be, right now', hr:'Uživo tijekom konferencije — gdje trebate biti, upravo sada'}
+              'plb.boardHint':     {en:'Live during the conference — where to be, right now', hr:'Uživo tijekom konferencije — gdje trebate biti, upravo sada'},
+              'plb.liveProgram':   {en:'Live program',     hr:'Program uživo'},
+              'plb.beginsOn':      {en:'The program begins on {date}', hr:'Program počinje u {date}'}
             });
           }
 
@@ -132891,10 +132902,36 @@ By applying to this program, I give the following consents:
             return h;
           }
 
+          // Quiet pre-event state: outside event days the board holds a slim card
+          // naming the first program date instead of vanishing. After the event it rests.
+          function preEventHTML(m){
+            var firstDay = m.list.length ? m.list[0].s.day : (parseInt(Object.keys(ev().dayDates)[0],10) || 1);
+            var dateIso = ev().dayDates[firstDay], ds = '';
+            try {
+              if (window.MedXI18n && MedXI18n.formatDate) ds = MedXI18n.formatDate(dateIso + 'T00:00:00', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+              else ds = new Date(dateIso + 'T00:00:00').toLocaleDateString();
+            } catch(e){}
+            return '<div class="pxlb-card"><div class="pxlb pxlb-pre">'
+              + '<div class="pxlb-pre-icon"><i class="fas fa-calendar-day"></i></div>'
+              + '<div class="pxlb-pre-text"><div class="pxlb-label pxlb-pre-eyebrow">' + esc(ev().title) + ' · ' + esc(t('plb.liveProgram')) + '</div>'
+              + '<div class="pxlb-pre-line">' + esc(t('plb.beginsOn', { date: ds })) + '</div>'
+              + '<div class="pxlb-idle-sub">' + esc(t('plb.boardHint')) + '</div></div>'
+              + '</div></div>';
+          }
           function renderPageInto(mountEl, m){
-            var show = m.inWindow || _isPreview;
-            mountEl.style.display = show ? 'block' : 'none';
-            mountEl.innerHTML = show ? boardHTML(m) : '';
+            if (m.inWindow || _isPreview){
+              mountEl.style.display = 'block';
+              mountEl.innerHTML = boardHTML(m);
+              return;
+            }
+            var w = windowFor(m.list);
+            if (w && m.nowD.getTime() < w.open){
+              mountEl.style.display = 'block';
+              mountEl.innerHTML = preEventHTML(m);
+              return;
+            }
+            mountEl.style.display = 'none';
+            mountEl.innerHTML = '';
           }
           function reflectTabIndicator(on){ var tab = document.querySelector('.px-tab[data-tab="schedule"]'); if (tab) tab.classList.toggle('pxlb-tab-live', on); }
 
@@ -132949,6 +132986,32 @@ By applying to this program, I give the following consents:
             reflectTabIndicator(m.inWindow || _isPreview);
             if (_isDisplay) renderDisplay(m);
           }
+
+          // Schedule poll (~60s, visible tab only): re-reads /api/plexus/sessions so a
+          // program change made in the EXISTING admin schedule tooling reaches the board
+          // mid-event with no reload. Change-detected — the page's own loader (which also
+          // re-renders the program tab) runs ONLY when the payload actually changed.
+          var POLL_MS = 60000, _lastPollRaw = null;
+          function pollSchedule(){
+            if (document.hidden) return;
+            var m = model(now());
+            if (!(m.inWindow || _isPreview)) return; // poll only while the board is awake
+            fetch('/api/plexus/sessions').then(function(r){ return r.ok ? r.json() : null; }).then(function(rows){
+              if (!rows || !rows.length) return;
+              var raw = JSON.stringify(rows);
+              if (_lastPollRaw === null){ _lastPollRaw = raw; return; } // baseline = what init already rendered
+              if (raw === _lastPollRaw) return;
+              _lastPollRaw = raw;
+              try {
+                if (typeof PlexusPortal !== 'undefined' && PlexusPortal.loadScheduleFromDB){
+                  Promise.resolve(PlexusPortal.loadScheduleFromDB()).then(refresh, refresh);
+                  return;
+                }
+              } catch(e){}
+              refresh();
+            }).catch(function(){});
+          }
+
           function start(){
             if (_started) return; _started = true;
             if (_p.now) setMockNow(_p.now);
@@ -132956,7 +133019,9 @@ By applying to this program, I give the following consents:
             registerI18n();
             if (_isDisplay) buildDisplayShell();
             refresh();
-            setInterval(refresh, TICK_MS);
+            setInterval(function(){ if (!document.hidden) refresh(); }, TICK_MS);
+            setInterval(pollSchedule, POLL_MS);
+            document.addEventListener('visibilitychange', function(){ if (!document.hidden){ refresh(); pollSchedule(); } });
             if (_isDisplay) _dispTimer = setInterval(function(){ _dispIdx++; renderDisplay(model(now())); }, DISPLAY_CYCLE_MS);
             document.addEventListener('medx:localechange', refresh);
             try { if (typeof ConferenceData !== 'undefined' && ConferenceData.onChange) ConferenceData.onChange(refresh); } catch(e){}
@@ -132969,7 +133034,8 @@ By applying to this program, I give the following consents:
 
           window.PlexusLiveBoard = {
             refresh: refresh, start: start, now: now, setMockNow: function(iso){ var ok=setMockNow(iso); refresh(); return ok; },
-            model: function(){ return model(now()); }, isDisplay: function(){ return _isDisplay; }, isPreview: function(){ return _isPreview; }
+            model: function(){ return model(now()); }, isDisplay: function(){ return _isDisplay; }, isPreview: function(){ return _isPreview; },
+            poll: pollSchedule
           };
         })();
         </script>
