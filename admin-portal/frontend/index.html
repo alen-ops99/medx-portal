@@ -600,12 +600,12 @@
 
         /* Organisation signature pane — one accent family; the one-red token only on the danger action. */
         .org-sig-row, .org-sig-empty {
-            display: flex; align-items: center; gap: 14px;
+            display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
             padding: 16px; border: 1px solid var(--border); border-radius: 12px;
             background: var(--bg-tertiary);
         }
         .org-sig-preview {
-            height: 56px; max-width: 200px; object-fit: contain;
+            height: 48px; max-width: 150px; object-fit: contain;
             background: var(--bg-secondary); border: 1px solid var(--border);
             border-radius: 8px; padding: 6px 10px; flex-shrink: 0;
         }
@@ -614,7 +614,7 @@
             display: flex; align-items: center; justify-content: center;
             background: var(--bg-secondary); color: var(--text-muted); font-size: 18px;
         }
-        .org-sig-meta { flex: 1; min-width: 0; }
+        .org-sig-meta { flex: 1; min-width: 170px; }
         .org-sig-name { font-weight: 600; font-size: 14px; color: var(--text-primary); }
         .org-sig-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
         .org-sig-actions { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
