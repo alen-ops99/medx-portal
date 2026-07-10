@@ -45495,7 +45495,21 @@ By applying to this program, I give the following consents:
             _preview(){ var self=this; clearTimeout(this._t); this._t=setTimeout(function(){ self._paintPreview(); }, 200); },
             _paintPreview(){ var wrap=this._overlay&&this._overlay.querySelector('#ciCanvasWrap'); if(!wrap) return; var self=this; var draw=function(){ try{ var cv=window.MedxInvite.render(self._invOpts()); wrap.innerHTML=''; wrap.appendChild(cv); }catch(e){ console.error('invite render failed',e); } }; this._fontsReady().then(draw); },
 
-            async _payloadJpeg(targetW, quality){ await this._fontsReady(); var full=window.MedxInvite.render(this._invOpts()); var scale=targetW/full.width; var c2=document.createElement('canvas'); c2.width=targetW; c2.height=Math.round(full.height*scale); var g=c2.getContext('2d'); g.drawImage(full,0,0,c2.width,c2.height); return await new Promise(function(res){ c2.toBlob(function(b){ var fr=new FileReader(); fr.onload=function(){ res(fr.result); }; fr.readAsDataURL(b); },'image/jpeg',quality||0.9); }); },
+            async _payloadBlob(targetW, quality){ await this._fontsReady(); var full=window.MedxInvite.render(this._invOpts()); var scale=targetW/full.width; var c2=document.createElement('canvas'); c2.width=targetW; c2.height=Math.round(full.height*scale); var g=c2.getContext('2d'); g.drawImage(full,0,0,c2.width,c2.height); return await new Promise(function(res){ c2.toBlob(function(b){ res(b); },'image/jpeg',quality||0.9); }); },
+            // Persist current fields (small JSON), then attach the rendered preview as RAW bytes on the
+            // asset route (the app-level express.json 100kb limit never sees a non-JSON body).
+            async _saveWithAsset(){
+                var body=this._invPayload(); if(this.state.editingId) body.id=this.state.editingId;
+                var r=await this.api('/api/admin/council/save',{ method:'POST', body:JSON.stringify(body) });
+                if(!(r.ok&&r.d&&r.d.success)) return { ok:false, message:(r.d&&r.d.message)||'Could not save the invitation' };
+                this.state.editingId=r.d.invitation.id;
+                try{
+                    var blob=await this._payloadBlob(1400,0.9);
+                    var ar=await fetch('/api/admin/council/asset?id='+encodeURIComponent(this.state.editingId),{ method:'POST', headers:{ 'Content-Type':'image/jpeg', 'Authorization':'Bearer '+App.token }, body:blob });
+                    if(!ar.ok) console.warn('council asset upload failed', ar.status);
+                }catch(e){ console.warn('council asset upload failed', e); }
+                return { ok:true, id:this.state.editingId };
+            },
 
             async downloadPdf(){
                 if(this._busy) return; if(!this.state.name.trim()){ this.toast('Enter a name first','warning'); return; }
@@ -45515,11 +45529,9 @@ By applying to this program, I give the following consents:
                 if(this._busy) return; if(!this.state.name.trim()){ this.toast('Enter a name first','warning'); return; }
                 this._busy=true; var btn=this._overlay.querySelector('#ciSave'); if(btn){ btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Saving…'; }
                 try{
-                    var img=await this._payloadJpeg(1400,0.9);
-                    var body=Object.assign({}, this._invPayload(), { img:img }); if(this.state.editingId) body.id=this.state.editingId;
-                    var r=await this.api('/api/admin/council/save',{ method:'POST', body:JSON.stringify(body) });
-                    if(r.ok&&r.d&&r.d.success){ this.state.editingId=r.d.invitation.id; this.toast('Saved to the list','success'); await this.loadList(); }
-                    else this.toast((r.d&&r.d.message)||'Could not save the invitation','error');
+                    var r=await this._saveWithAsset();
+                    if(r.ok){ this.toast('Saved to the list','success'); await this.loadList(); }
+                    else this.toast(r.message||'Could not save the invitation','error');
                 }catch(e){ console.error('save failed',e); this.toast('Could not save the invitation','error'); }
                 this._busy=false; if(btn){ btn.innerHTML='<i class="fas fa-bookmark"></i> Save to list'; } this._refreshActions();
             },
@@ -45529,11 +45541,13 @@ By applying to this program, I give the following consents:
                 if(!(await adminConfirm({ title:'Stage this invitation?', message:'One invitation email to '+this.state.email+' will be placed in the approval outbox. Nothing sends until you approve it there.', confirmText:'Stage in outbox' }))) return;
                 this._busy=true; var btn=this._overlay.querySelector('#ciStage'); if(btn){ btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Staging…'; }
                 try{
-                    var img=await this._payloadJpeg(1400,0.9);
-                    var body=Object.assign({}, this._invPayload(), { img:img }); if(this.state.editingId) body.id=this.state.editingId;
-                    var r=await this.api('/api/admin/council/send',{ method:'POST', body:JSON.stringify(body) });
-                    if(r.ok&&r.d&&r.d.success){ this.state.editingId=r.d.invitation.id; this.toast(r.d.already?'Already staged for this invitation':'Staged in the outbox for approval','success'); await this.loadList(); }
-                    else this.toast((r.d&&r.d.message)||'Could not stage the invitation','error');
+                    var s=await this._saveWithAsset();
+                    if(!s.ok){ this.toast(s.message||'Could not save the invitation','error'); }
+                    else {
+                        var r=await this.api('/api/admin/council/send',{ method:'POST', body:JSON.stringify({ id:this.state.editingId }) });
+                        if(r.ok&&r.d&&r.d.success){ this.toast(r.d.already?'Already staged for this invitation':'Staged in the outbox for approval','success'); await this.loadList(); }
+                        else this.toast((r.d&&r.d.message)||'Could not stage the invitation','error');
+                    }
                 }catch(e){ console.error('stage failed',e); this.toast('Could not stage the invitation','error'); }
                 this._busy=false; if(btn){ btn.innerHTML='<i class="fas fa-paper-plane"></i> Stage in outbox'; } this._refreshActions();
             },

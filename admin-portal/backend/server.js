@@ -33679,22 +33679,21 @@ ${extraCss || ''}
             created_at: r.created_at, updated_at: r.updated_at || null
         };
     }
-    // Persist a data-URL invitation image as a content-studio asset. Returns { url, id } or null.
-    function councilPersistImage(req, inv, img) {
-        if (!img || !/^data:image\/(png|jpe?g);base64,/.test(String(img))) return null;
+    // Persist RAW invitation-image bytes as a content-studio asset. Returns { url, id } or null.
+    // Raw bytes (not base64 JSON) because the app-level express.json() has the default 100kb limit —
+    // same convention as POST /api/admin/content/asset above.
+    function councilPersistImage(req, invName, buf, isPng) {
+        if (!buf || !buf.length || buf.length > 8 * 1024 * 1024) return null;
         const dir = path.join(uploadsDir, 'content-studio');
         try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); } catch (e) {}
         try {
-            const isPng = /^data:image\/png/.test(img);
-            const buf = Buffer.from(String(img).replace(/^data:image\/[^;]+;base64,/, ''), 'base64');
-            if (buf.length > 8 * 1024 * 1024) return null;
             const id = uuidv4(); const ext = isPng ? 'png' : 'jpg';
             const fname = 'council-' + id + '.' + ext;
             fs.writeFileSync(path.join(dir, fname), buf);
             const url = `${seatPublicBase(req)}/uploads/content-studio/${fname}`;
             try {
                 db.run(`INSERT INTO content_studio_assets (id, kind, template, aspect, project, title, caption, asset_url, mime, bytes, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?, datetime('now'))`,
-                    [id, 'invitation', 'council', 'a4-portrait', 'advisory-council', ('Advisory Council — ' + (inv.name || '')).slice(0, 200), '', url, isPng ? 'image/png' : 'image/jpeg', buf.length, (req.user && req.user.id) || null]);
+                    [id, 'invitation', 'council', 'a4-portrait', 'advisory-council', ('Advisory Council — ' + (invName || '')).slice(0, 200), '', url, isPng ? 'image/png' : 'image/jpeg', buf.length, (req.user && req.user.id) || null]);
             } catch (e) {}
             return { url, id };
         } catch (e) { return null; }
@@ -33715,8 +33714,9 @@ ${extraCss || ''}
         } catch (e) { res.status(500).json({ error: 'list_failed' }); }
     });
 
-    // Create or update a draft invitation. Optional img (data URL) is persisted as the preview asset.
-    app.post('/api/admin/council/save', auth, adminOnly, express.json({ limit: '12mb' }), (req, res) => {
+    // Create or update a draft invitation (small JSON — fields only, never the image; the rendered
+    // preview arrives separately as raw bytes on /api/admin/council/asset).
+    app.post('/api/admin/council/save', auth, adminOnly, (req, res) => {
         const b = req.body || {};
         const name = String(b.name || '').trim();
         if (!name) return res.status(400).json({ error: 'name_required', message: 'A name is required.' });
@@ -33728,19 +33728,17 @@ ${extraCss || ''}
             personal_sentence: String(b.personal_sentence || '').trim().slice(0, 1000),
             email: String(b.email || '').trim().toLowerCase().slice(0, 200)
         };
-        const asset = councilPersistImage(req, inv, b.img);
         const existing = b.id ? query.get('SELECT * FROM council_invitations WHERE id = ?', [String(b.id)]) : null;
         let id;
         if (existing) {
             id = existing.id;
-            if (asset) councilRemoveAsset(existing.asset_id, existing.asset_url);
-            db.run(`UPDATE council_invitations SET name=?, title=?, institution=?, language=?, personal_sentence=?, email=?, asset_url=COALESCE(?, asset_url), asset_id=COALESCE(?, asset_id), updated_at=datetime('now') WHERE id=?`,
-                [inv.name, inv.title, inv.institution, inv.language, inv.personal_sentence, inv.email, asset ? asset.url : null, asset ? asset.id : null, id]);
+            db.run(`UPDATE council_invitations SET name=?, title=?, institution=?, language=?, personal_sentence=?, email=?, updated_at=datetime('now') WHERE id=?`,
+                [inv.name, inv.title, inv.institution, inv.language, inv.personal_sentence, inv.email, id]);
         } else {
             id = uuidv4();
-            db.run(`INSERT INTO council_invitations (id, name, title, institution, language, personal_sentence, email, status, asset_url, asset_id, created_by, created_at, updated_at)
-                    VALUES (?,?,?,?,?,?,?, 'draft', ?, ?, ?, datetime('now'), datetime('now'))`,
-                [id, inv.name, inv.title, inv.institution, inv.language, inv.personal_sentence, inv.email, asset ? asset.url : null, asset ? asset.id : null, (req.user && req.user.id) || null]);
+            db.run(`INSERT INTO council_invitations (id, name, title, institution, language, personal_sentence, email, status, created_by, created_at, updated_at)
+                    VALUES (?,?,?,?,?,?,?, 'draft', ?, datetime('now'), datetime('now'))`,
+                [id, inv.name, inv.title, inv.institution, inv.language, inv.personal_sentence, inv.email, (req.user && req.user.id) || null]);
         }
         try { logAudit(req, 'council.save', `${existing ? 'updated' : 'created'} invitation for ${inv.name}`); } catch (e) {}
         saveDb();
@@ -33748,10 +33746,30 @@ ${extraCss || ''}
         res.json({ success: true, invitation: councilRow(row) });
     });
 
+    // Attach the rendered invitation image to a saved invitation. Body is the RAW image bytes
+    // (image/jpeg or image/png — a non-JSON content type, so the app-level 100kb express.json()
+    // never sees it; same pattern as POST /api/admin/content/asset). Replaces any previous asset.
+    app.post('/api/admin/council/asset', auth, adminOnly, express.raw({ type: () => true, limit: '12mb' }), (req, res) => {
+        try {
+            const id = String((req.query && req.query.id) || '').trim();
+            const row = id ? query.get('SELECT * FROM council_invitations WHERE id = ?', [id]) : null;
+            if (!row) return res.status(404).json({ error: 'not_found', message: 'Save the invitation first.' });
+            const buf = Buffer.isBuffer(req.body) ? req.body : null;
+            if (!buf || !buf.length) return res.status(400).json({ error: 'no_bytes', message: 'No image bytes received.' });
+            const isPng = String(req.headers['content-type'] || '').indexOf('png') !== -1;
+            const asset = councilPersistImage(req, row.name, buf, isPng);
+            if (!asset) return res.status(400).json({ error: 'asset_failed', message: 'Could not store the image.' });
+            councilRemoveAsset(row.asset_id, row.asset_url);
+            db.run('UPDATE council_invitations SET asset_url=?, asset_id=?, updated_at=datetime(\'now\') WHERE id=?', [asset.url, asset.id, id]);
+            saveDb();
+            res.json({ success: true, url: asset.url, id: asset.id });
+        } catch (e) { console.error('[council] asset', e.message); res.status(500).json({ error: 'asset_failed' }); }
+    });
+
     // Stage ONE invitation email into the approval outbox (pending_approval — never auto-sent). Requires
-    // an email. Idempotent per invitation id via drip_log. Marks the row status='sent'. Saves/refreshes
-    // the preview asset when an image is supplied.
-    app.post('/api/admin/council/send', auth, adminOnly, express.json({ limit: '12mb' }), (req, res) => {
+    // an email. Idempotent per invitation id via drip_log. Marks the row status='sent'. The email embeds
+    // the stored preview asset (the client saves + uploads the asset before calling this).
+    app.post('/api/admin/council/send', auth, adminOnly, (req, res) => {
         const b = req.body || {};
         // Resolve or create the invitation row from an id, or from inline fields.
         let row = b.id ? query.get('SELECT * FROM council_invitations WHERE id = ?', [String(b.id)]) : null;
@@ -33765,19 +33783,14 @@ ${extraCss || ''}
         };
         if (!inv.name) return res.status(400).json({ error: 'name_required', message: 'A name is required.' });
         if (!inv.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(inv.email)) return res.status(400).json({ error: 'email_required', message: 'A valid email address is required to stage an invitation.' });
-        const asset = councilPersistImage(req, inv, b.img);
         if (!row) {
             const id = uuidv4();
-            db.run(`INSERT INTO council_invitations (id, name, title, institution, language, personal_sentence, email, status, asset_url, asset_id, created_by, created_at, updated_at)
-                    VALUES (?,?,?,?,?,?,?, 'draft', ?, ?, ?, datetime('now'), datetime('now'))`,
-                [id, inv.name, inv.title, inv.institution, inv.language, inv.personal_sentence, inv.email, asset ? asset.url : null, asset ? asset.id : null, (req.user && req.user.id) || null]);
+            db.run(`INSERT INTO council_invitations (id, name, title, institution, language, personal_sentence, email, status, created_by, created_at, updated_at)
+                    VALUES (?,?,?,?,?,?,?, 'draft', ?, datetime('now'), datetime('now'))`,
+                [id, inv.name, inv.title, inv.institution, inv.language, inv.personal_sentence, inv.email, (req.user && req.user.id) || null]);
             row = query.get('SELECT * FROM council_invitations WHERE id = ?', [id]);
-        } else if (asset) {
-            councilRemoveAsset(row.asset_id, row.asset_url);
-            db.run('UPDATE council_invitations SET asset_url=?, asset_id=?, updated_at=datetime(\'now\') WHERE id=?', [asset.url, asset.id, row.id]);
-            row = query.get('SELECT * FROM council_invitations WHERE id = ?', [row.id]);
         }
-        const imgUrl = (asset && asset.url) || row.asset_url || '';
+        const imgUrl = row.asset_url || '';
         const batchId = 'council-invitations';
         const marker = `council_invite:${row.id}`;
         if (query.get("SELECT 1 AS x FROM drip_log WHERE user_id = 'council-invite' AND kind = ?", [marker])) {
