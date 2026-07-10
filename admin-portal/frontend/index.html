@@ -42984,7 +42984,7 @@ By applying to this program, I give the following consents:
                     signage: `<button class="cs-surface" data-signage-open>
                             <div class="cs-surface-ic" style="background:rgba(201,162,39,.14);color:#9c7c1a;"><i class="fas fa-signs-post"></i></div>
                             <h3>Signage studio</h3>
-                            <p>Lecture-topic signs for every session on the schedule and wayfinding arrows for the venue &mdash; navy/gold event system, bilingual EN&nbsp;+&nbsp;HR. Drawn in your browser at print resolution and downloaded as a true-size PDF or PNGs, on any server.</p>
+                            <p>Lecture-topic signs for every session on the schedule, wayfinding arrows for the venue and 85&nbsp;&times;&nbsp;200&nbsp;cm roll-up banners in three designed templates &mdash; navy/gold event system, bilingual EN&nbsp;+&nbsp;HR. Drawn in your browser at print resolution and downloaded as true-size PDFs or PNGs, on any server.</p>
                             <span class="cs-go">Make signage <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
                         </button>`,
                     cards: `<button class="cs-surface" data-cardstudio-open>
@@ -45630,6 +45630,65 @@ By applying to this program, I give the following consents:
                 track(ctx,'medx.hr',cx,1312*s,12*s,4*s,PAL.creamDim,LABEL,'600');
             }
 
+            // ---- ROLL-UP BANNER (85 × 200 cm portrait). Three designed templates after the ----
+            // ---- gala-theming kit: navy ground with gold-gradient display type, the pleter- ----
+            // ---- woven GOLDEN LINE at the kit's 60%-height corridor line, date/venue block, ----
+            // ---- Med&X footer. "The Paper" flips the ground to paper/navy for bright venues. ----
+            function drawBanner(ctx,W,H,s,o){
+                var f=o.fields||{}, tpl=String(o.template||'event'), cx=W/2;
+                var dark=tpl!=='paper';
+                if(dark) navyGround(ctx,W,H); else paperGround(ctx,W,H);
+                keyline(ctx,W,H,40,s,dark?0.22:0.4);
+                var eyebrowText=tpl==='welcome'?(f.headline||''):(f.eyebrow||'');
+                if(eyebrowText) track(ctx,String(eyebrowText).toUpperCase(),cx,176*s,16*s,9*s,dark?PAL.creamDim:PAL.goldDeep,LABEL,'600');
+                var subBase;
+                if(tpl==='welcome'){
+                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+                    ctx.fillStyle=goldGradV(ctx,368*s,486*s); ctx.font='600 '+(118*s)+'px '+DISPLAY;
+                    ctx.fillText('Welcome',cx,478*s); ctx.restore();
+                    thinGoldLine(ctx,cx,540*s,150*s,3*s);
+                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+                    ctx.fillStyle=goldGradV(ctx,576*s,672*s); ctx.font='600 '+(96*s)+'px '+DISPLAY;
+                    ctx.fillText('Dobro došli',cx,668*s); ctx.restore();
+                    subBase=806;
+                } else {
+                    var fw=fitWrap(ctx,f.headline||'Med&X',840*s,[112,96,82,70].map(function(z){ return z*s; }),3,DISPLAY,'600');
+                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+                    var firstBase=430*s, lastBase=firstBase+(fw.lines.length-1)*fw.size*1.06;
+                    ctx.fillStyle=dark?goldGradV(ctx,firstBase-fw.size,lastBase):PAL.navy;
+                    ctx.font='600 '+fw.size+'px '+DISPLAY;
+                    var by=firstBase;
+                    fw.lines.forEach(function(ln){ ctx.fillText(ln,cx,by); by+=fw.size*1.06; });
+                    ctx.restore();
+                    thinGoldLine(ctx,cx,(lastBase/s+56)*s,150*s,3*s);
+                    subBase=lastBase/s+140;
+                }
+                if(f.subEn){
+                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=dark?PAL.cream:PAL.navy; ctx.font='500 '+(36*s)+'px '+SERIF;
+                    ctx.fillText(clipTo(ctx,f.subEn,860*s,'500 '+(36*s)+'px '+SERIF),cx,subBase*s); ctx.restore();
+                }
+                if(f.subHr){
+                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=dark?PAL.goldLight:PAL.goldDeep; ctx.font='italic 500 '+(32*s)+'px '+SERIF;
+                    ctx.fillText(clipTo(ctx,f.subHr,860*s,'italic 500 '+(32*s)+'px '+SERIF),cx,(subBase+58)*s); ctx.restore();
+                }
+                goldenBand(ctx,W,1395*s,34*s);
+                if(f.dateLine){
+                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=dark?PAL.goldLight:PAL.navy; ctx.font='600 '+(46*s)+'px '+DISPLAY;
+                    ctx.fillText(clipTo(ctx,f.dateLine,860*s,'600 '+(46*s)+'px '+DISPLAY),cx,1566*s); ctx.restore();
+                }
+                if(f.dateHr){
+                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=dark?'rgba(230,200,120,.9)':PAL.goldDeep; ctx.font='italic 500 '+(30*s)+'px '+SERIF;
+                    ctx.fillText(clipTo(ctx,f.dateHr,860*s,'italic 500 '+(30*s)+'px '+SERIF),cx,1628*s); ctx.restore();
+                }
+                if(f.venueLine){
+                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=dark?PAL.cream:PAL.mutedPaper; ctx.font='400 '+(24*s)+'px '+LABEL;
+                    ctx.fillText(clipTo(ctx,f.venueLine,860*s,'400 '+(24*s)+'px '+LABEL),cx,1688*s); ctx.restore();
+                }
+                ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=dark?PAL.cream:PAL.navy; ctx.font='600 '+(44*s)+'px '+DISPLAY;
+                ctx.fillText('Med&X',cx,2166*s); ctx.restore();
+                if(f.url) track(ctx,f.url,cx,2228*s,15*s,6*s,dark?PAL.creamDim:PAL.goldDeep,LABEL,'600');
+            }
+
             function render(kind,opts){
                 opts=opts||{};
                 var paper=PAPERS[kind==='banner'?'banner':(opts.paper==='a3'?'a3':'a4')];
@@ -45639,6 +45698,7 @@ By applying to this program, I give the following consents:
                 var ctx=cv.getContext('2d');
                 if(kind==='lecture') drawLecture(ctx,W,H,s,opts);
                 else if(kind==='way') drawWayfinding(ctx,W,H,s,opts);
+                else if(kind==='banner') drawBanner(ctx,W,H,s,opts);
                 return cv;
             }
             var _readyPromise=null;
@@ -45658,7 +45718,7 @@ By applying to this program, I give the following consents:
         // ---- The studio (admin surface, English). Tabs grow with the family. ----
         const SignageStudio = {
             _built:false,_overlay:null,_busy:false,_t:0,
-            TABS:[ ['lecture','fa-chalkboard-user','Lecture signs'], ['way','fa-diamond-turn-right','Wayfinding'] ],
+            TABS:[ ['lecture','fa-chalkboard-user','Lecture signs'], ['way','fa-diamond-turn-right','Wayfinding'], ['banner','fa-flag','Roll-up'] ],
             // Bilingual wayfinding presets (EN + HR, guest-facing print artifact).
             PRESETS:[ ['Registration','Registracija'], ['Lecture Hall','Predavaonica'], ['Main Hall','Velika dvorana'], ['Gala Evening','Gala večer'], ['Cloakroom','Garderoba'], ['Restrooms','Toaleti'], ['Coffee & Refreshments','Kava i osvježenje'], ['Exit','Izlaz'] ],
             state:{
@@ -45850,6 +45910,7 @@ By applying to this program, I give the following consents:
                     var evName=(st.ctx&&st.ctx.event&&st.ctx.event.name)||'Med&X';
                     return [{ kind:'way', name:this._slug(st.way.en||st.way.hr||'sign'), opts:{ paper:st.paper, event:evName, arrow:st.way.arrow, en:st.way.en, hr:st.way.hr } }];
                 }
+                if(st.tab==='banner') return [{ kind:'banner', name:'rollup-'+st.ban.template, opts:{ template:st.ban.template, fields:Object.assign({},st.ban.fields) } }];
                 return [];
             },
             _paperFor(kind){ var P=window.MedxSignage.PAPERS; return kind==='banner'?P.banner:P[this.state.paper==='a3'?'a3':'a4']; },
@@ -45869,6 +45930,7 @@ By applying to this program, I give the following consents:
                 var body='';
                 if(st.tab==='lecture') body=this.railLecture();
                 else if(st.tab==='way') body=this.railWay();
+                else if(st.tab==='banner') body=this.railBanner();
                 rail.innerHTML='<div class="sgn-tabs">'+tabs+'</div>'+body;
             },
             _eventSelect(){
@@ -45929,6 +45991,25 @@ By applying to this program, I give the following consents:
                 +this._paperSeg()
                 +this._dlButtons(1)
                 +'<div class="sgn-note">One big gold arrow with the destination in both languages, under the event name. Print a set and the golden footer line runs level across every sign on the wall.</div>';
+            },
+            railBanner(){
+                var st=this.state, self=this, b=st.ban, f=b.fields||{};
+                var tpls=[ ['event','The Event'], ['welcome','The Welcome'], ['paper','The Paper'] ]
+                    .map(function(t){ return '<button class="'+(b.template===t[0]?'on':'')+'" data-sg="tpl" data-v="'+t[0]+'">'+t[1]+'</button>'; }).join('');
+                var fld=function(label,key,ph){ return '<div class="sgn-sec"><label>'+label+'</label><input type="text" data-sgf="ban.'+key+'" value="'+self.esc(f[key]||'')+'" maxlength="90" placeholder="'+self.esc(ph||'')+'"></div>'; };
+                return ''
+                +this._eventSelect()
+                +'<div class="sgn-sec"><label>Template</label><div class="sgn-seg">'+tpls+'</div></div>'
+                +(b.template==='welcome'?'':fld('Eyebrow','eyebrow','e.g. Med&X presents'))
+                +fld(b.template==='welcome'?'Event line (top)':'Headline','headline')
+                +fld('Sub-line — English','subEn')
+                +fld('Sub-line — Croatian','subHr')
+                +fld('Date line — English','dateLine')
+                +fld('Date line — Croatian','dateHr')
+                +fld('Venue line','venueLine')
+                +fld('Footer URL','url')
+                +this._dlButtons(1,'Download PNG (large file)')
+                +'<div class="sgn-note">A single 85 × 200 cm roll-up page at 120 DPI true size — the full-scale resolution roll-up printers ask for. The Welcome template gives both languages display billing; the golden line carries the pleter braid at the gala-kit corridor height. The Paper template flips to a light ground for bright venues.</div>';
             },
             _paintNav(){
                 var nav=this._overlay.querySelector('#sgPvNav'); if(!nav) return;
