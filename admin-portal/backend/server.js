@@ -37284,6 +37284,20 @@ ${extraCss || ''}
     // Skip paths with file extensions so missing assets 404 properly instead of returning SPA HTML
     app.get('/health', (req, res) => res.json({ ok: true }));
 
+    // Shareable QR of the staff-app URL. Admins display or print this so volunteers can
+    // install the app (Add to Home Screen) by scanning. Public and read-only — it encodes
+    // only the app's own public URL, no secrets.
+    app.get('/api/app-install-qr.png', async (req, res) => {
+        try {
+            const q = String(req.query.url || '');
+            const url = /^https:\/\/[a-z0-9.\-]+\.onrender\.com\/?$/i.test(q) ? q : 'https://medx-admin-portal.onrender.com';
+            const png = await QRCode.toBuffer(url, { width: 480, margin: 2, color: { dark: '#15110f', light: '#ffffff' } });
+            res.set('Content-Type', 'image/png');
+            res.set('Cache-Control', 'public, max-age=3600');
+            res.send(png);
+        } catch (e) { res.status(500).end(); }
+    });
+
     // Start watching shared DB for cross-portal sync
     watchSharedDb();
 
