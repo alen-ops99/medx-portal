@@ -2858,6 +2858,28 @@
             color: var(--text-muted);
         }
 
+        /* Chat-rail sub-channels (2026-07-10): quiet header switcher for the team chat.
+           One accent family + neutrals — unread stays a muted chip, never a red burst. */
+        .chat-chan-wrap { position: relative; display: flex; align-items: center; gap: 6px; min-width: 0; }
+        .chat-switch { display: inline-flex; align-items: center; gap: 7px; max-width: 210px; background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 5px 8px; cursor: pointer; font: inherit; color: var(--text-primary); transition: border-color .12s, background .12s; }
+        .chat-switch:hover { border-color: var(--border); background: var(--bg-hover); }
+        .chat-switch .chat-switch-name { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .chat-switch .hash { color: var(--text-muted); font-weight: 600; }
+        .chat-switch .chat-switch-caret { color: var(--text-muted); font-size: 11px; }
+        .chat-unread-chip { font-size: 10.5px; font-weight: 700; line-height: 1; background: var(--bg-tertiary); color: var(--text-muted); border-radius: 10px; padding: 3px 7px; flex-shrink: 0; }
+        .chat-chan-menu { position: absolute; top: calc(100% + 6px); left: 0; min-width: 224px; max-width: 288px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 28px rgba(21, 17, 15, 0.16); padding: 6px; z-index: 60; display: none; }
+        .chat-chan-menu.open { display: block; }
+        .chat-chan-item { display: flex; align-items: center; gap: 8px; width: 100%; background: transparent; border: none; border-radius: 7px; padding: 8px 10px; cursor: pointer; font: inherit; color: var(--text-primary); text-align: left; }
+        .chat-chan-item:hover { background: var(--bg-hover); }
+        .chat-chan-item.active { background: var(--bg-tertiary); }
+        .chat-chan-item .hash { color: var(--text-muted); font-weight: 600; flex-shrink: 0; }
+        .chat-chan-item .chat-chan-label { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .chat-chan-item .chat-chan-sub { display: block; font-size: 11px; font-weight: 500; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .chat-chan-new { border-top: 1px solid var(--border); border-radius: 0 0 7px 7px; margin-top: 6px; padding-top: 10px; color: var(--text-muted); }
+        .chat-chan-new:hover { color: var(--text-primary); }
+        .nc-name-row { display: flex; align-items: center; gap: 8px; }
+        .nc-name-row .nc-hash { font-size: 16px; font-weight: 700; color: var(--text-muted); }
+
         .chat-action-btn {
             background: transparent;
             border: none;
@@ -14035,6 +14057,34 @@ President, Med&amp;X</textarea>
         <i class="fas fa-comments"></i> Show Chat
     </button>
 
+    <!-- New team-chat channel (chat-rail sub-channels; wired via delegated listeners in App.ensureChanWiring) -->
+    <div class="modal-overlay" id="newChannelModal" style="display: none;">
+        <div class="modal" style="max-width: 420px;">
+            <div class="modal-header">
+                <h2>New channel</h2>
+                <button class="modal-close" data-nc-act="close"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 16px;">Channels keep one topic in one place — #gala, #accelerator, #logistics. The whole team can read and post; #general stays the home for everything else.</p>
+                <div class="form-group">
+                    <label class="form-label">Name *</label>
+                    <div class="nc-name-row">
+                        <span class="nc-hash">#</span>
+                        <input type="text" class="form-input" id="ncName" placeholder="gala" maxlength="32" autocomplete="off">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Purpose <span style="font-weight: 400; color: var(--text-muted);">(optional)</span></label>
+                    <input type="text" class="form-input" id="ncDesc" placeholder="What this channel is for" maxlength="120" autocomplete="off">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-nc-act="close">Cancel</button>
+                <button class="btn btn-primary" data-nc-act="create"><i class="fas fa-plus"></i> Create channel</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Portal Content Modal -->
     <div class="modal-overlay" id="pcModal" style="display: none;" onclick="if(event.target===this) App.closeModal('pcModal');">
         <div class="modal" style="max-width: 700px;">
@@ -17961,16 +18011,20 @@ President, Med&amp;X</textarea>
                     const generalChannel = this.channels.find(c => c.is_default === 1 || c.name === 'general');
                     if (generalChannel) {
                         this.currentChannel = generalChannel;
+                        this.railChannelId = generalChannel.id;
                         console.log('Selected channel:', generalChannel.name);
                         await this.loadMessages();
                     } else if (this.channels.length > 0) {
                         // Fallback to first channel
                         this.currentChannel = this.channels[0];
+                        this.railChannelId = this.currentChannel.id;
                         console.log('Fallback channel:', this.currentChannel.name);
                         await this.loadMessages();
                     } else {
                         console.warn('No channels available');
                     }
+                    this.renderChatSwitcher();
+                    this.refreshRailUnread();
                 } catch (err) {
                     console.error('Failed to load channels:', err);
                 }
@@ -17982,8 +18036,201 @@ President, Med&amp;X</textarea>
                 try {
                     const messages = await this.api(`/api/chat/messages?channel_id=${this.currentChannel.id}`);
                     this.renderMessages(messages);
+                    this.maybeMarkRailRead(messages);
                 } catch (err) {
                     console.error('Failed to load messages:', err);
+                }
+            },
+
+            // ===== CHAT-RAIL SUB-CHANNELS (2026-07-10) =====
+            // The docked team-chat rail hosts creatable org-wide sub-channels (#gala,
+            // #accelerator, #logistics...) next to the default #general, switched from the
+            // header. #general is the SAME default channel as before, so all existing
+            // history stays exactly where it was. Unread stays a muted chip (calm palette),
+            // and every listener here is delegated — no inline handlers.
+            chatMode: 'team',
+            railChannelId: null,
+            chanUnread: {},
+            _chanWired: false,
+            _lastReadKey: null,
+            _chatTick: 0,
+
+            railDefaultChannel() {
+                return this.channels.find(c => c.is_default === 1 || c.name === 'general') || this.channels[0] || null;
+            },
+
+            railChannels() {
+                // Org-wide, non-DM, non-team-section channels only: the default #general plus
+                // rail-created sub-channels. Project channels keep their own project rail, and
+                // the membership-aware Team Chat section channels stay in that section.
+                const def = this.railDefaultChannel();
+                const isDm = (c) => c.is_dm === 1 || c.project === 'dm' || String(c.name || '').startsWith('dm:');
+                const list = this.channels
+                    .filter(c => !c.project && !isDm(c) && c.is_team_channel !== 1 && (!def || c.id !== def.id))
+                    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+                return def ? [def, ...list] : list;
+            },
+
+            currentRailChannel() {
+                return this.railChannels().find(c => c.id === this.railChannelId) || this.railDefaultChannel();
+            },
+
+            railUnreadTotal() {
+                const cur = this.currentRailChannel();
+                return this.railChannels().reduce((n, c) => n + ((cur && c.id === cur.id) ? 0 : (this.chanUnread[c.id] || 0)), 0);
+            },
+
+            ensureChanWiring() {
+                if (this._chanWired) return;
+                this._chanWired = true;
+                // One delegated listener on the (stable) header node for toggle/pick/new.
+                const header = document.getElementById('chatChannelHeader');
+                header?.addEventListener('click', (e) => {
+                    const act = e.target.closest('[data-chan-act]');
+                    if (!act) return;
+                    e.stopPropagation();
+                    const a = act.getAttribute('data-chan-act');
+                    if (a === 'toggle') this.toggleChanMenu();
+                    else if (a === 'pick') this.selectRailChannel(act.getAttribute('data-chan-id'));
+                    else if (a === 'new') { this.toggleChanMenu(false); this.openNewChannelDialog(); }
+                });
+                // Clicking anywhere else closes the menu.
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('.chat-chan-wrap')) this.toggleChanMenu(false);
+                });
+                // New-channel dialog: backdrop, close and create — all delegated.
+                const modal = document.getElementById('newChannelModal');
+                modal?.addEventListener('click', (e) => {
+                    if (e.target === modal) { this.closeModal('newChannelModal'); return; }
+                    const btn = e.target.closest('[data-nc-act]');
+                    if (!btn) return;
+                    if (btn.getAttribute('data-nc-act') === 'close') this.closeModal('newChannelModal');
+                    else if (btn.getAttribute('data-nc-act') === 'create') this.createRailChannel();
+                });
+                document.getElementById('ncName')?.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); this.createRailChannel(); }
+                });
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && modal?.classList.contains('active')) this.closeModal('newChannelModal');
+                });
+            },
+
+            toggleChanMenu(force) {
+                const menu = document.getElementById('chatChanMenu');
+                if (!menu) return;
+                const open = (force === undefined) ? !menu.classList.contains('open') : !!force;
+                if (open && !menu.classList.contains('open')) this.refreshRailUnread();
+                menu.classList.toggle('open', open);
+            },
+
+            renderChatSwitcher() {
+                if (this.chatMode !== 'team') return;
+                const header = document.getElementById('chatChannelHeader');
+                if (!header) return;
+                this.ensureChanWiring();
+                const cur = this.currentRailChannel();
+                if (!cur) {
+                    header.innerHTML = `
+                        <i class="fas fa-comments" style="color: var(--accent-gold); margin-right: 6px;"></i>
+                        <h3 id="chatChannelTitle">Team Chat</h3>
+                    `;
+                    return;
+                }
+                const wasOpen = document.getElementById('chatChanMenu')?.classList.contains('open');
+                const total = this.railUnreadTotal();
+                const rows = this.railChannels().map(c => {
+                    const n = (c.id === cur.id) ? 0 : (this.chanUnread[c.id] || 0);
+                    return '<button type="button" class="chat-chan-item' + (c.id === cur.id ? ' active' : '') + '" data-chan-act="pick" data-chan-id="' + escapeHtml(c.id) + '">'
+                        + '<span class="hash">#</span>'
+                        + '<span class="chat-chan-label">' + escapeHtml(c.name) + (c.is_default ? '<span class="chat-chan-sub">Whole team · default</span>' : '') + '</span>'
+                        + (n ? '<span class="chat-unread-chip">' + (n > 99 ? '99+' : n) + '</span>' : '')
+                        + '</button>';
+                }).join('');
+                header.innerHTML =
+                    '<div class="chat-chan-wrap">'
+                    + '<i class="fas fa-comments" style="color: var(--accent-gold);"></i>'
+                    + '<button type="button" class="chat-switch" data-chan-act="toggle" title="Switch channel">'
+                    + '<span class="hash">#</span><span class="chat-switch-name" id="chatChannelTitle">' + escapeHtml(cur.name) + '</span>'
+                    + '<i class="fas fa-chevron-down chat-switch-caret"></i>'
+                    + (total ? '<span class="chat-unread-chip">' + (total > 99 ? '99+' : total) + '</span>' : '')
+                    + '</button>'
+                    + '<div class="chat-chan-menu' + (wasOpen ? ' open' : '') + '" id="chatChanMenu">' + rows
+                    + '<button type="button" class="chat-chan-item chat-chan-new" data-chan-act="new"><i class="fas fa-plus" style="font-size: 11px;"></i><span class="chat-chan-label">New channel</span></button>'
+                    + '</div></div>';
+            },
+
+            async selectRailChannel(id) {
+                const c = this.railChannels().find(x => x.id === id);
+                if (!c) return;
+                this.railChannelId = c.id;
+                this.currentChannel = c;
+                this.dmChannel = null;
+                this.toggleChanMenu(false);
+                const input = document.getElementById('chatInput');
+                if (input) input.placeholder = c.is_default ? 'Message everyone...' : ('Message #' + c.name + '...');
+                this.renderChatSwitcher();
+                await this.loadMessages();
+            },
+
+            async refreshRailUnread() {
+                try {
+                    this.chanUnread = (await this.api('/api/chat/unread')) || {};
+                    this.renderChatSwitcher();
+                } catch (e) { /* quiet — badges refresh on the next tick */ }
+            },
+
+            maybeMarkRailRead(messages) {
+                // Mark the channel read only when its rendered tail actually changes while
+                // the rail is visible — not on every 5s poll.
+                const ch = this.currentChannel;
+                if (!ch) return;
+                const key = ch.id + ':' + (messages && messages.length ? messages[messages.length - 1].id : 'empty');
+                if (this._lastReadKey === key) return;
+                const panel = document.getElementById('chatPanel');
+                if (!panel || panel.classList.contains('hidden')) return;
+                this._lastReadKey = key;
+                if (this.chanUnread[ch.id]) { this.chanUnread[ch.id] = 0; this.renderChatSwitcher(); }
+                this.api('/api/chat/read', { method: 'POST', body: JSON.stringify({ channel_id: ch.id }) }).catch(() => {});
+            },
+
+            openNewChannelDialog() {
+                const nameEl = document.getElementById('ncName');
+                const descEl = document.getElementById('ncDesc');
+                if (nameEl) nameEl.value = '';
+                if (descEl) descEl.value = '';
+                this.openModal('newChannelModal');
+                setTimeout(() => nameEl?.focus(), 60);
+            },
+
+            async createRailChannel() {
+                const nameEl = document.getElementById('ncName');
+                const descEl = document.getElementById('ncDesc');
+                const slug = String(nameEl?.value || '').trim().replace(/^#+/, '').toLowerCase()
+                    .replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
+                if (slug.length < 2) {
+                    Toast.warning('Give the channel a short name — like gala, accelerator or logistics.');
+                    nameEl?.focus();
+                    return;
+                }
+                if (this.railChannels().some(c => c.name === slug)) {
+                    Toast.warning('#' + slug + ' already exists.');
+                    nameEl?.focus();
+                    return;
+                }
+                try {
+                    const r = await this.api('/api/channels', {
+                        method: 'POST',
+                        body: JSON.stringify({ name: slug, description: String(descEl?.value || '').trim() || null })
+                    });
+                    this.closeModal('newChannelModal');
+                    this.channels = await this.api('/api/channels');
+                    Toast.success('#' + slug + ' created');
+                    const createdId = (r.channel && r.channel.id) || r.channel_id;
+                    const created = this.channels.find(c => c.id === createdId);
+                    if (created) await this.selectRailChannel(created.id);
+                    else this.renderChatSwitcher();
+                } catch (err) {
+                    Toast.error(err.message || 'Could not create the channel');
                 }
             },
 
@@ -18111,6 +18358,9 @@ President, Med&amp;X</textarea>
                 if (this.chatRefreshInterval) clearInterval(this.chatRefreshInterval);
                 this.chatRefreshInterval = setInterval(async () => {
                     await this.loadMessages();
+                    // Unread badges refresh every third tick (15s) — quiet, no message churn.
+                    this._chatTick = (this._chatTick + 1) % 3;
+                    if (this._chatTick === 0) this.refreshRailUnread();
                 }, 5000);
             },
 
@@ -18162,22 +18412,22 @@ President, Med&amp;X</textarea>
                 if (channelList) channelList.remove();
 
                 if (mode === 'team') {
-                    // Show team chat mode
+                    // Show team chat mode: the header hosts the sub-channel switcher and the
+                    // rail returns to whichever rail channel was last selected (#general default).
+                    this.chatMode = 'team';
                     teamStrip.style.display = 'flex';
-                    chatHeader.innerHTML = `
-                        <i class="fas fa-comments" style="color: var(--accent-gold); margin-right: 6px;"></i>
-                        <h3 id="chatChannelTitle">Team Chat</h3>
-                    `;
-                    chatInput.placeholder = 'Message everyone...';
-
-                    // Load team chat messages
-                    const defaultChannel = this.channels.find(c => c.is_default);
-                    if (defaultChannel) {
-                        this.currentChannel = defaultChannel;
+                    const cur = this.currentRailChannel();
+                    this.renderChatSwitcher();
+                    if (cur) {
+                        chatInput.placeholder = cur.is_default ? 'Message everyone...' : ('Message #' + cur.name + '...');
+                        this.currentChannel = cur;
                         this.loadMessages();
+                    } else {
+                        chatInput.placeholder = 'Message everyone...';
                     }
                 } else if (mode === 'section' && projectId) {
                     // Show section-specific chat (Finances, PR & Media)
+                    this.chatMode = 'section';
                     teamStrip.style.display = 'flex';
 
                     const sectionConfig = {
@@ -18207,6 +18457,7 @@ President, Med&amp;X</textarea>
                     }
                 } else if (mode === 'project' && projectId) {
                     // Show project chat mode
+                    this.chatMode = 'project';
                     teamStrip.style.display = 'none';
                     const project = this.projects[projectId];
                     chatHeader.innerHTML = `
@@ -18289,6 +18540,7 @@ President, Med&amp;X</textarea>
 
                     this.dmChannel = result;
                     this.currentChannel = result;
+                    this.chatMode = 'dm';
 
                     // Update header to show DM
                     const header = document.getElementById('chatChannelHeader');
@@ -18316,22 +18568,14 @@ President, Med&amp;X</textarea>
             async exitDM(e) {
                 if (e) e.stopPropagation();
                 this.dmChannel = null;
+                this.chatMode = 'team';
 
-                // Reset header
-                const header = document.getElementById('chatChannelHeader');
-                header.innerHTML = `
-                    <i class="fas fa-comments" style="color: var(--accent-gold); margin-right: 6px;"></i>
-                    <h3 id="chatChannelTitle">Team Chat</h3>
-                `;
-
-                // Reset placeholder
-                document.getElementById('chatInput').placeholder = 'Message everyone...';
-
-                // Switch back to default channel
-                const defaultChannel = this.channels.find(c => c.is_default);
-                if (defaultChannel) {
-                    this.currentChannel = defaultChannel;
-                }
+                // Back to the rail: restore the channel switcher header and the last rail channel.
+                const cur = this.currentRailChannel();
+                if (cur) this.currentChannel = cur;
+                this.renderChatSwitcher();
+                document.getElementById('chatInput').placeholder =
+                    (cur && !cur.is_default) ? ('Message #' + cur.name + '...') : 'Message everyone...';
 
                 await this.loadMessages();
                 this.renderTeamMembers();
