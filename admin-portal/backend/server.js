@@ -15887,14 +15887,28 @@ By applying to this program, I provide the following consents:
         res.json(tree);
     });
 
-    // Create channel
+    // Create channel. Names land as clean lowercase #handles ("#Gala Night" -> "gala-night");
+    // org-wide handles (no project — the chat-rail sub-channels) stay unique so the rail
+    // switcher never lists two identical #names. Returns the created row so the client can
+    // switch straight into it.
     app.post('/api/channels', auth, adminOnly, (req, res) => {
         const { name, project, description, parent_channel_id } = req.body;
+        const slug = String(name || '').trim().replace(/^#+/, '').toLowerCase()
+            .replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
+        if (slug.length < 2 || slug.length > 32) {
+            return res.status(400).json({ error: 'Channel name must be 2-32 characters (letters, numbers, dashes)' });
+        }
+        if (!project) {
+            const dup = query.get(
+                "SELECT id FROM chat_channels WHERE name = ? AND (project IS NULL OR project = '') AND COALESCE(is_dm, 0) = 0",
+                [slug]);
+            if (dup) return res.status(409).json({ error: `A #${slug} channel already exists` });
+        }
         const id = uuidv4();
         db.run(`INSERT INTO chat_channels (id, name, project, description, created_by, parent_channel_id) VALUES (?, ?, ?, ?, ?, ?)`,
-            [id, name.toLowerCase().replace(/\s+/g, '-'), project || null, description, req.user.id, parent_channel_id || null]);
+            [id, slug, project || null, description, req.user.id, parent_channel_id || null]);
         saveDb();
-        res.json({ success: true, channel_id: id });
+        res.json({ success: true, channel_id: id, channel: query.get('SELECT * FROM chat_channels WHERE id = ?', [id]) });
     });
 
     // Update channel
@@ -15911,16 +15925,19 @@ By applying to this program, I provide the following consents:
         const channel = query.get('SELECT is_default FROM chat_channels WHERE id = ?', [req.params.id]);
         if (channel?.is_default) return res.status(400).json({ error: 'Cannot delete default channel' });
 
-        // Also delete child channels and their messages and members
+        // Also delete child channels and their messages, members and read receipts —
+        // a deleted channel leaves zero rows behind in any chat table.
         const children = query.all('SELECT id FROM chat_channels WHERE parent_channel_id = ?', [req.params.id]);
         children.forEach(child => {
             db.run('DELETE FROM channel_members WHERE channel_id = ?', [child.id]);
             db.run('DELETE FROM chat_messages WHERE channel_id = ?', [child.id]);
+            db.run('DELETE FROM channel_read_status WHERE channel_id = ?', [child.id]);
             db.run('DELETE FROM chat_channels WHERE id = ?', [child.id]);
         });
 
         db.run('DELETE FROM channel_members WHERE channel_id = ?', [req.params.id]);
         db.run('DELETE FROM chat_messages WHERE channel_id = ?', [req.params.id]);
+        db.run('DELETE FROM channel_read_status WHERE channel_id = ?', [req.params.id]);
         db.run('DELETE FROM chat_channels WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
