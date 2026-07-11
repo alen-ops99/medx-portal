@@ -1665,8 +1665,8 @@
         }
 
         .task-badge.urgent {
-            background: rgba(239, 68, 68, 0.15);
-            color: #991b1b;
+            background: rgba(var(--red-rgb), 0.12);
+            color: var(--red);
         }
 
         .task-badge.soon {
@@ -2643,7 +2643,7 @@
             margin-bottom: 10px;
         }
 
-        .file-icon.pdf { color: #ef4444; }
+        .file-icon.pdf { color: var(--red); }
         .file-icon.doc { color: #3b82f6; }
         .file-icon.ppt { color: #f97316; }
         .file-icon.img { color: #22c55e; }
@@ -4232,10 +4232,10 @@
             margin-top: 4px;
         }
         /* Category color overrides */
-        .akd-item.cat-deadline .akd-marker { background: #ef4444; }
+        .akd-item.cat-deadline .akd-marker { background: var(--red); }
         .akd-item.cat-milestone .akd-marker { background: #c9a962; }
         .akd-item.cat-event .akd-marker { background: #b06a1f; }
-        .akd-item.cat-deadline { border-left: 3px solid #ef4444; }
+        .akd-item.cat-deadline { border-left: 3px solid var(--red); }
         .akd-item.cat-milestone { border-left: 3px solid #c9a962; }
         .akd-item.cat-event { border-left: 3px solid #b06a1f; }
         /* Content */
@@ -4276,7 +4276,7 @@
         }
         .akd-badge.today-badge { background: rgba(176, 106, 31, 0.2); color: #b06a1f; }
         .akd-badge.next-badge { background: rgba(201, 169, 98, 0.2); color: #c9a962; }
-        .akd-badge.cat-badge-deadline { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+        .akd-badge.cat-badge-deadline { background: rgba(var(--red-rgb), 0.12); color: var(--red); }
         .akd-badge.cat-badge-milestone { background: rgba(201, 169, 98, 0.15); color: #c9a962; }
         .akd-badge.cat-badge-event { background: rgba(176, 106, 31, 0.15); color: #b06a1f; }
         /* Inline editing */
@@ -4509,7 +4509,7 @@
 
         .data-table .status.cancelled,
         .data-table .status.rejected {
-            background: rgba(239, 68, 68, 0.15);
+            background: rgba(var(--red-rgb), 0.12);
             color: var(--danger);
         }
         /* These statuses were used in rows but had no color (rendered as flat/unfinished pills). */
@@ -5670,7 +5670,7 @@
         }
         .checkin-camera-toggle.active { background: var(--accent); color: #fff; border-color: var(--accent); }
         .checkin-result.success { background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: #15803d; padding: 16px; border-radius: 8px; margin-top: 12px; }
-        .checkin-result.error { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #b91c1c; padding: 16px; border-radius: 8px; margin-top: 12px; }
+        .checkin-result.error { background: rgba(var(--red-rgb), 0.08); border: 1px solid rgba(var(--red-rgb), 0.3); color: var(--red); padding: 16px; border-radius: 8px; margin-top: 12px; }
         .checkin-result.already { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); color: #b45309; padding: 16px; border-radius: 8px; margin-top: 12px; }
         .checkin-attendee-info { margin-top: 8px; font-size: 14px; }
         .checkin-attendee-info .name { font-size: 18px; font-weight: 700; }
@@ -6102,7 +6102,7 @@
             animation: toastOut 0.3s ease forwards;
         }
         .toast.success { background: rgba(16, 185, 129, 0.9); }
-        .toast.error { background: rgba(239, 68, 68, 0.9); }
+        .toast.error { background: rgba(var(--red-rgb), 0.92); }
         .toast.warning { background: rgba(245, 158, 11, 0.9); }
         .toast.info { background: rgba(59, 130, 246, 0.9); }
         .toast i { font-size: 16px; flex-shrink: 0; }
@@ -6687,7 +6687,7 @@
         .gala-program-row .gpr-time { grid-area: time; }
         .gala-program-row .gpr-title { grid-area: title; }
         .gala-program-row .gpr-desc { grid-area: desc; }
-        .gala-program-row .gpr-del { grid-area: del; height: 36px; padding: 0 12px; color: #ef4444; }
+        .gala-program-row .gpr-del { grid-area: del; height: 36px; padding: 0 12px; color: var(--red); }
         @media (max-width: 720px) {
             .gala-program-row {
                 grid-template-columns: 40px 84px minmax(0, 1fr) 44px;
@@ -6771,8 +6771,6 @@
     <!-- Leaflet (vendored locally — free OSM tiles, no key) for the Live Ops Map -->
     <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
     <script src="/vendor/leaflet/leaflet.js"></script>
-    <!-- model-viewer (vendored locally) for GLB/USDZ LiDAR scan preview + AR in Content Studio -->
-    <script type="module" src="/vendor/model-viewer/model-viewer.min.js"></script>
     <style id="medx-admin-brand-v2">
       /* Sidebar section icons: one restrained neutral, crimson only on the active row */
       .sidebar .nav-item > i { color: #a89e92 !important; }
@@ -7138,7 +7136,7 @@
                 <a class="nav-item has-sub" data-section="outbox" onclick="App.openOutbox(this)">
                     <i class="fas fa-inbox" style="color:#f59e0b;"></i>
                     <span class="nav-text"><span class="nav-title">Outbox</span><span class="nav-sub">Staged emails awaiting your approval</span></span>
-                    <span id="outboxNavCount" title="Batches awaiting approval" style="background:#f59e0b;color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;margin-left:auto;display:none;">0</span>
+                    <span id="outboxNavCount" title="Batches awaiting approval" style="background:var(--red);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;margin-left:auto;display:none;">0</span>
                 </a>
 
                 <div class="nav-divider"></div>
@@ -7673,7 +7671,7 @@
                     <div class="page-header" style="display:flex; justify-content:space-between; align-items:center;">
                         <div>
                             <h1>Plexus Conference 2026</h1>
-                            <p>December 4-5, 2026 in Zagreb</p>
+                            <p>December 4–5, 2026 in Zagreb</p>
                         </div>
                         <button class="btn btn-primary" onclick="App.generateRegistrationLink('plexus')" style="white-space:nowrap; background:linear-gradient(135deg,#9b1b22,#7e151b); border:none;">
                             <i class="fas fa-link"></i> Copy registration link
@@ -8159,7 +8157,7 @@
                                     <label>Body <span style="font-size: 11px; color: var(--text-muted);">(Use {{name}}, {{institution}}, {{conference}} for personalization)</span></label>
                                     <textarea id="speakerInviteBody" rows="10" style="width: 100%; font-size: 13px; line-height: 1.6;">Dear {{name}},
 
-On behalf of Med&amp;X, we are delighted to invite you to speak at the {{conference}}, taking place in Zagreb, Croatia on December 4-5, 2026.
+On behalf of Med&amp;X, we are delighted to invite you to speak at the {{conference}}, taking place in Zagreb, Croatia on December 4–5, 2026.
 
 Your expertise and contributions to the field would make an invaluable addition to our program. Plexus brings together leading researchers, clinicians, and innovators from over 30 countries to exchange ideas and forge collaborations that bridge biomedical disciplines.
 
@@ -8628,7 +8626,7 @@ President, Med&amp;X</textarea>
                             <div class="card-body">
                                 <div class="akd-legend">
                                     <div class="akd-legend-item"><div class="akd-legend-dot" style="background: #b06a1f;"></div> Event</div>
-                                    <div class="akd-legend-item"><div class="akd-legend-dot" style="background: #ef4444;"></div> Deadline</div>
+                                    <div class="akd-legend-item"><div class="akd-legend-dot" style="background: var(--red);"></div> Deadline</div>
                                     <div class="akd-legend-item"><div class="akd-legend-dot diamond" style="background: #c9a962;"></div> Milestone</div>
                                 </div>
                                 <div id="accKeyDatesList"></div>
@@ -11928,21 +11926,6 @@ President, Med&amp;X</textarea>
                     <div class="cs-drawer" id="csDrawer" aria-hidden="true">
                         <div class="cs-drawer-backdrop" onclick="ContentStudio.closeDrawer()"></div>
                         <div class="cs-drawer-panel" id="csDrawerPanel"></div>
-                    </div>
-                    <!-- LiDAR / 3D spatial assets shelf -->
-                    <div class="card" id="spatialShelfCard" style="margin-top:22px;">
-                        <div class="card-header" style="flex-wrap:wrap;gap:8px;">
-                            <span class="card-title"><i class="fas fa-cubes" style="margin-right:8px;color:#c9a962;"></i>3D &amp; spatial (LiDAR scans)</span>
-                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                                <input type="file" id="spatialFileInput" accept=".glb,.usdz,.gltf,model/gltf-binary" style="display:none;" onchange="App.uploadSpatialAsset(this)">
-                                <button class="btn btn-primary" style="font-size:12px;" onclick="document.getElementById('spatialFileInput').click()"><i class="fas fa-upload"></i> Upload GLB / USDZ</button>
-                            </div>
-                        </div>
-                        <div class="card-body">
-                            <p style="color:var(--text-muted);font-size:13px;margin:0 0 14px;">Upload a room or object scan (GLB or USDZ, up to 50 MB) from Scaniverse, Luma or Object Capture. It previews here in 3D and can be opened in AR on a phone. The pipeline home is ready for when the first scan arrives.</p>
-                            <div id="spatialUploadMsg" style="display:none;margin-bottom:12px;font-size:13px;"></div>
-                            <div id="spatialShelfGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;"></div>
-                        </div>
                     </div>
                 </div>
 
@@ -16407,7 +16390,7 @@ President, Med&amp;X</textarea>
 
             // Project configuration (dates loaded from backend)
             projects: {
-                plexus: { name: 'Plexus Conference', desc: 'Dec 4-5 in Zagreb', icon: 'fa-users', color: '#c2484e', date: '2026-12-04' },
+                plexus: { name: 'Plexus Conference', desc: 'Dec 4–5 in Zagreb', icon: 'fa-users', color: '#9b1b22', date: '2026-12-04' },
                 accelerator: { name: 'Med&X Accelerator', desc: 'Research internship program', icon: 'fa-rocket', color: '#b06a1f', date: '2026-06-01' },
                 forum: { name: 'Biomedical Forum', desc: 'Senior leaders network', icon: 'fa-landmark', color: '#fb923c', date: '2026-12-06' },
                 bridges: { name: 'Building Bridges', desc: 'Global networking events', icon: 'fa-globe-americas', color: '#c9a962', date: '2026-04-18' },
@@ -16417,7 +16400,7 @@ President, Med&amp;X</textarea>
             // Timeline events (sub-events for Bridges and Accelerator)
             // type: 'point' for single events, 'range' for periods
             timelineEvents: [
-                { id: 'plexus', parent: 'plexus', name: 'Plexus Conference', color: '#c2484e', date: '2026-12-04', type: 'point' },
+                { id: 'plexus', parent: 'plexus', name: 'Plexus Conference', color: '#9b1b22', date: '2026-12-04', type: 'point' },
                 { id: 'forum', parent: 'forum', name: 'Biomedical Forum', color: '#fb923c', date: '2026-12-06', type: 'point' },
                 // Bridges events
                 { id: 'bridges-zurich', parent: 'bridges', name: 'Zurich Symposium', color: '#c9a962', date: '2026-03-15', type: 'point' },
@@ -16839,7 +16822,7 @@ President, Med&amp;X</textarea>
 
                     // Series: which lines to draw for the current filter.
                     const series = [];
-                    if (filter === 'all' || filter === 'plexus') series.push({ label: 'Plexus registrations', color: '#c2484e', map: plexusMap });
+                    if (filter === 'all' || filter === 'plexus') series.push({ label: 'Plexus registrations', color: '#9b1b22', map: plexusMap });
                     if (filter === 'all' || filter === 'accelerator') series.push({ label: 'Accelerator applications', color: '#b06a1f', map: accMap });
 
                     // Cumulative totals per series along the axis.
@@ -18294,7 +18277,7 @@ President, Med&amp;X</textarea>
                                 </button>
                             </div>
                             <div class="chat-message-header">
-                                <div class="chat-avatar" style="background: ${escapeHtml(msg.avatar_color || 'var(--accent-gold)')}; color: var(--bg-primary);">
+                                <div class="chat-avatar" style="background: ${(window.TeamChat && TeamChat.monogram) ? TeamChat.monogram(msg.sender_name).bg : '#ece7df'}; color: ${(window.TeamChat && TeamChat.monogram) ? TeamChat.monogram(msg.sender_name).fg : '#6b5f52'};">
                                     ${escapeHtml(initials)}
                                 </div>
                                 <span class="chat-sender">${senderName}</span>
@@ -19682,7 +19665,6 @@ President, Med&amp;X</textarea>
                     this.currentView = 'content-studio';
                     this.switchChatPanel('team');
                     if (typeof ContentStudio !== 'undefined') ContentStudio.init();
-                    this.loadSpatialShelf();
                 } else if (sectionId === 'announce') {
                     this.currentView = 'announce';
                     this.switchChatPanel('team');
@@ -21931,7 +21913,7 @@ President, Med&amp;X</textarea>
                     return `
                         <div class="chat-message">
                             <div class="chat-message-header">
-                                <div class="chat-avatar" style="background: ${escapeHtml(msg.avatar_color || 'var(--accent-gold)')}; color: var(--bg-primary); width: 24px; height: 24px; font-size: 10px;">
+                                <div class="chat-avatar" style="background: ${(window.TeamChat && TeamChat.monogram) ? TeamChat.monogram(msg.sender_name).bg : '#ece7df'}; color: ${(window.TeamChat && TeamChat.monogram) ? TeamChat.monogram(msg.sender_name).fg : '#6b5f52'}; width: 24px; height: 24px; font-size: 10px;">
                                     ${escapeHtml(initials)}
                                 </div>
                                 <span class="chat-sender" style="font-size: 12px;">${escapeHtml(msg.sender_name || 'Unknown')}</span>
@@ -23823,69 +23805,6 @@ President, Med&amp;X</textarea>
                     el.innerHTML = `<i class="fas fa-plane-departure" style="margin-right:8px;color:var(--accent-gold);"></i><strong>Speaker travel budget:</strong> ${parts.join(' + ')} <span style="color:var(--text-muted);font-size:12px;">(${d.quoted} of ${d.speaker_count} speakers with a chosen fare)</span>`;
                 } catch (e) { el.style.display = 'none'; }
             },
-
-            // ===== LIDAR / 3D SPATIAL ASSETS SHELF (Content Studio) =====
-            async loadSpatialShelf() {
-                const grid = document.getElementById('spatialShelfGrid');
-                if (!grid) return;
-                let d;
-                try { d = await this.api('/api/admin/spatial/assets'); }
-                catch (e) { grid.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Could not load the 3D shelf.</p>'; return; }
-                const assets = (d && d.assets) || [];
-                if (!assets.length) {
-                    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:28px;color:var(--text-muted);"><i class="fas fa-cube" style="font-size:28px;opacity:.5;"></i><p style="margin-top:10px;font-size:13px;">No scans yet. Upload a GLB or USDZ to see it here in 3D.</p></div>';
-                    return;
-                }
-                grid.innerHTML = assets.map(a => {
-                    const mb = a.bytes ? (a.bytes / 1024 / 1024).toFixed(1) + ' MB' : '';
-                    const attach = a.attach_target ? (a.attach_target === 'gala_venue' ? 'Gala venue' : (a.attach_target === 'auction_item' ? 'Auction item' : a.attach_target)) : '';
-                    return `<div class="card" style="padding:12px;">
-                        <model-viewer src="${this.escapeHtml(a.asset_url)}" ${a.kind === 'usdz' ? `ios-src="${this.escapeHtml(a.asset_url)}"` : ''} camera-controls auto-rotate ar ar-modes="webxr scene-viewer quick-look" shadow-intensity="1" style="width:100%;height:200px;background:var(--bg-secondary);border-radius:8px;" loading="lazy" reveal="auto"></model-viewer>
-                        <div style="margin-top:10px;font-weight:600;font-size:13px;">${this.escapeHtml(a.title || 'Scan')}</div>
-                        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${(a.kind || 'glb').toUpperCase()} &middot; ${mb}${attach ? ' &middot; attached: ' + this.escapeHtml(attach) : ''}</div>
-                        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
-                            <select id="spatialAttach_${a.id}" style="flex:1;min-width:110px;padding:6px;border-radius:6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:12px;">
-                                <option value="none" ${!a.attach_target ? 'selected' : ''}>Not attached</option>
-                                <option value="gala_venue" ${a.attach_target === 'gala_venue' ? 'selected' : ''}>Gala venue section</option>
-                                <option value="auction_item" ${a.attach_target === 'auction_item' ? 'selected' : ''}>Auction item</option>
-                            </select>
-                            <button class="btn btn-secondary" style="font-size:12px;" onclick="App.attachSpatialAsset('${a.id}')" title="Attach to a surface"><i class="fas fa-link"></i></button>
-                            <a class="btn btn-secondary" style="font-size:12px;" href="${this.escapeHtml(a.asset_url)}" download title="Download"><i class="fas fa-download"></i></a>
-                            <button class="btn" style="font-size:12px;color:#ef4444;" onclick="App.deleteSpatialAsset('${a.id}')" title="Delete"><i class="fas fa-trash"></i></button>
-                        </div>
-                    </div>`;
-                }).join('');
-            },
-            async uploadSpatialAsset(input) {
-                const file = input.files && input.files[0];
-                if (!file) return;
-                const msg = document.getElementById('spatialUploadMsg');
-                const show = (html, ok) => { if (msg) { msg.style.display = 'block'; msg.style.color = ok ? 'var(--success)' : '#ef4444'; msg.innerHTML = html; } };
-                if (file.size > 50 * 1024 * 1024) { show('That scan is over the 50 MB limit. Export a lighter GLB and try again.', false); input.value = ''; return; }
-                show('<i class="fas fa-spinner fa-spin"></i> Uploading ' + this.escapeHtml(file.name), true);
-                const fd = new FormData();
-                fd.append('file', file);
-                fd.append('title', file.name.replace(/\.[^.]+$/, ''));
-                try {
-                    const resp = await fetch('/api/admin/spatial/assets', { method: 'POST', headers: this.token ? { 'Authorization': 'Bearer ' + this.token } : {}, body: fd });
-                    const data = await resp.json().catch(() => ({}));
-                    if (!resp.ok) { show(this.escapeHtml(data.error || 'Upload failed.'), false); }
-                    else { show('<i class="fas fa-check"></i> Uploaded.', true); await this.loadSpatialShelf(); setTimeout(() => { if (msg) msg.style.display = 'none'; }, 2500); }
-                } catch (e) { show('Upload failed: ' + this.escapeHtml(e.message), false); }
-                input.value = '';
-            },
-            async attachSpatialAsset(id) {
-                const sel = document.getElementById('spatialAttach_' + id);
-                const target = sel ? sel.value : 'none';
-                try { const r = await this.api(`/api/admin/spatial/assets/${id}/attach`, { method: 'PUT', body: JSON.stringify({ attach_target: target }) }); Toast.success(r.note || 'Saved.'); await this.loadSpatialShelf(); }
-                catch (e) { Toast.error('Could not attach'); }
-            },
-            async deleteSpatialAsset(id) {
-                if (!(await adminConfirm({ destructive: true, title: "Delete this scan?", confirmText: "Delete" }))) return;
-                try { await this.api(`/api/admin/spatial/assets/${id}`, { method: 'DELETE' }); await this.loadSpatialShelf(); }
-                catch (e) { Toast.error('Could not delete'); }
-            },
-
 
             async saveSpeakerDetails(speakerId) {
                 const data = {
@@ -33657,7 +33576,7 @@ By applying to this program, I give the following consents:
                 }
 
                 const projectColors = {
-                    plexus: '#c2484e',
+                    plexus: '#9b1b22',
                     accelerator: '#b06a1f',
                     forum: '#fb923c',
                     bridges: '#c9a962'
@@ -34065,8 +33984,8 @@ By applying to this program, I give the following consents:
                     var S = new Date(sd + 'T00:00:00');
                     if (ed && ed !== sd) {
                         var E = new Date(ed + 'T00:00:00');
-                        if (E.getMonth() === S.getMonth() && E.getFullYear() === S.getFullYear()) return S.getDate() + '-' + E.getDate() + ' ' + mn[S.getMonth()] + ' ' + S.getFullYear();
-                        return S.getDate() + ' ' + mn[S.getMonth()] + ' ' + S.getFullYear() + ' - ' + E.getDate() + ' ' + mn[E.getMonth()] + ' ' + E.getFullYear();
+                        if (E.getMonth() === S.getMonth() && E.getFullYear() === S.getFullYear()) return S.getDate() + '–' + E.getDate() + ' ' + mn[S.getMonth()] + ' ' + S.getFullYear();
+                        return S.getDate() + ' ' + mn[S.getMonth()] + ' ' + S.getFullYear() + ' – ' + E.getDate() + ' ' + mn[E.getMonth()] + ' ' + E.getFullYear();
                     }
                     return S.getDate() + ' ' + mn[S.getMonth()] + ' ' + S.getFullYear();
                 } catch (e) { return sd; }
@@ -34121,13 +34040,13 @@ By applying to this program, I give the following consents:
                     chips = '<div class="ed-chips">'
                         + (e.talk_library_eligible ? '<span class="ed-chip"><i class="fas fa-clapperboard"></i> In Talk Library</span>' : '')
                         + (e.moments_tag ? '<span class="ed-chip gold"><i class="fas fa-images"></i> In Moments</span>' : '')
-                        + '<span class="ed-chip" style="background:rgba(148,163,184,.14);color:var(--text-secondary);border-color:var(--border);"><i class="fas fa-lock"></i> ' + (st.registrations || 0) + ' registrations preserved</span>'
+                        + '<span class="ed-chip" style="background:rgba(148,163,184,.14);color:var(--text-secondary);border-color:var(--border);"><i class="fas fa-lock"></i> ' + (st.registrations || 0) + ' registration' + ((st.registrations || 0) === 1 ? '' : 's') + ' preserved</span>'
                         + '</div>';
                 }
                 var mini = '<div class="ed-mini">'
-                    + '<span><b>' + (st.registrations || 0) + '</b> registrations</span>'
-                    + '<span><b>' + (st.tickets_valid || 0) + '</b> tickets valid</span>'
-                    + (p.uses_conference ? '<span><b>' + (st.sessions || 0) + '</b> sessions</span>' : '')
+                    + '<span><b>' + (st.registrations || 0) + '</b> registration' + ((st.registrations || 0) === 1 ? '' : 's') + '</span>'
+                    + '<span><b>' + (st.tickets_valid || 0) + '</b> ticket' + ((st.tickets_valid || 0) === 1 ? '' : 's') + ' valid</span>'
+                    + (p.uses_conference ? '<span><b>' + (st.sessions || 0) + '</b> session' + ((st.sessions || 0) === 1 ? '' : 's') + '</span>' : '')
                     + '</div>';
                 var acts = '';
                 if (isActive) {
@@ -39968,7 +39887,7 @@ By applying to this program, I give the following consents:
                         <td style="padding: 12px 16px; font-size: 13px; color: var(--text-secondary); max-width: 220px;">${dietaryText ? '<span title="' + escapeHtml(dietaryText) + '"><i class="fas fa-utensils" style="color:#c9a962; margin-right:6px;"></i>' + escapeHtml(dietaryText) + '</span>' : '<span style="color:var(--text-muted);">—</span>'}</td>
                         <td style="padding: 12px 16px; font-size: 13px;">${this.mealChip(r)}</td>
                         <td style="padding: 12px 16px;">
-                            <span style="background: ${statusColor}22; color: ${statusColor}; padding: 2px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; text-transform: capitalize;">${effectiveStatus}</span>
+                            <span style="background: ${statusColor}22; color: ${statusColor}; padding: 2px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; text-transform: capitalize;">${String(effectiveStatus || 'pending').replace(/_/g, ' ')}</span>
                         </td>
                         <td style="padding: 12px 16px;">${paymentBadge}</td>
                         <td style="padding: 12px 16px; text-align: center; white-space:nowrap;">
@@ -43653,7 +43572,7 @@ By applying to this program, I give the following consents:
                 .cc-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 16px; }
                 .cc-btn { border: none; border-radius: 9px; padding: 11px 18px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-family: inherit; }
                 .cc-btn.primary { background: var(--accent-primary); color: #fff; }
-                .cc-btn.gold { background: linear-gradient(135deg,#1f7a44,#155e33); color: #fff; }
+                .cc-btn.gold { background: linear-gradient(135deg,#3b5a7c,#355070); color: #fff; }
                 .cc-btn.sec { background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border); }
                 .cc-btn:disabled { opacity: .5; cursor: default; }
                 .cc-field { margin-bottom: 15px; }
@@ -46673,7 +46592,7 @@ By applying to this program, I give the following consents:
                 +'.ci-fld textarea{resize:vertical;min-height:78px;line-height:1.5;}'
                 +'.ci-hint{font-size:11px;color:var(--text-muted);margin-top:5px;line-height:1.5;}'
                 +'.ci-lang{display:flex;gap:8px;}'
-                +'.ci-lang button{flex:1;border:2px solid var(--border);background:var(--bg-primary);color:var(--text-secondary);border-radius:9px;padding:9px 6px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;}'
+                +'.ci-lang button{flex:1;border:2px solid var(--border);background:var(--bg-primary);color:var(--text-secondary);border-radius:9px;padding:9px 6px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;text-transform:none;}'
                 +'.ci-lang button.on{border-color:#c9a227;color:var(--text-primary);box-shadow:0 3px 12px rgba(201,162,39,.22);}'
                 +'.ci-canvaswrap{width:100%;max-width:520px;border-radius:6px;overflow:hidden;box-shadow:0 14px 44px rgba(9,14,24,.18);background:#FDFCF9;border:1px solid var(--border);}'
                 +'.ci-canvaswrap canvas{width:100%;height:auto;display:block;}'

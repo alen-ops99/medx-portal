@@ -18,7 +18,7 @@
     <link rel="icon" type="image/png" href="/assets/favicon-x.png">
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#15110f">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Med&amp;X Check-in">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -57526,6 +57526,13 @@ button,input,select,textarea{font-family:var(--sans);}
             'set.installApp':     {en:'Install app', hr:'Instalirajte aplikaciju'},
             'set.installAppDesc': {en:'Add Med&X to your home screen for faster access to your tickets and schedule. Works on iPhone, Android, and desktop.', hr:'Dodajte Med&X na početni zaslon za brži pristup ulaznicama i rasporedu. Radi na iPhoneu, Androidu i računalu.'},
             'set.installBtn':     {en:'Install Med&X', hr:'Instalirajte Med&X'},
+            // --- PWA install banner + add-to-home-screen prompt ---
+            'pwa.installTitle':   {en:'Install Med&X', hr:'Instalirajte Med&X'},
+            'pwa.installDesc':    {en:'Add to home screen for the best experience', hr:'Dodajte na početni zaslon za najbolje iskustvo'},
+            'pwa.notNow':         {en:'Not now', hr:'Ne sada'},
+            'pwa.installBtn':     {en:'Install', hr:'Instalirajte'},
+            'pwa.a2hsTitle':      {en:'Add Med&X to your home screen', hr:'Dodajte Med&X na početni zaslon'},
+            'pwa.a2hsDesc':       {en:'Your tickets and schedule, always within reach.', hr:'Vaše ulaznice i raspored, uvijek nadohvat ruke.'},
             'set.theme':          {en:'Theme', hr:'Tema'},
             'set.themeDesc':      {en:'Customize the look and feel of your Med&X experience.', hr:'Prilagodite izgled i dojam svog Med&X iskustva.'},
             'set.themeLight':     {en:'Light', hr:'Svijetla'},
@@ -57771,6 +57778,8 @@ button,input,select,textarea{font-family:var(--sans);}
             'talk.headerSub':    {en:'Keynotes and sessions from past Plexus conferences, on demand', hr:'Plenarna izlaganja i sesije s proteklih konferencija Plexus, na zahtjev'},
             'talk.loading':      {en:'Loading the talk library…', hr:'Učitavanje knjižnice predavanja…'},
             'talk.loadError':    {en:'We could not load the talk library right now. Please try again shortly.', hr:'Trenutačno ne možemo učitati knjižnicu predavanja. Pokušajte ponovno za koji trenutak.'},
+            'talk.emptyTitle':   {en:'No recordings yet', hr:'Još nema snimaka'},
+            'talk.emptyBody':    {en:'Talk recordings will appear here as soon as they become available for your account.', hr:'Snimke predavanja pojavit će se ovdje čim postanu dostupne za vaš račun.'},
             'talk.allSessions':  {en:'All sessions', hr:'Sve sesije'},
             'talk.sampleSub':    {en:'Sample talks — public sessions standing in until Plexus recordings publish', hr:'Ogledna predavanja — javne sesije koje stoje ovdje dok se ne objave snimke s Plexusa'},
             'talk.onDemandSub':  {en:'On-demand recordings from the meeting', hr:'Snimke sa skupa, dostupne na zahtjev'},
@@ -58479,12 +58488,12 @@ button,input,select,textarea{font-family:var(--sans);}
                 <i class="fas fa-mobile-alt"></i>
             </div>
             <div class="pwa-install-content">
-                <h4>Install Med&X</h4>
-                <p>Add to home screen for the best experience</p>
+                <h4 data-i18n="pwa.installTitle">Install Med&X</h4>
+                <p data-i18n="pwa.installDesc">Add to home screen for the best experience</p>
             </div>
             <div class="pwa-install-actions">
-                <button class="pwa-install-btn secondary" onclick="PWA.dismissInstall()">Not now</button>
-                <button class="pwa-install-btn primary" onclick="PWA.install()">Install</button>
+                <button class="pwa-install-btn secondary" onclick="PWA.dismissInstall()" data-i18n="pwa.notNow">Not now</button>
+                <button class="pwa-install-btn primary" onclick="PWA.install()" data-i18n="pwa.installBtn">Install</button>
             </div>
         </div>
 
@@ -58920,9 +58929,6 @@ button,input,select,textarea{font-family:var(--sans);}
 
             <p class="auth-link" style="margin-top: 24px;">
                 <span data-i18n="login.noAccount">Don't have an account?</span> <a href="#" onclick="UserPortal.switchToRegister(); return false;" data-i18n="login.createOne">Create one</a>
-            </p>
-            <p class="auth-link" style="margin-top: 8px;">
-                <a href="#" onclick="UserPortal.openForgotPassword(); return false;" data-i18n="login.forgotLink">Forgot your password?</a>
             </p>
         </div>
     </div>
@@ -64133,7 +64139,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                             </div>
                             <div class="px-city-card" data-id="cathedral">
-                                <div class="px-city-card-image"><img src="https://images.unsplash.com/photo-1583425423320-c2d471e52b0b?w=600&h=400&fit=crop" alt="Zagreb Cathedral"></div>
+                                <div class="px-city-card-image"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Main_fa%C3%A7ade_and_spires_%28108_m.%29_-_Zagreb_Cathedral_%2813023622635%29.jpg/960px-Main_fa%C3%A7ade_and_spires_%28108_m.%29_-_Zagreb_Cathedral_%2813023622635%29.jpg" alt="Zagreb Cathedral"></div>
                                 <div class="px-city-card-content">
                                     <h3>Zagreb Cathedral</h3>
                                     <p>The tallest building in Croatia with its iconic twin spires. A stunning example of Neo-Gothic architecture that dominates the city skyline.</p>
@@ -64149,7 +64155,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </div>
                             </div>
                             <div class="px-city-card" data-id="upper-town">
-                                <div class="px-city-card-image"><img src="https://images.unsplash.com/photo-1584974292709-03ff26549b8a?w=600&h=400&fit=crop" alt="Upper Town (Gornji Grad)"></div>
+                                <div class="px-city-card-image"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Gornji_Grad_%28Upper_Town%29_%2813023321645%29.jpg/960px-Gornji_Grad_%28Upper_Town%29_%2813023321645%29.jpg" alt="Upper Town (Gornji Grad)"></div>
                                 <div class="px-city-card-content">
                                     <h3>Upper Town (Gornji Grad)</h3>
                                     <p>The historic heart of Zagreb with cobblestone streets, the Stone Gate, Lotrscak Tower, and stunning panoramic views of the city below.</p>
@@ -125054,9 +125060,9 @@ By applying to this program, I give the following consents:
                 this.exploreZagreb = [
                     { id: 'ban-jelacic', title: 'Ban Jelacic Square', description: 'The central square of Zagreb, a vibrant meeting point surrounded by cafes, shops, and historic architecture. The heart of the city since 1850.', imageUrl: 'https://images.unsplash.com/photo-1558271736-cd043ef2e855?w=600&h=400&fit=crop', category: 'Square', metaIcon1: 'fas fa-map-marker-alt', metaText1: 'City Center', metaIcon2: 'fas fa-walking', metaText2: '5 min from venue' },
                     { id: 'st-marks', title: "St. Mark's Church", description: 'Famous for its colorful tiled roof displaying the coats of arms of Croatia, Dalmatia, Slavonia, and Zagreb. A Gothic masterpiece in the Upper Town.', imageUrl: 'https://images.unsplash.com/photo-1592906209472-a36b1f3782ef?w=600&h=400&fit=crop', category: 'Landmark', metaIcon1: 'fas fa-landmark', metaText1: 'Upper Town', metaIcon2: 'fas fa-camera', metaText2: 'Must-see' },
-                    { id: 'cathedral', title: 'Zagreb Cathedral', description: 'The tallest building in Croatia with its iconic twin spires. A stunning example of Neo-Gothic architecture that dominates the city skyline.', imageUrl: 'https://images.unsplash.com/photo-1583425423320-c2d471e52b0b?w=600&h=400&fit=crop', category: 'Landmark', metaIcon1: 'fas fa-church', metaText1: 'Kaptol', metaIcon2: 'fas fa-clock', metaText2: 'Open daily' },
+                    { id: 'cathedral', title: 'Zagreb Cathedral', description: 'The tallest building in Croatia with its iconic twin spires. A stunning example of Neo-Gothic architecture that dominates the city skyline.', imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Main_fa%C3%A7ade_and_spires_%28108_m.%29_-_Zagreb_Cathedral_%2813023622635%29.jpg/960px-Main_fa%C3%A7ade_and_spires_%28108_m.%29_-_Zagreb_Cathedral_%2813023622635%29.jpg', category: 'Landmark', metaIcon1: 'fas fa-church', metaText1: 'Kaptol', metaIcon2: 'fas fa-clock', metaText2: 'Open daily' },
                     { id: 'dolac', title: 'Dolac Market', description: 'Zagreb\'s most famous open-air market, known as the \'Belly of Zagreb\'. Fresh produce, local cheeses, and traditional Croatian delicacies.', imageUrl: 'https://images.unsplash.com/photo-1533900298318-6b8da08a523e?w=600&h=400&fit=crop', category: 'Market', metaIcon1: 'fas fa-shopping-basket', metaText1: 'Local Market', metaIcon2: 'fas fa-utensils', metaText2: 'Food & Culture' },
-                    { id: 'upper-town', title: 'Upper Town (Gornji Grad)', description: 'The historic heart of Zagreb with cobblestone streets, the Stone Gate, Lotrscak Tower, and stunning panoramic views of the city below.', imageUrl: 'https://images.unsplash.com/photo-1584974292709-03ff26549b8a?w=600&h=400&fit=crop', category: 'Historic', metaIcon1: 'fas fa-mountain', metaText1: 'Historic District', metaIcon2: 'fas fa-walking', metaText2: '15 min walk' },
+                    { id: 'upper-town', title: 'Upper Town (Gornji Grad)', description: 'The historic heart of Zagreb with cobblestone streets, the Stone Gate, Lotrscak Tower, and stunning panoramic views of the city below.', imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Gornji_Grad_%28Upper_Town%29_%2813023321645%29.jpg/960px-Gornji_Grad_%28Upper_Town%29_%2813023321645%29.jpg', category: 'Historic', metaIcon1: 'fas fa-mountain', metaText1: 'Historic District', metaIcon2: 'fas fa-walking', metaText2: '15 min walk' },
                     { id: 'museum-broken', title: 'Museum of Broken Relationships', description: 'One of Zagreb\'s most unique attractions \u2014 a museum dedicated to failed love stories and their mementos. Quirky, emotional, and unforgettable.', imageUrl: 'https://images.unsplash.com/photo-1592906209472-a36b1f3782ef?w=600&h=400&fit=crop', category: 'Museum', metaIcon1: 'fas fa-heart-broken', metaText1: 'Unique Museum', metaIcon2: 'fas fa-star', metaText2: 'Top Rated' },
                     { id: 'jarun-lake', title: 'Jarun Lake', description: 'A beautiful recreational area perfect for jogging, cycling, or relaxing by the water. Popular with locals for morning exercise and evening strolls.', imageUrl: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=600&h=400&fit=crop', category: 'Recreation', metaIcon1: 'fas fa-water', metaText1: 'Recreation', metaIcon2: 'fas fa-bicycle', metaText2: 'Outdoor' },
                     { id: 'tkalciceva', title: 'Tkalciceva Street', description: 'Zagreb\'s most popular pedestrian street, lined with cafes, bars, and restaurants. The perfect place to experience Zagreb\'s famous cafe culture.', imageUrl: 'https://images.unsplash.com/photo-1555921015-5532091f6026?w=600&h=400&fit=crop', category: 'Street', metaIcon1: 'fas fa-coffee', metaText1: 'Cafe Street', metaIcon2: 'fas fa-glass-cheers', metaText2: 'Nightlife' }
@@ -126378,7 +126384,15 @@ By applying to this program, I give the following consents:
                     this.render();
                 } catch (e) {
                     console.error('[TalkLibrary] load failed:', e);
-                    if (grid) grid.innerHTML = MedXState.render({ gridSpan: true, tone: 'error', icon: 'fa-cloud-arrow-down', body: TalkLibrary._t('talk.loadError'), actionLabel: TalkLibrary._t('state.retry'), actionOnclick: 'TalkLibrary.init()' });
+                    if (grid) {
+                        if (e && (e.status === 401 || e.status === 403)) {
+                            // Not an outage — this session simply has no library access yet.
+                            // Show a calm empty state instead of a red error + retry button.
+                            grid.innerHTML = MedXState.render({ gridSpan: true, icon: 'fa-film', title: TalkLibrary._t('talk.emptyTitle'), body: TalkLibrary._t('talk.emptyBody') });
+                        } else {
+                            grid.innerHTML = MedXState.render({ gridSpan: true, tone: 'error', icon: 'fa-cloud-arrow-down', body: TalkLibrary._t('talk.loadError'), actionLabel: TalkLibrary._t('state.retry'), actionOnclick: 'TalkLibrary.init()' });
+                        }
+                    }
                 }
             },
 
@@ -132276,9 +132290,10 @@ By applying to this program, I give the following consents:
                 var b = document.createElement('div');
                 b.id = 'medxInstallBanner';
                 b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;max-width:520px;margin:0 auto;background:#1d1a17;color:#fff;border:1px solid rgba(155,27,34,0.5);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 30px rgba(0,0,0,0.4);font-family:system-ui,-apple-system,sans-serif;';
+                var A2T = function (k, fallback) { try { var v = (window.MedXI18n && MedXI18n.t) ? MedXI18n.t(k) : k; return (v && v !== k) ? v : fallback; } catch (e) { return fallback; } };
                 b.innerHTML = '<div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--gold),#b49650);display:flex;align-items:center;justify-content:center;flex-shrink:0;color: var(--ink);font-size:18px;">🎟️</div>'
-                    + '<div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:14px;">Add Med&X to your home screen</div><div style="font-size:12px;color: var(--muted);">Your tickets and schedule, always within reach.</div></div>'
-                    + '<button id="medxInstallGo" style="background:#9b1b22;color:#fff;border:none;border-radius:9px;padding:9px 14px;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0;">Install</button>'
+                    + '<div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:14px;">' + A2T('pwa.a2hsTitle', 'Add Med&X to your home screen') + '</div><div style="font-size:12px;color: var(--muted);">' + A2T('pwa.a2hsDesc', 'Your tickets and schedule, always within reach.') + '</div></div>'
+                    + '<button id="medxInstallGo" style="background:#9b1b22;color:#fff;border:none;border-radius:9px;padding:9px 14px;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0;">' + A2T('pwa.installBtn', 'Install') + '</button>'
                     + '<button id="medxInstallX" aria-label="Dismiss" style="background:transparent;border:none;color: var(--muted);font-size:18px;cursor:pointer;flex-shrink:0;padding:4px 6px;">×</button>';
                 document.body.appendChild(b);
                 document.getElementById('medxInstallX').onclick = function () { b.remove(); localStorage.setItem('medx_install_dismissed', '1'); };
