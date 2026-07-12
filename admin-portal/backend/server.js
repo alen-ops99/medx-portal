@@ -9834,8 +9834,11 @@ async function initializeApp() {
     // ========================================
     // SEED CONTACT DIRECTORY
     // ========================================
+    // One-time seed guarded by an app_state marker, NOT table emptiness: the owner purged
+    // the demo contacts from prod (2026-07-12) and an intentionally empty table must stay empty.
+    const contactsSeedDone = query.get("SELECT value FROM app_state WHERE key = 'contacts_demo_seed_done'");
     let contactsExist = query.get("SELECT id FROM contacts LIMIT 1");
-    if (!contactsExist) {
+    if (!contactsExist && !contactsSeedDone) {
         const contacts = [
             // Sponsors
             { first_name: 'James', last_name: 'Wilson', email: 'james.wilson@pharmacorp.com', phone: '+44 20 7123 4567', organization: 'Pharma Corp Ltd', position: 'Partnerships Director', type: 'sponsor', projects: 'plexus', tags: 'gold,confirmed,2026', city: 'London', country: 'UK', notes: 'Gold sponsor 2026. Very responsive. Prefers email communication.' },
@@ -9876,6 +9879,7 @@ async function initializeApp() {
                 [uuidv4(), c.first_name, c.last_name, c.email, c.phone, c.organization, c.position, c.type, c.projects, c.tags, c.city, c.country, c.linkedin || null, c.notes, c.is_favorite || 0]);
         });
 
+        db.run("INSERT OR REPLACE INTO app_state (key, value, updated_at) VALUES ('contacts_demo_seed_done', '1', ?)", [new Date().toISOString()]);
         saveDb();
         console.log('Contact directory seeded');
     }
